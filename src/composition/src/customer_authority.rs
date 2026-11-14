@@ -1,0 +1,1291 @@
+//! Native Customer Authority customer-access assembly. Current Account/Holding
+//! authority remains with the selected coordinator; owner ports supply the
+//! customer access workspace, detail, request and change facts.
+use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::capability_decision::PgCapabilityDecisionReader;
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, current_package_catalogue,
+};
+use erpx_server_customer_authority::public::access::PgCustomerAccess;
+use erpx_server_customer_authority::public::access::{
+    AccessActor, AccessChange, AccessRequest, access_detail, access_workspace, change_access,
+    request_access,
+};
+use erpx_server_customer_authority::public::access_http::{
+    CustomerAccessHttpBackend, CustomerAccessHttpCommand, CustomerAccessHttpFuture,
+    CustomerAccessHttpRequest, CustomerAccessHttpResponse, CustomerAccessHttpTarget,
+};
+use erpx_server_customer_authority::public::duplicates::{
+    DuplicateChange, DuplicateReviewRequest, PgCustomerDuplicateReview, change_duplicate_review,
+    duplicate_review_detail, duplicate_review_workspace, request_duplicate_review,
+};
+use erpx_server_customer_authority::public::duplicates_http::{
+    CustomerDuplicateHttpBackend, CustomerDuplicateHttpCommand, CustomerDuplicateHttpFuture,
+    CustomerDuplicateHttpRequest, CustomerDuplicateHttpResponse, CustomerDuplicateHttpTarget,
+};
+use erpx_server_customer_authority::public::identity::{
+    IdentityChange, IdentityRequest, PgCustomerIdentity, change_customer_identity, identity_detail,
+    identity_workspace, request_customer_identity_change,
+};
+use erpx_server_customer_authority::public::identity_http::{
+    CustomerIdentityHttpBackend, CustomerIdentityHttpCommand, CustomerIdentityHttpFuture,
+    CustomerIdentityHttpRequest, CustomerIdentityHttpResponse, CustomerIdentityHttpTarget,
+};
+use erpx_server_customer_authority::public::portal_invitations::{
+    InvitationAction, InvitationCommand, PgPortalInvitation, invitation_history, issue_invitation,
+};
+use erpx_server_identity_access::public::{
+    AccountPolicy, DeviceProof, RequestAudience,
+    account_inbound_http::parse_inbound_account_request,
+    effective_authority::{
+        AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
+        WorkAuthorizationRequest,
+    },
+    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+};
+use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, TimestampMillis,
+};
+use serde_json::Value;
+use sqlx::PgConnection;
+use std::sync::Arc;
+
+type Error = PgTransactionError<BusinessError>;
+
+fn scope() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "CUSTOMER_AUTHORITY_SCOPE_REQUIRED",
+        "Choose the current authorized Company workspace.",
+    )
+}
+
+fn not_found() -> BusinessError {
+    BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+fn unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "CUSTOMER_AUTHORITY_UNAVAILABLE",
+        "The Customer Authority workspace is unavailable.",
+    )
+}
+
+fn invalid_request() -> BusinessError {
+    erpx_server_customer_authority::public::access::request_invalid()
+}
+
+fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        PgTransactionError::Persistence(_) => unavailable(),
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CustomerAuthoritySources;
+
+impl HoldingWorkSourcePreparation for CustomerAuthoritySources {
+    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[derive(Clone)]
+pub struct CustomerAuthorityConfiguration {
+    holding: HoldingId,
+    company: CompanyId,
+}
+
+impl CustomerAuthorityConfiguration {
+    pub fn new(holding: HoldingId, company: CompanyId) -> Self {
+        Self { holding, company }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        &self.company
+    }
+}
+
+fn access_actor(current: &AuthorizedWorkContext) -> Result<AccessActor, BusinessError> {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    Ok(AccessActor {
+        user_id: current.user_id().clone(),
+        holding_id: current.holding_id().clone(),
+        company_id: workspace.company_id.clone(),
+        branch_id: workspace.branch_id.clone(),
+        department_id: workspace.department_id.clone(),
+        assignment_id: assignment.id.clone(),
+        role: Some(assignment.role.clone()),
+        authority_revision: Some(selected.revision()),
+        assignment_version: Some(assignment.version),
+        permissions: current.command_iam_metadata().permissions.clone(),
+        expires_at: current.expires_at(),
+    })
+}
+
+fn context(current: &AuthorizedWorkContext) -> Value {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    serde_json::json!({
+        "userId": current.user_id().as_str(),
+        "holdingId": current.holding_id().as_str(),
+        "companyId": workspace.company_id.as_str(),
+        "branchId": workspace.branch_id.as_ref().map(|value| value.as_str()),
+        "departmentId": workspace.department_id.as_ref().map(|value| value.as_str()),
+        "branchSlug": workspace.branch_slug,
+        "departmentSlug": workspace.department_slug,
+        "assignmentId": assignment.id.as_str(),
+        "assignmentVersion": assignment.version,
+        "revision": selected.revision(),
+        "role": assignment.role,
+        "assignmentScopeKind": match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        },
+        "modules": current.modules(),
+        "permissions": current.command_iam_metadata().permissions,
+        "expiresAt": current.expires_at(),
+    })
+}
+
+pub struct CustomerAuthorityService<C> {
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    configuration: CustomerAuthorityConfiguration,
+    clock: Arc<C>,
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: CustomerAuthorityConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        self.configuration.company()
+    }
+
+    fn access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "commerce.read".into(),
+            module: Some("customer_authority".into()),
+            destination: "customer_authority".into(),
+            api: true,
+        }
+    }
+
+    fn input<Input>(
+        &self,
+        input: Input,
+    ) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        }
+    }
+
+    pub async fn workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerAccess::new(connection);
+                        let data = access_workspace(&mut repository, &actor, now).await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn detail<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerAccess::new(connection);
+                        let data = access_detail(&mut repository, &actor, &id, now).await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn request<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command_input: AccessRequest,
+        idempotency_key: String,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerAccess::new(connection);
+                        let data =
+                            request_access(&mut repository, &actor, &key, &command_input, now)
+                                .await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn change<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        binding_id: String,
+        command_input: AccessChange,
+        idempotency_key: String,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let binding_id = binding_id.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerAccess::new(connection);
+                        let data = change_access(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &binding_id,
+                            &command_input,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn duplicates_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data = duplicate_review_workspace(&mut repository, &actor, now).await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn duplicates_detail<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        review_id: String,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let review_id = review_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data =
+                            duplicate_review_detail(&mut repository, &actor, &review_id, now)
+                                .await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn duplicates_request<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command_input: DuplicateReviewRequest,
+        idempotency_key: String,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data = request_duplicate_review(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &command_input,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn duplicates_change<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        review_id: String,
+        command_input: DuplicateChange,
+        idempotency_key: String,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let review_id = review_id.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data = change_duplicate_review(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &review_id,
+                            &command_input,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn identity_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<CustomerIdentityHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerIdentity::new(connection);
+                        let data = identity_workspace(&mut repository, &actor, now).await?;
+                        Ok(CustomerIdentityHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn identity_detail<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        change_id: String,
+    ) -> Result<CustomerIdentityHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let change_id = change_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerIdentity::new(connection);
+                        let data =
+                            identity_detail(&mut repository, &actor, &change_id, now).await?;
+                        Ok(CustomerIdentityHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn identity_request<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command_input: IdentityRequest,
+        idempotency_key: String,
+    ) -> Result<CustomerIdentityHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerIdentity::new(connection);
+                        let data = request_customer_identity_change(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &command_input,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerIdentityHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn identity_change<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        change_id: String,
+        command_input: IdentityChange,
+        idempotency_key: String,
+    ) -> Result<CustomerIdentityHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let change_id = change_id.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerIdentity::new(connection);
+                        let data = change_customer_identity(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &change_id,
+                            &command_input,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerIdentityHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+pub struct CustomerAuthorityBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<CustomerAuthorityService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerAuthorityBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<CustomerAuthorityService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+fn duplicate_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "VALIDATION_FAILED",
+        "Provide a complete duplicate review request.",
+    )
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerDuplicateHttpBackend
+    for CustomerAuthorityBackend<C>
+{
+    fn execute<'a>(
+        &'a self,
+        request: CustomerDuplicateHttpRequest<'a>,
+    ) -> CustomerDuplicateHttpFuture<'a, CustomerDuplicateHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match request.command {
+                CustomerDuplicateHttpCommand::Workspace => self
+                    .service
+                    .duplicates_workspace(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                CustomerDuplicateHttpCommand::Detail { review_id } => self
+                    .service
+                    .duplicates_detail(request.host, proof, move || Ok(selection), review_id)
+                    .await
+                    .map_err(business),
+                CustomerDuplicateHttpCommand::Request {
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: DuplicateReviewRequest =
+                        serde_json::from_value(body).map_err(|_| duplicate_invalid())?;
+                    self.service
+                        .duplicates_request(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+                CustomerDuplicateHttpCommand::Change {
+                    review_id,
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: DuplicateChange =
+                        serde_json::from_value(body).map_err(|_| duplicate_invalid())?;
+                    self.service
+                        .duplicates_change(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            review_id,
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+            }
+        })
+    }
+}
+
+fn identity_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "VALIDATION_FAILED",
+        "Provide a complete customer identity request.",
+    )
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerIdentityHttpBackend for CustomerAuthorityBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: CustomerIdentityHttpRequest<'a>,
+    ) -> CustomerIdentityHttpFuture<'a, CustomerIdentityHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match request.command {
+                CustomerIdentityHttpCommand::Workspace => self
+                    .service
+                    .identity_workspace(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                CustomerIdentityHttpCommand::Detail { change_id } => self
+                    .service
+                    .identity_detail(request.host, proof, move || Ok(selection), change_id)
+                    .await
+                    .map_err(business),
+                CustomerIdentityHttpCommand::Request {
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: IdentityRequest =
+                        serde_json::from_value(body).map_err(|_| identity_invalid())?;
+                    self.service
+                        .identity_request(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+                CustomerIdentityHttpCommand::Change {
+                    change_id,
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: IdentityChange =
+                        serde_json::from_value(body).map_err(|_| identity_invalid())?;
+                    self.service
+                        .identity_change(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            change_id,
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+            }
+        })
+    }
+}
+
+fn package_enforcement_mode() -> Result<PackageEnforcementMode, BusinessError> {
+    match std::env::var("ERPX_COMMERCE_PACKAGE_ENFORCEMENT")
+        .unwrap_or_else(|_| "disabled".to_owned())
+        .as_str()
+    {
+        "disabled" => Ok(PackageEnforcementMode::Disabled),
+        "shadow" => Ok(PackageEnforcementMode::Shadow),
+        "enforced" => {
+            if std::env::var("ERPX_ENVIRONMENT").ok().as_deref() != Some("local") {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "PACKAGE_ENFORCEMENT_ENVIRONMENT",
+                    "Package enforcement is unavailable in this environment.",
+                ));
+            }
+            Ok(PackageEnforcementMode::Enforced)
+        }
+        _ => Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "PACKAGE_ENFORCEMENT_CONFIGURATION",
+            "Package enforcement is unavailable.",
+        )),
+    }
+}
+
+/// Retained `sales.portal` purchase purpose plus the Customer Authority release
+/// gate. Invite prepares new work; resend settles an existing invitation.
+async fn require_invitation_entitlement(
+    connection: &mut PgConnection,
+    actor: &AccessActor,
+    action: InvitationAction,
+    now: i64,
+) -> Result<(), BusinessError> {
+    let mode = package_enforcement_mode()?;
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(());
+    }
+    if std::env::var("NODE_ENV").ok().as_deref() == Some("production")
+        && !sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM engineering_verification_contexts e \
+             WHERE e.company_id=$1 AND e.enabled \
+             AND e.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)",
+        )
+        .bind(actor.company_id.as_str())
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?
+    {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "FEATURE_COMING_SOON",
+            "Customer access is not released for this Company.",
+        ));
+    }
+    let purpose = match action {
+        InvitationAction::Invite => CapabilityPurpose::NewWork,
+        InvitationAction::Resend => CapabilityPurpose::SettleExisting,
+    };
+    let catalogue = current_package_catalogue()?;
+    PgCapabilityDecisionReader::new(actor.company_id.clone(), connection, &catalogue)
+        .require("sales.portal", purpose, mode, TimestampMillis::new(now))
+        .await
+        .map(|_| ())
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => unavailable(),
+        })
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
+    /// Portal invitation issue/resend for one approved binding.
+    pub async fn invitation<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        binding_id: String,
+        holding_slug: String,
+        command_input: InvitationCommand,
+        idempotency_key: String,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let binding_id = binding_id.clone();
+                    let holding_slug = holding_slug.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        current.require_permission("commerce.sales")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let secret = std::env::var("BETTER_AUTH_SECRET")
+                            .map_err(|_| {
+                                erpx_server_shared::public::BusinessError::new(
+                                    erpx_server_shared::public::FailureKind::Unavailable,
+                                    "INVITATION_SIGNING_SECRET_UNAVAILABLE",
+                                    "The invitation signing secret is unavailable.",
+                                )
+                            })
+                            .map_err(PgTransactionError::Business)?;
+                        require_invitation_entitlement(
+                            connection,
+                            &actor,
+                            command_input.action,
+                            now,
+                        )
+                        .await?;
+                        let mut repository = PgPortalInvitation::new(connection);
+                        let data = issue_invitation(
+                            &mut repository,
+                            &actor,
+                            &binding_id,
+                            &idempotency_key,
+                            command_input,
+                            &secret,
+                            &holding_slug,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Immutable Portal invitation history for one binding.
+    pub async fn invitation_history<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        binding_id: String,
+    ) -> Result<CustomerAccessHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let binding_id = binding_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let mut repository = PgPortalInvitation::new(connection);
+                        let history = invitation_history(&mut repository, &binding_id).await?;
+                        Ok(CustomerAccessHttpResponse {
+                            data: history.to_wire(),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerAccessHttpBackend for CustomerAuthorityBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: CustomerAccessHttpRequest<'a>,
+    ) -> CustomerAccessHttpFuture<'a, CustomerAccessHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match request.command {
+                CustomerAccessHttpCommand::Workspace => self
+                    .service
+                    .workspace(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                CustomerAccessHttpCommand::Detail { binding_id } => self
+                    .service
+                    .detail(request.host, proof, move || Ok(selection), binding_id)
+                    .await
+                    .map_err(business),
+                CustomerAccessHttpCommand::Request {
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: AccessRequest =
+                        serde_json::from_value(body).map_err(|_| invalid_request())?;
+                    self.service
+                        .request(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+                CustomerAccessHttpCommand::Change {
+                    binding_id,
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: AccessChange =
+                        serde_json::from_value(body).map_err(|_| invalid_request())?;
+                    self.service
+                        .change(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            binding_id,
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+                CustomerAccessHttpCommand::Invitation {
+                    binding_id,
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: InvitationCommand = InvitationCommand::parse(&body)
+                        .map_err(PgTransactionError::Business)
+                        .map_err(|error: PgTransactionError<BusinessError>| match error {
+                            PgTransactionError::Business(error) => error,
+                            PgTransactionError::Persistence(_) => unavailable(),
+                        })?;
+                    let holding_slug = request.holding_slug.to_owned();
+                    self.service
+                        .invitation(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            binding_id,
+                            holding_slug,
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+                CustomerAccessHttpCommand::InvitationHistory { binding_id } => self
+                    .service
+                    .invitation_history(request.host, proof, move || Ok(selection), binding_id)
+                    .await
+                    .map_err(business),
+            }
+        })
+    }
+}
+
+// Retain the router constructor in feature-specific builds.
+#[allow(dead_code)]
+fn _router(targets: Vec<CustomerAccessHttpTarget>) -> Result<axum::Router, BusinessError> {
+    erpx_server_customer_authority::public::access_http::customer_access_http_router(targets)
+}

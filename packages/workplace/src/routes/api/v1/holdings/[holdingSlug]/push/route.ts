@@ -8,7 +8,7 @@ import { pushSettings, registerPush, removePushDevice, savePushPreferences } fro
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { frontAppForHost, frontPushLandingPath } from "@erpx/feature-shared/lib/front-host";
 import { frontCompanyBrand } from "@erpx/server-work_projection/public/front-app";
-import {holdingHostForHost,holdingUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug:string }> };

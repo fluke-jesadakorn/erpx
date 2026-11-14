@@ -27,6 +27,6 @@
     "@erpx/server-people_payroll": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "react": "19.3.0"
+    "react": "19.3.1"
   }
 }

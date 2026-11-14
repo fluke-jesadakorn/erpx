@@ -34,7 +34,6 @@
     "./adapters/pms/front-attachments": "./src/adapters/pms/front-attachments.ts",
     "./adapters/pms/guest-document": "./src/adapters/pms/guest-document.ts",
     "./adapters/pms/home-api": "./src/adapters/pms/home-api.ts",
-    "./adapters/pms/social-events": "./src/adapters/pms/social-events.ts",
     "./adapters/pms/staff-booking-changes": "./src/adapters/pms/staff-booking-changes.ts",
     "./adapters/pms/home": "./src/adapters/pms/home.ts",
     "./adapters/pms/finance": "./src/adapters/pms/finance.ts",
@@ -92,7 +91,6 @@
     "./public/pms/front-attachments": "./src/public/pms/front-attachments.ts",
     "./public/pms/guest-document": "./src/public/pms/guest-document.ts",
     "./public/pms/home-api": "./src/public/pms/home-api.ts",
-    "./public/pms/social-events": "./src/public/pms/social-events.ts",
     "./public/pms/staff-booking-changes": "./src/public/pms/staff-booking-changes.ts",
     "./public/pms/home": "./src/public/pms/home.ts",
     "./public/pms/finance": "./src/public/pms/finance.ts",
@@ -102,7 +100,6 @@
     "./public/finance-record-sources": "./src/public/finance-record-sources.ts",
     "./public/finance-owned-snapshot-sources": "./src/public/finance-owned-snapshot-sources.ts",
     "./public/hospitality-day-control-contracts": "./src/public/hospitality-day-control-contracts.ts",
-    "./public/social-event-contracts": "./src/public/social-event-contracts.ts",
     "./public/hospitality-rollout": "./src/public/hospitality-rollout.ts",
     "./public/pms-booking-changes": "./src/public/pms-booking-changes.ts",
     "./public/rules/pms-read-selection": "./src/public/rules/pms-read-selection.ts",
@@ -165,7 +162,6 @@
     "./domain/hospitality-rollout": "./src/domain/hospitality-rollout.ts",
     "./domain/package-commands": "./src/domain/package-commands.ts",
     "./domain/booking": "./src/domain/booking.ts",
-    "./domain/social-events": "./src/domain/social-events.ts",
     "./domain/home": "./src/domain/home.ts",
     "./domain/pms-model": "./src/domain/pms-model.ts",
     "./domain/pms": "./src/domain/pms.ts"
@@ -204,6 +200,6 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

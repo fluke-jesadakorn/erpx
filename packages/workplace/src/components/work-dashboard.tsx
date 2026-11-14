@@ -13,11 +13,12 @@ import { lastWorkChange, scheduleWorkRefresh } from "@erpx/feature-work_projecti
 
 import { PageHeader } from "@erpx/ui/components/primitives";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import { workResponsibilities, workTypes, workViews } from "@erpx/feature-work_projection/lib/work-item";
+import { workResponsibilities, workTypes, workViews, workViewAvailable } from "@erpx/feature-work_projection/lib/work-item";
 import type { WorkPageSummary } from "@erpx/server-work_projection/public/work-summary";
 import Link from "@erpx/workplace/components/workspace-link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigationState } from "@erpx/workplace/components/navigation-counts";
+import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
 import { NewWork } from "@erpx/workplace/components/new-work";
 import { WorkList } from "@erpx/workplace/components/work-list";
 import { ForMe } from "@erpx/workplace/components/for-me";
@@ -45,7 +46,8 @@ export function WorkDashboard({
   responsibility: string;
   current: string;
 }) {
-  const { publishWork, shortcutStorageKey } = useNavigationState();
+  const { publishWork, shortcutStorageKey, workViewAvailability } = useNavigationState();
+  const searchParams = useSearchParams();
   useEffect(() => {
     if (!shortcutStorageKey) return;
     const key = `erpx:work-position:${shortcutStorageKey}:${base}:${current}`;
@@ -175,6 +177,34 @@ export function WorkDashboard({
         }
       />
       {error && <InlineNotice tone="info" role="status">{error} Updates may be out of date. </InlineNotice>}
+      <nav aria-label="My work views" className="ui-form-actions">
+        {workViews.filter(([id]) => workViewAvailable(id, workViewAvailability)).map(([id, label]) => {
+          const params = new URLSearchParams({ view: id });
+          const currentType = searchParams.get("type") ?? type;
+          const currentQuery = searchParams.get("q") ?? q;
+          if (currentType && currentType !== "all") params.set("type", currentType);
+          if (currentQuery) params.set("q", currentQuery);
+          return (
+            <a
+              key={id}
+              data-slot="button"
+              className={`button ui-standard-control ${view === id ? "secondary" : "ghost"}`}
+              href={canonicalUiHref(`${base}/work?${params}`)}
+              aria-current={view === id ? "page" : undefined}
+              onClick={event => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                const live = new URLSearchParams(window.location.search);
+                live.set("view", id);
+                live.delete("responsibility");
+                window.location.assign(`${base}/work?${live}`);
+              }}
+            >
+              {label}
+            </a>
+          );
+        })}
+      </nav>
       <div id="work-results" style={{ scrollMarginTop: "100px" }}>
         {!!unavailable.length && (
           <InlineNotice tone="info" role="status">
@@ -200,18 +230,31 @@ export function WorkDashboard({
                     ["waiting", "Waiting"],
                     ["completed", "Completed"],
                   ].map(([id, label]) => (
-                    <Link
+                    <a
                       key={id}
                       data-slot="button" className={`button ui-standard-control ${tracking === id ? "secondary" : "ghost"}`}
                       href={viewHref("tracking", id)}
                       aria-current={tracking === id ? "page" : undefined}
+                      onClick={event => {
+                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                        event.preventDefault();
+                        const live = new URLSearchParams(window.location.search);
+                        live.set("view", "tracking");
+                        if (id === "all") live.delete("tracking"); else live.set("tracking", id);
+                        window.location.assign(`${base}/work?${live}`);
+                      }}
                     >
                       {label}
-                    </Link>
+                    </a>
                   ))}
                 </nav>
               )}
-              <DestinationFilterForm className="ui-filter-bar" action={canonicalUiHref(`${base}/work`)}>
+              <DestinationFilterForm className="ui-filter-bar" action={canonicalUiHref(`${base}/work`)} onSubmit={event => {
+                event.preventDefault();
+                const form = event.currentTarget, query = new URLSearchParams();
+                for (const [key, value] of new FormData(form)) if (typeof value === "string") query.append(key, value);
+                window.location.assign(`${base}/work?${query}`);
+              }}>
                 <TextInput appearance="standard"
                   type="hidden"
                   name={view === "legacy" ? "queue" : "view"}

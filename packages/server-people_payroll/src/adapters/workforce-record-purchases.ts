@@ -16,6 +16,7 @@ import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commerc
 import {workforceSourceReadLocks} from '@erpx/server-people_payroll/adapters/workforce-purchases';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import type {FlowView} from '@erpx/feature-shared/lib/flow';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 type Kind='time'|'leave'|'overtime';
 const tables={time:'hr_time_entries',leave:'leave_requests',overtime:'overtime_requests'} as const;
 type Fragment={where:string;args:(string|number|null)[]};
@@ -86,7 +87,7 @@ export async function withWorkforceFlowAssignment<Result>(owner:SqlDatabase,acto
   const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='flow.assign' AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,id,actor.userId,actor.companyId).first(),purpose=replay?'history' as const:command.saveDefault||['draft','rejected'].includes(before.state)||command.stepKey==='draft'?'new-work' as const:'settle-existing' as const,scope={companyId:actor.companyId,capability:'people.workforce',purpose},key=`workforce-flow:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;
   await checkPurchasedCapability(database,mode,scope);await database.batch(boundary.before);const result=await run(database);await flushFinanceDeferredEffects(database);
   const after=await read(database,actor,'leave',id,false);if(!after||after.image!==before.image)throw new ApiError(409,'WORKFORCE_SOURCE_CHANGED','The actual Leave source or current role changed before routing committed.');
-  const final=queries(actor,['leave'],'workforce_input.id','workforce_input.company_id',false);const observations=await database.batch([...boundary.after,assertion(database,key,'workforce-flow-source',`EXISTS(SELECT 1 FROM(SELECT ?::text id,?::text company_id)workforce_input CROSS JOIN LATERAL(${final.sql})visible WHERE visible.image=?)`,[id,actor.companyId,...final.args,before.image]),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observations);return result;
+  const final=queries(actor,['leave'],'workforce_input.id','workforce_input.company_id',false);const observations=await database.batch([...boundary.after,assertion(database,key,'workforce-flow-source',`EXISTS(SELECT 1 FROM(SELECT ?::text id,?::text company_id)workforce_input CROSS JOIN LATERAL(${final.sql})visible WHERE visible.image=?)`,[id,actor.companyId,...final.args,before.image]),clearWorkflowCommandAssertions(database, key)]);boundary.observe?.(observations);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 

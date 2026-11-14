@@ -17,6 +17,7 @@ import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-t
 import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {registerProjectWorkerUnit,projectWorkerOwnedSelfDirectory,projectWorkerSelfDirectoryImage} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {workerStartupSourcePolicy,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 export const projectWorkerSourceChanged=(consumer:WorkerStartupConsumer='projects')=>new ApiError(409,workerStartupSourcePolicy(consumer).errorPrefix+'SOURCE_CHANGED','The selected Company account, worker or reviewed placement changed. Reload this worker preparation.');
 export const projectWorkerContextChanged=(consumer:WorkerStartupConsumer='projects')=>new ApiError(409,workerStartupSourcePolicy(consumer).errorPrefix+'CONTEXT_CHANGED','The selected Company account or worker preparation changed. Keep the draft and review it again.');
 export function projectWorkerAuthorityImage(actor:WorkContext){return JSON.stringify([actor.holdingId,actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam]);}
@@ -66,7 +67,7 @@ export async function withWorkerStartupUnit<Result>(consumer:WorkerStartupConsum
   const release=registerProjectWorkerUnit(database,current,consumer),checks:(()=>Promise<void>)[]=[];
   try{
    const result=await run({database,actor:current,schemaAvailable,guard:check=>checks.push(check)});
-   if(boundaries.length)await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));
+   if(boundaries.length)await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
    if(write)await flushFinanceDeferredEffects(database);
    const final=await requireProjectWorkerAuthority(database,current,consumer);if(projectWorkerAuthorityImage(current)!==projectWorkerAuthorityImage(final)&&!await authorityRetainsOwnedDirectoryEffect(database,current,final,consumer))throw projectWorkerContextChanged(consumer);
    for(const check of checks)await check();

@@ -91,6 +91,19 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
   await mkdir(evidence, { recursive: true, mode: 0o700 });
   options.onInvestorEvidence?.(evidence);
   const runtimeFingerprint = await runtimeSourceFingerprint(root), verificationFingerprint = await verificationSourceFingerprint(root, runtimeFingerprint);
+  // A shared cargo target can be rebuilt by another writer without the private
+  // API feature. Build once and copy the exact binary to an owned path so every
+  // cohort in this suite starts the same reviewed executable.
+  let nativeAccountBinary: string | undefined;
+  if (process.env.ERPX_NATIVE_BROWSER_ACCOUNT === "1") {
+    await execute(["cargo", "build", "-p", "erpx-service", "--features", "private-field-api,existing-business", "--bin", "erpx-server"], process.env, join(evidence, "native-account-build.log"));
+    const built = join(root, "target/debug/erpx-server"), digest = createHash("sha256").update(await readFile(built)).digest("hex");
+    const directory = join(root, ".scratch/dev/rust-migration/browser-native-account");
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    nativeAccountBinary = join(directory, `erpx-server-${digest.slice(0, 16)}`);
+    if (!existsSync(nativeAccountBinary)) await copyFile(built, nativeAccountBinary);
+    await chmod(nativeAccountBinary, 0o755);
+  }
   const receipts: BrowserRunCaseReceipt[] = [];
   const inventory: BrowserInventoryCase[] = [];
   const templates = new Map<string, { run: string; env: Record<string, string>; output: string }>();
@@ -266,6 +279,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
       ...(executiveWorkMode?{ERPX_BROWSER_SIMULATION_EXECUTIVE_WORK_HOSTS:"1"}:{}),
       ...(formsMode?{ERPX_BROWSER_SIMULATION_FORMS_HOSTS:"1",ERPX_FORMS_HOST_PLAN:formsPlan!.binding.path,ERPX_FORMS_HOST_PLAN_SHA256:formsPlan!.binding.sha256}:{}),
       ...(suite.fictionalProvider ? { ERPX_PMS_PROVIDER_FIXTURE: "1", ERPX_ENVIRONMENT: "local", ERPX_PUBLIC_ORIGIN: origin, ERPX_DATA_DIR: join(root, '.runtime/browser', run), POS_STRIPE_TEST_SECRET_KEY: 'sk_test_erpx_fictional_provider', POS_STRIPE_TEST_WEBHOOK_SECRET: 'whsec_erpx_fictional_provider' } : {}),
+      ...(process.env.ERPX_NATIVE_BROWSER_ACCOUNT === "1" && process.env.ERPX_NATIVE_BROWSER_ACCOUNT_TEMPLATE ? { ERPX_NATIVE_BROWSER_ACCOUNT: "1", ERPX_NATIVE_BROWSER_ACCOUNT_TEMPLATE: process.env.ERPX_NATIVE_BROWSER_ACCOUNT_TEMPLATE, ...(nativeAccountBinary ? { ERPX_BROWSER_NATIVE_ACCOUNT_BIN: nativeAccountBinary } : {}) } : {}),
     };
     const simulation = (mode: string) => [process.execPath, "scripts/local/run-server-script.ts", "scripts/local/browser-simulation.ts", mode, run];
     const report = join(output, wanted ? "result.json" : "collection.json");
@@ -293,7 +307,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
       const browserEnvironment = { ...env };
       delete browserEnvironment.ERPX_FORMS_HOST_PLAN;
       delete browserEnvironment.ERPX_FORMS_HOST_PLAN_SHA256;
-      const testEnv = { ...browserEnvironment, ERPX_INVESTOR_CAPTURE: options.investorCapture ? "1" : undefined, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: workspace ? developmentHostOrigin(workspace.entryApp) : formsMode ? formsHostOrigin : origin,
+      const testEnv = { ...browserEnvironment, ERPX_INVESTOR_CAPTURE: options.investorCapture ? "1" : undefined, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: workspace ? developmentHostOrigin(workspace.entryApp) : formsMode ? formsHostOrigin : origin, ...(process.env.ERPX_NATIVE_BROWSER_ACCOUNT === '1' ? { ERPX_E2E_LOOPBACK_SSO: '1' } : {}),
         ERPX_E2E_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"), ERPX_SERVICES_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"),
         ERPX_UAT_AUTH_DIR: suite.lane === "uat" ? join(root, ".runtime/browser", run, "uat-auth") : "",
         ERPX_UAT_EVIDENCE_FILE: suite.lane === "uat" && wanted ? await prepareUatCaseEvidence(root, run, output) : undefined,

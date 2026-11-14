@@ -1,4 +1,8 @@
 import {test,expect,type BrowserContext,type Page} from '@playwright/test';
+import {execFile} from 'node:child_process';
+import {mkdir,readFile,stat,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {promisify} from 'node:util';
 import {businessActor,businessFixture,businessOpen,businessReady,businessForm,businessClick,businessRead,businessRequest,businessPost,businessEvidence,closeBusiness} from "../../support/browser/engineering-business";
 
 async function openDrawerForm(page:Page,title:string,summary=title){
@@ -67,20 +71,39 @@ test.describe('native business engineering workflows',()=>{
   }finally{await closeBusiness(contexts,db);}
  });
 
- test('dispatches a customer visit captures confirmation independently releases billing and collects its invoice through three-person bank evidence',async({browser},info)=>{
-  const loaded=await businessFixture(info),{fixture,state,db}=loaded,contexts:BrowserContext[]=[],f=fixture.fieldService,path=`field-service/${f.id}`;
-  try{
-   const technician=await businessActor(browser,info,loaded,'source',path),reviewer=await businessActor(browser,info,loaded,'reviewer',path);contexts.push(technician.context,reviewer.context);
-   for(const title of ['Dispatch technician','Start visit']){await businessOpen(technician.page,path);await businessReady(technician.page);const form=businessForm(technician.page,title);await form.locator('[name="reason"]').fill(`${title} for the scheduled fictional customer visit.`);await businessClick(technician.page,'field-service',()=>form.getByRole('button',{name:title,exact:true}).click());}
-   await businessOpen(technician.page,path);await businessReady(technician.page);let form=businessForm(technician.page,'Complete visit');for(const [name,value] of Object.entries({laborMinutes:'45',evidence:'Fictional device functional inspection completed and measurements retained.',customerConfirmation:'Fictional customer contact confirms the device passes the agreed inspection.',reason:'Technician records the completed visit and customer acknowledgement.'}))await form.locator(`[name="${name}"]`).fill(value);await businessClick(technician.page,'field-service',()=>form.getByRole('button',{name:'Complete visit',exact:true}).click());await businessOpen(technician.page,path);const done=await businessRead<{order:{status:string;version:number}}>(technician.page,`field-service?id=${f.id}`);expect(done.order.status).toBe('completed');const self=await businessRequest(technician.page,'field-service',{id:f.id,action:'release-billing',expectedVersion:Number(done.order.version),reason:'Technician attempts to release their own billing.'});expect(self.status()).toBe(409);expect((await self.json()).error.code).toBe('INDEPENDENT_BILLING_RELEASE_REQUIRED');
-   await businessOpen(reviewer.page,path);await businessReady(reviewer.page);form=businessForm(reviewer.page,'Release billing');await form.locator('[name="reason"]').fill('Different reviewer accepts the customer confirmation and active agreement price.');await businessClick(reviewer.page,'field-service',()=>form.getByRole('button',{name:'Release billing',exact:true}).click());await businessOpen(reviewer.page,path);await expect(reviewer.page.getByRole('region',{name:'Billing handoff'})).toContainText('THB 100.00');await businessEvidence(reviewer.page,info,'confirmed-field-visit-and-independent-invoice-handoff');
-   const invoice=(await db.query("SELECT id,created_by,total_minor::integer,status FROM finance_invoices WHERE source_type='field_service' AND source_id=$1",[f.id])).rows[0];expect(invoice).toMatchObject({created_by:state.personas.reviewerUserId,total_minor:10000,status:'draft'});const invoicePath=`finance/invoices/${invoice.id}`,finance=await businessActor(browser,info,loaded,'finance',invoicePath);contexts.push(finance.context);const posting=finance.page.locator('#workspace-content:visible form').filter({has:finance.page.getByRole('button',{name:'Approve and post invoice',exact:true})});await posting.locator('select[name="period"]').selectOption(state.periodId);await businessClick(finance.page,`${invoicePath}/post`,()=>posting.getByRole('button',{name:'Approve and post invoice',exact:true}).click());
-   // The technician prepares the receipt, Finance approves it, and the original
-   // independent field reviewer becomes the third person who releases and confirms it.
-   await businessOpen(technician.page,invoicePath);await expect(technician.page.getByRole('heading',{name:'Prepare controlled receipt',exact:true})).toBeVisible();const receipt=technician.page.locator('#workspace-content:visible section.ui-panel:visible').filter({has:technician.page.getByRole('heading',{name:'Prepare controlled receipt',exact:true})});await receipt.getByLabel('Payment reference',{exact:true}).fill(`ENGINEERING-FIELD-${info.project.name}`);await receipt.getByLabel('Planned date',{exact:true}).fill(state.today);await receipt.locator('select[name="bankAccount"]').selectOption(f.bankAccountId);const payment=await businessClick(technician.page,'finance/payments',()=>receipt.getByRole('button',{name:'Prepare for approval',exact:true}).click()),paymentPath=`finance/payments/${payment.id}`;
-   await businessOpen(finance.page,paymentPath);await finance.page.locator('#workspace-content:visible').getByLabel('Decision evidence',{exact:true}).fill('Independent Finance review confirms the Field invoice party, amount and bank control.');await businessClick(finance.page,`${paymentPath}/approve`,()=>finance.page.getByRole('button',{name:'Approve payment',exact:true}).click());await businessOpen(reviewer.page,paymentPath);await reviewer.page.locator('#workspace-content:visible').getByLabel('Decision evidence',{exact:true}).fill('Third person reviews the approved receipt instruction before exact bank confirmation.');await businessClick(reviewer.page,`${paymentPath}/release`,()=>reviewer.page.getByRole('button',{name:'Release payment',exact:true}).click());await businessOpen(reviewer.page,paymentPath);await reviewer.page.locator("#workspace-content:visible").locator('select[name="periodId"]').selectOption(state.periodId);await reviewer.page.locator("#workspace-content:visible").locator('select[name="bankTransaction"]').selectOption(`${f.bankTransactionId}|1`);await reviewer.page.locator('#workspace-content:visible').getByLabel('Bank reference',{exact:true}).fill(`ENGINEERING-FIELD-BANK-${info.project.name}`);await reviewer.page.locator('#workspace-content:visible').getByLabel('Confirmation evidence',{exact:true}).fill('Declared synthetic bank adapter row exactly matches the approved customer receipt.');await businessClick(reviewer.page,`${paymentPath}/confirm`,()=>reviewer.page.getByRole('button',{name:'Confirm, post and reconcile',exact:true}).click());await businessOpen(reviewer.page,paymentPath);
-   const settled=await businessRead<{payment:{status:string;outstanding_minor:number;created_by:string;approved_by:string;released_by:string;journal_id:string};allocations:unknown[]}>(reviewer.page,paymentPath);expect(settled.payment).toMatchObject({status:'settled',outstanding_minor:0,created_by:state.personas.sourceUserId,approved_by:state.personas.financeUserId,released_by:state.personas.reviewerUserId});expect(settled.allocations).toHaveLength(1);expect((await businessRead<{invoice:{status:string;outstanding_minor:number;base_outstanding_minor:number}}>(reviewer.page,invoicePath)).invoice).toMatchObject({status:'paid',outstanding_minor:0,base_outstanding_minor:0});expect((await db.query('SELECT match_status,matched_type,matched_id FROM finance_bank_transactions WHERE id=$1',[f.bankTransactionId])).rows[0]).toEqual({match_status:'matched',matched_type:'payment',matched_id:payment.id});const balance=(await db.query('SELECT SUM(base_debit_minor)::text debit,SUM(base_credit_minor)::text credit FROM finance_journal_lines WHERE journal_id=$1',[settled.payment.journal_id])).rows[0];expect(balance).toEqual({debit:'10000',credit:'10000'});await businessEvidence(reviewer.page,info,'collected-field-invoice-bank-and-allocation-reload');
-  }finally{await closeBusiness(contexts,db);}
+ test('dispatches a customer visit captures confirmation independently releases billing and collects its invoice through three-person bank evidence',async({},info)=>{
+  test.setTimeout(1_200_000);
+  // This owner uses the existing leased native cohort, never the generic TS
+  // engineering seed or an operator database. Each project creates real sources.
+  const profilePath=process.env.ERPX_NATIVE_FIELD_BUSINESS_CONFIG;
+  if(!profilePath)throw new Error('NATIVE_FIELD_BROWSER_FIXTURE_REQUIRED');
+  const profileStat=await stat(profilePath);if(!profileStat.isFile()||(profileStat.mode&0o077)!==0)throw new Error('PRIVATE_NATIVE_FIELD_PROFILE_REQUIRED');
+  const profile=JSON.parse(await readFile(profilePath,'utf8'));
+  if(profile.mode!=='field-business-journey'||!['desktop','mobile'].includes(info.project.name)||profile.caseDirectory.split('/').at(-1)!==process.env.ERPX_DEMO_RUN)throw new Error('EXACT_NATIVE_FIELD_BROWSER_RUN_REQUIRED');
+  await mkdir(info.outputDir,{recursive:true,mode:0o700});
+  const input={...profile,project:info.project.name,resultPath:info.outputPath('native-field-business.json'),screenshotPath:info.outputPath('native-field-business.png')};delete input.resumeBusinessDirectory;delete input.resumeReleaseReadback;
+  const config=info.outputPath('native-field-business-config.json');await writeFile(config,JSON.stringify(input),{mode:0o600,flag:'wx'});
+  await promisify(execFile)(process.execPath,[resolve('scripts/testing/engineering/native-cohort-browser-qualification.mjs'),config],{timeout:1_160_000,maxBuffer:2*1024*1024});
+  const actual=JSON.parse(await readFile(input.resultPath,'utf8')) as {
+   success:boolean;run:string;project:string;fixture:{id:string;amountMinor:number;bankAccountId:string;bankTransactionId:string};
+   personas:{sourceUserId:string;financeUserId:string;reviewerUserId:string};completedVisit:{status:string;labor_minutes:number};
+   selfBillingDenial:{status:number;body:{error:{code:string}}};billing:Record<string,unknown>;invoiceDraft:Record<string,unknown>;
+   payment:Record<string,unknown>;allocations:unknown[];facts:{invoice:Record<string,unknown>;bank:Record<string,unknown>;balance:Record<string,unknown>;order:Record<string,unknown>};
+   phases:Array<{key:string;resultPath:string}>;
+  };
+  expect(actual.success).toBe(true);expect(actual.run).toBe(process.env.ERPX_DEMO_RUN);expect(actual.project).toBe(info.project.name);
+  expect(actual.completedVisit).toMatchObject({status:'completed',labor_minutes:45});expect(Number(actual.facts.order.visit_started_at)).toBeGreaterThan(0);
+  expect(actual.selfBillingDenial.status).toBe(409);expect(actual.selfBillingDenial.body.error.code).toBe('INDEPENDENT_BILLING_RELEASE_REQUIRED');
+  expect(actual.billing).toMatchObject({currency:'THB',amount_minor:10000});expect(actual.facts.order.status).toBe('billed');
+  expect(actual.invoiceDraft).toMatchObject({created_by:actual.personas.reviewerUserId,total_minor:10000,status:'draft',source_type:'field_service',source_id:actual.fixture.id});
+  expect(new Set(Object.values(actual.personas)).size).toBe(3);
+  expect(actual.payment).toMatchObject({status:'settled',outstanding_minor:0,created_by:actual.personas.sourceUserId,approved_by:actual.personas.financeUserId,released_by:actual.personas.reviewerUserId});
+  expect(actual.allocations).toHaveLength(1);expect(actual.facts.invoice).toMatchObject({status:'paid',outstanding_minor:0,base_outstanding_minor:0});
+  expect(actual.facts.bank).toEqual({match_status:'matched',matched_type:'payment',matched_id:actual.payment.id});expect(actual.facts.balance).toEqual({debit:'10000',credit:'10000'});
+  // Each phase performs normal sign-in and real UI commands/readbacks; its
+  // original billing region, receipt201 and bank/version assertions stay required.
+  expect(actual.phases.map(p=>p.key)).toEqual(['request','visit','self-release-denied','release','invoice-post','receipt-prepare','receipt-approve','receipt-release','bank-evidence','confirm']);
+  await info.attach('native-field-billing-and-three-person-bank-readback',{path:input.resultPath,contentType:'application/json'});
  });
  test('checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit',async({browser},info)=>{
   const loaded=await businessFixture(info),{fixture,state,db}=loaded,contexts:BrowserContext[]=[],e=fixture.ecommerce;

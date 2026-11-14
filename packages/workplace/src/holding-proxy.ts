@@ -1,5 +1,5 @@
 import {NextRequest,NextResponse} from 'next/server';
-import {holdingRoutingEnabled,holdingHostForHost,parseHoldingRoute,holdingUiUrl,holdingPathMatches,internalWorkspaceBase} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingHostForHost,parseHoldingRoute,holdingUiUrl,holdingPathMatches,internalWorkspaceBase} from '@erpx/feature-runtime/lib/holding-hosts';
 import {product} from '@erpx/contracts/product-registry';
 import {holdingBindingBySlug,holdingResources} from '@erpx/server-runtime/public/runtime';
 import {workspaceRouteCompany} from '@erpx/server-organization/public/workspace-route-company';
@@ -27,9 +27,10 @@ export async function prepareHoldingRequest(request:NextRequest):Promise<NextReq
   try{binding=await holdingBindingBySlug(registration.holdingSlug);}catch(error){if(error instanceof Error&&error.message==='HOLDING_NOT_FOUND')return missing();throw error;}
   if(binding.id!==registration.holdingId)return missing();
   if(route.kind==='transport'&&route.internalPath.startsWith('/_next/'))return NextResponse.next();
-  if(request.nextUrl.pathname.startsWith('/holdings/')&&['GET','HEAD'].includes(request.method)){
-    const mapped=holdingUiUrl(request.nextUrl.pathname+request.nextUrl.search,request.nextUrl.searchParams.get('company')??undefined);
-    if(mapped)return NextResponse.redirect(mapped,{status:307,headers:noStore});
+  if(request.nextUrl.pathname.startsWith('/holdings/')&&!/^\/holdings\/[^/]+\/(?:administration|erpx-management)(?:\/|$)/.test(request.nextUrl.pathname)&&['GET','HEAD'].includes(request.method)){
+    const current=request.nextUrl.pathname+request.nextUrl.search;
+    const mapped=holdingUiUrl(current,request.nextUrl.searchParams.get('company')??undefined);
+    if(mapped){const target=new URL(mapped);if(target.pathname+target.search!==current)return NextResponse.redirect(mapped,{status:307,headers:noStore});}
   }
   const requestHeaders=new Headers(request.headers);
   for(const key of ['x-erpx-holding-slug','x-erpx-visible-path','x-erpx-front-company','x-erpx-front-app','x-erpx-route-company'])requestHeaders.delete(key);

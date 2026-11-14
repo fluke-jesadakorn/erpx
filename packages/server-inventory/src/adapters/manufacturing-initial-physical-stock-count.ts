@@ -20,8 +20,8 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {resolveFlow,assignFlowPrimary} from '@erpx/server-workflow/public/flow-routing';
 import {requireFlowAccess} from '@erpx/server-workflow/public/flow-access';
 import {replayCommand} from '@erpx/server-workflow/public/commands';
-import {inventoryCountApplication} from '@erpx/server-inventory/adapters/inventory-counts';
-import {manufacturingInitialPhysicalStockCapabilities,manufacturingInitialPhysicalStockCountSource,manufacturingInitialPhysicalStockCountImage,withManufacturingInitialPhysicalStockCountUnit,type ManufacturingInitialPhysicalStockProof} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source';
+import {readCountDetail,readScopedCount,transitionCount} from '@erpx/server-inventory/adapters/inventory-counts';
+import {manufacturingInitialPhysicalStockCapabilities,manufacturingInitialPhysicalStockCountSource,withManufacturingInitialPhysicalStockCountUnit,type ManufacturingInitialPhysicalStockProof} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source';
 import {canPrepareCounts,canEditCount,canReviewCount} from '@erpx/server-inventory/domain/counts';
 import {manufacturingInitialPhysicalStockCountSchema,manufacturingInitialPhysicalStockCountActionSchema,manufacturingInitialPhysicalStockCountSelectionSchema,manufacturingInitialPhysicalStockCountFlowSchema,type ManufacturingInitialPhysicalStockCountView,type ManufacturingInitialPhysicalStockCountRecord} from '@erpx/server-inventory/domain/manufacturing-initial-physical-stock-count';
 const quality=inventoryQualitySnapshotSources();
@@ -46,7 +46,7 @@ function assertSelection(source:Awaited<ReturnType<typeof selectionSource>>){
  if(!source.finance.period)throw new ApiError(409,'PERIOD_UNAVAILABLE','The original Count requires exactly one open period covering its count date.');
 }
 async function record(database:SqlDatabase,actor:WorkContext,id:string):Promise<ManufacturingInitialPhysicalStockCountRecord>{
- const detail=await inventoryCountApplication(database).countDetail(actor,id),{count,lines,lotLines,decisions}=detail,line=lines[0],flow=await resolveFlow(database,actor,'stock_count',id);
+ const detail=await readCountDetail(database,actor,id),{count,lines,lotLines,decisions}=detail,line=lines[0],flow=await resolveFlow(database,actor,'stock_count',id);
  if(!line||lines.length!==1)throw new ApiError(404,'COUNT_NOT_FOUND','The original Initial Physical Stock Count source is unavailable.');
  const access=await readPurchasedAccesses(database,'enforced',actor.companyId,manufacturingInitialPhysicalStockCapabilities),newWork=manufacturingInitialPhysicalStockCapabilities.every(cap=>access[cap].newWork),settle=manufacturingInitialPhysicalStockCapabilities.every(cap=>access[cap].settleExisting),edit=canEditCount(actor,count),review=canReviewCount(actor,count)&&flow.canAct;
  return {sourceKind:'manufacturing-initial-physical-stock-count',id,number:String(count.number),status:String(count.status),version:Number(count.version),countDate:String(count.count_date),reason:String(count.reason),warehouseId:String(count.warehouse_id),warehouseName:String(count.warehouse_name),productId:String(line.product_id),sku:String(line.sku),productName:String(line.description),unit:String(line.unit),trackingMode:String(line.tracking_mode),countedQuantity:minorToDecimal(Number(line.counted_quantity_milli),3),countedValue:minorToDecimal(Number(line.counted_value_minor)),unitCost:line.unit_cost_minor===null?null:minorToDecimal(Number(line.unit_cost_minor)),lots:lotLines.map(lot=>({lotCode:lot.lot_code===null?null:String(lot.lot_code),serialNumber:lot.serial_number===null?null:String(lot.serial_number),manufacturedDate:lot.manufactured_date===null?null:String(lot.manufactured_date),expiryDate:lot.expiry_date===null?null:String(lot.expiry_date),countedQuantity:minorToDecimal(Number(lot.counted_quantity_milli),3),unitCost:lot.unit_cost_minor===null?null:minorToDecimal(Number(lot.unit_cost_minor))})),journalId:count.journal_id===null?null:String(count.journal_id),canSubmit:edit&&newWork&&flow.canAct,canCancel:edit&&settle,canApprove:count.status==='submitted'&&review&&settle,canPost:count.status==='approved'&&review&&settle,canReject:['submitted','approved'].includes(String(count.status))&&review&&settle,decisions:decisions.map(d=>({action:String(d.action),reason:d.reason===null?null:String(d.reason),actorName:String(d.actor_name),createdAt:Number(d.created_at)}))};
@@ -80,20 +80,27 @@ export async function prepareManufacturingInitialPhysicalStockCount(actor:WorkCo
   const source=await selectionSource(database,current,input.input.warehouseId,productId,input.input.countDate);assertSelection(source);
   if(input.contextKey!==context(current,input.input.warehouseId,productId,input.input.countDate,source.image))throw new ApiError(409,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_CONTEXT_CHANGED','The original selected item, warehouse, posting references or Stock assignment changed.');
   const config=source.finance.config!,proof:ManufacturingInitialPhysicalStockProof={kind:'manufacturing-initial-physical-stock-count',countId:id,companyId:actor.companyId,warehouseId:input.input.warehouseId,branchId:String(source.masters!.warehouse.branch_id),productId,countCommandId:key,manufacturingSetupCommandId:String(source.goods!.manufacturing_setup_command_id),manufacturingSetupRequestHash:String(source.goods!.manufacturing_setup_request_hash),chartId:String(config.chart_id),inventoryAccountId:String(config.inventory_account_id),varianceAccountId:String(config.variance_account_id),currency:String(config.currency)};
-  const result=await inventoryCountApplication(database,undefined,{input,proof:{...proof},marker:'_manufacturingInitialPhysicalStockCount'}).saveCount(actor,null,input.input,key);
-  await database.prepare('INSERT INTO inventory_mfg_initial_physical_sources(count_id,company_id,branch_id,warehouse_id,product_id,count_command_id,manufacturing_setup_command_id,chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?)').bind(id,actor.companyId,proof.branchId,proof.warehouseId,proof.productId,key,proof.manufacturingSetupCommandId,proof.chartId,proof.inventoryAccountId,proof.varianceAccountId,proof.currency,JSON.stringify(proof),actor.userId,Date.now()).run();
-  const createdImage=await manufacturingInitialPhysicalStockCountImage(database,actor,id);
-  finalGuard(async()=>{const final=await selectionSource(database,current,input.input.warehouseId,productId,input.input.countDate);
-   if(!createdImage||createdImage!==await manufacturingInitialPhysicalStockCountImage(database,actor,id)||final.image!==source.image||await history(database,actor.companyId,proof.warehouseId,productId,id))throw new ApiError(409,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original first-count source changed before completion.');});
-  return result;
+  // The draft, receipt and immutable source row are owned by the native
+  // create/seed command; this retained adapter no longer writes.
+  void proof;void finalGuard;void database;void source;void history;
+  throw new ApiError(503,'NATIVE_INVENTORY_COUNT_REQUIRED','The native stock Count seed command is required.');
  });
+}
+/** Capture the exact Manufacturing first-count source proof for the native
+ * create/seed command. It performs no write. */
+export async function manufacturingInitialPhysicalStockSeed(actor:WorkContext,raw:unknown,key:string){
+ const input=manufacturingInitialPhysicalStockCountSchema.parse(raw),id=`count-${key}`,productId=input.input.lines[0].productId,database=await owner(actor);
+ const source=await selectionSource(database,actor,input.input.warehouseId,productId,input.input.countDate);assertSelection(source);
+ if(input.contextKey!==context(actor,input.input.warehouseId,productId,input.input.countDate,source.image))throw new ApiError(409,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_CONTEXT_CHANGED','The original selected item, warehouse, posting references or Stock assignment changed.');
+ const config=source.finance.config!,proof:ManufacturingInitialPhysicalStockProof={kind:'manufacturing-initial-physical-stock-count',countId:id,companyId:actor.companyId,warehouseId:input.input.warehouseId,branchId:String(source.masters!.warehouse.branch_id),productId,countCommandId:key,manufacturingSetupCommandId:String(source.goods!.manufacturing_setup_command_id),manufacturingSetupRequestHash:String(source.goods!.manufacturing_setup_request_hash),chartId:String(config.chart_id),inventoryAccountId:String(config.inventory_account_id),varianceAccountId:String(config.variance_account_id),currency:String(config.currency)};
+ return {input:input.input,seed:{kind:'manufacturing' as const,proof}};
 }
 export async function transitionManufacturingInitialPhysicalStockCount(actor:WorkContext,id:string,action:import("@erpx/server-inventory/domain/manufacturing-initial-physical-stock-count").ManufacturingInitialPhysicalStockCountAction,raw:unknown,key:string){
  const input=manufacturingInitialPhysicalStockCountActionSchema.parse(raw);if(!['submit','approve','post','reject','cancel'].includes(action))throw new ApiError(404,'COUNT_ACTION_NOT_FOUND','Unknown Count action.');
  return withManufacturingInitialPhysicalStockCountUnit(await owner(actor),actor,{key,operation:`inventory.count.${action}`,id,purpose:action==='submit'?'new-work':'settle-existing',permission:['approve','post','reject'].includes(action)?'inventory.approve':'inventory.prepare'},async(database,source,replay,_current,finalGuard)=>{
-  const before=await inventoryCountApplication(database).getCount(actor,id),finance=!replay&&action==='post'?await initialPhysicalStockCountFinanceSource(database,actor.companyId,String(before.count_date)):null;
+  const before=await readScopedCount(database,actor,id),finance=!replay&&action==='post'?await initialPhysicalStockCountFinanceSource(database,actor.companyId,String(before.count_date)):null;
   if(finance){const proof=JSON.parse(source!) as ManufacturingInitialPhysicalStockProof,config=finance.config;if(!config||String(config.chart_id)!==proof.chartId||String(config.inventory_account_id)!==proof.inventoryAccountId||String(config.variance_account_id)!==proof.varianceAccountId||String(config.currency)!==proof.currency)throw new ApiError(409,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','Posting must retain the original captured Count chart, inventory, variance and currency.');}
-  const result=await inventoryCountApplication(database).transitionCount(actor,id,action,input,key);
+  const result=await transitionCount();
   if(finance)finalGuard(async()=>{if(finance.image!==(await initialPhysicalStockCountFinanceSource(database,actor.companyId,String(before.count_date))).image)throw new ApiError(409,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original Count posting references changed.');});return result;
  });
 }

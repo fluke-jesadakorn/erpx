@@ -4,8 +4,8 @@ import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { hasModuleAccess } from '@erpx/catalogue/module-access';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import { sourceType, reason, relationSchema, cardSchema, actionSchema, csvCell, type Row, type Source, type Card } from '@erpx/server-collaboration/domain/collaboration-work';
-export interface CollaborationWorkRepository<Effect> {
+import { sourceType, csvCell, type Row, type Source, type Card } from '@erpx/server-collaboration/domain/collaboration-work';
+export interface CollaborationWorkRepository {
     recordRelations(companyId: string): Promise<{
         results: Row[];
     }>;
@@ -18,29 +18,13 @@ export interface CollaborationWorkRepository<Effect> {
     actionHistory(id: string): Promise<{
         results: Row[];
     }>;
-    prepareRelation(id: string, companyId: string, branchId: string | null, departmentId: string | null, type: "commerce_order" | "support_ticket" | "field_service_order" | "staff_task" | "pos_sale" | "pms_record" | "asset" | "maintenance_plan" | "maintenance_work", id2: string, version: number, type2: "commerce_order" | "support_ticket" | "field_service_order" | "staff_task" | "pos_sale" | "pms_record" | "asset" | "maintenance_plan" | "maintenance_work", id3: string, version2: number, relation: "related" | "duplicates" | "blocks" | "depends_on", reason: string, userId: string, now: number, now2: number): Effect;
-    prepareRelationEvent(value: string, id: string, userId: string, reason: string, now: number): Effect;
-    recordRelation(id: string, companyId: string): Promise<Row | null>;
-    guardRelationVersion(key: string, value: "relation", id: string, companyId: string, expectedVersion: number): Effect;
-    prepareRelationRemoval(userId: string, now: number, now2: number, id: string): Effect;
-    prepareRelationRemovalEvent(value: string, id: string, value2: number, userId: string, why: string, now: number): Effect;
-    prepareCard(id: string, companyId: string, branchId: string | null, departmentId: string | null, type: "commerce_order" | "support_ticket" | "field_service_order" | "staff_task" | "pos_sale" | "pms_record" | "asset" | "maintenance_plan" | "maintenance_work", id2: string, version: number, title: string, ownerId: string, dueAt: number, userId: string, now: number, now2: number): Effect;
-    guardCardOwner(key: string, value: "owner", id: string): Effect;
-    prepareCardEvent(value: string, id: string, userId: string, reason: string, ownerId: string, dueAt: number, now: number): Effect;
-    prepareCardNotice(value: string, id: string): Effect;
-    actionCard(id: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null): Promise<Card | null>;
-    guardCardVersion(key: string, value: "version", id: string, expectedVersion: number): Effect;
-    prepareCardTransition(owner: string, due: number, status: "completed" | "cancelled" | "open", evidence: string | null, now: number, id: string): Effect;
-    guardReassignedOwner(key: string, value: "owner", id: string): Effect;
-    prepareCardTransitionEvent(value: string, id: string, value2: number, action: "complete" | "reassign" | "cancel", userId: string, reason: string, status: "completed" | "cancelled" | "open", owner: string, due: number, now: number): Effect;
-    prepareCardTransitionNotice(value: string, id: string): Effect;
 }
 export interface OwnerCommands<Effect> {
     replay<Result = Record<string, unknown>>(actor: WorkContext, key: string, operation: string, id: string, input: unknown): Promise<Result | null>;
     commit<Result>(actor: WorkContext, key: string, operation: string, input: unknown, id: string, version: number, result: Result, effects: Effect[], scope?: Pick<WorkContext, 'companyId' | 'branchId' | 'departmentId'>): Promise<Result>;
 }
 export interface CollaborationWorkPorts<Effect> {
-    repository: CollaborationWorkRepository<Effect>;
+    repository: CollaborationWorkRepository;
     commands: OwnerCommands<Effect>;
     clock: Clock;
     identifiers: IdentifierSource;
@@ -92,7 +76,7 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
             relations: visible,
             cards: visibleCards,
             people,
-            sourceTypes: sourceType.options,
+            sourceTypes: sourceType.options.filter(kind=>kind!=='field_service_order'),
             canWrite: hasPermission(a, "records.write"),
             canReview: hasPermission(a, "records.review"),
         };
@@ -183,97 +167,6 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
             history: (await r.actionHistory(id)).results,
         };
     }
-    async function createRecordRelation(a: WorkContext, raw: unknown, key: string) {
-        access(a, true);
-        const input = relationSchema.parse(raw), left = await source(a, input.sourceType, input.sourceId), right = await source(a, input.targetType, input.targetId);
-        if (left.companyId !== right.companyId || left.companyId !== a.companyId)
-            throw new BusinessRuleError(422, "COLLABORATION_SCOPE_MISMATCH", "Both records must belong to the same Company.");
-        if (left.type === right.type && left.id === right.id)
-            throw new BusinessRuleError(422, "COLLABORATION_SELF_RELATION", "Choose two different records.");
-        const symmetric = ["related", "duplicates"].includes(input.relation), swap = symmetric && `${left.type}:${left.id}` > `${right.type}:${right.id}`, from = swap ? right : left, to = swap ? left : right, id = `record-relation-${key}`, op = "collaboration.relation.create", prior = await ports.commands.replay(a, key, op, id, input);
-        if (prior)
-            return prior;
-        const now = ports.clock.now();
-        return ports.commands.commit(a, key, op, input, id, 1, { id, version: 1, status: "active" }, [
-            ...await ports.sourceRecordGuards(a, key, from, "relation-source"),
-            ...await ports.sourceRecordGuards(a, key, to, "relation-target"),
-            r.prepareRelation(id, a.companyId, from.branchId, from.departmentId, from.type, from.id, from.version, to.type, to.id, to.version, input.relation, input.reason, a.userId, now, now),
-            r.prepareRelationEvent(`record-relation-event-${key}`, id, a.userId, input.reason, now),
-        ]);
-    }
-    async function removeRecordRelation(a: WorkContext, id: string, expectedVersion: number, why: string, key: string) {
-        access(a, true);
-        reason.parse(why);
-        const op = "collaboration.relation.remove", input = { expectedVersion, reason: why }, prior = await ports.commands.replay(a, key, op, id, input);
-        const relation = await r.recordRelation(id, a.companyId);
-        if (!relation)
-            throw new BusinessRuleError(404, "RECORD_RELATION_NOT_FOUND", "The relation is unavailable in this work scope.");
-        const left = await visibleSource(a, sourceType.parse(relation.source_type), String(relation.source_id)), right = await visibleSource(a, sourceType.parse(relation.target_type), String(relation.target_id));
-        if (!left || !right)
-            throw new BusinessRuleError(404, "RECORD_RELATION_NOT_FOUND", "The relation's sources are unavailable in this work scope.");
-        if (prior)
-            return prior;
-        const now = ports.clock.now();
-        return ports.commands.commit(a, key, op, input, id, expectedVersion + 1, { id, version: expectedVersion + 1, status: "removed" }, [
-            ...await ports.sourceRecordGuards(a, key, left, "relation-source"),
-            ...await ports.sourceRecordGuards(a, key, right, "relation-target"),
-            r.guardRelationVersion(key, "relation", id, a.companyId, expectedVersion),
-            r.prepareRelationRemoval(a.userId, now, now, id),
-            r.prepareRelationRemovalEvent(`record-relation-event-${key}`, id, expectedVersion + 1, a.userId, why, now),
-        ]);
-    }
-    async function createActionCard(a: WorkContext, raw: unknown, key: string) {
-        access(a, true);
-        const input = cardSchema.parse(raw), s = await source(a, input.sourceType, input.sourceId), id = `action-card-${key}`, op = "collaboration.action.create", prior = await ports.commands.replay(a, key, op, id, input);
-        if (prior)
-            return prior;
-        const now = ports.clock.now();
-        return ports.commands.commit(a, key, op, input, id, 1, { id, version: 1, status: "open" }, [
-            ...await ports.sourceRecordGuards(a, key, s, "action-source"),
-            r.prepareCard(id, a.companyId, s.branchId, s.departmentId, s.type, s.id, s.version, input.title, input.ownerId, input.dueAt, a.userId, now, now),
-            r.guardCardOwner(key, "owner", id),
-            r.prepareCardEvent(`action-card-event-${key}`, id, a.userId, input.reason, input.ownerId, input.dueAt, now),
-            r.prepareCardNotice(`action-card-notice-${key}`, id),
-        ]);
-    }
-    async function changeActionCard(a: WorkContext, id: string, raw: unknown, key: string) {
-        access(a, true);
-        const input = actionSchema.parse(raw), op = `collaboration.action.${input.action}`, prior = await ports.commands.replay(a, key, op, id, input);
-        if (prior) {
-            await collaborationActionDetail(a, id);
-            return prior;
-        }
-        const row = await r.actionCard(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId);
-        if (!row)
-            throw new BusinessRuleError(404, "ACTION_CARD_NOT_FOUND", "Action card not found.");
-        const currentSource = await visibleSource(a, sourceType.parse(row.source_type), String(row.source_id));
-        if (!currentSource)
-            throw new BusinessRuleError(404, "ACTION_CARD_NOT_FOUND", "Action card source is unavailable in this scope.");
-        const manage = hasPermission(a, "records.review"), own = row.owner_id === a.userId && Number(row.owner_eligible) > 0;
-        if (input.action === "complete" && !own)
-            throw new BusinessRuleError(403, "ACTION_CARD_OWNER_REQUIRED", "The assigned owner must complete this action.");
-        if (input.action !== "complete" && !manage)
-            throw new BusinessRuleError(403, "ACTION_CARD_REVIEW_REQUIRED", "A reviewer must reassign or cancel this action.");
-        if (row.status !== "open")
-            throw new BusinessRuleError(409, "ACTION_CARD_STATE_CHANGED", "Refresh the action card.");
-        const now = ports.clock.now(), status = input.action === "complete"
-            ? "completed"
-            : input.action === "cancel"
-                ? "cancelled"
-                : "open", owner = input.action === "reassign" ? input.ownerId : row.owner_id, due = input.action === "reassign" ? input.dueAt : row.due_at, evidence = input.action === "complete" ? input.evidence : null;
-        return ports.commands.commit(a, key, op, input, id, input.expectedVersion + 1, { id, version: input.expectedVersion + 1, status }, [
-            ...await ports.sourceRecordGuards(a, key, currentSource, "action-source"),
-            r.guardCardVersion(key, "version", id, input.expectedVersion),
-            r.prepareCardTransition(owner, due, status, evidence, now, id),
-            ...(input.action === "reassign"
-                ? [
-                    r.guardReassignedOwner(key, "owner", id),
-                ]
-                : []),
-            r.prepareCardTransitionEvent(`action-card-event-${key}`, id, input.expectedVersion + 1, input.action, a.userId, input.reason, status, owner, due, now),
-            r.prepareCardTransitionNotice(`action-card-notice-${key}`, id),
-        ]);
-    }
     async function collaborationActionWork(a: WorkContext): Promise<WorkItem[]> {
         if (!hasPermission(a, "records.read") ||
             !hasModuleAccess(a.modules, "collaboration"))
@@ -313,5 +206,5 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
             };
         });
     }
-    return { collaborationWorkspace, collaborationExport, collaborationActionDetail, createRecordRelation, removeRecordRelation, createActionCard, changeActionCard, collaborationActionWork };
+    return { collaborationWorkspace, collaborationExport, collaborationActionDetail, collaborationActionWork };
 }

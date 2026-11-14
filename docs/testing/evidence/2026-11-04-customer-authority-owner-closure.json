@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Customer Authority now has a bounded native customer-access grant: a source-bound request command, an independently reviewed approve/reject command, a revoke command, and Company/branch/department-scoped workspace/detail reads with immutable event and read-audit history. The owner also has an owner-local HTTP router, a strict Next transport, configured workspace/detail/command cutover, purchase preflight, and fail-closed native configuration. The crate is registered in the root Cargo workspace by the integrating session. The owner remains partial overall: shared composition mounting, invitations/enrollment, portal support, identity changes, duplicate review, attachments and browser acceptance remain open.",
+  "capability": "customer-authority-customer-access-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4f2a9b668",
+  "scope": {
+    "workflows": [
+      "customer_authority/feature-authority-bindings",
+      "customer_authority/access-history"
+    ],
+    "workflowBoundary": "The qualified slice is the source-bound customer access grant used by the customer access review list/detail and its request/approve/reject/revoke commands. Customer identity changes, duplicate review/merge, portal invitations/resend/enrollment, portal support requests/responses/closures, portal attachments, customer directory/profile summaries and every other Customer Authority workflow remain retained TypeScript.",
+    "domain": "Current actor policy (commerce.read, commerce.sales, commerce.approve, selected-context expiry), exact Company and optional branch/department scope, source order identity/version/kind/state validation (Sales/quote confirmed, converted, partially fulfilled or fulfilled), a 90-day expiry window, lower-cased bounded email, bounded reason/order/id shapes, independent-approval separation, requester-or-manager revocation, CAS expected versions, pending/approved decision states, immutable action names and exact receipt/row/source/event/read projections.",
+    "application": "One request_access use case authorizes sales+read before any source read, validates input and replay, locks order facts in the owning transaction, rejects foreign scope/stale version/ineligible kind/state before commit, and returns the persisted receipt. One change_access use case authorizes sales+read, replays by key, validates the scoped binding and current order facts, rejects self-approval and inactive/ineligible reviewers, applies rejection/approval source guards, then commits one CAS decision. access_workspace and access_detail validate every owner row and bound rows/sources/events/reads before presentation.",
+    "adapters": "Read/write SQL is Customer Authority-owned (`customer_access_bindings`, `customer_access_events`, `customer_access_reads`, `customer_access_identities`, `customer_portal_invitations` and `customer_portal_invitation_events`) plus read-only projections of the existing Commerce order header, Finance party display name and IAM/HR reviewer eligibility already used by the retained access reader. No Commerce, Finance, IAM, HR, Support or portal row is mutated. The caller's serializable Holding transaction is required; no transaction is opened, committed or retried here.",
+    "http": "Owner-local GET/POST /api/v1/holdings/{holding_slug}/customer-access and GET/POST /api/v1/holdings/{holding_slug}/customer-access/{binding_id}. Exact registered Host/Holding targets and HTTPS origins, strict idempotency-key/Content-Type/JSON body validation, bounded bodies, duplicate/unknown query rejection, private/no-store and no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company/branch/department scope, purchase admission and serializable owner unit.",
+    "transport": "ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact command bodies, exact workspace/detail/receipt shapes, Company/scope coherence, unique ordered rows/events, and a 2 MiB response bound. A configured failure never falls back to the retained reader or command.",
+    "ssr": "The customer access review list/detail and the feature-sales /customer-access GET/POST route use the native workspace/detail/commands when ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG is present. An unset configuration retains customerAccessWorkspace/customerAccessHistory/requestCustomerAccess/changeCustomerAccess. Once configured, a malformed or failed native read/command is surfaced through the existing page/route error policy rather than silently replaced. The retained invitation/history merge, identity/duplicate review tabs and portal support actions remain in place.",
+    "purchaseAndIdentity": "The Next cutover keeps the retained requireCustomerAccessPurchasedRead and customerAccessPurchaseControls preflight and enforces new-work versus settle-existing capability for request/approve versus reject/revoke. This is a preflight, not an atomic owner unit; the composition backend must repeat current IAM, selected scope, feature release and purchase admission inside its own serializable owner transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue acceptance qualification, invitation/enrollment/portal support/identity/duplicate/attachment effect, job, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    "packages/server-customer_authority/Cargo.toml",
+    "packages/server-customer_authority/src/lib.rs",
+    "packages/server-customer_authority/src/domain/mod.rs",
+    "packages/server-customer_authority/src/domain/access.rs",
+    "packages/server-customer_authority/src/application/mod.rs",
+    "packages/server-customer_authority/src/application/access.rs",
+    "packages/server-customer_authority/src/adapters/mod.rs",
+    "packages/server-customer_authority/src/adapters/access.rs",
+    "packages/server-customer_authority/src/adapters/access_http.rs",
+    "packages/server-customer_authority/src/public/mod.rs",
+    "packages/server-customer_authority/src/public/access.rs",
+    "packages/server-customer_authority/src/public/access_http.rs",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/public/native-customer-access.ts",
+    "packages/feature-sales/src/public/native-customer-access-page.ts",
+    "packages/feature-sales/src/adapters/server/next-native-customer-access.ts",
+    "packages/feature-sales/src/components/customers/customer-views.tsx",
+    "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customer-access/[id]/screen.tsx",
+    ".env.example",
+    "tests/unit/customer_authority/rust-customer-access.test.rs",
+    "tests/unit/customer_authority/rust-customer-access-http.test.rs",
+    "tests/integration/customer_authority/rust-customer-access-postgres.test.rs",
+    "tests/unit/customer_authority/native-customer-access-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-customer-authority-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-customer-authority --locked -- --test-threads=1",
+      "result": "18 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, customer_access 8, customer_access_http 2, customer_access_postgres 8, doc-tests 0)",
+      "workspaceNote": "The crate was registered in the root Cargo.toml workspace and Cargo.lock by the integrating session commit c4ceeaa04. The exact --locked command above now runs directly in the worktree; this subagent did not author the root Cargo.toml/Cargo.lock change.",
+      "targets": {
+        "customer_access": "8 passed: permission/context before source, expiry/email/reason/source-version negatives, foreign scope/stale version/draft/purchase kind denial, exact request plan and replay/idempotency conflict, independent reviewer plus active employment plus pending/expiry plus publishable source, reject/revoke requester-or-manager policy and CAS, workspace scope/flags, detail history/read audit and not-found.",
+        "customer_access_http": "2 passed: exact distinct targets and HTTPS origins, actual loopback router forwarding workspace/detail/request/change, unknown query/host/Holding negatives, missing/short Idempotency-Key, malformed JSON/content type/GET body, conflict mapping, private/no-store/no-referrer/nosniff headers.",
+        "customer_access_postgres": "8 passed: owner request with source/order/customer/email/status/version/created_by/readback and one receipt/audit/outbox row; Company/branch/department/state/version denials with zero effects; self-approval, ended employment, CAS, cancellation, reject/revoke and invitation revocation; branch-scoped manager approval only for its own branch; late-outbox failure rollback and retry; workspace/detail scope/flags/read audit; transaction/serializable guards."
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-customer-authority --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-customer-authority warning"
+    },
+    "rustfmt": {
+      "command": "cargo fmt -p erpx-server-customer-authority -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "customer_access_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic organization, Finance party, Commerce order, IAM member/assignment/role revision and HR person/engagement rows. The owner writes only customer_access_* and command_receipts/audit_events/outbox_events plus the retained invitation revocation tables; the read path performs no owner write.",
+      "cases": [
+        "request persists exact Company/order/customer/email/status/version/created_by/readback and writes one immutable event, receipt, audit and outbox row; same-key replay is byte-identical",
+        "foreign Company, foreign selected branch/department, stale order version, draft source and a sales-only caller are denied before effects; the branch-scoped manager sees only its own branch",
+        "self-approval is refused, an ended worker cannot review, stale CAS is refused, cancelled sources cannot be approved, reject/revoke retain the expected status/version/approved_by/reviewed_at",
+        "revoke cancels queued/running/sent portal invitations and appends their immutable revoked event in the same transaction",
+        "a trigger failure on the final outbox insert rolls back the decision, event, receipt and audit; the exact retry then persists once",
+        "workspace/detail hide foreign Company, branch and department rows and return the exact flags, events and read audit; a caller outside a transaction and a caller inside a read-committed transaction fail closed"
+      ]
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards exact workspace/detail/request/change facts and returns owner data plus rendered context",
+        "unknown query, unknown Host/Holding, missing/short Idempotency-Key, malformed body/content type and GET body are bounded 4xx",
+        "an owner conflict maps to 409 CUSTOMER_ACCESS_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets, non-HTTPS origins and origins with paths fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/customer_authority/native-customer-access-transport.test.ts: 10 passed (workspace Host/session/context forwarding, branch detail, exact request/change body/key/content-type, owner error, foreign/duplicate/extra-key/changed-context rejection, unset selector, malformed configured selector mapped to 503 without fallback, retained invitation/portal actions, reserved port/insecure origin/malformed configuration, failure mapping)",
+      "typechecks": [
+        "tsc --noEmit --project packages/feature-sales/tsconfig.json: pass",
+        "tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit --project .scratch/customer-authority/tsconfig.json (the new transport test only): pass"
+      ],
+      "typecheckLimit": "The full tests/config typecheck still fails on the concurrently added tests/unit/agent/native-agent-evidence-transport.test.ts (`'unknown'` not assignable to `'failed' | 'succeeded'`), which this subagent did not edit. The isolated test typecheck above passes.",
+      "eslint": "targeted changed TypeScript files: pass (the repository's existing Next pages-directory warning only)",
+      "runner": "Bun 1.4.3 is not installed in this worktree, so the transport test was run with a temporary Vitest config (same server-only alias and fork isolation), then no shared catalogue config was edited."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 0; the printed owner/module-private-import findings are all pre-existing files outside this slice",
+      "diffCheck": "git diff --check on the changed tracked files: pass"
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "no new external dependency; the new crate uses the existing shared/runtime/sqlx/serde/serde_json workspace set. No root Cargo.toml, Cargo.lock or package lockfile change was authored by this subagent.",
+    "compositionDelta": "No src/composition change and no composition backend mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_customer_authority::public::access::{AccessActor, CustomerAccessCommandRepository, CustomerAccessReadRepository, PgCustomerAccess, request_access, change_access, access_workspace, access_detail}",
+      "erpx_server_customer_authority::public::access_http::{customer_access_http_router, CustomerAccessHttpTarget, CustomerAccessHttpBackend, CustomerAccessHttpRequest, CustomerAccessHttpResponse}"
+    ],
+    "backendRequired": "Implement CustomerAccessHttpBackend in src/composition: parse the normal Account/Holding request, require commerce.read/commerce.sales and commerce.approve for review, require the configured Holding/Company and selected branch/department, run the retained feature-release and purchase admission inside one serializable Holding transaction, build AccessActor from current authority, call request_access/change_access/access_workspace/access_detail with PgCustomerAccess, and map PgTransactionError to BusinessError. The Next purchase preflight is not atomic and must be repeated.",
+    "privateDevelopmentApi": [
+      "Build one CustomerAccessHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_customer_authority::public::access_http::customer_access_http_router(targets).map_err(|_| \"PRIVATE_API_CUSTOMER_ACCESS_CONFIGURATION_INVALID\")?);",
+      "Mount /customer-access before the generic 404 fallback."
+    ],
+    "rootWorkspace": "packages/server-customer_authority is registered in the root Cargo.toml [workspace] members and Cargo.lock by integrating commit c4ceeaa04. No shared dependency was added beyond the existing workspace set.",
+    "nextEnvironment": "Set ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "When ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG is present, the customer access review workspace and detail read use native Customer Authority rows instead of customerAccessWorkspace/customerAccessHistory.",
+      "Native request/approve/reject/revoke commands replace the retained requestCustomerAccess/changeCustomerAccess path for those four actions when configured.",
+      "No retained TypeScript Customer Authority source file was deleted."
+    ],
+    "retained": [
+      "customerAccessWorkspace/customerAccessHistory/requestCustomerAccess/changeCustomerAccess remain the unset-config reader and command path and the source for tests and non-configured deployments.",
+      "customerPortalInvitationHistory, issueCustomerPortalInvitation, invitation delivery/enrollment, portal support request/response/closure, customerAccessWork and sales review counts remain retained.",
+      "Identity changes, duplicate review/merge, customer directory/profile summary, portal attachments and all collaboration notification preparation remain retained.",
+      "The retained customer access console continues to render from the same row/event/read keys when native data is served; its invitation and portal support sections remain retained."
+    ],
+    "cutover": "Only the customer access review workspace/detail and request/approve/reject/revoke commands switch to the native owner when configured. An unset config retains TypeScript. A configured invalid or failed native read/command throws through the retained page/route error policy and never reads the TypeScript path as a fallback."
+  },
+  "concurrentWork": {
+    "preserved": "This worktree also contains concurrent uncommitted agent/marketing/PMS/finance work, including packages/server-agent, packages/server-marketing, packages/server-platform_administration, feature-admin/agent-governance, workplace marketing/agents screens and tests/catalogue/suite-manifest.json. Those files were not edited, reverted or included in this slice. packages/feature-sales/package.json was concurrently rewritten by the marketing slice; this subagent re-applied only its three additive customer-access export entries.",
+    "rootManifests": "Root Cargo.toml and Cargo.lock SHA-256 values were unchanged at the last verification; other agents' transient membership work was not touched.",
+    "headAdvance": "The worktree HEAD advanced from the mission base 4f2a9b668 through other agents' marketing/agent commits (8c2f8d66e) and then the integrating session commits for this slice (c4ceeaa04 feature, 4e9c21e6f status). The integrating commits also registered the crate in root Cargo.toml/Cargo.lock and added the four catalogue suite entries. No subagent commit or worktree was created by this task."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements the public ports or mounts customer_access_http_router",
+      "No authenticated browser or deployment verification was performed",
+      "Invitations/enrollment, portal support, identity changes, duplicate review, attachments and customer access work items remain retained TypeScript",
+      "The full tests/config typecheck has a pre-existing concurrent agent-file failure outside this slice"
+    ],
+    "nextAction": "Have the composition owner register the crate, implement the Account/scope/feature/purchase backend and mount the router; then qualify portal invitations/enrollment and portal support with their own native commands, followed by customer identity changes and duplicate review with Finance/CRM/Sales/Support same-transaction guards. Browser acceptance remains deferred."
+  },
+  "verificationHead": "c4ceeaa04907ff7f2547e0cd5e27e753591011e2",
+  "sharedIntegrationFiles": {
+    "files": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "tests/catalogue/suite-manifest.json",
+      "docs/status/rust-backend-migration.json",
+      "docs/status/rust-delivery-bundles.json"
+    ],
+    "note": "Changed by the integrating session commit c4ceeaa04/4e9c21e6f, not authored by this subagent: workspace member/lock entry, four catalogue suite entries and owner status/bundle partial qualification."
+  }
+}

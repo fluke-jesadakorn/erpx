@@ -17,6 +17,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {manufacturingInitialPhysicalStockCapabilities,manufacturingInitialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockMarkedRows,manufacturingInitialPhysicalStockSourceImages} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source-sql';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 export {manufacturingInitialPhysicalStockCapabilities,manufacturingInitialPhysicalStockMarker,manufacturingInitialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockMarkedRows,type ManufacturingInitialPhysicalStockProof} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source-sql';
 export async function manufacturingInitialPhysicalStockCountMarked(database:SqlDatabase,id:string){return !!await database.prepare(`SELECT 1 FROM (${manufacturingInitialPhysicalStockMarkedRows}) marker WHERE id=?`).bind(id).first();}
 export async function manufacturingInitialPhysicalStockCountSource(database:SqlDatabase,scope:{companyId:string;branchId:string|null},id:string){return database.prepare(`SELECT source_proof::text proof FROM (${manufacturingInitialPhysicalStockCountSourceRows}) source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)`).bind(id,scope.companyId,scope.branchId,scope.branchId).first<string>('proof');}
@@ -59,7 +60,7 @@ export async function withManufacturingInitialPhysicalStockCountUnit<Result>(own
   manufacturingInitialUnits.set(database,{binding:binding(actor,command),source:before,replay,current,register});
   let result:Result;try{result=await run(database,before,replay,current,register);}finally{manufacturingInitialUnits.delete(database);}
   const completedImage=command.id&&!command.readOnly?await manufacturingInitialPhysicalStockCountImage(database,actor,command.id):readImage;
-  if(!command.readOnly)await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));
+  if(!command.readOnly)await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
   if(!command.readOnly)await flushFinanceDeferredEffects(database);
   for(const guard of finalGuards)await guard();
   if(command.id&&completedImage!==await manufacturingInitialPhysicalStockCountImage(database,actor,command.id))throw new ApiError(409,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original Count image changed before completion.');

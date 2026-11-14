@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "CRM now has a bounded native lead/opportunity pipeline list read, an owner-local HTTP router, a strict Next transport and a configured SSR list cutover. The CRM owner remains pending/partial: lead create/qualify/reassign, opportunity transitions, activities, Sales handoff, shared composition mounting, root workspace membership, package/directory composition implementations, audit/outbox writes and browser acceptance remain open.",
+  "capability": "crm-owner-pipeline-read-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "221456bfdd7ce7998ac760f2f1e5fb72b928b2c5",
+  "scope": {
+    "workflows": [
+      "crm/feature-leads",
+      "crm/feature-opportunities"
+    ],
+    "workflowBoundary": "The qualified slice reads the current Company/branch/department-scoped lead pipeline rows and opportunity stage/value facts used by the retained Sales CRM pipeline list. Accounts, contacts, activities, follow-ups, lead detail source collections and every CRM command remain retained.",
+    "domain": "CRM read actor policy (commerce.read, CRM module with empty modules treated as all, selected-context expiry), exact Company and optional branch/department scope, bounded search/stage/cursor input, exact pipeline row shape, date/currency/status/stage/opportunity/version coherence, strict descending page keys, a scope-bound opaque cursor, and per-currency forecast totals with per-row integer weighting semantics.",
+    "application": "One crm_pipeline use case requires the current actor and package history entitlement before any owner read, validates query/cursor scope before the source read, validates every owner row against the actor Company and selected scope, resolves owner/customer labels through public ports after the bounded page read, validates the bounded forecast and derives the next cursor only from the 30-row page plus one overflow row.",
+    "adapters": "Read-only SQL over CRM-owned crm_leads and crm_opportunities only. The caller's serializable Holding transaction is required. Owner and customer labels are not read from other owners' tables; they arrive through public People and Finance directory ports supplied by composition. No lead, opportunity, activity, account, contact or cross-owner row is created, revised or deleted.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/crm/leads?q=&stage=&cursor=. Exact Host/Holding targets, exact HTTPS origin validation, strict query keys and duplicate rejection, bounded search/stage/cursor validation, private/no-store and no-referrer responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company scope, package admission and serializable owner read.",
+    "transport": "ERPX_NATIVE_CRM_PIPELINE_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact row/forecast/purchase/context shapes, unique ordered IDs, scope/stage validation and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "ssr": "SalesPipelineView uses the native page when ERPX_NATIVE_CRM_PIPELINE_CONFIG is present. An unset configuration retains crmWorkspace and the existing in-memory filter/pagination. Once configured, an invalid or failed native list is surfaced rather than silently replaced. The new-lead form still uses the retained crmWorkspace option read and retained CRM command path.",
+    "purchaseAndIdentity": "The native application requires the current sales.crm history entitlement through a public Commercial port when enforcement is enabled and serializes the current newWork/settleExisting/history/revision controls. This is a read projection; the composition backend must repeat current authority and purchase admission on its own serializable owner transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue acceptance qualification, CRM command/idempotency receipt, versions/CAS write, audit/outbox effect, same-transaction Sales/Support/Customer-360 handoff guard, lead detail source collection, lead create/qualify/reassign, opportunity transition, activity command, Sales handoff, job, production or staging acceptance."
+  },
+  "changedFiles": [
+    "packages/server-crm/Cargo.toml",
+    "packages/server-crm/src/lib.rs",
+    "packages/server-crm/src/domain/mod.rs",
+    "packages/server-crm/src/domain/pipeline.rs",
+    "packages/server-crm/src/application/mod.rs",
+    "packages/server-crm/src/application/pipeline.rs",
+    "packages/server-crm/src/adapters/mod.rs",
+    "packages/server-crm/src/adapters/pipeline.rs",
+    "packages/server-crm/src/adapters/pipeline_http.rs",
+    "packages/server-crm/src/public/mod.rs",
+    "packages/server-crm/src/public/pipeline.rs",
+    "packages/server-crm/src/public/pipeline_http.rs",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/public/native-crm-pipeline.ts",
+    "packages/feature-sales/src/public/native-crm-pipeline-page.ts",
+    "packages/feature-sales/src/adapters/server/next-native-crm-pipeline.ts",
+    "packages/feature-sales/src/components/customers/sales-views.tsx",
+    ".env.example",
+    "tests/unit/crm/rust-crm-pipeline.test.rs",
+    "tests/integration/crm/rust-crm-pipeline-http.test.rs",
+    "tests/integration/crm/rust-crm-pipeline-postgres.test.rs",
+    "tests/unit/crm/native-crm-pipeline-transport.test.ts",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-crm --locked",
+      "result": "15 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, crm_pipeline 9, crm_pipeline_http 2, crm_pipeline_postgres 4, doc-tests 0)",
+      "workspaceNote": "The crate was not a root workspace member when this slice started, which this subagent is prohibited from editing. The exact --locked command was first run with a transient local member entry and transient Cargo.lock package entry; those edits were removed. The concurrent workspace/composition owner has since registered packages/server-crm in the current working tree, and the exact --locked command passes there. No root Cargo.toml or Cargo.lock content is authored by this subagent.",
+      "targets": {
+        "crm_pipeline": "9 passed: permission/module/expiry policy before source, package history before source, query stage/search/cursor negatives, page ordering/duplicate/cursor-scope and row coherence negatives, exact serialized row/forecast/purchase keys, per-row weighted forecast totals, empty forecast, branch/department row scope",
+        "crm_pipeline_http": "2 passed: exact distinct targets and HTTPS origins, actual loopback request/query forwarding, duplicate/unknown query negatives, invalid stage/empty cursor negatives, unknown Host/Holding, conflict mapping, private/no-referrer/nosniff headers",
+        "crm_pipeline_postgres": "4 passed: Company/branch/department/search/stage filters, foreign Company isolation, 31-row cursor pagination without duplicates, half-up-compatible forecast aggregation, transaction/serializable guards, in-transaction readback and rollback, persisted row count unchanged, permission/package denial before source read"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-crm --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-crm warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust file",
+      "result": "pass"
+    },
+    "typescript": {
+      "featureSales": "node_modules/.bin/tsc --noEmit --project packages/feature-sales/tsconfig.json: pass",
+      "testsAndScripts": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json: pass",
+      "eslint": "eslint on the four changed TypeScript files: pass (the repository's existing pages-directory warning only)"
+    },
+    "vitest": {
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/crm/native-crm-pipeline-transport.test.ts\"]' vitest run --config tests/config/vitest.unit.config.mts",
+      "result": "10 passed, 0 failed",
+      "cases": [
+        "forwards exact Host/Holding/session/CAS/query and returns exact page/forecast/purchase fields",
+        "forwards the selected branch slug and opaque cursor",
+        "surfaces a bounded owner PACKAGE_REQUIRED error",
+        "rejects foreign Company, stage, status, duplicate, order, forecast, purchase, page-shape and context mismatches",
+        "accepts coherent opportunity rows and rejects arbitrary opportunity-field changes",
+        "rejects unknown Host and invalid stage/search/empty cursor requests",
+        "fails closed when the native selector is absent and when a configured selector is malformed",
+        "rejects reserved ports, insecure origins and malformed configuration",
+        "maps context/request/authority and owner failures to the retained page/route status policy"
+      ]
+    },
+    "postgres": {
+      "suite": "crm_pipeline_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic organization, Finance party, CRM lead and opportunity rows; no owner write in the qualified read path."
+    },
+    "architecture": {
+      "command": "cargo test -p erpx-server-runtime --test rust_architecture --locked -- --test-threads=1",
+      "result": "not claimed as passing: the shared architecture test currently reports unrelated owner violations in server-pos, server-support, server-brand, server-manage_erpx, server-platform_administration, server-legal and server-maintenance from other uncommitted work. No erpx-server-crm path appears in those failures.",
+      "notClaimed": "This slice does not repair or validate other owners' architecture state."
+    }
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "no new external dependency; the new crate uses existing workspace dependencies only; no package lockfile change",
+    "compositionDelta": "No src/composition change and no composition backend mount. The current working tree also contains a concurrent workspace registration for packages/server-crm in root Cargo.toml/Cargo.lock; that registration was not authored by this subagent. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "CrmPipelineRepository (PostgreSQL owner adapter PgCrmPipelineRead binds the caller's serializable Holding transaction)",
+      "CrmPipelinePeopleDirectory (current People staff labels)",
+      "CrmPipelineCustomerDirectory (current Finance customer labels)",
+      "CrmPipelineEntitlementPort (current Commercial sales.crm controls)"
+    ]
+  },
+  "legacyRemovedOrRetained": {
+    "removed": "none",
+    "retained": [
+      "crmWorkspace, crmDetail, getCRMLead and all CRM commands remain the TypeScript fallback and detail/create path",
+      "CRM activity, identity, analytics, follow-up and Sales handoff retained readers and commands",
+      "retained page behavior when ERPX_NATIVE_CRM_PIPELINE_CONFIG is unset, including in-memory search and page-number pagination",
+      "new-lead form option loading through crmWorkspace and crmIdentities"
+    ],
+    "cutover": "Only the SalesPipelineView lead/opportunity list read switches to the native owner when configured; it uses cursor pagination and server-side search/stage. A configured native failure throws ApiError and never reads the retained list as a fallback."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements the four public ports or mounts crm_pipeline_http_router",
+      "No authenticated browser or deployment verification was performed",
+      "The shared rust_architecture test is currently red for unrelated owners' uncommitted work",
+      "CRM commands, Sales/Support/Customer-360 same-transaction handoff guards, audit/outbox and persisted command readback remain unimplemented natively"
+    ],
+    "nextAction": "Have the composition owner implement the People/Finance/Commercial ports and mount the router behind Account session and current scope, then qualify the lead detail/command slice with idempotency, versions/CAS, audit/outbox and the Sales/Support/Customer-360 same-transaction guards. Browser acceptance remains deferred."
+  }
+}

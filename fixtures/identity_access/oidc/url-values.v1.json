@@ -1,0 +1,2184 @@
+{
+  "usv": {
+    "stateUnits": [
+      112,
+      114,
+      101,
+      55296,
+      112,
+      111,
+      115,
+      116
+    ],
+    "url": "https://issuer.example.test/authorize?response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&state=pre%EF%BF%BDpost&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+  },
+  "node": "v26.11.1",
+  "scope": "Actual pinned core and genericOAuth fake discovery; synthetic data only. Graph observations cover String conversion; native tranche implements encoding only.",
+  "hashes": {
+    "packages/server-identity_access/src/adapters/iam-auth.ts": "b5f951b2edfd78706e31b57fb685116748fd79f4bfc6d9e9d67465b0b3914440",
+    "packages/server-identity_access/src/adapters/iam-providers.ts": "6eadcc90a72155865dd45b84617205ab080c4075ef82cfc48ef40584c6454f33",
+    "node_modules/@better-auth/core/dist/oauth2/create-authorization-url.mjs": "85992584e8b56957865c0252581d491d324b8c488c76dc3f52c54240629082a5",
+    "node_modules/@better-auth/core/dist/oauth2/utils.mjs": "7df229d54a861e809d5af6ad85ad317a294e4de9b8fc2f92c471fdc16949e3ed",
+    "node_modules/better-auth/dist/plugins/generic-oauth/index.mjs": "18884817ac20450f6d2341f93754f09d03309a564838a1257737570c43b5cfbd",
+    "node_modules/@better-auth/core/package.json": "4f921bf41a3fdd686d966128e981ae3f0ef5892b65cddeb6ff77008e62504434",
+    "node_modules/better-auth/package.json": "5c0ca18ac97a49734d537e811a48b9ca4c4ce31d6072bf018e84ad3bb52f1330"
+  },
+  "client": "synthetic client+ไทย",
+  "state": "state +ไทย",
+  "nonce": "nonce 😀",
+  "verifier": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+  "redirect": "https://account.example.test/callback?x=1&y=ไทย",
+  "challenge": "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+  "urls": [
+    {
+      "id": "empty",
+      "endpoint": "https://issuer.example.test/authorize",
+      "url": "https://issuer.example.test/authorize?response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+      "tuples": [
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ]
+      ]
+    },
+    {
+      "id": "duplicates",
+      "endpoint": "https://issuer.example.test/authorize?z=1&z=&=blank&x=2",
+      "url": "https://issuer.example.test/authorize?z=1&z=&=blank&x=2&response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+      "tuples": [
+        [
+          "z",
+          "1"
+        ],
+        [
+          "z",
+          ""
+        ],
+        [
+          "",
+          "blank"
+        ],
+        [
+          "x",
+          "2"
+        ],
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ]
+      ]
+    },
+    {
+      "id": "reserved-separated",
+      "endpoint": "https://issuer.example.test/authorize?response_type=old&other=response_type&response_type=&client_id=old&other=client_id&client_id=&state=old&other=state&state=&scope=old&other=scope&scope=&redirect_uri=old&other=redirect_uri&redirect_uri=&nonce=old&other=nonce&nonce=&code_challenge_method=old&other=code_challenge_method&code_challenge_method=&code_challenge=old&other=code_challenge&code_challenge=",
+      "url": "https://issuer.example.test/authorize?response_type=code&other=response_type&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&other=client_id&state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&other=state&scope=openid+profile+email&other=scope&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&other=redirect_uri&nonce=nonce+%F0%9F%98%80&other=nonce&code_challenge_method=S256&other=code_challenge_method&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM&other=code_challenge",
+      "tuples": [
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "other",
+          "response_type"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "other",
+          "client_id"
+        ],
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "other",
+          "state"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "other",
+          "scope"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "other",
+          "redirect_uri"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "other",
+          "nonce"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "other",
+          "code_challenge_method"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ],
+        [
+          "other",
+          "code_challenge"
+        ]
+      ]
+    },
+    {
+      "id": "reverse",
+      "endpoint": "https://issuer.example.test/authorize?code_challenge=old&code_challenge_method=old&nonce=old&redirect_uri=old&scope=old&state=old&client_id=old&response_type=old",
+      "url": "https://issuer.example.test/authorize?code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM&code_challenge_method=S256&nonce=nonce+%F0%9F%98%80&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&response_type=code",
+      "tuples": [
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "response_type",
+          "code"
+        ]
+      ]
+    },
+    {
+      "id": "encoded-name",
+      "endpoint": "https://issuer.example.test/authorize?%73tate=one&State=upper&state=two&%73tate=three",
+      "url": "https://issuer.example.test/authorize?state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&State=upper&response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+      "tuples": [
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "State",
+          "upper"
+        ],
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ]
+      ]
+    },
+    {
+      "id": "forms",
+      "endpoint": "https://issuer.example.test/authorize?x=a+b&x=a%20b&x=%2B&tilde=%7E&broken=%ZZ&bad=%E0%A4%A",
+      "url": "https://issuer.example.test/authorize?x=a+b&x=a+b&x=%2B&tilde=%7E&broken=%25ZZ&bad=%EF%BF%BD%25A&response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+      "tuples": [
+        [
+          "x",
+          "a b"
+        ],
+        [
+          "x",
+          "a b"
+        ],
+        [
+          "x",
+          "+"
+        ],
+        [
+          "tilde",
+          "~"
+        ],
+        [
+          "broken",
+          "%ZZ"
+        ],
+        [
+          "bad",
+          "�%A"
+        ],
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ]
+      ]
+    },
+    {
+      "id": "unicode",
+      "endpoint": "https://issuer.example.test/authorize?ไทย=😀&e=e%CC%81&n=%C3%A9",
+      "url": "https://issuer.example.test/authorize?%E0%B9%84%E0%B8%97%E0%B8%A2=%F0%9F%98%80&e=e%CC%81&n=%C3%A9&response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+      "tuples": [
+        [
+          "ไทย",
+          "😀"
+        ],
+        [
+          "e",
+          "é"
+        ],
+        [
+          "n",
+          "é"
+        ],
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ]
+      ]
+    },
+    {
+      "id": "empty-reserved",
+      "endpoint": "https://issuer.example.test/authorize?state=&client_id=&scope=&nonce=",
+      "url": "https://issuer.example.test/authorize?state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&nonce=nonce+%F0%9F%98%80&response_type=code&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+      "tuples": [
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ]
+      ]
+    },
+    {
+      "id": "long",
+      "endpoint": "https://issuer.example.test/authorize?x0=a%20b%2B%7E&x1=a%20b%2B%7E&x2=a%20b%2B%7E&x3=a%20b%2B%7E&x4=a%20b%2B%7E&x5=a%20b%2B%7E&x6=a%20b%2B%7E&x7=a%20b%2B%7E&x8=a%20b%2B%7E&x9=a%20b%2B%7E&x10=a%20b%2B%7E&x11=a%20b%2B%7E&x12=a%20b%2B%7E&x13=a%20b%2B%7E&x14=a%20b%2B%7E&x15=a%20b%2B%7E&x16=a%20b%2B%7E&x17=a%20b%2B%7E&x18=a%20b%2B%7E&x19=a%20b%2B%7E&x20=a%20b%2B%7E&x21=a%20b%2B%7E&x22=a%20b%2B%7E&x23=a%20b%2B%7E&x24=a%20b%2B%7E&x25=a%20b%2B%7E&x26=a%20b%2B%7E&x27=a%20b%2B%7E&x28=a%20b%2B%7E&x29=a%20b%2B%7E&x30=a%20b%2B%7E&x31=a%20b%2B%7E&x32=a%20b%2B%7E&x33=a%20b%2B%7E&x34=a%20b%2B%7E&x35=a%20b%2B%7E&x36=a%20b%2B%7E&x37=a%20b%2B%7E&x38=a%20b%2B%7E&x39=a%20b%2B%7E&x40=a%20b%2B%7E&x41=a%20b%2B%7E&x42=a%20b%2B%7E&x43=a%20b%2B%7E&x44=a%20b%2B%7E&x45=a%20b%2B%7E&x46=a%20b%2B%7E&x47=a%20b%2B%7E&x48=a%20b%2B%7E&x49=a%20b%2B%7E&x50=a%20b%2B%7E&x51=a%20b%2B%7E&x52=a%20b%2B%7E&x53=a%20b%2B%7E&x54=a%20b%2B%7E&x55=a%20b%2B%7E&x56=a%20b%2B%7E&x57=a%20b%2B%7E&x58=a%20b%2B%7E&x59=a%20b%2B%7E&x60=a%20b%2B%7E&x61=a%20b%2B%7E&x62=a%20b%2B%7E&x63=a%20b%2B%7E&x64=a%20b%2B%7E&x65=a%20b%2B%7E&x66=a%20b%2B%7E&x67=a%20b%2B%7E&x68=a%20b%2B%7E&x69=a%20b%2B%7E&x70=a%20b%2B%7E&x71=a%20b%2B%7E&x72=a%20b%2B%7E&x73=a%20b%2B%7E&x74=a%20b%2B%7E&x75=a%20b%2B%7E&x76=a%20b%2B%7E&x77=a%20b%2B%7E&x78=a%20b%2B%7E&x79=a%20b%2B%7E",
+      "url": "https://issuer.example.test/authorize?x0=a+b%2B%7E&x1=a+b%2B%7E&x2=a+b%2B%7E&x3=a+b%2B%7E&x4=a+b%2B%7E&x5=a+b%2B%7E&x6=a+b%2B%7E&x7=a+b%2B%7E&x8=a+b%2B%7E&x9=a+b%2B%7E&x10=a+b%2B%7E&x11=a+b%2B%7E&x12=a+b%2B%7E&x13=a+b%2B%7E&x14=a+b%2B%7E&x15=a+b%2B%7E&x16=a+b%2B%7E&x17=a+b%2B%7E&x18=a+b%2B%7E&x19=a+b%2B%7E&x20=a+b%2B%7E&x21=a+b%2B%7E&x22=a+b%2B%7E&x23=a+b%2B%7E&x24=a+b%2B%7E&x25=a+b%2B%7E&x26=a+b%2B%7E&x27=a+b%2B%7E&x28=a+b%2B%7E&x29=a+b%2B%7E&x30=a+b%2B%7E&x31=a+b%2B%7E&x32=a+b%2B%7E&x33=a+b%2B%7E&x34=a+b%2B%7E&x35=a+b%2B%7E&x36=a+b%2B%7E&x37=a+b%2B%7E&x38=a+b%2B%7E&x39=a+b%2B%7E&x40=a+b%2B%7E&x41=a+b%2B%7E&x42=a+b%2B%7E&x43=a+b%2B%7E&x44=a+b%2B%7E&x45=a+b%2B%7E&x46=a+b%2B%7E&x47=a+b%2B%7E&x48=a+b%2B%7E&x49=a+b%2B%7E&x50=a+b%2B%7E&x51=a+b%2B%7E&x52=a+b%2B%7E&x53=a+b%2B%7E&x54=a+b%2B%7E&x55=a+b%2B%7E&x56=a+b%2B%7E&x57=a+b%2B%7E&x58=a+b%2B%7E&x59=a+b%2B%7E&x60=a+b%2B%7E&x61=a+b%2B%7E&x62=a+b%2B%7E&x63=a+b%2B%7E&x64=a+b%2B%7E&x65=a+b%2B%7E&x66=a+b%2B%7E&x67=a+b%2B%7E&x68=a+b%2B%7E&x69=a+b%2B%7E&x70=a+b%2B%7E&x71=a+b%2B%7E&x72=a+b%2B%7E&x73=a+b%2B%7E&x74=a+b%2B%7E&x75=a+b%2B%7E&x76=a+b%2B%7E&x77=a+b%2B%7E&x78=a+b%2B%7E&x79=a+b%2B%7E&response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+      "tuples": [
+        [
+          "x0",
+          "a b+~"
+        ],
+        [
+          "x1",
+          "a b+~"
+        ],
+        [
+          "x2",
+          "a b+~"
+        ],
+        [
+          "x3",
+          "a b+~"
+        ],
+        [
+          "x4",
+          "a b+~"
+        ],
+        [
+          "x5",
+          "a b+~"
+        ],
+        [
+          "x6",
+          "a b+~"
+        ],
+        [
+          "x7",
+          "a b+~"
+        ],
+        [
+          "x8",
+          "a b+~"
+        ],
+        [
+          "x9",
+          "a b+~"
+        ],
+        [
+          "x10",
+          "a b+~"
+        ],
+        [
+          "x11",
+          "a b+~"
+        ],
+        [
+          "x12",
+          "a b+~"
+        ],
+        [
+          "x13",
+          "a b+~"
+        ],
+        [
+          "x14",
+          "a b+~"
+        ],
+        [
+          "x15",
+          "a b+~"
+        ],
+        [
+          "x16",
+          "a b+~"
+        ],
+        [
+          "x17",
+          "a b+~"
+        ],
+        [
+          "x18",
+          "a b+~"
+        ],
+        [
+          "x19",
+          "a b+~"
+        ],
+        [
+          "x20",
+          "a b+~"
+        ],
+        [
+          "x21",
+          "a b+~"
+        ],
+        [
+          "x22",
+          "a b+~"
+        ],
+        [
+          "x23",
+          "a b+~"
+        ],
+        [
+          "x24",
+          "a b+~"
+        ],
+        [
+          "x25",
+          "a b+~"
+        ],
+        [
+          "x26",
+          "a b+~"
+        ],
+        [
+          "x27",
+          "a b+~"
+        ],
+        [
+          "x28",
+          "a b+~"
+        ],
+        [
+          "x29",
+          "a b+~"
+        ],
+        [
+          "x30",
+          "a b+~"
+        ],
+        [
+          "x31",
+          "a b+~"
+        ],
+        [
+          "x32",
+          "a b+~"
+        ],
+        [
+          "x33",
+          "a b+~"
+        ],
+        [
+          "x34",
+          "a b+~"
+        ],
+        [
+          "x35",
+          "a b+~"
+        ],
+        [
+          "x36",
+          "a b+~"
+        ],
+        [
+          "x37",
+          "a b+~"
+        ],
+        [
+          "x38",
+          "a b+~"
+        ],
+        [
+          "x39",
+          "a b+~"
+        ],
+        [
+          "x40",
+          "a b+~"
+        ],
+        [
+          "x41",
+          "a b+~"
+        ],
+        [
+          "x42",
+          "a b+~"
+        ],
+        [
+          "x43",
+          "a b+~"
+        ],
+        [
+          "x44",
+          "a b+~"
+        ],
+        [
+          "x45",
+          "a b+~"
+        ],
+        [
+          "x46",
+          "a b+~"
+        ],
+        [
+          "x47",
+          "a b+~"
+        ],
+        [
+          "x48",
+          "a b+~"
+        ],
+        [
+          "x49",
+          "a b+~"
+        ],
+        [
+          "x50",
+          "a b+~"
+        ],
+        [
+          "x51",
+          "a b+~"
+        ],
+        [
+          "x52",
+          "a b+~"
+        ],
+        [
+          "x53",
+          "a b+~"
+        ],
+        [
+          "x54",
+          "a b+~"
+        ],
+        [
+          "x55",
+          "a b+~"
+        ],
+        [
+          "x56",
+          "a b+~"
+        ],
+        [
+          "x57",
+          "a b+~"
+        ],
+        [
+          "x58",
+          "a b+~"
+        ],
+        [
+          "x59",
+          "a b+~"
+        ],
+        [
+          "x60",
+          "a b+~"
+        ],
+        [
+          "x61",
+          "a b+~"
+        ],
+        [
+          "x62",
+          "a b+~"
+        ],
+        [
+          "x63",
+          "a b+~"
+        ],
+        [
+          "x64",
+          "a b+~"
+        ],
+        [
+          "x65",
+          "a b+~"
+        ],
+        [
+          "x66",
+          "a b+~"
+        ],
+        [
+          "x67",
+          "a b+~"
+        ],
+        [
+          "x68",
+          "a b+~"
+        ],
+        [
+          "x69",
+          "a b+~"
+        ],
+        [
+          "x70",
+          "a b+~"
+        ],
+        [
+          "x71",
+          "a b+~"
+        ],
+        [
+          "x72",
+          "a b+~"
+        ],
+        [
+          "x73",
+          "a b+~"
+        ],
+        [
+          "x74",
+          "a b+~"
+        ],
+        [
+          "x75",
+          "a b+~"
+        ],
+        [
+          "x76",
+          "a b+~"
+        ],
+        [
+          "x77",
+          "a b+~"
+        ],
+        [
+          "x78",
+          "a b+~"
+        ],
+        [
+          "x79",
+          "a b+~"
+        ],
+        [
+          "response_type",
+          "code"
+        ],
+        [
+          "client_id",
+          "synthetic client+ไทย"
+        ],
+        [
+          "state",
+          "state +ไทย"
+        ],
+        [
+          "scope",
+          "openid profile email"
+        ],
+        [
+          "redirect_uri",
+          "https://account.example.test/callback?x=1&y=ไทย"
+        ],
+        [
+          "nonce",
+          "nonce 😀"
+        ],
+        [
+          "code_challenge_method",
+          "S256"
+        ],
+        [
+          "code_challenge",
+          "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+        ]
+      ]
+    }
+  ],
+  "generic": {
+    "url": "https://issuer.example.test/authorize?state=state+%2B%E0%B9%84%E0%B8%97%E0%B8%A2&State=upper&response_type=code&client_id=synthetic+client%2B%E0%B9%84%E0%B8%97%E0%B8%A2&scope=openid+profile+email&redirect_uri=https%3A%2F%2Faccount.example.test%2Fcallback%3Fx%3D1%26y%3D%E0%B9%84%E0%B8%97%E0%B8%A2&nonce=nonce+%F0%9F%98%80&code_challenge_method=S256&code_challenge=w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM",
+    "tuples": [
+      [
+        "state",
+        "state +ไทย"
+      ],
+      [
+        "State",
+        "upper"
+      ],
+      [
+        "response_type",
+        "code"
+      ],
+      [
+        "client_id",
+        "synthetic client+ไทย"
+      ],
+      [
+        "scope",
+        "openid profile email"
+      ],
+      [
+        "redirect_uri",
+        "https://account.example.test/callback?x=1&y=ไทย"
+      ],
+      [
+        "nonce",
+        "nonce 😀"
+      ],
+      [
+        "code_challenge_method",
+        "S256"
+      ],
+      [
+        "code_challenge",
+        "w1TpKUdYE9hUAcNSeeSRFioHDxfUxuHho_JHAfZ_vDM"
+      ]
+    ],
+    "calls": [
+      "https://issuer.example.test/.well-known/openid-configuration"
+    ]
+  },
+  "graph": [
+    {
+      "id": "ascii-0",
+      "units": [
+        0
+      ],
+      "string": "\"\\u0000\"",
+      "output": "%00",
+      "error": null
+    },
+    {
+      "id": "ascii-1",
+      "units": [
+        1
+      ],
+      "string": "\"\\u0001\"",
+      "output": "%01",
+      "error": null
+    },
+    {
+      "id": "ascii-2",
+      "units": [
+        2
+      ],
+      "string": "\"\\u0002\"",
+      "output": "%02",
+      "error": null
+    },
+    {
+      "id": "ascii-3",
+      "units": [
+        3
+      ],
+      "string": "\"\\u0003\"",
+      "output": "%03",
+      "error": null
+    },
+    {
+      "id": "ascii-4",
+      "units": [
+        4
+      ],
+      "string": "\"\\u0004\"",
+      "output": "%04",
+      "error": null
+    },
+    {
+      "id": "ascii-5",
+      "units": [
+        5
+      ],
+      "string": "\"\\u0005\"",
+      "output": "%05",
+      "error": null
+    },
+    {
+      "id": "ascii-6",
+      "units": [
+        6
+      ],
+      "string": "\"\\u0006\"",
+      "output": "%06",
+      "error": null
+    },
+    {
+      "id": "ascii-7",
+      "units": [
+        7
+      ],
+      "string": "\"\\u0007\"",
+      "output": "%07",
+      "error": null
+    },
+    {
+      "id": "ascii-8",
+      "units": [
+        8
+      ],
+      "string": "\"\\b\"",
+      "output": "%08",
+      "error": null
+    },
+    {
+      "id": "ascii-9",
+      "units": [
+        9
+      ],
+      "string": "\"\\t\"",
+      "output": "%09",
+      "error": null
+    },
+    {
+      "id": "ascii-10",
+      "units": [
+        10
+      ],
+      "string": "\"\\n\"",
+      "output": "%0A",
+      "error": null
+    },
+    {
+      "id": "ascii-11",
+      "units": [
+        11
+      ],
+      "string": "\"\\u000b\"",
+      "output": "%0B",
+      "error": null
+    },
+    {
+      "id": "ascii-12",
+      "units": [
+        12
+      ],
+      "string": "\"\\f\"",
+      "output": "%0C",
+      "error": null
+    },
+    {
+      "id": "ascii-13",
+      "units": [
+        13
+      ],
+      "string": "\"\\r\"",
+      "output": "%0D",
+      "error": null
+    },
+    {
+      "id": "ascii-14",
+      "units": [
+        14
+      ],
+      "string": "\"\\u000e\"",
+      "output": "%0E",
+      "error": null
+    },
+    {
+      "id": "ascii-15",
+      "units": [
+        15
+      ],
+      "string": "\"\\u000f\"",
+      "output": "%0F",
+      "error": null
+    },
+    {
+      "id": "ascii-16",
+      "units": [
+        16
+      ],
+      "string": "\"\\u0010\"",
+      "output": "%10",
+      "error": null
+    },
+    {
+      "id": "ascii-17",
+      "units": [
+        17
+      ],
+      "string": "\"\\u0011\"",
+      "output": "%11",
+      "error": null
+    },
+    {
+      "id": "ascii-18",
+      "units": [
+        18
+      ],
+      "string": "\"\\u0012\"",
+      "output": "%12",
+      "error": null
+    },
+    {
+      "id": "ascii-19",
+      "units": [
+        19
+      ],
+      "string": "\"\\u0013\"",
+      "output": "%13",
+      "error": null
+    },
+    {
+      "id": "ascii-20",
+      "units": [
+        20
+      ],
+      "string": "\"\\u0014\"",
+      "output": "%14",
+      "error": null
+    },
+    {
+      "id": "ascii-21",
+      "units": [
+        21
+      ],
+      "string": "\"\\u0015\"",
+      "output": "%15",
+      "error": null
+    },
+    {
+      "id": "ascii-22",
+      "units": [
+        22
+      ],
+      "string": "\"\\u0016\"",
+      "output": "%16",
+      "error": null
+    },
+    {
+      "id": "ascii-23",
+      "units": [
+        23
+      ],
+      "string": "\"\\u0017\"",
+      "output": "%17",
+      "error": null
+    },
+    {
+      "id": "ascii-24",
+      "units": [
+        24
+      ],
+      "string": "\"\\u0018\"",
+      "output": "%18",
+      "error": null
+    },
+    {
+      "id": "ascii-25",
+      "units": [
+        25
+      ],
+      "string": "\"\\u0019\"",
+      "output": "%19",
+      "error": null
+    },
+    {
+      "id": "ascii-26",
+      "units": [
+        26
+      ],
+      "string": "\"\\u001a\"",
+      "output": "%1A",
+      "error": null
+    },
+    {
+      "id": "ascii-27",
+      "units": [
+        27
+      ],
+      "string": "\"\\u001b\"",
+      "output": "%1B",
+      "error": null
+    },
+    {
+      "id": "ascii-28",
+      "units": [
+        28
+      ],
+      "string": "\"\\u001c\"",
+      "output": "%1C",
+      "error": null
+    },
+    {
+      "id": "ascii-29",
+      "units": [
+        29
+      ],
+      "string": "\"\\u001d\"",
+      "output": "%1D",
+      "error": null
+    },
+    {
+      "id": "ascii-30",
+      "units": [
+        30
+      ],
+      "string": "\"\\u001e\"",
+      "output": "%1E",
+      "error": null
+    },
+    {
+      "id": "ascii-31",
+      "units": [
+        31
+      ],
+      "string": "\"\\u001f\"",
+      "output": "%1F",
+      "error": null
+    },
+    {
+      "id": "ascii-32",
+      "units": [
+        32
+      ],
+      "string": "\" \"",
+      "output": "%20",
+      "error": null
+    },
+    {
+      "id": "ascii-33",
+      "units": [
+        33
+      ],
+      "string": "\"!\"",
+      "output": "!",
+      "error": null
+    },
+    {
+      "id": "ascii-34",
+      "units": [
+        34
+      ],
+      "string": "\"\\\"\"",
+      "output": "%22",
+      "error": null
+    },
+    {
+      "id": "ascii-35",
+      "units": [
+        35
+      ],
+      "string": "\"#\"",
+      "output": "%23",
+      "error": null
+    },
+    {
+      "id": "ascii-36",
+      "units": [
+        36
+      ],
+      "string": "\"$\"",
+      "output": "%24",
+      "error": null
+    },
+    {
+      "id": "ascii-37",
+      "units": [
+        37
+      ],
+      "string": "\"%\"",
+      "output": "%25",
+      "error": null
+    },
+    {
+      "id": "ascii-38",
+      "units": [
+        38
+      ],
+      "string": "\"&\"",
+      "output": "%26",
+      "error": null
+    },
+    {
+      "id": "ascii-39",
+      "units": [
+        39
+      ],
+      "string": "\"'\"",
+      "output": "'",
+      "error": null
+    },
+    {
+      "id": "ascii-40",
+      "units": [
+        40
+      ],
+      "string": "\"(\"",
+      "output": "(",
+      "error": null
+    },
+    {
+      "id": "ascii-41",
+      "units": [
+        41
+      ],
+      "string": "\")\"",
+      "output": ")",
+      "error": null
+    },
+    {
+      "id": "ascii-42",
+      "units": [
+        42
+      ],
+      "string": "\"*\"",
+      "output": "*",
+      "error": null
+    },
+    {
+      "id": "ascii-43",
+      "units": [
+        43
+      ],
+      "string": "\"+\"",
+      "output": "%2B",
+      "error": null
+    },
+    {
+      "id": "ascii-44",
+      "units": [
+        44
+      ],
+      "string": "\",\"",
+      "output": "%2C",
+      "error": null
+    },
+    {
+      "id": "ascii-45",
+      "units": [
+        45
+      ],
+      "string": "\"-\"",
+      "output": "-",
+      "error": null
+    },
+    {
+      "id": "ascii-46",
+      "units": [
+        46
+      ],
+      "string": "\".\"",
+      "output": ".",
+      "error": null
+    },
+    {
+      "id": "ascii-47",
+      "units": [
+        47
+      ],
+      "string": "\"/\"",
+      "output": "%2F",
+      "error": null
+    },
+    {
+      "id": "ascii-48",
+      "units": [
+        48
+      ],
+      "string": "\"0\"",
+      "output": "0",
+      "error": null
+    },
+    {
+      "id": "ascii-49",
+      "units": [
+        49
+      ],
+      "string": "\"1\"",
+      "output": "1",
+      "error": null
+    },
+    {
+      "id": "ascii-50",
+      "units": [
+        50
+      ],
+      "string": "\"2\"",
+      "output": "2",
+      "error": null
+    },
+    {
+      "id": "ascii-51",
+      "units": [
+        51
+      ],
+      "string": "\"3\"",
+      "output": "3",
+      "error": null
+    },
+    {
+      "id": "ascii-52",
+      "units": [
+        52
+      ],
+      "string": "\"4\"",
+      "output": "4",
+      "error": null
+    },
+    {
+      "id": "ascii-53",
+      "units": [
+        53
+      ],
+      "string": "\"5\"",
+      "output": "5",
+      "error": null
+    },
+    {
+      "id": "ascii-54",
+      "units": [
+        54
+      ],
+      "string": "\"6\"",
+      "output": "6",
+      "error": null
+    },
+    {
+      "id": "ascii-55",
+      "units": [
+        55
+      ],
+      "string": "\"7\"",
+      "output": "7",
+      "error": null
+    },
+    {
+      "id": "ascii-56",
+      "units": [
+        56
+      ],
+      "string": "\"8\"",
+      "output": "8",
+      "error": null
+    },
+    {
+      "id": "ascii-57",
+      "units": [
+        57
+      ],
+      "string": "\"9\"",
+      "output": "9",
+      "error": null
+    },
+    {
+      "id": "ascii-58",
+      "units": [
+        58
+      ],
+      "string": "\":\"",
+      "output": "%3A",
+      "error": null
+    },
+    {
+      "id": "ascii-59",
+      "units": [
+        59
+      ],
+      "string": "\";\"",
+      "output": "%3B",
+      "error": null
+    },
+    {
+      "id": "ascii-60",
+      "units": [
+        60
+      ],
+      "string": "\"<\"",
+      "output": "%3C",
+      "error": null
+    },
+    {
+      "id": "ascii-61",
+      "units": [
+        61
+      ],
+      "string": "\"=\"",
+      "output": "%3D",
+      "error": null
+    },
+    {
+      "id": "ascii-62",
+      "units": [
+        62
+      ],
+      "string": "\">\"",
+      "output": "%3E",
+      "error": null
+    },
+    {
+      "id": "ascii-63",
+      "units": [
+        63
+      ],
+      "string": "\"?\"",
+      "output": "%3F",
+      "error": null
+    },
+    {
+      "id": "ascii-64",
+      "units": [
+        64
+      ],
+      "string": "\"@\"",
+      "output": "%40",
+      "error": null
+    },
+    {
+      "id": "ascii-65",
+      "units": [
+        65
+      ],
+      "string": "\"A\"",
+      "output": "A",
+      "error": null
+    },
+    {
+      "id": "ascii-66",
+      "units": [
+        66
+      ],
+      "string": "\"B\"",
+      "output": "B",
+      "error": null
+    },
+    {
+      "id": "ascii-67",
+      "units": [
+        67
+      ],
+      "string": "\"C\"",
+      "output": "C",
+      "error": null
+    },
+    {
+      "id": "ascii-68",
+      "units": [
+        68
+      ],
+      "string": "\"D\"",
+      "output": "D",
+      "error": null
+    },
+    {
+      "id": "ascii-69",
+      "units": [
+        69
+      ],
+      "string": "\"E\"",
+      "output": "E",
+      "error": null
+    },
+    {
+      "id": "ascii-70",
+      "units": [
+        70
+      ],
+      "string": "\"F\"",
+      "output": "F",
+      "error": null
+    },
+    {
+      "id": "ascii-71",
+      "units": [
+        71
+      ],
+      "string": "\"G\"",
+      "output": "G",
+      "error": null
+    },
+    {
+      "id": "ascii-72",
+      "units": [
+        72
+      ],
+      "string": "\"H\"",
+      "output": "H",
+      "error": null
+    },
+    {
+      "id": "ascii-73",
+      "units": [
+        73
+      ],
+      "string": "\"I\"",
+      "output": "I",
+      "error": null
+    },
+    {
+      "id": "ascii-74",
+      "units": [
+        74
+      ],
+      "string": "\"J\"",
+      "output": "J",
+      "error": null
+    },
+    {
+      "id": "ascii-75",
+      "units": [
+        75
+      ],
+      "string": "\"K\"",
+      "output": "K",
+      "error": null
+    },
+    {
+      "id": "ascii-76",
+      "units": [
+        76
+      ],
+      "string": "\"L\"",
+      "output": "L",
+      "error": null
+    },
+    {
+      "id": "ascii-77",
+      "units": [
+        77
+      ],
+      "string": "\"M\"",
+      "output": "M",
+      "error": null
+    },
+    {
+      "id": "ascii-78",
+      "units": [
+        78
+      ],
+      "string": "\"N\"",
+      "output": "N",
+      "error": null
+    },
+    {
+      "id": "ascii-79",
+      "units": [
+        79
+      ],
+      "string": "\"O\"",
+      "output": "O",
+      "error": null
+    },
+    {
+      "id": "ascii-80",
+      "units": [
+        80
+      ],
+      "string": "\"P\"",
+      "output": "P",
+      "error": null
+    },
+    {
+      "id": "ascii-81",
+      "units": [
+        81
+      ],
+      "string": "\"Q\"",
+      "output": "Q",
+      "error": null
+    },
+    {
+      "id": "ascii-82",
+      "units": [
+        82
+      ],
+      "string": "\"R\"",
+      "output": "R",
+      "error": null
+    },
+    {
+      "id": "ascii-83",
+      "units": [
+        83
+      ],
+      "string": "\"S\"",
+      "output": "S",
+      "error": null
+    },
+    {
+      "id": "ascii-84",
+      "units": [
+        84
+      ],
+      "string": "\"T\"",
+      "output": "T",
+      "error": null
+    },
+    {
+      "id": "ascii-85",
+      "units": [
+        85
+      ],
+      "string": "\"U\"",
+      "output": "U",
+      "error": null
+    },
+    {
+      "id": "ascii-86",
+      "units": [
+        86
+      ],
+      "string": "\"V\"",
+      "output": "V",
+      "error": null
+    },
+    {
+      "id": "ascii-87",
+      "units": [
+        87
+      ],
+      "string": "\"W\"",
+      "output": "W",
+      "error": null
+    },
+    {
+      "id": "ascii-88",
+      "units": [
+        88
+      ],
+      "string": "\"X\"",
+      "output": "X",
+      "error": null
+    },
+    {
+      "id": "ascii-89",
+      "units": [
+        89
+      ],
+      "string": "\"Y\"",
+      "output": "Y",
+      "error": null
+    },
+    {
+      "id": "ascii-90",
+      "units": [
+        90
+      ],
+      "string": "\"Z\"",
+      "output": "Z",
+      "error": null
+    },
+    {
+      "id": "ascii-91",
+      "units": [
+        91
+      ],
+      "string": "\"[\"",
+      "output": "%5B",
+      "error": null
+    },
+    {
+      "id": "ascii-92",
+      "units": [
+        92
+      ],
+      "string": "\"\\\\\"",
+      "output": "%5C",
+      "error": null
+    },
+    {
+      "id": "ascii-93",
+      "units": [
+        93
+      ],
+      "string": "\"]\"",
+      "output": "%5D",
+      "error": null
+    },
+    {
+      "id": "ascii-94",
+      "units": [
+        94
+      ],
+      "string": "\"^\"",
+      "output": "%5E",
+      "error": null
+    },
+    {
+      "id": "ascii-95",
+      "units": [
+        95
+      ],
+      "string": "\"_\"",
+      "output": "_",
+      "error": null
+    },
+    {
+      "id": "ascii-96",
+      "units": [
+        96
+      ],
+      "string": "\"`\"",
+      "output": "%60",
+      "error": null
+    },
+    {
+      "id": "ascii-97",
+      "units": [
+        97
+      ],
+      "string": "\"a\"",
+      "output": "a",
+      "error": null
+    },
+    {
+      "id": "ascii-98",
+      "units": [
+        98
+      ],
+      "string": "\"b\"",
+      "output": "b",
+      "error": null
+    },
+    {
+      "id": "ascii-99",
+      "units": [
+        99
+      ],
+      "string": "\"c\"",
+      "output": "c",
+      "error": null
+    },
+    {
+      "id": "ascii-100",
+      "units": [
+        100
+      ],
+      "string": "\"d\"",
+      "output": "d",
+      "error": null
+    },
+    {
+      "id": "ascii-101",
+      "units": [
+        101
+      ],
+      "string": "\"e\"",
+      "output": "e",
+      "error": null
+    },
+    {
+      "id": "ascii-102",
+      "units": [
+        102
+      ],
+      "string": "\"f\"",
+      "output": "f",
+      "error": null
+    },
+    {
+      "id": "ascii-103",
+      "units": [
+        103
+      ],
+      "string": "\"g\"",
+      "output": "g",
+      "error": null
+    },
+    {
+      "id": "ascii-104",
+      "units": [
+        104
+      ],
+      "string": "\"h\"",
+      "output": "h",
+      "error": null
+    },
+    {
+      "id": "ascii-105",
+      "units": [
+        105
+      ],
+      "string": "\"i\"",
+      "output": "i",
+      "error": null
+    },
+    {
+      "id": "ascii-106",
+      "units": [
+        106
+      ],
+      "string": "\"j\"",
+      "output": "j",
+      "error": null
+    },
+    {
+      "id": "ascii-107",
+      "units": [
+        107
+      ],
+      "string": "\"k\"",
+      "output": "k",
+      "error": null
+    },
+    {
+      "id": "ascii-108",
+      "units": [
+        108
+      ],
+      "string": "\"l\"",
+      "output": "l",
+      "error": null
+    },
+    {
+      "id": "ascii-109",
+      "units": [
+        109
+      ],
+      "string": "\"m\"",
+      "output": "m",
+      "error": null
+    },
+    {
+      "id": "ascii-110",
+      "units": [
+        110
+      ],
+      "string": "\"n\"",
+      "output": "n",
+      "error": null
+    },
+    {
+      "id": "ascii-111",
+      "units": [
+        111
+      ],
+      "string": "\"o\"",
+      "output": "o",
+      "error": null
+    },
+    {
+      "id": "ascii-112",
+      "units": [
+        112
+      ],
+      "string": "\"p\"",
+      "output": "p",
+      "error": null
+    },
+    {
+      "id": "ascii-113",
+      "units": [
+        113
+      ],
+      "string": "\"q\"",
+      "output": "q",
+      "error": null
+    },
+    {
+      "id": "ascii-114",
+      "units": [
+        114
+      ],
+      "string": "\"r\"",
+      "output": "r",
+      "error": null
+    },
+    {
+      "id": "ascii-115",
+      "units": [
+        115
+      ],
+      "string": "\"s\"",
+      "output": "s",
+      "error": null
+    },
+    {
+      "id": "ascii-116",
+      "units": [
+        116
+      ],
+      "string": "\"t\"",
+      "output": "t",
+      "error": null
+    },
+    {
+      "id": "ascii-117",
+      "units": [
+        117
+      ],
+      "string": "\"u\"",
+      "output": "u",
+      "error": null
+    },
+    {
+      "id": "ascii-118",
+      "units": [
+        118
+      ],
+      "string": "\"v\"",
+      "output": "v",
+      "error": null
+    },
+    {
+      "id": "ascii-119",
+      "units": [
+        119
+      ],
+      "string": "\"w\"",
+      "output": "w",
+      "error": null
+    },
+    {
+      "id": "ascii-120",
+      "units": [
+        120
+      ],
+      "string": "\"x\"",
+      "output": "x",
+      "error": null
+    },
+    {
+      "id": "ascii-121",
+      "units": [
+        121
+      ],
+      "string": "\"y\"",
+      "output": "y",
+      "error": null
+    },
+    {
+      "id": "ascii-122",
+      "units": [
+        122
+      ],
+      "string": "\"z\"",
+      "output": "z",
+      "error": null
+    },
+    {
+      "id": "ascii-123",
+      "units": [
+        123
+      ],
+      "string": "\"{\"",
+      "output": "%7B",
+      "error": null
+    },
+    {
+      "id": "ascii-124",
+      "units": [
+        124
+      ],
+      "string": "\"|\"",
+      "output": "%7C",
+      "error": null
+    },
+    {
+      "id": "ascii-125",
+      "units": [
+        125
+      ],
+      "string": "\"}\"",
+      "output": "%7D",
+      "error": null
+    },
+    {
+      "id": "ascii-126",
+      "units": [
+        126
+      ],
+      "string": "\"~\"",
+      "output": "~",
+      "error": null
+    },
+    {
+      "id": "ascii-127",
+      "units": [
+        127
+      ],
+      "string": "\"\"",
+      "output": "%7F",
+      "error": null
+    },
+    {
+      "id": "literal",
+      "units": [
+        33,
+        39,
+        40,
+        41,
+        42,
+        45,
+        46,
+        95,
+        126
+      ],
+      "string": "\"!'()*-._~\"",
+      "output": "!'()*-._~",
+      "error": null
+    },
+    {
+      "id": "delimiters",
+      "units": [
+        32,
+        43,
+        47,
+        37,
+        63,
+        35,
+        38,
+        61
+      ],
+      "string": "\" +/%?#&=\"",
+      "output": "%20%2B%2F%25%3F%23%26%3D",
+      "error": null
+    },
+    {
+      "id": "combining",
+      "units": [
+        101,
+        769
+      ],
+      "string": "\"é\"",
+      "output": "e%CC%81",
+      "error": null
+    },
+    {
+      "id": "nfc",
+      "units": [
+        233
+      ],
+      "string": "\"é\"",
+      "output": "%C3%A9",
+      "error": null
+    },
+    {
+      "id": "thai",
+      "units": [
+        3616,
+        3634,
+        3625,
+        3634,
+        3652,
+        3607,
+        3618
+      ],
+      "string": "\"ภาษาไทย\"",
+      "output": "%E0%B8%A0%E0%B8%B2%E0%B8%A9%E0%B8%B2%E0%B9%84%E0%B8%97%E0%B8%A2",
+      "error": null
+    },
+    {
+      "id": "astral",
+      "units": [
+        55357,
+        56832
+      ],
+      "string": "\"😀\"",
+      "output": "%F0%9F%98%80",
+      "error": null
+    },
+    {
+      "id": "high",
+      "units": [
+        55296
+      ],
+      "string": "\"\\ud800\"",
+      "output": null,
+      "error": "URIError"
+    },
+    {
+      "id": "low",
+      "units": [
+        56320
+      ],
+      "string": "\"\\udc00\"",
+      "output": null,
+      "error": "URIError"
+    },
+    {
+      "id": "reversed",
+      "units": [
+        56320,
+        55296
+      ],
+      "string": "\"\\udc00\\ud800\"",
+      "output": null,
+      "error": "URIError"
+    },
+    {
+      "id": "missing",
+      "units": [
+        117,
+        110,
+        100,
+        101,
+        102,
+        105,
+        110,
+        101,
+        100
+      ],
+      "string": "\"undefined\"",
+      "output": "undefined",
+      "error": null
+    },
+    {
+      "id": "null",
+      "units": [
+        110,
+        117,
+        108,
+        108
+      ],
+      "string": "\"null\"",
+      "output": "null",
+      "error": null
+    },
+    {
+      "id": "bool",
+      "units": [
+        116,
+        114,
+        117,
+        101
+      ],
+      "string": "\"true\"",
+      "output": "true",
+      "error": null
+    },
+    {
+      "id": "number",
+      "units": [
+        49,
+        55
+      ],
+      "string": "\"17\"",
+      "output": "17",
+      "error": null
+    },
+    {
+      "id": "array",
+      "units": [
+        49,
+        44,
+        44,
+        3652,
+        3607,
+        3618
+      ],
+      "string": "\"1,,ไทย\"",
+      "output": "1%2C%2C%E0%B9%84%E0%B8%97%E0%B8%A2",
+      "error": null
+    },
+    {
+      "id": "object",
+      "units": [
+        91,
+        111,
+        98,
+        106,
+        101,
+        99,
+        116,
+        32,
+        79,
+        98,
+        106,
+        101,
+        99,
+        116,
+        93
+      ],
+      "string": "\"[object Object]\"",
+      "output": "%5Bobject%20Object%5D",
+      "error": null
+    }
+  ]
+}

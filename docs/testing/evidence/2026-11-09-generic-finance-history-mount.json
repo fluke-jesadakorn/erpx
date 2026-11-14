@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The committed generic Field Finance History decision is mounted into a real native Finance journal detail/workspace read. The new private routes serve Field payment/reversal journals that the manual/opening detail reader rejects, while ordinary manual journals are not admitted by the generic route. The native journal page reader selects the generic route only after a bounded native 404, never after denial or transport failure. No owner or workflow is promoted.",
+  "capability": "generic-finance-history",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commit": "2128f7e9882f170a69a02f70f5040fb0b6d229c0",
+  "scope": {
+    "financePayload": "packages/server-finance/src/adapters/postgres_journal_detail.rs adds read_field_finance_journal_detail and a Finance-owned structural link for payment/reversal, Field invoice and Field parts journals. packages/server-finance/src/adapters/postgres_journal_workspace.rs adds the matching bounded workspace payload.",
+    "composition": "src/composition/src/finance_generic_history.rs mounts field_finance_history with the canonical Finance target, book roots, invoice/allocation/reversal candidates, Money lines, Workflow receipts, Inventory consumption and Field join. The selected Holding unit revalidates the complete joined decision and payload.",
+    "http": "src/composition/src/finance_journal_detail_http.rs adds GET /finance/journals/{id}/field-history and /field-history/workspace. The standard detail/workspace routes keep their existing policy.",
+    "frontend": "packages/feature-finance/src/adapters/server/native-journal-page.ts tries the generic workspace only after a bounded native 404; denial and transport failures never fall through to another source."
+  },
+  "verification": {
+    "exactArchive": "git archive 2128f7e98 -> .scratch/dev/rust-migration/current/verify-generic",
+    "cargoCheck": "PASS: cargo check -p erpx-service --locked (35.91s), .scratch/dev/rust-migration/current/verify-generic-check.log.",
+    "journalDetailPostgres": "PASS: finance_journal_detail_postgres 13 passed, 0 failed, 0 ignored (64.56s), including generic_field_finance_history_reads_a_field_payment_journal_on_both_native_routes. Log: .scratch/dev/rust-migration/current/verify-generic-detail.log.",
+    "journalSourcePostgres": "PASS: journal_source_postgres 22 passed, 0 failed, 0 ignored (49.42s), including field_finance_history_phases_match_imported_typescript_sources_and_money_pointers. Log: .scratch/dev/rust-migration/current/verify-generic-journal-source.log.",
+    "staticGates": "PASS: architecture:check, test:catalogue (1005 suites), docs:check and bun run typecheck on the exact archive. Logs: .scratch/dev/rust-migration/current/verify-generic-{architecture,catalogue,docs,typecheck}.log.",
+    "fixtureNote": "The payment fixture is seeded before its finance.payment.create receipt so the deferred native payment guard sees the exact native writer shape at commit; no trigger or guard is disabled."
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "The generic Finance History read is mounted and verified, but the six Field workflows still require the Common-owned Files link-existing write port, authenticated browser/SSO, and legacy-retirement gates. No owner is certified."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Coordinate the Common Files link-existing native write port, configure a native Account session for authenticated browser/SSO, and audit the remaining Brand/Billing/Field TS consumers before owner certification."
+}

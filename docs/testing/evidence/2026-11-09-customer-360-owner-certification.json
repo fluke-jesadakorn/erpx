@@ -1,0 +1,144 @@
+{
+  "schema": "erpx.evidence/customer-360-owner-certification/v1",
+  "recorded_at": "2026-11-09T16:25:56.376661Z",
+  "head": "3f9193c5b829a3aca488b1102fe9d2368ad3f392",
+  "owner": "customer_360",
+  "package": "erpx-server-customer-360",
+  "workflows": [
+    "customer_360/sales-summary",
+    "customer_360/service-timeline",
+    "customer_360/feature-customer-profile",
+    "customer_360/feature-customer-notes"
+  ],
+  "workflow_counts": {
+    "total": 4,
+    "verified": 4,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "not-applicable",
+    "providers": "not-applicable"
+  },
+  "surface_audit": {
+    "http": "Native timeline, contact-note and Executive activity routers are mounted with their owner suites.",
+    "ssr": "The Sales customer History/Summary page uses the native timeline and native notes; no page/API/profile/notes TS timeline fallback remains.",
+    "jobs": "No scheduled job or worker module exists in packages/server-customer_360. The acceptance catalogue's customer_360 jobs list contains shared Runtime/Workflow files owned by Common, not Customer 360 jobs.",
+    "providers": "No external provider port exists in packages/server-customer_360; the private API is a runtime transport, not a provider."
+  },
+  "environment": {
+    "public_holding_origin": "https://acme.jesadakorn.com",
+    "development_gateway": "http://127.0.0.1:3100",
+    "native_api": "http://127.0.0.1:3198",
+    "native_account_api": "http://127.0.0.1:3199",
+    "account": "jesadakorn.kirtnu@gmail.com",
+    "native_activity_config": "ERPX_NATIVE_CUSTOMER_ACTIVITY_CONFIG -> 127.0.0.1:3198 for acme/northstar/erpx",
+    "native_timeline_config": "ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG -> 127.0.0.1:3198",
+    "native_notes_config": "ERPX_NATIVE_CUSTOMER_NOTES_CONFIG -> 127.0.0.1:3198"
+  },
+  "native_endpoints": {
+    "timeline": {
+      "endpoint": "GET /api/v1/holdings/acme/customers/party_customer_demo/timeline",
+      "status": 200,
+      "items": 15
+    },
+    "notes": {
+      "endpoint": "GET /api/v1/holdings/acme/customer-notes?customerId=party_customer_demo",
+      "status": 200,
+      "create_correct_archive_replay_stale": "passed"
+    },
+    "activity_search": {
+      "endpoint": "GET /api/v1/holdings/acme/customers/activity?from=...&to=...&query=INV-ACME",
+      "status": 200,
+      "rows": 15,
+      "first": "invoice:invoice-acme-co-029"
+    },
+    "activity_read": {
+      "endpoint": "GET /api/v1/holdings/acme/customers/activity?...&recordId=invoice:invoice-acme-co-029",
+      "status": 200,
+      "rows": 1
+    }
+  },
+  "executive_retirement": {
+    "adapter": "packages/server-customer_360/src/adapters/executive-main-evidence-sources.ts now calls the native Executive customer-activity transport; it no longer imports customerTimelineEvents.",
+    "transport": "packages/server-customer_360/src/adapters/native-executive-customer-activity.ts is strict, config-gated and fail-closed; a missing config raises NATIVE_CUSTOMER_ACTIVITY_CONFIGURATION_REQUIRED.",
+    "remaining_consumer": "packages/server-commerce/src/adapters/executive-metric-projections.ts still uses customerTimelineEvents for the Commerce-owned recent-customer-activity metric projection; tracked under the Commerce owner, not Customer 360."
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "status": 200,
+      "history": true,
+      "invoice_items": 15,
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "status": 200,
+      "history": true,
+      "invoice_items": 15,
+      "failed_business_requests": [],
+      "page_errors": []
+    }
+  },
+  "gates": [
+    {
+      "name": "cargo test -p erpx-server-customer-360",
+      "result": "9 test binaries green; timeline unit 11/11, timeline HTTP 2/2, notes HTTP 2/2, activity HTTP 2/2, timeline postgres 8/8, directory postgres 2/2"
+    },
+    {
+      "name": "customer_360.native-customer-activity-transport.unit",
+      "result": "4/4 pass"
+    },
+    {
+      "name": "customer_360.native-customer-timeline-transport.unit",
+      "result": "12/12 pass"
+    },
+    {
+      "name": "sales.semantic-services.unit",
+      "result": "112/112 pass"
+    },
+    {
+      "name": "customer_360.customer-timeline.integration",
+      "result": "6/6 pass"
+    },
+    {
+      "name": "sales.customers-workspace.integration",
+      "result": "4/4 pass"
+    },
+    {
+      "name": "support.package-surfaces.integration",
+      "result": "22/22 pass"
+    },
+    {
+      "name": "cargo check",
+      "result": "private-field-api,existing-business and files-scan-worker/field-push-worker variants pass"
+    },
+    {
+      "name": "tests/config typecheck",
+      "result": "pass"
+    },
+    {
+      "name": "test catalogue",
+      "result": "33 modules, 1011 suites"
+    }
+  ],
+  "fixes": [
+    "Added the native Executive customer-activity read/search over the same federated sources, with Support purchase and Finance/Legal/Field gates, cursor paging and record read.",
+    "Migrated the Customer 360 Executive evidence adapter to the native activity transport and kept a test-only injected transport for the Support package suite; the native purchase gate is asserted in the Rust activity Postgres test.",
+    "Removed the retained TS notes customer scope check that incorrectly turned a branch/department notes-scope miss into a profile 404; the notes list remains scoped by the order branch/department."
+  ],
+  "screenshots": [
+    ".scratch/dev/native-timeline-history-desktop.png",
+    ".scratch/dev/native-timeline-history-mobile.png"
+  ],
+  "notes": [
+    "The Customer 360 owner has no jobs or providers; those surfaces are not-applicable rather than pending.",
+    "The Commerce metric projection remains a separate Commerce-owned consumer of customerTimelineEvents and is not part of this owner certification."
+  ]
+}

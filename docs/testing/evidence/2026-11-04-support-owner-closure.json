@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support owner jobs, providers and SSR surfaces advanced on current source: owner-owned scheduled SLA drain policy and PostgreSQL sweep, native Support workspace presenter/route cutover, and verified native read providers. The production worker supervisor and the development TypeScript jobs schedule still need the shared-composition delta; no browser cohort was run here.",
+  "capability": "support-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "067971fd96a096f25b76af968c229b169cd6aad2",
+  "scope": {
+    "workflows": [
+      "support/tickets",
+      "support/sla-watch",
+      "support/incidents",
+      "support/feature-support-sessions",
+      "support/feature-capabilities",
+      "support/feature-attachments"
+    ],
+    "jobs": "Support now owns the SLA burst sweep in packages/server-support/src/adapters/sla_drain.rs and the interval/bounded-backoff/restart policy in packages/server-support/src/application/sla_drain.rs. The sweep rechecks the active Support purchase at the exact detection instant, inserts one immutable alert per ticket and idempotent manager notices, and leaves rollback recovery to the enclosing durable unit.",
+    "ssr": "The Support landing cases page, case detail background and record-section route now delegate to the Support-native workplace presenter. That presenter reads only ERPX_NATIVE_SUPPORT_READ_CONFIG through the native Support reader, preserves search/status/new/source/pagination flow and fails closed with 503 NATIVE_SUPPORT_READ_UNAVAILABLE. SLA, incident, session and evidence presenters were already native.",
+    "providers": "The Support native read provider public surface (support.ticket-read.v1) covers ticket workspace/detail/recipients, incidents, SLA policy/clock/alerts, temporary sessions/capabilities/context and evidence metadata. Native Field-managed Support history remains support.field-ticket-read.v1. Commands write staff_notifications in their own transaction.",
+    "legacy": "The Support cases page no longer imports the Sales customer hub screen or its TypeScript supportWorkspace reader. Retained TypeScript Support read/provider bridges are now only other-owner consumers with named removal conditions; ticket portal and service teams remain adjacent ADR-048/Support workflows."
+  },
+  "files": [
+    "packages/server-support/src/application/sla_drain.rs",
+    "packages/server-support/src/adapters/sla_drain.rs",
+    "packages/server-support/src/public/sla_drain.rs",
+    "packages/server-support/src/application/mod.rs",
+    "packages/server-support/src/adapters/mod.rs",
+    "packages/server-support/src/public/mod.rs",
+    "packages/feature-support/src/components/support-workspace.tsx",
+    "packages/feature-support/package.json",
+    "packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx",
+    "packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/page.tsx",
+    "packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/[recordSection]/page.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx",
+    "tests/unit/support/support-services.test.ts",
+    "tests/integration/support/rust-support-sla-command-postgres.test.rs"
+  ],
+  "verification": {
+    "supportUnit": {
+      "command": "cargo test -p erpx-server-support --locked",
+      "result": "51 passed, 0 failed, 0 ignored",
+      "newCases": [
+        "starts due immediately and schedules the interval after success",
+        "skips a tick that is not due without calling the owner",
+        "bounds exponential failure backoff and keeps retrying (30s, 60s, 120s, 240s, 300s)",
+        "restart runs immediately and success clears failure history",
+        "rejects intervals outside the bounded worker window"
+      ]
+    },
+    "postgres": {
+      "command": "cargo test -p erpx-service --test support_sla_command_postgres --locked -- --test-threads=1",
+      "result": "4 passed, 0 failed, 0 ignored",
+      "newCase": "scheduled_native_sla_drain_recovers_after_rollback_and_rechecks_purchase",
+      "persisted": [
+        "the first sweep inserted support-breach-sla-scheduled-ticket with the ticket version and due timestamp; a repeated sweep inserted zero alerts and did not duplicate the two current-manager staff_notifications",
+        "a rolled-back sweep left zero support_sla_alerts rows; a replacement schedule started immediately and committed exactly one alert with source version 1",
+        "the current Support purchase was rechecked at the detection instant: a rolled-back expired grant inserted zero alerts, and the retained active grant inserted one",
+        "the worker schedule kept a 30-second success interval and the bounded 30/60/120/240/300-second failure backoff"
+      ],
+      "existingSupportPostgres": [
+        "support_ticket_read_postgres: 7 passed (workspace/detail/scope/authority/history/recipients/incidents/SLA/sessions/evidence)",
+        "support_ticket_command_postgres: 2 passed",
+        "support_incident_command_postgres: 3 passed",
+        "support_session_command_postgres: 3 passed",
+        "support_evidence_command_postgres: 3 passed"
+      ]
+    },
+    "typescript": {
+      "supportUnit": "vitest tests/unit/support --config tests/config/vitest.unit.config.mts: 9 files, 103 passed",
+      "featureSupportTypecheck": "tsc --noEmit -p packages/feature-support/tsconfig.json: pass",
+      "workplaceTypecheck": "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+      "supportAppTypecheck": "tsc --noEmit -p apps/support/tsconfig.json: pass",
+      "testTypecheck": "tsc --noEmit --project tests/config/tsconfig.json: blocked by concurrent uncommitted Assets test type changes outside Support (tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts)"
+    },
+    "clippy": "cargo clippy -p erpx-server-support --all-targets --offline -- -D warnings: pass",
+    "browser": "not run; deferred to the main-agent current-source browser cohort as authorized",
+    "runtimeDrain": {
+      "command": "/target/debug/erpx-server support-sla-drain --once --development-config /case/.runtime/agent-brand-finance/private.json",
+      "result": "two consecutive runs returned {\"drained\":0} and exit 0 on the disposable case databases; configuration, migration inventory, pool opening, per-target transaction, owner sweep and commit path all executed",
+      "idempotency": "the repeated run inserted no duplicate alerts or manager notices",
+      "limit": "the case tenant had no newly breached ticket at that instant, so the insertion path itself is covered by the PostgreSQL SLA test rather than this CLI run"
+    }
+  },
+  "registerRecommendation": {
+    "owner": "support",
+    "phase": "active",
+    "businessMigrationComplete": true,
+    "surfaces": {
+      "domain": "active",
+      "application": "active",
+      "http": "active",
+      "ssr": "active",
+      "jobs": "active",
+      "providers": "active"
+    },
+    "condition": "Production worker composition and its one-shot runtime check are applied; keep businessMigrationComplete false until the current-source browser cohort passes."
+  },
+  "sharedCompositionDelta": {
+    "applied": [
+      "src/composition/src/support_sla_command.rs now re-exports erpx_server_support::public::sla_drain::drain_support_sla and no longer duplicates the sweep SQL (main-agent commit b744a475b).",
+      "src/composition/src/private_development_api.rs now spawns run_support_sla_worker_file when support_sla_writes is non-empty; the worker uses SlaDrainSchedule::start(now, DEFAULT_INTERVAL_MS), run_sla_drain_tick, per-target serializable transactions, bounded failure backoff and shutdown select (main-agent commit cf2ddd633)."
+    ],
+    "required": [
+      "scripts/local/jobs.ts / packages/server-runtime/src/adapters/runtime/jobs.ts: after the production supervisor exists, replace the TypeScript supportWork drain with the native worker bootstrap; keep the TS drain until that cutover so development keeps draining."
+    ],
+    "whyNotAppliedHere": "This implementation subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles and docs/status/**."
+  },
+  "legacyInventory": {
+    "removedSupportConsumers": [
+      "packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/page.tsx no longer imports the Sales customer cases screen",
+      "packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/page.tsx no longer imports the Sales customer screen",
+      "packages/feature-support/src/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/[id]/[recordSection]/page.tsx no longer imports the Sales customer screen",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/screen.tsx no longer redirects to the Sales customer support list"
+    ],
+    "retainedWithConsumers": [
+      "supportWorkspace/supportDetail TypeScript adapters: feature-sales customer hub view (customers-sales/customers/service?view=support) and its Sales-owned route; removal belongs to the Sales customer hub migration. The workplace customers/service/cases/_screen export remains Sales-owned; the Support route no longer imports it.",
+      "supportWork/supportPolicyWork/supportAlertWork/incidentWork/supportSessionWork TypeScript work items: packages/server-work_projection/src/adapters/work-items.ts; removal belongs to the Work owner native source cutover.",
+      "Calendar Support facts, Executive evidence/metric projections, Files attachment policy, Customer 360 timeline, Sales customer counts and Collaboration notification target reads: other-owner provider bridges; each has the existing named removal condition in its owner migration.",
+      "ticket-portal (ADR-048) and service-teams routes/pages remain TypeScript adjacent Support workflows outside the six catalogue workflows.",
+      "scripts/local/jobs.ts still schedules the TypeScript SLA drain until the production/development native worker composition is wired."
+    ]
+  },
+  "limits": [
+    "The scheduled production/development native SLA worker is not mounted because src/composition/** and the TypeScript shared jobs supervisor are main-agent-owned; the owner sweep and schedule are implemented and PostgreSQL-tested.",
+    "No authenticated browser journey was run for the new native Support workspace; the main agent owns the current-source browser cohort.",
+    "Root tests/config typecheck is currently blocked by another agent's uncommitted Assets test type changes, not by Support.",
+    "Cargo.lock shows a mechanical update required by concurrent Assets/Finance workspace manifest changes; this task did not add or change a dependency.",
+    "Other-owner TypeScript provider bridges remain authoritative until their owning migrations complete.",
+    "Ticket Portal and Service Teams remain TypeScript adjacency; they are not part of the six Support workflows."
+  ],
+  "ownerClosure": {
+    "status": "complete",
+    "date": "2026-11-04",
+    "workflows": "6/6 verified/merged",
+    "surfaces": {
+      "domain": "active",
+      "application": "active",
+      "http": "active",
+      "ssr": "active",
+      "jobs": "active",
+      "providers": "active"
+    },
+    "registerCommit": "684c6003e",
+    "basis": "Native commands, reads/SSR, scheduled SLA drain and read providers are active; product POST routes are native-only."
+  }
+}

@@ -8,11 +8,28 @@
 .links a, .nav a { min-height: 44px; padding: .65rem .85rem; display: inline-flex; align-items: center; border-radius: var(--ui-radius-md); color: inherit; text-decoration: none; }
 .links a:hover, .nav a:hover { background: var(--ui-card); }
 .links a:focus-visible, .nav a:focus-visible, .tile:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: 3px; }
-.body { display: grid; grid-template-columns: 230px minmax(0, 1fr); }
+.body { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
 .nav { display: flex; flex-direction: column; gap: .25rem; padding: 1rem; border-right: 1px solid var(--ui-line); }
 .content { min-width: 0; }
+.sidebarContainer { min-width: 0; }
+.launcherSidebar { display: flex; flex-direction: column; height: calc(100dvh - 80px); min-height: 0; position: sticky; top: 0; border-right: 1px solid var(--ui-line); padding: .85rem; gap: 1rem; }
+.launcherLinks { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; gap: .25rem; }
+
+
+.launcherAccount { border-top: 1px solid var(--ui-line); padding-top: .85rem; }
+.mobileSidebar { display: none; }
+.mobileSidebarContents { display: flex; flex-direction: column; gap: 1.5rem; min-height: 50dvh; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1rem; }
 .tile { border: 1px solid var(--ui-line); background: var(--ui-card); border-radius: var(--ui-radius-md); padding: 1.25rem; min-height: 112px; color: inherit; text-decoration: none; display: grid; gap: .5rem; }
 .tile:hover { border-color: var(--ui-brand); }
 .muted { color: var(--ui-muted); overflow-wrap: anywhere; }
 @media (max-width: 767px) { .header .context { flex-basis: 100%; order: 3; } .header .links { margin-left: auto; } .body { grid-template-columns: minmax(0, 1fr); } .nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--ui-line); } .nav a { flex-shrink: 0; } }
+@media (max-width: 767px) { .launcherSidebar { display: none; } .mobileSidebar { display: inline-flex; margin: .65rem 1rem; } .header .context { display: none; } }
+
+.launcherPrimary { display: grid; gap: 3px; flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--ui-line); }
+.launcherGroups { display: grid; gap: 5px; padding-top: 8px; }
+.launcherAccount { display: grid; gap: 6px; flex-shrink: 0; }
+.mobileSidebarContents { height: min(75dvh, 720px); min-height: 0; }
+
+.launcherLinks { overflow: hidden; }
+.launcherGroups { flex: 1 1 auto; min-height: 0; overflow-y: auto; align-content: start; scrollbar-width: thin; scrollbar-color: var(--ui-line) transparent; padding-right: 4px; }

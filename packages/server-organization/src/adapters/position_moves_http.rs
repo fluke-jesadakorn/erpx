@@ -1,0 +1,504 @@
+//! Owner-local HTTP ingress for native position-move commands.
+//!
+//! Transport facts only: registered Host/Holding targets, exact origin,
+//! Idempotency-Key, bounded JSON input and business-error mapping. The normal
+//! Account session, current Holding authority and serializable owner unit are
+//! supplied by the composition backend through `PositionMoveHttpBackend`.
+use crate::domain::position_moves::PositionMoveInput;
+use erpx_server_runtime::public::http_support::{
+    body::to_bytes, get, header, post, serde_json, HeaderMap, HeaderValue, IntoResponse, Json,
+    Path, Request, Response, Router, State, StatusCode,
+};
+use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use serde_json::{json, Value};
+use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
+
+const BODY_LIMIT: usize = 64 * 1024;
+
+pub type PositionMoveHttpFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<Value, BusinessError>> + Send + 'a>>;
+
+pub struct PositionMoveListHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub move_id: Option<&'a str>,
+}
+
+pub struct PositionMovePreviewHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub input: &'a PositionMoveInput,
+}
+
+pub struct PositionMoveSubmitHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub key: &'a str,
+    pub input: &'a PositionMoveInput,
+    pub preview_token: &'a str,
+    pub expires_at: i64,
+}
+
+pub struct CancelPositionMoveHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub key: &'a str,
+    pub move_id: &'a str,
+    pub expected_version: i64,
+}
+
+/// Composition-owned Account session, current IAM authority and Company unit.
+pub trait PositionMoveHttpBackend: Send + Sync {
+    fn list<'a>(&'a self, request: PositionMoveListHttpRequest<'a>) -> PositionMoveHttpFuture<'a>;
+
+    fn preview<'a>(
+        &'a self,
+        request: PositionMovePreviewHttpRequest<'a>,
+    ) -> PositionMoveHttpFuture<'a>;
+
+    fn submit<'a>(
+        &'a self,
+        request: PositionMoveSubmitHttpRequest<'a>,
+    ) -> PositionMoveHttpFuture<'a>;
+
+    fn cancel<'a>(
+        &'a self,
+        request: CancelPositionMoveHttpRequest<'a>,
+    ) -> PositionMoveHttpFuture<'a>;
+}
+
+pub struct PositionMoveHttpTarget {
+    pub host: String,
+    pub holding_slug: String,
+    /// Exact browser origin for this registered Holding.
+    pub origin: String,
+    pub backend: Arc<dyn PositionMoveHttpBackend>,
+}
+
+pub struct PositionMoveHttpState {
+    targets: BTreeMap<(String, String), PositionMoveHttpTarget>,
+}
+
+fn request_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "VALIDATION_FAILED",
+        "Provide a complete position move request.",
+    )
+}
+
+fn missing() -> BusinessError {
+    BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+fn origin_forbidden() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "ORIGIN_FORBIDDEN",
+        "Use the application origin.",
+    )
+}
+
+fn command_key_required() -> BusinessError {
+    BusinessError::invalid(
+        "COMMAND_KEY_REQUIRED",
+        "Use a valid Idempotency-Key for this action.",
+    )
+}
+
+fn source_invalid() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "POSITION_MOVE_SOURCE_INVALID",
+        "The position-move command reply was invalid.",
+    )
+}
+
+fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, BusinessError> {
+    let mut values = headers.get_all(name).iter();
+    let first = values.next();
+    if values.next().is_some() {
+        return Err(request_invalid());
+    }
+    first
+        .map(|value| value.to_str().map_err(|_| request_invalid()))
+        .transpose()
+}
+
+fn valid_origin(origin: &str) -> bool {
+    origin.strip_prefix("https://").is_some_and(|rest| {
+        let (host, port) = match rest.rsplit_once(':') {
+            Some((host, port)) => (host, Some(port)),
+            None => (rest, None),
+        };
+        !host.is_empty()
+            && !host
+                .bytes()
+                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+            && port.is_none_or(|port| {
+                (1..=5).contains(&port.len()) && port.bytes().all(|byte| byte.is_ascii_digit())
+            })
+    })
+}
+
+fn identifier(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 200 && !value.chars().any(char::is_control)
+}
+
+fn secured(mut response: Response) -> Response {
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+    response
+}
+
+fn json_response(status: StatusCode, value: Value) -> Response {
+    let mut response = (status, Json(value)).into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    secured(response)
+}
+
+fn error_response(error: BusinessError) -> Response {
+    let status = match error.kind {
+        FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
+        FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
+        FailureKind::Forbidden => StatusCode::FORBIDDEN,
+        FailureKind::NotFound => StatusCode::NOT_FOUND,
+        FailureKind::Conflict => StatusCode::CONFLICT,
+        FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+    };
+    json_response(
+        status,
+        json!({"error": {"code": error.code, "message": error.message}}),
+    )
+}
+
+fn parse_body(value: &[u8]) -> Result<Value, BusinessError> {
+    if value.len() > BODY_LIMIT {
+        return Err(request_invalid());
+    }
+    serde_json::from_slice(value).map_err(|_| request_invalid())
+}
+
+impl PositionMoveHttpState {
+    pub fn new(
+        targets: Vec<PositionMoveHttpTarget>,
+    ) -> Result<PositionMoveHttpState, BusinessError> {
+        let mut configured = BTreeMap::new();
+        for target in targets {
+            if target.host.is_empty()
+                || target.host.len() > 253
+                || target.holding_slug.is_empty()
+                || target.holding_slug.len() > 128
+                || !target.holding_slug.bytes().all(|byte| {
+                    byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || matches!(byte, b'_' | b'-')
+                })
+                || !valid_origin(&target.origin)
+                || configured
+                    .insert((target.host.clone(), target.holding_slug.clone()), target)
+                    .is_some()
+            {
+                return Err(BusinessError::invalid(
+                    "ORGANIZATION_HTTP_CONFIGURATION_INVALID",
+                    "Use exact distinct registered Holding targets.",
+                ));
+            }
+        }
+        Ok(Self {
+            targets: configured,
+        })
+    }
+
+    fn target<'a>(
+        &'a self,
+        headers: &'a HeaderMap,
+        holding_slug: &str,
+    ) -> Result<(&'a PositionMoveHttpTarget, &'a str), BusinessError> {
+        let host = unique_header(headers, "host")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(missing)?;
+        let target = self
+            .targets
+            .get(&(host.to_owned(), holding_slug.to_owned()))
+            .ok_or_else(missing)?;
+        let origin = unique_header(headers, "origin")?;
+        if origin.is_some_and(|value| value != target.origin) {
+            return Err(origin_forbidden());
+        }
+        Ok((target, host))
+    }
+
+    fn content_type(headers: &HeaderMap) -> Result<(), BusinessError> {
+        let content_type = unique_header(headers, "content-type")?
+            .ok_or_else(request_invalid)?
+            .split(';')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase();
+        if content_type != "application/json" {
+            return Err(request_invalid());
+        }
+        Ok(())
+    }
+
+    fn command_key(headers: &HeaderMap) -> Result<CommandKey, BusinessError> {
+        let key = unique_header(headers, "idempotency-key")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(command_key_required)?;
+        CommandKey::new(key)
+    }
+
+    pub async fn list(
+        &self,
+        headers: &HeaderMap,
+        holding_slug: &str,
+        move_id: Option<&str>,
+    ) -> Response {
+        let result = async {
+            let (target, host) = self.target(headers, holding_slug)?;
+            if move_id.is_some_and(|id| !identifier(id)) {
+                return Err(request_invalid());
+            }
+            let value = target
+                .backend
+                .list(PositionMoveListHttpRequest {
+                    host,
+                    holding_slug: &target.holding_slug,
+                    headers,
+                    move_id,
+                })
+                .await?;
+            if !value.is_array() && !value.is_object() {
+                return Err(source_invalid());
+            }
+            Ok::<_, BusinessError>(json_response(StatusCode::OK, json!({"data": value})))
+        }
+        .await;
+        match result {
+            Ok(response) => response,
+            Err(error) => error_response(error),
+        }
+    }
+
+    pub async fn preview(&self, headers: &HeaderMap, holding_slug: &str, body: &[u8]) -> Response {
+        let result = async {
+            let (target, host) = self.target(headers, holding_slug)?;
+            Self::content_type(headers)?;
+            if unique_header(headers, "idempotency-key")?.is_some() {
+                return Err(request_invalid());
+            }
+            let input = PositionMoveInput::parse(&parse_body(body)?)?;
+            let value = target
+                .backend
+                .preview(PositionMovePreviewHttpRequest {
+                    host,
+                    holding_slug: &target.holding_slug,
+                    headers,
+                    input: &input,
+                })
+                .await?;
+            if !value.is_object() {
+                return Err(source_invalid());
+            }
+            Ok::<_, BusinessError>(json_response(StatusCode::OK, json!({"data": value})))
+        }
+        .await;
+        match result {
+            Ok(response) => response,
+            Err(error) => error_response(error),
+        }
+    }
+
+    pub async fn submit(&self, headers: &HeaderMap, holding_slug: &str, body: &[u8]) -> Response {
+        let result = async {
+            let (target, host) = self.target(headers, holding_slug)?;
+            Self::content_type(headers)?;
+            let key = Self::command_key(headers)?;
+            let value = parse_body(body)?;
+            let preview_token = value
+                .get("previewToken")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(request_invalid)?
+                .to_owned();
+            let expires_at = value
+                .get("expiresAt")
+                .and_then(Value::as_i64)
+                .filter(|value| *value > 0)
+                .ok_or_else(request_invalid)?;
+            let input = PositionMoveInput::parse(&value)?;
+            let value = target
+                .backend
+                .submit(PositionMoveSubmitHttpRequest {
+                    host,
+                    holding_slug: &target.holding_slug,
+                    headers,
+                    key: key.as_str(),
+                    input: &input,
+                    preview_token: &preview_token,
+                    expires_at,
+                })
+                .await?;
+            if !value.is_object() {
+                return Err(source_invalid());
+            }
+            Ok::<_, BusinessError>(json_response(StatusCode::OK, json!({"data": value})))
+        }
+        .await;
+        match result {
+            Ok(response) => response,
+            Err(error) => error_response(error),
+        }
+    }
+
+    pub async fn cancel(
+        &self,
+        headers: &HeaderMap,
+        holding_slug: &str,
+        move_id: &str,
+        body: &[u8],
+    ) -> Response {
+        let result = async {
+            let (target, host) = self.target(headers, holding_slug)?;
+            Self::content_type(headers)?;
+            let key = Self::command_key(headers)?;
+            if !identifier(move_id) {
+                return Err(request_invalid());
+            }
+            let value = parse_body(body)?;
+            let expected_version = value
+                .get("expectedVersion")
+                .and_then(Value::as_i64)
+                .filter(|value| *value > 0)
+                .ok_or_else(request_invalid)?;
+            let value = target
+                .backend
+                .cancel(CancelPositionMoveHttpRequest {
+                    host,
+                    holding_slug: &target.holding_slug,
+                    headers,
+                    key: key.as_str(),
+                    move_id,
+                    expected_version,
+                })
+                .await?;
+            if !value.is_object() {
+                return Err(source_invalid());
+            }
+            Ok::<_, BusinessError>(json_response(StatusCode::OK, json!({"data": value})))
+        }
+        .await;
+        match result {
+            Ok(response) => response,
+            Err(error) => error_response(error),
+        }
+    }
+}
+
+/// Router is mounted by the composition root after it implements the backend
+/// with the normal Account session, current IAM authority and owner unit.
+pub fn position_moves_router(
+    targets: Vec<PositionMoveHttpTarget>,
+) -> Result<Router, BusinessError> {
+    Ok(Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/organization/position-moves",
+            get(list_handler),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/organization/position-moves/preview",
+            post(preview_handler),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/organization/position-moves/submit",
+            post(submit_handler),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/organization/position-moves/{move_id}",
+            get(list_one_handler),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/organization/position-moves/{move_id}/cancel",
+            post(cancel_handler),
+        )
+        .with_state(Arc::new(PositionMoveHttpState::new(targets)?)))
+}
+
+async fn read_body(request: Request) -> Result<Vec<u8>, BusinessError> {
+    to_bytes(request.into_body(), BODY_LIMIT)
+        .await
+        .map(|body| body.to_vec())
+        .map_err(|_| request_invalid())
+}
+
+async fn list_handler(
+    State(state): State<Arc<PositionMoveHttpState>>,
+    Path(holding_slug): Path<String>,
+    request: Request,
+) -> Response {
+    state.list(request.headers(), &holding_slug, None).await
+}
+
+async fn list_one_handler(
+    State(state): State<Arc<PositionMoveHttpState>>,
+    Path((holding_slug, move_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    state
+        .list(request.headers(), &holding_slug, Some(&move_id))
+        .await
+}
+
+async fn preview_handler(
+    State(state): State<Arc<PositionMoveHttpState>>,
+    Path(holding_slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let body = match read_body(request).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error),
+    };
+    state.preview(&headers, &holding_slug, &body).await
+}
+
+async fn submit_handler(
+    State(state): State<Arc<PositionMoveHttpState>>,
+    Path(holding_slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let body = match read_body(request).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error),
+    };
+    state.submit(&headers, &holding_slug, &body).await
+}
+
+async fn cancel_handler(
+    State(state): State<Arc<PositionMoveHttpState>>,
+    Path((holding_slug, move_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let body = match read_body(request).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error),
+    };
+    state.cancel(&headers, &holding_slug, &move_id, &body).await
+}

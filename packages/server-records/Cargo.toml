@@ -1,0 +1,69 @@
+[package]
+name = "erpx-server-records"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-runtime.workspace = true
+erpx-server-shared.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "business_evidence"
+path = "../../tests/unit/shared.records/rust-business-evidence.test.rs"
+
+[[test]]
+name = "employee_request_source_postgres"
+path = "../../tests/integration/shared.records/rust-employee-request-source-postgres.test.rs"
+
+[[test]]
+name = "record_context"
+path = "../../tests/unit/shared.records/rust-record-context.test.rs"
+
+[[test]]
+name = "record_context_http"
+path = "../../tests/unit/shared.records/rust-record-context-http.test.rs"
+
+[[test]]
+name = "record_context_postgres"
+path = "../../tests/integration/shared.records/rust-record-context-postgres.test.rs"
+
+[[test]]
+name = "record_details"
+path = "../../tests/unit/shared.records/rust-record-details.test.rs"
+
+[[test]]
+name = "record_details_http"
+path = "../../tests/unit/shared.records/rust-record-details-http.test.rs"
+
+[[test]]
+name = "record_registry"
+path = "../../tests/unit/shared.records/rust-record-registry.test.rs"
+
+[[test]]
+name = "record_source"
+path = "../../tests/unit/shared.records/rust-record-source.test.rs"
+
+[[test]]
+name = "record_registry_http"
+path = "../../tests/unit/shared.records/rust-record-registry-http.test.rs"
+
+[[test]]
+name = "record_registry_postgres"
+path = "../../tests/integration/shared.records/rust-record-registry-postgres.test.rs"

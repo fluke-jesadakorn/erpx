@@ -1,0 +1,68 @@
+{
+  "recordedAt": "2026-11-09T10:10:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "20b2fcc3f334d2eb626c082873ee16fd689bf788",
+  "previousIdentity": "ca9ad67d0823a338ccdede0f49772dc5686f2856",
+  "bundle": "shared-source-fence-hardening",
+  "supersedes": "docs/testing/evidence/2026-11-09-shared-foundation-source-fences.json",
+  "scope": "Corrections to the 46f3553d3 source/test bundle. Still source-only; no owner, workflow, frontend or production claim.",
+  "corrections": [
+    {
+      "id": "workflow-quality-return-scope",
+      "status": "fixed",
+      "detail": "The Quality-return receipt source is now scoped by Company, return and actor. It returns only matching receipts and re-reads the exact rows, so unrelated receipt history cannot exhaust the 10k/2 MiB budget or be mistaken for a local approval. The prior global CTE and global bound were removed."
+    },
+    {
+      "id": "records-typescript-oracle-bind-order",
+      "status": "fixed",
+      "detail": "The Records link oracle now checks the actual TypeScript bind order (companyId, id, id2), the caller's id2=id assignment, and the selected-request bind values. Caller duties for lock-before-snapshot, canonical search_path and non-BYPASSRLS role are documented on both source witnesses."
+    },
+    {
+      "id": "files-quality-policy-oracle-scope",
+      "status": "narrowed",
+      "detail": "The inline Bun oracle is now named and documented as the inner target-scope branch only. It stubs assignment, target and purchase hooks and is not installed-policy authorization parity."
+    },
+    {
+      "id": "runtime-roster-format-clippy",
+      "status": "fixed",
+      "detail": "Removed the stale MigrationPhase import and formatted the roster source/test. cargo clippy --locked -p erpx-server-runtime --all-targets -- -D warnings passes."
+    }
+  ],
+  "checks": [
+    {
+      "command": "cargo test --locked -p erpx-server-workflow --test command_ledger_postgres -- --test-threads=1",
+      "result": "27 passed; 0 failed; 89.70s"
+    },
+    {
+      "command": "cargo test --locked -p erpx-server-records --test employee_request_source_postgres -- --test-threads=1",
+      "result": "10 passed; 0 failed; 36.31s"
+    },
+    {
+      "command": "cargo test --locked -p erpx-server-files --lib quality_target_inner_branch_matches_typescript_target_scope",
+      "result": "1 passed; 0 failed"
+    },
+    {
+      "command": "cargo test --locked -p erpx-server-runtime --test runtime_foundation",
+      "result": "7 passed; 0 failed"
+    },
+    {
+      "command": "cargo clippy --locked -p erpx-server-runtime --all-targets -- -D warnings",
+      "result": "passed"
+    }
+  ],
+  "knownLimits": [
+    "The Records witnesses require the caller to acquire the source lock before the first protected snapshot, pin search_path and use a non-BYPASSRLS runtime role. The modules record the search_path but cannot enforce caller order by themselves.",
+    "The Workflow Quality-return source returns scoped receipt rows; the consumer must still run the full TypeScript-equivalent join, current IAM/purchase checks and post-effect revalidation.",
+    "The Files policy is an inner target-scope decision only; current assignment, attachment registry, target authority and Quality purchase capability remain caller-owned and unmounted.",
+    "The Runtime roster validator is not a sealed attestation or database identity grant.",
+    "No authenticated browser, gateway, production or staging journey was run.",
+    "Global cargo clippy remains red on unrelated worktree test/source warnings (for example rust-record-source unused mut and postgres_record_origin type complexity); this bundle does not touch them."
+  ],
+  "next": {
+    "records": "Mount the scoped/selected request witnesses in the native Commerce/Procurement handoff with a composition-level lock-order and writer-commit test.",
+    "workflow": "Mount the scoped Quality-return source in the native Quality return command and add full commerceQualityOriginRows absence/multiplicity/contention tests.",
+    "files": "Mount the Quality-hold inner policy behind the current Quality descriptor/purchase authority, then add a PostgreSQL company/branch/revocation/version test.",
+    "runtime": "The Runtime outbox queue now exists in the external ca9ad67d bundle; wire owner families and production worker supervision before claiming jobs.",
+    "mapping": "ownersComplete remains 0; no workflow count changed."
+  }
+}

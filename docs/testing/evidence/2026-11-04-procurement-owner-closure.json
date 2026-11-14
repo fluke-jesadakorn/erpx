@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Procurement now has a bounded native supplier promise history and open-delivery read for one purchase order, an owner-local HTTP router, a strict Next transport, and a configured SSR cutover on the commerce order page. The Procurement owner remains pending/partial: shared composition mounting, root workspace-member registration, supplier/RFQ/PO/receipt/bill-match commands and the other four Procurement workflows remain open.",
+  "capability": "procurement-supplier-promise-history-native-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "eef300c42",
+  "scope": {
+    "workflows": [
+      "procurement/feature-supplier-history"
+    ],
+    "workflowBoundary": "The qualified slice reads the immutable supplier confirmation history for one purchase order and the current open promised quantities from the Procurement-owned `procurement_open_promise_lines` view. Supplier confirmation commands, RFQs, purchase-order edits/receipts, supplier invoice matching, payments, requisitions and every other Procurement workflow are not claimed.",
+    "domain": "Supplier promise read actor policy (`commerce.read`, Procurement module, selected-context expiry), Company and exact order identity, bounded history/line/open row shapes, ISO date and currency checks, history/line/open limits, promise-line references, unique line/date sources, confirmed-only open rows, open quantity and prior-quantity consistency, and exact source readings.",
+    "application": "One supplier_promise_history use case requires the current actor before any repository call, validates the order identifier, reads only the actor Company's history, lines and open deliveries, and validates every owner row before presentation.",
+    "adapters": "Own SQL over `procurement_delivery_promises`, `procurement_delivery_promise_lines` and the Procurement-owned `procurement_open_promise_lines` view only. The caller's serializable Holding transaction is required. The open view internally derives Commerce order/receipt facts from the existing Procurement migration; no Commerce, Inventory, Finance, Records, IAM mutation or other owner SQL is written in this crate. No owner write is performed.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/procurement/purchase-orders/{order_id}/supplier-promises. Exact Host/Holding targets, exact HTTPS origin validation, duplicate/unknown query rejection, bounded order identifier validation, private/no-store and no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company/branch/department scope, purchase admission and serializable owner read.",
+    "transport": "ERPX_NATIVE_PROCUREMENT_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact history/line/open shapes, unique IDs, promise-line references, Company/order identity and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "ssr": "The commerce order presenter uses the native promise history and open-delivery rows when `ERPX_NATIVE_PROCUREMENT_CONFIG` is present. An unset configuration retains the legacy supplier promise detail reader so existing development and tests remain usable; once configured, an invalid or failed native history read is surfaced rather than silently replaced.",
+    "purchaseAndIdentity": "The Next owned wrapper keeps the retained `requireProcurementPurchasedRead` preflight and Procurement module check ahead of the native read. This is a preflight, not an atomic owner unit; the composition backend must repeat current authority, selected branch/department scope and purchase admission on its own serializable owner transaction.",
+    "notClaimed": "No supplier promise command, CAS write, idempotency receipt, audit/outbox event, attachments, RFQ, purchase-order/receipt, supplier bill match, payment, requisition, shared composition mount, root workspace membership, browser journey, staging or production acceptance."
+  },
+  "changedFiles": [
+    "packages/server-procurement/Cargo.toml",
+    "packages/server-procurement/src/lib.rs",
+    "packages/server-procurement/src/domain/mod.rs",
+    "packages/server-procurement/src/domain/supplier_promise_history.rs",
+    "packages/server-procurement/src/application/mod.rs",
+    "packages/server-procurement/src/application/supplier_promise_history.rs",
+    "packages/server-procurement/src/adapters/mod.rs",
+    "packages/server-procurement/src/adapters/supplier_promise_history_read.rs",
+    "packages/server-procurement/src/adapters/supplier_promise_history_http.rs",
+    "packages/server-procurement/src/public/mod.rs",
+    "packages/server-procurement/src/public/supplier_promise_history.rs",
+    "packages/server-procurement/src/public/supplier_promise_history_http.rs",
+    "packages/server-procurement/src/public/purchases.ts",
+    "packages/server-procurement/package.json",
+    "packages/feature-procurement/package.json",
+    "packages/feature-procurement/src/lib/native-supplier-promise-history-types.ts",
+    "packages/feature-procurement/src/public/native-supplier-promise-history.ts",
+    "packages/feature-procurement/src/public/native-supplier-promise-history-page.ts",
+    "packages/feature-procurement/src/public/native-supplier-promise-history-owned.ts",
+    "packages/feature-procurement/src/adapters/server/next-native-supplier-promise-history.ts",
+    "packages/feature-procurement/src/components/supplier-promise-console.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx",
+    "tests/unit/procurement/rust-supplier-promise-history.test.rs",
+    "tests/unit/procurement/rust-supplier-promise-history-http.test.rs",
+    "tests/integration/procurement/rust-supplier-promise-history-postgres.test.rs",
+    "tests/unit/procurement/native-supplier-promise-history-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-procurement-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-procurement --locked",
+      "result": "14 passed, 0 failed, 0 ignored across 4 targets (lib 0, supplier_promise_history 7, supplier_promise_history_http 3, supplier_promise_history_postgres 4, doc-tests 0)",
+      "workspaceNote": "The crate is not listed in the root workspace members, which this subagent is prohibited from editing. The exact command was run with a transient local member entry and transient Cargo.lock update; both root files were restored after the run and procurement is absent from the final root diff. A fresh checkout requires the shared integration change to add packages/server-procurement to [workspace] members before the command is reproducible.",
+      "targets": {
+        "supplier_promise_history": "7 passed: policy permission/module/expiry, Company-scoped history/open projection, empty history, foreign/duplicate sources, malformed dates/quantities/open rows, oversized history, exact serialization keys",
+        "supplier_promise_history_http": "3 passed: exact distinct targets, actual loopback request/query/error mapping, private/no-referrer/nosniff headers",
+        "supplier_promise_history_postgres": "4 passed: owner history and open deliveries with prior quantities, foreign-Company isolation, transaction/serializable guards, rollback and persisted readback, policy-before-source failure"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-procurement --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-procurement warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust file",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "supplier_promise_history_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "cases": [
+        "owner reads the withdrawn and confirmed history for one Company order, the three promise lines, and the latest confirmed open schedule with prior-quantity and remaining-quantity facts",
+        "a foreign Company cannot read another Company's order and receives only its own history/open rows; the reverse Company read returns empty",
+        "a reader outside a transaction or inside a non-serializable transaction fails closed",
+        "a promise inserted inside the owner transaction is visible to the read and disappears after abort; committed readback does not create or delete rows",
+        "missing commerce.read, missing Procurement module and expired selected context fail before repository source reads; an invalid order identifier returns PURCHASE_ORDER_NOT_FOUND"
+      ],
+      "fixture": "Real migrated PostgreSQL with synthetic Company/branch/supplier/product/warehouse/order/order-line/promise rows; the adapter reads only Procurement-owned tables and the Procurement-owned open view. No owner write occurs in the qualified read path."
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards the exact order identifier and returns owner data and rendered context",
+        "oversized order identifier and unknown query are 422 PROCUREMENT_REQUEST_INVALID; unknown Host/Holding is 404; backend conflict is 409 SUPPLIER_PROMISE_HISTORY_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets and non-HTTPS origins fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/procurement/native-supplier-promise-history-transport.test.ts: 7 passed (exact forwarding, branch context, owner error, authority/context/malformed/foreign/unknown-line/overstated-open rejection, unset configuration, reserved-port/insecure-origin rejection, failure mapping)",
+      "retained": "vitest tests/unit/procurement/procurement-services.test.ts: 74 passed; the unset native configuration retains the legacy supplier promise detail reader",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-procurement/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "targeted tests/config typecheck for tests/unit/procurement/native-supplier-promise-history-transport.test.ts: pass"
+      ],
+      "limits": "Bun 1.4.3 is not installed in this worktree, so the Bun catalogue runner was not executed. The new transport test was run with an equivalent temporary Vitest config, then the config was removed. The pre-existing procurement unit suite was run with ERPX_SELECTED_TEST_FILES through the normal unit config."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "diffCheck": "git diff --check on the Procurement-owned changed files: pass"
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "preExistingFailures": {
+    "shared_worktree": "PMS and Sales subagents modified root Cargo.toml/Cargo.lock, feature-sales, server-pms and added native PMS/Sales files while this slice ran. Those files were not edited, reverted or included in this slice. An earlier workplace typecheck transiently failed on their missing workplace lib/native-pms import; it passed before the final Procurement check.",
+    "root_manifests": "The final root Cargo.toml/Cargo.lock carry other agents' uncommitted PMS/Sales membership work and no Procurement entry. This subagent removed only its own transient membership and lock entry."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_procurement::public::supplier_promise_history::{SupplierPromiseReadActor, SupplierPromiseRow, SupplierPromiseLineRow, OpenPromiseRow, SupplierPromiseHistory, SupplierPromiseHistoryRepository, PgSupplierPromiseHistoryRead, supplier_promise_history}",
+      "erpx_server_procurement::public::supplier_promise_history_http::{supplier_promise_history_router, SupplierPromiseHistoryHttpTarget, SupplierPromiseHistoryHttpBackend, SupplierPromiseHistoryHttpRequest, SupplierPromiseHistoryHttpResponse}"
+    ],
+    "backendRequired": "Implement SupplierPromiseHistoryHttpBackend in src/composition: parse the normal Account/Holding request, require commerce.read and the Procurement module, require the configured Holding/Company and selected branch/department to contain the requested order, run one serializable transaction, supply the 15-field rendered context, build SupplierPromiseReadActor from the current authority, call supplier_promise_history, and map PgTransactionError to BusinessError. The purchase admission preflight must be repeated inside the owner unit or an explicitly ordered composition unit.",
+    "privateDevelopmentApi": [
+      "Build one SupplierPromiseHistoryHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_procurement::public::supplier_promise_history_http::supplier_promise_history_router(targets).map_err(|_| \"PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID\")?);",
+      "Mount /procurement/purchase-orders/{order_id}/supplier-promises before the generic 404 fallback."
+    ],
+    "rootWorkspace": "Add \"packages/server-procurement\" to the root Cargo.toml [workspace] members and the corresponding workspace dependency entry, then update Cargo.lock in the integration change. This subagent did not make that shared edit.",
+    "nextEnvironment": "Set ERPX_NATIVE_PROCUREMENT_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "schema": "No PostgreSQL schema or migration change is required. The new crate adds no dependency beyond the existing shared/runtime/sqlx/serde workspace set. No package lockfile was changed.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, docs/status/** and other owners' implementation."
+  },
+  "legacyInventory": {
+    "removed": [
+      "When ERPX_NATIVE_PROCUREMENT_CONFIG is present, the commerce order page's supplier confirmation history and current promised-delivery sections use native Procurement rows instead of `supplierPromiseDetail` history/schedule/open facts.",
+      "No retained TypeScript Procurement source file was deleted. Supplier confirmation commands, the outstanding-quantity table, RFQs, supplier bills, payments and every other Procurement path remain on their existing owner paths."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-procurement/src/adapters/supplier-promises.ts and public/supplier-promises.ts retain supplierPromiseDetail, recordSupplierPromise and supplierPromiseWork for the order editor, command path, collaboration notifications and existing tests.",
+      "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts remains the retained supplier promise API.",
+      "The unset-config fallback keeps supplierPromiseDetail available so development and the existing 74-case Procurement unit suite remain usable.",
+      "Order line descriptions used by the native history view still come from the retained Commerce order detail read; they are display labels, not a supplier-history fallback.",
+      "Supplier promise audit/outbox, attachments, purchase guards and all write paths remain retained and unchanged."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private/production route serves the owner router yet. The HTTP test backend is a recording fake.",
+    "The new crate is not a root workspace member in the final tree; a fresh `cargo test -p erpx-server-procurement --locked` requires the shared integration edit.",
+    "Promise headers do not persist branch/department. The owner read enforces Company and order identity; the composition backend must verify that the requested order is inside the actor's selected branch/department before serving the route.",
+    "The open-delivery view exposes only the latest confirmed promise per order, which is the current commitment; older confirmed promises remain visible in immutable history but are not current open quantities.",
+    "Supplier names and order line descriptions are not joined in the native owner SQL; display labels come from the retained Commerce order read.",
+    "No command, CAS write, idempotency receipt, audit/outbox event or same-transaction Commercial/Inventory/Finance guard was added; those concerns do not apply to the qualified read and remain required before any Procurement write cutover.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. No business-owner completion flag is changed by this subagent.",
+    "tests/catalogue/suite-manifest.json was not edited because shared registers and other agents' files must not be changed by this subagent. The new transport and cargo tests are present and were run directly.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

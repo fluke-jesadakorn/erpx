@@ -2,7 +2,7 @@ import {hireHandoffPayGroupSchema,type HireHandoffPayGroupResult} from '@erpx/se
 import {withHireHandoffPayGroupCommand,hireHandoffPayGroupEnvelope} from '@erpx/server-people_payroll/adapters/hire-handoff-pay-group';
 import {workforcePurchaseControls,workforcePurchasedHistorySql,withWorkforcePurchasedCommand} from "@erpx/server-people_payroll/adapters/workforce-purchases";
 import {withPeoplePurchasedRead,withPeoplePurchasedCommand,peopleOverviewPurchases} from "@erpx/server-people_payroll/adapters/people-purchases";
-import { withPayrollPurchasedCommand, withPayrollPurchasedRead, withPayrollPaymentCommand, withPayrollPaymentRead, payrollPurchasedAccess } from "@erpx/server-people_payroll/adapters/payroll-purchases";
+import { withPayrollPurchasedCommand, withPayrollPurchasedRead, withPayrollPaymentCommand, withPayrollPaymentRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import {peopleVerifiedContextProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-verified-context-projections";
 const organizationFinalSources=organizationFinalOwnerProjections();
 import {payrollDecisionNotificationEffects} from '@erpx/server-collaboration/public/payroll-decision-notification-effects';
@@ -28,7 +28,6 @@ import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/
 import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { assertStatutoryRunReady, recognizedThaiPack, thaiEvidenceForEmployee, thaiEvidenceGuards, thaiPackForRun, type PayrollStatutoryRun } from "@erpx/server-people_payroll/adapters/payroll-statutory";
 import { preparePayslipIssue } from "@erpx/server-people_payroll/adapters/payroll-payslips";
-import { calculatePayrollAdjustmentRun } from "@erpx/server-people_payroll/adapters/payroll-adjustments";
 import { assertPayrollRecoveryDeductionLimits } from "@erpx/server-people_payroll/adapters/payroll-recoveries";
 import { preparePayrollDeductionConsumption } from "@erpx/server-people_payroll/adapters/payroll-deductions";
 import type { FileStore } from '@erpx/server-runtime/public/runtime/types';
@@ -41,7 +40,7 @@ import { payrollIdentityFacts } from '@erpx/server-identity_access/public/payrol
 import { payrollBenefitOwnerFacts } from '@erpx/server-benefits/public/payroll-owner-facts';
 import { payrollFinanceFacts } from '@erpx/server-finance/public/payroll-owner-facts';
 export { createPersonSchema, createEngagementSchema, compensationSchema, compensationTransitionSchema, engagementTransitionSchema, payrollCostVerificationSchema, payGroupSchema, countryPackSchema, countryPackTransitionSchema, payrollRunSchema, paymentBatchSchema, timeEntrySchema, paymentConfirmationSchema, payrollPostSchema, payrollAccountMappingSchema, payrollCorrectionRequestSchema, payrollCorrectionDecisionSchema, finalPayPreparationSchema, payrollAdvanceRequestSchema, payrollAdvanceDecisionSchema, assignPayGroupSchema, timeEntryUpdateSchema, timeEntryReviewSchema } from '@erpx/server-people_payroll/domain/people-payroll';
-export { cancelPayrollRun, payrollCancelSchema } from "@erpx/server-people_payroll/adapters/payroll-cancellation";
+export { payrollCancelSchema } from "@erpx/server-people_payroll/domain/payroll-cancellation";
 export { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@erpx/server-people_payroll/adapters/payroll-adjustments";
 function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
     let database = provided!, files: FileStore;
@@ -150,24 +149,6 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             const scope = scopeWhere(actor, 'e');
             return database.prepare(`SELECT COUNT(*) AS count FROM leave_requests e WHERE ${scope.sql} AND e.state='pending_approval' AND (?=1 OR e.created_by=?)`).bind(...scope.args, value, userId).first<{
                 count: number;
-            }>();
-        },
-        readPayrollSummaryEffect(companyId: string, value: string | null, value2: string | null) {
-            return database.prepare(`SELECT substring(r.pay_date FROM 1 FOR 7) pay_month,r.currency,
-    COUNT(DISTINCT r.id) run_count,COUNT(DISTINCT i.engagement_id) headcount,
-    SUM(i.gross_minor) gross_minor,SUM(i.deductions_minor) deductions_minor,SUM(i.employer_cost_minor) employer_cost_minor,SUM(i.net_minor) net_minor
-    FROM hr_payroll_runs r JOIN hr_payroll_items i ON i.run_id=r.id
-    WHERE r.company_id=? AND r.status='posted' AND (?::text IS NULL OR substring(r.pay_date FROM 1 FOR 7)=?)
-    GROUP BY substring(r.pay_date FROM 1 FOR 7),r.currency ORDER BY pay_month DESC,r.currency LIMIT 120`)
-                .bind(companyId, value, value2).all<{
-                pay_month: string;
-                currency: string;
-                run_count: number;
-                headcount: number;
-                gross_minor: number;
-                deductions_minor: number;
-                employer_cost_minor: number;
-                net_minor: number;
             }>();
         },
         stageCreatePersonEffect(personId: string, value: null, companyId: string, legalName: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_people(id,user_id,company_id,legal_name,preferred_name,email,phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(personId, value, companyId, legalName, value2, value3, value4, countryCode, userId, now, now2); },
@@ -297,9 +278,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         },
         guard77(key: string, value: "pay-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')", [payGroupId, companyId, currency]); },
         guard78(key: string, value: "duplicate-period", companyId: string, payGroupId: string, periodEnd: string, periodStart: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled' AND period_start<=? AND period_end>=?)", [companyId, payGroupId, periodEnd, periodStart]); },
-        guard79(key: string, value: "statutory-pack", id: string, record_version: number, sourceDigest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status='active' AND record_version=? AND source_digest=?)", [id, record_version, sourceDigest]); },
-        stageCreatePayrollRunEffect(id: string, companyId: string, payGroupId: string, value: string | null, periodStart: string, periodEnd: string, payDate: string, currency: string, mode: "preview" | "production", userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'calculating',?,?,?)").bind(id, companyId, payGroupId, value, periodStart, periodEnd, payDate, currency, mode, userId, now, now2); },
-        readPrepareFinalPayTask(taskId: string, companyId: string) {
+        guard79(key: string, value: "statutory-pack", id: string, record_version: number, sourceDigest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status='active' AND record_version=? AND source_digest=?)", [id, record_version, sourceDigest]); },        readPrepareFinalPayTask(taskId: string, companyId: string) {
             return database.prepare(`SELECT t.id,t.version,t.status,t.assignee_id,t.clearance_type,t.case_id,c.person_id,c.definition,e.id engagement_id,e.pay_group_id,e.currency,e.end_date
     FROM people_preparation_tasks t JOIN people_lifecycle_cases c ON c.id=t.case_id AND c.company_id=t.company_id
     JOIN hr_engagements e ON e.id=c.engagement_id AND e.company_id=c.company_id
@@ -353,61 +332,6 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         readPayrollAdvancePageRows(value: string[], privileged: boolean) { return database.prepare(`SELECT a.*,p.legal_name,e.job_title,e.currency,e.pay_group_id FROM hr_payroll_advances a JOIN hr_people p ON p.id=a.person_id JOIN hr_engagements e ON e.id=a.engagement_id WHERE a.company_id=? AND (${privileged ? "TRUE" : "p.user_id=?"}) ORDER BY a.created_at DESC,a.id DESC`).bind(...value).all(); },
         readPayrollAdvancePageOptions(value: string[], privileged: boolean) { return database.prepare(`SELECT e.id engagement_id,p.legal_name,e.currency,e.pay_group_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.status IN ('active','suspended') AND e.pay_group_id IS NOT NULL AND p.status='active' AND ${privileged ? "TRUE" : "p.user_id=?"} ORDER BY p.legal_name,e.id`).bind(...value).all(); },
         readPayrollAdvanceAlertTargetEffect(...args) { return payrollIdentityFacts(database).readPayrollAdvanceAlertTargetEffect(...args); },
-        readCalculatePayrollRunRun(runId: string, companyId: string) {
-            return database.prepare("SELECT * FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
-                id: string;
-                company_id: string;
-                pay_group_id: string;
-                period_start: string;
-                period_end: string;
-                pay_date: string;
-                country_pack_id: string | null;
-                currency: string;
-                mode: string;
-                status: string;
-                version: number;
-                adjustment_of_run_id: string | null;
-            }>();
-        },
-        readCalculatePayrollRunEngagements(companyId: string, pay_group_id: string, currency: string, period_end: string, period_start: string, value: unknown | null, value2: unknown | null) {
-            return database.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title,e.branch_id,e.department_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(companyId, pay_group_id, currency, period_end, period_start, value, value2).all<{
-                id: string;
-                version: number;
-                person_id: string;
-                worker_type: string;
-                employment_type: string;
-                start_date: string;
-                end_date: string | null;
-                job_title: string;
-                branch_id: string | null;
-                department_id: string | null;
-            }>();
-        },
-        readCalculatePayrollRunGroup(pay_group_id: string, companyId: string) {
-            return database.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(pay_group_id, companyId).first<{
-                overtime_multiplier_bps: number;
-                proration_method: "calendar_days" | "none";
-            }>();
-        },
-        guard107(key: string, value: "run", runId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND version=? AND status IN ('draft','calculating','preview','failed'))", [runId, version]); },
-        guard108(key: string, value: string, engagementId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.version=? AND e.status IN ('active','ended') AND p.status='active')", [engagementId, version]); },
-        guard109(key: string, value: string, engagementId: string, period_start: string, period_end: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved')=?", [engagementId, period_start, period_end, length]); },
-        guard110(key: string, value: string, engagementId: string, period_start: string, period_end: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ?)=?", [engagementId, period_start, period_end, length]); },
-        guard111(key: string, value: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_time_entries WHERE id=? AND version=? AND status='approved')", [id, version]); },
-        guard112(key: string, value: string, id: string, version: number, engagementId: string, companyId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.id=? AND r.version=? AND r.status IN ('open','reserved') AND a.status='approved' AND a.engagement_id=? AND a.company_id=?)", [id, version, engagementId, companyId]); },
-        guard113(key: string, value: string, id: string | number | null, version: string | number | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_compensation_revisions WHERE id=? AND version=? AND status IN ('active','approved'))", [id, version]); },
-        stageCalculatePayrollRunEffect(runId: string) { return database.prepare("DELETE FROM hr_payroll_items WHERE run_id=?").bind(runId); },
-        stageCalculatePayrollRunEffect2(value: string, digest: string, now: number, runId: string) { return database.prepare("UPDATE hr_payroll_runs SET status='preview',revision=revision+1,totals_json=?,input_digest=?,version=version+1,updated_at=?,error_message=NULL WHERE id=?").bind(value, digest, now, runId); },
-        stageCalculatePayrollRunEffect3(value: string, runId: string, engagementId: string, workerType: string, value2: string, value3: string, gross: number, deductions: number, employer: number, net: number, currency: string, now: number) { return database.prepare("INSERT INTO hr_payroll_items(id,run_id,engagement_id,worker_type,input_snapshot_json,result_json,gross_minor,deductions_minor,employer_cost_minor,net_minor,currency,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(value, runId, engagementId, workerType, value2, value3, gross, deductions, employer, net, currency, now); },
-        readWorkPayrollRowsEffect(companyId: string) { return database.prepare("SELECT r.* FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.company_id=? ORDER BY r.updated_at DESC").bind(companyId).all<Record<string, string | number | null>>(); },
-        readGetPayrollRunRun(runId: string, companyId: string) { return database.prepare("SELECT r.*,g.overtime_multiplier_bps,g.proration_method FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.id=? AND r.company_id=?").bind(runId, companyId).first(); },
-        readGetPayrollRunItemsexportscorrectionspaymentBatch(runId: string) { return database.prepare("SELECT i.*,p.legal_name,p.id person_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all(); },
-        readGetPayrollRunItemsexportscorrectionspaymentBatch2(runId: string) { return database.prepare("SELECT id,run_revision,checksum_sha256,created_at FROM hr_payroll_review_exports WHERE run_id=? ORDER BY run_revision DESC").bind(runId).all(); },
-        readGetPayrollRunItemsexportscorrectionspaymentBatch3(runId: string, companyId: string) { return database.prepare("SELECT * FROM hr_payroll_corrections WHERE run_id=? AND company_id=? ORDER BY created_at DESC,id DESC").bind(runId, companyId).all(); },
-        readGetPayrollRunItemsexportscorrectionspaymentBatch4(companyId: string, runId: string) { return database.prepare("SELECT * FROM hr_payment_batches WHERE company_id=? AND source_type='payroll' AND source_id=? AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1").bind(companyId, runId).first(); },
-        readGetPayrollRunPaymentItems(value: string) { return database.prepare("SELECT * FROM hr_payment_batch_items WHERE batch_id=? ORDER BY reference").bind(value).all(); },
-        readListPayrollRunsEffect(companyId: string) { return database.prepare("SELECT r.id,r.period_start,r.period_end,r.pay_date,r.currency,r.status,r.version,b.id payment_batch_id,b.status payment_status,b.total_minor net_payable_minor FROM hr_payroll_runs r LEFT JOIN hr_payment_batches b ON b.source_type='payroll' AND b.source_id=r.id AND b.company_id=r.company_id AND b.status<>'cancelled' WHERE r.company_id=? AND r.status='posted' ORDER BY r.pay_date DESC,r.created_at DESC").bind(companyId).all(); },
-        readListPayrollRunsEffect2(companyId: string) { return database.prepare("SELECT * FROM hr_payroll_runs WHERE company_id=? ORDER BY pay_date DESC,created_at DESC").bind(companyId).all(); },
         readPayrollPostingOptionsChartsperiodsmappingsgroups(...args) { return payrollFinanceFacts(database).readPayrollPostingOptionsChartsperiodsmappingsgroups(...args); },
         readPayrollPostingOptionsChartsperiodsmappingsgroups2(...args) { return payrollFinanceFacts(database).readPayrollPostingOptionsChartsperiodsmappingsgroups2(...args); },
         readPayrollPostingOptionsChartsperiodsmappingsgroups3(companyId: string) { return database.prepare("SELECT id,pay_group_id,chart_id,accounts_json,status,version,created_by,approved_by FROM hr_payroll_account_mappings WHERE company_id=? AND status IN ('draft','approved') ORDER BY pay_group_id,created_at DESC").bind(companyId).all(); },
@@ -485,9 +409,6 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         guard148(key: string, value: "payroll-mapping", resolvedMappingId: string, companyId: string, runId: string, resolvedMappingVersion: number | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_account_mappings WHERE id=? AND company_id=? AND pay_group_id=(SELECT pay_group_id FROM hr_payroll_runs WHERE id=?) AND status='approved' AND version=?)", [resolvedMappingId, companyId, runId, resolvedMappingVersion]); },
         guard149(key: string, value: "payroll-items", runId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_items WHERE run_id=? AND status NOT IN ('calculated','approved','posted'))", [runId]); },
         guard150(key: string, value: "payroll-posting-unique", runId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_postings WHERE run_id=?)", [runId]); },
-        stagePostPayrollEffect(userId: string, now: number, runId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_payroll_runs SET status='posted',posted_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='approved' AND version=?").bind(userId, now, runId, companyId, expectedVersion); },
-        stagePostPayrollEffect2(runId: string) { return database.prepare("UPDATE hr_payroll_items SET status='posted' WHERE run_id=? AND status IN ('calculated','approved')").bind(runId); },
-        stagePostPayrollEffect3(value: string, runId: string, id: string, resolvedMappingId: string | null, resolvedMappingVersion: number | null, now: number) { return database.prepare("INSERT INTO hr_payroll_postings(id,run_id,journal_id,account_mapping_id,account_mapping_version,created_at) VALUES(?,?,?,?,?,?)").bind(value, runId, id, resolvedMappingId, resolvedMappingVersion, now); },
         readApprovePayrollRunSubmitted(runId: string, companyId: string) {
             return database.prepare("SELECT submitted_by FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
                 submitted_by: string | null;
@@ -683,7 +604,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
                 file_checksum: string | null;
             }>();
         } };
-    return { repository, pagedRuns:(companyId,cursor)=>readListPage<Record<string,string|number|null>&{id:string;page_key:string}>(database,{sql:"SELECT *,pay_date||':'||created_at::text page_key FROM hr_payroll_runs WHERE company_id=?",args:[companyId],cursor,descending:true,scope:[companyId,'payroll']}), clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, authorize: requirePermission, prepare: async (holding) => { const resources = await holdingResources(holding); database = provided ?? resources.write; files = resources.files; }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, environment: async () => (await runtimeEnv()).ERPX_ENVIRONMENT, simulationAdapterId: thaiHotelPayrollMockId, files: { put: (...args) => files.put(...args), get: (...args) => files.get(...args) }, organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), prepareJournal: (...args) => fromNative(() => prepareJournal(database, ...args)), assertPayrollSourceFresh: (...args) => fromNative(() => assertPayrollSourceFresh(database, ...args)), payrollSourceGuards: (...args) => fromNative(() => payrollSourceGuards(database, ...args)), prepareAttachmentBinding: (...args) => fromNative(() => prepareAttachmentBinding(database, ...args)), snapshotMoney: (...args) => fromNative(() => snapshotMoney(database, ...args)), assertStatutoryRunReady: (...args) => fromNative(() => assertStatutoryRunReady(database, ...args)), thaiEvidenceForEmployee: (...args) => fromNative(() => thaiEvidenceForEmployee(database, ...args)), thaiEvidenceGuards: (...args) => thaiEvidenceGuards(database, ...args), thaiPackForRun: (...args) => fromNative(() => thaiPackForRun(database, ...args)), preparePayslipIssue: (...args) => fromNative(() => preparePayslipIssue(database, ...args)), calculatePayrollAdjustmentRun: (...args) => fromNative(() => calculatePayrollAdjustmentRun(database, ...args)), assertPayrollRecoveryDeductionLimits: (...args) => fromNative(() => assertPayrollRecoveryDeductionLimits(database, ...args)), preparePayrollDeductionConsumption: (...args) => fromNative(() => preparePayrollDeductionConsumption(database, ...args)), directoryPerson: (actor, id, engagementId) => fromNative(() => directoryPerson(actor, id, engagementId, database)), canReadCompensation: canReadCompensation, canManagePeople: canManagePeople, recognizedThaiPack: recognizedThaiPack, calculateThaiHotelPayrollFixture: calculateThaiHotelPayrollFixture, isThaiHotelPayrollMockEnabled: isThaiHotelPayrollMockEnabled };
+    return { repository, pagedRuns:(companyId,cursor)=>readListPage<Record<string,string|number|null>&{id:string;page_key:string}>(database,{sql:"SELECT *,pay_date||':'||created_at::text page_key FROM hr_payroll_runs WHERE company_id=?",args:[companyId],cursor,descending:true,scope:[companyId,'payroll']}), clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, authorize: requirePermission, prepare: async (holding) => { const resources = await holdingResources(holding); database = provided ?? resources.write; files = resources.files; }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, environment: async () => (await runtimeEnv()).ERPX_ENVIRONMENT, simulationAdapterId: thaiHotelPayrollMockId, files: { put: (...args) => files.put(...args), get: (...args) => files.get(...args) }, organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), prepareJournal: (...args) => fromNative(() => prepareJournal(database, ...args)), assertPayrollSourceFresh: (...args) => fromNative(() => assertPayrollSourceFresh(database, ...args)), payrollSourceGuards: (...args) => fromNative(() => payrollSourceGuards(database, ...args)), prepareAttachmentBinding: (...args) => fromNative(() => prepareAttachmentBinding(database, ...args)), snapshotMoney: (...args) => fromNative(() => snapshotMoney(database, ...args)), assertStatutoryRunReady: (...args) => fromNative(() => assertStatutoryRunReady(database, ...args)), thaiEvidenceForEmployee: (...args) => fromNative(() => thaiEvidenceForEmployee(database, ...args)), thaiEvidenceGuards: (...args) => thaiEvidenceGuards(database, ...args), thaiPackForRun: (...args) => fromNative(() => thaiPackForRun(database, ...args)), preparePayslipIssue: (...args) => fromNative(() => preparePayslipIssue(database, ...args)), assertPayrollRecoveryDeductionLimits: (...args) => fromNative(() => assertPayrollRecoveryDeductionLimits(database, ...args)), preparePayrollDeductionConsumption: (...args) => fromNative(() => preparePayrollDeductionConsumption(database, ...args)), directoryPerson: (actor, id, engagementId) => fromNative(() => directoryPerson(actor, id, engagementId, database)), canReadCompensation: canReadCompensation, canManagePeople: canManagePeople, recognizedThaiPack: recognizedThaiPack, calculateThaiHotelPayrollFixture: calculateThaiHotelPayrollFixture, isThaiHotelPayrollMockEnabled: isThaiHotelPayrollMockEnabled };
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
@@ -713,7 +634,6 @@ export async function listPeople(actor: WorkContext, filters: {
 } = {}) { return withPeoplePurchasedRead(actor,"people.directory",(tx,current)=>invoke(()=>createPeoplePayrollApplication(context(tx)).listPeople(current,filters)),"people.manage"); }
 export async function getPerson(actor: WorkContext, personId: string, engagementId?: string) { return withPeoplePurchasedRead(actor,"people.directory",async(tx,current)=>{const data=await invoke(()=>createPeoplePayrollApplication(context(tx)).getPerson(current,personId,engagementId)),workforcePurchase=await workforcePurchaseControls(current,tx);return {...data,...(workforcePurchase?{workforcePurchase}:{})};}); }
 export async function peopleSummary(actor: WorkContext) { return withPeoplePurchasedRead(actor,"people.directory",async(tx,current)=>{const purchase=await peopleOverviewPurchases(tx,current);return invoke(()=>createPeoplePayrollApplication(context(tx)).peopleSummary(purchase["people.payroll"].history?current:{...current,iam:current.iam?{...current.iam,permissions:current.iam.permissions.filter(permission=>permission!=="payroll.read")}:current.iam}));}); }
-export async function payrollSummary(actor: WorkContext, payMonth?: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).payrollSummary(actor, payMonth))); }
 export async function createPerson(actor: WorkContext, input: z.infer<typeof createPersonSchema>, id: string) { return withPeoplePurchasedCommand(actor,{key:id,operation:"people.person.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",resultKind:"person"},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createPerson(actor, input, id))); }
 export async function createEngagement(actor: WorkContext, input: z.infer<typeof createEngagementSchema>, id: string) { return withPeoplePurchasedCommand(actor,{key:id,operation:"people.engagement.create",capability:"people.lifecycle",purpose:"new-work",permission:"people.manage",resultKind:"engagement",target:{kind:"person",id:input.personId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createEngagement(actor, input, id))); }
 export async function createCompensation(actor: WorkContext, input: z.infer<typeof compensationSchema>, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.compensation.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",resultKind:"compensation",target:{kind:"engagement",id:input.engagementId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createCompensation(actor, input, key))); }
@@ -729,26 +649,15 @@ export async function createPayGroup(actor: WorkContext, input: z.infer<typeof p
 export async function createCountryPack(actor: WorkContext, input: z.infer<typeof countryPackSchema>, id: string) { return withPayrollPurchasedCommand(actor, { key: id, operation: "people.country-pack.create", purpose: "new-work" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).createCountryPack(actor, input, id))); }
 export async function listCountryPacks(actor: WorkContext) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).listCountryPacks(actor))); }
 export async function transitionCountryPack(actor: WorkContext, packId: string, input: z.infer<typeof countryPackTransitionSchema>, commandId: string) { return withPayrollPurchasedCommand(actor, {key: commandId, operation: `people.country-pack.${input.status}`, purpose: "settle-existing"}, tx => invoke(() => createPeoplePayrollApplication(context(tx)).transitionCountryPack(actor, packId, input, commandId))); }
-export async function createPayrollRun(actor: WorkContext, input: z.infer<typeof payrollRunSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.create", purpose: "new-work" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).createPayrollRun(actor, input, key))); }
 export async function prepareFinalPay(actor: WorkContext, input: z.infer<typeof finalPayPreparationSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.final-pay.prepare", purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).prepareFinalPay(actor, input, key))); }
 export async function requestPayrollAdvance(actor: WorkContext, input: z.infer<typeof payrollAdvanceRequestSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.advance.request", purpose: "new-work" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).requestPayrollAdvance(actor, input, key))); }
 export async function decidePayrollAdvance(actor: WorkContext, advanceId: string, input: z.infer<typeof payrollAdvanceDecisionSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: `people.payroll.advance.${input.action}`, purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).decidePayrollAdvance(actor, advanceId, input, key))); }
 export async function payrollAdvancePage(actor: WorkContext) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).payrollAdvancePage(actor))); }
 export async function payrollAdvanceAlertTarget(db: SqlDatabase, companyId: string, userId: string, advanceId: string, now = Date.now()) { return invoke(() => createPeoplePayrollApplication(context(db)).payrollAdvanceAlertTarget(companyId, userId, advanceId, now)); }
-export async function calculatePayrollRun(actor: WorkContext, runId: string, key = crypto.randomUUID()) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.calculate", purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).calculatePayrollRun(actor, runId, key))); }
-export async function workPayrollRows(actor: WorkContext, provided?: SqlDatabase) {
-  const database = provided ?? (await holdingResources(actor.holdingId)).write, access = await payrollPurchasedAccess(database, actor);
-  if (access && !access.history) return [];
-  const rows = await invoke(() => createPeoplePayrollApplication(context(database)).workPayrollRows(actor));
-  return rows;
-}
-export async function getPayrollRun(actor: WorkContext, runId: string, provided?: SqlDatabase) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).getPayrollRun(actor, runId)), provided); }
-export async function listPayrollRuns(actor: WorkContext) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).listPayrollRuns(actor))); }
 export async function payrollPostingOptions(actor: WorkContext) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).payrollPostingOptions(actor))); }
 export async function savePayrollAccountMapping(actor: WorkContext, payGroupId: string, input: z.infer<typeof payrollAccountMappingSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.mapping.save", purpose: "new-work" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).savePayrollAccountMapping(actor, payGroupId, input, key))); }
 export async function approvePayrollAccountMapping(actor: WorkContext, mappingId: string, expectedVersion: number, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.mapping.approve", purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).approvePayrollAccountMapping(actor, mappingId, expectedVersion, key))); }
 export async function previewPayrollAccounting(actor: WorkContext, runId: string, input: z.infer<typeof payrollPostSchema>) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).previewPayrollAccounting(actor, runId, input))); }
-export async function postPayroll(actor: WorkContext, runId: string, input: z.infer<typeof payrollPostSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.post", purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).postPayroll(actor, runId, input, key))); }
 export async function approvePayrollRun(actor: WorkContext, runId: string, expectedVersion: number, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.approve", purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).approvePayrollRun(actor, runId, expectedVersion, key))); }
 export async function requestPayrollCorrection(actor: WorkContext, runId: string, input: z.infer<typeof payrollCorrectionRequestSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.correction.request", purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).requestPayrollCorrection(actor, runId, input, key))); }
 export async function decidePayrollCorrection(actor: WorkContext, correctionId: string, input: z.infer<typeof payrollCorrectionDecisionSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: `people.payroll.correction.${input.action}`, purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).decidePayrollCorrection(actor, correctionId, input, key))); }

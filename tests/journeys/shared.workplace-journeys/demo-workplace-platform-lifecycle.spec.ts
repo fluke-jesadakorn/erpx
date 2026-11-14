@@ -9,7 +9,7 @@ import type {agentWorkspace} from "@erpx/server-agent/public/agent-governance";
 import type {brandIdentityWorkspace} from "@erpx/server-brand/public/brand-identity";
 import type {GuidedIntakeResult} from "@erpx/feature-shared/lib/ai/guided-intake";
 import type {TargetBillingPeriodView} from "@erpx/server-billing/public/billing-target";
-import type {connectionInput} from "@erpx/server-identity_access/public/iam-directories";
+import type {connectionInput} from "@erpx/server-identity_access/domain/directories";
 import type {z} from 'zod';
 
 type Credentials={run:string;password:string;users:WorkplacePlatformUatUser[]};

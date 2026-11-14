@@ -38,7 +38,7 @@ export function parseTestArguments(args: string[], root = repositoryRoot): TestA
       }
       continue;
     }
-    if (/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(arg)) {
+    if (/\.(?:test\.(?:[cm]?[jt]sx?|rs)|spec\.[cm]?[jt]sx?)$/.test(arg)) {
       result.files!.push(relative(root, resolve(root, arg)).replaceAll("\\", "/"));
       continue;
     }

@@ -2,6 +2,7 @@ import {productNavigationHref} from "@erpx/feature-work_projection/lib/product-n
 import { beforeAll, expect, it } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { productSsoStore, ssoHash } from "@erpx/server-identity_access/adapters/product-sso-store";
+import { revokeSsoFamily } from "./sso-family-oracle";
 import { randomUUID } from "node:crypto";
 
 const db = env.CONTROL_DB;
@@ -14,7 +15,14 @@ async function parent(register = true) {
   const createdAt = new Date(instant - 60_000), expiresAt = new Date(instant + 3_600_000);
   await db.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)').bind(user, "Fictional employee", `${user}@example.test`, createdAt.getTime(), createdAt.getTime()).run();
   await db.prepare('INSERT INTO session(id,token,"userId","createdAt","updatedAt","expiresAt") VALUES(?,?,?,?,?,?)').bind(id, randomUUID(), user, createdAt.toISOString(), createdAt.toISOString(), expiresAt.toISOString()).run();
-  if (register) await store.registerCentral({ id, createdAt, expiresAt });
+  if (register) {
+    await store.registerCentral({ id, createdAt, expiresAt });
+    // Native adoption owns pre-migration parents; a normal parent already has
+    // the selected device row this retained oracle reads.
+    const browser = randomUUID();
+    await db.prepare("INSERT INTO account_device_browsers(id,active_session_id,revision,updated_at) VALUES(?,?,1,?)").bind(browser, id, instant).run();
+    await db.prepare("INSERT INTO account_device_accounts(session_id,browser_id,handle) VALUES(?,?,?)").bind(id, browser, randomUUID()).run();
+  }
   return { id, user, createdAt, expiresAt };
 }
 async function flow(parentId: string, audience = "finance") {
@@ -74,7 +82,7 @@ it("revokes a login family across apps without revoking an independent login", a
   const finance = await store.consume((await flow(p.id)).input), people = await store.consume((await flow(p.id, "people")).input);
   const otherFinance = await store.consume((await flow(other.id)).input);
   const waiting = await flow(p.id);
-  await store.revokeFamily(people.sessionId);
+  await revokeSsoFamily(db, people.sessionId);
   expect(await store.session(finance.token, "finance")).toBeNull();
   expect(await store.session(people.token, "people")).toBeNull();
   expect(await store.session(otherFinance.token, "finance")).not.toBeNull();
@@ -82,7 +90,7 @@ it("revokes a login family across apps without revoking an independent login", a
 });
 it("does not retain a child after family sign-out races its callback", async () => {
   const p = await parent(), f = await flow(p.id);
-  const results = await Promise.allSettled([store.consume(f.input), store.revokeFamily(p.id)]);
+  const results = await Promise.allSettled([store.consume(f.input), revokeSsoFamily(db, p.id)]);
   expect(results[1].status).toBe("fulfilled");
   if (results[0].status === "fulfilled") expect(await store.session(results[0].value.token, "finance")).toBeNull();
   expect(await store.centralIsCurrent(p.id)).toBe(false);

@@ -20,6 +20,7 @@
     "./components/inventory-reorder-console": "./src/components/inventory-reorder-console.tsx",
     "./lib/landed-cost-command-fetch": "./src/lib/landed-cost-command-fetch.ts",
     "./lib/landed-cost-purchase-controls": "./src/lib/landed-cost-purchase-controls.ts",
+    "./lib/native-stock-count-command": "./src/lib/native-stock-count-command.ts",
     "./lib/transfer-editor-draft": "./src/lib/transfer-editor-draft.ts",
     "./lib/count-purchase-controls": "./src/lib/count-purchase-controls.ts",
     "./lib/manufacturing-initial-physical-stock-count-command": "./src/lib/manufacturing-initial-physical-stock-count-command.ts",
@@ -31,7 +32,11 @@
     "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
     "./lib/count-command-fetch": "./src/lib/count-command-fetch.ts",
     "./lib/pos-initial-physical-stock-count-command": "./src/lib/pos-initial-physical-stock-count-command.ts",
-    "./lib/landed-cost-command-attempt": "./src/lib/landed-cost-command-attempt.ts"
+    "./lib/landed-cost-command-attempt": "./src/lib/landed-cost-command-attempt.ts",
+    "./adapters/server/native-availability": "./src/adapters/server/native-availability.ts",
+    "./lib/native-availability": "./src/lib/native-availability.ts",
+    "./routes/holdings/[holdingSlug]/inventory-quality/stock/register/page": "./src/routes/holdings/[holdingSlug]/inventory-quality/stock/register/page.tsx",
+    "./lib/native-inventory-command": "./src/lib/native-inventory-command.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -48,8 +53,8 @@
     "@erpx/server-inventory": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "zod": "4.5.4"
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "zod": "4.6.7"
   }
 }

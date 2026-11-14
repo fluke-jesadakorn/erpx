@@ -3,7 +3,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 
-import { workPackageEnforcementMode, readPurchasedAccess } from '@erpx/server-commercial/public/purchase-command-boundary';
+import { appsPackageEnforcementMode, readPurchasedAccess } from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {workTaskSocialPurchasePredicate} from '@erpx/server-collaboration/public/work-task-purchase-source';
 import {projectTaskRecordPolicy} from '@erpx/server-operations/adapters/project-task-record-policy';
@@ -23,6 +23,6 @@ export async function visibleTask(database:SqlDatabase,actor:WorkContext,id:stri
  AND (NOT ${workTaskSocialPurchasePredicate()} OR ${purchasedCapabilityPredicate('t.company_id','work.social','history',`${viewer}.now_ms`)}) AND (${social.where}))`,args:[actor.userId,actor.assignmentId,...current.args,...social.args]};
 }
 export async function evaluationOrdinaryTaskReadScope(database:SqlDatabase,actor:WorkContext){
- const mode=await workPackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.actions'});return {where:'TRUE',args:[] as unknown[]};}
+ const mode=await appsPackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.actions'});return {where:'TRUE',args:[] as unknown[]};}
  return visibleTask(database,actor,'evaluation_task.id','evaluation_task.company_id');
 }

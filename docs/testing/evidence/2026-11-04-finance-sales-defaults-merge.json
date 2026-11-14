@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance sales-defaults settings slice merged; the sales-invoice workspace remains partial",
+  "capability": "finance-sales-defaults-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 48,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/48",
+    "state": "MERGED",
+    "mergedAt": "2026-11-04T00:05:36Z",
+    "base": "94fc8d2cc310c1900fd13701bf11b4f519235ea4",
+    "head": "9e6a6e0d6488c61b8e982a14751f8260e6299721",
+    "mergeCommit": "9cc9efaf19d0e6da865350efb7516f5c6ed8ad73",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance:sales-invoice-workspace",
+    "slice": "sales defaults workspace/prepare/decide/settings",
+    "changedFiles": 21,
+    "adapter": "packages/server-finance/src/adapters/sales_defaults.rs",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-defaults.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/settings/screen.tsx"
+  },
+  "verification": {
+    "postgres": "finance.rust-sales-defaults-postgres.integration 3/3",
+    "regressions": "finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 790 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4",
+    "browser": "Desktop owner prepare 201 + manager approve 200 approved v2; mobile owner prepare 201 + manager approve 200 approved v2; previous approved editions superseded; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 18,
+    "workflowsPartial": 1,
+    "workflowsMerged": 18,
+    "workflowsTotal": 206,
+    "workflowState": "finance:sales-invoice-workspace remains partial for standalone customer-receipt detail/export/issue and standalone edit/void"
+  },
+  "limits": [
+    "Only list, create and sales defaults are native in this workflow; standalone receipts and edit/void remain TS.",
+    "The existing native customer-receipt readback is source-qualified Field.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

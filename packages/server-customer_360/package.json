@@ -38,7 +38,8 @@
     "./application/portal": "./src/application/portal.ts",
     "./application/timeline": "./src/application/timeline.ts",
     "./domain/portal": "./src/domain/portal.ts",
-    "./domain/timeline": "./src/domain/timeline.ts"
+    "./domain/timeline": "./src/domain/timeline.ts",
+    "./public/customer-notes": "./src/public/customer-notes.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -67,6 +68,6 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

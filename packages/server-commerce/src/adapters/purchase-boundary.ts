@@ -14,6 +14,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 import {commerceCompleteOwnerSourceReadLocks} from "@erpx/server-commerce/adapters/owner-source-locks";
 import {ecommerceCommerceSourceReadLocks} from "@erpx/server-ecommerce/public/commerce-source-locks";
 import {lockQueuedCommandAuthority} from "@erpx/server-identity_access/public/queued-command-authority";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type OrderKind="quote"|"sales"|"purchase";
 export type CommercePurchaseActor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
@@ -60,7 +61,7 @@ async function requireCurrent(database:SqlDatabase,actor:CommercePurchaseActor,p
    .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
   if(!row?.allowed)throw new ApiError(403,"COMMERCE_ACCESS_CHANGED","Choose a current authorized Commerce work role.");
  }
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 async function currentSource(database:SqlDatabase,actor:WorkContext,target:Target,expected:Source){
  const current=await source(database,actor,target);
@@ -167,8 +168,8 @@ export async function withCommercePurchasedCommand<Result>(actor:WorkContext,com
   const check=async()=>{
    const current=await currentSource(database,actor,finalTarget,after);
    await requireCurrent(database,actor,permissions,current,key);
-   if(command.convert&&!receipt)await database.batch([assertion(database,key,"commerce-conversion-source","EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND company_id=? AND source_id=? AND kind='sales')",[`order-${command.key}`,actor.companyId,current.id]),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
-   const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));boundaries[0]?.boundary.observe?.(observed);
+   if(command.convert&&!receipt)await database.batch([assertion(database,key,"commerce-conversion-source","EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND company_id=? AND source_id=? AND kind='sales')",[`order-${command.key}`,actor.companyId,current.id]),clearWorkflowCommandAssertions(database, key)]);
+   const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));boundaries[0]?.boundary.observe?.(observed);
   };
   // Check now, and repeat after the outer owner's complete deferred effects.
   await check();composition.checks.push(check);return result;

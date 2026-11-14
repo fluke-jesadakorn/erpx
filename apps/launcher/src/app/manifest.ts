@@ -1,3 +1,6 @@
-// App-owned entry; shared payloads do not import another application.
-export { default } from "@erpx/workplace/routes/manifest";
+import manifest from "@erpx/workplace/routes/manifest";
+
+export default function appsManifest() {
+  return { ...manifest(), name: "ERPX Apps", short_name: "ERPX Apps" };
+}
 

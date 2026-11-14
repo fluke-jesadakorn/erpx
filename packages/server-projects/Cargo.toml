@@ -1,0 +1,89 @@
+[package]
+name = "erpx-server-projects"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "project_wbs"
+path = "../../tests/unit/projects/rust-project-wbs.test.rs"
+
+[[test]]
+name = "project_wbs_http"
+path = "../../tests/unit/projects/rust-project-wbs-http.test.rs"
+
+[[test]]
+name = "project_wbs_postgres"
+path = "../../tests/integration/projects/rust-project-wbs-postgres.test.rs"
+
+[lints]
+workspace = true
+
+[[test]]
+name = "project_graph"
+path = "../../tests/unit/projects/rust-project-graph.test.rs"
+
+[[test]]
+name = "project_commands"
+path = "../../tests/unit/projects/rust-project-commands.test.rs"
+
+[[test]]
+name = "project_save"
+path = "../../tests/unit/projects/rust-project-save.test.rs"
+
+[[test]]
+name = "project_save_http"
+path = "../../tests/unit/projects/rust-project-save-http.test.rs"
+
+[[test]]
+name = "project_save_postgres"
+path = "../../tests/integration/projects/rust-project-save-postgres.test.rs"
+
+[[test]]
+name = "project_graph_http"
+path = "../../tests/unit/projects/rust-project-graph-http.test.rs"
+
+[[test]]
+name = "project_structure_commands"
+path = "../../tests/unit/projects/rust-project-structure.test.rs"
+
+[[test]]
+name = "project_actuals_commands"
+path = "../../tests/unit/projects/rust-project-actuals.test.rs"
+
+[[test]]
+name = "project_attachment_policy"
+path = "../../tests/unit/projects/rust-project-attachment.test.rs"
+
+[[test]]
+name = "project_attachment_http"
+path = "../../tests/unit/projects/rust-project-attachment-http.test.rs"
+
+[[test]]
+name = "project_attachment_read_http"
+path = "../../tests/unit/projects/rust-project-attachment-read-http.test.rs"
+
+[[test]]
+name = "project_attachment_intake_http"
+path = "../../tests/unit/projects/rust-project-attachment-intake-http.test.rs"
+
+[[test]]
+name = "staff_facts_postgres"
+path = "../../tests/integration/projects/rust-staff-facts-postgres.test.rs"

@@ -4,8 +4,8 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
 import { Button, Field, Select, TextInput } from "@erpx/ui/components/foundation";
 
-import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {createFlowAssignmentCommands} from "../lib/flow-assignment-command";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import type { FlowView } from "@erpx/feature-shared/lib/flow";
 import styles from "@erpx/workplace/components/flow.module.css";
@@ -15,32 +15,30 @@ export function FlowTimeline({ flow, endpoint }: { flow: FlowView; endpoint: str
   const router = useRouter();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const commands = useRef<ReturnType<typeof createFlowAssignmentCommands> | null>(null);
+  commands.current ??= createFlowAssignmentCommands();
+  const [uncertain, setUncertain] = useState(false);
+  useEffect(() => { try { setUncertain(!!commands.current?.pending(endpoint)); } catch { setUncertain(false); } }, [endpoint]);
   async function assign(event: React.FormEvent<HTMLFormElement>, stepKey: string) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    setError("");
+    const element=event.currentTarget,form = new FormData(element);
+    setBusy(true); setError("");
     try {
-      const response = await workFetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-        body: JSON.stringify({
-          stepKey,
-          userId: form.get("userId"),
-          reason: form.get("reason"),
-          saveDefault: form.get("saveDefault") === "on",
-          expectedVersion: flow.version,
-          recordVersion: flow.recordVersion,
-        }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error?.message ?? "Assignment failed.");
-      router.refresh();
+      const result=await commands.current!.submit(endpoint,flow.kind,flow.recordId,flow.version,{
+        stepKey,userId:form.get("userId"),reason:form.get("reason"),saveDefault:form.get("saveDefault") === "on",
+        expectedVersion:flow.version,recordVersion:flow.recordVersion,
+      },{form:element,formEditVersion:element.getAttribute('data-erpx-edit-version')});
+      setUncertain(false); if(result.unchanged)router.refresh();
     } catch (cause) {
       setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
+      try { setUncertain(!!commands.current!.pending(endpoint)); } catch { setUncertain(true); }
+    } finally { setBusy(false); }
+  }
+  async function retry() {
+    setBusy(true);setError("");
+    try { const result=await commands.current!.retry(endpoint);setUncertain(false);if(result.unchanged)router.refresh(); }
+    catch(cause){setError((cause as Error).message);try{setUncertain(!!commands.current!.pending(endpoint));}catch{setUncertain(true);}}
+    finally{setBusy(false);}
   }
   return (
     <section
@@ -79,6 +77,7 @@ export function FlowTimeline({ flow, endpoint }: { flow: FlowView; endpoint: str
           {error}
         </InlineNotice>
       )}
+      {uncertain && <Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={() => void retry()}>Retry original owner assignment</Button>}
       <ol className={styles.steps}>
         {flow.steps.map((step, index) => (
           <li
@@ -104,7 +103,7 @@ export function FlowTimeline({ flow, endpoint }: { flow: FlowView; endpoint: str
                 <p className="muted">{step.blocker}</p>
               )}
               {flow.canManage && flow.current && index >= flow.steps.indexOf(flow.current) && (
-                <FormDisclosure appearance="standard">
+                <FormDisclosure appearance="standard" retainFormContents={uncertain}>
                   <summary>Assign / change owner</summary>
                   <form onSubmit={(event) => void assign(event, step.key)}>
                     <Field appearance="standard">
@@ -137,7 +136,7 @@ export function FlowTimeline({ flow, endpoint }: { flow: FlowView; endpoint: str
                     <Button appearance="standard"
                       clientManaged type="submit"
                       variant="secondary"
-                      disabled={busy || !step.candidates.length}
+                      disabled={busy || uncertain || !step.candidates.length}
                     >
                       Save owner
                     </Button>

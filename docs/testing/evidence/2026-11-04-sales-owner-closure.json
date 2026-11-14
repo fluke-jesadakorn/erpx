@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Sales now has a bounded native quotation/sales-order document list read, an owner-local HTTP router, a strict Next transport, and a configured SSR cutover. The Sales owner remains pending/partial: commands, fulfillment, cancellation, revenue handoff, shared composition mounting, root workspace membership, purchase-atomic composition, audit/outbox writes and browser acceptance remain open.",
+  "capability": "sales-owner-documents-read-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "eef300c42053ef87be1c007a910e22dfaae1a3db",
+  "scope": {
+    "workflows": [
+      "sales/quotes",
+      "sales/orders"
+    ],
+    "workflowBoundary": "The qualified slice reads the current Company/branch/department-scoped quotation or sales-order header list used by the retained Sales documents page. Fulfillment, cancellation, revenue handoff, quote/order create/edit/transition, customer/party masters, posting setup, reservations, journals and all other Sales commands are not claimed.",
+    "domain": "Sales read actor policy (commerce.read, Sales module, selected-context expiry), exact Company and optional branch/department scope, bounded kind/search/status/cursor input, exact sales document row shape, date/currency/state/version/amount validation, total = subtotal + tax, unique descending page keys, and a scope-bound opaque keyset cursor.",
+    "application": "One sales_documents use case requires the current actor before any repository call, validates query/cursor scope before the source read, validates every owner row against the actor Company and selected scope, and derives the next cursor only from the bounded 30-row page plus one overflow row.",
+    "adapters": "Read-only SQL over the current Commerce order header (commerce_orders) and the Finance customer display name (finance_parties) already joined by the retained Sales documents page. The caller's serializable Holding transaction is required. No order, customer, posting, reservation or workflow row is created, revised or deleted; no cross-owner mutation SQL is invented.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/sales/documents?kind=quote|sales&q=&status=&cursor=. Exact Host/Holding targets, exact HTTPS origin validation, strict query keys and duplicate rejection, bounded kind/search/status/cursor validation, private/no-store and no-referrer responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company scope, purchase admission and serializable owner read.",
+    "transport": "ERPX_NATIVE_SALES_DOCUMENTS_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact document/page/context shapes, unique IDs, scope/total/kind/environment validation and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "ssr": "The Sales documents presenter uses the native page when ERPX_NATIVE_SALES_DOCUMENTS_CONFIG is present. An unset configuration retains commerceSalesDocuments so existing development and tests remain usable; once configured, an invalid or failed native read is surfaced rather than silently replaced.",
+    "purchaseAndIdentity": "The Next owned view computes the retained commercePurchaseControls preflight before the native read and refuses a configured native read when history is denied. This is a preflight, not an atomic owner unit; the composition backend must repeat current authority and purchase admission on its own serializable owner transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue registration, command/idempotency receipt, versions/CAS write, audit/outbox effect, Finance/Inventory same-transaction guard, quote/order mutation, fulfillment, cancellation, revenue handoff, job, production or staging acceptance."
+  },
+  "changedFiles": [
+    "packages/server-sales/Cargo.toml",
+    "packages/server-sales/src/lib.rs",
+    "packages/server-sales/src/domain/mod.rs",
+    "packages/server-sales/src/domain/sales_documents.rs",
+    "packages/server-sales/src/application/mod.rs",
+    "packages/server-sales/src/application/sales_documents.rs",
+    "packages/server-sales/src/adapters/mod.rs",
+    "packages/server-sales/src/adapters/sales_documents.rs",
+    "packages/server-sales/src/adapters/sales_documents_http.rs",
+    "packages/server-sales/src/public/mod.rs",
+    "packages/server-sales/src/public/sales_documents.rs",
+    "packages/server-sales/src/public/sales_documents_http.rs",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/public/native-sales-documents.ts",
+    "packages/feature-sales/src/public/native-sales-documents-page.ts",
+    "packages/feature-sales/src/adapters/server/next-native-sales-documents.ts",
+    "packages/feature-sales/src/components/customers/sales-views.tsx",
+    ".env.example",
+    "tests/unit/sales/rust-sales-documents.test.rs",
+    "tests/unit/sales/rust-sales-documents-http.test.rs",
+    "tests/integration/sales/rust-sales-documents-postgres.test.rs",
+    "tests/unit/sales/native-sales-documents-transport.test.ts"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-sales --locked -- --test-threads=1",
+      "result": "14 passed, 0 failed, 0 ignored across 3 test targets (lib 0, sales_documents 7, sales_documents_http 3, sales_documents_postgres 4, doc-tests 0)",
+      "workspaceNote": "The crate is not listed in the root workspace members, which this subagent is prohibited from editing. The exact --locked command was run with a transient local member entry and transient Cargo.lock package entry; both root files were restored byte-for-byte to their session-start SHA-256 values and are absent from the final diff. A fresh checkout must add packages/server-sales to [workspace] members and regenerate Cargo.lock before the command is reproducible.",
+      "targets": {
+        "sales_documents": "7 passed: permission/module/expiry policy before source, 30-row bound plus scoped cursor, malformed search/status/cursor negatives, cursor scope binding, foreign Company/kind/total/state/date/currency/version/duplicate/non-monotonic rows, selected branch/department scope, exact serialized keys",
+        "sales_documents_http": "3 passed: exact distinct targets and HTTPS origins, actual loopback request/query forwarding, duplicate/unknown query negatives, invalid kind/status negatives, unknown Host/Holding, conflict mapping, private/no-referrer/nosniff headers",
+        "sales_documents_postgres": "4 passed: Company/kind/search/status/branch filters, foreign Company isolation, 31-row cursor pagination without duplicates, transaction/serializable guards, in-transaction readback and rollback, persisted row count unchanged, permission denial before source read"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-sales --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-sales warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust file",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "sales_documents_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "cases": [
+        "the current Company sees only its quotation kind, search and status matches, while a selected branch excludes other branches and a foreign Company sees only its own order",
+        "31 quotation rows paginate 30 + 4 with no duplicate ID and the expected descending created_at/id order",
+        "a reader outside a transaction or inside a non-serializable transaction fails closed before the source read",
+        "an order inserted inside the owner transaction is visible to the read and disappears after abort; committed readback does not create or delete rows",
+        "missing commerce.read fails before the repository source read"
+      ],
+      "fixture": "Real migrated PostgreSQL with synthetic Company/branch/customer/order rows; no owner write in the qualified read path."
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards kind, percent-decoded search, status and cursor and returns owner data plus rendered context",
+        "duplicate/unknown query keys, invalid kind, invalid status and oversized values are 422 with bounded owner codes",
+        "unknown Host or Holding is 404 and a backend conflict is 409 SALES_DOCUMENTS_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets, non-HTTPS origins and origins with paths fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/sales/native-sales-documents-transport.test.ts: 8 passed",
+      "retained": "vitest tests/unit/sales/sales-services.test.ts and sales-customers-navigation.test.ts: 121 passed; unset native configuration retains the legacy Commerce list reader",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-sales/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "typecheckLimit": "The three typechecks passed after a concurrent Procurement subagent finished its own uncommitted transport. No Sales, workplace or test-config file was in the earlier failure set.",
+      "eslint": "eslint on the changed TypeScript files: pass (existing Pages directory warning only)",
+      "runner": "The transport test was run with an equivalent temporary Vitest config because tests/catalogue/suite-manifest.json was concurrently modified by other owners. This subagent did not edit the shared catalogue register."
+    },
+    "static": {
+      "diffCheck": "git diff --check on tracked Sales-owned files: pass",
+      "trailingWhitespace": "no trailing whitespace in the new Sales-owned files"
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_sales::public::sales_documents::{SalesDocumentReadActor, SalesDocumentKind, SalesDocumentCursor, SalesDocumentRow, SalesDocumentsPage, SalesDocumentReadRepository, PgSalesDocumentRead, sales_documents, normalize_status, validate_search}",
+      "erpx_server_sales::public::sales_documents_http::{sales_documents_router, SalesDocumentsHttpTarget, SalesDocumentsHttpBackend, SalesDocumentsHttpRequest, SalesDocumentsHttpResponse}"
+    ],
+    "backendRequired": "Implement SalesDocumentsHttpBackend in src/composition: parse the normal Account/Holding request and rendered context, require the configured Holding/Company/branch/department, call the retained commercial purchase admission (sales.quotes or sales.orders, history) inside one serializable transaction, build SalesDocumentReadActor from the current authority, call sales_documents with PgSalesDocumentRead, and map PgTransactionError to BusinessError. Preserve the current package-enforcement mode and repeat the purchase check in the same owner transaction; the Next preflight is not atomic.",
+    "privateDevelopmentApi": [
+      "Build one SalesDocumentsHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_sales::public::sales_documents_http::sales_documents_router(targets).map_err(|_| \"PRIVATE_API_SALES_CONFIGURATION_INVALID\")?);",
+      "Mount /sales/documents before the generic 404 fallback."
+    ],
+    "rootWorkspace": "Add \"packages/server-sales\" to the root Cargo.toml [workspace] members and a corresponding erpx-server-sales workspace dependency entry, then regenerate Cargo.lock in the integration change. This subagent did not retain that shared edit.",
+    "nextEnvironment": "Set ERPX_NATIVE_SALES_DOCUMENTS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "schema": "No PostgreSQL schema or migration change is required. The new crate adds no dependency beyond the existing shared/runtime/sqlx/serde/serde_json workspace set.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, docs/status/** and other owners' implementation."
+  },
+  "legacyInventory": {
+    "removed": [
+      "When ERPX_NATIVE_SALES_DOCUMENTS_CONFIG is present, the Sales documents presenter no longer reads the quotation/sales-order list through commerceSalesDocuments; the native page replaces that list read.",
+      "No retained TypeScript Sales file was deleted. Quote/order commands, fulfillment, cancellation, revenue handoff, customer follow-ups and every other Sales/Commerce path remain on their existing owner paths."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-commerce/src/adapters/commerce-pages.ts::commerceSalesDocuments remains the unset-config list reader and the source for non-Sales Commerce views.",
+      "packages/server-sales/src/adapters/customers.ts, followups.ts, pricing.ts, notes.ts and their public exports retain the Sales customer/profile/follow-up/pricing/notes paths and existing tests.",
+      "The Sales documents editor still uses getOrder, commercePurchaseControls, salesPostingDocumentReadiness, salesEditorOptions and the retained order commands; this slice changes only the list read.",
+      "The Commerce order detail pages, fulfillment drawer, cancellation and revenue handoff remain retained and unchanged."
+    ]
+  },
+  "concurrentWork": {
+    "preserved": "This worktree also contains concurrent uncommitted PMS and Procurement native work. Those files, their package manifests, tests and .env.example PMS selector were not edited, reverted or included in the Sales changed-file inventory.",
+    "typecheckImpact": "No concurrent-owner typecheck error remained in the final affected typechecks; the three recorded TypeScript projects pass."
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private/production route serves the Sales owner router yet. The HTTP test backend is a recording fake.",
+    "The new crate is not a root workspace member in the final tree; a fresh cargo test -p erpx-server-sales --locked requires the shared integration edit.",
+    "The Next purchase/Identity preflight and the native read are separate transactions. A composition mount must keep the authoritative purchase and current IAM check inside the owner read transaction.",
+    "The list read is bounded to 30 rows plus one overflow row and a scope-bound opaque cursor; it is not an arbitrarily large export.",
+    "The read joins the Finance customer display name and the Commerce order header; it does not own or migrate those aggregates and performs no cross-owner mutation.",
+    "No command, CAS write, idempotency receipt, audit/outbox event, Finance/Inventory same-transaction guard, quote/order transition, fulfillment, cancellation or revenue handoff was added; those remain required before any Sales write cutover.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. No business-owner completion flag is changed by this subagent.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

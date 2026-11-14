@@ -35,7 +35,7 @@ import { collaborationHomeSources as agent } from '@erpx/server-agent/public/col
 import { collaborationHomeSources as operations } from '@erpx/server-operations/public/collaboration-home-sources';
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
-import {withWorkSocialCommand,withWorkSocialUploadCleanup} from '@erpx/server-collaboration/adapters/work-social-purchases';
+import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -66,16 +66,10 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             }>();
         }, guardTeamAudience(key: string, value: "audience-team", id: string, companyId: string, userId: string) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM messaging_teams t JOIN messaging_team_members m ON m.team_id=t.id WHERE t.id=? AND t.company_id=? AND NOT t.organization_managed AND m.user_id=?)", [id, companyId, userId]);
-        }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, prepareCommentDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string) {
-            return db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,comment_parent_post_id) VALUES(?,?,?,?, '',?,?,?)")
-                .bind(id, userId, companyId, branch_id, now, now2, postId);
-        }, guardCommentDraft(key: string, value: "draft", id: string, userId: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND published_comment_id IS NULL AND cancelled_at IS NULL)", [id, userId]); }, cancelCommentDraft(now: number, now2: number, id: string) { return db.prepare("UPDATE social_post_drafts SET cancelled_at=?,version=version+1,updated_at=? WHERE id=?").bind(now, now2, id); }, prepareEditDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string, expectedVersion: number) {
-            return db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,edit_post_id,edit_post_version) VALUES(?,?,?,?, '',?,?,?,?)")
-                .bind(id, userId, companyId, branch_id, now, now2, postId, expectedVersion);
-        }, async editDraft(id: string, companyId: string) {
+        }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, async editDraft(id: string, companyId: string) {
             return db.prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=?")
                 .bind(id, companyId).first<PostDraft>();
-        }, guardEditDraft(key: string, value: "draft", id: string, userId: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND edit_post_id IS NOT NULL AND edit_saved_version IS NULL AND cancelled_at IS NULL)", [id, userId]); }, cancelEditDraft(now: number, now2: number, id: string) { return db.prepare("UPDATE social_post_drafts SET cancelled_at=?,version=version+1,updated_at=? WHERE id=?").bind(now, now2, id); }, async commentDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND comment_parent_post_id IS NOT NULL").bind(id).first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND rich_content_json IS NOT NULL").bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
+        }, async commentDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND comment_parent_post_id IS NOT NULL").bind(id).first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND rich_content_json IS NOT NULL").bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)", [id, userId, expectedVersion]);
         }, updateDraft(body: string, branch: string | null, department: string | null, value: "company" | "branch" | "department" | "participants" | "team" | "project" | null, audienceId: string | null, value2: string, value3: string, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value4: string, value5: string | null, value6: string | null, now: number, id: string) {
             return db
@@ -347,10 +341,6 @@ export async function socialAudienceOptions(db: SqlDatabase, actor: Actor) {
     { complete: value => Array.isArray(value.audiences) && Array.isArray(value.branches) });
 }
 
-export function createCommentUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.comment.upload.create',type:'post',id:postId,purpose:'settle-existing'},tx=>exposed(() => application(tx).createCommentUploadDraft(actor, postId, key))); }
-export function cancelCommentUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return withWorkSocialUploadCleanup(db,actor,{key,id,kind:'comment'},tx=>exposed(() => application(tx).cancelCommentUploadDraft(actor, id, key))); }
-export function createPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, expectedVersion: number, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.post.edit-upload.create',type:'post',id:postId,purpose:'new-work'},tx=>exposed(() => application(tx).createPostEditUploadDraft(actor, postId, expectedVersion, key))); }
-export function cancelPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return withWorkSocialUploadCleanup(db,actor,{key,id,kind:'edit'},tx=>exposed(() => application(tx).cancelPostEditUploadDraft(actor, id, key))); }
 export function savePostDraft(db: SqlDatabase, actor: Actor, id: string | null, input: z.infer<typeof postDraftSchema>, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.draft.save',type:'draft',id:id??`post-draft-${key}`,sources:input.sources,audienceProjectId:input.audience?.kind==='project'?input.audience.id:null,purpose:'new-work'},tx=>exposed(() => application(tx).savePostDraft(actor, id, input, key))); }
 export function publishPost(db: SqlDatabase, actor: Actor, id: string, version: number, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.post.publish',type:'draft',id,purpose:'new-work',publishedDraftReplay:true},tx=>exposed(() => application(tx).publishPost(actor, id, version, key))); }
 export function postComments(db: SqlDatabase, actor: StaffActor, id: string, cursor?: string) { return exposed(async() => application(db,await workSocialReadScope(db,actor)).postComments(actor, id, cursor)); }

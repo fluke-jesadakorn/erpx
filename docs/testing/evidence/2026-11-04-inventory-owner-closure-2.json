@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Owner-local Inventory reservation-source fences are closed and the stock-register/receipt SSR cutover is register-sufficient when the native source is configured. inventory/feature-stock-register and inventory/feature-receipts remain partial because no authenticated browser cohort was run and the retained Commerce fulfillment writer still does not call the Inventory receipt seam in the same transaction.",
+  "capability": "inventory-owner-closure-2",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "d1d54ee82",
+  "workspaceNote": "The shared worktree also contained other owners' uncommitted work. Those files were preserved and not edited by this slice.",
+  "scope": {
+    "workflows": [
+      "inventory/feature-stock-register",
+      "inventory/feature-receipts"
+    ],
+    "stockRegister": "The current Company/branch register still reads Inventory-owned relations in the caller's serializable unit. Its source fence now includes Field Service and Manufacturing reservations in addition to POS and Sales because inventory_active_reservations unions all four sources. The register is PostgreSQL-tested to include those reservations in reserved quantity.",
+    "receipts": "The receipt source derives reserved quantity from the same inventory_active_reservations view and now fences POS, Sales, Field Service and Manufacturing reservation tables before its first read. The existing purchase, warehouse, branch, lot/serial, quarantine, over-receipt, replay and rollback guards are unchanged.",
+    "ssr": "The stock view chooses the configured native register first, then native availability, and falls back to retained Commerce rows only when neither native source is configured. A configured empty register stays empty instead of leaking legacy rows. The supply stock page and the Commerce stock view now render from the native register when Commerce posting setup raises COMMERCE_SETUP_REQUIRED, so the register no longer depends on availability configuration or Commerce posting setup.",
+    "notClaimed": [
+      "No authenticated desktop or mobile browser journey was run.",
+      "No native Commerce purchase-fulfillment command was implemented; the retained FulfillmentForm/fulfillOrder write path is unchanged.",
+      "No production StockReceiptQualityPort implementation exists; the PostgreSQL test port is unchanged.",
+      "No stock-register cursor pagination or default-on rollout was added; rows remain bounded.",
+      "The full tests/config TypeScript project was not green because unrelated uncommitted learning and PMS test files had type errors. The Inventory transport test itself typechecks standalone."
+    ]
+  },
+  "files": [
+    "packages/server-inventory/src/adapters/stock_register_read.rs",
+    "packages/server-inventory/src/adapters/stock_receipt.rs",
+    "packages/feature-inventory/src/lib/native-availability.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/inventory-quality/stock/_screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/screen.tsx",
+    "tests/support/inventory/reservation-source-fence.rs",
+    "tests/integration/inventory/rust-stock-register-postgres.test.rs",
+    "tests/integration/inventory/rust-stock-receipt-postgres.test.rs",
+    "tests/integration/inventory/rust-inventory-stock-http-postgres.test.rs",
+    "tests/unit/inventory/native-inventory-stock-transport.test.ts"
+  ],
+  "behavior": {
+    "registerFence": "lock_stock_register_sources holds SHARE locks on pos_reservations, inventory_order_reservations, field_service_part_reservations and manufacturing_material_reservations before reading the register.",
+    "receiptFence": "lock_stock_receipt_sources holds SHARE ROW EXCLUSIVE locks on the same four reservation sources plus the retained Commerce/Inventory receipt relations before reading or applying a receipt.",
+    "reservedArithmetic": "A register row reserves the sum of POS, Sales, Field Service and Manufacturing quantities. A receipt source reports the same reserved quantity for the selected warehouse/product.",
+    "fenceNegative": "A concurrent UPDATE against each reservation source waits and fails with SQLSTATE 55P03 under a 150 ms lock timeout while the Inventory read unit holds its fence; an unrelated support_tickets update succeeds under the same timeout.",
+    "ssrSelection": "register > availability > retained Commerce rows. A configured empty register returns zero rows and its own currency; it never falls back to legacy rows.",
+    "ssrFallback": "The Commerce stock view builds an empty Commerce shell only for COMMERCE_SETUP_REQUIRED when the native register is configured. Any other configured failure still follows the existing page-error path."
+  },
+  "verification": {
+    "rustInventory": {
+      "command": "cargo test -p erpx-server-inventory --locked",
+      "result": "85 passed, 0 failed, 0 ignored",
+      "targets": {
+        "lib": "11 passed",
+        "consumption_postgres": "19 passed",
+        "service_count_generic_facts_postgres": "1 passed",
+        "service_initial_count_revision_postgres": "1 passed",
+        "service_initial_physical_count": "4 passed",
+        "service_initial_physical_count_postgres": "10 passed",
+        "stock_receipt": "5 passed",
+        "stock_receipt_postgres": "13 passed",
+        "stock_register": "4 passed",
+        "stock_register_postgres": "6 passed",
+        "valuation": "11 passed"
+      }
+    },
+    "rustHttp": {
+      "command": "cargo test -p erpx-service --locked --test inventory_stock_http_postgres -- --test-threads=1",
+      "result": "1 passed, 0 failed, 0 ignored",
+      "cases": [
+        "real Account cookie, rendered-context CAS and Inventory purchase read the holding-scope register and receipt source",
+        "the x-erpx-workspace-branch selector returns only the selected branch register rows",
+        "a different branch returns an empty register and hides the order from the receipt source with 404",
+        "the receipt source excludes a service order line and returns only the stock line",
+        "a foreign Company is rejected with 409 before owner data",
+        "an unknown order id returns 404",
+        "wrong Origin headers are rejected with 403 for both reads"
+      ]
+    },
+    "typescript": {
+      "transport": "vitest tests/unit/inventory/native-inventory-stock-transport.test.ts --config tests/config/vitest.unit.config.mts: 9 passed",
+      "featureInventoryTypecheck": "tsc --noEmit -p packages/feature-inventory/tsconfig.json: pass",
+      "workplaceTypecheck": "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+      "supplyAppTypecheck": "tsc --noEmit -p apps/supply/tsconfig.json: pass",
+      "inventoryTestTypecheck": "tsc --ignoreConfig --noEmit --strict ... tests/unit/inventory/native-inventory-stock-transport.test.ts: pass",
+      "testProjectTypecheck": "tsc --noEmit -p tests/config/tsconfig.json: blocked by unrelated uncommitted tests/unit/learning/native-learning-transport.test.ts and tests/unit/pms/native-pms-transport.test.ts errors",
+      "eslint": "eslint changed TypeScript files: 0 errors, 1 pre-existing unused-orders warning in the stock screen"
+    },
+    "static": {
+      "rustfmt": "rustfmt --edition 2024 --check on changed Rust files: pass",
+      "clippy": "cargo clippy -p erpx-server-inventory --lib --locked -- -D warnings: pass",
+      "diffCheck": "git diff --check on changed files: pass"
+    },
+    "newCases": [
+      "register_includes_field_and_manufacturing_reservations",
+      "register_fences_every_reservation_source_behind_the_view",
+      "receipt_source_includes_field_and_manufacturing_reservations",
+      "receipt_source_fences_every_reservation_source_behind_the_view",
+      "the stock view prefers a configured register, keeps a configured empty register empty, and leaves legacy rows undecided when native is absent"
+    ]
+  },
+  "browser": {
+    "status": "not run",
+    "reason": "This implementation subagent did not start a browser cohort. Do not claim browser verification from this evidence.",
+    "journeyForMain": {
+      "desktop": "1280x900 on the exact registered Holding host with ERPX_NATIVE_INVENTORY_STOCK_CONFIG configured and Commerce posting setup absent.",
+      "mobile": "390x844 on the same route.",
+      "assertions": [
+        "The stock position and count/lot reconciliation render from the native register even though Commerce posting setup is absent.",
+        "A branch-scoped workspace shows only that branch's stock, lots and counts; a holding-scope workspace shows all seeded branches.",
+        "A purchase order with a service line and a stock line shows only the stock line in the native receiving source.",
+        "The receipt source's reserved quantity includes POS, Sales, Field Service and Manufacturing reservations.",
+        "Recording a receipt through the retained drawer returns 200 and reloading shows the persisted stock/lot increase; this proves the retained Commerce writer, not the native Inventory receipt writer."
+      ],
+      "receiptWriteLimit": "The drawer still posts the legacy Commerce command. Proving the native apply_stock_receipt writer requires the shared Commerce same-transaction delta below."
+    }
+  },
+  "sharedCompositionDelta": {
+    "applied": [],
+    "schemaDelta": "none",
+    "required": [
+      "Implement a native Commerce purchase-fulfillment command that keeps purchase/IAM, Finance journal, Workflow receipt, fulfillment rows and command idempotency in one transaction.",
+      "Call lock_stock_receipt_sources, read_stock_receipt_source, prepare_stock_receipt and apply_stock_receipt from that same transaction after inserting the matching Commerce fulfillment and fulfillment lines.",
+      "Provide a production StockReceiptQualityPort implementation owned by Quality or assembled at the composition root; the current PostgreSQL test port is the only implementation.",
+      "Keep the retained TypeScript fulfillment drawer and commerce.order.fulfill endpoint until the native command owns the same authorization, Finance, Workflow, attachment and idempotency behavior.",
+      "Do not call the Inventory receipt adapter over HTTP from the TypeScript command; a second connection cannot preserve the same transaction."
+    ],
+    "whyNotAppliedHere": "This implementation subagent is prohibited from editing src/composition/**, shared contracts, root Cargo files, package lockfiles, docs/status/** and other owners' implementation."
+  },
+  "legacy": {
+    "retained": [
+      "packages/feature-commerce/src/components/commerce-controls.tsx::FulfillmentForm still posts the legacy Commerce fulfillment command.",
+      "packages/server-commerce/src/application/commerce.ts::fulfillOrder remains the active receipt writer.",
+      "The stock page still reads Commerce products, warehouses, orders and reorder controls through commercePage when that read succeeds.",
+      "The legacy commercePage stock rows remain the fallback when no native register or availability source is configured.",
+      "Initial physical-stock count create/submit/approve/post remains Supply-owned."
+    ],
+    "removed": [
+      "No legacy Inventory reader was removed in this slice. The change closes source fences and makes the native register authoritative when configured."
+    ]
+  },
+  "limits": [
+    "No authenticated browser journey was run.",
+    "The Commerce receipt drawer and fulfillOrder remain the active write path, so inventory/feature-receipts is not verified end to end.",
+    "The stock register remains bounded to 1000 stock / 2000 lot / 200 count rows and is not cursor-paginated.",
+    "The native stock-register and receipt SSR cutover remains opt-in through ERPX_NATIVE_INVENTORY_STOCK_CONFIG; no default-on rollout was performed.",
+    "The full tests/config typecheck is blocked by unrelated uncommitted learning and PMS test errors; the Inventory test file passes standalone.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

@@ -2,7 +2,6 @@ import {createPasswordResetCompleted} from '@erpx/server-identity_access/applica
 import { authPolicy, invitationAccountAllowed } from '@erpx/server-identity_access/domain/auth';
 import { directoryAuthPlugin, directoryOidcConfig, localCredentialAllowed } from "@erpx/server-identity_access/public/iam-auth";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
-import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import * as authSchema from "@erpx/server-runtime/public/db/auth-schema";
@@ -25,13 +24,6 @@ const ordinaryAuthFactories = new WeakMap<AuthRuntime, {
 }>();
 type VerificationDeliveryTracker={attempted:boolean;failed:boolean;pending:Promise<void>|null};
 const invitationVerificationDeliveries=new WeakMap<object,VerificationDeliveryTracker>();
-const credentialSessionReaders = new WeakMap<object, unknown>();
-/** Only the Account-owned device adapter uses the original signed-cookie read.
- * Ordinary consumers must keep the audience and active-browser checks. */
-export async function accountCredentialSession(headers: Headers) {
-    const auth = await createAuth(configuredProductOrigin('account')!);
-    return (credentialSessionReaders.get(auth) as typeof auth.api.getSession)({ headers });
-}
 export async function invitationVerificationOutcome(auth:object):Promise<'not-attempted'|'sent'|'failed'>{
     const tracker=invitationVerificationDeliveries.get(auth);
     if(!tracker?.attempted)return 'not-attempted';
@@ -131,7 +123,6 @@ async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<ty
     if(verificationDelivery)invitationVerificationDeliveries.set(auth,verificationDelivery);
     if (audience && sso) {
         const getSession = auth.api.getSession;
-        if (audience === 'account') credentialSessionReaders.set(auth, getSession);
         Object.assign(auth.api, { getSession: async (input: { headers: Headers }) => {
             // The request must still belong to this exact factory's audience.
             if (ssoOrigins()[audience] !== baseURL || ssoAudienceForHost(input.headers.get("host")) !== audience) return null;
@@ -141,8 +132,4 @@ async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<ty
         } });
     }
     return auth;
-}
-export async function sessionFromRequest(request: Request) {
-    const auth = await createAuth(requestPublicOrigin(request));
-    return auth.api.getSession({ headers: request.headers });
 }

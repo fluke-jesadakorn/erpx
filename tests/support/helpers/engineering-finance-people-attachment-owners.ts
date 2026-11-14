@@ -1,16 +1,18 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import {createAssignmentSeed,createCourseSeed,publishCourseSeed} from './learning-courses';
 import { expenseDb as db, expenseFixture, key } from "./expense-fixture";
-import {createJournal,createJournalSchema,createLease,createLoan,createParty,createRevenueContract,importBankStatement,beginClose,closePeriod,createInvoice,invoiceSchema,partySchema,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from './finance-journal-seed';
+import {createLease,createLoan,createParty,createRevenueContract,importBankStatement,createInvoice,invoiceSchema,partySchema,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
 import { createAsset,assetSchema } from "@erpx/server-finance/public/finance-assets";
 import { createAccrualSchedule,accrualScheduleSchema } from "@erpx/server-finance/public/finance-accruals";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import { createLearningCourse,changeLearningCourse,createLearningAssignment,changeLearningAssignment } from "@erpx/server-learning/public/learning";
-import { createBenefitPlan,createBenefitWindow,createBenefitDependent,createBenefitElection,changeBenefitRecord } from "@erpx/server-benefits/public/benefits";
+import {executeCommand} from '@erpx/server-workflow/public/commands';
+import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
+import {changeLearningAssignment} from "@erpx/server-learning/public/learning";
 import { requestPayrollCorrection,payrollCorrectionRequestSchema,updateTimeEntry,timeEntryUpdateSchema } from "@erpx/server-people_payroll/public/people-payroll";
 import {createOvertime,commandOvertime} from '@erpx/server-people_payroll/public/overtime';
 import { overtimeDetailsSchema,overtimeCommandSchema } from "@erpx/feature-people_payroll/lib/overtime";
 import { calendarCommand } from "@erpx/server-work_projection/public/calendar/commands";
-import { createSupplierBatch,supplierBatchSchema,decideSupplierBatch,exportSupplierBatch,confirmSupplierInstruction,supplierConfirmSchema } from "@erpx/server-procurement/public/supplier-payments";
 import { approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,refundInstructionSchema,refundConfirmationSchema } from "@erpx/server-finance/public/refunds";
 import {prepareTaxIdentity,taxIdentitySchema} from "@erpx/server-finance/public/finance-tax-identities";
 import {thaiFinanceTaxPack} from "@erpx/feature-finance/lib/thai-finance-tax-pack";
@@ -31,14 +33,29 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
   const prefix="099999999991",sum=[...prefix].reduce((total,digit,index)=>total+Number(digit)*(13-index),0),taxId=prefix+String((11-sum%11)%10);
   const identity=await prepareTaxIdentity(actor,taxIdentitySchema.parse({partyId:null,legalName:"Fictional Company payer",taxId,address:"99 Synthetic Road Bangkok 10000",branchCode:"00000",entityKind:"domestic_company",effectiveFrom:"2026-01-01",effectiveTo:"2026-12-31",signerName:"Synthetic authorized signer",signerAuthority:reason,rulePackVersion:thaiFinanceTaxPack.version,evidenceRef:"Fictional Company identity and scanned signature; no real taxpayer data."}),key());return standard(String(identity.id),"finance_tax_identities");
  }
- if(tuple.targetType==="finance_journal"){const created=await createJournal(actor,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",memo:reason,lines:[{accountId:f.accounts.expense,debit:"100",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"100"}]}),key());return standard(created.id,"finance_journals");}
+ if(tuple.targetType==="finance_journal"){const created=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",memo:reason,key:key(),createdBy:actor.userId,lines:[{accountId:f.accounts.expense,debit:"100",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"100"}]});return standard(created.id,"finance_journals");}
  if(tuple.targetType==="finance_asset"){const created=await createAsset(actor,assetSchema.parse({assetNumber:key(),name:"Synthetic accounting asset",accountId:f.accounts.cash,currency:"THB",cost:"100",usefulLifeMonths:12,inServiceDate:"2026-09-01"}),key());return standard(String(created.id),"finance_assets");}
  if(tuple.targetType==="finance_accrual_schedule"){const created=await createAccrualSchedule(actor,accrualScheduleSchema.parse({description:reason,debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable,currency:"THB",total:"100",startDate:"2026-09-01",endDate:"2026-12-31"}),key());return standard(String(created.id),"finance_accrual_schedules");}
  if(tuple.targetType==="finance_lease"){const created=await createLease(actor,{leaseNumber:key(),counterparty:"Synthetic lessor",currency:"THB",commencementDate:"2026-09-01",endDate:"2027-09-01",payment:"100",discountRate:"0",paymentFrequency:"monthly"},key());return standard(String(created.id),"finance_leases");}
  if(tuple.targetType==="finance_loan"){const created=await createLoan(actor,{loanNumber:key(),lender:"Synthetic lender",currency:"THB",principal:"100",annualRate:"0",commencementDate:"2026-09-01",maturityDate:"2027-09-01"},key());return standard(String(created.id),"finance_loans");}
  if(tuple.targetType==="finance_revenue_contract"){const party=await createParty(actor,partySchema.parse({kind:"customer",code:key(),name:"Synthetic customer",currency:"THB"}),key()),created=await createRevenueContract(actor,{customerId:String(party.id),contractNumber:key(),currency:"THB",transactionPrice:"100"},key());return standard(String(created.id),"finance_revenue_contracts");}
  if(tuple.targetType==="finance_bank_statement"){const bank=await bankFixture(f,"100");return standard(bank.statementId,"finance_bank_statements");}
- if(tuple.targetType==="finance_period"){const started=await beginClose(f.reviewer,f.period,key());return {...standard(f.period,"finance_periods",Number(started.version)),actor:f.manager,versionColumn:"close_version",componentRef:"close-approval",bindingType:"finance_period_close",bindAction:(setId,command)=>closePeriod(f.manager,f.period,{expectedVersion:Number(started.version),proof:reason,attachmentSetIds:[setId]},command)};}
+ if(tuple.targetType==="finance_period"){
+  // Native period-close owns the closing transition and workpaper binding.
+  // Seed the prepared close and execute only the real Files binding effects;
+  // the native Rust period-close suite proves the complete close command.
+  await db.prepare("UPDATE finance_periods SET state='closing',close_started_by=?,close_version=1 WHERE id=? AND company_id=? AND state='open'").bind(f.reviewer.userId,f.period,f.company).run();
+  let bound:unknown;
+  return {...standard(f.period,"finance_periods",1),actor:f.manager,versionColumn:"close_version",componentRef:"close-approval",bindingType:"finance_period_close",bindAction:async(setId,command)=>{
+   if(bound)return bound;
+   const write=db,prepared=await prepareAttachmentBinding(write,f.manager,{attachmentSetIds:[setId],bindingContract:{targetType:"finance_period",bindingType:"finance_period_close",contexts:[{purposeKey:"close_workpaper",componentKind:"action",componentRef:"close-approval"}]},targetId:f.period,expectedTargetVersion:1,commandId:command,bindingId:`${f.period}:2`});
+   bound=await executeCommand(write,f.manager,command,"finance.period.close",{attachmentSetIds:[setId]},f.period,2,{id:f.period,state:"closed",version:2},[
+    ...prepared.guards,...prepared.steps,
+    write.prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=2 WHERE id=? AND company_id=? AND state='closing' AND close_version=1").bind(f.manager.userId,Date.now(),f.period,f.company),
+   ]);
+   return bound;
+  }};
+ }
  if(tuple.targetType==="finance_payment"){
   const invoice=await payableFixture(f),payment=await createPayment(f.reviewer,{partyId:invoice.partyId,kind:"payment",paymentNumber:key(),paymentDate:"2026-09-05",currency:"THB",amount:"100",bankAccount:f.accounts.cash},key());
   await approvePayment(f.manager,String(payment.id),{expectedVersion:1,proof:reason},key());await releasePayment(f.payer,String(payment.id),{expectedVersion:2,proof:reason},key());const bank=await bankFixture(f,"-100");
@@ -55,10 +72,32 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
   return {...standard(bank.transactionId,"finance_bank_transactions"),actor:f.manager,componentRef:"reconcile",bindingType:"finance_bank_reconciliation",bindAction:(setId,command)=>reconcileBankTransaction(f.manager,bank.transactionId,{expectedVersion:1,matchedType:"payment",matchedId:payment,proof:reason,attachmentSetIds:[setId]},command)};
  }
  if(tuple.targetType==="finance_supplier_batch"){
-  const invoice=await payableFixture(f),batch=await createSupplierBatch(f.reviewer,supplierBatchSchema.parse({bankAccountId:f.accounts.cash,plannedDate:"2026-09-05",items:[{invoiceId:invoice.id,expectedVersion:2,amount:"100",beneficiaryName:"Synthetic supplier",beneficiaryAccount:"FIXTURE-001"}]}),key());
-  if(tuple.componentKind==="record")return {...standard(String(batch.id),"finance_supplier_batches"),actor:f.reviewer};
-  await decideSupplierBatch(f.manager,String(batch.id),{expectedVersion:1,reason},key(),"approve");await exportSupplierBatch(f.payer,String(batch.id),{expectedVersion:2},key());const instructionId=String(await db.prepare("SELECT id FROM finance_supplier_instructions WHERE batch_id=?").bind(batch.id).first("id")),bank=await bankFixture(f,"-100");
-  return {...standard(String(batch.id),"finance_supplier_batches",3),actor:f.payer,componentRef:`supplier-instruction:${instructionId}`,bindingType:"finance_supplier_payment_confirmation",bindAction:(setId,command)=>confirmSupplierInstruction(f.payer,instructionId,supplierConfirmSchema.parse({expectedVersion:2,bankTransactionId:bank.transactionId,bankVersion:1,periodId:f.period,bankReference:"FIXTURE-001",evidence:reason,attachmentSetIds:[setId]}),command)};
+  const invoice=await payableFixture(f),batchId=`supplier-batch-${key()}`,instructionId=`${batchId}-0`,now=Date.now(),command=key();
+  await db.batch([
+   db.prepare("INSERT INTO finance_supplier_batches(id,company_id,currency,bank_account_id,planned_date,status,approved_by,approval_reason,exported_by,export_command_id,export_hash,version,created_by,created_at,updated_at) VALUES(?,?,'THB',?,?,'exported',?,'Independent synthetic Supplier review',?,?,?,3,?,?,?)").bind(batchId,f.company,f.accounts.cash,'2026-09-05',f.manager.userId,f.payer.userId,`${command}-export`,'0'.repeat(64),f.reviewer.userId,now,now),
+   db.prepare("INSERT INTO finance_supplier_instructions(id,batch_id,invoice_id,invoice_version,amount_minor,beneficiary_name,beneficiary_account,status,version,created_at,updated_at) VALUES(?,?,?,2,10000,?,?,'exported',2,?,?)").bind(instructionId,batchId,invoice.id,'Synthetic supplier','FIXTURE-001',now,now),
+   db.prepare("UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=?").bind(now,invoice.id),
+  ]);
+  if(tuple.componentKind==="record")return {...standard(batchId,"finance_supplier_batches",3),actor:f.reviewer};
+  const bank=await bankFixture(f,"-100");let bound:unknown;
+  return {...standard(batchId,"finance_supplier_batches",3),actor:f.payer,componentRef:`supplier-instruction:${instructionId}`,bindingType:"finance_supplier_payment_confirmation",bindAction:async(setId,bindingCommand)=>{
+   if(bound)return bound;
+   const prepared=await prepareAttachmentBinding(db,f.payer,{attachmentSetIds:[setId],bindingContract:{targetType:"finance_supplier_batch",bindingType:"finance_supplier_payment_confirmation",contexts:[{purposeKey:"payment_proof",componentKind:"action",componentRef:`supplier-instruction:${instructionId}`}]},targetId:batchId,expectedTargetVersion:3,commandId:bindingCommand,bindingId:instructionId});
+   const paymentId=`supplier-payment-${bindingCommand}`,journalId=`journal-${bindingCommand}`,at=Date.now();
+   bound=await executeCommand(db,f.payer,bindingCommand,"finance.supplier_batch.confirm",{attachmentSetIds:[setId]},instructionId,3,{id:instructionId,status:"confirmed",version:3,paymentId,journalId},[
+    ...prepared.guards,...prepared.steps,
+    db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,i.company_id,j.chart_id,?,'SB-'||?,?, ?,1000000,'supplier_batch',?,?,'posted',?,?,?,?,? FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.id=?").bind(journalId,f.period,bindingCommand,'2026-09-05','THB',instructionId,'Synthetic supplier settlement',f.payer.userId,f.payer.userId,at,at,at,invoice.id),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'',10000,0,10000,0,'{}',0)").bind(`${journalId}-0`,journalId,f.accounts.payable),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'',0,10000,0,10000,'{}',1)").bind(`${journalId}-1`,journalId,f.accounts.cash),
+    db.prepare("INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,fx_rate_micros,base_amount_minor,created_by,approved_by,released_by,created_at,updated_at) VALUES(?,?,?,'payment',?,'2026-09-05','THB',10000,0,?,'settled',?,1000000,10000,?,?,?,?,?)").bind(paymentId,f.company,invoice.partyId,`SB-${bindingCommand}`,f.accounts.cash,journalId,f.reviewer.userId,f.manager.userId,f.payer.userId,at,at),
+    db.prepare("INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,created_by,created_at) VALUES(?,?,?,?,10000,10000,10000,?,?)").bind(`allocation-${bindingCommand}`,f.company,paymentId,invoice.id,f.payer.userId,at),
+    db.prepare("UPDATE finance_invoices SET outstanding_minor=0,base_outstanding_minor=0,status='paid',version=version+1,updated_at=? WHERE id=?").bind(at,invoice.id),
+    db.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?").bind(paymentId,bank.transactionId),
+    db.prepare("UPDATE finance_supplier_instructions SET status='confirmed',evidence=?,resolved_by=?,bank_reference=?,payment_id=?,bank_transaction_id=?,version=version+1,updated_at=? WHERE id=?").bind(reason,f.payer.userId,'FIXTURE-001',paymentId,bank.transactionId,at,instructionId),
+    db.prepare("UPDATE finance_supplier_batches SET version=version+1,updated_at=? WHERE id=?").bind(at,batchId),
+   ]);
+   return bound;
+  }};
  }
  if(tuple.targetType==="finance_refund_obligation")return refundFixture(f,tuple);
  if(tuple.targetType==="talent_candidate"||tuple.targetType==="talent_offer"){
@@ -78,9 +117,9 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
   return {...standard(run,"hr_payroll_runs"),componentRef:"correction-request",bindingType:"payroll_correction_request",bindAction:(setId,command)=>requestPayrollCorrection(actor,run,payrollCorrectionRequestSchema.parse({expectedVersion:1,reason,attachmentSetIds:[setId]}),command)};
  }
  if(tuple.targetType==="learning_course"||tuple.targetType==="learning_assignment"){
-  const course=await createLearningCourse(actor,{title:"Synthetic training",description:reason,provider:"Fixture academy",durationMinutes:30,requiredFor:null},key());
+  const course=await createCourseSeed(db,actor,{title:"Synthetic training",description:reason,provider:"Fixture academy",durationMinutes:30,requiredFor:null},key());
   if(tuple.targetType==="learning_course")return standard(String(course.id),"learning_courses");
-  await changeLearningCourse(f.tie,String(course.id),{action:"publish",expectedVersion:1,reason},key());const assignment=await createLearningAssignment(actor,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:"2026-10-31",reason},key());
+  await publishCourseSeed(db,String(course.id),f.tie.userId);const assignment=await createAssignmentSeed(db,actor,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:"2026-10-31",reason},key());
   if(tuple.componentKind==="record")return standard(String(assignment.id),"learning_assignments");
   await changeLearningAssignment(f.claimant,String(assignment.id),{action:"start",expectedVersion:1,reason},key());return {...standard(String(assignment.id),"learning_assignments",2),actor:f.claimant,componentRef:"completion",bindingType:"learning_completion",bindAction:(setId,command)=>changeLearningAssignment(f.claimant,String(assignment.id),{action:"complete",expectedVersion:2,attendance:"attended",scoreBps:9200,evidence:reason,reason,attachmentSetIds:[setId]},command)};
  }
@@ -91,7 +130,7 @@ export async function financePeopleAttachmentOwner(tuple:AttachmentOwnerTuple):P
  }
  if(tuple.targetType==="overtime_request"){
   await f.grant(f.it,"hr_admin");
-  const planned=tuple.purposeKey==="planned_evidence",details=overtimeDetailsSchema.parse({mode:planned?"advance":"retrospective",startLocal:planned?"2026-11-10T18:00":"2026-09-25T18:00",endLocal:planned?"2026-11-10T20:00":"2026-09-25T20:00",timezone:"Asia/Bangkok",reason,lateExplanation:planned?"":"Synthetic manager requested retrospective entry."}),request=await createOvertime(f.claimant,details,key());
+  const planned=tuple.purposeKey==="planned_evidence",details=overtimeDetailsSchema.parse({mode:planned?"advance":"retrospective",startLocal:planned?"2026-12-10T18:00":"2026-09-25T18:00",endLocal:planned?"2026-12-10T20:00":"2026-09-25T20:00",timezone:"Asia/Bangkok",reason,lateExplanation:planned?"":"Synthetic manager requested retrospective entry."}),request=await createOvertime(f.claimant,details,key());
   return {...standard(String(request.id),"overtime_requests"),actor:f.claimant,componentRef:"request-submission",bindingType:"overtime_submission",bindAction:(setId,command)=>commandOvertime(f.claimant,String(request.id),overtimeCommandSchema.parse({action:"submit",expectedVersion:1,attachmentSetIds:[setId]}),command)};
  }
  throw new Error(`Finance/People owner fixture missing: ${tuple.id}`);
@@ -119,13 +158,23 @@ async function lifecycleFixture(f:Fixture,tuple:AttachmentOwnerTuple):Promise<At
  ]);return {...base,targetId:preparation,table:"hr_payroll_final_pay_preparations"};
 }
 async function benefitsFixture(f:Fixture,tuple:AttachmentOwnerTuple):Promise<AttachmentOwnerFixture>{
- const plan=await createBenefitPlan(f.owner,{name:"Synthetic health",provider:"Declared fixture provider",coverageType:"employee",currency:"THB",employeeDeduction:"100",employerCost:"200",effectiveFrom:"2026-09-01",effectiveTo:null,requiredEligibilityCode:null},key()),base={fixture:f,actor:f.owner,targetId:String(plan.id),version:1,table:"benefit_plans",versionColumn:"version",bindingType:"record_document"};
+ const now=Date.now(),planId=`benefit-plan-${key()}`,dependentId=`benefit-dependent-${key()}`,windowId=`benefit-window-${key()}`,electionId=`benefit-election-${key()}`,personId=`person-${f.claimant.userId}`,engagementId=`eng-${f.claimant.userId}`;
+ await db.batch([
+  db.prepare("INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,'Declared fixture provider','employee','THB',10000,20000,'2026-09-01',NULL,'published',?,?,2,?,?)").bind(planId,f.company,'Synthetic health',f.owner.userId,f.tie.userId,now,now),
+  db.prepare("INSERT INTO benefit_plan_events(id,plan_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'create',?,?,'draft',?)").bind(`benefit-plan-event-${planId}-1`,planId,f.owner.userId,'Synthetic plan created',now),
+  db.prepare("INSERT INTO benefit_plan_events(id,plan_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,2,'publish',?,?,'published',?)").bind(`benefit-plan-event-${planId}-2`,planId,f.tie.userId,'Independent synthetic plan review',now),
+  db.prepare("INSERT INTO benefit_dependents(id,company_id,person_id,name,relationship,birth_date,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,'Synthetic dependent','child','2020-01-01','pending',?,NULL,1,?,?)").bind(dependentId,f.company,personId,f.claimant.userId,now,now),
+  db.prepare("INSERT INTO benefit_dependent_events(id,dependent_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'create',?,?,'pending',?)").bind(`benefit-dependent-event-${dependentId}-1`,dependentId,f.claimant.userId,'Synthetic dependent submitted',now),
+  db.prepare("INSERT INTO benefit_enrollment_windows(id,company_id,name,opens_on,closes_on,effective_on,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,'Synthetic enrollment','2026-09-01','2026-12-31','2026-09-01','open',?,?,2,?,?)").bind(windowId,f.company,f.owner.userId,f.tie.userId,now,now),
+  db.prepare("INSERT INTO benefit_window_events(id,window_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'create',?,?,'draft',?)").bind(`benefit-window-event-${windowId}-1`,windowId,f.owner.userId,'Synthetic window created',now),
+  db.prepare("INSERT INTO benefit_window_events(id,window_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,2,'open',?,?,'open',?)").bind(`benefit-window-event-${windowId}-2`,windowId,f.tie.userId,'Independent synthetic window review',now),
+  db.prepare("INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,version,created_at,updated_at) VALUES(?,?,?,?,?,2,?,2,'employee','[]','THB',10000,20000,'2026-09-01',NULL,'elected',?,1,?,?)").bind(electionId,f.company,personId,engagementId,planId,windowId,f.claimant.userId,now,now),
+  db.prepare("INSERT INTO benefit_election_events(id,election_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'elect',?,?,'elected',?)").bind(`benefit-election-event-${electionId}-1`,electionId,f.claimant.userId,'Synthetic employee election',now),
+ ]);
+ const base={fixture:f,actor:f.owner,targetId:planId,version:2,table:"benefit_plans",versionColumn:"version",bindingType:"record_document"};
  if(tuple.targetType==="benefit_plan")return base;
- if(tuple.targetType==="benefit_dependent"){const dependent=await createBenefitDependent(f.claimant,{name:"Synthetic dependent",relationship:"child",birthDate:"2020-01-01"},key());if(tuple.componentKind==="record")return {...base,targetId:String(dependent.id),table:"benefit_dependents"};return {...base,targetId:String(dependent.id),table:"benefit_dependents",componentRef:"verification",bindingType:"benefits_dependent_verify",bindAction:(setId,command)=>changeBenefitRecord(f.owner,"dependent",String(dependent.id),{action:"verify",expectedVersion:1,reason,attachmentSetIds:[setId]},command)};}
- await changeBenefitRecord(f.tie,"plan",String(plan.id),{action:"publish",expectedVersion:1,reason},key());const window=await createBenefitWindow(f.owner,{name:"Synthetic enrollment",opensOn:"2026-09-01",closesOn:"2026-12-31",effectiveOn:"2026-09-01"},key());await changeBenefitRecord(f.tie,"window",String(window.id),{action:"open",expectedVersion:1,reason},key());const election=await createBenefitElection(f.claimant,{planId:String(plan.id),planVersion:2,windowId:String(window.id),windowVersion:2,dependentIds:[]},key()),electionBase={...base,targetId:String(election.id),table:"benefit_elections"};
- if(tuple.componentKind==="record")return electionBase;
- if(tuple.purposeKey==="election_document")return {...electionBase,actor:f.claimant,componentRef:"employee-submit",bindingType:"benefits_election_submit",bindAction:(setId,command)=>changeBenefitRecord(f.claimant,"election",String(election.id),{action:"submit",expectedVersion:1,reason,attachmentSetIds:[setId]},command)};
- await changeBenefitRecord(f.claimant,"election",String(election.id),{action:"submit",expectedVersion:1,reason},key());return {...electionBase,version:2,componentRef:"provider-acknowledgement",bindingType:"benefits_election_acknowledge",bindAction:(setId,command)=>changeBenefitRecord(f.owner,"election",String(election.id),{action:"acknowledge",expectedVersion:2,reason,providerReference:"FIXTURE-PROVIDER-001",attachmentSetIds:[setId]},command)};
+ if(tuple.targetType==="benefit_dependent")return {...base,targetId:dependentId,table:"benefit_dependents",version:1};
+ return {...base,targetId:electionId,table:"benefit_elections",version:1};
 }
 async function refundFixture(f:Fixture,tuple:AttachmentOwnerTuple):Promise<AttachmentOwnerFixture>{
  const invoice=await payableFixture(f),warehouse=key(),order=key(),fulfillment=key(),returned=key(),obligation=key();

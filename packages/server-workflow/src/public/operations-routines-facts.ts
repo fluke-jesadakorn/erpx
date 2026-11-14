@@ -1,1 +1,2 @@
-export {RoutinesWorkflowFacts} from '@erpx/server-workflow/adapters/operations-routines-facts';
+// Retired barrel; see the adapter shell for the register-sweep removal condition.
+export {};

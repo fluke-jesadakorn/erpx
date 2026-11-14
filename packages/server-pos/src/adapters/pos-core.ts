@@ -13,7 +13,6 @@ import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { applyPosRoomCharge, reversePosRoomCharge } from "../../../../packages/server-pms/src/public/pms";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
-import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import {snapshotMoney,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
 import { capturePosReceipt, createPosCustomer, posDayCommand, assertPosDayWritable } from "@erpx/server-pos/public/pos-daily";
 import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -26,7 +25,6 @@ import { posCoreCommerceFacts } from "@erpx/server-commerce/public/pos-core-fact
 import { posCoreInventoryFacts } from "@erpx/server-inventory/public/pos-core-facts";
 import { posCoreIdentityAccessFacts } from "@erpx/server-identity_access/public/pos-core-facts";
 import { posCoreWorkflowFacts } from "@erpx/server-workflow/public/pos-core-facts";
-import { posCoreFilesFacts } from "@erpx/server-files/public/pos-core-facts";
 import { posCoreOrganizationFacts } from "@erpx/server-organization/public/pos-core-facts";
 function unit(db: SqlDatabase): PosUnit<SqlStatement> {
     return {
@@ -43,8 +41,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         saveReversalRequest: async row => { await run(db, "INSERT INTO pos_room_charge_reversal_requests(id,sale_id,company_id,branch_id,property_id,sale_version,property_version,amount_minor,reason,restock_line_ids_json,state,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?)", row.id,row.sale_id,row.company_id,row.branch_id,row.property_id,row.sale_version,row.property_version,row.amount_minor,row.reason,row.restock_line_ids_json,row.requested_by,row.created_at,row.created_at); },
         reviewReversalRequest: async (id,state,user,reason,now) => { await run(db, "UPDATE pos_room_charge_reversal_requests SET state=?,version=version+1,pos_approved_by=CASE WHEN ?='pos_approved' THEN ? ELSE pos_approved_by END,pms_approved_by=CASE WHEN ?='approved' THEN ? ELSE pms_approved_by END,rejected_by=CASE WHEN ?='rejected' THEN ? ELSE rejected_by END,review_reason=?,updated_at=? WHERE id=?", state,state,user,state,user,state,user,reason,now,id); },
         prepareAccounting: async (company,accounts,user) => { await run(db, 'UPDATE pos_settings SET accounts_json=?,accounting_prepared_by=?,accounting_approved_by=NULL WHERE company_id=?', JSON.stringify(accounts),user,company); },
-        approveAccounting: async (company,user) => { await run(db, 'UPDATE pos_settings SET accounting_approved_by=?,version=version+1 WHERE company_id=?',user,company); },
-        saveOperationalSettings: async (company,enabled,discount) => { await run(db, 'UPDATE pos_settings SET enabled=?,cashier_discount_bps=?,version=version+1 WHERE company_id=?',enabled,discount,company); },
         linkRegister: async (id,propertyId) => { await run(db, 'UPDATE pos_registers SET property_id=? WHERE id=?',propertyId,id); },
         readPosSales1: (facts: {
             saleId: string;
@@ -83,18 +79,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact4: string;
             fact5: number;
         }) => run(db, "INSERT INTO pos_jobs(id,company_id,kind,record_id,payload_json,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(kind,record_id) DO NOTHING", facts.fact0, facts.companyId, facts.kind, facts.recordId, facts.fact4, facts.fact5),
-        readPosPayments1: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_payments WHERE sale_id=? AND (state IN ('requested','pending','exception') OR state='succeeded' AND amount_minor>refunded_minor) LIMIT 1", facts.id),
-        writePosSales1: (facts: {
-            saleId: string;
-            saleId2: string;
-            saleId3: string;
-            saleId4: string;
-            fact4: number;
-            saleId5: string;
-            clearApproval: boolean;
-        }) => run(db, `UPDATE pos_sales SET subtotal_minor=(SELECT COALESCE(SUM(subtotal_minor),0) FROM pos_lines WHERE sale_id=?), tax_minor=(SELECT COALESCE(SUM(tax_minor),0) FROM pos_lines WHERE sale_id=?),discount_minor=(SELECT COALESCE(SUM(discount_minor),0) FROM pos_lines WHERE sale_id=?),total_minor=(SELECT COALESCE(SUM(subtotal_minor+tax_minor),0) FROM pos_lines WHERE sale_id=?),version=version+1,updated_at=?${facts.clearApproval ? ',discount_approved_by=NULL,discount_reason=NULL' : ''} WHERE id=?`, facts.saleId, facts.saleId2, facts.saleId3, facts.saleId4, facts.fact4, facts.saleId5),
         readCommerceStock1: facts => posCoreCommerceFacts(db).readCommerceStock1(facts),
         readInventoryActiveReservations1: facts => posCoreInventoryFacts(db).readInventoryActiveReservations1(facts),
         writePosReservations1: (facts: {
@@ -106,7 +90,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         writePosFulfillments1: (facts: {
             id: string | number | boolean | null;
         }) => run(db, 'UPDATE pos_fulfillments SET reserved=true WHERE id=?', facts.id),
-        readCommerceStock2: facts => posCoreCommerceFacts(db).readCommerceStock2(facts),
         readInventoryLedger1: facts => posCoreInventoryFacts(db).readInventoryLedger1(facts),
         writePosReservations2: (facts: {
             id: string | number | boolean | null;
@@ -180,7 +163,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             key: string;
         }) => one(db, 'SELECT * FROM pos_receipts WHERE id=?', facts.key),
         writeCommandAssertions1: facts => posCoreWorkflowFacts(db).writeCommandAssertions1(facts),
-        readAttachmentSets1: facts => posCoreFilesFacts(db).readAttachmentSets1(facts),
         writePosReceipts1: (facts: {
             key: string;
             companyId: string;
@@ -188,7 +170,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact3: string;
             fact4: number;
         }) => run(db, 'INSERT INTO pos_receipts VALUES(?,?,?,?,?)', facts.key, facts.companyId, facts.hash, facts.fact3, facts.fact4),
-        writeCommandAssertions2: facts => posCoreWorkflowFacts(db).writeCommandAssertions2(facts),
         readOrganizationNodes1: facts => posCoreOrganizationFacts(db).readOrganizationNodes1(facts),
         readPosSettings2: (facts: {
             company: string;
@@ -275,12 +256,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             registerId: string;
             name: string;
         }) => one(db, 'SELECT id FROM pos_tables WHERE register_id=? AND name=?', facts.registerId, facts.name),
-        writePosTables1: (facts: {
-            tid: `${string}-${string}-${string}-${string}-${string}`;
-            registerId: string;
-            name: string;
-            seats: number;
-        }) => run(db, 'INSERT INTO pos_tables VALUES(?,?,?,?)', facts.tid, facts.registerId, facts.name, facts.seats),
         readPosCatalog1: (facts: {
             productId: string;
             company: string;
@@ -333,113 +308,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             rid: string;
             productId: string;
         }) => run(db, 'INSERT INTO pos_register_catalog(register_id,product_id) VALUES(?,?)', facts.rid, facts.productId),
-        readPosRegisters7: (facts: {
-            registerId: string;
-        }) => one(db, 'SELECT * FROM pos_registers WHERE id=? AND active=true FOR UPDATE', facts.registerId),
-        readPmsProperties1: (facts: {
-            company: string;
-            branch_id: string | number | boolean | null;
-        }) => one(db, `SELECT state,business_date FROM (${pmsProjectionSources.pms_properties}) pms_properties WHERE company_id=? AND branch_id=? FOR SHARE`, facts.company, facts.branch_id),
-        writePosShifts1: (facts: {
-            sid: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-            company: string;
-            branch_id: string | number | boolean | null;
-            user: string;
-            fact5: number;
-            openingMinor: number;
-            fact7: string;
-        }) => run(db, 'INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,business_date) VALUES(?,?,?,?,?,?,?,?)', facts.sid, facts.id, facts.company, facts.branch_id, facts.user, facts.fact5, facts.openingMinor, facts.fact7),
-        readPosShifts2: (facts: {
-            id: string;
-        }) => one(db, 'SELECT * FROM pos_shifts WHERE id=? FOR UPDATE', facts.id),
-        writePosCashMovements1: (facts: {
-            mid: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-            amountMinor: number;
-            reason: string;
-            user: string;
-            null: null;
-            fact6: number;
-        }) => run(db, 'INSERT INTO pos_cash_movements VALUES(?,?,?,?,?,?,?)', facts.mid, facts.id, facts.amountMinor, facts.reason, facts.user, facts.null, facts.fact6),
-        writePosShifts2: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_shifts SET version=version+1 WHERE id=?', facts.id),
-        readPosCashMovements1: (facts: {
-            movementId: string | undefined;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_cash_movements WHERE id=? AND shift_id=? FOR UPDATE', facts.movementId, facts.id),
-        writePosCashMovements2: (facts: {
-            user: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_cash_movements SET approved_by=? WHERE id=?', facts.user, facts.id),
-        readPosSales3: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_sales WHERE shift_id=? AND state IN ('open','held','payment_pending')", facts.id),
-        readPosCashMovements2: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_cash_movements WHERE shift_id=? AND approved_by IS NULL', facts.id),
-        readPosPayments5: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, "SELECT COALESCE(SUM(p.amount_minor),0) n FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.shift_id=? AND p.method='cash' AND p.state='succeeded'", facts.id),
-        readPosRefundPayments1: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, "SELECT COALESCE(SUM(rp.amount_minor),0) n FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id JOIN pos_refunds r ON r.id=rp.refund_id WHERE r.payout_shift_id=? AND p.method='cash' AND rp.state='succeeded'", facts.id),
-        readPosCashMovements3: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT COALESCE(SUM(amount_minor),0) n FROM pos_cash_movements WHERE shift_id=? AND approved_by IS NOT NULL', facts.id),
-        writePosShifts3: (facts: {
-            countedMinor: number;
-            expected: number;
-            fact2: number;
-            fact3: number;
-            user: string;
-            fact5: string | null;
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_shifts SET state='closed',counted_minor=?,expected_minor=?,variance_minor=?,closed_at=?,closed_by=?,denominations_json=?::jsonb WHERE id=?", facts.countedMinor, facts.expected, facts.fact2, facts.fact3, facts.user, facts.fact5, facts.id),
-        writePosShifts4: (facts: {
-            user: string;
-            reason: string;
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_shifts SET state='reviewed',reviewed_by=?,review_reason=? WHERE id=?", facts.user, facts.reason, facts.id),
-        writePosShifts5: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_shifts SET version=version+1 WHERE id=?', facts.id),
-        readPosShifts3: (facts: {
-            shiftId: string;
-        }) => one(db, "SELECT * FROM pos_shifts WHERE id=? AND state='open' FOR UPDATE", facts.shiftId),
-        readCompanyFxRates1: facts => posCoreFinanceFacts(db).readCompanyFxRates1(facts),
-        readPosRegisters8: (facts: {
-            register_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_registers WHERE id=? AND active=true', facts.register_id),
-        readPosTables2: (facts: {
-            tableId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_tables WHERE id=? AND register_id=?', facts.tableId, facts.id),
-        readFinanceParties1: facts => posCoreFinanceFacts(db).readFinanceParties1(facts),
-        writePosSales4: (facts: {
-            sid: `${string}-${string}-${string}-${string}-${string}`;
-            company: string;
-            branch_id: string | number | boolean | null;
-            id: string | number | boolean | null;
-            id2: string | number | boolean | null;
-            fact5: string;
-            currency: string | number | boolean | null;
-            fact7: string;
-            fact8: string | null;
-            fact9: string | null;
-            guests: number;
-            serviceMode: "retail" | "dine_in" | "takeaway";
-            user: string;
-            fact13: number;
-            fact14: number;
-            accounts_json: string | number | boolean | null;
-        }) => run(db, 'INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,party_id,table_id,guests,service_mode,created_by,created_at,updated_at,accounts_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', facts.sid, facts.company, facts.branch_id, facts.id, facts.id2, facts.fact5, facts.currency, facts.fact7, facts.fact8, facts.fact9, facts.guests, facts.serviceMode, facts.user, facts.fact13, facts.fact14, facts.accounts_json),
-        readOrganizationNodes2: facts => posCoreOrganizationFacts(db).readOrganizationNodes2(facts),
-        writePosSales5: (facts: {
-            fact0: string;
-            sid: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, 'UPDATE pos_sales SET issuer_json=? WHERE id=?', facts.fact0, facts.sid),
         readPosDayCloses1: (facts: {
             company_id: string | number | boolean | null;
             branch_id: string | number | boolean | null;
@@ -508,9 +376,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readPosPayments7: (facts: {
             id: string | number | boolean | null;
         }) => one(db, 'SELECT id FROM pos_payments WHERE sale_id=? LIMIT 1', facts.id),
-        readPosLines4: (facts: {
-            id: string | number | boolean | null;
-        }) => all(db, 'SELECT * FROM pos_lines WHERE sale_id=?', facts.id),
         readPosLines5: (facts: {
             id: string | number | boolean | null;
         }) => one(db, 'SELECT COALESCE(SUM(subtotal_minor+tax_minor+discount_minor),0) n FROM pos_lines WHERE sale_id=?', facts.id),
@@ -518,202 +383,13 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             propertyId: string;
             company: string;
         }) => one(db, `SELECT branch_id,business_date,version,state FROM (${pmsProjectionSources.pms_properties}) pms_properties WHERE id=? AND company_id=?`, facts.propertyId, facts.company),
-        readPosFulfillments2: (facts: {
-            itemId: string;
-        }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.itemId),
-        writePosFulfillments4: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_fulfillments SET state='delivered',version=version+1 WHERE id=?", facts.id),
         writePosSales7: (facts: {
             fact0: number;
             id: string | number | boolean | null;
         }) => run(db, "UPDATE pos_sales SET state='completed',table_id=NULL,version=version+1,updated_at=? WHERE id=?", facts.fact0, facts.id),
-        writePosSales8: (facts: {
-            user: string;
-            reason: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET discount_approved_by=?,discount_reason=?,version=version+1 WHERE id=?', facts.user, facts.reason, facts.id),
-        writePosSales9: (facts: {
-            user: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET discount_requested_by=? WHERE id=?', facts.user, facts.id),
-        readCommerceProducts3: facts => posCoreCommerceFacts(db).readCommerceProducts3(facts),
-        readPosRegisters10: (facts: {
-            register_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_registers WHERE id=?', facts.register_id),
-        writePosFulfillments5: (facts: {
-            fid: `${string}-${string}-${string}-${string}-${string}`;
-            company: string;
-            branch_id: string | number | boolean | null;
-            warehouse_id: string | number | boolean | null;
-            productId: string;
-            quantityMilli: number;
-            kind: string;
-            fact7: string;
-            note: string;
-            fact9: string;
-            accounts_json: string | number | boolean | null;
-            currency: string | number | boolean | null;
-            business_date: string | number | boolean | null;
-            fact13: number;
-        }) => run(db, 'INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,note,recipe_json,accounts_json,currency,business_date,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', facts.fid, facts.company, facts.branch_id, facts.warehouse_id, facts.productId, facts.quantityMilli, facts.kind, facts.fact7, facts.note, facts.fact9, facts.accounts_json, facts.currency, facts.business_date, facts.fact13),
-        writePosLines1: (facts: {
-            lid: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-            fid: `${string}-${string}-${string}-${string}-${string}`;
-            productId: string;
-            name: string | number | boolean | null;
-            quantityMilli: number;
-            price: number;
-            tax_bps: string | number | boolean | null;
-            fact8: boolean;
-            discountMinor: number;
-            subtotal: number;
-            tax: number;
-            fact12: string;
-            note: string;
-        }) => run(db, 'INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json,note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)', facts.lid, facts.id, facts.fid, facts.productId, facts.name, facts.quantityMilli, facts.price, facts.tax_bps, facts.fact8, facts.discountMinor, facts.subtotal, facts.tax, facts.fact12, facts.note),
-        readFinanceParties2: facts => posCoreFinanceFacts(db).readFinanceParties2(facts),
-        writePosSales10: (facts: {
-            partyId: string | null;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET party_id=? WHERE id=?', facts.partyId, facts.id),
-        readPosLines6: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT l.*,f.state fulfillment_state,f.quantity_milli fulfillment_quantity FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.id=? AND l.sale_id=? FOR UPDATE OF l,f', facts.lineId, facts.id),
-        writePosFulfillments6: (facts: {
-            quantityMilli: number;
-            note: string;
-            fulfillment_id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_fulfillments SET quantity_milli=?,note=?,version=version+1 WHERE id=?', facts.quantityMilli, facts.note, facts.fulfillment_id),
-        writePosLines2: (facts: {
-            quantityMilli: number;
-            discount: number;
-            subtotal: number;
-            tax: number;
-            note: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET quantity_milli=?,discount_minor=?,subtotal_minor=?,tax_minor=?,note=? WHERE id=?', facts.quantityMilli, facts.discount, facts.subtotal, facts.tax, facts.note, facts.id),
-        writePosSales11: (facts: {
-            user: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET discount_requested_by=? WHERE id=?', facts.user, facts.id),
-        readPosLines7: (facts: {
-            id: string | number | boolean | null;
-        }) => all(db, 'SELECT * FROM pos_lines WHERE sale_id=? ORDER BY id FOR UPDATE', facts.id),
-        writePosLines3: (facts: {
-            discount: number;
-            extra: number;
-            subtotal: number;
-            tax: number;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET discount_minor=?,bill_discount_minor=?,subtotal_minor=?,tax_minor=? WHERE id=?', facts.discount, facts.extra, facts.subtotal, facts.tax, facts.id),
-        writePosSales12: (facts: {
-            user: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET discount_requested_by=? WHERE id=?', facts.user, facts.id),
-        readPosLines8: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT l.*,f.state fulfillment_state FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.id=? AND l.sale_id=? FOR UPDATE OF l,f', facts.lineId, facts.id),
-        writePosReservations3: (facts: {
-            fulfillment_id: string | number | boolean | null;
-        }) => run(db, 'DELETE FROM pos_reservations WHERE fulfillment_id=?', facts.fulfillment_id),
-        writePosLines4: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, 'DELETE FROM pos_lines WHERE id=?', facts.id),
-        writePosSales13: (facts: {
-            fact0: "held" | "open";
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET state=? WHERE id=?', facts.fact0, facts.id),
-        readPosTables3: (facts: {
-            tableId: string;
-            register_id: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_tables WHERE id=? AND register_id=?', facts.tableId, facts.register_id),
-        writePosSales14: (facts: {
-            tableId: string;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_sales SET table_id=? WHERE id=?', facts.tableId, facts.id),
-        writePosLines5: (facts: {
-            id: string | number | boolean | null;
-            id2: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET sale_id=? WHERE sale_id=?', facts.id, facts.id2),
-        writePosSales15: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_sales SET state='merged',table_id=NULL WHERE id=?", facts.id),
-        readPosLines9: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_lines WHERE id=? AND sale_id=? FOR UPDATE', facts.lineId, facts.id),
-        readPosFulfillments3: (facts: {
-            fid: string;
-        }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.fid),
-        writePosSales16: (facts: {
-            target: `${string}-${string}-${string}-${string}-${string}`;
-            fact1: string;
-            user: string;
-            fact3: number;
-            fact4: number;
-            id: string | number | boolean | null;
-        }) => run(db, "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,party_id,guests,service_mode,created_by,created_at,updated_at,accounts_json) SELECT ?,company_id,branch_id,register_id,shift_id,?,currency,business_date,party_id,guests,service_mode,?,?,?,accounts_json FROM pos_sales WHERE id=?", facts.target, facts.fact1, facts.user, facts.fact3, facts.fact4, facts.id),
-        writePosLines6: (facts: {
-            target: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET sale_id=? WHERE id=?', facts.target, facts.id),
-        writePosFulfillments7: (facts: {
-            newFid: string;
-            quantityMilli: number;
-            fact2: number;
-            fid: string;
-        }) => run(db, 'INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,note,recipe_json,accounts_json,currency,business_date,created_at) SELECT ?,company_id,branch_id,warehouse_id,product_id,?,kind,station,note,recipe_json,accounts_json,currency,business_date,? FROM pos_fulfillments WHERE id=?', facts.newFid, facts.quantityMilli, facts.fact2, facts.fid),
-        writePosFulfillments8: (facts: {
-            quantityMilli: number;
-            fid: string;
-        }) => run(db, 'UPDATE pos_fulfillments SET quantity_milli=quantity_milli-?,version=version+1 WHERE id=?', facts.quantityMilli, facts.fid),
-        writePosLines7: (facts: {
-            fact0: `${string}-${string}-${string}-${string}-${string}`;
-            target: `${string}-${string}-${string}-${string}-${string}`;
-            newFid: string;
-            quantityMilli: number;
-            discount: number;
-            billDiscount: number;
-            amount: number;
-            tax: number;
-            id: string | number | boolean | null;
-        }) => run(db, 'INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,bill_discount_minor,subtotal_minor,tax_minor,modifiers_json,note) SELECT ?,?,?,product_id,name,?,price_minor,tax_bps,tax_inclusive,?,?,?,?,modifiers_json,note FROM pos_lines WHERE id=?', facts.fact0, facts.target, facts.newFid, facts.quantityMilli, facts.discount, facts.billDiscount, facts.amount, facts.tax, facts.id),
-        writePosLines8: (facts: {
-            quantityMilli: number;
-            amount: number;
-            tax: number;
-            discount: number;
-            billDiscount: number;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET quantity_milli=quantity_milli-?,subtotal_minor=subtotal_minor-?,tax_minor=tax_minor-?,discount_minor=discount_minor-?,bill_discount_minor=bill_discount_minor-? WHERE id=?', facts.quantityMilli, facts.amount, facts.tax, facts.discount, facts.billDiscount, facts.id),
-        writePosSales17: (facts: {
-            issuer_json: string | number | boolean | null;
-            user: string;
-            target: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, 'UPDATE pos_sales SET issuer_json=?,discount_requested_by=? WHERE id=?', facts.issuer_json, facts.user, facts.target),
-        readPosFulfillments4: (facts: {
-            id: string | number | boolean | null;
-        }) => all(db, 'SELECT DISTINCT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?', facts.id),
-        readPosLines10: (facts: {
-            id: string | number | boolean | null;
-            id2: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_lines WHERE fulfillment_id=? AND sale_id<>?', facts.id, facts.id2),
         writePosReservations4: (facts: {
             id: string | number | boolean | null;
         }) => run(db, 'DELETE FROM pos_reservations WHERE fulfillment_id=?', facts.id),
-        writePosFulfillments9: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_fulfillments SET state='cancelled',reserved=false,version=version+1 WHERE id=?", facts.id),
-        writePosSales18: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_sales SET state='cancelled',table_id=NULL WHERE id=?", facts.id),
-        readPosSales4: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT version FROM pos_sales WHERE id=?', facts.id),
         readPosFulfillments5: (facts: {
             id: string;
         }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.id),
@@ -727,79 +403,11 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readPosLines12: (facts: {
             id: string | number | boolean | null;
         }) => one(db, "SELECT l.id FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE l.fulfillment_id=? AND s.state='completed' AND l.returned_milli<l.quantity_milli", facts.id),
-        writePosReservations5: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, 'DELETE FROM pos_reservations WHERE fulfillment_id=?', facts.id),
         writePosFulfillments10: (facts: {
             state: string;
             id: string | number | boolean | null;
         }) => run(db, 'UPDATE pos_fulfillments SET state=?,reserved=false,version=version+1 WHERE id=?', facts.state, facts.id),
-        writePosFulfillments11: (facts: {
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_fulfillments SET reserved=true WHERE id=?', facts.id),
-        readPosShifts5: (facts: {
-            shift_id: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_shifts WHERE id=? AND state='open'", facts.shift_id),
-        readPosLines13: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT COALESCE(SUM(subtotal_minor+tax_minor+discount_minor),0) n FROM pos_lines WHERE sale_id=?', facts.id),
-        readPosPayments8: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, "SELECT COALESCE(SUM(amount_minor-refunded_minor),0) n FROM pos_payments WHERE sale_id=? AND state IN ('requested','pending','succeeded','exception')", facts.id),
-        readPosFulfillments6: (facts: {
-            id: string | number | boolean | null;
-        }) => all(db, 'SELECT DISTINCT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?', facts.id),
-        readPosConnections1: (facts: {
-            company: string;
-        }) => one(db, "SELECT * FROM pos_connections WHERE company_id=? AND state='ready'", facts.company),
-        writePosPayments2: (facts: {
-            pid: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-            company: string;
-            method: "cash" | "edc" | "transfer" | "stripe_card" | "stripe_promptpay";
-            amountMinor: number;
-            tenderedMinor: number;
-            reference: string;
-            fact7: string | number | boolean | null;
-            fact8: string | number | boolean;
-            user: string;
-            fact10: number;
-            fact11: number;
-            fact12: string | null;
-        }) => run(db, "INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,stripe_account,livemode,created_by,created_at,updated_at,payer_email) VALUES(?,?,?,?,?,?,?,'requested',?,?,?,?,?,?)", facts.pid, facts.id, facts.company, facts.method, facts.amountMinor, facts.tenderedMinor, facts.reference, facts.fact7, facts.fact8, facts.user, facts.fact10, facts.fact11, facts.fact12),
-        writePosPayments3: (facts: {
-            fact0: number;
-            pid: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, "UPDATE pos_payments SET state='pending',version=version+1,updated_at=? WHERE id=?", facts.fact0, facts.pid),
-        readPosPayments9: (facts: {
-            pid: `${string}-${string}-${string}-${string}-${string}`;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=?', facts.pid),
-        writePosSales19: (facts: {
-            fact0: number;
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_sales SET state='payment_pending',version=version+1,updated_at=? WHERE id=?", facts.fact0, facts.id),
-        readPosPayments10: (facts: {
-            id: string;
-            company: string;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? AND company_id=? FOR UPDATE', facts.id, facts.company),
         readFinanceBankTransactions1: facts => posCoreFinanceFacts(db).readFinanceBankTransactions1(facts),
-        readPosPayments11: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT finance_payment_id FROM pos_payments WHERE id=?', facts.id),
-        writeFinanceBankTransactions1: facts => posCoreFinanceFacts(db).writeFinanceBankTransactions1(facts),
-        readPosPayments12: (facts: {
-            id: string;
-            company: string;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? AND company_id=? FOR UPDATE', facts.id, facts.company),
-        writePosPayments4: (facts: {
-            fact0: number;
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_payments SET state='cancelled',version=version+1,updated_at=? WHERE id=?", facts.fact0, facts.id),
-        writePosSales20: (facts: {
-            fact0: number;
-            sale_id: string | number | boolean | null;
-            sale_id2: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_sales SET state='open',version=version+1,updated_at=? WHERE id=? AND NOT EXISTS(SELECT 1 FROM pos_payments WHERE sale_id=? AND state IN ('requested','pending','exception','succeeded'))", facts.fact0, facts.sale_id, facts.sale_id2),
         readPosPayments13: (facts: {
             id: string;
         }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
@@ -836,7 +444,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             company: string;
         }) => one(db, "SELECT * FROM pos_settlements WHERE id=? AND company_id=? AND kind='payout' AND state='paid' FOR UPDATE", facts.id, facts.company),
         readFinanceBankMatchTargets1: facts => posCoreFinanceFacts(db).readFinanceBankMatchTargets1(facts),
-        readFinanceBankTransactions2: facts => posCoreFinanceFacts(db).readFinanceBankTransactions2(facts),
         readFinanceJournalLines2: facts => posCoreFinanceFacts(db).readFinanceJournalLines2(facts),
         writeFinanceBankTransactions2: facts => posCoreFinanceFacts(db).writeFinanceBankTransactions2(facts),
         writePosSettlements2: (facts: {
@@ -859,10 +466,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact0: string;
             id: string | number | boolean | null;
         }) => run(db, "UPDATE pos_jobs SET state='pending',attempts=0,next_attempt_at=0,payload_json=? WHERE id=?", facts.fact0, facts.id),
-        readPosJobs3: (facts: {
-            id: string;
-            company: string;
-        }) => one(db, "SELECT * FROM pos_jobs WHERE id=? AND company_id=? AND state='exception' FOR UPDATE", facts.id, facts.company),
         readPosRefundPayments3: (facts: {
             record_id: string | number | boolean | null;
             company: string;
@@ -878,97 +481,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact0: string;
             id: string | number | boolean | null;
         }) => run(db, "UPDATE pos_jobs SET state='pending',attempts=0,next_attempt_at=0,last_error=NULL,payload_json=? WHERE id=?", facts.fact0, facts.id),
-        readPosDayCloses2: (facts: {
-            company_id: string | number | boolean | null;
-            branch_id: string | number | boolean | null;
-            business_date: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'", facts.company_id, facts.branch_id, facts.business_date),
-        readPmsSources2: (facts: {
-            fact0: string;
-        }) => one(db, `SELECT source_key FROM (${pmsProjectionSources.pms_sources}) pms_sources WHERE source_key=?`, facts.fact0),
-        readPosLines14: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_lines WHERE id=? AND sale_id=?', facts.lineId, facts.id),
-        writePosRefunds2: (facts: {
-            rid: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-            company_id: string | number | boolean | null;
-            branch_id: string | number | boolean | null;
-            fact4: string | null;
-            fact5: "advance" | "sale";
-            reason: string;
-            fact7: string;
-            amount: number;
-            user: string;
-            fact10: number;
-            fact11: string;
-            tax: number;
-        }) => run(db, 'INSERT INTO pos_refunds(id,sale_id,company_id,branch_id,payout_shift_id,kind,reason,lines_json,amount_minor,requested_by,created_at,accounting_date,tax_minor) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', facts.rid, facts.id, facts.company_id, facts.branch_id, facts.fact4, facts.fact5, facts.reason, facts.fact7, facts.amount, facts.user, facts.fact10, facts.fact11, facts.tax),
-        readPosRefunds1: (facts: {
-            id: string;
-        }) => one(db, 'SELECT * FROM pos_refunds WHERE id=? FOR UPDATE', facts.id),
-        writePosRefunds3: (facts: {
-            user: string;
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_refunds SET state='rejected',approved_by=?,version=version+1 WHERE id=?", facts.user, facts.id),
-        readPosPayments15: (facts: {
-            id: string | number | boolean | null;
-        }) => all(db, "SELECT * FROM pos_payments WHERE sale_id=? AND state='succeeded' ORDER BY created_at DESC,id FOR UPDATE", facts.id),
-        readPosLines15: (facts: {
-            lineId: string;
-            id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_lines WHERE id=? AND sale_id=? FOR UPDATE', facts.lineId, facts.id),
-        readPosFulfillments7: (facts: {
-            fulfillment_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.fulfillment_id),
-        readPosStockMoves1: (facts: {
-            id: string | number | boolean | null;
-        }) => one(db, "SELECT COALESCE(SUM(quantity_milli),0) qty,COALESCE(SUM(value_minor),0) cost FROM pos_stock_moves WHERE fulfillment_id=? AND kind='return'", facts.id),
-        writeCommerceStock3: facts => posCoreCommerceFacts(db).writeCommerceStock3(facts),
-        writeCommerceStock4: facts => posCoreCommerceFacts(db).writeCommerceStock4(facts),
-        writePosStockMoves3: (facts: {
-            fact0: `${string}-${string}-${string}-${string}-${string}`;
-            company_id: string | number | boolean | null;
-            warehouse_id: string | number | boolean | null;
-            product_id: string | number | boolean | null;
-            id: string | number | boolean | null;
-            id2: string | number | boolean | null;
-            number: string | number | boolean | null;
-            fact7: "return";
-            quantityMilli: number;
-            restoredCost: number;
-            date: string;
-            fact11: number;
-        }) => run(db, 'INSERT INTO pos_stock_moves VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', facts.fact0, facts.company_id, facts.warehouse_id, facts.product_id, facts.id, facts.id2, facts.number, facts.fact7, facts.quantityMilli, facts.restoredCost, facts.date, facts.fact11),
-        writePosLines9: (facts: {
-            quantityMilli: number;
-            fact1: number;
-            taxMinor: number;
-            restoredCost: number;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_lines SET returned_milli=returned_milli+?,refunded_minor=refunded_minor+?,refunded_tax_minor=refunded_tax_minor+?,returned_cost_minor=returned_cost_minor+? WHERE id=?', facts.quantityMilli, facts.fact1, facts.taxMinor, facts.restoredCost, facts.id),
-        writePosRefundPayments1: (facts: {
-            rpid: `${string}-${string}-${string}-${string}-${string}`;
-            id: string | number | boolean | null;
-            id2: string | number | boolean | null;
-            amount: number;
-            fact4: "cash" | "transfer" | null;
-        }) => run(db, 'INSERT INTO pos_refund_payments(id,refund_id,payment_id,amount_minor,manual_method) VALUES(?,?,?,?,?)', facts.rpid, facts.id, facts.id2, facts.amount, facts.fact4),
-        writePosPayments6: (facts: {
-            amount: number;
-            id: string | number | boolean | null;
-        }) => run(db, 'UPDATE pos_payments SET refunded_minor=refunded_minor+?,version=version+1 WHERE id=?', facts.amount, facts.id),
-        readPosShifts6: (facts: {
-            payout_shift_id: string | number | boolean | null;
-            companyId: string;
-            branch_id: string | number | boolean | null;
-        }) => one(db, "SELECT * FROM pos_shifts WHERE id=? AND company_id=? AND branch_id=? AND state='open'", facts.payout_shift_id, facts.companyId, facts.branch_id),
-        writePosRefunds4: (facts: {
-            user: string;
-            id: string | number | boolean | null;
-            id2: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_refunds SET approved_by=?,state=CASE WHEN EXISTS(SELECT 1 FROM pos_refund_payments WHERE refund_id=? AND state<>'succeeded') THEN 'processing' ELSE 'completed' END,version=version+1 WHERE id=?", facts.user, facts.id, facts.id2),
         readPosRefundPayments5: (facts: {
             refundPaymentId: string;
         }) => one(db, 'SELECT * FROM pos_refund_payments WHERE id=? FOR UPDATE', facts.refundPaymentId),
@@ -1047,22 +559,6 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         assertProductionModuleEnabled: (arg0: string, arg1: "pos") => assertProductionModuleEnabled(db, arg0, arg1),
         workContextGuards: (arg0: WorkContext, arg1: string) => workContextGuards(db, arg0, arg1),
         iamMutationGuards: (arg0: WorkContext, arg1: string) => iamMutationGuards(db, arg0, arg1),
-        prepareAttachmentBinding: (arg0: WorkContext, arg1: {
-            attachmentSetIds: string[];
-            bindingContract: {
-                targetType: string;
-                bindingType: string;
-                contexts: {
-                    purposeKey: string;
-                    componentKind: "action";
-                    componentRef: string;
-                }[];
-            };
-            targetId: string;
-            expectedTargetVersion: number;
-            commandId: string;
-            bindingId: string;
-        }) => prepareAttachmentBinding(db, arg0, arg1),
         posDayCommand: (arg0: WorkContext, arg1: string, arg2: unknown) => posDayCommand(db, arg0, arg1, arg2),
         createPosCustomer: (arg0: WorkContext, arg1: unknown) => createPosCustomer(db, arg0, arg1),
         requirePosImageSource: (arg0: WorkContext, arg1: string, arg2: string, arg3: string) => requirePosImageSource(db, arg0, arg1, arg2, arg3),

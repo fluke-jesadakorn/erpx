@@ -16,6 +16,7 @@ import {manufacturingPostingInventorySourceLocks} from '@erpx/server-inventory/p
 import {requireManufacturingPostingFinanceAuthority,manufacturingPostingFinanceReadLocks,manufacturingPostingProfileReferenceSnapshot} from '@erpx/server-finance/public/manufacturing-posting-setup';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {manufacturingPostingSourceReadLocks} from '@erpx/server-manufacturing/adapters/posting-setup-sources';
+import {clearCommandAssertions} from '@erpx/server-manufacturing/adapters/purchases';
 import type {ManufacturingPostingProfilesView,ManufacturingPostingProfileInput,ManufacturingPostingProfileDecisionInput} from '@erpx/server-manufacturing/domain/posting-profiles';
 type NativeProfile={id:string;company_id:string;chart_id:string;currency:string;inventory_account_id:string;wip_account_id:string;labor_account_id:string;overhead_account_id:string;scrap_account_id:string;status:'draft'|'approved'|'rejected'|'retired';version:number;created_by:string;source:string};
 type Request=ManufacturingPostingProfileInput|ManufacturingPostingProfileDecisionInput;
@@ -66,7 +67,7 @@ export async function withManufacturingPostingProfileCommand<Result>(actor:WorkC
    if(decision){if(!prior||actual.version!==prior.version+1||actual.status!==(decision.action==='approve'?'approved':decision.action==='reject'?'rejected':'retired'))throw new ApiError(409,'MANUFACTURING_POSTING_SOURCE_CHANGED','Original profile decision mismatch.');const strip=(row:NativeProfile)=>{const value=JSON.parse(row.source) as Record<string,unknown>;for(const field of ['status','version','reviewed_by','updated_at'])delete value[field];return JSON.stringify(value);};if(strip(prior)!==strip(actual)||JSON.parse(actual.source).reviewed_by!==actor.userId)throw new ApiError(409,'MANUFACTURING_POSTING_SOURCE_CHANGED','Original profile identity changed.');}
    else{const input=request.input as ManufacturingPostingProfileInput['input'];if(prior||actual.created_by!==actor.userId||actual.status!=='draft'||actual.version!==1||actual.currency!=='THB'||actual.chart_id!==input.chartId||actual.inventory_account_id!==input.inventoryAccountId||actual.wip_account_id!==input.wipAccountId||actual.labor_account_id!==input.laborAccountId||actual.overhead_account_id!==input.overheadAccountId||actual.scrap_account_id!==input.scrapAccountId)throw new ApiError(409,'MANUFACTURING_POSTING_SOURCE_CHANGED','Original profile fields changed.');}
   }
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearCommandAssertions(database,item.key)]));await flushFinanceDeferredEffects(database);
   const final=await requireManufacturingPostingFinanceAuthority(database,actor,permission),after=await manufacturingPostingProfileReferenceSnapshot(database,actor);if(authorityImage(current)!==authorityImage(final))throw new ApiError(409,'MANUFACTURING_POSTING_CONTEXT_CHANGED','Current Company Finance authority changed.');
   // The reference snapshot includes profile rows via the private production
   // image: compare every Finance/mapping fact independently of our own row.

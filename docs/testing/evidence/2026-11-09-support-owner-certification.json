@@ -1,0 +1,60 @@
+{
+  "schema": "erpx.evidence/support-owner-certification/v1",
+  "recorded_at": "2026-11-09T13:15:02.312623Z",
+  "head": "546d115cf2509e571fd1a8a37473631b7a4da262",
+  "owner": "support",
+  "package": "erpx-server-support",
+  "workflows": [
+    "support/tickets",
+    "support/sla-watch",
+    "support/incidents",
+    "support/feature-support-sessions",
+    "support/feature-capabilities",
+    "support/feature-attachments"
+  ],
+  "workflow_counts": {
+    "total": 6,
+    "verified": 6,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "active",
+    "providers": "active"
+  },
+  "gates": [
+    {
+      "name": "support.package-surfaces.integration",
+      "result": "22/22 pass",
+      "notes": "Includes Support package purchase/draining/expiry, Executive customer evidence, native managed Field case and the full Support consumer fences. The native Field fixture tool env is supplied by scripts/testing/runtime-tooling.ts (preview/HEIF/Poppler/ClamAV)."
+    },
+    {
+      "name": "support workflows",
+      "result": "6/6 verified",
+      "notes": "Prior desktop/mobile browser evidence covers tickets, SLA, incidents, sessions/capabilities and evidence bind/revoke."
+    },
+    {
+      "name": "cargo check",
+      "result": "private-field-api,existing-business and files-scan-worker/field-push-worker variants pass"
+    }
+  ],
+  "legacy": {
+    "support_page": "The Support cases page delegates to the native Support presenter and no longer imports the Sales customer hub screen or its TypeScript supportWorkspace reader.",
+    "remaining": "Retained TypeScript Support read/provider bridges are other-owner consumers with named removal conditions; no Support production route uses the legacy page reader."
+  },
+  "fixes": [
+    "The profile notes read falls back to the retained TS notes reader only when next/headers is outside a request scope (integration fixtures); production requests use the native notes transport.",
+    "The Executive customer-evidence test window now includes the current fixture event date.",
+    "The native Field fixture declares fieldServiceReads/financeJournalReads prerequisites for its managed Support case.",
+    "The generic files attachment router is not mounted when the field-files providers already own the same attachment routes, and the field-files provider gate is feature-aware."
+  ],
+  "evidenceRefs": [
+    "docs/testing/evidence/2026-11-04-support-owner-closure.json",
+    "docs/testing/evidence/2026-11-04-support-order-browser-journey.json",
+    "docs/testing/evidence/2026-11-04-support-native-reads.json"
+  ]
+}

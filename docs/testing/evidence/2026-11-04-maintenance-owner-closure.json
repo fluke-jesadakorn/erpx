@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Maintenance now has owner-local native work/plan reads, HTTP ingress, a fail-closed Next transport and SSR cutover; shared composition mounting, native create/plan command effects, Inventory spares/cost readback and browser acceptance remain open",
+  "capability": "maintenance-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "054d43ea3af50daa989599dca8f4b77bf7a840e4",
+  "scope": {
+    "workflows": [
+      "maintenance/work-orders",
+      "maintenance/downtime",
+      "maintenance/feature-blocked-work",
+      "maintenance/feature-completion",
+      "maintenance/feature-maintenance-history"
+    ],
+    "domain": "Native read facts for work orders, work events, preventive plans, plan events and occurrences. The existing seven-action transition policy and nullable/epoch-zero downtime projections are unchanged.",
+    "application": "Workspace/detail/work-history/plan-list/plan-detail read use cases with Company/branch/department scope, records.read plus module maintenance admission, selected-context expiry and bounded reads. Existing change use case ordering is unchanged.",
+    "adapters": "Own SQL for Maintenance work/event/plan/event/occurrence tables. Asset, people and node options come from the public Assets owner adapter; owner/reviewer eligibility comes from the public Identity operational-worker reference. No cross-owner write or invented purchase authority.",
+    "http": "Owner-local Router for GET workspace (`/maintenance`), GET work detail (`?id=`), GET plan list (`/maintenance/plans`) and GET plan detail (`?id=`); POST work create/change on `/maintenance` with exact Host/Holding target, browser origin, one Idempotency-Key, JSON content type, 64 KiB body limit and business-error status mapping. The backend receives canonical normalized commands; no session, actor, Company or purchase is minted by the router.",
+    "transport": "Fail-closed Next client validates configured Holding origin, loopback private base, reserved ports 3000/3001/3100/3101/3103/8080, timeout, cookie/header size, context CAS, exact response row shapes and bounded bodies.",
+    "ssr": "Maintenance list, work detail, plans list and plan detail presenters read through the native transport and return 503 NATIVE_MAINTENANCE_UNAVAILABLE when ERPX_NATIVE_MAINTENANCE_CONFIG is absent or the native request fails. No silent TypeScript owner-read fallback.",
+    "rest": "The Maintenance Next route now delegates GET/POST to the native transport. The preventive plans route delegates GET to the native transport but retains the existing TypeScript POST because native plan command composition is not mounted.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, native create command, native preventive command, Inventory spares/cost readback, jobs or production acceptance."
+  },
+  "changedFiles": [
+    "packages/server-maintenance/Cargo.toml",
+    "packages/server-maintenance/src/domain/mod.rs",
+    "packages/server-maintenance/src/domain/read.rs",
+    "packages/server-maintenance/src/application/mod.rs",
+    "packages/server-maintenance/src/application/read.rs",
+    "packages/server-maintenance/src/adapters/mod.rs",
+    "packages/server-maintenance/src/adapters/read.rs",
+    "packages/server-maintenance/src/adapters/http.rs",
+    "packages/server-maintenance/src/public/mod.rs",
+    "packages/server-maintenance/src/public/read.rs",
+    "packages/server-maintenance/src/public/http.rs",
+    "tests/integration/maintenance/rust-maintenance-read-postgres.test.rs",
+    "tests/unit/maintenance/native-maintenance-transport.test.ts",
+    "tests/catalogue/suite-manifest.json",
+    "packages/feature-assets/package.json",
+    "packages/feature-assets/src/lib/maintenance-view.ts",
+    "packages/feature-assets/src/adapters/server/native-maintenance.ts",
+    "packages/feature-assets/src/adapters/server/native-maintenance-page.ts",
+    "packages/feature-assets/src/adapters/server/native-maintenance-owned.ts",
+    "packages/feature-assets/src/adapters/server/next-native-maintenance.ts",
+    "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route.ts",
+    "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/plans/route.ts",
+    "packages/feature-assets/src/routes/holdings/[holdingSlug]/services/assets/maintenance/[id]/page.tsx",
+    "packages/feature-assets/src/routes/holdings/[holdingSlug]/services/assets/maintenance/[id]/[recordSection]/page.tsx",
+    "packages/feature-assets/src/routes/holdings/[holdingSlug]/services/assets/plans/[id]/page.tsx",
+    "packages/feature-assets/src/routes/holdings/[holdingSlug]/services/assets/plans/[id]/[recordSection]/page.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/assets/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/maintenance/plans/[id]/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/services/assets/maintenance/_screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/services/assets/plans/_screen.tsx"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-maintenance --locked",
+      "result": "12 passed, 0 failed, 0 ignored",
+      "targets": {
+        "lib": "4 passed (HTTP decode, malformed input, target configuration and actual router request/response)",
+        "maintenance_read_postgres": "2 passed",
+        "schedule_commands": "1 passed",
+        "work_commands": "1 passed",
+        "work_policy": "2 passed",
+        "work_wire": "2 passed"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-maintenance --all-targets --locked",
+      "result": "pass; no erpx-server-maintenance warning. Four pre-existing erpx-server-organization warnings remain in the dependency build and are outside this owner.",
+      "strictCommand": "cargo clippy -p erpx-server-maintenance --all-targets --locked -- -D warnings was not used as the pass criterion because it fails on the untouched erpx-server-organization warnings."
+    },
+    "postgres": {
+      "suite": "maintenance.rust-maintenance-read-postgres.integration",
+      "cases": [
+        "workspace/detail/preventive reads are Company/branch scoped and preserve actual source facts, owner/reviewer eligibility, asset labels, people/nodes and history",
+        "foreign record ids are a scoped not-found, missing records.read fails closed, and a selected context observed past its expiry fails closed"
+      ],
+      "evidence": "Retained Account/Holding authorizer, real migrated PostgreSQL, actual role/assignment/People/Identity rows, public Assets option adapter, disposable leased databases, readback assertions and no owner writes."
+    },
+    "httpRouter": {
+      "test": "actual_router_retains_targets_origin_key_body_and_error_mapping",
+      "result": "pass over an ephemeral 127.0.0.1 loopback listener (not a reserved ERPX port)",
+      "cases": [
+        "GET workspace, detail, plan list and plan detail reach the correct backend kind",
+        "duplicate id query 422, unknown Host/Holding 404, backend conflict 409",
+        "POST change and create decode to canonical commands with one key",
+        "wrong origin 403, missing key 422, wrong content type 422, 70 KiB body 422",
+        "response headers are private/no-store and backend errors retain bounded code/message"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or PostgreSQL command effects."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/maintenance/native-maintenance-transport.test.ts --config tests/config/vitest.unit.config.mts: 7 passed",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-assets/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-maintenance/tsconfig.json: pass",
+        "tsc --noEmit -p apps/assets/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted new transport/route/test files: pass (only the repository's existing Next pages-directory warning)"
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json parsed with jq and contains maintenance.native-maintenance-transport.unit and maintenance.rust-maintenance-read-postgres.integration",
+      "runner": "bun is not installed in this worktree, so bun run test:catalogue --check could not run; tsx scripts/testing/test.ts --check fails on top-level await loaded as CJS, and node --experimental-strip-types fails on the script's extensionless imports. No catalogue pass is claimed."
+    },
+    "browser": "not run; no browser or authenticated SSR render was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_maintenance::public::read::{read_maintenance_workspace, read_maintenance_detail, read_maintenance_plans, read_maintenance_plan_detail, PgMaintenanceRead}",
+      "erpx_server_maintenance::public::http::{maintenance_router, MaintenanceHttpTarget, MaintenanceHttpBackend, MaintenanceHttpReadKind, MaintenanceHttpReadRequest, MaintenanceHttpCommandRequest, MaintenanceHttpCommand, MaintenanceHttpResponse, decoded_operation}"
+    ],
+    "backendRequired": "Implement MaintenanceHttpBackend in src/composition: parse the normal Account/Holding request, call the retained HoldingWorkAuthorizer with records.read (GET) or records.write (POST), require the configured Holding/Company, run one serializable transaction, render the same 15-field context, call the owner read functions, and map PgTransactionError to BusinessError. For POST changes, bind the existing execute_maintenance_transition composition (schedule/start/block/resume/complete/cancel/issue-part). For POST create, add an atomic create composition or leave create on the TypeScript route; the normalized create command exists but no native create composition exists today.",
+    "privateDevelopmentApi": [
+      "Build one MaintenanceHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_maintenance::public::http::maintenance_router(targets).map_err(|_| \"PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID\")?);",
+      "Both /maintenance and /maintenance/plans must be merged before the generic 404 fallback."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_MAINTENANCE_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app. Unset configuration intentionally returns 503.",
+    "sharedPrerequisite": "The owner code consumes erpx_server_runtime::public::http_support re-exports for serde_json and axum serve. Those re-exports were present in the shared working tree during this run but are owned by concurrent shared-runtime work; they must be committed with the mount or the Maintenance HTTP module will not compile.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles and other owners' implementation."
+  },
+  "legacyInventory": {
+    "removedOwnerReadConsumers": [
+      "Maintenance list, work detail, plans list and plan detail presenters no longer import maintenanceWorkspace, maintenanceDetail, preventivePlans or preventivePlanDetail.",
+      "The Maintenance REST GET and the plans REST GET now call the native transport and 503 without configuration.",
+      "Work detail pages now route to the Maintenance owner presenter rather than the Assets screen."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-maintenance/src/adapters/work.ts and public/asset-maintenance.ts remain the write implementation for create/change and the read implementation used by legacy integration tests.",
+      "packages/server-maintenance/src/adapters/preventive-plan.ts and public/maintenance-preventive.ts remain the only preventive write implementation and are still used by asset-maintenance, finance and preventive integration cohorts.",
+      "The plans REST POST remains TypeScript until native plan command composition is mounted.",
+      "Inventory spares and consumption cost rows remain TypeScript/Inventory-owned; the native detail returns empty spares/consumptions, so the parts picker and issued-cost readback are not yet cut over.",
+      "Other-owner projection sources (Calendar, Executive, Collaboration notifications, Files attachments, Records source facts) remain their existing owner bridges."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no production/private route serves the owner router yet. The HTTP test backend is a recording fake.",
+    "Native create (maintenance.create) has normalization and transport but no native command composition; the existing execute_maintenance_transition covers only schedule/start/block/resume/complete/cancel/issue-part. Creation must be composed or explicitly retained on TypeScript before enabling POST.",
+    "Preventive plan writes are still TypeScript. Only plan reads are native.",
+    "Native work detail returns empty spares and consumptions; Inventory-owned spare selection and issued-part cost readback remain pending. The parts issue form will have no options until that owner port is bound.",
+    "The read adapter uses the public Assets PgAssetRegister workspace to obtain asset labels, people and nodes and own SQL for Maintenance tables; it does not add a new cross-owner SQL contract or write.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. No business-owner completion flag is changed by this subagent.",
+    "No root Cargo.toml, Cargo.lock, lockfile, src/composition/**, docs/status/** or other owner implementation was edited. Cargo.lock is unchanged.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

@@ -1,4 +1,6 @@
 "use client";
+import {publicHoldingPath} from '@erpx/feature-runtime/lib/holding-paths';
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import WorkspaceLink from '@erpx/workplace/components/workspace-link';
 import {legalPortalSnapshot,legalPortalSnapshotMatches,type LegalPortalSnapshot} from "@erpx/feature-legal/lib/portal-snapshot";
 import {createLegalPortalCommandClient,type PortalCommandSource,type PortalCommandResult} from '@erpx/feature-legal/lib/portal-command-client';
@@ -50,7 +52,7 @@ export function LegalPortal({
   const [pendingAction,setPendingAction]=useState<ReturnType<typeof send.pending>>(null);
   useEffect(()=>{let active=true;const reads=readRevision;alive.current=true;queueMicrotask(()=>{if(active)setPendingAction(send.pending());});return()=>{active=false;alive.current=false;reads.current++;};},[send]);
   const call = useCallback(async(path:string)=>{
-      const r = await fetch(api+path,{cache:'no-store'});
+      const r = await holdingFetch(api+path,{cache:'no-store'});
       const j = await r.json();
       if (!r.ok) throw new Error(j.error?.message ?? "Request failed.");
       return j.data;
@@ -136,7 +138,7 @@ export function LegalPortal({
             {pendingAction&&<InlineNotice tone="warning" role="status"><p>The previous {pendingAction.kind==='upload'?'upload':'action'} has no confirmed result. Check its original request before submitting different work.{pendingAction.needsFile?` Reselect the same file: ${pendingAction.name}.`:''}</p><Button appearance="standard" type="button" disabled={busy||selected?.purchase?.history===false||pendingAction.needsFile&&!file} onClick={()=>void recover()}>Check previous result</Button></InlineNotice>}
             {selected ? (
               <Card as="section" appearance="standard" className={s.panel}>
-                <a data-slot="button" className={['ui-standard-control', (s.button)].filter(Boolean).join(' ')} href={`/legal-portal/${encodeURIComponent(slug)}`}>
+                <a data-slot="button" className={['ui-standard-control', (s.button)].filter(Boolean).join(' ')} href={`${publicHoldingPath(slug,'legal-portal')}`}>
                   ← Shared documents
                 </a>
                 <h2>
@@ -292,7 +294,7 @@ export function LegalPortal({
                     <div className={s.event} key={String(x.id)}>
                       <a
                         className={s.link}
-                        href={`/legal-portal/${encodeURIComponent(slug)}?share=${encodeURIComponent(String(x.id))}`}
+                        href={`${publicHoldingPath(slug,'legal-portal')}?share=${encodeURIComponent(String(x.id))}`}
                       >
                         {String(x.name)} · v{String(x.version)}
                       </a>

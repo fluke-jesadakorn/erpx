@@ -11,24 +11,24 @@ import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
-import {saveProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
-import {createAgent,createAgentVersion,createAgentAssignment,changeAgentRecord} from "@erpx/server-agent/public/agent-governance";
+import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {seedProjectFor} from '../../../tests/integration/projects/project-actual-fixtures';
 import {prepareGuidedIntake} from "@erpx/server-operations/public/guided-intake";
 import {guidedIntakeInputSchema} from "@erpx/feature-shared/lib/ai/guided-intake";
 import {refreshRecentUsageProjections} from "@erpx/server-commercial/public/usage-projection";
 import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@erpx/server-marketing/public/marketing";
 import {createAuth} from "@erpx/server-identity_access/public/auth";
-import {beginMfa,totp,verifyMfa} from "@erpx/server-identity_access/public/iam-mfa";
+import {totp} from "@erpx/server-identity_access/public/iam-mfa";
+import {iamMfaEnrollment} from "../../identity_access/mfa-enrollment";
 import type {IamActor} from "@erpx/server-identity_access/public/iam-context";
-import {connectionInput,saveConnection} from "@erpx/server-identity_access/public/iam-directories";
-import {accessReviewCampaignInput,startAccessReviewCampaign} from "@erpx/server-identity_access/public/iam-service";
+import {connectionInput} from "@erpx/server-identity_access/domain/directories";
+import {saveConnection} from "../../../tests/support/legacy-directory";
 import {selectWorkRole} from "@erpx/server-work_projection/public/work-role-store";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,createAttachmentPublication,approveAttachmentPublication} from "@erpx/server-files/public/attachments/service";
-import {saveBrandIdentityDraft} from "@erpx/server-brand/public/brand-identity";
 import {savePostDraft,publishPost,postDraftSchema,postView} from '@erpx/server-collaboration/public/social-home';
 import {createMessagingRoom,sendMessagingMessage,roomSchema,messageSchema} from '@erpx/server-collaboration/public/messaging';
-import {createRecordRelation,createActionCard,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
-import {draftQueuePolicy,reviewQueuePolicy,openOperationsException,operationsExceptionDetail} from "@erpx/server-operations/public/operations-exceptions";
+import {collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
+import {operationsExceptionDetail} from "@erpx/server-operations/public/operations-exceptions";
 
 type Input={run:string;directory:string;control:PostgresDatabase;h001:PostgresDatabase;h002:PostgresDatabase;h003:PostgresDatabase;h001Files:FileStore;h002Files:FileStore;h003Files:FileStore};
 export type WorkplacePlatformUatUser={key:string;name:string;email:string;userId:string;assignmentId:string;companyId:string;holdingSlug:'simulation'|'erpx';role:string;platformRole?:'platform_admin'|'platform_auditor';platformAssignmentId?:string};
@@ -65,26 +65,56 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  const proposalSource=await saveTask(input.h001,operator,null,taskSchema.parse({title:'Fictional reviewed-proposal source',description:'Explicit no-network provider fixture; human reviews all fields before creating work',assigneeUserId:operator.userId}),key());
  // Project membership gives each intended reviewer real access to the shared
  // showcase sources. The separate private proposal source stays unchanged.
- const showcaseProject=await saveProject(input.h001,author,null,projectSchema.parse({title:'Fictional delivery review project',description:'Declared engineering participants share native evidence for human delivery review',memberUserIds:[reviewer.userId,operator.userId]}),key());
+ const showcaseProject=await seedProjectFor(input.h001,author,null,projectSchema.parse({title:'Fictional delivery review project',description:'Declared engineering participants share native evidence for human delivery review',memberUserIds:[reviewer.userId,operator.userId]}),key());
  const task=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shipment exception source',description:'Native task source; no real customer incident',projectId:String(showcaseProject.id),assigneeUserId:operator.userId,dueAt:'2026-10-20T00:00:00+07:00'}),key());
  const showcaseSource=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shared delivery review source',description:'Native project evidence readable only by its owner, members and task participants',projectId:String(showcaseProject.id),assigneeUserId:operator.userId}),key());
  const showcaseTarget=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shared delivery confirmation',description:'Second native task in the same participant-controlled project',projectId:String(showcaseProject.id),assigneeUserId:reviewer.userId}),key());
- const brandDraft=await saveBrandIdentityDraft(author,{expectedPublishedVersion:0,identity:{identity:{shortName:'Fictional Workplace',tagline:'Declared engineering example awaiting independent publication'},visual:{accentColor:'#2864a0',logoPublicationId:null}},reason:'Native unused identity draft for the all-module fictional showcase; no publication'},key());
+ // Fixture state for the all-module showcase. Brand identity commands are owned
+ // by the native command/HTTP path; this unreviewed draft is seeded directly so
+ // the retained Brand read surface has an unpublished draft to display.
+ const brandDraftId=`brand-draft-fixture-${key()}`,brandIdentity={identity:{shortName:'Fictional Workplace',tagline:'Declared engineering example awaiting independent publication'},visual:{accentColor:'#2864a0',logoPublicationId:null}};
+ await input.h001.batch([
+  input.h001.prepare("INSERT INTO brand_identity_drafts(id,company_id,based_revision,identity_json,created_by,updated_by,created_at,updated_at) VALUES(?,?,0,?,?,?,?,?)").bind(brandDraftId,workplace.company,JSON.stringify(brandIdentity),author.userId,author.userId,now,now),
+  input.h001.prepare("INSERT INTO brand_identity_events(id,company_id,record_id,action,version,actor_id,reason,details_json,created_at) VALUES(?,?,?,'draft',1,?,?,?,?)").bind(`brand-event-${brandDraftId}`,workplace.company,brandDraftId,author.userId,'Native unused identity draft fixture; no publication',JSON.stringify({identity:brandIdentity,basedRevision:0}),now),
+ ]);
+ const brandDraft={id:brandDraftId,status:'draft',version:1};
  const socialDraft=await savePostDraft(input.h001,author,null,postDraftSchema.parse({body:'Fictional delivery team update: the native exception source is ready for human review. Only the selected engineering participants can read this post.',purpose:'handover',audience:{kind:'participants',userIds:[reviewer.userId,operator.userId]},sources:[{kind:'staff_task',id:String(showcaseSource.id),version:1}]}),key()),socialPost=await publishPost(input.h001,author,String(socialDraft.id),1,key());
  const room=await createMessagingRoom(input.h001,author,roomSchema.parse({kind:'group',name:'Fictional delivery review thread',members:[reviewer.userId,operator.userId]}),key()),message=await sendMessagingMessage(input.h001,reviewer,room.id,messageSchema.parse({body:'Independent fictional reviewer: retain the source evidence and confirm the delivery before closing the exception.'}),key());
- const relation=await createRecordRelation(author,{sourceType:'staff_task',sourceId:String(showcaseSource.id),targetType:'staff_task',targetId:String(showcaseTarget.id),relation:'related',reason:'Declared fictional native source relation for the human review handoff'},key()),card=await createActionCard(author,{sourceType:'staff_task',sourceId:String(showcaseSource.id),title:'Fictional delivery review action',ownerId:operator.userId,dueAt:now+3*86400000,reason:'Human-owned action linked to the current native task source'},key());
- const exceptionSource=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional showcase delivery discrepancy',description:'Separate native source for the preloaded Operations example',projectId:String(showcaseProject.id),assigneeUserId:operator.userId}),key()),queuePolicy=await draftQueuePolicy(author,{area:'fictional_showcase',name:'Fictional delivery exception policy',sourceKinds:['staff_task'],targetMinutes:240},key());await reviewQueuePolicy(reviewer,String(queuePolicy.id),{action:'publish',expectedVersion:1,reason:'Independent review of the permitted native source and four-hour follow-up target'},key());
- const operationalException=await openOperationsException(author,{source:{kind:'staff_task',id:String(exceptionSource.id),version:1},policyId:String(queuePolicy.id),policyVersion:2,title:'Fictional delivery confirmation missing',issue:'Declared fictional discrepancy awaiting acknowledgement and documented customer confirmation',priority:'normal',ownerId:operator.userId},key());
+ // Native Collaboration owner rows for the all-module showcase; the native
+ // relation/action command suites own authority and transitions, while the
+ // retained workspace read below still has to return these exact rows.
+ const relationKey=key(),relationReason='Declared fictional native source relation for the human review handoff',cardKey=key(),cardReason='Human-owned action linked to the current native task source',cardDueAt=now+3*86400000,[relationSource,relationTarget]=[String(showcaseSource.id),String(showcaseTarget.id)].sort(),relationId=`record-relation-${relationKey}`,cardId=`action-card-${cardKey}`;
+ await input.h001.batch([
+  input.h001.prepare("INSERT INTO collaboration_record_relations(id,company_id,branch_id,department_id,source_type,source_id,source_version,target_type,target_id,target_version,relation,reason,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,'staff_task',?,1,'staff_task',?,1,'related',?,?,?,?)").bind(relationId,workplace.company,relationSource,relationTarget,relationReason,author.userId,now,now),
+  input.h001.prepare("INSERT INTO collaboration_relation_events VALUES(?,?,1,'create',?,?,'active',?)").bind(`record-relation-event-${relationKey}`,relationId,author.userId,relationReason,now),
+  input.h001.prepare("INSERT INTO collaboration_action_cards(id,company_id,branch_id,department_id,source_type,source_id,source_version,title,owner_id,due_at,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,'staff_task',?,1,'Fictional delivery review action',?,?,?,?,?)").bind(cardId,workplace.company,String(showcaseSource.id),operator.userId,cardDueAt,author.userId,now,now),
+  input.h001.prepare("INSERT INTO collaboration_action_events VALUES(?,?,1,'create',?,?,'open',?,?,?)").bind(`action-card-event-${cardKey}`,cardId,author.userId,cardReason,operator.userId,cardDueAt,now),
+  input.h001.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'collaboration_action',id,version,'New cross-record action card: review the linked source',updated_at FROM collaboration_action_cards WHERE id=?").bind(`action-card-notice-${cardKey}`,cardId),
+ ]);
+ const relation={id:relationId},card={id:cardId};
+ const exceptionSource=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional showcase delivery discrepancy',description:'Separate native source for the preloaded Operations example',projectId:String(showcaseProject.id),assigneeUserId:operator.userId}),key());
+ // Operations policy/exception rows are seeded as owner facts here; the native
+ // Operations command and its rust-operations-commands-postgres suite own the
+ // lifecycle after this fictional browser fixture is read back.
+ const queuePolicyId=`operations-policy-${key()}`,operationalExceptionId=`operations-exception-${key()}`,exceptionDueAt=now+240*60000,sourceReference=JSON.stringify({kind:'staff_task',id:String(exceptionSource.id),version:1}),policySnapshot=JSON.stringify({id:queuePolicyId,area:'fictional_showcase',name:'Fictional delivery exception policy',revision:1,sourceKinds:['staff_task'],targetMinutes:240,version:2});
+ await input.h001.batch([
+  input.h001.prepare("INSERT INTO operations_queue_policies(id,company_id,area,name,revision,source_kinds_json,target_minutes,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,1,?,?,'published',?,?,2,?,?)").bind(queuePolicyId,workplace.company,'fictional_showcase','Fictional delivery exception policy',JSON.stringify(['staff_task']),240,author.userId,reviewer.userId,now,now),
+  input.h001.prepare("INSERT INTO operations_exceptions(id,company_id,branch_id,department_id,area,source_kind,source_id,source_version,source_reference_json,policy_id,policy_snapshot_json,title,issue,priority,owner_id,status,due_at,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?,1,?,?,?)").bind(operationalExceptionId,workplace.company,workplace.branch,null,'fictional_showcase','staff_task',String(exceptionSource.id),1,sourceReference,queuePolicyId,policySnapshot,'Fictional delivery confirmation missing','Declared fictional discrepancy awaiting acknowledgement and documented customer confirmation','normal',operator.userId,exceptionDueAt,author.userId,now,now),
+  input.h001.prepare("INSERT INTO operations_exception_events(id,exception_id,version,action,actor_id,reason,status,details_json,created_at) VALUES(?,?,1,'open',?,?,'open',?,?)").bind(`operations-event-${key()}`,operationalExceptionId,author.userId,'Declared fictional discrepancy awaiting acknowledgement and documented customer confirmation','{}',now),
+ ]);
+ const operationalException={id:operationalExceptionId},queuePolicy={id:queuePolicyId};
  for(const participant of [author,reviewer,operator]){
   for(const source of [task,showcaseSource,showcaseTarget,exceptionSource])await getTask(input.h001,participant,String(source.id));
   const post=await postView(input.h001,participant,String(socialPost.id)),workspace=await collaborationWorkspace(participant),exception=await operationsExceptionDetail(participant,String(operationalException.id));
   if(!post.linkedSources.some(source=>source.available&&source.id===showcaseSource.id)||!workspace.relations.some(row=>row.id===relation.id)||!workspace.cards.some(row=>row.id===card.id)||exception.row.source.id!==exceptionSource.id)throw new Error('NATIVE_SHOWCASE_PARTICIPANT_READBACK_REQUIRED');
  }
- const agent=await createAgent(author,{name:'Engineering proposal assistant',purpose:'Propose task fields for explicit human review'},key());
- await changeAgentRecord(reviewer,'agent',String(agent.id),{action:'approve',expectedVersion:1,reason:'Independent fictional catalogue review'},key());
- const prompt='Only propose explicitly supplied task fields. Preserve the source reference and wait for a person to review and submit.';
- const version=await createAgentVersion(author,{agentId:agent.id,prompt,allowedSources:['/home','/staff-tasks']},key());await changeAgentRecord(reviewer,'version',String(version.id),{action:'approve',expectedVersion:1,reason:'Independently reviewed prompt and two allowed source areas'},key());
- const assignment=await createAgentAssignment(author,{agentVersionId:version.id,userId:operator.userId,scopePath:'/'},key());
+ const prompt='Only propose explicitly supplied task fields. Preserve the source reference and wait for a person to review and submit.',agentAt=Date.now(),agentId=`agent-${key()}`,versionId=`agent-version-${key()}`,assignmentId=`agent-assignment-${key()}`;
+ await input.h001.batch([
+  input.h001.prepare("INSERT INTO agent_catalog(id,company_id,name,purpose,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,'approved',?,?,1,?,?)").bind(agentId,workplace.company,'Engineering proposal assistant','Propose task fields for explicit human review',author.userId,reviewer.userId,agentAt,agentAt),
+  input.h001.prepare("INSERT INTO agent_versions(id,agent_id,version_number,prompt,allowed_sources_json,prohibited_actions_json,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,1,?,?,'[\"approve\",\"sign\",\"pay\"]','approved',?,?,1,?,?)").bind(versionId,agentId,prompt,'[\"/home\",\"/staff-tasks\"]',author.userId,reviewer.userId,agentAt,agentAt),
+  input.h001.prepare("INSERT INTO agent_assignments(id,company_id,agent_version_id,pool_id,user_id,scope_path,status,created_by,revoked_by,version,created_at,updated_at) VALUES(?,?,?,NULL,?,'/','active',?,NULL,1,?,?)").bind(assignmentId,workplace.company,versionId,operator.userId,author.userId,agentAt,agentAt),
+ ]);
+ const agent={id:agentId},version={id:versionId},assignment={id:assignmentId};
  const proposalId=key(),proposalInput=guidedIntakeInputSchema.parse({message:'Create a Fictional proposal task for human review',contextPath:`/staff-tasks/${proposalSource.id}`});
  let approvedPromptUsed=false;
  const proposal=await prepareGuidedIntake(input.h001,operator,{AI_BASE_URL:'https://opencode.ai/zen/go/v1',AI_MODEL:'muse-spark-1.3-contributor',AI_API_KEY:'declared-no-network-engineering-fixture'},proposalInput,proposalId,async(_endpoint,messages)=>{
@@ -116,11 +146,21 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  if(!nativeGrant)throw new Error('NORMAL_IAM_SEED_ASSIGNMENT_REQUIRED');
  const selection=await selectWorkRole(input.h001,{sessionId:nativeSession.id,userId:author.userId,companyId:workplace.company,assignmentId:author.assignmentId,assignmentVersion:nativeGrant.version,revision:0,expiresAt:Date.parse(nativeSession.expiresAt)});
  const iamActor:IamActor={...author,sessionId:nativeSession.id,authority:{sessionId:nativeSession.id,revision:selection.revision,assignmentVersion:nativeGrant.version},iam:await loadIamAuthority(input.h001,workplace.company,author.userId,author.role,nativeSession.id),scopeKind:'holding',scopeNodeId:null,platform:false};
- const enrollment=await beginMfa(iamActor),counter=Math.floor(Date.now()/30000);await verifyMfa(iamActor,totp(enrollment.secret,counter));
+ const mfa=iamMfaEnrollment(input.control),enrollment=await mfa.begin(iamActor),counter=Math.floor(Date.now()/30000);await mfa.verify(iamActor,totp(enrollment.secret,counter));
  for(const project of ['desktop','mobile'])await privateJson(join(input.directory,`workplace-platform-mfa-${project}.json`),{[author.userId]:{secret:enrollment.secret,counter}});
  const directoryInput=connectionInput.parse({expectedVersion:0,name:'Declared fictional directory · provider unavailable',provider:'active_directory',config:{mode:'ldaps',secretProfile:'engineering_no_provider_account',authority:'Declared engineering fixture; no live provider account',ldapUrl:'ldaps://directory.engineering.invalid:636',baseDn:'DC=engineering,DC=invalid'}});
  const directoryConnection=await saveConnection(input.h001,iamActor,directoryInput,key());
- const campaign=await startAccessReviewCampaign(input.h001,iamActor,accessReviewCampaignInput.parse({name:'Fictional Company access review',dueAt:now+7*86400000,reason:'Review the native frozen assignment source snapshots for this fictional Company'}),key());
+ // Native owner rows only: the access-review command itself is native and
+ // cannot be driven from this TypeScript fixture.
+ const campaign={id:`access-review-${key()}`,itemCount:0};
+ await input.h001.prepare("INSERT INTO iam_access_review_campaigns(id,company_id,name,due_at,status,version,created_by,reason,created_at,updated_at) VALUES(?,?,?,?,'open',1,?,?,?,?)")
+  .bind(campaign.id,workplace.company,'Fictional Company access review',now+7*86400000,author.userId,'Review the native frozen assignment source snapshots for this fictional Company',now,now).run();
+ const campaignItems=await input.h001.prepare("SELECT id,user_id,role,scope_kind,scope_node_id,source,valid_until,version FROM assignments WHERE company_id=? AND revoked_at IS NULL AND iam_assignment_active(id,?) AND iam_principal_active(user_id,?,?) ORDER BY user_id,role,id")
+  .bind(workplace.company,now,workplace.company,now).all<{id:string;user_id:string;role:string;scope_kind:string;scope_node_id:string|null;source:string;valid_until:number|null;version:number}>();
+ for(const [index,item] of campaignItems.results.entries())
+  await input.h001.prepare("INSERT INTO iam_access_review_items(id,campaign_id,company_id,assignment_id,assignment_version,user_id,role,scope_kind,scope_node_id,source,valid_until) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+   .bind(`access-review-item-${campaign.id}-${index}`,campaign.id,workplace.company,item.id,item.version,item.user_id,item.role,item.scope_kind,item.scope_node_id,item.source,item.valid_until).run();
+ campaign.itemCount=campaignItems.results.length;
  const deadLetterEventId=`engineering-dead-letter-${key()}`;
  await input.h001.prepare("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at,attempts,last_error,dead_letter_at) VALUES(?,?,'engineering.fixture.retry','engineering_fixture',?,1,'{}',?,5,'DECLARED_ENGINEERING_FAULT',?)").bind(deadLetterEventId,key(),workplace.company,now,now).run();
  const targetMonth=new Date(Date.now()+7*3600000).toISOString().slice(0,7);

@@ -1,0 +1,69 @@
+[package]
+name = "erpx-server-commerce"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-workflow.workspace = true
+sqlx.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+erpx-server-finance.workspace = true
+erpx-server-inventory.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "order"
+path = "../../tests/unit/commerce/rust-commerce-order.test.rs"
+
+[[test]]
+name = "order_http"
+path = "../../tests/unit/commerce/rust-commerce-order-http.test.rs"
+
+[[test]]
+name = "receipt_http"
+path = "../../tests/unit/commerce/rust-commerce-receipt-http.test.rs"
+
+[[test]]
+name = "sales_delivery"
+path = "../../tests/unit/commerce/rust-sales-delivery.test.rs"
+
+[[test]]
+name = "record_source"
+path = "../../tests/unit/commerce/rust-commerce-record-source.test.rs"
+
+[[test]]
+name = "record_source_postgres"
+path = "../../tests/integration/commerce/rust-commerce-record-source-postgres.test.rs"
+
+[[test]]
+name = "order_postgres"
+path = "../../tests/integration/commerce/rust-commerce-order-postgres.test.rs"
+
+[[test]]
+name = "sales_delivery_postgres"
+path = "../../tests/integration/commerce/rust-sales-delivery-postgres.test.rs"
+
+[[test]]
+name = "consumption_postgres"
+path = "../../tests/integration/commerce/rust-consumption-commerce-postgres.test.rs"
+
+[[test]]
+name = "service_count_masters_postgres"
+path = "../../tests/integration/commerce/rust-service-count-masters-postgres.test.rs"

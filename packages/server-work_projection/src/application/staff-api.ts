@@ -5,16 +5,18 @@ import type {listStaffNotifications} from "@erpx/server-collaboration/public/sta
 import type {} from "@erpx/server-identity_access/public/authorization";
 import type {staffPeople,activeStaff,companyAuthority} from "@erpx/server-operations/public/staff-policy";
 import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,staffSettings} from "@erpx/server-operations/public/staff-settings";
-import type {listTasks,saveTask,taskActionSchema,taskDelegationRevokeSchema,taskDelegationSchema,taskDetail,taskSchema,delegateTask,revokeTaskDelegation,transitionTask} from '@erpx/server-operations/public/staff-tasks';
-import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema,saveProjectMilestone,transitionProjectMilestone} from "@erpx/server-projects/public/project-milestones";
-import type {decideProjectWorkLog,listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema,saveProjectWorkLog} from "@erpx/server-projects/public/project-actuals";
-import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@erpx/server-operations/public/routines";
+import type {listTasks,taskDetail} from '@erpx/server-operations/public/staff-tasks';
+import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema} from "@erpx/server-projects/public/project-milestones";
+import type {listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema} from "@erpx/server-projects/public/project-actuals";
+import type {canEditTemplate,getTemplate,listTemplates,ScheduleRow} from "@erpx/server-operations/public/routines";
 import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
-import type {getProject,listProjects,projectSchema,saveProject} from "@erpx/server-projects/public/staff-projects";
+import type {getProject,listProjects,projectSchema} from "@erpx/server-projects/public/staff-projects";
 import type {StaffResource,StaffRequestContext} from "@erpx/server-work_projection/domain/staff-api";
 type WithoutDatabase<F> = F extends (...args:infer A)=>infer R ? A extends [unknown,...infer Tail] ? (...args:Tail)=>R:never:never;
-export type StaffApiPorts={requireWorkContext:typeof requireWorkContext;prepare(actor:WorkContext):Promise<void>;now():number;error(status:number,code:string,message:string):Error;requestPublicOrigin:typeof requestPublicOrigin;listStaffNotifications:WithoutDatabase<typeof listStaffNotifications>;
+export type ProjectCommandPort = {request:Request;holdingSlug:string;operation:"work-log.save" | "work-log.review" | "milestone.save" | "milestone.transition" | "project.save";projectId?:string;recordId?:string;input:unknown;key:string;branchSlug?:string;departmentSlug?:string};
+export type StaffApiPorts={requireWorkContext:typeof requireWorkContext;prepare(actor:WorkContext):Promise<void>;now():number;error(status:number,code:string,message:string):Error;requestPublicOrigin:typeof requestPublicOrigin;markNotificationRead(actor:WorkContext,id:string,key:string,now:number):Promise<unknown>;
+listStaffNotifications:WithoutDatabase<typeof listStaffNotifications>;
 staffPeople:WithoutDatabase<typeof staffPeople>;
 activeStaff:WithoutDatabase<typeof activeStaff>;
 companyAuthority:WithoutDatabase<typeof companyAuthority>;
@@ -24,48 +26,29 @@ staffSettings:WithoutDatabase<typeof staffSettings>;
 getProject:WithoutDatabase<typeof getProject>;
 listProjects:WithoutDatabase<typeof listProjects>;
 listTasks:WithoutDatabase<typeof listTasks>;
-saveProject:WithoutDatabase<typeof saveProject>;
-saveTask:WithoutDatabase<typeof saveTask>;
 taskDetail:WithoutDatabase<typeof taskDetail>;
-delegateTask:WithoutDatabase<typeof delegateTask>;
-revokeTaskDelegation:WithoutDatabase<typeof revokeTaskDelegation>;
-transitionTask:WithoutDatabase<typeof transitionTask>;
 listProjectMilestones:WithoutDatabase<typeof listProjectMilestones>;
-saveProjectMilestone:WithoutDatabase<typeof saveProjectMilestone>;
-transitionProjectMilestone:WithoutDatabase<typeof transitionProjectMilestone>;
-decideProjectWorkLog:WithoutDatabase<typeof decideProjectWorkLog>;
 listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
-saveProjectWorkLog:WithoutDatabase<typeof saveProjectWorkLog>;
+projectCommand(command:ProjectCommandPort):Promise<unknown>;
 canEditTemplate:WithoutDatabase<typeof canEditTemplate>;
-changeScheduleState:WithoutDatabase<typeof changeScheduleState>;
-endSchedule:WithoutDatabase<typeof endSchedule>;
 getTemplate:WithoutDatabase<typeof getTemplate>;
 listTemplates:WithoutDatabase<typeof listTemplates>;
-runTemplate:WithoutDatabase<typeof runTemplate>;
-saveSchedule:WithoutDatabase<typeof saveSchedule>;
-saveTemplate:WithoutDatabase<typeof saveTemplate>;
 rerouteApproval:WithoutDatabase<typeof rerouteApproval>;
 changeAppointment:WithoutDatabase<typeof changeAppointment>;headSchema:typeof headSchema.parse;
 levelAssignmentSchema:typeof levelAssignmentSchema.parse;
 levelSchema:typeof levelSchema.parse;
 projectSchema:typeof projectSchema.parse;
-taskActionSchema:typeof taskActionSchema.parse;
-taskDelegationRevokeSchema:typeof taskDelegationRevokeSchema.parse;
-taskDelegationSchema:typeof taskDelegationSchema.parse;
-taskSchema:typeof taskSchema.parse;
 projectMilestoneSchema:typeof projectMilestoneSchema.parse;
 projectMilestoneTransitionSchema:typeof projectMilestoneTransitionSchema.parse;
 projectWorkLogDecisionSchema:typeof projectWorkLogDecisionSchema.parse;
 projectWorkLogSchema:typeof projectWorkLogSchema.parse;
-scheduleSchema:typeof scheduleSchema.parse;
-templateSchema:typeof templateSchema.parse;facts:{projectMembers(value:string):Promise<{results:Record<string,unknown>[]}>;
+facts:{projectMembers(value:string):Promise<{results:Record<string,unknown>[]}>;
 templateSchedules(value:string,companyId:string):Promise<{results:ScheduleRow[]}>;
 approvalQueue(companyId:string,value:0 | 1):Promise<{results:Record<string,unknown>[]}>;
-notificationRead(now:number,value:string,companyId:string,userId:string):Promise<unknown>;
 headPlacement(companyId:string,value:string,personId:string):Promise<{position_id:string|null}|null>;
 betaApproval(value:string,companyId:string):Promise<Record<string,unknown>|null>;};};
 export function createStaffApiService(ports:StaffApiPorts){return async function execute(resource:StaffResource,request:Request,context:StaffRequestContext){
-const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requireWorkContext(holdingSlug);await ports.prepare(actor);
+const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requireWorkContext(holdingSlug);await ports.prepare(actor);const projectScope=actor.scope.kind==='holding'?{}:{branchSlug:actor.scope.branchSlug,...(actor.scope.kind==='department'?{departmentSlug:actor.scope.departmentSlug}:{})};
       let data: unknown;
       if (request.method === "GET") {
         if (resource === "staff" && p[0] === "notifications")
@@ -142,7 +125,7 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
           p[0] === "notifications" &&
           p[2] === "read"
         ) {
-          await ports.facts.notificationRead(ports.now(),p[1],actor.companyId,actor.userId);
+          await ports.markNotificationRead(actor,p[1],key,ports.now());
           data = { id: p[1] };
         } else if (resource === "staff" && p[0] === "levels")
           data = await ports.saveLevel(
@@ -172,118 +155,62 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
             const holder=await ports.facts.headPlacement(actor.companyId,p[1],head.personId);
             data=await ports.changeAppointment(actor,{kind:"head",departmentId:p[1],positionId:holder?.position_id??null,personId:head.personId,expectedVersion:head.expectedVersion,reason:head.reason},key);
           }
-        else if (resource === "staff-tasks" && p[1] === "transition")
-          data = await ports.transitionTask(
-            actor,
-            p[0],
-            ports.taskActionSchema(input),
-            key,
-          );
-        else if (resource === "staff-tasks" && p[1] === "delegate" && p[2] === "revoke")
-          data = await ports.revokeTaskDelegation(
-            actor,
-            p[0],
-            ports.taskDelegationRevokeSchema({ ...input, delegationId: p[3] }),
-            key,
-          );
-        else if (resource === "staff-tasks" && p[1] === "delegate")
-          data = await ports.delegateTask(
-            actor,
-            p[0],
-            ports.taskDelegationSchema(input),
-            key,
-          );
-        else if (
-          resource === "staff-tasks" &&
-          (p.length < 2 || p[1] === "revise")
-        )
-          data = await ports.saveTask(
-            actor,
-            p[0] ?? null,
-            ports.taskSchema(input),
-            key,
-            p[1] === "revise",
-          );
         else if (resource === "projects" && p[1] === "milestones" && p[3] === "transition")
-          data = await ports.transitionProjectMilestone(
-            actor,
-            p[0],
-            p[2],
-            ports.projectMilestoneTransitionSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "milestone.transition",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectMilestoneTransitionSchema(input),
             key,
-          );
+          });
         else if (resource === "projects" && p[1] === "work-logs" && p[3] === "review")
-          data = await ports.decideProjectWorkLog(
-            actor,
-            p[0],
-            p[2],
-            ports.projectWorkLogDecisionSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "work-log.review",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectWorkLogDecisionSchema(input),
             key,
-          );
+          });
         else if (resource === "projects" && p[1] === "work-logs" && p.length <= 3)
-          data = await ports.saveProjectWorkLog(
-            actor,
-            p[0],
-            ports.projectWorkLogSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "work-log.save",
+            projectId: p[0],
+            input: ports.projectWorkLogSchema(input),
             key,
-          );
+          });
         else if (resource === "projects" && p[1] === "milestones" && p.length <= 3)
-          data = await ports.saveProjectMilestone(
-            actor,
-            p[0],
-            p[2] ?? null,
-            ports.projectMilestoneSchema(input),
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "milestone.save",
+            projectId: p[0],
+            recordId: p[2],
+            input: ports.projectMilestoneSchema(input),
             key,
-          );
-        else if (resource === "projects" && p.length < 2)
-          data = await ports.saveProject(
-            actor,
-            p[0] ?? null,
-            ports.projectSchema(input),
+          });
+        else if (resource === "projects" && p.length < 2) {
+          const command = ports.projectSchema(input);
+          data = await ports.projectCommand({
+            request,
+            holdingSlug,
+            ...projectScope,
+            operation: "project.save",
+            projectId: p[0],
+            input: command,
             key,
-          );
-        else if (resource === "routine-templates" && p[1] === "run") {
-          const body = z
-            .object({ dueAt: z.iso.datetime({ offset: true }) })
-            .parse(input);
-          data = await ports.runTemplate(
-            actor,
-            p[0],
-            Date.parse(body.dueAt),
-            key,
-          );
-        } else if (resource === "routine-templates" && p[1] === "clone")
-          data = await ports.saveTemplate(
-            actor,
-            null,
-            ports.templateSchema(input),
-            key,
-            p[0],
-          );
-        else if (resource === "routine-templates" && p[1] === "schedules")
-          data = await ports.saveSchedule(
-            actor,
-            p[0],
-            p[2] ?? null,
-            ports.scheduleSchema(input),
-            key,
-          );
-        else if (resource === "routine-templates" && p.length < 2)
-          data = await ports.saveTemplate(
-            actor,
-            p[0] ?? null,
-            ports.templateSchema(input),
-            key,
-          );
-        else if (
-          resource === "routine-schedules" &&
-          ["pause", "resume", "end"].includes(p[1])
-        ) {
-          const body = z
-            .object({ expectedVersion: z.number().int().positive() })
-            .parse(input);
-          data = p[1]==="end"?await ports.endSchedule(actor,p[0],body.expectedVersion,key):await ports.changeScheduleState(actor,p[0],body.expectedVersion,p[1]==="resume",key);
-        } else if (resource === "approvals" && p[1] === "reroute") {
+          });
+        }
+        else if (resource === "approvals" && p[1] === "reroute") {
           if (
             actor.beta &&
             !(await ports.facts.betaApproval(p[0],actor.companyId))

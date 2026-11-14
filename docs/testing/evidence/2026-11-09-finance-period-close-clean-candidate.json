@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The Finance period-close workpaper candidate is integrated at remote c4500de55 (shared WIP snapshot plus external writer compile fixes). The exact clean archive passes the real PostgreSQL period-close and Files business-evidence suites. Remaining closure gates are policy-version/exact-code parity and authenticated browser/global-lock proof.",
+  "capability": "finance-period-close-workpapers-clean-candidate",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "d6ef0ebf9c2c40f434de5143bddef7e7de2f00ea",
+  "candidateTree": "668f0243b3b9d1a929d5484ef1109beec96cf9be",
+  "patches": {
+    "commonFilesBusinessEvidence": {
+      "path": ".scratch/dev/rust-migration/current/handoff/common-files-business-evidence.patch",
+      "sha256": "b1e17b09b44e237b33e548ae174e5eaa456686b333fe6a3f728e4c21cab68c41",
+      "scope": "Files table fence, exact require_current set/link revalidation, empty-set rejection, purpose/component/ref/checksum/media/bytes manifest, and the third Files business-evidence test."
+    },
+    "financePeriodCloseMount": {
+      "path": ".scratch/dev/rust-migration/current/handoff/finance-period-close-mount.patch",
+      "sha256": "dde23f4a3d4a0d620d89a7e056d59a60c314475b05575f0b1d2c6d4590e406be",
+      "scope": "Composition FinancePeriodCloseEvidence mount, ERPX_ATTACHMENTS_V2/freeze fail-closed checks, fail-closed product route, native 404 preservation, and the period-close workpaper PG tests."
+    }
+  },
+  "verification": {
+    "cleanArchiveBase": "PASS: cargo check -p erpx-service --locked --features private-field-api on git archive d6ef0ebf9 (27.48s), .scratch/dev/rust-migration/current/verify-d6-check.log.",
+    "candidatePeriodClose": "PASS: cargo test -p erpx-service --locked --test period_close_postgres --features private-field-api: 6 passed, 0 failed, 0 ignored (25.88s), .scratch/dev/rust-migration/current/candidate-period-close3.log.",
+    "candidateFilesEvidence": "PASS: cargo test -p erpx-server-files --locked --test business_evidence_postgres: 3 passed, 0 failed, 0 ignored (3.46s), .scratch/dev/rust-migration/current/candidate-files-evidence2.log.",
+    "fieldPartsCleanArchive": "PASS: clean archive 33f31860 field_service_parts_postgres: 37 passed, 0 failed, 0 ignored (837.75s), including selected_parts_waits_between_finance_owner_locks_then_replays; log in $TMPDIR/erpx-clean-33f-field-parts.log.",
+    "candidateCompile": "PASS: cargo check -p erpx-service --locked --features private-field-api on the patched candidate (25.85s), .scratch/dev/rust-migration/current/candidate-check-env.log.",
+    "integratedCleanArchive": "PASS: git archive c4500de55; cargo check -p erpx-service --locked (32.63s), period_close_postgres 6/6 (23.73s), business_evidence_postgres 3/3 (3.93s). Logs .scratch/dev/rust-migration/current/verify-c450-check.log, c450-period-close.log, c450-files-evidence.log."
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "The candidate is mounted at c4500de55 and verified on the exact clean archive: period-close 6/6 and Files business-evidence 3/3. No workflow or owner is promoted because the shared policy-version check, exact TS error-code parity and authenticated browser/global-lock proof remain open."
+  },
+  "remaining": [
+    "Add the shared EvidencePolicyFact policy-version check and exact TS error-code parity.",
+    "Run authenticated desktop/mobile browser verification; acme public root currently returns 500 because the native Account session is not configured.",
+    "Run the global lock-order/consumer audit on the integrated composition before promotion."
+  ],
+  "nextAction": "Common applies the frozen Files patch and confirms the SHA; then the coordinator integrates the Finance mount and continues the six Field Count/Parts/Finance History mounts.",
+  "integratedAt": "c4500de55a690705a1e63eedc342d49a718d5837"
+}

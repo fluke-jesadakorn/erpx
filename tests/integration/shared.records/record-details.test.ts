@@ -4,7 +4,8 @@ import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {saveMaster,commercePage} from '@erpx/server-commerce/public/commerce';
 import {recordSupplementData} from "@erpx/server-records/public/record-details";
-import {createJournal,createJournalSchema,postJournal,importBankStatement,trialBalance} from '@erpx/server-finance/public/finance';
+import {importBankStatement,trialBalance} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -58,8 +59,7 @@ it('paginates posted journal sources without losing date filters or changing the
  f.owner.role='finance_preparer';f.owner.assignmentId=await f.grant(f.owner,'finance_preparer');
  f.manager.role='finance_approver';f.manager.assignmentId=await f.grant(f.manager,'finance_approver');
  for(let index=0;index<32;index++){
-  const prepared=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-09-04',currency:'THB',lines:[{accountId:f.accounts.expense,debit:'1.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'1.01'}]}),key());
-  await postJournal(f.manager,String(prepared.id),key(),{expectedVersion:1});
+  await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-09-04',currency:'THB',key:key(),createdBy:f.owner.userId,status:'posted',lines:[{accountId:f.accounts.expense,debit:'1.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'1.01'}]});
  }
  const target={kind:'trial_balance' as const,id:f.accounts.expense},args={chartId:f.chart,startDate:'2026-09-04',endDate:'2026-09-04'};
  const first=await recordSupplementData(f.owner,target,args),second=await recordSupplementData(f.owner,target,{...args,detailPage:'2'});

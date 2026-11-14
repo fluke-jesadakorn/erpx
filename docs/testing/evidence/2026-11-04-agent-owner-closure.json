@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Agent now has a bounded native evidence audit read for recent invocation evidence and private-session retention rows, an owner-local HTTP router, and a fail-closed Next transport/SSR/API evidence cutover. The seven Agent workflows remain pending overall: catalog/version/assignment/pool writes, approval/action commands, session hold/release/expire commands, provider execution, shared composition mounting, a dedicated Rust package and browser acceptance remain open.",
+  "capability": "agent-evidence-audit-read-slice",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4f2a9b6683776c551f343bbba8033262e248c3ee",
+  "scope": {
+    "workflows": [
+      "agent/feature-invocation-evidence",
+      "agent/feature-private-sessions (read side only)"
+    ],
+    "packageMapping": "The migration register names `erpx-server-agent`, but no Rust crate or workspace member exists at packages/server-agent. This subagent is prohibited from editing root Cargo.toml/Cargo.lock, so no dedicated Agent crate was registered. The actual writable package that hosts the Agent owner slice is `erpx-server-platform-administration` because Agent governance is an administration surface and that crate already owns the required shared/runtime/sqlx/serde dependencies. The command below is the actual-package command.",
+    "domain": "packages/server-platform_administration/src/domain/agent_evidence.rs owns AgentEvidenceActor (records.read, exact Agent module, current work-context expiry), optional ai.manage session visibility, AgentEvidenceKind/Query, bounded invocation (50) and private-session (100) projections, exact Company identity, outcome/digest/token/error/timestamp validation, legal-hold coherence, derived effective expiry, duplicate-id rejection, deterministic newest-first ordering and the tagged invocation/session record envelope.",
+    "application": "packages/server-platform_administration/src/application/agent_evidence.rs requires the current actor before any repository call, reads only the actor Company, applies own-session privacy unless ai.manage is granted, revalidates every returned row before presentation and maps a missing or out-of-scope record to AGENT_RECORD_NOT_FOUND.",
+    "adapters": "packages/server-platform_administration/src/adapters/agent_evidence.rs reads only ai_invocation_evidence, ai_private_sessions and ai_private_session_controls inside a caller-owned serializable transaction. It keeps the exact Company predicate, the (user_id = actor OR ai.manage) session predicate, 50/100 persisted bounds, detail reads by Company and id, and explicit AGENT_EVIDENCE_TRANSACTION_REQUIRED / AGENT_EVIDENCE_SERIALIZABLE_REQUIRED guards. No cross-owner SQL is invented.",
+    "transactionGuards": "The slice is read-only, so no Workflow/Files/Records same-transaction write guard, owner-write rollback or outbox effect is added. The caller-owned serializable unit is required, the adapter locks its three evidence tables in SHARE mode, and the PostgreSQL tests prove rollback and committed persisted readback.",
+    "http": "packages/server-platform_administration/src/adapters/agent_evidence_http.rs exposes GET /api/v1/holdings/{holding_slug}/agents/evidence and GET /api/v1/holdings/{holding_slug}/agents/evidence/{kind}/{id}. It validates exact registered Host/Holding targets, exact HTTPS origins, duplicate targets, matching-origin requests, rejects unknown kinds, oversized ids, query strings and request bodies before the backend, returns private/no-store plus no-referrer/nosniff responses and maps BusinessError to bounded statuses. Session resolution, selected Company/branch scope, current authority and the serializable unit stay behind AgentEvidenceHttpBackend.",
+    "transport": "packages/server-agent/src/adapters/native-agent-evidence.ts validates ERPX_NATIVE_AGENT_CONFIG (loopback only, no reserved ports 3000/3001/3100/3101/3103/5432/5433/5435/8080 or owned app ports 3200-3299, exact unique HTTPS Holding origins, unique Hosts/slugs/ids, 250..30000 ms), forwards the actual session cookie, Host, branch/department selectors and rendered-context CAS headers, and strictly validates the exact context, invocation and session field sets, Company identity, digest/outcome/token/error/retention facts, effective expiry, privacy, unique ids, ordering, collection bounds and a 1 MiB response bound.",
+    "ssr": "The Agent governance screen reads invocations and private-session rows only through the native transport when ERPX_NATIVE_AGENT_CONFIG is present. An absent or failing native configuration renders the evidence cards as explicitly unavailable; it never falls back to the retained TypeScript invocation/session collections. The existing GET /api/v1/holdings/{slug}/agents route overlays the native evidence for the default workspace response and serves ?view=evidence through the native transport; without configuration it returns empty evidence arrays or 503 for the evidence view. Catalog, versions, assignments, pools, people and all POST commands remain on the retained TypeScript workspace/command path.",
+    "notClaimed": "No catalog/version/assignment/pool create, approve, reject, retire or revoke command, no session hold/release-hold/expire command, no assistant run/field suggestion, no provider call, no assignment decision, no command idempotency receipt, no versions/CAS write, no audit/outbox effect, no shared composition mount, no dedicated Rust package, no record-detail cutover, no browser journey, no authenticated page render, no staging or private production verification. No whole-workflow completion flag is changed."
+  },
+  "changedFiles": [
+    ".env.example",
+    "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
+    "packages/feature-agent/src/components/agent-governance-console.tsx",
+    "packages/server-agent/package.json",
+    "packages/server-agent/src/adapters/agent-governance.ts",
+    "packages/server-agent/src/adapters/native-agent-evidence.ts",
+    "packages/server-agent/src/application/governance.ts",
+    "packages/server-agent/src/public/native-agent-evidence.ts",
+    "packages/server-agent/src/public/native-agent-evidence-page.ts",
+    "packages/server-platform_administration/Cargo.toml",
+    "packages/server-platform_administration/src/domain/agent_evidence.rs",
+    "packages/server-platform_administration/src/domain/mod.rs",
+    "packages/server-platform_administration/src/application/agent_evidence.rs",
+    "packages/server-platform_administration/src/application/mod.rs",
+    "packages/server-platform_administration/src/adapters/agent_evidence.rs",
+    "packages/server-platform_administration/src/adapters/agent_evidence_http.rs",
+    "packages/server-platform_administration/src/adapters/mod.rs",
+    "packages/server-platform_administration/src/public/agent_evidence.rs",
+    "packages/server-platform_administration/src/public/agent_evidence_http.rs",
+    "packages/server-platform_administration/src/public/mod.rs",
+    "packages/workplace/package.json",
+    "packages/workplace/src/lib/native-agent-evidence.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/agents/screen.tsx",
+    "tests/unit/agent/rust-agent-evidence.test.rs",
+    "tests/unit/agent/rust-agent-evidence-http.test.rs",
+    "tests/integration/agent/rust-agent-evidence-postgres.test.rs",
+    "tests/unit/agent/native-agent-evidence-transport.test.ts",
+    "tests/catalogue/suite-manifest.json",
+    "docs/testing/evidence/2026-11-04-agent-owner-closure.json"
+  ],
+  "verification": {
+    "rust": {
+      "command": "ERPX_TEST_ADMIN_URL=\"$(grep -m1 '^ERPX_TEST_ADMIN_URL=' .env.local | cut -d= -f2-)\" cargo test -p erpx-server-platform-administration --locked",
+      "result": "38 passed, 0 failed, 0 ignored",
+      "targets": {
+        "lib": "14 passed (existing platform-administration checks)",
+        "agent_evidence": "10 passed",
+        "agent_evidence_http": "6 passed",
+        "agent_evidence_postgres": "3 passed",
+        "legal_release": "2 passed (existing foundation checks)",
+        "platform_administration_postgres": "3 passed (existing foundation checks)",
+        "doc-tests": "0 passed"
+      },
+      "unitCases": [
+        "records.read, the Agent module and a current context are required before the repository is called",
+        "own sessions are visible without ai.manage; ai.manage sees every Company session; foreign Company and foreign-user payloads fail closed",
+        "effective expiry is derived from status/expires_at and now; hold/reason coherence, digests, outcome, tokens, ids and timestamps are validated",
+        "duplicate ids, malformed rows and 51/101-row collections fail closed; rows are sorted newest-first",
+        "invocation detail is Company-wide, session detail stays private or manager-wide, and missing/foreign records return AGENT_RECORD_NOT_FOUND",
+        "repository failures propagate and the serialized workspace uses the exact bounded transport field sets"
+      ],
+      "httpCases": [
+        "the actual ephemeral loopback Router serves workspace and record reads with Host/Holding/kind/id forwarding and private/no-referrer/nosniff headers",
+        "matching Origin is accepted; a foreign Origin returns 403 before the backend",
+        "unknown Host/Holding targets return 404; unknown kinds, oversized ids, query strings and request bodies return 422 before the backend",
+        "backend forbidden/not-found/conflict/unavailable errors map to 403/404/409/503",
+        "duplicate, non-HTTPS, origin-with-path/port, empty-host and empty-slug targets are rejected as configuration errors"
+      ],
+      "postgresCases": [
+        "a claimant reads Company invocation evidence from both users but only their own sessions; expired sessions report effective_status=expired; the foreign Company is excluded",
+        "an ai.manage reader additionally sees another user's Company session; invocation detail is Company-wide; a foreign session/invocation returns AGENT_RECORD_NOT_FOUND",
+        "a missing transaction and a read-committed transaction fail with AGENT_EVIDENCE_TRANSACTION_REQUIRED / AGENT_EVIDENCE_SERIALIZABLE_REQUIRED before source reads",
+        "source row counts are unchanged after reads; a row inserted inside the serializable unit is visible only there and disappears on rollback; committed insertion is read back"
+      ]
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-platform-administration --all-targets --locked",
+      "result": "no warning for erpx-server-platform-administration or its three new test targets; the command surfaces four existing erpx-server-organization warnings, so no strict -D warnings pass is claimed for the package graph"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Agent Rust and test file",
+      "result": "pass"
+    },
+    "typescript": {
+      "unit": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/agent/native-agent-evidence-transport.test.ts\"]' ./node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts: 10 passed",
+      "transportCases": [
+        "the registered Host, cookie, branch/department selectors and current context CAS headers are forwarded to the owner path",
+        "the returned server time derives effective expiry; the validated workspace is returned without a TypeScript fallback",
+        "foreign Hosts/Holdings and changed revision context fail closed",
+        "foreign Company rows, non-manager foreign sessions, bad effective expiry, malformed digests/outcomes, incoherent legal holds and generation zero are rejected",
+        "duplicate ids, out-of-order rows and 51/101-row collections are rejected",
+        "extra response keys and non-JSON bodies are rejected",
+        "owner 401/403/404/409/422/503 and network failures map without a TypeScript fallback",
+        "reserved loopback ports, owned app ports, non-loopback bases, non-HTTPS or duplicate Holding origins, bad slugs and undersized/oversized timeouts are rejected"
+      ],
+      "typechecks": [
+        "tsc --noEmit -p packages/server-agent/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-agent/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-admin/tsconfig.json: pass",
+        "tsc --noEmit -p apps/admin/tsconfig.json: pass",
+        "tsc --noEmit -p apps/compat/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed Agent TypeScript files: pass (only the repository's existing Next pages-directory warning)"
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json contains agent.rust-agent-evidence.unit, agent.rust-agent-evidence-http.unit, agent.rust-agent-evidence-postgres.integration and agent.native-agent-evidence-transport.unit",
+      "targetedValidation": "the four new suites pass existsSync/validateCargoSuite/module-registry/discovery checks; tsx scripts/testing/layout.ts passes",
+      "fullValidationLimit": "the whole-catalogue validator currently fails on pre-existing entries outside this slice: customer_360 verificationInputs use packages/server-customer-360/Cargo.toml while the directory is packages/server-customer_360, and the billing suites name a module that is absent from packages/catalogue/src/module-registry.json. Those entries were not edited."
+    },
+    "browser": "not run; no browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was performed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_platform_administration::public::agent_evidence::{AgentEvidenceActor, AgentEvidenceKind, AgentEvidenceQuery, AgentEvidenceRecord, AgentEvidenceWorkspace, AgentInvocationEvidence, AgentPrivateSession, AgentEvidenceRepository, AgentEvidenceFuture, agent_evidence_workspace, agent_evidence_record, PgAgentEvidenceRead, lock_agent_evidence_sources, read_invocations, read_sessions, read_invocation, read_session, INVOCATION_LIMIT, SESSION_LIMIT, validate_workspace, validate_record, validate_invocation, validate_session}",
+      "erpx_server_platform_administration::public::agent_evidence_http::{agent_evidence_http_router, AgentEvidenceHttpTarget, AgentEvidenceHttpBackend, AgentEvidenceHttpReadRequest, AgentEvidenceHttpResponse, AgentEvidenceHttpQuery, AgentEvidenceHttpFuture}"
+    ],
+    "backendRequired": "Implement AgentEvidenceHttpBackend in src/composition: resolve the normal Account/Holding session, require records.read, the agent module and a current context, validate the selected Company/branch/department and rendered-context CAS headers, enforce session privacy with ai.manage, open one serializable transaction, call lock_agent_evidence_sources, and call agent_evidence_workspace/agent_evidence_record with PgAgentEvidenceRead. Return the exact rendered context alongside data: {userId, holdingId, companyId, branchId, departmentId, branchSlug, departmentSlug, assignmentId, assignmentVersion, revision, role, assignmentScopeKind, modules, permissions}. No cross-owner SQL may be added to the Agent adapter.",
+    "privateDevelopmentApi": [
+      "Build one AgentEvidenceHttpTarget per registered Holding with exact host, slug and HTTPS origin.",
+      "router = router.merge(erpx_server_platform_administration::public::agent_evidence_http::agent_evidence_http_router(targets).map_err(|_| \"PRIVATE_API_AGENT_CONFIGURATION_INVALID\")?);",
+      "Mount GET /api/v1/holdings/{slug}/agents/evidence and GET /api/v1/holdings/{slug}/agents/evidence/{kind}/{id} before the generic 404 fallback. The retained Next route uses ?view=evidence for the workspace read."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_AGENT_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for the admin app. Unset or malformed configuration renders the Agent evidence cards as unavailable and the ?view=evidence API as 503 NATIVE_AGENT_UNAVAILABLE; catalog/version/assignment/pool/people data and all POST commands remain on the retained TypeScript path.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, packages/contracts/** and docs/status/**.",
+    "schemaDelta": "none; no migration, table, index, trigger, grant or destructive data change was added"
+  },
+  "legacyInventory": {
+    "removedReadConsumers": [
+      "The Agent governance screen calls agentWorkspace with includeEvidence=false, so it no longer queries or renders workspace.invocations or workspace.sessions from the retained TypeScript reader. When ERPX_NATIVE_AGENT_CONFIG is absent or failing it renders an explicit unavailable notice instead of a TypeScript evidence fallback.",
+      "The GET /api/v1/holdings/{slug}/agents route also calls agentWorkspace with includeEvidence=false, overlays native evidence on the default workspace response and serves ?view=evidence natively; without configuration it returns empty evidence arrays or 503 for the evidence view. The POST command route is retained."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-agent/src/public/agent-governance.ts still exports agentWorkspace (default includeEvidence=true), agentEvidenceRecord, assistantGovernanceContext, recordAssistantInvocation, catalog/version/pool/assignment commands and session hold/release/expire commands.",
+      "The agents screen still uses agentWorkspace for agents, versions, pools, assignments and people; the console still POSTs lifecycle commands to /api/v1/{base}/agents with Idempotency-Key.",
+      "agentWorkspace(actor) with the default includeEvidence=true remains for record-domain details, which still read agent pools/versions/assignments through the retained TypeScript path.",
+      "The agent_invocation and agent_session record-detail pages still read through packages/server-records and agentEvidenceRecord; they are not cut over in this slice.",
+      "All command idempotency receipts, versions/CAS writes, audit/outbox effects, same-transaction Workflow/Files/Records and IAM guards remain TypeScript and unchanged."
+    ]
+  },
+  "limits": [
+    "This is a read-only evidence slice. The seven Agent workflows are not complete; approvals, assignment lifecycle, pool routing writes and session retention commands remain TypeScript.",
+    "No shared composition backend is mounted, so no production/private route serves the owner router. The HTTP test backend is a recording fake.",
+    "The actual package is erpx-server-platform-administration because no erpx-server-agent Rust crate or workspace member exists and root Cargo files are frozen for this subagent.",
+    "The native config is opt-in per app; unset configuration intentionally makes the evidence cards unavailable rather than reading the legacy collections.",
+    "No browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was run.",
+    "The root Cargo.toml, Cargo.lock, package lockfiles, src/composition/**, packages/contracts/**, docs/status/** and other owners' implementation were not edited by this slice. Concurrent uncommitted customer_authority/marketing/customer-access/composition work was preserved.",
+    "The full catalogue validator has pre-existing failures outside this slice (customer_360 Cargo path casing and the billing module registry); only the four new suites and the layout validator were verified.",
+    "Bun is not installed in this worktree, so bun run structure:check and the bun-driven catalogue command could not run; the equivalent layout and targeted catalogue validators were executed with tsx/node."
+  ],
+  "blockers": [
+    "Implement and mount AgentEvidenceHttpBackend with the normal Account/Holding session, selected Company/branch/department scope, CAS context, ai.manage privacy and one serializable unit.",
+    "Decide whether the native Agent evidence read should back the agent_invocation/agent_session record-detail pages before retiring the retained records path for those kinds.",
+    "Implement native catalog/version/approval/assignment/pool and session retention commands with idempotency, CAS, audit/outbox and same-transaction guards before retiring the TypeScript commands.",
+    "Run an authenticated browser journey for the native evidence cards after composition is mounted and ERPX_NATIVE_AGENT_CONFIG is set."
+  ],
+  "nextAction": "Bind PgAgentEvidenceRead and the rendered context in src/composition, mount agent_evidence_http_router for each registered Holding, then exercise the native evidence card and session list against real Account data. Keep ERPX_NATIVE_AGENT_CONFIG unset until that backend exists; the unavailable notice and 503 are intentional."
+}

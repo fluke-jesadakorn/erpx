@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Assets register/lifecycle owner effects are PostgreSQL-qualified; HTTP/Next/SSR mounting, Workflow/Commercial composition, Finance disposal posting and browser acceptance remain open",
+  "capability": "assets-native-register",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Five asset actions with placement/condition/retirement rules, ECMAScript trim, UTF-16 bounds, date/currency validation, late version and independent-review guards.",
+    "application": "Asset workspace/detail/create/change use cases through owner ports with retained command ordering and replay short-circuit.",
+    "adapters": "Company/branch/department scoped reads, custodian/Finance projections, history/maintenance references, FOR UPDATE/CAS effects, immutable events, SHA-256 prepared row/event receipts and deferred-trigger detection.",
+    "frontend": "No native HTTP/Next/SSR cutover yet; Assets pages retain the TypeScript owner read."
+  },
+  "tests": [
+    "assets.rust-asset-register-policy.unit: 9 passed",
+    "assets.rust-asset-register-postgres.integration: 16 passed",
+    "cargo test -p erpx-server-assets: all targets pass; clippy clean",
+    "Coverage: Company isolation, branch/department scope, stale versions, permission denial, requester-only retirement refresh, independent review, posted disposal, Finance link/version/custody, active-work retirement block, replay short-circuit, deferred-trigger rollback and persisted readback"
+  ],
+  "limits": [
+    "No native HTTP route or Next transport/SSR; composition mounting is shared-file work and remains pending.",
+    "Commercial purchase admission and actual Workflow receipt/audit/outbox persistence are not bound; tests use owner ports/test doubles.",
+    "Finance disposal posting is not implemented; the owner relies on the existing posted-disposal projection.",
+    "Maintenance full lifecycle commands remain in the Maintenance owner.",
+    "No browser acceptance; no assets workflow is claimed verified.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

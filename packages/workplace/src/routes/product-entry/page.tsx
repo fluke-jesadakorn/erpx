@@ -1,15 +1,15 @@
-import { requestProductOrigin } from '@erpx/feature-runtime/lib/product-hosts';
-import { holdingRoutingEnabled } from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled} from '@erpx/contracts/holding-hosts';
+import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import {productAccessLabel} from '@erpx/feature-work_projection/lib/product-access-label';
 import { productEntrySsoHref, type EntryPageSearchParams } from '@erpx/server-identity_access/public/rules/page-entry-return';
 import { measureReadPhase } from "@erpx/server-runtime/public/runtime/read-metrics";
 import { preferredAccountLanguage } from "@erpx/server-identity_access/public/account-preference-snapshot";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { product } from "@erpx/server-commercial/public/product-registry";
 import { configuredProductOrigin, configuredProductHandoff, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
-import { createAuth } from "@erpx/server-identity_access/public/auth";
+import { holdingHostForHost, holdingOrigin } from "@erpx/feature-runtime/lib/holding-hosts";
+import { currentSession } from "@erpx/server-identity_access/public/authorization";
 import { providerEntryOverview } from "@erpx/server-identity_access/public/provider-entry";
 import { adminLaunchChoices } from "@erpx/server-work_projection/public/admin-launcher";
 import { productLaunchChoices, existingWorkspaceLaunchChoices } from "@erpx/server-work_projection/public/product-launcher";
@@ -19,6 +19,7 @@ import { ProductNavigationBoundary } from "@erpx/workplace/components/product-na
 import styles from "@erpx/workplace/components/product-shell.module.css";
 import { AccountHome } from "@erpx/feature-identity_access/components/account-home";
 import { PublicBookingDirectory } from "@erpx/feature-pms/components/public-booking-directory";
+import { directProductEntryHref } from "../../lib/product-entry";
 
 export const dynamic = "force-dynamic";
 export default async function ProductEntryPage({ searchParams }: { searchParams?: Promise<EntryPageSearchParams> }) {
@@ -32,8 +33,11 @@ export default async function ProductEntryPage({ searchParams }: { searchParams?
     const [title, message] = publicHosts[host as keyof typeof publicHosts];
     return <PageContent as="main"><Stack><ProductBrand appearance="standard" className={styles.mark} variant="symbol" /><h1>{title}</h1><p>{message}</p></Stack></PageContent>;
   }
-  const session = await (await createAuth(requestProductOrigin(host, requestHeaders)!)).api.getSession({ headers: requestHeaders });
-  if (!session) redirect(host === "account" ? "/login" : holdingRoutingEnabled(process.env) ? "/sso/start?" + new URLSearchParams({next:requestHeaders.get("x-erpx-visible-path") ?? "/"}) : productEntrySsoHref(await searchParams ?? {}));
+  const session = await currentSession().then(value => value.session).catch(error => {
+      if (error instanceof Error && error.message === "UNAUTHENTICATED") return null;
+      throw error;
+    });
+  if (!session) redirect(host === "account" ? "/login" : holdingRoutingEnabled(process.env)?'/sso/start?'+new URLSearchParams({next:requestHeaders.get('x-erpx-visible-path')??'/'}):productEntrySsoHref(await searchParams ?? {}));
   if (host === "account") return <AccountHome />;
   const sharedAdmin = host === "apps" || host === "admin";
   const [products, adminChoices, provider] = await Promise.all([
@@ -42,12 +46,16 @@ export default async function ProductEntryPage({ searchParams }: { searchParams?
     sharedAdmin ? measureReadPhase("product_entry_provider", providerEntryOverview) : null,
   ]);
   const choices = products.filter(choice => host === "apps" || host === choice.productId);
-  // During phased migration Apps keeps every old work entry available even
-  // after the first Company grant. Remove recovery only at accepted cutover.
-  if (choices.length === 1 && host !== "admin" && host !== "apps") redirect(choices[0].href);
+  // A product root with one current workspace opens it directly. Apps, Admin,
+  // shared surfaces and a choice from another Holding keep the chooser.
+  const holding = holdingRoutingEnabled(process.env) ? holdingHostForHost(requestHeaders.get("host")) : undefined;
+  const direct = directProductEntryHref(host, choices, holding
+    ? { holdingSlug: holding.holdingSlug, origin: holdingOrigin(holding.holdingSlug) ?? "" }
+    : undefined);
+  if (direct) redirect(direct);
   const existingWorkspaces = host === "apps" || host === "admin" || choices.length === 0 ? await measureReadPhase("product_entry_recovery", existingWorkspaceLaunchChoices) : [];
   return <ProductNavigationBoundary language={language}><div className={styles.shell}>
-    <header className={styles.header}><Link className={styles.brand} href="/" prefetch={false}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} /><strong>ERPX {product(host)?.label[language] ?? (host === "admin" ? "Administration" : "Apps")}</strong></Link>
+    <header className={styles.header}><AppsHomeLink className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark} /><strong>ERPX {product(host)?.label[language] ?? (host === "admin" ? "Administration" : "Apps")}</strong></AppsHomeLink>
       <span className={styles.context}>{session.user.name}</span><nav className={styles.links}><a data-product-switch href={new URL("/", configuredProductOrigin("account")!).href}>Account</a></nav></header>
     <PageContent as="main"><Stack><SectionHeader><h1>{language === "th" ? "เลือกพื้นที่ทำงาน" : "Choose a workspace"}</h1></SectionHeader>
       {choices.length === 0 && adminChoices.length === 0 && !provider && <InlineNotice tone="info">{existingWorkspaces.length > 0

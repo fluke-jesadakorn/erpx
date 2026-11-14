@@ -1,22 +1,19 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import { serviceTeamOptions } from "@erpx/server-support/public/service-team-options";
-import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import { serviceCommandBody } from "@erpx/server-support/public/service-http";
-import { requireServiceOwner } from "@erpx/server-support/public/service-access";
-import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
+import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
+import {createNativeSupportServiceTeams} from '../../../../../../../adapters/server/native-support-service-teams';
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
-export async function GET(_request: Request, context: Context) {
+const unavailable=()=>new ApiError(503,'NATIVE_SUPPORT_SERVICE_TEAMS_UNAVAILABLE','The native Support service-team service is unavailable.');
+export async function GET(request: Request, context: Context) {
   try {
-    const { holdingSlug, path = [] } = await context.params,
-      actor = await requireWorkContext(holdingSlug),
-      { write } = await holdingResources(actor.holdingId);
-    await requireServiceOwner(write, actor);
+    const { holdingSlug, path = [] } = await context.params;
+    await requireWorkContext(holdingSlug);
     if (path.length)
       throw new ApiError(404, "NOT_FOUND", "Team route not found.");
+    const config = process.env.ERPX_NATIVE_SUPPORT_SERVICE_TEAMS_CONFIG;
+    if (!config) throw unavailable();
     return Response.json(
-      canonicalDestinationLinks({ data: await serviceTeamOptions(write, actor) }),
+      canonicalDestinationLinks({ data: await createNativeSupportServiceTeams(config).options(request.headers, holdingSlug) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -25,20 +22,16 @@ export async function GET(_request: Request, context: Context) {
 }
 export async function POST(request: Request, context: Context) {
   try {
-    const { holdingSlug, path = [] } = await context.params,
-      actor = await requireWorkContext(holdingSlug),
-      { write } = await holdingResources(actor.holdingId),
-      { key, input } = await serviceCommandBody(request);
+    const { holdingSlug, path = [] } = await context.params;
+    await requireWorkContext(holdingSlug);
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Team route not found.");
+    const config = process.env.ERPX_NATIVE_SUPPORT_SERVICE_TEAMS_CONFIG;
+    if (!config) throw unavailable();
+    const key = request.headers.get("Idempotency-Key");
+    if (!key) throw new ApiError(422, "COMMAND_KEY_REQUIRED", "A valid Idempotency-Key is required.");
     return Response.json(canonicalDestinationLinks({
-      data: await saveServiceTeam(
-        write,
-        actor,
-        path[0] ?? null,
-        serviceTeamSchema.parse(input),
-        key,
-      ),
+      data: await createNativeSupportServiceTeams(config).save(request.headers, holdingSlug, path[0] ?? null, await request.text(), key),
     }));
   } catch (e) {
     return errorResponse(e);

@@ -1,0 +1,135 @@
+{
+  "schema": "erpx.evidence/finance-owner-certification/v1",
+  "recorded_at": "2026-11-10T18:45:00+07:00",
+  "head": "4fa8bdd9a28cdc16c6b9dff113c743547b590a07",
+  "owner": "finance",
+  "package": "erpx-server-finance",
+  "workflows": [
+    "finance/journals",
+    "finance/payables",
+    "finance/feature-chart-of-accounts",
+    "finance/feature-payments",
+    "finance/feature-receivables-aging",
+    "finance/feature-bank-reconciliation",
+    "finance/feature-reports",
+    "finance/feature-period-close",
+    "finance/feature-opening-balances",
+    "finance:sales-invoice-workspace"
+  ],
+  "workflow_counts": {
+    "total": 10,
+    "verified": 10,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "scope_decision": {
+    "decision": "same-currency payables certification",
+    "approved_by": "user",
+    "approved_at": "2026-11-10",
+    "included": "same-currency standalone supplier bills; same-currency Commerce fulfillment matched bills; Procurement match post/void with variance and notifications; posted void; payable evidence; desktop/mobile UI.",
+    "excluded": "native foreign-currency Commerce goods-carrying/FX posting and matched void.",
+    "retained_consumer": "The retained command is postInvoice in packages/server-finance/src/adapters/finance.ts, reached through the payables post route legacy branch. It is the named consumer for foreign-currency matched payables; removal condition is the native Commerce goods-carrying/FX port.",
+    "follow_up": "Native FX post/void is a separate Commerce owner bundle and is not counted as native payables evidence.",
+    "process_waiver": "The user directed continued execution without a 6-subagent roster or Common frozen bundle. The gap is reported and is not used as evidence for this certification."
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "not-applicable",
+    "providers": "not-applicable"
+  },
+  "native_paths": {
+    "http": "The private Finance API mounts supplier-bill create/edit/post/void/detail, matched Procurement lifecycle, notifications and the HTTP business error contract.",
+    "ssr": "Finance invoice list/detail, posting form, draft/posted void and matched-void actions use the native owner paths.",
+    "procurement": "Finance validates the reviewed match, every active receipt version and the posted goods journal in one serializable unit; posts clearing/variance/tax/payable lines; advances the match with an event and Collaboration notification; returns the match on void with receipt deactivation and Commerce fulfillment release.",
+    "money": "The posting unit retains the Finance draft:v1 Money snapshot, copies it to total with carried source evidence, and keeps the invoice version/CAS and audit receipt.",
+    "fx": "Native Finance rejects foreign-currency commerce before writes; the retained legacy goods-carrying FX path is the named consumer."
+  },
+  "gates": [
+    {
+      "name": "finance.rust-supplier-bill-postgres.integration",
+      "result": "20/20 pass in 173.07 s with --test-threads=2 (includes FX rejection gates with no-write assertions)"
+    },
+    {
+      "name": "finance unit suites",
+      "result": "149/149 pass"
+    },
+    {
+      "name": "finance.generic-payments.integration",
+      "result": "17/17 pass"
+    },
+    {
+      "name": "sales.commerce-foreign-goods.integration",
+      "result": "5/5 pass"
+    },
+    {
+      "name": "cargo test -p erpx-server-finance",
+      "result": "131 tests, 0 failed"
+    },
+    {
+      "name": "cargo test -p erpx-server-procurement",
+      "result": "35 tests, 0 failed"
+    },
+    {
+      "name": "cargo check",
+      "result": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass"
+    },
+    {
+      "name": "typecheck",
+      "result": "bunx tsc --noEmit exit 0"
+    },
+    {
+      "name": "structure",
+      "result": "bun run structure:check pass"
+    },
+    {
+      "name": "migrations",
+      "result": "1100 and 1101 applied to H001/H002/H003; no stranded matches"
+    },
+    {
+      "name": "cargo check feature variants",
+      "result": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass; logs .scratch/dev/rust-migration/current/finance-cert-check-a/b/c.log"
+    }
+  ],
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "bill": "invoice-3d339547f81bd1ed107b9303bb490d04433a",
+      "result": "Void posted bill summary rendered, September 2026 selected, reversing journal submitted against the restarted current private API; no page error.",
+      "persisted": "invoice voided v3; match bill-match-dev-browser-desktop2 returned v3 with invoice_id NULL; receipt inactive; fulfillment invoice_id NULL, version 3.",
+      "log": ".scratch/dev/rust-migration/current/finance-matched-void-desktop6.log"
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "bill": "invoice-0475758e933dbdb463d9fa84ca565db2083e",
+      "result": "Void posted bill summary rendered in the mobile layout, September 2026 selected, reversing journal submitted against the restarted current private API; no page error.",
+      "persisted": "invoice voided v3; match bill-match-dev-browser-mobile-final3 returned v3 with invoice_id NULL; receipt inactive; fulfillment invoice_id NULL, version 3.",
+      "log": ".scratch/dev/rust-migration/current/finance-matched-void-mobile-final3.log"
+    },
+    "readback": {
+      "desktop": "invoice-3d339547... voided v3; match bill-match-dev-browser-desktop2 returned v3 invoice_id NULL; receipt inactive; fulfillment invoice_id NULL v3; original journal reversed; reversal posted balanced.",
+      "mobile": "invoice-0475758e... voided v3; match bill-match-dev-browser-mobile-final3 returned v3 invoice_id NULL; receipt inactive; fulfillment invoice_id NULL v3; original journal reversed; reversal posted balanced."
+    }
+  },
+  "runtime": {
+    "matched_post": "invoice-401700d00713b1b95d5eddee11eb8bcc6408 posted via the app route with journal journal-finance-procurement-match-app-20261110; match posted v2; clearing 240000 / tax 16800 / payable 256800.",
+    "matched_void": "Holding owner voided the bill; invoice voided v3 with reversal journal; match returned v3; receipt inactive; fulfillment released. The desktop and mobile browser runs used the current private API restarted after the FX-gate/notification commits.",
+    "stale_source": "A changed Commerce source returns 409 SUPPLIER_BILL_SOURCE_CHANGED with application/json on the app route and direct 3198."
+  },
+  "legacy": {
+    "retained": "Foreign-currency matched payables use the retained Commerce goods-carrying FX path; this is a named consumer, not native evidence.",
+    "people_expense": "People payroll expense-claim posting remains People-owned; Finance consumes an existing linked draft through its owner port.",
+    "notifications": "Native Procurement match notifications are written through the Collaboration owner port.",
+    "bank_reconciliation": "Automated mapping/groups remain in the retained TypeScript path; the registered reconciliation workflow is certified through its native read/confirm surfaces and this retained consumer is disclosed.",
+    "jobs": "Finance due-draft and AI jobs remain in the retained TypeScript job runtime; they are outside the 10 registered workflows and are disclosed auxiliary consumers."
+  },
+  "notes": [
+    "Finance is owner 6/41 in this record under the user-approved same-currency scope.",
+    "Native foreign-currency FX posting/void is a follow-up Commerce bundle and is excluded from this certification.",
+    "No production, staging, deployment, schema deletion or destructive cleanup was performed."
+  ],
+  "status": "owner-complete",
+  "surfaces_scope": "The surfaces apply to the 10 registered workflows. Retained Finance due-draft/AI jobs and bank-reconciliation automated mapping/groups are auxiliary consumers outside this certification and are disclosed in legacy."
+}

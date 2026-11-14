@@ -2,7 +2,9 @@
 import { Button } from "@erpx/ui/components/foundation";
 
 import Link from "@erpx/workplace/components/workspace-link";
-import { usePathname } from "next/navigation";
+import {useProductNavigationScope,useProductPathname} from './product-link-context';
+import {productNavigationHref} from '@erpx/feature-work_projection/lib/product-navigation';
+import {workspacePathParts} from '@erpx/feature-work_projection/lib/destination-registry';
 import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -29,7 +31,8 @@ export function WorkspaceBreadcrumb({
   ancestors: WorkspaceCrumb[];
   navigation: NavigationContext;
 }) {
-  const pathname = usePathname();
+  const pathname = useProductPathname();
+  const productScope=useProductNavigationScope(),parsedPath=workspacePathParts(pathname,productScope.holdingSlug);
   const searchParams = useSearchParams();
   const overflow = useRef<HTMLLIElement>(null);
   const overflowButton = useRef<HTMLButtonElement>(null);
@@ -37,7 +40,7 @@ export function WorkspaceBreadcrumb({
   const routeCrumbs: Crumb[] = navigationTrail(
     workplaceNavigation(navigation),
     workspaceBase,
-    pathname,
+    parsedPath?`${parsedPath.base}/${parsedPath.path}`:pathname,
     searchParams,
   );
   const crumbs = [...ancestors, ...routeCrumbs];
@@ -66,7 +69,7 @@ export function WorkspaceBreadcrumb({
   function crumbContent(crumb: Crumb, current: boolean) {
     if (crumb.href && !current)
       return crumb.fullNavigation ? (
-        <a data-product-switch href={crumb.href} title={crumb.label}>
+        <a data-product-switch href={productNavigationHref(crumb.href,productScope).href} title={crumb.label}>
           {crumb.label}
         </a>
       ) : (

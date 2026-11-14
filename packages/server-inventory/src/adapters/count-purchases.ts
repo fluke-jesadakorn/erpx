@@ -1,4 +1,5 @@
-import {serviceInitialPhysicalStockCountMarked,serviceInitialPhysicalStockCapabilities,requireServiceInitialPhysicalStockHistory,withServiceInitialPhysicalStockCountUnit} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source';
+import {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
+import {serviceInitialPhysicalStockCountMarked,serviceCountPersistedMarker,serviceInitialPhysicalStockCapabilities,requireServiceInitialPhysicalStockHistory} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source';
 import {posInitialPhysicalStockCountMarked,posInitialPhysicalStockCapabilities,requirePosInitialPhysicalStockHistory,withPosInitialPhysicalStockCountUnit} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source';
 import {manufacturingInitialPhysicalStockCountMarked,manufacturingInitialPhysicalStockCapabilities,requireManufacturingInitialPhysicalStockHistory,withManufacturingInitialPhysicalStockCountUnit} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source';
 import "server-only";
@@ -18,6 +19,7 @@ import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-t
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 type Source={id:string;company_id:string;branch_id:string|null;warehouse_id:string};
@@ -32,7 +34,7 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permission:st
  const assignment=await database.prepare(`SELECT ${assignmentReadSql("count_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) count_scope`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
  if(!assignment?.allowed)throw new ApiError(403,"COUNT_ACCESS_CHANGED","Choose a current inventory assignment.");
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 
 /** Count management is supply.counts; shared Stock posting/reservation facts
@@ -73,19 +75,26 @@ export async function countDocumentFlow(database:SqlDatabase,actor:Actor,view:Fl
  * receipt effects remain inside their complete Holding transaction. */
 export async function withCountPurchasedCommand<Result>(owner:SqlDatabase,actor:Actor,
  command:{key:string;operation:string;id:string;purpose:CapabilityPurpose;permission:string;financial?:boolean;existing?:boolean;flowStep?:string;saveDefault?:boolean},run:(database:SqlDatabase)=>Promise<Result>){
- if(await serviceInitialPhysicalStockCountMarked(owner,command.id))return withServiceInitialPhysicalStockCountUnit(owner,actor as WorkContext,{...command,id:command.id},async database=>{if(['inventory.count.create','inventory.count.update'].includes(command.operation)||command.saveDefault)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:'supply.counts',purpose:'new-work'});return run(database);});
- if(await posInitialPhysicalStockCountMarked(owner,command.id))return withPosInitialPhysicalStockCountUnit(owner,actor as WorkContext,{...command,id:command.id},async database=>{if(['inventory.count.create','inventory.count.update'].includes(command.operation)||command.saveDefault)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:'supply.counts',purpose:'new-work'});return run(database);});
+ const work=actor as WorkContext;
+ if(!work.holdingId)throw new ApiError(503,'COUNT_TRANSACTION_REQUIRED','Stock counts require the owned Holding transaction.');
+ const guardedRun=async(database:SqlDatabase)=>{
+  const {write}=await holdingResources(work.holdingId);if(!(write instanceof PostgresDatabase))throw new ApiError(503,'COUNT_TRANSACTION_REQUIRED','Stock counts require the owned Holding transaction.');write.assertActiveTransaction(database);
+  if(await serviceCountPersistedMarker(database,command.id))throw new ApiError(404,'COUNT_NOT_FOUND','Stock count not found in this workspace.');
+  return run(database);
+ };
+ if(await serviceCountPersistedMarker(owner,command.id))throw new ApiError(404,'COUNT_NOT_FOUND','Stock count not found in this workspace.');
+ if(await posInitialPhysicalStockCountMarked(owner,command.id))return withPosInitialPhysicalStockCountUnit(owner,actor as WorkContext,{...command,id:command.id},async database=>{if(['inventory.count.create','inventory.count.update'].includes(command.operation)||command.saveDefault)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:'supply.counts',purpose:'new-work'});return guardedRun(database);});
  if(await manufacturingInitialPhysicalStockCountMarked(owner,command.id))return withManufacturingInitialPhysicalStockCountUnit(owner,actor as WorkContext,{...command,id:command.id},async database=>{
   if(['inventory.count.create','inventory.count.update'].includes(command.operation)||command.saveDefault)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:'supply.counts',purpose:'new-work'});
-  return run(database);
+  return guardedRun(database);
  });
  // Shape detection authorizes nothing. The strict original-source unit repeats
  // actual scope/current authority and native source after query-free leases.
  if(await initialPhysicalStockCountMarked(owner,command.id))return withInitialPhysicalStockCountUnit(owner,actor as WorkContext,{...command,id:command.id},async database=>{
   if(['inventory.count.create','inventory.count.update'].includes(command.operation)||command.saveDefault)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:'supply.counts',purpose:'new-work'});
-  return run(database);
+  return guardedRun(database);
  });
- const mode=await commercePackageEnforcementMode();if(mode==="disabled")return run(owner);
+ const mode=await commercePackageEnforcementMode();if(mode==="disabled")return isTransactionalSqlDatabase(owner)?owner.transaction(guardedRun):guardedRun(owner);
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"COUNT_TRANSACTION_REQUIRED","Stock counts require the owned Holding transaction.");
  try{return await owner.transaction(async database=>{
   const purchaseLocks=companyPurchaseReadLocks(database,actor.companyId);
@@ -104,13 +113,13 @@ export async function withCountPurchasedCommand<Result>(owner:SqlDatabase,actor:
   for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);
   await current(database,actor,key,command.permission);
   await database.batch(boundaries.flatMap(item=>item.boundary.before));
-  const result=await run(database);
+  const result=await guardedRun(database);
   await flushFinanceDeferredEffects(database);
   const after=await source(database,actor,command.id);
   if(before&&Object.keys(before).some(field=>before[field as keyof Source]!==after[field as keyof Source]))throw new ApiError(409,"COUNT_SOURCE_CHANGED","The original count workspace or warehouse changed.");
   if(included&&(await qualityDisposalCountSource(database,actor,command.id))?.witness!==included.witness)throw new ApiError(409,"COUNT_SOURCE_CHANGED","The actual retained Quality disposal source changed.");
   await current(database,actor,key,command.permission);
-  const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));
+  const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
   boundaries[0]?.boundary.observe?.(observations);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

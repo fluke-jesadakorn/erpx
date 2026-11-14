@@ -1,4 +1,6 @@
 "use client";
+import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
+import {ProductAccountTrigger} from "@erpx/workplace/components/product-account-provider";
 import { MainContent } from "@erpx/ui/components/main";
 import { Button, Field, Select } from "@erpx/ui/components/foundation";
 
@@ -286,7 +288,7 @@ export function FrontAppShell({
           {language === "th" ? "ข้ามไปยังเนื้อหา" : "Skip to page content"}
         </a>
         <header className={styles.header}>
-          <a className={styles.brand} href={appHome + "/"} aria-label={title + " home"}>
+          <AppsHomeLink className={styles.brand}>
             {logoAttachmentId ? (
               <Image src={logo} alt="" width={128} height={128} unoptimized />
             ) : (
@@ -298,7 +300,7 @@ export function FrontAppShell({
               <strong>{title}</strong>
               <small>{locationName ?? companyName}</small>
             </span>
-          </a>
+          </AppsHomeLink>
           <div className={styles.controls}>
             <span className={online ? styles.online : styles.offline} role="status">
               {online
@@ -333,6 +335,7 @@ export function FrontAppShell({
               <option value="dark">{language === "th" ? "มืด" : "Dark"}</option>
               <option value="system">{language === "th" ? "ตามระบบ" : "System"}</option>
             </Select>
+            <ProductAccountTrigger language={language} companyId={companyId} roleLabel={workRole?.options.find(option=>option.id===workRole.assignmentId)?.label}/>
             <details className={styles.accountMenu}>
               <summary>
                 {language === "th" ? "เพิ่มเติม" : "More"}
@@ -417,6 +420,7 @@ export function FrontAppShell({
                 placement="rail"
                 embedded
               />
+              <ProductAccountTrigger sidebar language={language} companyId={companyId} roleLabel={workRole?.options.find(option=>option.id===workRole.assignmentId)?.label}/>
             </aside>
           )}
           <MainContent className={styles.content} id="front-content" tabIndex={-1}>

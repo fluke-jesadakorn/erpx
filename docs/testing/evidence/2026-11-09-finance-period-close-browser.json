@@ -1,0 +1,69 @@
+{
+  "schema": "erpx.evidence/finance-period-close-browser/v1",
+  "recorded_at": "2026-11-09T12:47:30.430470Z",
+  "head": "49376a050c85162627e3f5921d8de0e00e6e3c7d",
+  "environment": {
+    "public_holding_origin": "https://acme.jesadakorn.com",
+    "development_gateway": "http://127.0.0.1:3100",
+    "native_finance_api": "http://127.0.0.1:3198",
+    "account": "jesadakorn.kirtnu@gmail.com",
+    "native_period_close_config": "ERPX_NATIVE_FINANCE_PERIOD_CLOSE_CONFIG set for acme/northstar"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "status": 200,
+      "url": "https://acme.jesadakorn.com/bangkok/accounting/finance/accounting/close",
+      "title": "ERPX \u00b7 Work connected",
+      "period_close_center": true,
+      "periods": [
+        "October 2026 \u00b7 Acme demo rehearsal \u00b7 open \u00b7 2 blockers",
+        "September 2026 \u00b7 open \u00b7 50 blockers"
+      ],
+      "reconciliation_rows": 8,
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "status": 200,
+      "url": "https://acme.jesadakorn.com/bangkok/accounting/finance/accounting/close",
+      "title": "ERPX \u00b7 Work connected",
+      "period_close_center": true,
+      "periods": [
+        "October 2026 \u00b7 Acme demo rehearsal \u00b7 open \u00b7 2 blockers",
+        "September 2026 \u00b7 open \u00b7 50 blockers"
+      ],
+      "reconciliation_rows": 8,
+      "failed_business_requests": [],
+      "page_errors": []
+    }
+  },
+  "native_workspace": {
+    "period": "period-acme-hospitality-ui-2026-10",
+    "status": 200,
+    "state": "open",
+    "readiness": {
+      "draftJournals": 0,
+      "draftInvoices": 0,
+      "unmatchedBank": 0,
+      "openManufacturing": 0,
+      "pendingCalculations": 0
+    },
+    "reconciliations": 8
+  },
+  "global_lock": {
+    "postgres_period_close_suite": "6/6 pass on the exact working source",
+    "files_business_evidence_suite": "3/3 pass",
+    "begin_close_on_clean_future_period": "409 CLOSE_RECONCILIATION_FAILED because the clone still has control-account reconciliation differences; this is a business blocker, not a missing lock"
+  },
+  "screenshots": [
+    ".scratch/dev/finance-close.png",
+    ".scratch/dev/finance-close-mobile.png"
+  ],
+  "notes": [
+    "The authenticated browser now reaches the native Finance period-close center on desktop and mobile with no failed business requests or page errors.",
+    "The PostgreSQL period-close suite remains the global-lock proof; the clone's begin-close is blocked by reconciliation data, so no successful close is claimed here.",
+    "Finance owner remains 9/10 because finance/payables is still partial."
+  ]
+}

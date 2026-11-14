@@ -1,0 +1,677 @@
+{
+  "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "node": "v26.11.1",
+  "sources": [
+    {
+      "path": "packages/server-inventory/src/application/consumption.ts",
+      "sha256": "12f2906f33b342abf67a6a130753e91c9a88dc63c72b48ea8ece64f8d2b95bf3"
+    },
+    {
+      "path": "packages/server-finance/src/application/journal.ts",
+      "sha256": "2610904c5de6f0f4d02f917de23c33afb3ecd98fe44ee8738e3a269a4674d314"
+    },
+    {
+      "path": "packages/server-finance/src/application/company-money.ts",
+      "sha256": "c983dc6c1cf65e4ea72fed5c7577b48ae532d1114d722994aaf42bd650732ace"
+    },
+    {
+      "path": "packages/server-finance/src/application/functional-fx.ts",
+      "sha256": "7cd9d9eea281c99541fef1481f88113cdf298e40634cd2cacd6b0da2f69b1e07"
+    },
+    {
+      "path": "packages/server-finance/src/domain/finance-policy.ts",
+      "sha256": "96331eb867f351f214fe028f88d488d42d18f8447b9eb92a077efffe0f12e61f"
+    },
+    {
+      "path": "packages/server-finance/src/domain/company-money.ts",
+      "sha256": "70100b128ab2afdf60e3a65a744e27287347b2f9dfeea3101c9586d7f3e0977f"
+    },
+    {
+      "path": "packages/feature-finance/src/lib/finance-money.ts",
+      "sha256": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8"
+    },
+    {
+      "path": "packages/feature-finance/src/lib/company-money.ts",
+      "sha256": "1a23b5275688dde81e899296370ff76cf9c0175c602067cf89f40020562c1fb2"
+    },
+    {
+      "path": "packages/feature-commerce/src/lib/commerce-math.ts",
+      "sha256": "ac385a1604df6e125a3fed58ea5ee52b43459bbb898c280f7b874ae1996d9221"
+    }
+  ],
+  "observation": "Actual B0 applications and scalar helpers; explicit pure fact/deferred-effect ports only, no PostgreSQL or authority acceptance",
+  "outcomes": [
+    {
+      "id": "mapping-invalid-and-no-quote",
+      "sourceVersion": 3,
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money"
+      ],
+      "error": {
+        "status": 422,
+        "code": "MANUAL_RATE_REQUIRED",
+        "message": "A confirmed manual THB/USD rate is required."
+      }
+    },
+    {
+      "id": "mapping-invalid-with-quote",
+      "sourceVersion": 3,
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping"
+      ],
+      "error": {
+        "status": 409,
+        "code": "MAPPING_GUARD_DENIED",
+        "message": "Synthetic database mapping assertion denied."
+      }
+    },
+    {
+      "id": "mapping-valid-and-no-quote",
+      "sourceVersion": 3,
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money"
+      ],
+      "error": {
+        "status": 422,
+        "code": "MANUAL_RATE_REQUIRED",
+        "message": "A confirmed manual THB/USD rate is required."
+      }
+    },
+    {
+      "id": "account-invalid-and-no-quote",
+      "sourceVersion": 3,
+      "events": [
+        "consumption-clock",
+        "prepare-journal"
+      ],
+      "error": {
+        "status": 422,
+        "code": "ACCOUNT_INVALID",
+        "message": "Every posting account must be active and belong to this chart."
+      }
+    },
+    {
+      "id": "chart-missing-and-no-quote",
+      "sourceVersion": 3,
+      "events": [
+        "consumption-clock",
+        "prepare-journal"
+      ],
+      "error": {
+        "status": 404,
+        "code": "CHART_NOT_FOUND",
+        "message": "Active chart not found."
+      }
+    },
+    {
+      "id": "separate-captured-times",
+      "ownerKey": "parts-owner-command",
+      "kind": "maintenance",
+      "reason": "Recorded original source",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · Recorded original source",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-parts-owner-command",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "parts-owner-command:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-parts-owner-command:parts",
+      "consumptionId": "operational-part-parts-owner-command",
+      "journalIdBytes": 33,
+      "ownerKeyBytes": 19,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "outer-key-8",
+      "ownerKey": "xxxxxxxx",
+      "kind": "maintenance",
+      "reason": "Recorded original source",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · Recorded original source",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-xxxxxxxx",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "xxxxxxxx:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-xxxxxxxx:parts",
+      "consumptionId": "operational-part-xxxxxxxx",
+      "journalIdBytes": 22,
+      "ownerKeyBytes": 8,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "outer-key-174",
+      "ownerKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "kind": "maintenance",
+      "reason": "Recorded original source",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · Recorded original source",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:parts",
+      "consumptionId": "operational-part-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "journalIdBytes": 188,
+      "ownerKeyBytes": 174,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "outer-key-175",
+      "ownerKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "kind": "maintenance",
+      "reason": "Recorded original source",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · Recorded original source",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:parts",
+      "consumptionId": "operational-part-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "journalIdBytes": 189,
+      "ownerKeyBytes": 175,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "outer-key-180",
+      "ownerKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "kind": "maintenance",
+      "reason": "Recorded original source",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · Recorded original source",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:parts",
+      "consumptionId": "operational-part-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "journalIdBytes": 194,
+      "ownerKeyBytes": 180,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "field-service-data-only",
+      "ownerKey": "parts-owner-command",
+      "kind": "field_service",
+      "reason": "Recorded original source",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "field_service spare usage work · Recorded original source",
+        "sourceType": "field_service_parts",
+        "sourceId": "operational-part-parts-owner-command",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "parts-owner-command:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-parts-owner-command:parts",
+      "consumptionId": "operational-part-parts-owner-command",
+      "journalIdBytes": 33,
+      "ownerKeyBytes": 19,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "original-thai-reason",
+      "ownerKey": "parts-owner-command",
+      "kind": "maintenance",
+      "reason": "เบิกอะไหล่ตามงานที่ตรวจสอบแล้ว",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · เบิกอะไหล่ตามงานที่ตรวจสอบแล้ว",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-parts-owner-command",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "parts-owner-command:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-parts-owner-command:parts",
+      "consumptionId": "operational-part-parts-owner-command",
+      "journalIdBytes": 33,
+      "ownerKeyBytes": 19,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "maximum-safe-cost",
+      "ownerKey": "parts-owner-command",
+      "kind": "maintenance",
+      "reason": "Recorded original source",
+      "quantityMilli": 1000,
+      "valueMinor": 9007199254740991,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · Recorded original source",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-parts-owner-command",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "90071992547409.91",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "90071992547409.91"
+          }
+        ]
+      },
+      "journalSeed": "parts-owner-command:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-parts-owner-command:parts",
+      "consumptionId": "operational-part-parts-owner-command",
+      "journalIdBytes": 33,
+      "ownerKeyBytes": 19,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "maximum-maintenance-thai-reason",
+      "ownerKey": "parts-owner-command",
+      "kind": "maintenance",
+      "reason": "กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · กกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกกก",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-parts-owner-command",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "parts-owner-command:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-parts-owner-command:parts",
+      "consumptionId": "operational-part-parts-owner-command",
+      "journalIdBytes": 33,
+      "ownerKeyBytes": 19,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "maximum-maintenance-astral-reason",
+      "ownerKey": "parts-owner-command",
+      "kind": "maintenance",
+      "reason": "🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠",
+      "quantityMilli": 1000,
+      "valueMinor": 123,
+      "journalInput": {
+        "chartId": "chart",
+        "periodId": "period",
+        "entryDate": "2026-01-02",
+        "currency": "THB",
+        "memo": "maintenance spare usage work · 🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠🛠",
+        "sourceType": "maintenance_parts",
+        "sourceId": "operational-part-parts-owner-command",
+        "isOpening": false,
+        "lines": [
+          {
+            "accountId": "expense",
+            "debit": "1.23",
+            "credit": "0"
+          },
+          {
+            "accountId": "inventory",
+            "debit": "0",
+            "credit": "1.23"
+          }
+        ]
+      },
+      "journalSeed": "parts-owner-command:parts",
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money",
+        "money-clock",
+        "apply:lockStock",
+        "apply:guardStockVersion",
+        "apply:guardAvailableStock",
+        "apply:guardMovementDate",
+        "apply:guardFinanceMapping",
+        "apply:journal",
+        "apply:prepareConsumption",
+        "apply:money",
+        "apply:prepareStockConsumption"
+      ],
+      "journalId": "journal-parts-owner-command:parts",
+      "consumptionId": "operational-part-parts-owner-command",
+      "journalIdBytes": 33,
+      "ownerKeyBytes": 19,
+      "consumptionCreatedAt": 1800000000001,
+      "journalCreatedAt": 1800000000002,
+      "moneyCapturedAt": 1800000000003
+    },
+    {
+      "id": "maximum-provisional-source-version-and-no-quote",
+      "sourceVersion": 9007199254740992,
+      "events": [
+        "consumption-clock",
+        "prepare-journal",
+        "journal-clock",
+        "prepare-money"
+      ],
+      "error": {
+        "status": 422,
+        "code": "MANUAL_RATE_REQUIRED",
+        "message": "A confirmed manual THB/USD rate is required."
+      }
+    }
+  ]
+}

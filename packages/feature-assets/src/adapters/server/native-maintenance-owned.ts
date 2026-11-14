@@ -1,0 +1,151 @@
+import 'server-only';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { ApiError } from '@erpx/server-runtime/public/http';
+import {
+  assetPurchaseControls,
+  withAssetPurchasedCommand,
+  withAssetPurchasedRead,
+} from '@erpx/server-assets/public/purchases';
+import type {
+  MaintenanceDetailView,
+  MaintenanceWorkspaceView,
+  PreventivePlanDetailView,
+  PreventivePlanListView,
+} from '../../lib/maintenance-view';
+import {
+  nativeMaintenanceAvailable,
+  nativeMaintenanceCommand,
+  nativeMaintenanceDetail,
+  nativeMaintenanceFailure,
+  nativeMaintenancePlanDetail,
+  nativeMaintenancePlans,
+  nativeMaintenanceWorkspace,
+} from './native-maintenance-page';
+
+function ownedFailure(error: unknown): never {
+  const failure = nativeMaintenanceFailure(error);
+  if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+  throw error;
+}
+
+function unavailable(): never {
+  throw new ApiError(
+    503,
+    'NATIVE_MAINTENANCE_UNAVAILABLE',
+    'The native Maintenance service is unavailable.',
+  );
+}
+
+async function purchasedRead(actor: WorkContext, capability: 'assets.maintenance' | 'assets.preventive') {
+  try {
+    await withAssetPurchasedRead(actor, capability, async () => undefined);
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+/** Native work workspace plus retained purchase controls for UI gating only. */
+export async function ownedMaintenanceWorkspace(actor: WorkContext, holdingSlug: string) {
+  if (!nativeMaintenanceAvailable()) return undefined;
+  await purchasedRead(actor, 'assets.maintenance');
+  let data;
+  try {
+    data = await nativeMaintenanceWorkspace(actor, holdingSlug);
+  } catch (error) {
+    ownedFailure(error);
+  }
+  if (!data) return undefined;
+  try {
+    return { ...data, purchases: await assetPurchaseControls(actor) } as MaintenanceWorkspaceView;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+export async function ownedMaintenanceDetail(actor: WorkContext, holdingSlug: string, id: string) {
+  if (!nativeMaintenanceAvailable()) return undefined;
+  await purchasedRead(actor, 'assets.maintenance');
+  let data;
+  try {
+    data = await nativeMaintenanceDetail(actor, holdingSlug, id);
+  } catch (error) {
+    ownedFailure(error);
+  }
+  if (!data) return undefined;
+  try {
+    return { ...data, purchases: await assetPurchaseControls(actor) } as MaintenanceDetailView;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+export async function ownedMaintenancePlans(actor: WorkContext, holdingSlug: string) {
+  if (!nativeMaintenanceAvailable()) return undefined;
+  await purchasedRead(actor, 'assets.preventive');
+  try {
+    return await nativeMaintenancePlans(actor, holdingSlug) as PreventivePlanListView;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+export async function ownedMaintenancePlanDetail(actor: WorkContext, holdingSlug: string, id: string) {
+  if (!nativeMaintenanceAvailable()) return undefined;
+  await purchasedRead(actor, 'assets.preventive');
+  let data;
+  try {
+    data = await nativeMaintenancePlanDetail(actor, holdingSlug, id);
+  } catch (error) {
+    ownedFailure(error);
+  }
+  if (!data) return undefined;
+  try {
+    return { ...data, purchases: await assetPurchaseControls(actor) } as PreventivePlanDetailView;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+/** Native work-order command. Creation is written and admitted directly by the
+ * native owner unit. Transitions keep the retained Commercial admission
+ * precheck ahead of the native owner command. The native unit re-checks current
+ * Account/IAM authority, purchase state, receipt/audit/outbox and replay. */
+export async function ownedMaintenanceCommand(
+  actor: WorkContext,
+  holdingSlug: string,
+  input: unknown,
+  key: string,
+) {
+  if (!nativeMaintenanceAvailable()) return undefined;
+  const body = input !== null && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const change = typeof body.id === 'string' && body.id.length > 0;
+  if (change) {
+    const action = typeof body.action === 'string' ? body.action : 'create';
+    const capability = action === 'issue-part' ? 'assets.parts-costs' : 'assets.maintenance';
+    const operation = `maintenance.${action}`;
+    const target = { kind: 'work', id: String(body.id) } as const;
+    try {
+      await withAssetPurchasedCommand(
+        actor,
+        {
+          key,
+          operation,
+          capability: capability as Parameters<typeof withAssetPurchasedCommand>[1]['capability'],
+          purpose: 'settle-existing',
+          target,
+          permissions: ['records.write'],
+        },
+        async () => undefined,
+      );
+    } catch (error) {
+      ownedFailure(error);
+    }
+  }
+  try {
+    const data = await nativeMaintenanceCommand(actor, holdingSlug, input, key);
+    if (!data) unavailable();
+    return data;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}

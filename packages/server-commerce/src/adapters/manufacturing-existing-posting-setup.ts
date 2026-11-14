@@ -20,6 +20,7 @@ import {manufacturingPostingInventorySourceLocks,manufacturingPostingInventorySt
 import {manufacturingPostingCommerceReadLocks,manufacturingPostingMappingState,manufacturingPostingDocumentState} from '@erpx/server-commerce/adapters/manufacturing-posting-setup-sources';
 import {manufacturingExistingPostingMarker} from '@erpx/server-commerce/adapters/manufacturing-existing-posting-proof';
 import {manufacturingExistingPostingSetupSchema,type ManufacturingExistingPostingSetupResult,type ManufacturingExistingPostingSetupView} from '@erpx/server-commerce/domain/manufacturing-existing-posting-setup';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const operation='commerce.manufacturing-posting-setup.confirm-existing',capabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 type StoredResult=ManufacturingExistingPostingSetupResult&{_manufacturingExistingPostingSetup:Record<string,unknown>};
@@ -85,7 +86,7 @@ export async function confirmExistingManufacturingPostingSetup(actor:WorkContext
   }
   const expectedReceipt=await receiptImage(database,actor.companyId,key),expectedNative=await nativeImage(database,actor.companyId);
   if(!expectedReceipt||!expectedNative||result.id!==actor.companyId||result.status!=='confirmed-existing'||result.version!==1)throw changed();
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);
   if(authorityImage(authority)!==authorityImage(await requireManufacturingPostingFinanceAuthority(database,actor))||before.image!==(await snapshot(database,actor)).image||expectedReceipt!==await receiptImage(database,actor.companyId,key)||expectedNative!==await nativeImage(database,actor.companyId))throw changed();
   if(!prior)await validateManufacturingExistingPostingFinanceState(database,actor,before.configuration!);
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});

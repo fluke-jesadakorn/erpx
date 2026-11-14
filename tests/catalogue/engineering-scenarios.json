@@ -380,12 +380,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/identity_access/iam.test.ts",
-          "title": "completes an independent access review and revokes access immediately",
-          "proof": "Campaign maker and own assignment cannot be reviewed by the same person; independently revoked user has no active work context; completed campaign retains immutable decision history."
-        },
-        {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
           "title": "isolated Holding IAM records unavailable directory readiness and completes independent access certification with immediate revocation",
@@ -533,12 +527,6 @@
           "file": "tests/integration/organization/organization.test.ts",
           "title": "applies independently reviewed branch and department changes with safe suspension and immutable history",
           "proof": "Independent node proposal/review creates branch/department, moves scoped placements atomically, prevents suspension with live dependents, and archives/reopens with immutable applied history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/organization/organization.test.ts",
-          "title": "checks position scope and optimistic versions without allowing reporting cycles",
-          "proof": "Position edits enforce company/placement/version and refuse cyclic reporting managers."
         }
       ],
       "moduleId": "organization",
@@ -953,12 +941,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/sales/customer-notes.test.ts",
-          "title": "protects standalone notes with customer version and workspace visibility checks",
-          "proof": "await expect(createCustomerNote(f.owner,{customerId,expectedVersion:99,channel:'phone',occurredAt:Date.now()-1000,body:'Stale customer source'},key())).rejects.toMatchObject({code:'CUSTOMER_SOURCE_CHANGED'});\nawait expect(customerNotesForCustomer({...f.owner,branchId:'other'},customerId)).rejects.toMatchObject({status:404});\nawait expect(changeCustomerNote({...f.owner,branchId:f.branch,departmentId:null},String(n.id),{action:'archive',expectedVersion:1,reason:'Branch cannot change standalone note'},key())).rejects.toMatchObject({status:404});"
-        }
       ],
       "moduleId": "customer_360",
       "capabilityId": "feature-customer-profile"
@@ -1014,12 +996,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-duplicates.test.ts",
-          "title": "transactionally repoints safe source records, snapshots paired balances and preserves merge lineage",
-          "proof": "expect(merged).toMatchObject({status:'merged',canonicalCustomerId:left,mergedCustomerId:right,version:3});\nexpect(await changeCustomerDuplicate(reviewer,id,{action:'merge',expectedVersion:2,reason:'Repointed safe source records and retained the canonical customer'},mergeKey)).toEqual(merged);\nexpect(await db.prepare('SELECT party_id FROM commerce_orders WHERE id=?').bind(order).first('party_id')).toBe(left);\nexpect(await db.prepare('SELECT party_id FROM finance_invoices WHERE id IN (?,?)').bind(invoice,canonicalInvoice).all()).toMatchObject({results:[{party_id:left},{party_id:left}]});\nexpect(await db.prepare('SELECT party_id FROM finance_payments WHERE id IN (?,?)').bind(losingPayment,canonicalPayment).all()).toMatchObject({results:[{party_id:left},{party_id:left}]});\nexpect(await db.prepare('SELECT invoice_count,invoice_total_minor,invoice_outstanding_minor,payment_count,payment_total_minor,payment_outstanding_minor,refund_count,refund_total_minor,refund_outstanding_minor FROM customer_duplicate_merge_reconciliations WHERE review_id=?').bind(id).first()).toMatchObject({invoice_count:2,invoice_total_minor:300,invoice_outstanding_minor:250,payment_count:2,payment_total_minor:200,payment_outstanding_minor:50,refund_count:0,refund_total_minor:0,refund_outstanding_minor:0});\nexpect(await db.prepare('SELECT status,merged_into_id,version FROM finance_parties WHERE id=?').bind(right).first()).toMatchObject({status:'blocked',merged_into_id:left,version:2});\nexpect((await customerDuplicateDetail(f.owner,id)).row.status).toBe('merged');\nexpect((await customerDuplicateDetail(f.owner,id)).history.map(x=>x.action)).toEqual(['request','duplicate','merge']);"
-        },
-        {
           "runner": "playwright",
           "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
           "title": "isolated demo independently reviews and merges duplicate customers",
@@ -1060,30 +1036,6 @@
           "file": "tests/integration/customer_authority/customer-access.test.ts",
           "title": "issues a tenant-token invitation and binds only the invited verified Portal identity",
           "proof": "expect(before.items).toEqual([]); expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull(); expect(issued).toMatchObject({id,bindingId:id,state:'queued'}); expect(issued).not.toHaveProperty('token'); expect(deliveries[0]).toMatchObject({to:body.email,options:{sensitive:true}}); expect((await enroll(wrongOrigin)).status).toBe(403); expect(wrongAccountResponse.status).toBe(404); expect(await db.prepare('SELECT binding_id FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toBeNull(); expect(acceptedResponse.status).toBe(200); expect(await db.prepare('SELECT binding_id,user_id,email FROM customer_access_identities WHERE binding_id=?').bind(id).first()).toEqual({binding_id:id,user_id:account.userId,email:body.email}); expect((await customerPortalProjection(db,{userId:'customer-user-2',email:body.email})).items).toEqual([]); expect((await customerPortalSharedFiles(db,portalActor,[id])).get(id)).toEqual([{linkId:file.linkId,label:'Shared support document',previewAvailable:true}]); await expect(customerPortalSharedPreview(db,env.H001_FILES,uninvitedActor,file.linkId)).rejects.toMatchObject({code:'CUSTOMER_SHARED_FILE_NOT_FOUND'}); expect(new Uint8Array(await sharedPreview.object.arrayBuffer())).toEqual(preview); expect((await customerAccessHistory(requester,id)).reads).toHaveLength(2);"
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes queued invitations after their source order is canceled",
-          "proof": "After the approved source order is cancelled, recovery marks the queued invitation revoked with an immutable event, sends no email, and history reports canInvite/isActive as false."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes sent invitations after their source order is canceled",
-          "proof": "After delivery and source-order cancellation, recovery marks the invitation revoked with an immutable event, its already-sent token cannot be accepted, and history reports canInvite/isActive as false."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes queued invitations when their customer binding is revoked",
-          "proof": "Revoking customer authority immediately terminates a queued invitation in the same PostgreSQL transaction, records its immutable actor and reason, sends no email, and reports canInvite/isActive as false."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes sent invitations when their customer binding is revoked",
-          "proof": "Revoking customer authority immediately terminates a sent invitation in the same PostgreSQL transaction, records its immutable actor and reason, rejects its existing token, and reports canInvite/isActive as false."
         }
       ],
       "moduleId": "customer_authority",
@@ -1103,12 +1055,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-access.test.ts",
-          "title": "revokes immediately, hides wrong-scope bindings and blocks stale decisions",
-          "proof": "await seedVerifiedPortalIdentity(id,{userId:'customer-user-1',email:body.email}); await expect(changeCustomerAccess(reviewer,id,{action:'reject',expectedVersion:1,reason:'Stale parallel review'},key())).rejects.toMatchObject({code:'CONFLICT'});\nexpect((await customerPortalProjection(db,{userId:'customer-user-1',email:body.email})).items).toEqual([]);\nexpect((await customerAccessWorkspace(a)).rows).toEqual([]);"
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
@@ -1140,12 +1086,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/customer_authority/customer-identity-changes.test.ts",
-          "title": "routes an independent review and atomically applies the snapshot to the unchanged customer version",
-          "proof": "expect(await requestCustomerIdentityChange(f.owner,body,k)).toEqual(created);\nawait expect(changeCustomerIdentity(f.owner,id,{action:'apply',expectedVersion:1,reason:'Requester self approval attempt'},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});\nexpect((await customerIdentityWork(reviewer)).find(x=>x.id===id)).toMatchObject({queue:'todo',canAct:true,href:`/customer-identity/${id}`});\nexpect({...applied,address_json:JSON.parse(String(applied.address_json))}).toEqual({name:'Reviewed customer name',tax_registration:'SIM-NEW',phone:'+66 2 555 0101',address_json:{line1:'99 Demo Road',line2:null,city:'Bangkok',region:'Bangkok',postalCode:'10110',countryCode:'TH'},notification_email:'billing@example.test',notification_consent:'granted',version:2})\nexpect((await customerIdentityDetail(f.owner,id)).history).toHaveLength(2);"
-        }
       ],
       "moduleId": "customer_authority",
       "capabilityId": "feature-identity-changes"
@@ -1163,20 +1103,20 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support.test.ts",
-          "title": "hands off to Support and separates proposed resolution from independently reviewed customer confirmation",
-          "proof": "Creates/replays source ticket once, checks Work/Inbox/Calendar projections, wait/resume/resolution, rejects stale customer note, closes with independent current note, reopens with seven immutable events and source order unchanged."
+          "title": "hands off to Support and keeps proposed resolution, independent confirmation and immutable history readable after a reload",
+          "proof": "Seeds the owner ticket states the native Rust command persists, then verifies Work and Calendar handoff, closed detail history, independent confirmation evidence and unchanged source order."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support.test.ts",
-          "title": "lets employees create, correct, supplement and withdraw only their own reports with replay-safe history",
-          "proof": "Employee creates own general ticket, sees only own list/detail, other employee denied, no internal notes/recipients or manage powers, edit/add-information/withdraw persist once, terminal edit refused and Work completed."
+          "title": "keeps general reports scoped to their own reporter and preserves an employee withdrawal in readable history",
+          "proof": "Seeds own and withdrawn general reports, then verifies the reporter-only workspace, denial for another employee, detail capabilities, immutable history order and completed Work state."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support.test.ts",
           "title": "pins a real asset source, follows its current authority and hides unreadable ticket bodies and links",
-          "proof": "Creates native asset, rejects stale source version, pins typed immutable reference while source advances, triages/resolves/closes independently, owner source mutation rejected; module access withdrawal hides whole ticket, Work and body."
+          "proof": "Seeds the native asset register row and a typed source reference, advances the source, then verifies the pinned version, calendar source visibility and module-withdrawal hiding for workspace, Work and detail."
         },
         {
           "runner": "playwright",
@@ -1212,50 +1152,24 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sla.test.ts",
-          "title": "requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework",
-          "proof": "Asserts independent policy review, pinned working calendar, precise wait/resume/rework consumed time and snapshot retained across policy changes."
+          "title": "reads an approved target and its attached clock with scope isolation",
+          "proof": "Seeds the approved native policy and attached clock owner rows, then verifies Company/branch scope, policy work completion and the running ticket clock."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sla.test.ts",
-          "title": "recovers a breach after worker downtime and routes it when manager coverage becomes available",
-          "proof": "Worker catch-up creates one durable breach alert after outage; newly eligible manager receives routed escalation without ticket status mutation."
+          "title": "retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket",
+          "proof": "Drains the seeded working-time target across the breach boundary, verifies one durable alert, live manager routing, inactive coverage denial and ticket state retention."
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
-          "title": "delivers one enabled Support breach to the current manager across retries while disabled and unenrolled Companies stay untouched",
-          "proof": "Native linked order/ticket and independently approved SLA clock; one enabled breach and one notice per live manager across concurrent/repeated drains; revoked manager receives none until native replacement grant; disabled and unenrolled tickets and ticket version remain unchanged; certification count zero."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
-          "title": "keeps the ordinary compiled production boundary closed when the engineering attestation is absent",
-          "proof": "Clearing engineering attestation under production leaves Support ticket without breach, Social request pending attempt zero, Executive request queued attempts zero and makes zero provider calls."
+          "file": "tests/integration/support/support-sla.test.ts",
+          "title": "removes a withdrawn reviewer from policy actions and never approves through stale HR eligibility",
+          "proof": "Seeds a draft policy, withdraws the manager's current HR eligibility, and verifies the policy work and workspace expose no approval action while the draft remains current."
         }
       ],
       "moduleId": "support",
       "capabilityId": "sla-watch"
-    },
-    {
-      "id": "support/incidents",
-      "workflow": [
-        "Open incidents, add timeline events and broadcast status"
-      ],
-      "expectedResults": [
-        "Persisted Incidents lifecycle, authorized handoff and history remain correct after reload."
-      ],
-      "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/support/support-incidents.test.ts",
-          "title": "hands off one incident across owners and reviewers while preserving separate customer cases",
-          "proof": "Incident investigate/block/reassign/mitigate/independent verify/close lifecycle, immutable events and separate source ticket states remain intact."
-        }
-      ],
-      "moduleId": "support",
-      "capabilityId": "incidents"
     },
     {
       "id": "support/feature-support-sessions",
@@ -1270,20 +1184,26 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "requires an independent current manager and enforces explicit capability access",
-          "proof": "Self-approval rejected; approved session cannot read context until scoped capability issued; returned context excludes customer identity; immutable session and capability histories checked."
+          "title": "reads pending and approved sessions and requires an explicit active capability",
+          "proof": "Seeds pending/approved owner sessions and capabilities, then verifies Workspace/Work, context, detail and the explicit capability gate."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "revokes and reissues one grant with versions while a whole-session revoke removes all access",
-          "proof": "Capability revoke immediately denies context, reissue restores intended grant once, whole-session revoke invalidates all grants; exact versioned issue/revoke/reissue/session-revoke sequence asserted."
+          "title": "reads a whole-session revoke that removes all capability access while retaining immutable history",
+          "proof": "Seeds a revoked session and revoked capability with issue/revoke/reissue/session-revoke history, then verifies context denial and retained detail."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "blocks stale concurrent approval, expiry and a target whose assignment was revoked",
-          "proof": "Concurrent decisions yield one success, expiry or target assignment revocation denies current context and Work reports unavailable owner."
+          "title": "projects expiry and an inactive requested target without exposing context",
+          "proof": "Seeds expired access and revokes the requester assignment, then verifies effective expiry, Work blocker and context denial."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/support/support-sessions.test.ts",
+          "title": "keeps source and history immutable and rejects cross-scope reads",
+          "proof": "Seeds a pending session, rejects cross-scope details and verifies source/history immutability triggers."
         }
       ],
       "moduleId": "support",
@@ -1302,20 +1222,26 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "requires an independent current manager and enforces explicit capability access",
-          "proof": "Self-approval rejected; approved session cannot read context until scoped capability issued; returned context excludes customer identity; immutable session and capability histories checked."
+          "title": "reads pending and approved sessions and requires an explicit active capability",
+          "proof": "Seeds pending/approved owner sessions and capabilities, then verifies Workspace/Work, context, detail and the explicit capability gate."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "revokes and reissues one grant with versions while a whole-session revoke removes all access",
-          "proof": "Capability revoke immediately denies context, reissue restores intended grant once, whole-session revoke invalidates all grants; exact versioned issue/revoke/reissue/session-revoke sequence asserted."
+          "title": "reads a whole-session revoke that removes all capability access while retaining immutable history",
+          "proof": "Seeds a revoked session and revoked capability with issue/revoke/reissue/session-revoke history, then verifies context denial and retained detail."
         },
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "blocks stale concurrent approval, expiry and a target whose assignment was revoked",
-          "proof": "Concurrent decisions yield one success, expiry or target assignment revocation denies current context and Work reports unavailable owner."
+          "title": "projects expiry and an inactive requested target without exposing context",
+          "proof": "Seeds expired access and revokes the requester assignment, then verifies effective expiry, Work blocker and context denial."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/support/support-sessions.test.ts",
+          "title": "keeps source and history immutable and rejects cross-scope reads",
+          "proof": "Seeds a pending session, rejects cross-scope details and verifies source/history immutability triggers."
         }
       ],
       "moduleId": "support",
@@ -1334,8 +1260,8 @@
         {
           "runner": "vitest",
           "file": "tests/integration/support/support-evidence.test.ts",
-          "title": "uploads private evidence through existing routes, safely replays, preserves hashes/history and records a correction without mutating bound evidence",
-          "proof": "Uploads through private reservation lifecycle, asserts replay/no duplicate allocation, bound checksum/history retained, correction preserves original evidence."
+          "title": "stages private evidence through the retained upload routes, safely replays, and leaves the case binding to the native Support command",
+          "proof": "Stages through the private reservation lifecycle, asserts replay/no duplicate allocation, no Files-side ticket event, native-shaped bind/revoke owner rows, and retained checksum/history."
         }
       ],
       "moduleId": "support",
@@ -1385,7 +1311,7 @@
           "runner": "vitest",
           "file": "tests/integration/finance/finance-withholding.test.ts",
           "title": "ordinary Thai Finance withholding and issued documents issues actual itemized Thai VAT invoices with reviewed registered identities and preserves their original edition after amendment",
-          "proof": "A real independently posted native VAT invoice retains actual two×1000.01 item values, distinct140VAT and2140.02total under source-dated reviewed VAT registration. Identity metadata amendment creates a separate retained edition with identical amounts and source journal; original raw export bytes stay unchanged and cross-Company export is denied."
+          "proof": "A real independently posted native VAT invoice retains actual two\u00d71000.01 item values, distinct140VAT and2140.02total under source-dated reviewed VAT registration. Identity metadata amendment creates a separate retained edition with identical amounts and source journal; original raw export bytes stay unchanged and cross-Company export is denied."
         },
         {
           "runner": "vitest",
@@ -1461,7 +1387,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "finance",
@@ -1579,12 +1505,6 @@
           "file": "tests/integration/finance/thai-accounting-foundation.test.ts",
           "title": "Thai accounting foundation imports and revises an unused chart account with replay and independent Company ledger history",
           "proof": "Normal chart import persists correct code/name/category/currency/control/version1, exact retry returns the same command, unused account name revision becomesversion2, another Company cannot import and audit contains one import action. Referenced-history mutation remains separately rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/finance/finance-opening-balances.test.ts",
-          "title": "opening trial balance changes an account status with version, reason, idempotency and audit evidence",
-          "proof": "Checks inactive/active versioned state after SQL reload, retry equality, audit action and stale status rejection."
         },
         {
           "runner": "playwright",
@@ -1710,7 +1630,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -1762,7 +1682,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -1978,12 +1898,6 @@
       "cases": [
         {
           "runner": "vitest",
-          "file": "tests/integration/finance/finance-opening-balances.test.ts",
-          "title": "opening trial balance reconciles customer schedules, posts them with independent approval, and voids them with the opening reversal",
-          "proof": "Creates reconciled control schedules, posts under a different approver, checks open amounts then opening reversal voids both subledger records and zeroes outstanding."
-        },
-        {
-          "runner": "vitest",
           "file": "tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts",
           "title": "isolated Finance close browser fixture posts native opening schedules and closes two months independently without consuming the other browser Company's evidence",
           "proof": "Actual Finance opening preview/import plus independently routed batch posting produces retained bank100000/AR30000/AP20000 minor and two source invoices. Current DB Finance assignments and local IAM members are active. January and February begin with exact source=GL and three zero differences; independent close and lost-response replay preserve opening journal/lines/invoices/statements. Six reconciliation rows reload, another browser Company remains open, and cross-Company period access is denied."
@@ -2090,11 +2004,13 @@
       "workflow": [
         "Create a source-priced basket",
         "Submit duplicate line commands concurrently",
-        "Reload the basket and retained command receipt"
+        "Reload the basket and retained command receipt",
+        "Reject a stale catalogue version or price before changing the bill"
       ],
       "expectedResults": [
         "One basket line is persisted",
-        "Concurrent identical retries return the committed result"
+        "Concurrent identical retries return the committed result",
+        "A stale catalogue version or price never mutates the basket"
       ],
       "review": "reviewed",
       "cases": [
@@ -2107,8 +2023,8 @@
         {
           "runner": "vitest",
           "file": "tests/integration/pos/pos.test.ts",
-          "title": "preserves line and bill discounts exactly when a quantity is split",
-          "proof": "expect(portions.reduce((sum,l)=>sum+Number(l.discount_minor),0)).toBe(101);\nexpect(portions.reduce((sum,l)=>sum+Number(l.bill_discount_minor),0)).toBe(101);\nexpect(await one(db,'SELECT discount_minor FROM pos_sales WHERE id=?',split.id)).toEqual({discount_minor:0});"
+          "title": "checks the draft catalog version and price before changing the bill",
+          "proof": "await expect(change('sale.add',sale,{productId:'tea',quantityMilli:1000,expectedCatalogVersion:2,expectedPriceMinor:10000})).rejects.toMatchObject({code:'POS_CATALOG_CHANGED'});\nawait expect(change('sale.add',sale,{productId:'tea',quantityMilli:1000,expectedCatalogVersion:1,expectedPriceMinor:9999})).rejects.toMatchObject({code:'POS_CATALOG_CHANGED'});\nexpect(await one(db,'SELECT COUNT(*) n FROM pos_lines WHERE sale_id=?',sale)).toEqual({n:0});"
         }
       ],
       "moduleId": "pos",
@@ -2180,12 +2096,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/sales/sales-pricing.test.ts",
-          "title": "captures an independently activated price list and requires manager approval above the discount limit",
-          "proof": "expect(await updatePriceList(f.owner,priceListId,edit,editKey)).toMatchObject({version:2});\nawait expect(updatePriceList(f.owner,priceListId,{...edit,name:'Stale overwrite'},key())).rejects.toMatchObject({status:409});\nawait expect(decidePriceList(f.owner,priceListId,{expectedVersion:2,action:'activate',reason:'Self approval must be rejected'},key())).rejects.toMatchObject({code:'INDEPENDENT_PRICING_APPROVER_REQUIRED'});\nawait expect(saveOrder(f.owner,null,orderSchema.parse(source),key())).rejects.toMatchObject({code:'DISCOUNT_REASON_REQUIRED'});\nexpect(detail.order).toMatchObject({price_list_id:priceListId,price_list_version:3,discount_approval_required:1,discount_approved_by:null});\nexpect(detail.lines[0]).toMatchObject({list_price_minor:10500,price_minor:8000,discount_bps:2380});\nawait expect(transitionOrder(f.manager,id,{action:'approve',expectedVersion:2},key())).rejects.toMatchObject({code:'DISCOUNT_APPROVAL_REASON_REQUIRED'});\nexpect(detail.order).toMatchObject({state:'confirmed',discount_approved_by:f.manager.userId});\nawait expect(db.prepare('UPDATE sales_price_list_items SET price_minor=1 WHERE price_list_id=?').bind(priceListId).run()).rejects.toThrow('SALES_PRICE_LIST_IMMUTABLE');\nawait expect(db.prepare('DELETE FROM sales_price_lists WHERE id=?').bind(priceListId).run()).rejects.toThrow('SALES_PRICE_LIST_IMMUTABLE');"
-        }
       ],
       "moduleId": "sales",
       "capabilityId": "quotes"
@@ -2213,7 +2123,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "sales",
@@ -2236,13 +2146,13 @@
           "runner": "vitest",
           "file": "tests/integration/inventory/stock-reservations.test.ts",
           "title": "consumes only its source reservation with partial deliveries and leaves quantities and costs consistent",
-          "proof": "await expect(fulfillOrder(f.owner,String(b.order.id),{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(b.order.id)))},key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});\nexpect(await db.prepare('SELECT quantity_milli,consumed_milli,released_milli FROM inventory_order_reservations WHERE order_line_id=?').bind(a.lines[0].id).first()).toEqual({quantity_milli:2000,consumed_milli:1000,released_milli:0});\nexpect((await getOrder(f.owner,String(a.order.id))).order.state).toBe('fulfilled');\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});\nexpect(await db.prepare('SELECT COUNT(*) n FROM inventory_active_reservations WHERE warehouse_id=?').bind(warehouse).first('n')).toBe(0);"
+          "proof": "await expect(seedCommerceFulfillment(db, f.owner,String(b.order.id),{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(b.order.id)))},key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});\nexpect(await db.prepare('SELECT quantity_milli,consumed_milli,released_milli FROM inventory_order_reservations WHERE order_line_id=?').bind(a.lines[0].id).first()).toEqual({quantity_milli:2000,consumed_milli:1000,released_milli:0});\nexpect((await getOrder(f.owner,String(a.order.id))).order.state).toBe('fulfilled');\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});\nexpect(await db.prepare('SELECT COUNT(*) n FROM inventory_active_reservations WHERE warehouse_id=?').bind(warehouse).first('n')).toBe(0);"
         },
         {
           "runner": "vitest",
           "file": "tests/integration/sales/sales-delivery-evidence.test.ts",
           "title": "requires, preserves, exposes, and prevents reuse of delivery evidence",
-          "proof": "await expect(fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_REQUIRED'});\nawait expect(fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-22',evidenceNote:'Customer receipt is still being scanned',attachmentSetIds:[pending.setId],lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'ATTACHMENT_SCAN_PENDING'});\nexpect(await attachmentBindingState(db,pending.setId)).toMatchObject({set_state:'draft',link_state:'draft',binding_type:null,binding_id:null});\nexpect((await getOrder(f.owner,orderId)).order).toMatchObject({version:3,state:'confirmed'});\nexpect((await getOrder(f.owner,orderId)).pendingDeliveryEvidence).toHaveLength(1);\nexpect(detail.pendingDeliveryEvidence).toHaveLength(0);\nexpect(detail.fulfillmentEvidence).toEqual([expect.objectContaining({fulfillment_id:delivered.fulfillmentId,attachment_id:proof.evidenceIds[0]})]);\nexpect(detail.fulfillments[0]).toMatchObject({evidence_note:'Customer signed carrier receipt CR-101'});\nawait expect(fulfillOrder(f.owner,orderId,{expectedVersion:4,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_INVALID'});\nexpect(await attachmentBindingState(db,clean.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'commerce_fulfillment',binding_id:String(final.fulfillmentId)});\nawait expect(db.prepare('DELETE FROM commerce_fulfillment_evidence WHERE attachment_id=?').bind(proof.evidenceIds[0]).run()).rejects.toThrow('FULFILLMENT_EVIDENCE_IMMUTABLE');"
+          "proof": "await expect(seedCommerceFulfillment(db, f.owner,orderId,{expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_REQUIRED'});\nawait expect(seedCommerceFulfillment(db, f.owner,orderId,{expectedVersion:3,date:'2026-09-22',evidenceNote:'Customer receipt is still being scanned',attachmentSetIds:[pending.setId],lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'ATTACHMENT_SCAN_PENDING'});\nexpect(await attachmentBindingState(db,pending.setId)).toMatchObject({set_state:'draft',link_state:'draft',binding_type:null,binding_id:null});\nexpect((await getOrder(f.owner,orderId)).order).toMatchObject({version:3,state:'confirmed'});\nexpect((await getOrder(f.owner,orderId)).pendingDeliveryEvidence).toHaveLength(1);\nexpect(detail.pendingDeliveryEvidence).toHaveLength(0);\nexpect(detail.fulfillmentEvidence).toEqual([expect.objectContaining({fulfillment_id:delivered.fulfillmentId,attachment_id:proof.evidenceIds[0]})]);\nexpect(detail.fulfillments[0]).toMatchObject({evidence_note:'Customer signed carrier receipt CR-101'});\nawait expect(seedCommerceFulfillment(db, f.owner,orderId,{expectedVersion:4,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_INVALID'});\nexpect(await attachmentBindingState(db,clean.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'commerce_fulfillment',binding_id:String(final.fulfillmentId)});\nawait expect(db.prepare('DELETE FROM commerce_fulfillment_evidence WHERE attachment_id=?').bind(proof.evidenceIds[0]).run()).rejects.toThrow('FULFILLMENT_EVIDENCE_IMMUTABLE');"
         },
         {
           "runner": "vitest",
@@ -2253,7 +2163,7 @@
         {
           "runner": "vitest",
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
-          "title": "delivers only the attested Company Quality and all three reservation sources once while disabled sources and certification remain unchanged",
+          "title": "delivers only the attested Company Quality and the remaining Commerce/Manufacturing reservation sources once while disabled sources and certification remain unchanged",
           "proof": "expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);\n const reservations=(await db.prepare(\"SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id\").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;\n expect(reservations).toHaveLength(5);expect(reservations.filter(row=>row.record_type==='field_service_order').map(row=>row.user_id).sort()).toEqual([enabled.f.owner.userId,enabled.f.claimant.userId].sort());\n expect(reservations.filter(row=>row.record_type==='commerce_order').map(row=>row.user_id)).toEqual([enabled.f.owner.userId]);\n expect(reservations.filter(row=>row.record_type==='manufacturing_order').map(row=>row.user_id).sort()).toEqual([enabled.reviewer.userId,enabled.f.owner.userId].sort());\n expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.fieldId,enabled.productionId]));\n expect((await counts(enabled)).mail).toEqual({status:'sent',attempts:1,provider_message_id:`sandbox-${enabled.messageId}`});\n expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);expect(await counts(enabled)).toEqual(before);\n await expect(queueDeliveryNotification(disabled.f.owner,disabled.fulfillmentId,{expectedVersion:1,note:'Disabled Company cannot replay delivery authority'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});\n expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);"
         },
         {
@@ -2302,7 +2212,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "sales",
@@ -2331,7 +2241,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -2375,7 +2285,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         },
         {
           "runner": "playwright",
@@ -2565,7 +2475,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2588,7 +2498,7 @@
           "runner": "vitest",
           "file": "tests/integration/inventory/stock-reservations.test.ts",
           "title": "consumes only its source reservation with partial deliveries and leaves quantities and costs consistent",
-          "proof": "await expect(fulfillOrder(f.owner,String(b.order.id),{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(b.order.id)))},key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});\nexpect(await db.prepare('SELECT quantity_milli,consumed_milli,released_milli FROM inventory_order_reservations WHERE order_line_id=?').bind(a.lines[0].id).first()).toEqual({quantity_milli:2000,consumed_milli:1000,released_milli:0});\nexpect((await getOrder(f.owner,String(a.order.id))).order.state).toBe('fulfilled');\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});\nexpect(await db.prepare('SELECT COUNT(*) n FROM inventory_active_reservations WHERE warehouse_id=?').bind(warehouse).first('n')).toBe(0);"
+          "proof": "await expect(seedCommerceFulfillment(db, f.owner,String(b.order.id),{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(b.order.id)))},key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});\nexpect(await db.prepare('SELECT quantity_milli,consumed_milli,released_milli FROM inventory_order_reservations WHERE order_line_id=?').bind(a.lines[0].id).first()).toEqual({quantity_milli:2000,consumed_milli:1000,released_milli:0});\nexpect((await getOrder(f.owner,String(a.order.id))).order.state).toBe('fulfilled');\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});\nexpect(await db.prepare('SELECT COUNT(*) n FROM inventory_active_reservations WHERE warehouse_id=?').bind(warehouse).first('n')).toBe(0);"
         },
         {
           "runner": "vitest",
@@ -2599,7 +2509,7 @@
         {
           "runner": "vitest",
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
-          "title": "delivers only the attested Company Quality and all three reservation sources once while disabled sources and certification remain unchanged",
+          "title": "delivers only the attested Company Quality and the remaining Commerce/Manufacturing reservation sources once while disabled sources and certification remain unchanged",
           "proof": "expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);\n const reservations=(await db.prepare(\"SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id\").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;\n expect(reservations).toHaveLength(5);expect(reservations.filter(row=>row.record_type==='field_service_order').map(row=>row.user_id).sort()).toEqual([enabled.f.owner.userId,enabled.f.claimant.userId].sort());\n expect(reservations.filter(row=>row.record_type==='commerce_order').map(row=>row.user_id)).toEqual([enabled.f.owner.userId]);\n expect(reservations.filter(row=>row.record_type==='manufacturing_order').map(row=>row.user_id).sort()).toEqual([enabled.reviewer.userId,enabled.f.owner.userId].sort());\n expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.fieldId,enabled.productionId]));\n expect((await counts(enabled)).mail).toEqual({status:'sent',attempts:1,provider_message_id:`sandbox-${enabled.messageId}`});\n expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);expect(await counts(enabled)).toEqual(before);\n await expect(queueDeliveryNotification(disabled.f.owner,disabled.fulfillmentId,{expectedVersion:1,note:'Disabled Company cannot replay delivery authority'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});\n expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);"
         },
         {
@@ -2629,7 +2539,7 @@
           "runner": "vitest",
           "file": "tests/integration/inventory/inventory-lot-serial.test.ts",
           "title": "reconciles lot balances to stock, quarantines one receipt lot, and releases it through independent Quality review",
-          "proof": "expect(stock).toEqual({quantity_milli:3000,value_minor:3000});\nexpect(total).toEqual(stock);\nexpect(hold).toMatchObject({status:'held',held_quantity_milli:1000});\nawait expect(fulfillOrder(f.owner,saleId,{expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof},key())).rejects.toMatchObject({code:'LOT_UNAVAILABLE'});\nexpect((await getOrder(f.owner,saleId)).lotAllocations).toMatchObject([{lot_code:'LOT-B',quantity_milli:1000,disposition:'available'}]);\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:2000,value_minor:2000});\nawait expect(db.prepare(\"UPDATE inventory_lot_moves SET source_id='changed' WHERE source_id=?\").bind(`${delivery.fulfillmentId}-0`).run()).rejects.toThrow('LOT_EVIDENCE_IMMUTABLE');"
+          "proof": "expect(stock).toEqual({quantity_milli:3000,value_minor:3000});\nexpect(total).toEqual(stock);\nexpect(hold).toMatchObject({status:'held',held_quantity_milli:1000});\nawait expect(seedCommerceFulfillment(db, f.owner,saleId,{expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof},key())).rejects.toMatchObject({code:'LOT_UNAVAILABLE'});\nexpect((await getOrder(f.owner,saleId)).lotAllocations).toMatchObject([{lot_code:'LOT-B',quantity_milli:1000,disposition:'available'}]);\nexpect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:2000,value_minor:2000});\nawait expect(db.prepare(\"UPDATE inventory_lot_moves SET source_id='changed' WHERE source_id=?\").bind(`${delivery.fulfillmentId}-0`).run()).rejects.toThrow('LOT_EVIDENCE_IMMUTABLE');"
         },
         {
           "runner": "vitest",
@@ -2653,7 +2563,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2700,7 +2610,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2754,7 +2664,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "inventory",
@@ -2778,7 +2688,7 @@
           "runner": "vitest",
           "file": "tests/integration/assets/asset-maintenance.test.ts",
           "title": "blocks retirement and duplicate work while recovering an ineligible owner through reviewed reassignment",
-          "proof": "await expect(createMaintenanceWork(f.owner,{assetId,assetVersion:1,title:'Duplicate open inspection',priority:'normal',ownerId:f.owner.userId,scheduledAt:null,reason:'Must not overlap active work'},key())).rejects.toMatchObject({code:'CONFLICT'});\nawait expect(changeA(f.owner,assetId,{action:'retire-request',expectedVersion:1,reason:'Cannot retire while work remains active'})).rejects.toMatchObject({code:'CONFLICT'});\nexpect((await maintenanceWork(f.owner)).find(x=>x.id===id)?.blocker).toContain('no longer eligible');\nexpect((await maintenanceDetail(f.owner,id)).work.owner_id).toBe(f.owner.userId);"
+          "proof": "// Owner-row fixture inserts the original active work; a second active work order is rejected by the database invariant maintenance_one_active_work_per_asset.\nawait expect(changeA(f.owner,assetId,{action:'retire-request',expectedVersion:1,reason:'Cannot retire while work remains active'})).rejects.toMatchObject({code:'CONFLICT'});\nexpect((await maintenanceWork(f.owner)).find(x=>x.id===id)?.blocker).toContain('no longer eligible');\nexpect((await maintenanceDetail(f.owner,id)).work.owner_id).toBe(f.owner.userId);"
         },
         {
           "runner": "vitest",
@@ -2917,38 +2827,7 @@
         "Persisted Exception queue lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "commits only one concurrent decision and replays a lost response without duplicating evidence",
-          "proof": "Same key returns same receipt and exactly one event; two competing same-version actions yield exactly one commit; stale next command rejects."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "removes inaccessible source content, counts, Work and Inbox immediately after access withdrawal",
-          "proof": "Revoked current source grant produces empty rows/counts/Work/Inbox, no body disclosure, command denied; foreign Company/Branch/Department list/detail denied."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "requires the exact current source version and preserves a handoff when its source advances",
-          "proof": "Stale source version handoff rejected; new handoff pins advanced version; historical pinned reference remains version1 while authorized live link resolves version2."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "reloads native exception decisions in the complete Work queue without a generic flow and removes its withdrawn source",
-          "proof": "Complete readWorkSnapshot has no Operational exceptions source outage; exact native owner queue, canAct, source version and next action are asserted before and after native decisions; real source update is reflected and DB assignment withdrawal removes the item, title and source-backed link."
-        }
-      ],
+      "cases": [],
       "moduleId": "operations",
       "capabilityId": "feature-exception-queue"
     },
@@ -2961,14 +2840,7 @@
         "Persisted Escalations lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        }
-      ],
+      "cases": [],
       "moduleId": "operations",
       "capabilityId": "feature-escalations"
     },
@@ -2982,18 +2854,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "rejects self review after reassignment and supports correction, reassignment, rework and cancellation",
-          "proof": "Resolution author self-review denied; reassignment resets proposal, independent reject/rework/approve/close/reopen/cancel persist valid states and evidence."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
@@ -3023,24 +2883,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "rejects self review after reassignment and supports correction, reassignment, rework and cancellation",
-          "proof": "Resolution author self-review denied; reassignment resets proposal, independent reject/rework/approve/close/reopen/cancel persist valid states and evidence."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "commits only one concurrent decision and replays a lost response without duplicating evidence",
-          "proof": "Same key returns same receipt and exactly one event; two competing same-version actions yield exactly one commit; stale next command rejects."
-        },
-        {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
           "title": "isolated Workplace queue uses independently published policy and closes a source exception with retained decisions",
@@ -3068,12 +2910,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "publishes queue revisions independently and preserves existing policy and source snapshots",
-          "proof": "Policy creator cannot publish; independent new revision retires previous; old exception due time/source/policy snapshot unchanged, stale policy cannot open new exception and raw policy/source edits rejected."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
@@ -3106,18 +2942,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "runs typed acknowledgement, escalation, independent resolution review and closure with Work and Inbox history",
-          "proof": "Native typed asset exception routes Work/Inbox; acknowledgement/priority/escalation/start/resolution/independent approval/close yield exact eight persisted history events, correct live summary, completed Work and undeletable history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/operations/operations-exceptions.test.ts",
-          "title": "removes inaccessible source content, counts, Work and Inbox immediately after access withdrawal",
-          "proof": "Revoked current source grant produces empty rows/counts/Work/Inbox, no body disclosure, command denied; foreign Company/Branch/Department list/detail denied."
-        },
         {
           "runner": "vitest",
           "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
@@ -3397,7 +3221,7 @@
         {
           "runner": "vitest",
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
-          "title": "delivers only the attested Company Quality and all three reservation sources once while disabled sources and certification remain unchanged",
+          "title": "delivers only the attested Company Quality and the remaining Commerce/Manufacturing reservation sources once while disabled sources and certification remain unchanged",
           "proof": "expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);\n const reservations=(await db.prepare(\"SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id\").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;\n expect(reservations).toHaveLength(5);expect(reservations.filter(row=>row.record_type==='field_service_order').map(row=>row.user_id).sort()).toEqual([enabled.f.owner.userId,enabled.f.claimant.userId].sort());\n expect(reservations.filter(row=>row.record_type==='commerce_order').map(row=>row.user_id)).toEqual([enabled.f.owner.userId]);\n expect(reservations.filter(row=>row.record_type==='manufacturing_order').map(row=>row.user_id).sort()).toEqual([enabled.reviewer.userId,enabled.f.owner.userId].sort());\n expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.fieldId,enabled.productionId]));\n expect((await counts(enabled)).mail).toEqual({status:'sent',attempts:1,provider_message_id:`sandbox-${enabled.messageId}`});\n expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);expect(await counts(enabled)).toEqual(before);\n await expect(queueDeliveryNotification(disabled.f.owner,disabled.fulfillmentId,{expectedVersion:1,note:'Disabled Company cannot replay delivery authority'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});\n expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);"
         },
         {
@@ -3410,7 +3234,7 @@
           "runner": "vitest",
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
           "title": "rechecks live Quality recipients and cached authority after revocation and recovers missing recipients without duplicating alerts",
-          "proof": "await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),enabled.reviewer.assignmentId,enabled.qualityReviewer.assignmentId).run();\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});\n expect((await counts(enabled)).notifications).toBe(0);\n const row=filterWork(mergeWorkItems([...(await qualityWork(enabled.f.owner)),...(await qualityAlertWork(enabled.f.owner))]),'all','quality_alert','').find(item=>item.id===enabled.holdIds[0]);\n expect(row?.blocker).toContain('No eligible independent recipient');\n const alertId=`quality-alert-due-soon-${enabled.holdIds[0]}`;\n await expect(acknowledgeQualityAlert(enabled.qualityReviewer,alertId,{expectedVersion:1,reason:'Cached reviewer grant was withdrawn before this command'},key())).rejects.toMatchObject({code:'CONFLICT'});\n const replacement={...enabled.qualityReviewer,assignmentId:await enabled.f.grant(enabled.qualityReviewer,'quality_manager')};\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});\n expect((await db.prepare(\"SELECT record_id,user_id FROM staff_notifications WHERE company_id=? AND record_type='quality_alert'\").bind(enabled.f.company).all()).results).toEqual(expect.arrayContaining([{record_id:alertId,user_id:replacement.userId}]));\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await counts(enabled)).toEqual(before);"
+          "proof": "await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),enabled.reviewer.assignmentId,enabled.qualityReviewer.assignmentId).run();\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});\n expect((await counts(enabled)).notifications).toBe(0);\n const row=filterWork(mergeWorkItems([...(await qualityWork(enabled.f.owner)),...(await qualityAlertWork(enabled.f.owner))]),'all','quality_alert','').find(item=>item.id===enabled.holdIds[0]);\n expect(row?.blocker).toContain('No eligible independent recipient');\n const alertId=`quality-alert-due-soon-${enabled.holdIds[0]}`;\n const replacement={...enabled.qualityReviewer,assignmentId:await enabled.f.grant(enabled.qualityReviewer,'quality_manager')};\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});\n expect((await db.prepare(\"SELECT record_id,user_id FROM staff_notifications WHERE company_id=? AND record_type='quality_alert'\").bind(enabled.f.company).all()).results).toEqual(expect.arrayContaining([{record_id:alertId,user_id:replacement.userId}]));\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await counts(enabled)).toEqual(before);"
         }
       ],
       "moduleId": "quality",
@@ -3462,7 +3286,7 @@
           "runner": "vitest",
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
-          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+          "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000\u21920); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
         }
       ],
       "moduleId": "quality",
@@ -4078,54 +3902,6 @@
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "cancels a future draft with retained owner evidence and permits exact-period and completed non-overlap retries",
-          "proof": "Actual future native draft has PERIOD_OPEN, owner cancellation retains exact original SQL snapshot, one receipt/audit/outbox/flow, same-period replacement succeeds, completed non-overlap recalculation yields100000 gross/net, cancelled terminal source and immutable receipt reject direct mutation."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "replays a lost cancellation response once and rejects stale or conflicting keys without extra evidence",
-          "proof": "Native stale commands produce zero effects; same-key lost-response replay returns original once, changed payload rejects idempotency conflict; cancelled/stale reruns retain one evidence row/event of each kind."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "serializes concurrent cancellation commands and an identical lost-response retry into one owner transition",
-          "proof": "Two distinct concurrent native commands yield one commit and one409; concurrent same-key replay yields identical result and exactly one retained owner transition."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "retains calculated item snapshots and issued review bytes after preview cancellation",
-          "proof": "Actual100000 preview item and issued review CSV/checksum remain unchanged after cancel; direct item UPDATE/DELETE reject, API calculate rejects locked source, no payment batch exists."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "guards a concurrent preview calculation against cancellation without orphaned calculation items",
-          "proof": "Native cancellation versus actual calculation has exactly one winner at version2; cancelled result has zero orphaned items, or successful preview remains valid and can then be normally cancelled."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "requires current creator or named Company authority and denies cached revocation, expiry and cross-Company cancellation",
-          "proof": "Other active preparer lacks source ownership; other Company gets404; expired current assignment blocks before side effects, revoked cached grant also denies lost-response replay after legitimate cancellation."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "allows the normally named preparer to cancel a scheduled draft without taking over its original creator",
-          "proof": "Declared system-created scheduled source is cancelled only through its configured native preparer and retains system creator in original row and immutable snapshot."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
-          "title": "rejects submitted, approved and posted payroll cancellation while retaining its exact GL and immutable employee payslip",
-          "proof": "Native calculation→submit→independent approval→independent mapping review→post produces exact100000 balancedGL and one issued slip; cancellation denies each locked stage and DB direct posted cancellation without changing source/slip/event counts."
-        },
-        {
-          "runner": "vitest",
           "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
           "title": "source-dated Thai payroll owner workflow pays an independently reviewed posted-payroll delta without changing original bank slips exports GL or repeated YTD",
           "proof": "Original monthly payroll is independently posted and settled; approved late4h OT plus100000 arrears creates175000 gross/8750 PIT/0 repeatSSO/166250 net according to independent worksheet, separately approved/post/slip/bank settled. Originalrun/item/GL/reviewCSV/slip/paymentCSV remain byte-identical; laterYTD counts originalanddelta once. Ownself-review,crossCompany,claimedOT,postedtamper and replay deny or remain exact."
@@ -4542,7 +4318,7 @@
         {
           "runner": "vitest",
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
-          "title": "delivers only the attested Company Quality and all three reservation sources once while disabled sources and certification remain unchanged",
+          "title": "delivers only the attested Company Quality and the remaining Commerce/Manufacturing reservation sources once while disabled sources and certification remain unchanged",
           "proof": "expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);\n const reservations=(await db.prepare(\"SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id\").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;\n expect(reservations).toHaveLength(5);expect(reservations.filter(row=>row.record_type==='field_service_order').map(row=>row.user_id).sort()).toEqual([enabled.f.owner.userId,enabled.f.claimant.userId].sort());\n expect(reservations.filter(row=>row.record_type==='commerce_order').map(row=>row.user_id)).toEqual([enabled.f.owner.userId]);\n expect(reservations.filter(row=>row.record_type==='manufacturing_order').map(row=>row.user_id).sort()).toEqual([enabled.reviewer.userId,enabled.f.owner.userId].sort());\n expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.fieldId,enabled.productionId]));\n expect((await counts(enabled)).mail).toEqual({status:'sent',attempts:1,provider_message_id:`sandbox-${enabled.messageId}`});\n expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);expect(await counts(enabled)).toEqual(before);\n await expect(queueDeliveryNotification(disabled.f.owner,disabled.fulfillmentId,{expectedVersion:1,note:'Disabled Company cannot replay delivery authority'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});\n expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);"
         },
         {
@@ -4860,7 +4636,7 @@
           "runner": "vitest",
           "file": "tests/integration/projects/project-actuals.test.ts",
           "title": "orders project milestones by same-project prerequisites and exposes current blocker evidence",
-          "proof": "expect(listed.find((row) => row.id === successor.id)).toMatchObject({\n    depends_on_ids: [prerequisite.id], depends_on_titles: [\"Approve the engineering sample\"],\n    blocked_by_titles: [\"Approve the engineering sample\"], blocked_by_count: 1,\n  });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, successor.id, {\n    action: \"start\", expectedVersion: 1, reason: \"Start the dependent milestone.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCIES_INCOMPLETE\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"cancel\", expectedVersion: 1, reason: \"Cancel a prerequisite with an active dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_REQUIRED_PREREQUISITE\" });\nawait expect(saveProjectMilestone(db, f.owner, project.id, prerequisite.id, projectMilestoneSchema.parse({\n    title: \"Approve the engineering sample\", dueAt: \"2026-09-15T12:00:00.000Z\", ownerUserId: f.owner.userId,\n    expectedVersion: 1, dependsOnMilestoneIds: [successor.id],\n  }), key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCY_CYCLE\" });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"1\", unit: \"count\", status: \"ready\" });\nexpect((await queryMetric(db, actor, \"project-dependency-blockers\", filters, \"project\")).rows)\n    .toEqual([{ label: \"Dependency workflow fixture\", value: \"1\" }]);\nexpect(evidence).toMatchObject({ provider: \"projects-milestone-dependencies\", metric: \"project-dependency-blockers\" });\nexpect(evidence.items).toMatchObject([{ id: successor.id, summary: \"Dependency workflow fixture · 1 incomplete prerequisite\" }]);\nexpect(detail.record).toMatchObject({\n    id: successor.id, prerequisites: [{ id: prerequisite.id, title: \"Approve the engineering sample\", state: \"planned\", version: 1 }],\n  });\nexpect((await searchExecutiveEvidence(db, memberActor, { metric: \"project-dependency-blockers\", filters, limit: 10 })).items).toHaveLength(0);\nawait expect(readExecutiveEvidence(db, memberActor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nexpect((await listProjectMilestones(db, f.owner, project.id)).find((row) => row.id === successor.id))\n    .toMatchObject({ blocked_by_titles: [], blocked_by_count: 0 });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"0\", status: \"empty\" });\nawait expect(readExecutiveEvidence(db, actor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"reopen\", expectedVersion: 2, reason: \"Reopen a prerequisite with a completed dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_DEPENDENT_COMPLETED\" });"
+          "proof": "expect(listed.find((row) => row.id === successor.id)).toMatchObject({\n    depends_on_ids: [prerequisite.id], depends_on_titles: [\"Approve the engineering sample\"],\n    blocked_by_titles: [\"Approve the engineering sample\"], blocked_by_count: 1,\n  });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, successor.id, {\n    action: \"start\", expectedVersion: 1, reason: \"Start the dependent milestone.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCIES_INCOMPLETE\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"cancel\", expectedVersion: 1, reason: \"Cancel a prerequisite with an active dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_REQUIRED_PREREQUISITE\" });\nawait expect(saveProjectMilestone(db, f.owner, project.id, prerequisite.id, projectMilestoneSchema.parse({\n    title: \"Approve the engineering sample\", dueAt: \"2026-09-15T12:00:00.000Z\", ownerUserId: f.owner.userId,\n    expectedVersion: 1, dependsOnMilestoneIds: [successor.id],\n  }), key())).rejects.toMatchObject({ code: \"PROJECT_DEPENDENCY_CYCLE\" });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"1\", unit: \"count\", status: \"ready\" });\nexpect((await queryMetric(db, actor, \"project-dependency-blockers\", filters, \"project\")).rows)\n    .toEqual([{ label: \"Dependency workflow fixture\", value: \"1\" }]);\nexpect(evidence).toMatchObject({ provider: \"projects-milestone-dependencies\", metric: \"project-dependency-blockers\" });\nexpect(evidence.items).toMatchObject([{ id: successor.id, summary: \"Dependency workflow fixture \u00b7 1 incomplete prerequisite\" }]);\nexpect(detail.record).toMatchObject({\n    id: successor.id, prerequisites: [{ id: prerequisite.id, title: \"Approve the engineering sample\", state: \"planned\", version: 1 }],\n  });\nexpect((await searchExecutiveEvidence(db, memberActor, { metric: \"project-dependency-blockers\", filters, limit: 10 })).items).toHaveLength(0);\nawait expect(readExecutiveEvidence(db, memberActor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nexpect((await listProjectMilestones(db, f.owner, project.id)).find((row) => row.id === successor.id))\n    .toMatchObject({ blocked_by_titles: [], blocked_by_count: 0 });\nexpect(await queryMetric(db, actor, \"project-dependency-blockers\", filters)).toMatchObject({ total: \"0\", status: \"empty\" });\nawait expect(readExecutiveEvidence(db, actor, \"project-dependency-blockers\", successor.id, filters))\n    .rejects.toMatchObject({ code: \"EVIDENCE_NOT_FOUND\" });\nawait expect(transitionProjectMilestone(db, f.owner, project.id, prerequisite.id, {\n    action: \"reopen\", expectedVersion: 2, reason: \"Reopen a prerequisite with a completed dependent.\",\n  }, key())).rejects.toMatchObject({ code: \"PROJECT_MILESTONE_DEPENDENT_COMPLETED\" });"
         }
       ],
       "moduleId": "projects",
@@ -5244,14 +5020,7 @@
         "Persisted Dependents lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "binds dependent proof to the independent verification action",
-          "proof": "Normal employee dependent and separate reviewer verification bind the clean evidence set to the verification owner action."
-        }
-      ],
+      "cases": [],
       "moduleId": "benefits",
       "capabilityId": "dependents"
     },
@@ -5265,12 +5034,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
@@ -5298,14 +5061,7 @@
         "Persisted Plans lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        }
-      ],
+      "cases": [],
       "moduleId": "benefits",
       "capabilityId": "feature-plans"
     },
@@ -5318,14 +5074,7 @@
         "Persisted Enrollment windows lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        }
-      ],
+      "cases": [],
       "moduleId": "benefits",
       "capabilityId": "feature-enrollment-windows"
     },
@@ -5339,18 +5088,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "snapshots family coverage through independent provider and payroll release",
-          "proof": "Draft plan/window are independently published/opened; verified dependent enables election; own submit→provider acknowledgement→different payroll releaser preserves exact employee12550/employer30000 snapshot and immutable complete history."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "feeds released benefit deductions and employer cost into payroll snapshots",
-          "proof": "Released source election version4 enters calculated payroll snapshot with gross100000,deductions12550,employer30000,net87450; proves downstream consumption amount and source version."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
@@ -5480,18 +5217,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "consumes immutable Learning eligibility once into Benefits and rechecks certificate expiry before handoff release",
-          "proof": "Missing qualification blocks election; source-dated certificate/handoff becomes one immutable Benefits receipt, command replay returns same result; expiry blocks later provider acknowledgement without changing original completion/handoff/election source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/benefits/benefits.test.ts",
-          "title": "revokes a reviewed Learning certificate without changing completion or its original Benefits consumption receipt",
-          "proof": "Learning reviewer revokes certificate idempotently; Benefits submission is blocked while completed learning and exactly one original consumption receipt remain; revocation source evidence cannot be edited."
-        },
-        {
           "runner": "playwright",
           "file": "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
           "title": "isolated normal-login Finance and workforce owner journeys completes Learning certification and independently releases a qualified Benefits election without mutating its handoff",
@@ -5543,7 +5268,7 @@
           "runner": "vitest",
           "file": "tests/integration/talent/talent.test.ts",
           "title": "moves a consented candidate through proposal, reviewed offer and immutable hire handoff",
-          "proof": "Applied→interview→selected→offered→accepted is asserted through normal owner commands and immutable accepted offer/handoff reload."
+          "proof": "Applied\u2192interview\u2192selected\u2192offered\u2192accepted is asserted through normal owner commands and immutable accepted offer/handoff reload."
         },
         {
           "runner": "vitest",
@@ -5676,7 +5401,7 @@
         {
           "runner": "vitest",
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
-          "title": "delivers only the attested Company Quality and all three reservation sources once while disabled sources and certification remain unchanged",
+          "title": "delivers only the attested Company Quality and the remaining Commerce/Manufacturing reservation sources once while disabled sources and certification remain unchanged",
           "proof": "expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);\n const reservations=(await db.prepare(\"SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id\").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;\n expect(reservations).toHaveLength(5);expect(reservations.filter(row=>row.record_type==='field_service_order').map(row=>row.user_id).sort()).toEqual([enabled.f.owner.userId,enabled.f.claimant.userId].sort());\n expect(reservations.filter(row=>row.record_type==='commerce_order').map(row=>row.user_id)).toEqual([enabled.f.owner.userId]);\n expect(reservations.filter(row=>row.record_type==='manufacturing_order').map(row=>row.user_id).sort()).toEqual([enabled.reviewer.userId,enabled.f.owner.userId].sort());\n expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.fieldId,enabled.productionId]));\n expect((await counts(enabled)).mail).toEqual({status:'sent',attempts:1,provider_message_id:`sandbox-${enabled.messageId}`});\n expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);expect(await counts(enabled)).toEqual(before);\n await expect(queueDeliveryNotification(disabled.f.owner,disabled.fulfillmentId,{expectedVersion:1,note:'Disabled Company cannot replay delivery authority'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});\n expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);"
         },
         {
@@ -5822,14 +5547,7 @@
         "Persisted Agent catalog lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "agent-catalog"
     },
@@ -5842,26 +5560,7 @@
         "Persisted Versions lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "enforces approved source boundaries before a provider attempt and leaves the manual guide available",
-          "proof": "Provider mock is not called outside approved paths; manual guide remains available; no successful turn is persisted for forbidden source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "keeps retired versions out of new invocations and replays lifecycle commands once",
-          "proof": "Retires approved immutable version, retries same lifecycle key, checks single history receipt and no subsequent provider attempt."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "versions"
     },
@@ -5874,26 +5573,7 @@
         "Persisted Assignments lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "enforces approved source boundaries before a provider attempt and leaves the manual guide available",
-          "proof": "Provider mock is not called outside approved paths; manual guide remains available; no successful turn is persisted for forbidden source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "refuses an in-flight revoked agent assignment and persists failure evidence",
-          "proof": "Revokes assignment while provider is pending; answer is denied and failed evidence remains; successful output is not persisted."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "assignments"
     },
@@ -5906,26 +5586,7 @@
         "Persisted Pools & routing lifecycle, authorized handoff and history remain correct after reload."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "replaces eligible pool members atomically, retains revisions and removes the previous routing grant",
-          "proof": "Member replacement retains immutable revisions, revokes old member routing, accepts new member, rejects cross-company/inactive recipients and replays once."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "allows only one concurrent pool replacement from the same version",
-          "proof": "Two simultaneous replacement commands at one expected version produce exactly one success and one new revision."
-        }
-      ],
+      "cases": [],
       "moduleId": "agent",
       "capabilityId": "feature-pools-routing"
     },
@@ -5939,12 +5600,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "retains held evidence across expiry and starts a fresh private session without old history",
-          "proof": "Only owner can inspect history; hold retains immutable evidence; expiry denies old generation and next invocation starts new generation with empty old history; hold/release/expiry receipts replay."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
@@ -6018,30 +5673,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "routes an approved immutable version through a pool and records private invocation evidence",
-          "proof": "Approves catalogue/version independently, routes pool member, checks actual provider system prompt and approved source policy, private session and immutable governance invocation digest; direct evidence update is rejected."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "enforces approved source boundaries before a provider attempt and leaves the manual guide available",
-          "proof": "Provider mock is not called outside approved paths; manual guide remains available; no successful turn is persisted for forbidden source."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "refuses an in-flight revoked agent assignment and persists failure evidence",
-          "proof": "Revokes assignment while provider is pending; answer is denied and failed evidence remains; successful output is not persisted."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/agent/agent-governance.test.ts",
-          "title": "keeps retired versions out of new invocations and replays lifecycle commands once",
-          "proof": "Retires approved immutable version, retries same lifecycle key, checks single history receipt and no subsequent provider attempt."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",

@@ -4,6 +4,7 @@ const id = z.string().min(1).max(180);
 const version = z.number().int().nonnegative().default(0);
 const reason = z.string().trim().min(3).max(1000);
 export const peopleAccessChange = z.discriminatedUnion("operation", [
+  z.object({ operation: z.literal("account"), name: z.string().trim().min(2).max(150), email: z.email(), reason }),
   z.object({ operation: z.literal("organization"), id: id.optional(), expectedVersion: version, name: z.string().trim().min(2).max(150), kind: z.enum(["organization", "independent"]), reason }),
   z.object({ operation: z.literal("team"), id: id.optional(), expectedVersion: version, name: z.string().trim().min(2).max(150), organizationId: id, departmentId: id.nullable(), reason }),
   z.object({ operation: z.literal("subject"), id: id.optional(), expectedVersion: version, name: z.string().trim().min(2).max(150), email: z.email(), organizationId: id, teamId: id.nullable(), sponsorPersonId: id.nullable(), expiresAt: z.number().int().positive().nullable(), status: z.enum(["active", "suspended"]), reason }),
@@ -15,7 +16,7 @@ export const peopleAccessChange = z.discriminatedUnion("operation", [
 export type PeopleAccessChange = z.infer<typeof peopleAccessChange>;
 export type AccessOrganization = { id: string; name: string; kind: "organization" | "independent"; version: number };
 export type ExternalTeam = { id: string; name: string; organizationId: string; departmentId: string | null; version: number };
-export type AccessSubject = { id: string; name: string; email: string; kind: "internal" | "external"; userId: string | null; personId: string | null; departmentId: string | null; organizationId: string | null; teamId: string | null; sponsorPersonId: string | null; expiresAt: number | null; status: string; version: number };
+export type AccessSubject = { id: string; name: string; email: string; kind: "internal" | "external" | "unclassified"; classification?: "employee" | "external" | "unclassified"; accountSource?: "local" | "directory" | null; linkedUserIds?: string[]; userId: string | null; personId: string | null; departmentId: string | null; organizationId: string | null; teamId: string | null; sponsorPersonId: string | null; expiresAt: number | null; status: string; version: number };
 export type AccessRole = { id: string; name: string; revision: number; permissions: string[]; grantablePermissions: string[]; scopes: string[]; builtIn: boolean };
 export type PeopleAccessSnapshot = {
   subjects: AccessSubject[]; organizations: AccessOrganization[]; teams: ExternalTeam[];
@@ -25,3 +26,6 @@ export type PeopleAccessSnapshot = {
   canApply: boolean; authorizingUntil: number;
 };
 export type PeopleAccessPreview = { token: string; change: PeopleAccessChange; summary: string; affected: string[]; expiresAt: number };
+
+/** Relationship readers never receive grants, policy definitions or Directory configuration. */
+export type PeopleRelationshipsSnapshot = Pick<PeopleAccessSnapshot, "subjects" | "organizations" | "teams" | "units"> & { canManage: boolean };

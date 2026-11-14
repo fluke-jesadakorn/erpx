@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Support temporary-access sessions and capabilities qualified; attachments and SLA watch remain separate",
+  "capability": "support-session-capability-native-command",
+  "base": "ca53be7ce1ec4e929de7095d1d1f0bbffe64f6fe",
+  "branch": "codex/support-sessions-owner-cutover",
+  "sourceCommit": "3d926fda89c4b38a65646f73deecbd56d6db1223",
+  "runtime": {
+    "cohort": "7bb9e96af7a9",
+    "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
+    "host": "https://acme.jesadakorn.com",
+    "supportApp": "apps/support on 127.0.0.1:3285 with ERPX_NATIVE_SUPPORT_SESSION_CONFIG",
+    "nativeWriter": "private-api on 127.0.0.1:44993 with supportSessionWrites for h001/company",
+    "sourceTicket": "session-browser-ticket (sales_order, owner, open, order support-browser-order)"
+  },
+  "command": {
+    "postgres": "support.rust-support-session-command-postgres.integration 3/3",
+    "cases": [
+      "request own temporary access for an assigned sales-order case, replay and persisted pending v1",
+      "manager self-approval rejected with INDEPENDENT_SESSION_REVIEWER_REQUIRED",
+      "independent manager approve, issue capability, revoke capability, reissue capability and revoke session",
+      "session events request:1 approve:2 revoke:6 and capability events issue:1 revoke:2 reissue:3 session-revoke:4",
+      "general ticket, foreign ticket owner, request for another person and a nine-hour expiry rejected before any write",
+      "HTTP request and approve with the real cookie/CAS, id stripped before strict SessionAction parsing",
+      "five command receipts, five audit and five outbox rows for the lifecycle"
+    ]
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "session": "support-session-ff30f0dc-a140-4ec3-8b8b-a5cf81c37d1a",
+      "steps": [
+        {
+          "action": "request",
+          "status": 200,
+          "state": "pending",
+          "version": 1
+        },
+        {
+          "action": "approve",
+          "status": 200,
+          "state": "approved",
+          "version": 2
+        },
+        {
+          "action": "issue-capability",
+          "status": 200,
+          "state": "approved",
+          "version": 3,
+          "code": "customer_order_context"
+        },
+        {
+          "action": "revoke-capability",
+          "status": 200,
+          "state": "approved",
+          "version": 4
+        },
+        {
+          "action": "revoke",
+          "status": 200,
+          "state": "revoked",
+          "version": 5
+        }
+      ],
+      "persisted": {
+        "status": "revoked",
+        "version": 5,
+        "sessionEvents": [
+          "request:1",
+          "approve:2",
+          "revoke:5"
+        ],
+        "capability": {
+          "code": "customer_order_context",
+          "status": "revoked",
+          "version": 2
+        },
+        "capabilityEvents": [
+          "issue:1",
+          "revoke:2"
+        ],
+        "receipts": 5,
+        "audit": 5,
+        "outbox": 5
+      },
+      "capabilityGatedContextVisible": true,
+      "pageErrors": 0,
+      "consoleErrors": 7
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "session": "support-session-a62fa319-2182-4ddb-b5e1-f31cb54d5145",
+      "steps": [
+        {
+          "action": "request",
+          "status": 200,
+          "state": "pending",
+          "version": 1
+        },
+        {
+          "action": "approve",
+          "status": 200,
+          "state": "approved",
+          "version": 2
+        },
+        {
+          "action": "issue-capability",
+          "status": 200,
+          "state": "approved",
+          "version": 3,
+          "code": "customer_order_context"
+        },
+        {
+          "action": "revoke-capability",
+          "status": 200,
+          "state": "approved",
+          "version": 4
+        },
+        {
+          "action": "revoke",
+          "status": 200,
+          "state": "revoked",
+          "version": 5
+        }
+      ],
+      "persisted": {
+        "status": "revoked",
+        "version": 5,
+        "sessionEvents": [
+          "request:1",
+          "approve:2",
+          "revoke:5"
+        ],
+        "capability": {
+          "code": "customer_order_context",
+          "status": "revoked",
+          "version": 2
+        },
+        "capabilityEvents": [
+          "issue:1",
+          "revoke:2"
+        ],
+        "receipts": 5,
+        "audit": 5,
+        "outbox": 5
+      },
+      "capabilityGatedContextVisible": true,
+      "pageErrors": 0,
+      "consoleErrors": 7
+    },
+    "ui": "The owner requests a session on /support/sessions with the assigned case and an expiry within eight hours. The independent manager approves, issues the customer_order_context capability, and the owner detail shows the capability-gated order context. The manager revokes the capability and the whole session; the owner readback shows revoked."
+  },
+  "limits": [
+    "Incident attachments and Support evidence attachments remain separate workflows.",
+    "SLA watch remains a separate workflow.",
+    "The browser lifecycle used the customer_order_context capability; ticket_evidence_metadata is issued by the same command but was not exercised in the browser.",
+    "The Support app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

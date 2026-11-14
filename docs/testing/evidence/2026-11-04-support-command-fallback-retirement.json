@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support command routes are native-only; native reads, SSR and the scheduled SLA drain remain open",
+  "capability": "support-command-fallback-retirement",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commit": "87ec9e8b6",
+  "routes": [
+    "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts",
+    "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sla/route.ts",
+    "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/incidents/route.ts",
+    "packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sessions/route.ts"
+  ],
+  "behavior": {
+    "fallback": "Removed; missing native selectors close POST with 503 NATIVE_SUPPORT_*_UNAVAILABLE.",
+    "evidenceAction": "bind-evidence/revoke-evidence select the evidence writer independently.",
+    "readSurface": "GET and SSR remain on the existing TypeScript read adapters."
+  },
+  "tests": [
+    "vitest tests/unit/support: 8 files, 93 passed",
+    "cargo test -p erpx-server-support: 45 passed",
+    "recorded support_ticket/incident/session/sla/evidence PostgreSQL HTTP suites: 14 passed"
+  ],
+  "limits": [
+    "Native Support reads/SSR are not implemented.",
+    "The native SLA drain is CLI-only; scripts/local/jobs.ts still schedules the TypeScript drain.",
+    "Retained TypeScript command writers remain test-reachable with named removal conditions."
+  ]
+}

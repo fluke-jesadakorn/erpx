@@ -40,11 +40,11 @@ export function productDestinationAvailable(id: ProductId, path: string, input: 
   // Standalone Routines are Operations-owned Company work, including the
   // original module-free staff/retained-history roles. Projects is an optional
   // source on a template, not the readiness owner for this Work collection.
-  if(id==='work'&&(path==='projects-routines/routines'||path.startsWith('projects-routines/routines/')))
+  if(id==='apps'&&(path==='projects-routines/routines'||path.startsWith('projects-routines/routines/')))
     return /^projects-routines\/routines(?:\/(?!new(?:\/|$))[A-Za-z0-9_-]+(?:\/overview)?)?$/.test(path)&&
       !input.beta&&input.readyModules.includes('operations')&&hasPermission({role:input.role??'employee',permissions:input.permissions},'records.read');
-  if(id==="work"&&socialPostSourceEntry(path))return input.readyModules.includes("collaboration");
-  if(id==="work"&&workforceSelfServiceEntry(path))return input.readyModules.includes("people_payroll");
+  if(id==="apps"&&socialPostSourceEntry(path))return input.readyModules.includes("collaboration");
+  if(id==="apps"&&workforceSelfServiceEntry(path))return input.readyModules.includes("people_payroll");
   const context = navigationContext(input);
   const allowed = (item: typeof destinations[number]) => {
     const required = productEntryCapability(id, item.path);
@@ -66,7 +66,7 @@ export function productDestinationAvailable(id: ProductId, path: string, input: 
 export function productOfficeLanding(id: ProductId, input: ProductLandingContext) {
   const definition = product(id);
   if (!definition) return null;
-  if (id === "work") return input.readyModules.includes("operations") && (input.commercialAdmissionDeferred || input.capabilities.includes("work.today")) ? definition.landing : null;
+  if (id === "apps") return input.readyModules.includes("operations") && (input.commercialAdmissionDeferred || input.capabilities.includes("work.today")) ? definition.landing : null;
   if (!definition.modules.some(moduleId => input.modules.includes(moduleId) && input.readyModules.includes(moduleId))) return null;
   if (productDestinationAvailable(id, definition.landing, input)) return definition.landing;
   return destinations.find(item => destinationProduct(item.path) === id && productDestinationAvailable(id, item.path, input))?.path ?? null;

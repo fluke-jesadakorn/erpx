@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./adapters/notification-execution": "./src/adapters/notification-execution.ts",
     "./adapters/calendar-customer-followups-facts": "./src/adapters/calendar-customer-followups-facts.ts",
     "./adapters/customers": "./src/adapters/customers.ts",
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
@@ -15,10 +14,8 @@
     "./adapters/pricing": "./src/adapters/pricing.ts",
     "./adapters/ecommerce-package-obligations": "./src/adapters/ecommerce-package-obligations.ts",
     "./adapters/commerce-facts": "./src/adapters/commerce-facts.ts",
-    "./adapters/followup-notification-source": "./src/adapters/followup-notification-source.ts",
     "./adapters/followups": "./src/adapters/followups.ts",
     "./adapters/notes": "./src/adapters/notes.ts",
-    "./adapters/notification-reconciliation": "./src/adapters/notification-reconciliation.ts",
     "./adapters/recipient": "./src/adapters/recipient.ts",
     "./adapters/executive-followup-evidence-sources": "./src/adapters/executive-followup-evidence-sources.ts",
     "./adapters/redirect": "./src/adapters/redirect.ts",
@@ -36,7 +33,6 @@
     "./public/workflow-notification-source": "./src/public/workflow-notification-source.ts",
     "./public/ecommerce-package-obligations": "./src/public/ecommerce-package-obligations.ts",
     "./public/commerce-facts": "./src/public/commerce-facts.ts",
-    "./public/followup-notification-source": "./src/public/followup-notification-source.ts",
     "./public/executive-followup-evidence-sources": "./src/public/executive-followup-evidence-sources.ts",
     "./public/sales-customer-redirect": "./src/public/sales-customer-redirect.ts",
     "./public/rules/navigation": "./src/public/rules/navigation.ts",
@@ -49,7 +45,6 @@
     "./public/commerce-pricing-contracts": "./src/public/commerce-pricing-contracts.ts",
     "./public/sales-recipient": "./src/public/sales-recipient.ts",
     "./index": "./src/index.ts",
-    "./application/notification-delivery": "./src/application/notification-delivery.ts",
     "./application/customers": "./src/application/customers.ts",
     "./application/order-work": "./src/application/order-work.ts",
     "./application/notifications": "./src/application/notifications.ts",
@@ -70,7 +65,6 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@erpx/contracts": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-sales": "workspace:*",
@@ -91,8 +85,8 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "next": "16.4.0",
+    "next": "16.4.3",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

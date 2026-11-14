@@ -1,6 +1,6 @@
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
-import {holdingHostForHost,holdingRoutingEnabled,holdingPathMatches,holdingPublicUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingRoutingEnabled,holdingPathMatches,holdingPublicUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import {configuredProductOrigin,configuredProductHandoff,productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import {publicSurfaceTarget,type PublicSurfaceHost} from '@erpx/server-identity_access/domain/public-surface-entry';
 import {currentSession} from '@erpx/server-identity_access/adapters/authorization';

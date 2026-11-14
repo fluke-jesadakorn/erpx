@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance standalone sales-invoice edit/void verified on desktop and mobile; finance:sales-invoice-workspace closes",
+  "capability": "finance-sales-invoice-edit-native",
+  "base": "a5d47da8e7142406481a6179971f60051b03f977",
+  "branch": "codex/finance-sales-invoice-edit-native",
+  "sourceCommit": "28f4f7cb19c2e03cc916c79de497397ef9db5e1a",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/sales_invoice_edit.rs",
+    "public": "packages/server-finance/src/public/sales_invoice_edit.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (edit_sales_invoice/void_sales_invoice)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "boundary": "src/composition/src/private_development_api.rs (finance_sales_invoice_edit)",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-invoice-edit.ts",
+    "nextRoute": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+    "blockingFix": "packages/feature-finance/src/adapters/server/native-service-invoice.ts returns undefined when the Field invoice config is absent so standalone detail pages render"
+  },
+  "behavior": {
+    "edit": "requires a standalone receivable draft at expectedVersion, validates the active chart/accounts/party/number, writes the header, the next line revision, the draft:v{revision} USD Money snapshot and the finance.invoice.update receipt/audit/outbox",
+    "lines": "per-line account and optional tax account are validated on the same active chart/currency; header subtotal/tax must equal the calculated line sums; whole-document invoices use a historical_header revision row",
+    "void": "requires a standalone receivable draft at expectedVersion, sets status voided and outstanding 0 with version+1 and the finance.invoice.void receipt/audit/outbox",
+    "replay": "the command receipt is checked before the version guard so an exact retry returns the retained result even after the version advanced; a different request under the same key is 409",
+    "scope": "Company scope only; non-receivable or non-standalone invoices return None so their owner path stays authoritative (payable editing remains legacy)",
+    "authority": "current Account/Holding authority, rendered-context CAS, finance.write, module.finance.read, Company scope and finance.accounting or finance.sales-posting purchase (NewWork for edit, History for void)",
+    "atomicity": "serializable transaction with invoice FOR UPDATE and active chart/account/party/rate/scale share locks"
+  },
+  "checks": {
+    "postgres": "finance.rust-sales-invoice-edit-postgres.integration 4/4",
+    "cases": [
+      "native create then edit v1 -> v2 with two revised lines; header 25,000 / 1,750 / 26,750",
+      "retained v1 lines plus v2 lines; draft:v1 and draft:v2 Money snapshots",
+      "finance.invoice.update receipt, audit and outbox; exact replay without a third revision",
+      "different body under the same key is 409 IDEMPOTENCY_CONFLICT; stale expectedVersion is 409 VERSION_CONFLICT",
+      "void v1 -> v2 status voided / outstanding 0 with finance.invoice.void receipt; replay; stale void 409; unknown id None",
+      "whole-document edit writes a historical_header revision row; payable invoice returns None",
+      "HTTP POST edit 200, POST void 200 and missing Idempotency-Key 422 with a real cookie/CAS"
+    ],
+    "regressions": "finance.rust-sales-receipt-postgres 2/2; finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 792 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "create": {
+        "postStatus": 201,
+        "id": "invoice-17a20ef9-c426-40b2-bf62-305351d4fc4a-invoice",
+        "number": "INV-2026-000011",
+        "total": "107.00",
+        "version": 1
+      },
+      "edit": {
+        "postStatus": 200,
+        "total": "214.00",
+        "version": 2
+      },
+      "editReadback": "Invoice detail Total THB 214.00, Outstanding THB 214.00, Revision 2, line Native edited service 2 x 100.00 net 200.00 VAT 14.00 total 214.00",
+      "void": {
+        "postStatus": 200,
+        "status": "voided",
+        "version": 3
+      },
+      "voidReadback": "Invoice detail status voided, Outstanding THB 0.00, list row INV-2026-000011 voided",
+      "pageErrors": 0,
+      "consoleErrors": 24
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "create": {
+        "postStatus": 201,
+        "id": "invoice-8a4afa03-2200-4abd-8c77-50f4358faf26-invoice",
+        "number": "INV-2026-000012",
+        "total": "107.00",
+        "version": 1
+      },
+      "edit": {
+        "postStatus": 200,
+        "total": "214.00",
+        "version": 2
+      },
+      "editReadback": "Invoice detail Total THB 214.00, Outstanding THB 214.00, Revision 2, line Native edited service 2 x 100.00 net 200.00 VAT 14.00 total 214.00",
+      "void": {
+        "postStatus": 200,
+        "status": "voided",
+        "version": 3
+      },
+      "voidReadback": "Invoice detail status voided, Outstanding THB 0.00, list row INV-2026-000012 voided",
+      "pageErrors": 0,
+      "consoleErrors": 24
+    },
+    "persisted": {
+      "invoices": [
+        {
+          "id": "invoice-17a20ef9-c426-40b2-bf62-305351d4fc4a-invoice",
+          "number": "INV-2026-000011",
+          "status": "voided",
+          "version": 3,
+          "totalMinor": 21400,
+          "outstandingMinor": 0,
+          "lineRevision": 2
+        },
+        {
+          "id": "invoice-8a4afa03-2200-4abd-8c77-50f4358faf26-invoice",
+          "number": "INV-2026-000012",
+          "status": "voided",
+          "version": 3,
+          "totalMinor": 21400,
+          "outstandingMinor": 0,
+          "lineRevision": 2
+        }
+      ],
+      "lines": "v1 Native edit baseline service 1,000 millis / 10,000 net / 700 VAT; v2 Native edited service 2,000 millis / 20,000 net / 1,400 VAT",
+      "money": "draft:v1 10,700 / USD 306; draft:v2 21,400 / USD 611, currency scale 2",
+      "commands": "each invoice has one finance.invoice.create, finance.sales-invoice.prepare, finance.invoice.update and finance.invoice.void receipt plus matching audit/outbox"
+    }
+  },
+  "limits": [
+    "Payable invoices and non-standalone invoices remain on their owner path; the generic editor's payable edits are not part of this slice.",
+    "Native edit/void require a Company Finance assignment, matching the native sales create and defaults controls.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0.",
+    "The invoice detail read remains the existing Finance read; this slice changes only the edit/void writer and the blocking Field-config fallthrough."
+  ]
+}

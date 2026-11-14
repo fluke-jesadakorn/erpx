@@ -4,7 +4,7 @@ import { useState } from "react";
 import {useAccountPreferences} from "@erpx/feature-identity_access/components/account-preferences-context";
 import { Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/time/preferred-date-time-field";
-import type { FieldWorkspace } from "@erpx/server-field_service/public/field-service";
+import type { FieldWorkspace } from "@erpx/feature-field_service/lib/workspace";
 
 export function ServiceTechnicianField({ source, branchId, departmentId, defaultUserId = "" }: {
   source: FieldWorkspace; branchId: string; departmentId: string | null; defaultUserId?: string;

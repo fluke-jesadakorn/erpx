@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { assertExplicitSelectionIncluded, loadCatalogue, listSelection, reachesDatabaseFixture, repositoryRoot as root, selectSuites, validateCatalogue, type Suite } from "./catalogue";
 import { parseTestArguments } from "./arguments";
@@ -9,6 +9,7 @@ import { attachmentToolEnvironment } from "./runtime-tooling";
 import { writeJsonOutput } from "./json-output";
 import { assertTestPlacement } from "./layout";
 import { runDevelopmentTests } from "./development";
+import { cargoCaseResults, cargoChildEnvironment, cargoTargetInvocations } from './cargo';
 
 if (Bun.version !== "1.4.3") throw new Error("Tests require Bun 1.4.3.");
 const options = parseTestArguments(process.argv.slice(2));
@@ -72,9 +73,11 @@ if (options.list) {
 
 const candidates = [process.env.ERPX_NODE_BIN, resolve(root, ".runtime/node/node-v26.11.1-darwin-arm64/bin/node"), resolve(root, ".runtime/deployment/runtime/node/bin/node")].filter((path): path is string => !!path && existsSync(path));
 const node = candidates[0];
-if (!node) throw new Error("Pinned Node is missing. Set ERPX_NODE_BIN to Node 26.11.1.");
-const version = Bun.spawnSync([node, "--version"]);
-if (version.exitCode !== 0 || version.stdout.toString().trim() !== "v26.11.1") throw new Error("Tests require Node 26.11.1.");
+if (suites.some(suite => suite.framework !== 'cargo')) {
+  if (!node) throw new Error("Pinned Node is missing. Set ERPX_NODE_BIN to Node 26.11.1.");
+  const version = Bun.spawnSync([node, "--version"]);
+  if (version.exitCode !== 0 || version.stdout.toString().trim() !== "v26.11.1") throw new Error("Tests require Node 26.11.1.");
+}
 
 const attachmentMode = process.env.ERPX_TEST_ATTACHMENTS_V2 ?? "false";
 if (!["false", "true"].includes(attachmentMode)) throw new Error("INVALID_TEST_ATTACHMENT_MODE");
@@ -98,8 +101,9 @@ async function execute(argv: string[], childEnv: Record<string, string | undefin
 }
 
 for (const kind of ["unit", "integration", "provider"] as const) {
-  const selected = suites.filter(suite => suite.lane === kind);
+  const selected = suites.filter(suite => suite.lane === kind && suite.framework !== 'cargo');
   if (!selected.length) continue;
+  if (!node) throw new Error("Pinned Node is missing. Set ERPX_NODE_BIN to Node 26.11.1.");
   if (kind === "integration") databaseCredentials();
   // Every external lane is a deliberate invocation. Missing dependencies fail before collecting skipped tests.
   if (kind === "provider") {
@@ -124,11 +128,38 @@ for (const kind of ["unit", "integration", "provider"] as const) {
     const patternIndex = options.forwarded.findIndex(arg => ["-t", "--testNamePattern"].includes(arg) || arg.startsWith("--testNamePattern="));
     const namePattern = registeredCase?.runner === "vitest" ? exactNativeCasePattern(registeredCase.title) : patternIndex < 0 ? undefined : options.forwarded[patternIndex].split("=").slice(1).join("=") || options.forwarded[patternIndex + 1];
     const defaultReporter = options.forwarded.some(arg => arg === "--reporter" || arg.startsWith("--reporter=")) ? [] : ["--reporter", "default"];
-    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root) } : env;
+    const nativeAccountProxy = kind === "integration" && selected.some(suite => suite.id.startsWith("legal.") || suite.id === "identity_access.product-sso.integration");
+    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root), ...(nativeAccountProxy ? { ERPX_NATIVE_ACCOUNT_TEST_PROXY: "1" } : {}) } : env;
     const childEnv = vitestChildEnvironment({ ...integrationEnvironment, ERPX_SELECTED_TEST_FILES: JSON.stringify(selectedFiles), ERPX_SELECTED_PROVIDER: kind === "provider" ? "1" : "0", ERPX_TEST_NAME_PATTERN: namePattern }, postgres);
     const exactPatternArgs = registeredCase?.runner === "vitest" ? ["--testNamePattern", exactNativeCasePattern(registeredCase.title)] : [];
     const exit = await execute([node, resolve(root, "node_modules/vitest/vitest.mjs"), "run", "--config", postgres ? "tests/config/vitest.integration.config.mts" : "tests/config/vitest.unit.config.mts", ...options.forwarded, ...exactPatternArgs, ...defaultReporter, "--reporter", resolve(root, "scripts/testing/required-cases-reporter.ts")], childEnv);
     if (exit !== 0) process.exit(exit);
+  }
+}
+for (const suite of suites.filter(suite => suite.framework === 'cargo')) {
+  if (suite.lane === 'integration') databaseCredentials();
+  const cargoEnvironment=cargoChildEnvironment(suite,env);
+  for (const invocation of cargoTargetInvocations(suite, root, options.forwarded)) {
+    const child = Bun.spawn(['cargo', ...invocation.arguments], { cwd: root, env: cargoEnvironment, stdin: 'inherit', stdout: 'pipe', stderr: 'inherit' });
+    const onInt = () => child.kill('SIGINT'), onTerm = () => child.kill('SIGTERM');
+    process.on('SIGINT', onInt); process.on('SIGTERM', onTerm);
+    let output = '', exit: number;
+    try {
+      const reader = child.stdout.getReader(), decoder = new TextDecoder();
+      while (true) {
+        const { value, done } = await reader.read(); if (done) break;
+        process.stdout.write(value); output += decoder.decode(value, { stream: true });
+        if (output.length > 16 * 1024 * 1024) { child.kill('SIGTERM'); throw new Error('CARGO_TEST_OUTPUT_LIMIT'); }
+      }
+      output += decoder.decode(); exit = await child.exited;
+    } finally { process.off('SIGINT', onInt); process.off('SIGTERM', onTerm); }
+    const results = cargoCaseResults(output, invocation.file);
+    const receipt = { ...results, passed: exit === 0 && results.passed, suite: suite.id, package: suite.cargo!.package, target: invocation.target, exitCode: exit };
+    const directory = resolve(root, '.scratch/dev/test-suites/cargo', new Date().toISOString().replace(/[:.]/g, '-'));
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    writeFileSync(resolve(directory, `${suite.id}-${invocation.target}.json`), JSON.stringify(receipt, null, 2) + '\n', { mode: 0o600 });
+    if (exit !== 0) process.exit(exit);
+    if (!receipt.passed) throw new Error(`CARGO_REQUIRED_CASES_NOT_EXECUTED:${suite.id}:${invocation.target}`);
   }
 }
 const browser = suites.filter(suite => ["e2e", "journeys", "uat"].includes(suite.lane));

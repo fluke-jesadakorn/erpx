@@ -161,6 +161,7 @@ export function PeopleOrganizationDetail(
             <Link href={canonicalUiHref(`${base}/people/${encodeURIComponent(publicPerson.personId)}`)}>
               Full HR record and documents
             </Link>
+            {publicPerson.userId && <Link href={canonicalUiHref(`${base}/technology?view=resources&section=accounts&person=${encodeURIComponent(publicPerson.personId)}`)}>Related accounts</Link>}
             {publicPerson.userId && (
               <Link href={canonicalUiHref(`${base}/profiles/${encodeURIComponent(publicPerson.userId)}`)}>
                 Member profile
@@ -211,6 +212,7 @@ export function PeopleOrganizationDetail(
               ["Company", context.company?.name ?? "Not provided"],
             ]}
           />
+          {publicPerson.userId && <Link href={canonicalUiHref(`${base}/technology?view=resources&section=accounts&person=${encodeURIComponent(publicPerson.personId)}`)}>Related accounts</Link>}
           {publicPerson.userId && (
             <UiActionLink
               variant="secondary"

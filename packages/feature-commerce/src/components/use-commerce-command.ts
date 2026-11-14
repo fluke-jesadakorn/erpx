@@ -29,12 +29,20 @@ export function useCommerceCommand(base: string) {
       if (!commerceCommandFetch.acknowledge(response)) throw Error("The document acknowledgement is incomplete. Retry the same action.");
       setHasAttempt(false);
       if (!commerceFormUnchanged(completion) || !completion && captureCommerceForm()) {setNotice("Submitted change saved. Your newer draft is retained."); return false;}
-      const destination = target ?? canonicalUiHref(`${base}/commerce/orders/${result.data.salesId ?? result.data.orderId ?? result.data.id}`);
+      const kind = typeof input === "object" && input !== null && "kind" in input && (input as {kind?: unknown}).kind === "quote" ? "quote" : "sales";
+      const documentId = result.data.salesId ?? result.data.orderId ?? result.data.id;
+      const isOrder = path === "orders" || /^orders\/[^/]+$/.test(path);
+      const destination = target ?? canonicalUiHref(isOrder ? `${base}/customers-sales/sales/documents/${kind}/${documentId}` : `${base}/commerce/orders/${documentId}`);
       const record = recordTarget(destination, base), hubResult = hubResultHref(window.location.href, base, destination);
       window.dispatchEvent(new CustomEvent("erpx:hub-saved", {detail: completion}));
       window.dispatchEvent(new CustomEvent("erpx:record-saved", {detail: completion}));
-      if (hubResult) router.replace(hubResult, {scroll: false});
-      else if (embedded && record) router.replace(recordDrawerHref(window.location.href, record), {scroll: false});
+      if (hubResult) {
+        router.replace(hubResult, {scroll: false});
+        // Refresh after the drawer-result route is active so the list behind a
+        // created/edited document is read again instead of served from the
+        // client router cache.
+        window.setTimeout(() => router.refresh(), 0);
+      } else if (embedded && record) router.replace(recordDrawerHref(window.location.href, record), {scroll: false});
       else if (!embedded) router.push(destination);
       router.refresh(); return true;
     } catch (cause) {setError(cause instanceof Error ? cause.message : "Unable to save."); return false;}

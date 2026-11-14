@@ -1,0 +1,42 @@
+{
+  "recordedAt": "2026-11-09T11:05:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "4518448d5",
+  "bundle": "work-projection-quick-access-native",
+  "scope": "Native Work Projection quick-access preference port and PostgreSQL tests. No HTTP/API cutover, frontend or browser claim.",
+  "added": [
+    "packages/server-work_projection/src/domain/quick_access_preferences.rs",
+    "packages/server-work_projection/src/application/quick_access_preferences.rs",
+    "packages/server-work_projection/src/adapters/quick_access_preferences.rs",
+    "packages/server-work_projection/src/public/quick_access_preferences.rs",
+    "tests/integration/shared.work/rust-quick-access-preferences-postgres.test.rs"
+  ],
+  "checks": [
+    {
+      "command": "cargo test --offline -p erpx-server-work-projection --test quick_access_preferences_postgres -- --test-threads=1",
+      "result": "4 passed; 0 failed"
+    },
+    {
+      "command": "bun scripts/testing/test.ts --check (clean committed manifest, external untracked CRM test temporarily excluded)",
+      "result": "TEST_CATALOGUE_VALID:33 modules, 999 suites"
+    }
+  ],
+  "behavior": [
+    "Defaults are null pins with version 0.",
+    "Explicit empty pins are distinct from null.",
+    "Pins preserve saved order and allow at most six unique IDs of at most 200 UTF-16 units.",
+    "Newly added pins must be in the caller's current authorized catalogue; existing pins may remain after a grant is revoked.",
+    "Exact idempotency replay returns the committed result; a changed payload under the same key conflicts.",
+    "A stale expected version conflicts; two concurrent saves for one version have exactly one winner.",
+    "The actual TypeScript hash input and result JSON match the Rust port, including nested field order."
+  ],
+  "limits": [
+    "The adapter requires the caller to own the Control transaction; no HTTP route, private-session cutover or frontend consumer is mounted by this bundle.",
+    "Catalogue availability remains caller-supplied and is not an authorization grant.",
+    "No work-card, calendar or work-item port is included."
+  ],
+  "next": [
+    "Cut over the existing account quick-access request/private-session path to the native port and remove the TypeScript writer after its consumers pass.",
+    "Then port work-card preferences after Support/Workflow authority, followed by calendar and work-item projections."
+  ]
+}

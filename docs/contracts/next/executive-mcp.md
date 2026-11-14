@@ -1,6 +1,6 @@
 # Executive remote MCP
 
-This contract describes read-only access for a team-owned external agent. The agent brings its model and conversation UI; ERPX verifies a personal token and serves existing Executive reports and KPIs. The development endpoint is `https://console-dev-erpx.jesadakorn.com/api/mcp/executive`. Production rollout is separate; this change does not deploy or migrate production or staging.
+This contract describes read-only access for a team-owned external agent. The agent brings its model and conversation UI; ERPX verifies a personal token and serves existing Executive reports and KPIs. The Acme Holding development endpoint is `https://acme.jesadakorn.com/__erpx/apps/api/mcp/executive`. Production rollout is separate; this change does not deploy or migrate production or staging.
 
 ## Create and revoke a connection
 

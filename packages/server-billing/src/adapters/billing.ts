@@ -6,13 +6,14 @@ import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgre
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {billingHoldingFacts} from '@erpx/server-runtime/public/billing-holding-facts';
 import {createBillingService,type BillingRepository} from '@erpx/server-billing/application/billing';
-import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingCost,BillingJobRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
+import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
 import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
 export {billingInput} from '@erpx/server-billing/domain/billing';
 export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billing';
-export function nativeBillingRepository(c:PoolClient):BillingRepository{return {recordRatingRun:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>c.query<Record<string,unknown>>(`INSERT INTO billing_target_rating_runs
+export function nativeBillingRepository(c:PoolClient):BillingRepository{return {
+recordRatingRun:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>c.query<Record<string,unknown>>(`INSERT INTO billing_target_rating_runs
      (id,holding_id,month,price_id,meter_snapshot_id,state,missing_json,
       lines_json,total_satang,actor,reason,created_at)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11]),
@@ -46,7 +47,6 @@ ensureAccount:(value0,value1)=>c.query<Record<string,unknown>>("INSERT INTO bill
 lockedAccount:(value0)=>c.query<BillingAccount>("SELECT * FROM billing_accounts WHERE holding_id=$1 FOR UPDATE",[value0]),
 activeEnrollment:(value0)=>c.query<BillingEnrollment>("SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL",[value0]),
 retainCustomer:(value0,value1)=>c.query<Record<string,unknown>>("UPDATE billing_accounts SET customer_id=$2 WHERE holding_id=$1",[value0,value1]),
-selectedPeriod:(value0,value1)=>c.query<BillingPeriod>("SELECT * FROM billing_periods WHERE id=$1 AND holding_id=$2",[value0,value1]),
 enroll:(value0,value1,value2,value3)=>c.query<Record<string,unknown>>("INSERT INTO billing_enrollments(id,holding_id,plan_id,started_at) VALUES($1,$2,$3,$4)",[value0,value1,value2,value3]),
 scheduleEnrollmentChange:(value0,value1,value2,value3)=>c.query<Record<string,unknown>>("UPDATE billing_enrollments SET pending_plan=$2,pending_end=$3,effective_at=$4 WHERE id=$1",[value0,value1,value2,value3]),
 retainConsentedCard:(value0,value1,value2,value3)=>c.query<Record<string,unknown>>("UPDATE billing_accounts SET card_json=$2,consent_at=$3,consent_actor=$4 WHERE holding_id=$1",[value0,value1,value2,value3]),
@@ -54,22 +54,6 @@ automaticOpenInvoices:(value0)=>c.query<BillingInvoiceRow>("SELECT * FROM billin
 queueManualInvoice:(value0,value1,value2,value3)=>c.query<Record<string,unknown>>("INSERT INTO billing_jobs(id,holding_id,invoice_id,kind,next_at,created_at) VALUES($1,$2,$3,'manual',$4,$4) ON CONFLICT DO NOTHING",[value0,value1,value2,value3]),
 withdrawConsent:(value0)=>c.query<Record<string,unknown>>("UPDATE billing_accounts SET consent_at=NULL,consent_actor=NULL WHERE holding_id=$1",[value0]),
 setPaymentMode:(value0,value1)=>c.query<Record<string,unknown>>("UPDATE billing_accounts SET payment_mode=$2 WHERE holding_id=$1",[value0,value1]),
-originalInvoiceExists:(value0,value1,value2)=>c.query<BillingInvoiceRow>("SELECT 1 FROM billing_invoices WHERE id=$1 AND holding_id=$2 AND period_id=$3",[value0,value1,value2]),
-availableCostEvidence:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",[value0,value1]),
-existingCost:(value0,value1,value2)=>c.query<BillingCost>("SELECT * FROM billing_costs WHERE id=$1 AND holding_id=$2 AND period_id=$3",[value0,value1,value2]),
-insertCost:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>c.query<Record<string,unknown>>(`INSERT INTO billing_costs(id,holding_id,period_id,category,amount_satang,service_start,service_end,note,simulated,evidence_id,original_invoice_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(id) DO UPDATE SET category=EXCLUDED.category,amount_satang=EXCLUDED.amount_satang,service_start=EXCLUDED.service_start,service_end=EXCLUDED.service_end,note=EXCLUDED.note,simulated=EXCLUDED.simulated,evidence_id=EXCLUDED.evidence_id,original_invoice_id=EXCLUDED.original_invoice_id`,[value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11]),
-markCostsIncomplete:(value0)=>c.query<Record<string,unknown>>("UPDATE billing_periods SET costs_complete=FALSE WHERE id=$1",[value0]),
-deleteUnissuedCost:(value0,value1)=>c.query<BillingCost>("DELETE FROM billing_costs WHERE id=$1 AND holding_id=$2 AND invoice_id IS NULL RETURNING period_id",[value0,value1]),
-markDeletedCostPeriodIncomplete:(value0)=>c.query<Record<string,unknown>>("UPDATE billing_periods SET costs_complete=FALSE WHERE id=$1",[value0]),
-setCostCompletion:(value0,value1)=>c.query<Record<string,unknown>>("UPDATE billing_periods SET costs_complete=$2 WHERE id=$1",[value0,value1]),
-currentMainInvoice:(value0)=>c.query<BillingInvoiceRow>("SELECT * FROM billing_invoices WHERE period_id=$1 AND kind='main' AND status<>'void'",[value0]),
-unissuedCosts:(value0)=>c.query<BillingCost>("SELECT * FROM billing_costs WHERE period_id=$1 AND invoice_id IS NULL ORDER BY created_at,id",[value0]),
-retainedPlan:(value0,value1)=>c.query<BillingPlan>("SELECT * FROM billing_plans WHERE id=$1 AND revision=$2",[value0,value1]),
-insertLegacyInvoice:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9)=>c.query<Record<string,unknown>>("INSERT INTO billing_invoices(id,holding_id,period_id,kind,total_satang,lines_json,payment_mode,created_at,approved_by,original_invoice_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$8)",[value0,value1,value2,value3,value4,value5,value6,value7,value8,value9]),
-attachCostToInvoice:(value0,value1)=>c.query<Record<string,unknown>>("UPDATE billing_costs SET invoice_id=$2 WHERE id=$1",[value0,value1]),
-queueLegacyIssue:(value0,value1,value2,value3)=>c.query<Record<string,unknown>>("INSERT INTO billing_jobs(id,holding_id,invoice_id,kind,next_at,created_at) VALUES($1,$2,$3,'issue',$4,$4)",[value0,value1,value2,value3]),
-voidableInvoice:(value0,value1)=>c.query<BillingInvoiceRow>("SELECT * FROM billing_invoices WHERE id=$1 AND holding_id=$2 AND status IN ('open','uncollectible')",[value0,value1]),
-queueVoid:(value0,value1,value2,value3)=>c.query<Record<string,unknown>>("INSERT INTO billing_jobs(id,holding_id,invoice_id,kind,next_at,created_at) VALUES($1,$2,$3,'void',$4,$4) ON CONFLICT DO NOTHING",[value0,value1,value2,value3]),
 lockPlanRevision:()=>c.query<Record<string,unknown>>("SELECT pg_advisory_xact_lock(hashtextextended('billing-plans',0))",[]),
 latestPlanRevision:(value0)=>c.query<BillingPlan>("SELECT * FROM billing_plans WHERE id=$1 ORDER BY revision DESC LIMIT 1",[value0]),
 insertPlanRevision:(value0,value1,value2,value3,value4,value5)=>c.query<Record<string,unknown>>("INSERT INTO billing_plans VALUES($1,$2,$3,$4,$5,$6)",[value0,value1,value2,value3,value4,value5]),
@@ -149,6 +133,8 @@ recordCommandAudit:(value0,value1,value2,value3,value4,value5,value6)=>c.query<R
 recordCommandReceipt:(value0,value1,value2,value3)=>c.query<Record<string,unknown>>("INSERT INTO billing_receipts VALUES($1,$2,$3,$4)",[value0,value1,value2,value3]),
 commit:()=>c.query<Record<string,unknown>>("COMMIT",[]),
 rollback:()=>c.query<Record<string,unknown>>("ROLLBACK",[]),release:()=>c.release(),calculateTarget:(...args)=>calculateTargetBillingPeriod(c,...args),calculateRollout:(...args)=>calculateTargetRolloutReadiness(c,...args)}}
+
+
 async function nativeBillingView(
   db: PostgresDatabase,
   holdingId: string,

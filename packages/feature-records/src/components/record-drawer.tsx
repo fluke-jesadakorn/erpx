@@ -1,4 +1,5 @@
 "use client";
+import {NavigationLink} from "@erpx/ui/components/navigation-context";
 import { createPortal } from "react-dom";
 import { WorkspaceDetail } from "@erpx/ui/components/workspace";
 import { useWorkspaceOverlay } from "@erpx/ui/components/workspace-overlay";
@@ -175,7 +176,7 @@ export function RecordDrawer({ title, fullHref, closeHref, children }: { title: 
     return () => observer.disconnect();
   }, []);
   const body=<>
-    <div className="record-drawer-toolbar"><a href={fullHref} target="_blank" rel="noopener">Open in new tab ↗</a><span role="status">{dirty ? "Unsaved changes" : ""}</span></div>
+    <div className="record-drawer-toolbar">{fullHref.startsWith("/holdings/")?<NavigationLink href={fullHref} target="_blank" rel="noopener" prefetch={false}>Open in new tab ↗</NavigationLink>:<a href={fullHref} target="_blank" rel="noopener">Open in new tab ↗</a>}<span role="status">{dirty ? "Unsaved changes" : ""}</span></div>
     {stale && <p role="alert">Your work role changed. Reload this page to review access to the record.</p>}
     <div ref={setContentNode} hidden={stale} inert={stale} data-record-drawer-content data-record-dirty={dirty}>
       <EmbeddedRecord value={true}><Suspense fallback={<p role="status">Loading record details…</p>}>{children}</Suspense></EmbeddedRecord>

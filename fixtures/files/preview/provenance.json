@@ -1,0 +1,126 @@
+{
+  "sourceArchive": {
+    "checkedAt": "2026-10-27T05:49:33.044715+00:00",
+    "sources": {
+      "vips": {
+        "url": "https://api.github.com/repos/libvips/libvips/releases/tags/v8.18.7",
+        "tag": "v8.18.7",
+        "assets": [
+          {
+            "name": "vips-8.18.7.tar.xz",
+            "url": "https://github.com/libvips/libvips/releases/download/v8.18.7/vips-8.18.7.tar.xz",
+            "sha256": "sha256:5baaead3b0bb20ffdb9e9ff09aa9fda08620923df77b63b436654cb5e0b3bf94",
+            "size": 25425084
+          },
+          {
+            "name": "vips-8.18.7.tar.xz.sha256sum",
+            "url": "https://github.com/libvips/libvips/releases/download/v8.18.7/vips-8.18.7.tar.xz.sha256sum",
+            "sha256": "sha256:33dbbfe566cbffbf72c71a5c263d3b45fd9dcd125a345e8393b8e77b8357a87d",
+            "size": 85
+          }
+        ],
+        "metadataSha256": "54a27520884934b7d7f5451ec9de04fb9498ace253ad09408e6748930452d0a7"
+      },
+      "meson": {
+        "url": "https://pypi.org/pypi/meson/json",
+        "version": "1.12.1",
+        "artifacts": [
+          {
+            "name": "meson-1.12.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/57/99/36cd25f9598eef70db97577440a70a360af505f6f01c2338a18d1556079c/meson-1.12.1-py3-none-any.whl",
+            "sha256": "930bc7542cbd9f57009e182fd014eba48cf1a0180a7b9006d2d32d8f168d8b02",
+            "size": 1108668
+          }
+        ],
+        "metadataSha256": "34801ae0bdba0e23dd7261e35a3868fdbac647d7006739dc086a8310a654c612"
+      },
+      "ninja": {
+        "url": "https://pypi.org/pypi/ninja/json",
+        "version": "1.13.2",
+        "artifacts": [
+          {
+            "name": "ninja-1.13.2-py3-none-macosx_10_9_universal2.whl",
+            "url": "https://files.pythonhosted.org/packages/b5/b8/90a9518f2264637084d6199bc20c2f3fb97fefc4c474d277720150c3bd6d/ninja-1.13.2-py3-none-macosx_10_9_universal2.whl",
+            "sha256": "fd82e26c0706ad4ab88e5fdd26f3fab0a987a90f810160f6c322e752c6af298b",
+            "size": 306611
+          }
+        ],
+        "metadataSha256": "26598570bad73a8041639468aa383df7900ddf25d3e16b9ebb7e269d387083ba"
+      }
+    }
+  },
+  "icc": {
+    "commit": "bdd84663061bc4ae95ca70decff54f581e27f702",
+    "profiles": [
+      {
+        "path": "profiles/DisplayP3Compat-v4.icc",
+        "url": "https://raw.githubusercontent.com/saucecontrol/Compact-ICC-Profiles/bdd84663061bc4ae95ca70decff54f581e27f702/profiles/DisplayP3Compat-v4.icc",
+        "bytes": 480,
+        "sha256": "231752984cd4a5278e1b8d2390fe496767d4511fc81f54e1a5c69ae9ab4c42b5",
+        "identicalToVips": true
+      },
+      {
+        "path": "profiles/sRGB-v4.icc",
+        "url": "https://raw.githubusercontent.com/saucecontrol/Compact-ICC-Profiles/bdd84663061bc4ae95ca70decff54f581e27f702/profiles/sRGB-v4.icc",
+        "bytes": 480,
+        "sha256": "c56e1685d888f5edb92fe07f2750f387f8fe8e91b32ff8fb0b56bfbbb9458353",
+        "identicalToVips": true
+      }
+    ],
+    "license": {
+      "path": "license",
+      "url": "https://raw.githubusercontent.com/saucecontrol/Compact-ICC-Profiles/bdd84663061bc4ae95ca70decff54f581e27f702/license",
+      "bytes": 6552,
+      "sha256": "469d87b5fa48f8aaf69e25f4fcac3a309c97dbb7d561b917638abdb640e004d9",
+      "identicalToVips": null
+    }
+  },
+  "libexif": {
+    "metadata_url": "https://api.github.com/repos/libexif/libexif/releases/tags/v0.6.26",
+    "metadata_sha256": "a2a12f58fa10e926a1b3176cca22f1be877cae78aabe952e27debbc137709dc6",
+    "asset": {
+      "name": "libexif-0.6.26.tar.bz2",
+      "size": 2070333,
+      "digest": "sha256:0830ed253fceeb60444fb309598bc8a9491d3007dc054aad3a50a347c5597c57",
+      "browser_download_url": "https://github.com/libexif/libexif/releases/download/v0.6.26/libexif-0.6.26.tar.bz2"
+    }
+  },
+  "largeP3Counterexample": {
+    "scope": "Actual B0 Sharp0.35.5/vips8.18.7 P3 ordering counterexample; no tolerance waiver",
+    "oracleMaxChannelError": 37,
+    "oracleMeanChannelError": 3.4294292824074075,
+    "preTransformByteExact": true,
+    "files": [
+      {
+        "file": "corpus-jpeg-p3-orientation-eight.input",
+        "bytes": 3102151,
+        "sha256": "0afedde74e38584c804caae3dbbe21120bddfe96fa27b4bf1d1925b497296ff2"
+      },
+      {
+        "file": "cli-qualification-jpeg-p3-orientation-eight.webp",
+        "bytes": 1413482,
+        "sha256": "dd8b046375ac707d97711c633d3426bdbeaa5ecaec97e224aa18e3239808b91d"
+      },
+      {
+        "file": "cli-qualification-jpeg-p3-orientation-eight.pre.webp",
+        "bytes": 1407596,
+        "sha256": "db7ed1751f6d2b750d65bf7dae44e5aed2ee47c8e22a637403b80fabac2accde"
+      },
+      {
+        "file": "corpus-jpeg-p3-orientation-eight.webp",
+        "bytes": 1407596,
+        "sha256": "db7ed1751f6d2b750d65bf7dae44e5aed2ee47c8e22a637403b80fabac2accde"
+      }
+    ],
+    "construction": {
+      "width": 3201,
+      "height": 1601,
+      "channels": 3,
+      "pixelRecipe": "R=(x*17+y*3)%256; G=(floor(x/7)*31+y*11)%256; B=((x xor y)*13)%256",
+      "encoding": "withMetadata(orientation8), withIccProfile(p3), JPEG quality89 using retained Node/Sharp versions",
+      "privateCapturePreserved": true
+    }
+  },
+  "qualifiedPlatform": "darwin-arm64",
+  "productionImageQualified": false
+}

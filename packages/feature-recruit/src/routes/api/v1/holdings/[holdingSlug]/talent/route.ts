@@ -5,14 +5,12 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { z } from "zod";
 import {
   changeTalentRecord,
-  createTalentApplication,
-  createTalentCandidate,
   createTalentOffer,
-  createTalentProposal,
-  createTalentRequisition,
   talentDetail,
   talentWorkspace,
 } from "@erpx/server-talent/public/talent";
+import {nativeTalentRequisitionCommand,nativeTalentWorkspace} from "@erpx/feature-talent/public/native-talent-page";
+import {nativeTalentLifecycleAvailable,nativeTalentLifecycleCommand} from "@erpx/server-talent/public/native-talent-lifecycle-page";
 import { candidatePrivacySchema,changeCandidatePrivacy } from "@erpx/server-people_payroll/public/people-handoffs";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -34,8 +32,19 @@ export async function GET(r: Request, c: C) {
   try {
     const a = await requireWorkContext((await c.params).holdingSlug),
       id = new URL(r.url).searchParams.get("id");
+    if (!id) {
+      const workspace = await talentWorkspace(a),
+        native = await nativeTalentWorkspace(a),
+        data = native
+          ? {
+              ...workspace,
+              requisitions: native.requisitions as unknown as typeof workspace.requisitions,
+            }
+          : workspace;
+      return Response.json(canonicalDestinationLinks({ data }), { headers });
+    }
     return Response.json(
-      canonicalDestinationLinks({ data: id ? await talentDetail(a, id) : await talentWorkspace(a) }),
+      canonicalDestinationLinks({ data: await talentDetail(a, id) }),
       { headers },
     );
   } catch (e) {
@@ -63,7 +72,15 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       i = await readInput(r);
     let data;
-    if (i.entity === "candidate-privacy") {
+    const native = await nativeTalentRequisitionCommand(a, i, key);
+    const lifecycle = native
+      ? undefined
+      : nativeTalentLifecycleAvailable()
+        ? await nativeTalentLifecycleCommand(r, a, (await c.params).holdingSlug, i, key)
+        : undefined;
+    if (native) data = native;
+    else if (lifecycle !== undefined) data = lifecycle;
+    else if (i.entity === "candidate-privacy") {
       const privacy = candidatePrivacyRequestSchema.parse(i);
       data = await changeCandidatePrivacy(
         a,
@@ -91,13 +108,21 @@ export async function POST(r: Request, c: C) {
       data = await changeTalentRecord(a, i.entity, i.id, i, key);
     }
     else if (i.entity === "requisition")
-      data = await createTalentRequisition(a, i, key);
-    else if (i.entity === "candidate")
-      data = await createTalentCandidate(a, i, key);
-    else if (i.entity === "application")
-      data = await createTalentApplication(a, i, key);
-    else if (i.entity === "proposal")
-      data = await createTalentProposal(a, i, key);
+      throw new ApiError(
+        503,
+        "NATIVE_TALENT_REQUISITION_UNAVAILABLE",
+        "The native Talent requisition command is unavailable.",
+      );
+    else if (
+      i.entity === "candidate" ||
+      i.entity === "application" ||
+      i.entity === "proposal"
+    )
+      throw new ApiError(
+        503,
+        "NATIVE_TALENT_LIFECYCLE_UNAVAILABLE",
+        "The native Talent lifecycle command is unavailable.",
+      );
     else if(i.entity==="offer")data = await createTalentOffer(a, i, key);
     else throw new ApiError(422,"TALENT_ENTITY_REQUIRED","Choose a registered Recruitment record type.");
     return Response.json(canonicalDestinationLinks({ data }), { headers });

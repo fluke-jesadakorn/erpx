@@ -1,4 +1,4 @@
-import type {Row} from '@erpx/server-commerce/public/commerce';import type {ListPage} from '@erpx/server-work_projection/public/list-page';import type {customerTimeline} from '@erpx/server-customer_360/public/customer-timeline';import type {CustomerNotesView} from '@erpx/server-sales/domain/notes';import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";import type {Clock} from '@erpx/server-shared/index';import {BusinessRuleError} from '@erpx/server-shared/index';
+import type {Row} from '@erpx/server-commerce/public/commerce';import type {ListPage} from '@erpx/server-work_projection/public/list-page';import type {CustomerNotesView} from '@erpx/server-sales/domain/notes';import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";import type {Clock} from '@erpx/server-shared/index';import {BusinessRuleError} from '@erpx/server-shared/index';
 import {queryValue,salesCustomerAccess,type HubQuery} from '@erpx/server-sales/domain/navigation';import type {CustomerSummary,CustomerDirectoryRow} from '@erpx/server-sales/domain/customers';
 type SalesHubAccess=ReturnType<typeof salesCustomerAccess>;
 type Count={customer_id:string;count:number};
@@ -6,10 +6,10 @@ export interface SalesCustomerRepository {
  orderCounts(ids:string[]):Promise<{party_id:string;count:number}[]>;followupHeads(ids:string[]):Promise<{party_id:string;id:string;due_date:string;next_action:string;order_id:string}[]>;opportunityCounts(ids:string[]):Promise<Count[]>;supportCounts(ids:string[]):Promise<Count[]>;
  directory(search:string,status:string,cursor?:string):Promise<ListPage<Row&{id:string;page_key:string}>>;
  customer(id:string):Promise<Row|null>;orders(id:string):Promise<Row[]>;followups(id:string):Promise<Row[]>;opportunities(id:string):Promise<Row[]>;cases(id:string):Promise<Row[]>;supportSource(id:string):Promise<{id:string}|null>;
- timeline(id:string,cursor?:string):Promise<Awaited<ReturnType<typeof customerTimeline>>>;notes(id:string):Promise<CustomerNotesView>;reviews():Promise<{kind:string;count:number}[]>;
+notes(id:string):Promise<CustomerNotesView>;reviews():Promise<{kind:string;count:number}[]>;
  crmWork():Promise<WorkItem[]>;followupWork():Promise<WorkItem[]>;orderWork():Promise<WorkItem[]>;followupIds(orderId:string):Promise<string[]>;
 }
-export function createSalesCustomerApplication(ports:{authorize():void;access():Promise<SalesHubAccess>;canReadSupport:boolean;canCreateSupport:boolean;canSell:boolean;timelineUnavailable(error:unknown):boolean;clock:Clock;repository():Promise<SalesCustomerRepository>}){
+export function createSalesCustomerApplication(ports:{authorize():void;access():Promise<SalesHubAccess>;canReadSupport:boolean;canCreateSupport:boolean;canSell:boolean;clock:Clock;repository():Promise<SalesCustomerRepository>}){
  async function summaries(ids:string[]):Promise<Map<string,CustomerSummary>>{
   ports.authorize();const access=await ports.access(),result=new Map(ids.map(id=>[id,{nextFollowup:null,openOrders:0,openOpportunities:access.pipeline?0:null,openSupport:access.support&&ports.canReadSupport?0:null} as CustomerSummary]));if(!ids.length)return result;
   const repository=await ports.repository(),[orders,followups]=await Promise.all([repository.orderCounts(ids),repository.followupHeads(ids)]);
@@ -21,9 +21,8 @@ export function createSalesCustomerApplication(ports:{authorize():void;access():
   access:ports.access,summaries,
   async directory(query:HubQuery){ports.authorize();const repository=await ports.repository(),search=queryValue(query,'q').trim().slice(0,200),status=queryValue(query,'status');if(status&&!['active','blocked'].includes(status))throw new BusinessRuleError(422,'CUSTOMER_STATUS_INVALID','Choose an available customer status.');const page=await repository.directory(search,status,queryValue(query,'cursor')||undefined),values=await summaries(page.items.map(row=>row.id));return {...page,items:page.items.map(row=>({...row,summary:values.get(row.id)!} as CustomerDirectoryRow))};},
   async profile(id:string,query:HubQuery={}){ports.authorize();const repository=await ports.repository(),customer=await repository.customer(id);if(!customer)throw new BusinessRuleError(404,'CUSTOMER_NOT_FOUND','Customer is not available in this workspace.');const values=await summaries([id]),access=await ports.access(),orders=await repository.orders(id),followups=await repository.followups(id),opportunities=access.pipeline?await repository.opportunities(id):null;
-   let timeline:Awaited<ReturnType<typeof customerTimeline>>|null=null,notes:CustomerNotesView|null=null;
-   if(access.directory){try{timeline=await repository.timeline(id,queryValue(query,'cursor')||undefined);}catch(error){if(!ports.timelineUnavailable(error))throw error;}if(timeline)notes=await repository.notes(id);}
-   const cases=access.support&&ports.canReadSupport?await repository.cases(id):null,supportSource=access.support&&ports.canCreateSupport?await repository.supportSource(id):null;return {customer,summary:values.get(id)!,orders,followups,opportunities,cases,timeline,notes,supportSource};
+   const notes:CustomerNotesView|null=access.directory?await repository.notes(id):null;
+   const cases=access.support&&ports.canReadSupport?await repository.cases(id):null,supportSource=access.support&&ports.canCreateSupport?await repository.supportSource(id):null;return {customer,summary:values.get(id)!,orders,followups,opportunities,cases,notes,supportSource};
   },
   async reviews(){if(!(await ports.access()).reviews)return null;const rows=await (await ports.repository()).reviews();return {identity:Number(rows.find(row=>row.kind==='identity')?.count??0),duplicates:Number(rows.find(row=>row.kind==='duplicates')?.count??0),access:Number(rows.find(row=>row.kind==='access')?.count??0)};},
   async today(query:HubQuery){ports.authorize();const access=await ports.access(),kind=queryValue(query,'kind','all'),jobs:{label:string;load:()=>Promise<WorkItem[]>}[]=[];

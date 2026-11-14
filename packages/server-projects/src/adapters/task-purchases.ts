@@ -10,6 +10,7 @@ import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {deferProjectOwnerCheck,inProjectOwnerUnit,projectPurchaseControls,requireProjectPurchasedRead,withProjectPurchasedCommand} from "@erpx/server-projects/adapters/purchases";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type TaskSource={id:string;company_id:string;branch_id:string|null;department_id:string|null;creator_user_id:string;assignee_user_id:string;project_id:string|null;template_id:string|null;schedule_id:string|null;state:string;version:number};
 const taskCommands=new WeakMap<SqlDatabase,{id:string;userId:string}>();
@@ -59,7 +60,7 @@ export async function withProjectTaskPurchasedCommand<Result>(owner:SqlDatabase,
     throw new ApiError(409,'PROJECT_TASK_SOURCE_CHANGED','The original Project task workspace or owner changed.');
    if(!replay&&acknowledgement?.id===command.id&&(after.version!==acknowledgement.version||typeof acknowledgement.state==='string'&&after.state!==acknowledgement.state))throw new ApiError(409,'PROJECT_TASK_SOURCE_CHANGED','The completed Project task changed after its owner receipt.');
    if(!completedImage||await taskImage()!==completedImage)throw new ApiError(409,'PROJECT_TASK_SOURCE_CHANGED','The completed Project task changed during deferred effects.');
-   await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);
+   await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
   });
   const invoke=async(index:number):Promise<Result>=>index===projects.length?run(database):withProjectPurchasedCommand(database,actor,{key:command.key,operations:command.operations,projectId:projects[index],capability:'projects.tasks',purpose:command.purpose,existing:true,member:false},()=>invoke(index+1));
   if(projects.length)taskCommands.set(database,{id:command.id,userId:actor.userId});

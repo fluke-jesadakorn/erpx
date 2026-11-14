@@ -6,7 +6,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 
 import Link from "@erpx/workplace/components/workspace-link";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
-import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import type { leaveAdministration } from "@erpx/server-people_payroll/public/leave-self-service";
 import styles from "@erpx/feature-people_payroll/components/self-service/leave-policy-wizard.module.css";
@@ -66,11 +66,13 @@ export function LeavePolicyWizard({ appearance = "legacy",
   types,
   onSaved,
   onCancel,
+  cancelAction,
 }: ({
   base: string;
   types: Awaited<ReturnType<typeof leaveAdministration>>["types"];
   onSaved?: () => Promise<void>;
   onCancel?: () => void;
+  cancelAction?: ReactNode;
 }) & { appearance?: UiAppearance }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -278,7 +280,7 @@ export function LeavePolicyWizard({ appearance = "legacy",
               />
             </Field>
             <div data-ui-appearance={appearance} className={styles.actions}>
-              {onCancel ? (
+              {cancelAction ?? (onCancel ? (
                 <Button appearance={appearance} variant="secondary" type="button" onClick={onCancel}>
                   Cancel
                 </Button>
@@ -286,7 +288,7 @@ export function LeavePolicyWizard({ appearance = "legacy",
                 <UiActionLink appearance={appearance} variant="secondary" href={canonicalUiHref(`${base}/people/settings?section=leave`)}>
                   Cancel
                 </UiActionLink>
-              )}
+              ))}
               <Button appearance={appearance} clientManaged variant="primary" type="submit">
                 Continue
               </Button>

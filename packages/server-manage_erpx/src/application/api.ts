@@ -4,7 +4,7 @@ import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';
 import {invitationSchema} from '@erpx/server-manage_erpx/domain/team';
 import type {mentionsSchema,textSuggestions} from "@erpx/server-collaboration/public/social-text";
 import type {retryAgentReply} from "@erpx/server-collaboration/public/social-agent";
-import type {homePosts,postAction,postDraftSchema,postView,postContentSchema,publishPost,savePostDraft,socialAudienceOptions,createCommentUploadDraft,cancelCommentUploadDraft,createPostEditUploadDraft,cancelPostEditUploadDraft} from '@erpx/server-collaboration/public/social-home';
+import type {homePosts,postAction,postDraftSchema,postView,postContentSchema,publishPost,savePostDraft,socialAudienceOptions} from '@erpx/server-collaboration/public/social-home';
 import type {sourceSnapshot,readablePost} from '@erpx/server-collaboration/public/social-source';
 import type {aiRequestSchema} from "@erpx/server-collaboration/public/social-ai";
 import type {taskSourceSchema} from "@erpx/server-collaboration/public/social-task";
@@ -33,10 +33,6 @@ postView:WithoutDatabase<typeof postView>;
 publishPost:WithoutDatabase<typeof publishPost>;
 savePostDraft:WithoutDatabase<typeof savePostDraft>;
 socialAudienceOptions:WithoutDatabase<typeof socialAudienceOptions>;
-createCommentUploadDraft:WithoutDatabase<typeof createCommentUploadDraft>;
-cancelCommentUploadDraft:WithoutDatabase<typeof cancelCommentUploadDraft>;
-createPostEditUploadDraft:WithoutDatabase<typeof createPostEditUploadDraft>;
-cancelPostEditUploadDraft:WithoutDatabase<typeof cancelPostEditUploadDraft>;
 sourceSnapshot:WithoutDatabase<typeof sourceSnapshot>;
 readablePost:WithoutDatabase<typeof readablePost>;
 textSuggestions:WithoutDatabase<typeof textSuggestions>;
@@ -178,13 +174,6 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
           data = await ports.services.postAction(actor, id!, command, key);
         }
         else if (path[0] === "agent-replies") data = await ports.services.retryAgentReply(actor, path[1], key);
-        else if (path[0] === "comment-uploads") data = path[1]
-          ? await ports.services.cancelCommentUploadDraft(actor,path[1],key)
-          : await ports.services.createCommentUploadDraft(actor,z.string().min(1).max(160).parse(input.postId),key);
-        else if (path[0] === "post-edit-uploads") data = path[1]
-          ? await ports.services.cancelPostEditUploadDraft(actor,path[1],key)
-          : await ports.services.createPostEditUploadDraft(actor,z.string().min(1).max(160).parse(input.postId),
-              z.number().int().positive().parse(input.expectedVersion),key);
         else if (path[0] === "drafts")
           data =
             path[2] === "publish"

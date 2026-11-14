@@ -1,13 +1,4 @@
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';import type {Row} from '@erpx/server-commerce/public/commerce';import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";import {hasModuleAccess} from '@erpx/catalogue/module-access';import {decimalToMinor} from "@erpx/feature-finance/lib/finance-money";import {scaledAmount} from "@erpx/feature-commerce/lib/commerce-math";import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';import type {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';import type {prepareManufacturingPosting} from '@erpx/server-manufacturing/public/production-accounting';import type {prepareManufacturingMaterialLots,prepareManufacturingOutputLots} from '@erpx/server-manufacturing/public/production-lots';import {specSchema,reviewSchema,orderSchema,q} from '@erpx/server-manufacturing/domain/production';export interface ManufacturingProductionRepository<Effect>{specification(value:(string | number)[],v:number|undefined):Promise<Row|null>;
-guardOutputProduct(key:string,value:"output",outputProductId:string,companyId:string):Effect;
-prepareSpecification(id:string,companyId:string,name:string,mode:"bom" | "formula",outputProductId:string,value:number,expectedYieldBps:number,userId:string,now:number,now2:number):Effect;
-guardMaterialProduct(key:string,value:string,productId:string,companyId:string):Effect;
-prepareSpecificationLine(value:string,id:string,productId:string,value2:number,value3:string | null,n:number):Effect;
-guardRoutingResource(key:string,value:string,resourceId:string,companyId:string,branchId:string | null,branchId2:string | null):Effect;
-prepareSpecificationOperation(value:string,id:string,resourceId:string,name:string,setupMinutes:number,runMinutesPerBatch:number,n:number):Effect;
-guardSpecificationReview(key:string,value:"spec",id:string,companyId:string,expectedVersion:number,expected:"approved" | "draft",action:"approve" | "reject" | "retire",userId:string):Effect;
-prepareSpecificationReview(status:"approved" | "rejected" | "retired",userId:string,now:number,id:string):Effect;
-scopedOrder(id:string,companyId:string,branchId:string | null,branchId2:string | null):Promise<Row|null>;
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';import type {Row} from '@erpx/server-commerce/public/commerce';import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";import {hasModuleAccess} from '@erpx/catalogue/module-access';import {decimalToMinor} from "@erpx/feature-finance/lib/finance-money";import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';import type {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';import type {prepareManufacturingPosting} from '@erpx/server-manufacturing/public/production-accounting';import {orderSchema,q} from '@erpx/server-manufacturing/domain/production';export interface ManufacturingProductionRepository<Effect>{scopedOrder(id:string,companyId:string,branchId:string | null,branchId2:string | null):Promise<Row|null>;
 orderSpecificationLines(specification_id:string | number | null):Promise<{results:Row[]}>;
 lockOrder(id:string):Effect;
 guardOrderVersion(key:string,value:"order",id:string,expectedVersion:number,status:string | number | null):Effect;
@@ -19,20 +10,14 @@ materialStock(warehouse_id:string | number | null,product_id:string | number | n
 lockIssueStock(warehouse_id:string | number | null,product_id:string | number | null):Effect;
 guardIssueStock(key:string,value:string,warehouse_id:string | number | null,product_id:string | number | null,value2:number,amount:number,value3:number):Effect;
 guardCurrentMaterialReservation(key:string,value:string,id:string | number | null,now:number):Effect;
-prepareReservationConsumption(id:string | number | null):Effect;
 prepareStockIssue(amount:number,value:number,warehouse_id:string | number | null,product_id:string | number | null):Effect;
 guardIssueDate(key:string,value:string,warehouse_id:string | number | null,product_id:string | number | null,entryDate:string):Effect;
-prepareIssueMove(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,next:number,value2:number,value3:number,entryDate:string,userId:string,now:number):Effect;
-prepareMaterialCost(material:number,id:string):Effect;
 guardCompleteRouting(key:string,value:"completed-routing",value2:string,id:string):Effect;
 prepareOutputReport(value:number,value2:number,value3:number,value4:number,id:string):Effect;
 lastReportActor(id:string):Promise<string|null>;
 guardIndependentPass(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string):Effect;
 prepareOutputStock(warehouse_id:string | number | null,output_product_id:string | number | null,output:number,total:number):Effect;
 guardOutputDate(key:string,value:"output-movement-date",warehouse_id:string | number | null,output_product_id:string | number | null,entryDate:string):Effect;
-prepareOutputMove(value:string,id:string,warehouse_id:string | number | null,output_product_id:string | number | null,next:number,output:number,total:number,entryDate:string,userId:string,now:number):Effect;
-prepareCostSnapshot(value:string,id:string,next:number,material_cost_minor:string | number | null,labor_cost_minor:string | number | null,overhead_cost_minor:string | number | null,total:number,output:number,now:number):Effect;
-prepareProductGenealogy(value:string,id:string,product_id:string | number | null,output_product_id:string | number | null,value2:number,output:number,next:number,now:number):Effect;
 currentReportActor(id:string,expectedVersion:number):Promise<string|null>;
 guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string):Effect;
 lastOutputReportActor(id:string):Promise<string|null>;
@@ -53,7 +38,7 @@ orderPostings(id:string):Promise<{results:Row[]}>;
 orderOperations(id:string,specification_id:string | number | null):Promise<{results:Row[]}>;
 availableMaterialLots(specification_id:string | number | null,companyId:string,warehouse_id:string | number | null):Promise<{results:Row[]}>;
 lotGenealogy(id:string):Promise<{results:Row[]}>;
-openOrders(companyId:string,branchId:string | null,branchId2:string | null):Promise<{results:Row[]}>;}export interface OwnerCommands<Effect>{replay<Result=Record<string,unknown>>(actor:WorkContext,key:string,operation:string,id:string,input:unknown):Promise<Result|null>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[],scope?:Pick<WorkContext,'companyId'|'branchId'|'departmentId'>):Promise<Result>;}export interface ManufacturingProductionPorts<Effect>{repository:ManufacturingProductionRepository<Effect>;commands:OwnerCommands<Effect>;clock:Clock;requirePermission(actor:WorkContext,permission:string):WorkContext;prepareAttachment(actor:WorkContext,input:Parameters<typeof prepareAttachmentBinding>[2]):Promise<{guards:Effect[];steps:Effect[]}>;preparePosting(actor:WorkContext,input:Parameters<typeof prepareManufacturingPosting>[2]):Promise<{steps:Effect[];journalId:string|null}>;prepareMaterialLots(actor:WorkContext,input:Parameters<typeof prepareManufacturingMaterialLots>[2]):Promise<{steps:Effect[];valueMinor:number}|null>;prepareOutputLots(actor:WorkContext,input:Parameters<typeof prepareManufacturingOutputLots>[2]):Promise<Effect[]>;}export function createManufacturingProductionApplication<Effect>(ports:ManufacturingProductionPorts<Effect>){const r=ports.repository;function access(
+openOrders(companyId:string,branchId:string | null,branchId2:string | null):Promise<{results:Row[]}>;}export interface OwnerCommands<Effect>{replay<Result=Record<string,unknown>>(actor:WorkContext,key:string,operation:string,id:string,input:unknown):Promise<Result|null>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[],scope?:Pick<WorkContext,'companyId'|'branchId'|'departmentId'>):Promise<Result>;}export interface ManufacturingProductionPorts<Effect>{repository:ManufacturingProductionRepository<Effect>;commands:OwnerCommands<Effect>;clock:Clock;requirePermission(actor:WorkContext,permission:string):WorkContext;prepareAttachment(actor:WorkContext,input:Parameters<typeof prepareAttachmentBinding>[2]):Promise<{guards:Effect[];steps:Effect[]}>;preparePosting(actor:WorkContext,input:Parameters<typeof prepareManufacturingPosting>[2]):Promise<{steps:Effect[];journalId:string|null}>;}export function createManufacturingProductionApplication<Effect>(ports:ManufacturingProductionPorts<Effect>){const r=ports.repository;function access(
   a: WorkContext,
   module: "planning" | "manufacturing",
   write = false,
@@ -65,101 +50,6 @@ openOrders(companyId:string,branchId:string | null,branchId2:string | null):Prom
       "MODULE_FORBIDDEN",
       `Your current role cannot access ${module}.`,
     );
-}
-async function specRecord(
-  
-  a: WorkContext,
-  id: string,
-  v?: number,
-) {
-  return r.specification((v ? [id, a.companyId, v] : [id, a.companyId]),v);
-}
-async function createSpecification(
-  a: WorkContext,
-  raw: unknown,
-  key: string,
-) {
-  access(a, "manufacturing", true);
-  const i = specSchema.parse(raw),
-    id = `mfg-spec-${key}`,
-    op = "manufacturing.specification.create",
-    prior = await ports.commands.replay( a, key, op, id, i);
-  if (prior) return prior;
-  if (
-    new Set(i.lines.map((x) => x.productId)).size !== i.lines.length ||
-    i.lines.some((x) => x.productId === i.outputProductId)
-  )
-    throw new BusinessRuleError(
-      422,
-      "INVALID_SPECIFICATION_LINES",
-      "Materials must be unique and different from output.",
-    );
-  const now = ports.clock.now(),
-    result = { id, status: "draft", version: 1 },
-    steps: Effect[] = [
-      r.guardOutputProduct(key,"output",i.outputProductId,a.companyId),
-      r.prepareSpecification(id,a.companyId,i.name,i.mode,i.outputProductId,q(i.batchQuantity),i.expectedYieldBps,a.userId,now,now),
-    ];
-  i.lines.forEach((x, n) =>
-    steps.push(
-      r.guardMaterialProduct(key,`material-${n}`,x.productId,a.companyId),
-      r.prepareSpecificationLine(`mfg-spec-line-${key}-${n}`,id,x.productId,q(x.quantity),x.substitutionGroup ?? null,n),
-    ),
-  );
-  i.operations.forEach((operation, n) => steps.push(
-    r.guardRoutingResource(key,`routing-resource-${n}`,operation.resourceId,a.companyId,a.branchId,a.branchId),
-    r.prepareSpecificationOperation(`mfg-operation-${key}-${n}`,id,operation.resourceId,operation.name,operation.setupMinutes,operation.runMinutesPerBatch,n),
-  ));
-  return ports.commands.commit( a, key, op, i, id, 1, result, steps);
-}
-async function reviewSpecification(
-  a: WorkContext,
-  id: string,
-  raw: unknown,
-  key: string,
-) {
-  access(a, "manufacturing", true);
-  ports.requirePermission(a, "records.review");
-  const i = reviewSchema.parse(raw), op = `manufacturing.specification.${i.action}`,
-    prior = await ports.commands.replay( a, key, op, id, i);
-  if (prior) return prior;
-  const row = await specRecord( a, id);
-  if (!row)
-    throw new BusinessRuleError(
-      404,
-      "SPECIFICATION_NOT_FOUND",
-      "Specification not found.",
-    );
-  const expected = i.action === "retire" ? "approved" : "draft",
-    status =
-      i.action === "approve"
-        ? "approved"
-        : i.action === "reject"
-          ? "rejected"
-          : "retired";
-  if (
-    row.status !== expected ||
-    Number(row.version) !== i.expectedVersion ||
-    (["approve", "reject"].includes(i.action) && row.created_by === a.userId)
-  )
-    throw new BusinessRuleError(
-      409,
-      "CONFLICT",
-      "Independent current review is required.",
-    );
-  return ports.commands.commit(
-    a,
-    key,
-    op,
-    i,
-    id,
-    i.expectedVersion + 1,
-    { id, status, version: i.expectedVersion + 1 },
-    [
-      r.guardSpecificationReview(key,"spec",id,a.companyId,i.expectedVersion,expected,i.action,a.userId),
-      r.prepareSpecificationReview(status,a.userId,ports.clock.now(),id),
-    ],
-  );
 }
 async function changeManufacturingOrder(
   a: WorkContext,
@@ -210,45 +100,16 @@ async function changeManufacturingOrder(
         r.prepareMaterialReservation(`mfg-reservation-${key}-${n}`,id,row.warehouse_id,line.product_id,required,i.expiresAt,a.userId,now),
       );
     }
-  } else if (i.action === "issue") {
-    if (row.status !== "reserved")
-      throw new BusinessRuleError(
-        409,
-        "INVALID_MANUFACTURING_TRANSITION",
-        "Issue a reserved order.",
-      );
-    status = "in_progress";
-    let material = 0;
-    for (const [n, line] of lines.entries()) {
-      const reservation = await r.materialReservation(id,line.product_id),
-        stock = await r.materialStock(row.warehouse_id,line.product_id);
-      if (!reservation || !stock)
-        throw new BusinessRuleError(
-          409,
-          "MATERIAL_RESERVATION_REQUIRED",
-          "Material reservation is missing.",
-        );
-      const amount = Number(reservation.quantity_milli), lotPosting = await ports.prepareMaterialLots( a, {
-        key, orderId: id, orderVersion: next, warehouseId: String(row.warehouse_id), productId: String(line.product_id), trackingMode: String(line.tracking_mode),
-        requiredMilli: amount, entryDate, allocations: i.materialLotAllocations,
-      }), value = lotPosting?.valueMinor ?? scaledAmount(Number(stock.value_minor), amount, Number(stock.quantity_milli));
-      material += value;
-      steps.push(
-        r.lockIssueStock(row.warehouse_id,line.product_id),
-        r.guardIssueStock(key,`stock-source-${n}`,row.warehouse_id,line.product_id,Number(stock.version),amount,value),
-        r.guardCurrentMaterialReservation(key,`reservation-${n}`,reservation.id,now),
-        r.prepareReservationConsumption(reservation.id),
-        r.prepareStockIssue(amount,value,row.warehouse_id,line.product_id),
-        ...(lotPosting?.steps ?? []),
-        r.guardIssueDate(key,`material-movement-date-${n}`,row.warehouse_id,line.product_id,entryDate),
-        r.prepareIssueMove(`mfg-stock-${key}-${n}`,id,row.warehouse_id,line.product_id,next,-amount,-value,entryDate,a.userId,now),
-      );
-    }
-    steps.push(
-      r.prepareMaterialCost(material,id),
+  } else if (i.action === "issue" || i.action === "pass-qc") {
+    // Material issue and independent QC acceptance own their lot posting in
+    // the native Manufacturing order command. The route dispatches both
+    // actions there; reaching this retained application is a configuration
+    // failure rather than a silent lot-less write.
+    throw new BusinessRuleError(
+      503,
+      "NATIVE_MANUFACTURING_REQUIRED",
+      "The native production command is unavailable.",
     );
-    const posting = await ports.preparePosting( a, { key, orderId: id, orderVersion: next, phase: "issue", entryDate, material });
-    steps.push(...posting.steps); journalId = posting.journalId;
   } else if (i.action === "report") {
     if (row.status !== "in_progress")
       throw new BusinessRuleError(
@@ -265,42 +126,6 @@ async function changeManufacturingOrder(
       r.prepareOutputReport(q(i.outputQuantity),q(i.scrapQuantity),Number(row.labor_cost_minor) + labor,Number(row.overhead_cost_minor) + overhead,id),
     );
     const posting = await ports.preparePosting( a, { key, orderId: id, orderVersion: next, phase: "report", entryDate, labor, overhead });
-    steps.push(...posting.steps); journalId = posting.journalId;
-  } else if (i.action === "pass-qc") {
-    ports.requirePermission(a, "records.review");
-    if (row.status !== "awaiting_qc")
-      throw new BusinessRuleError(
-        409,
-        "INVALID_MANUFACTURING_TRANSITION",
-        "QC reviews reported output.",
-      );
-    const reporter = await r.lastReportActor(id);
-    if (String(reporter) === a.userId)
-      throw new BusinessRuleError(
-        409,
-        "CONFLICT",
-        "QC must be independent from output reporting.",
-      );
-    steps.push(r.guardIndependentPass(key,"independent-qc",id,i.expectedVersion,a.userId));
-    status = "completed";
-    const output = Number(row.reported_output_milli),
-      total =
-        Number(row.material_cost_minor) +
-        Number(row.labor_cost_minor) +
-        Number(row.overhead_cost_minor);
-    steps.push(
-      r.prepareOutputStock(row.warehouse_id,row.output_product_id,output,total),
-      ...await ports.prepareOutputLots( a, { key, orderId: id, orderVersion: next, warehouseId: String(row.warehouse_id), productId: String(row.output_product_id),
-        trackingMode: String(row.output_tracking_mode), outputMilli: output, totalMinor: total, entryDate, allocations: i.outputLotAllocations }),
-      r.guardOutputDate(key,"output-movement-date",row.warehouse_id,row.output_product_id,entryDate),
-      r.prepareOutputMove(`mfg-stock-${key}`,id,row.warehouse_id,row.output_product_id,next,output,total,entryDate,a.userId,now),
-      r.prepareCostSnapshot(`mfg-cost-${key}`,id,next,row.material_cost_minor,row.labor_cost_minor,row.overhead_cost_minor,total,output,now),
-    );
-    for (const [n, line] of lines.entries())
-      steps.push(
-        r.prepareProductGenealogy(`mfg-genealogy-${key}-${n}`,id,line.product_id,row.output_product_id,Math.ceil(Number(line.quantity_milli) * factor),output,next,now),
-      );
-    const posting = await ports.preparePosting( a, { key, orderId: id, orderVersion: next, phase: "output", entryDate, output: total, quantityMilli: output });
     steps.push(...posting.steps); journalId = posting.journalId;
   } else if (i.action === "fail-qc") {
     ports.requirePermission(a, "records.review");
@@ -461,4 +286,4 @@ async function manufacturingWork(a: WorkContext): Promise<WorkItem[]> {
             : "Report output",
     relationships: ["team"],
   }));
-}return {createSpecification,reviewSpecification,changeManufacturingOrder,productionDetail,manufacturingWork};}
+}return {changeManufacturingOrder,productionDetail,manufacturingWork};}

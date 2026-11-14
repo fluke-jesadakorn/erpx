@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextInput } from "@erpx/ui/components/foundation";
@@ -32,7 +33,7 @@ export function LegalEnrollment({centralEnrollmentHref}:{centralEnrollmentHref?:
           setBusy(true);
           try {
             const v = Object.fromEntries(new FormData(e.currentTarget));
-            const response = await fetch("/api/legal-portal/enroll", {
+            const response = await holdingFetch("/api/legal-portal/enroll", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ token, ...v }),

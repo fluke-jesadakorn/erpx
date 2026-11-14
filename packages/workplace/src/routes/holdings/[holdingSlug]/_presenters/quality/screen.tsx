@@ -8,9 +8,9 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
-import { qualityWorkspace } from "@erpx/server-quality/public/quality";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { QualityConsole } from "@erpx/feature-quality/components/quality-console";
+import { nativeQualityWorkspace, type NativeQualityWorkspace } from "@erpx/feature-quality/public/native-quality";
 import { RecordDocumentDrawer } from "@erpx/feature-files/components/record-document-drawer";
 import { AttachmentFeatureSurface } from "@erpx/feature-files/components/attachment-feature-context";
 import { PageContent, Card, TableFrame } from "@erpx/ui/components/foundation";
@@ -18,10 +18,17 @@ export const dynamic = "force-dynamic";
 export default async function Page({ params }: { params: Promise<{ holdingSlug: string }> }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor));
-  let data: Awaited<ReturnType<typeof qualityWorkspace>>,
+  let data: NativeQualityWorkspace,
     alerts: Awaited<ReturnType<typeof qualityAlerts>>;
   try {
-    data = await qualityWorkspace(actor);
+    const native = await nativeQualityWorkspace(actor.holdingSlug);
+    if (!native)
+      throw new ApiError(
+        503,
+        "NATIVE_QUALITY_UNAVAILABLE",
+        "The native Quality service is unavailable.",
+      );
+    data = native;
     alerts = await qualityAlerts(actor);
   } catch (error) {
     if (error instanceof ApiError && error.status === 403)
@@ -46,7 +53,7 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
             <div className="ui-section-header">
               <div>
                 <h2>
-                  {String(spec.product_name)} · {String(spec.name)}
+                  {String(spec.productName)} · {String(spec.name)}
                 </h2>
                 <p className="muted">Controlled specification · version {String(spec.version)}</p>
               </div>
@@ -95,9 +102,9 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
                     ? "Completed"
                     : status === "disposition_pending"
                       ? "Company Finance"
-                      : status === "held" && h.last_result === "fail"
+                      : status === "held" && h.lastResult === "fail"
                         ? "Independent Quality manager"
-                        : Number(h.eligible_count)
+                        : Number(h.eligibleCount)
                           ? status === "held"
                             ? "Quality inspector"
                             : "Independent Quality manager"
@@ -106,18 +113,18 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
                   <tr key={String(h.id)}>
                     <td>
                       <Link href={canonicalUiHref(`${base}/quality/${h.id}`)}>
-                        {String(h.product_name)} · {String(h.warehouse_name)}
+                        {String(h.productName)} · {String(h.warehouseName)}
                       </Link>
                     </td>
                     <td>
-                      {h.serial_number
-                        ? `Serial ${String(h.serial_number)}`
-                        : h.lot_code
-                          ? `Lot ${String(h.lot_code)}`
+                      {h.serialNumber
+                        ? `Serial ${String(h.serialNumber)}`
+                        : h.lotCode
+                          ? `Lot ${String(h.lotCode)}`
                           : "Entire product"}
                     </td>
-                    <td>{Number(h.held_quantity_milli ?? 0) / 1000}</td>
-                    <td>{String(h.due_date)}</td>
+                    <td>{Number(h.heldQuantityMilli ?? 0) / 1000}</td>
+                    <td>{String(h.dueDate)}</td>
                     <td>{status}</td>
                     <td>{next}</td>
                   </tr>

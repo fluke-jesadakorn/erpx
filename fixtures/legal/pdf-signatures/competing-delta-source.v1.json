@@ -1,0 +1,37 @@
+{
+  "schema": "erpx-pdf-source-evidence/v1",
+  "package": "pyhanko-certvalidator",
+  "version": "0.32.1",
+  "metadataUrl": "https://pypi.org/pypi/pyhanko-certvalidator/0.32.1/json",
+  "wheel": {
+    "filename": "pyhanko_certvalidator-0.32.1-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/f4/49/81f92016547077d004a883864da9148e725741f365064a1c9dfe5558f49a/pyhanko_certvalidator-0.32.1-py3-none-any.whl",
+    "sha256": "76100cdda13bd085beaa94d4b9080fe6f4ee67248976ec9a19c4d58642558a2b"
+  },
+  "source": {
+    "path": "pyhanko_certvalidator/revinfo/validate_crl.py",
+    "sha256": "4c08bc27100cfbcf7cd81a8eb6133ae3b9d3fdbd0c5cbe77683e5dde0c30aefe",
+    "function": "_find_matching_delta_crl",
+    "firstLine": 317,
+    "lastLine": 344,
+    "semantics": "Returns the first supplied candidate with matching issuer, issuingDistributionPoint and authorityKeyIdentifier; later matching candidates are not reconciled."
+  },
+  "fixture": {
+    "path": "fixtures/legal/pdf-signatures/conformance-crl-guards.v1.json",
+    "retainedAtCommit": "b4db260cd029707886e82ac958daab3b4fab1509",
+    "name": "competing_delta_revoked_second",
+    "pdfSha256": "6a88ea749e0ca46a040d79f56240412c7bf5c7b2ca8d0bc2667f7243088126d9",
+    "canonicalCaseSha256": "cf6714dfba9e4e71bf497bc7086e5356b9b5b2b18b6fe0d03b38668ab06c545d",
+    "materialSha256": {
+      "revocation/a-delta.crl": "e46875bc7e41a1a2e8d1aaf4d6dcd7cbc4de9cf581c28dfb8ae92d934ebe0685",
+      "revocation/b-delta.crl": "26839625bc8b8afe69d3c9ade86602a5098706f80023807cb3e040f8e332d08d",
+      "revocation/base.crl": "d068845f5b3887fbcb9270b60b68ab8cf9aec6b2f423b909a88012a5f8afd18d",
+      "roots/root.pem": "b4da4ff824b7ff97f2059142ccf44450887cc527bd6ea548c1e3199969be8e35"
+    },
+    "b0Status": "valid",
+    "rustStatus": "invalid",
+    "integrity": "valid",
+    "revocation": "invalid"
+  },
+  "policyReference": "https://www.rfc-editor.org/rfc/rfc5280.html#section-6.3.3"
+}

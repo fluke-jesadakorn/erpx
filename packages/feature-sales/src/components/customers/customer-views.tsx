@@ -8,7 +8,7 @@ import { SupportConsole } from "@erpx/feature-support/components/support-console
 import { CustomerIdentityConsole } from "@erpx/feature-customer_360/components/customer-identity-console";
 import { CustomerDuplicateConsole } from "@erpx/feature-customer_360/components/customer-duplicate-console";
 import { CustomerAccessConsole } from "@erpx/feature-customer_360/components/customer-access-console";
-import { customerReviews, hubHref, queryValue, type HubQuery } from "@erpx/feature-sales/lib/navigation";
+import { customerReviews, hubHref, queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commerceOverview} from '@erpx/server-commerce/public/commerce';
@@ -21,6 +21,7 @@ import { readSourceRecord } from "@erpx/server-records/public/source-record-poli
 import { customerIdentityWorkspace } from "@erpx/server-customer_authority/public/customer-identity-changes";
 import { customerDuplicateWorkspace } from "@erpx/server-customer_authority/public/customer-duplicates";
 import { customerAccessWorkspace } from "@erpx/server-customer_authority/public/customer-access";
+import { nativeCustomerAccessWorkspace } from "@erpx/feature-sales/public/native-customer-access-page";
 import { HubEmpty, HubPagination, HubSegments } from "@erpx/feature-sales/components/customers/hub-shell";
 import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/feature-sales/components/customers/hub-list";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
@@ -58,12 +59,13 @@ export async function CustomerSupportView({ actor, base, query }: { actor: WorkC
 }
 export async function CustomerReviewsView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
   const review = queryValue(query, "review", "identity"), creating = query.new === "1";
-  const data = review === "duplicates" ? await customerDuplicateWorkspace(actor) : review === "access" ? await customerAccessWorkspace(actor) : await customerIdentityWorkspace(actor);
+  const nativeAccess = review === "access" ? await nativeCustomerAccessWorkspace(actor) : undefined;
+  const data = review === "duplicates" ? await customerDuplicateWorkspace(actor) : review === "access" ? (nativeAccess as Awaited<ReturnType<typeof customerAccessWorkspace>> | undefined) ?? await customerAccessWorkspace(actor) : await customerIdentityWorkspace(actor);
   const canCreate = "canCreate" in data ? data.canCreate : true, status = queryValue(query, "status", "pending"), search = queryValue(query, "q").toLowerCase();
   const items = data.rows.filter(row => (!status || row.status === status) && (!search || `${"customer_name" in row ? row.customer_name : ""} ${"left_name" in row ? row.left_name : ""} ${"right_name" in row ? row.right_name : ""} ${"number" in row ? row.number : ""} ${"email" in row ? row.email : ""}`.toLowerCase().includes(search))), rows = hubPage(items, query);
   const route = review === "access" ? "customer-access" : review === "duplicates" ? "customer-duplicates" : "customer-identity";
   return <>
-    <div className={styles.filterRow}><HubSegments base={base} hub="customers" query={query} name="review" label="Customer review type" selected={review} values={customerReviews} />{canCreate && <HubCreate base={base} hub="customers" query={query} label="New review request">{creating && (review === "duplicates" && "canCreate" in data && "customers" in data ? <CustomerDuplicateConsole base={base} data={data as Awaited<ReturnType<typeof customerDuplicateWorkspace>>} /> : review === "access" && "sources" in data ? <CustomerAccessConsole base={base} data={data} selectedOrderId={queryValue(query, "orderId")} requestFormInline /> : <CustomerIdentityConsole base={base} data={data as Awaited<ReturnType<typeof customerIdentityWorkspace>>} />)}</HubCreate>}</div>
+    <div className={styles.filterRow}><HubSegments base={base} hub="customers" query={query} name="review" label="Customer review type" selected={review} values={customerReviews} />{canCreate && <HubCreate base={base} hub="customers" query={query} label="New review request">{creating && (review === "duplicates" && "canCreate" in data && "customers" in data ? <CustomerDuplicateConsole base={base} data={data as Awaited<ReturnType<typeof customerDuplicateWorkspace>>} /> : review === "access" && "sources" in data ? <CustomerAccessConsole base={base} data={data as Awaited<ReturnType<typeof customerAccessWorkspace>>} selectedOrderId={queryValue(query, "orderId")} requestFormInline /> : <CustomerIdentityConsole base={base} data={data as Awaited<ReturnType<typeof customerIdentityWorkspace>>} />)}</HubCreate>}</div>
     <HubFilters query={{ ...query, status }} placeholder="Search review requests" filters={[{ name: "status", label: "Review status", values: [["pending", "Pending"], ["", "All statuses"], ["applied", "Applied"], ["approved", "Approved"], ["rejected", "Rejected"], ["duplicate", "Duplicate"], ["distinct", "Distinct"], ["merged", "Merged"], ["revoked", "Revoked"]] }]} />
     {rows.length ? <HubTable label="Customer data reviews" columns={["Request", "Status"]}>{rows.map(row => <tr key={String(row.id)}><td><Link className={styles.recordName} href={canonicalUiHref(`${base}/${route}/${row.id}`)}>{String("customer_name" in row ? row.customer_name : "left_name" in row ? `${row.left_name} / ${row.right_name}` : `${row.number} · ${row.email}`)}</Link></td><td data-label="Status"><StatusBadge appearance="standard" status={String(row.status)} /></td></tr>)}</HubTable> : <HubEmpty title="No review requests match">All statuses includes completed requests.</HubEmpty>}
     <HubPagination base={base} hub="customers" query={query} count={rows.length} total={items.length} />

@@ -1,0 +1,86 @@
+{
+  "recordedAt": "2026-11-09T09:50:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "46f3553d3217ab3c13405ed52fa075ecc466e6ff",
+  "previousIdentity": "ab06f19aa01ee4c269b3dcf2b1c197e327fe2d33",
+  "bundle": "shared-foundation-source-fences",
+  "scope": "Records, Workflow, Runtime and Files source/test foundation only. This is not owner closure, not a workflow promotion and not a claim of 41-owner or 206-workflow completion.",
+  "owners": [
+    {
+      "id": "records",
+      "status": "partial",
+      "added": [
+        "packages/server-records/src/adapters/commerce_request_links.rs",
+        "packages/server-records/src/adapters/commerce_selected_request.rs",
+        "packages/server-records/src/public/commerce_request_links.rs",
+        "packages/server-records/src/public/commerce_selected_request.rs"
+      ],
+      "tests": [
+        "cargo test --locked -p erpx-server-records --test employee_request_source_postgres"
+      ],
+      "result": "10 passed; 0 failed; 29.06s",
+      "limits": "Raw source witnesses only. They do not grant request visibility, purchasing authority, replay or owner decisions. Commerce/Procurement native commands do not consume them yet.",
+      "next": "Mount the selected-request and request-link witnesses in the native Commerce/Procurement handoff before removing any TypeScript source. Registry list/search/paging and record writes remain retained."
+    },
+    {
+      "id": "workflow",
+      "status": "partial",
+      "added": [
+        "packages/server-workflow/src/adapters/quality_return_receipts.rs",
+        "packages/server-workflow/src/public/quality_return_receipts.rs"
+      ],
+      "tests": [
+        "cargo test --locked -p erpx-server-workflow --test command_ledger_postgres"
+      ],
+      "result": "27 passed; 0 failed; 86.46s",
+      "limits": "The receipt source fence and count/record-origin evidence are source-only. Generic approval decisions, reroute, flow routing and the outbox consumer remain TypeScript authority.",
+      "next": "Mount the quality-return receipt fence in the native Quality return command with current IAM, purchase and same-unit effects. Port generic approval decision/reroute and flow routing before claiming the Workflow owner."
+    },
+    {
+      "id": "runtime",
+      "status": "foundation",
+      "added": [
+        "packages/server-runtime/src/domain/native_engineering_roster.rs",
+        "packages/server-runtime/src/public/native_engineering_roster.rs"
+      ],
+      "tests": [
+        "cargo test --locked -p erpx-server-runtime --test runtime_foundation"
+      ],
+      "result": "7 passed; 0 failed; 0.06s",
+      "limits": "Validated roster data with pinned Node parity. It is not a sealed attestation, trusted process context, database identity grant or durable job runner.",
+      "next": "Bind the validated roster to the trusted Platform attestation and database identity path. A durable Rust outbox/job consumer and production worker registration are still required."
+    },
+    {
+      "id": "files",
+      "status": "partial",
+      "added": [
+        "packages/server-files/src/domain/quality_hold_policy.rs",
+        "packages/server-files/src/public/quality_hold_policy.rs"
+      ],
+      "tests": [
+        "cargo test --locked -p erpx-server-files --lib quality_target_matches_installed_typescript_policy",
+        "cargo test --locked -p erpx-server-files --test attachment_read_postgres"
+      ],
+      "result": "1 passed (policy); 25 passed; 0 failed; 80.43s (attachment read)",
+      "limits": "Pure target policy and PostgreSQL read/ancestry witnesses only. Upload, binding consumers, scanner worker, preview route and legacy TypeScript attachment paths are not certified by this bundle.",
+      "next": "Mount the Quality-hold policy in the Files attachment target policy, then wire the shared business-evidence adapter into a production owner command. Retain current IAM, scanner and target-authority guards."
+    }
+  ],
+  "environment": {
+    "postgres": "disposable local PostgreSQL leased through ERPX_TEST_ADMIN_URL",
+    "node": "pinned v26.11.1",
+    "bun": "pinned 1.4.3",
+    "command": "cargo test --locked with CARGO_BUILD_JOBS=1"
+  },
+  "notRun": [
+    "No production or staging access.",
+    "No public gateway or Cloudflare change.",
+    "No authenticated browser journey or SSO cohort.",
+    "No full workspace clippy, Next production build or cross-owner journey gate for this bundle."
+  ],
+  "mapping": {
+    "ownersComplete": 0,
+    "workflowCountsChanged": false,
+    "note": "No owner or workflow is counted complete from this source-only bundle. The existing owner register remains the authority for the eight-owner scope."
+  }
+}

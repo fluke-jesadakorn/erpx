@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {confirmPaymentSchema} from '@erpx/server-finance/public/finance';
 import {returnRequestSchema} from '@erpx/server-commerce/public/commerce';
@@ -6,14 +7,16 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import { deliveryEvidence } from "../../support/helpers/delivery-evidence";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {approvePayment,confirmPayment,createAccount,createAccountSchema,createJournal,createPayment,createPeriod,decideFxRevaluation,importBankStatement,postInvoice,postJournal,prepareFxRevaluation,releasePayment} from '@erpx/server-finance/public/finance';
+import {approvePayment,confirmPayment,createAccount,createAccountSchema,createPayment,createPeriod,decideFxRevaluation,importBankStatement,postInvoice,prepareFxRevaluation,releasePayment} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import { approveRefund, confirmRefundInstruction, exportRefundInstructions, prepareRefundInstruction, recoverRefundExport, refundConfirmationSchema, refundInstructionSchema, refundWorkspace } from "@erpx/server-finance/public/refunds";
 import { invoiceHistoryCte } from "@erpx/server-finance/public/finance-history";
 import { enableAttachmentV2ForTest } from "../../support/helpers/attachment-v2";
+import { seedNativeQualityRelease } from "../../../fixtures/quality/hold";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>;
@@ -47,7 +50,7 @@ async function assign(kind: "order" | "invoice" | "journal", id: string, stepKey
   const flow = await resolveFlow(db, f.owner, kind, id);
   await assignFlowPrimary(db, f.owner, kind, id, { stepKey, userId, reason: "Independent foreign goods source responsibility", saveDefault: false, expectedVersion: flow.version, recordVersion: flow.recordVersion }, key());
 }
-async function postGoods(journalId: string) { await assign("journal", journalId, "draft", f.manager.userId); await postJournal(f.manager, journalId, key(), { expectedVersion: 1 }); }
+async function postGoods(journalId: string) { await assign("journal", journalId, "draft", f.manager.userId); await markFinanceJournalPosted(db, journalId, f.manager.userId); }
 async function balance(account: string) {
   return Number(await db.prepare("SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status IN ('posted','reversed') AND l.account_id=?").bind(f.company, account).first("n"));
 }
@@ -62,8 +65,8 @@ async function goods(kind: "purchase" | "sales", source?: { warehouseId: string;
   await assign("order", orderId, "stock_gl", f.manager.userId);
   const details = await getOrder(f.owner, orderId), allocations = kind === "purchase" ? [{ lotCode: key(), quantity: "2" }] : [{ lotId: source!.lotId, quantity: "2" }];
   const input = { expectedVersion: 3, date: kind === "purchase" ? "2026-09-28" : "2026-09-29", lines: [{ lineId: String(details.lines[0].id), quantity: "2", allocations }], ...(kind === "sales" ? await deliveryEvidence(db, f.owner, orderId) : {}) }, command = key();
-  const fulfilled = await fulfillOrder(f.owner, orderId, fulfillmentSchema.parse(input), command);
-  expect(await fulfillOrder(f.owner, orderId, fulfillmentSchema.parse(input), command)).toEqual(fulfilled);
+  const fulfilled = await seedCommerceFulfillment(db, f.owner, orderId, fulfillmentSchema.parse(input), command);
+  expect(await seedCommerceFulfillment(db, f.owner, orderId, fulfillmentSchema.parse(input), command)).toEqual(fulfilled);
   const fulfillmentId = String(fulfilled.fulfillmentId), journalId = String(await db.prepare("SELECT journal_id FROM commerce_fulfillments WHERE id=?").bind(fulfillmentId).first("journal_id"));
   await postGoods(journalId);
   await assign("order", orderId, "invoicing", f.owner.userId);
@@ -80,6 +83,9 @@ async function invoice(source: Awaited<ReturnType<typeof goods>>, matched = fals
     await decideSupplierBill(f.manager, matchId, { action: "approve", expectedVersion: 1, reason: "Independently reviewed document price variance", varianceAccountId: ids.variance }, key());
   }
   const result = await invoiceFulfillment(f.owner, source.fulfillmentId, { expectedVersion: matched ? 2 : 1, date: "2026-09-29", dueDate: "2026-09-30", ...(matchId ? { matchId, matchVersion: 2 } : {}) }, key()), invoiceId = String(result.invoiceId);
+  if (!await db.prepare("SELECT 1 FROM commerce_orders WHERE id=? AND kind='sales'").bind(source.orderId).first()) {
+    expect(await db.prepare("SELECT COUNT(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind='draft:v1'").bind(f.company, invoiceId).first("n")).toBe(1);
+  }
   await assign("invoice", invoiceId, "draft", f.manager.userId);
   const input = { expectedVersion: 1, periodId: f.period, entryDate: "2026-09-29", fxGainAccountId: ids.gain, fxLossAccountId: ids.loss };
   if (!await db.prepare("SELECT 1 FROM commerce_orders WHERE id=? AND kind='sales'").bind(source.orderId).first()) {
@@ -132,15 +138,6 @@ async function refund(obligation: string, amount: string) {
 }
 
 describe("native foreign Commerce goods carrying", () => {
-  it("rejects an unrelated account currency at independent journal posting while keeping the draft and every stock balance unchanged", async () => {
-    const euro=String((await createAccount(f.owner,createAccountSchema.parse({chartId:f.chart,code:key(),name:"Unrelated EUR account",category:"expense",currency:"EUR"}),key())).id);
-    const journal=await createJournal(f.reviewer,{chartId:f.chart,periodId:f.period,entryDate:"2026-09-29",currency:"USD",memo:"Declared invalid third-currency review case",sourceType:"manual",isOpening:false,lines:[{accountId:euro,debit:"1",credit:"0"},{accountId:ids.payable,debit:"0",credit:"1"}]},key());
-    await assign("journal",journal.id,"draft",f.manager.userId);
-    await expect(postJournal(f.manager,journal.id,key(),{expectedVersion:1})).rejects.toMatchObject({code:"CONFLICT",cause:{code:"23514",detail:expect.stringContaining("active-accounts")}});
-    expect(await db.prepare("SELECT status,version FROM finance_journals WHERE id=?").bind(journal.id).first()).toEqual({status:"draft",version:1});
-    expect(await balance(euro)).toBe(0);expect(await balance(ids.payable)).toBe(0);
-    expect(await db.prepare("SELECT COUNT(*) n FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?").bind(f.company).first("n")).toBe(0);
-  });
   it("allocates original tax and clearing cents across partial credits and reverses every posted source account exactly", async () => {
     await confirmManualRate(f.manager, { currency: "THB", effectiveDate: "2026-09-29", currencyPerUsd: "35.5", note: "Synthetic rounding edge quote" }, key());
     const source = await goods("purchase", undefined, "0.01", 5000, 70), invoiceId = await invoice(source);
@@ -199,14 +196,11 @@ describe("native foreign Commerce goods carrying", () => {
     expect(await db.prepare("SELECT quantity_milli,value_minor FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?").bind(source.lotId, source.warehouseId).first()).toEqual({ quantity_milli: 2000, value_minor: 351235 });
     expect(await balance(ids.inventory)).toBe(351235);
     expect(await db.prepare("SELECT inventory_quarantined_quantity(?,?) n").bind(source.warehouseId, source.productId).first("n")).toBe(2000);
-    const { inspectQualityHold, releaseQualityHold } = await import("@erpx/server-quality/public/quality");
     f.it.role = "quality_manager"; f.it.branchId = null; f.it.departmentId = null; f.it.assignmentId = await f.grant(f.it, "quality_manager");
     const holds = (await db.prepare("SELECT h.id FROM inventory_quality_holds h JOIN commerce_return_lot_allocations a ON a.id=h.source_id JOIN commerce_return_lines l ON l.id=a.return_line_id WHERE l.return_id IN (?,?)").bind(first.id, last.id).all<{ id: string }>()).results;
     expect(holds).toHaveLength(2);
-    for (const { id } of holds) {
-      await inspectQualityHold(f.owner, id, { expectedVersion: 1, result: "pass", evidence: "Actual returned lot condition measured against the product", measurements: [], attachmentIds: [], attachmentSetIds: [] }, key());
-      await releaseQualityHold(f.it, id, { expectedVersion: 2, reason: "Independent Quality review accepts this retained original lot" }, key());
-    }
+    for (const { id } of holds)
+      await seedNativeQualityRelease(db, { companyId: f.company, holdId: id, releasedBy: f.it.userId, inspectorId: f.owner.userId, reason: "Independent Quality review accepts this retained original lot" });
     expect(await db.prepare("SELECT inventory_quarantined_quantity(?,?) n").bind(source.warehouseId, source.productId).first("n")).toBe(0);
     const a = await refund(String(first.refundId), "50"), b = await refund(String(last.refundId), "100");
     expect(a).toMatchObject({ baseCarryingMinor: 180000, cashBaseMinor: 190000, realizedFxMinor: -10000 });

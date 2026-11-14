@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The Customer 360 federated timeline native read, HTTP router and frontend transport are qualified on the current source. The native Field fixture now builds the full business composition, passes the tool environment through and advances its clock so the agreement create/activate ordering is deterministic. The workflow remains partial: the product page still uses the legacy timeline until the native runtime is configured with business data, and authenticated browser/SSO plus legacy retirement remain open.",
+  "capability": "customer-360-sales-summary",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commit": "c74d1e498588afae3b7876f1669458b476b72491",
+  "scope": {
+    "nativeRead": "packages/server-customer_360/src/adapters/timeline.ts and public/customer_timeline.rs retain the scoped Sales/CRM/Contact/Follow-up/Support/Field/Finance/Legal federation with cursor pagination and owner gates.",
+    "http": "packages/server-customer_360/src/adapters/timeline_http.rs and the composition mount expose the bounded registered-Holding route.",
+    "frontend": "packages/feature-sales/src/public/native-customer-timeline-page.ts and native-customer-timeline.ts provide the native transport; the product page selects it only when ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is set.",
+    "fixture": "src/composition/Cargo.toml and tests/support/files/field-files-native-parity.ts now build the native Field example with existing-business, pass the ClamAV/HEIF/Poppler variables, and tests/integration/customer_360/customer-timeline.test.ts advances the fixture clock between agreement create and activate."
+  },
+  "verification": {
+    "nativeUnit": "PASS: cargo test -p erpx-server-customer-360 --test customer_timeline: 11 passed, 0 failed, .scratch/dev/rust-migration/current/customer-timeline-suites.log.",
+    "nativeHttp": "PASS: customer_timeline_http: 2 passed, 0 failed, same log.",
+    "nativePostgres": "PASS: customer_timeline_postgres: 7 passed, 0 failed (6.15s), same log.",
+    "frontendUnit": "PASS: tests/unit/customer_360/native-customer-timeline-transport.test.ts: 12 passed, .scratch/dev/rust-migration/current/customer-timeline-ts-unit.log.",
+    "frontendIntegration": "PASS: tests/integration/customer_360/customer-timeline.test.ts: 6 passed, including the scoped Field/Finance/Legal federation (18.78s), .scratch/dev/rust-migration/current/customer-timeline-ts-int6.log.",
+    "fixtureBuild": "PASS: cargo build -p erpx-service --example field_files_vitest_held_provider --no-default-features --features private-field-api,files-scan-worker,field-push-worker,existing-business (54.69s), .scratch/dev/rust-migration/current/field-fixture-build2.log."
+  },
+  "workflowClosure": {
+    "promoted": "partial",
+    "reason": "Native, HTTP, PostgreSQL and frontend transport tests pass. The product page native configuration is not enabled because the disposable Account runtime clone does not contain the business data; authenticated desktop/mobile browser and legacy TS timeline retirement remain open. No owner is certified."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 58,
+    "unstarted": 83,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Enable ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG only after the native runtime has the business data, then run authenticated desktop/mobile customer history and retire the legacy timeline consumer."
+}

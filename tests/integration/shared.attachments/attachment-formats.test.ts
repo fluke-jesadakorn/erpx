@@ -1,10 +1,8 @@
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { mkdir,mkdtemp,readFile,rm,utimes,writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:net";
-import { promisify } from "node:util";
 import sharp from "sharp";
 import { describe,expect,it } from "vitest";
 import { attachmentScannerReadiness,scanAttachmentBytes } from "@erpx/server-files/public/attachments/scanner";
@@ -12,14 +10,21 @@ import { detectedAttachmentMediaType,sanitizedAttachmentPreview } from "@erpx/se
 import { ATTACHMENT_UPLOAD_MAX_BYTES,readBoundedUploadBody } from "@erpx/server-files/public/attachments/upload";
 import { validMessagingSignature } from "@erpx/server-collaboration/public/messaging-files";
 
-const execute=promisify(execFile);
 const repository=process.cwd();
 const scannerSocket=process.env.ERPX_CLAMD_SOCKET??join(repository,".scratch/dev/clamav/clamd.sock");
 const scannerDatabase=process.env.ERPX_CLAMAV_DATABASE_DIR??join(repository,".scratch/dev/clamav/db");
-const heifEncoder=process.env.ERPX_HEIF_ENC??"/opt/homebrew/opt/libheif/bin/heif-enc";
 const heifConverter=process.env.ERPX_HEIF_CONVERT??"/opt/homebrew/opt/libheif/bin/heif-convert";
 
-(existsSync(scannerSocket)&&["daily.cvd","daily.cld"].some(name=>existsSync(join(scannerDatabase,name)))?describe:describe.skip)("real attachment scanner",()=>{
+async function ownedHeicFixture(){
+  const directory=join(repository,"fixtures/files/attachment-formats"),manifest=JSON.parse(await readFile(join(directory,"manifest.json"),"utf8"));
+  const source=new Uint8Array(await readFile(join(directory,"rotated-non-square.heic")));
+  expect(source.byteLength).toBeLessThan(64*1024);
+  expect(source.byteLength).toBe(manifest.files["rotated-non-square.heic"].bytes);
+  expect(createHash("sha256").update(source).digest("hex")).toBe(manifest.files["rotated-non-square.heic"].sha256);
+  return source;
+}
+
+describe("real attachment scanner",()=>{
   const environment={...process.env,ERPX_ATTACHMENTS_V2:"true",ERPX_CLAMD_SOCKET:scannerSocket,ERPX_CLAMAV_DATABASE_DIR:scannerDatabase};
 
   it("reports current ClamAV readiness and distinguishes clean bytes from EICAR",async()=>{
@@ -45,17 +50,13 @@ const heifConverter=process.env.ERPX_HEIF_CONVERT??"/opt/homebrew/opt/libheif/bi
   });
 });
 
-(existsSync(heifEncoder)&&existsSync(heifConverter)?describe:describe.skip)("HEIC preview sanitization",()=>{
+describe("HEIC preview sanitization",()=>{
   it("decodes a real rotated non-square HEIC and strips source metadata",async()=>{
-    const directory=await mkdtemp(join(tmpdir(),"erpx-heic-fixture-"));
     const prior=process.env.ERPX_HEIF_CONVERT;
     try{
-      const png=join(directory,"source.png"),heic=join(directory,"fixture.heic");
-      await sharp({create:{width:80,height:40,channels:3,background:{r:27,g:115,b:212}}})
-        .withMetadata({orientation:1,exif:{IFD0:{ImageDescription:"private metadata"}}})
-        .png().toFile(png);
-      await execute(heifEncoder,["--rotate-cw","90","-q","70","-o",heic,png],{timeout:20_000,maxBuffer:1024*1024});
-      const source=new Uint8Array(await readFile(heic));
+      const source=await ownedHeicFixture();
+      const original=await sharp(source).metadata();
+      expect(original.exif?.includes(Buffer.from("private metadata"))).toBe(true);
       expect(detectedAttachmentMediaType(source,"application/octet-stream")).toBe("image/heic");
       expect(validMessagingSignature("image/heic",source)).toBe(true);
       process.env.ERPX_HEIF_CONVERT=heifConverter;
@@ -70,7 +71,6 @@ const heifConverter=process.env.ERPX_HEIF_CONVERT??"/opt/homebrew/opt/libheif/bi
       expect(metadata.xmp).toBeUndefined();
     }finally{
       if(prior===undefined)delete process.env.ERPX_HEIF_CONVERT;else process.env.ERPX_HEIF_CONVERT=prior;
-      await rm(directory,{recursive:true,force:true});
     }
   });
 });
@@ -134,18 +134,12 @@ describe("attachment media detection",()=>{
     expect(detectedAttachmentMediaType(pngBytes.slice(0,-4),"image/png")).toBeNull();
   });
 
-  (existsSync(heifEncoder)?it:it.skip)("rejects truncated and appended HEIC containers",async()=>{
-    const directory=await mkdtemp(join(tmpdir(),"erpx-heic-detection-"));
-    try{
-      const png=join(directory,"source.png"),heic=join(directory,"fixture.heic");
-      await sharp({create:{width:8,height:6,channels:3,background:"blue"}}).png().toFile(png);
-      await execute(heifEncoder,["-q","70","-o",heic,png],{timeout:20_000,maxBuffer:1024*1024});
-      const source=new Uint8Array(await readFile(heic)),zipTail=new Uint8Array([0x50,0x4b,0x03,0x04,0,0,0,0]);
-      const appended=new Uint8Array(source.byteLength+zipTail.byteLength);appended.set(source);appended.set(zipTail,source.byteLength);
-      expect(detectedAttachmentMediaType(source,"image/heic")).toBe("image/heic");
-      expect(detectedAttachmentMediaType(source.slice(0,-1),"image/heic")).toBeNull();
-      expect(detectedAttachmentMediaType(appended,"image/heic")).toBeNull();
-    }finally{await rm(directory,{recursive:true,force:true});}
+  it("rejects truncated and appended HEIC containers",async()=>{
+    const source=await ownedHeicFixture(),zipTail=new Uint8Array([0x50,0x4b,0x03,0x04,0,0,0,0]);
+    const appended=new Uint8Array(source.byteLength+zipTail.byteLength);appended.set(source);appended.set(zipTail,source.byteLength);
+    expect(detectedAttachmentMediaType(source,"image/heic")).toBe("image/heic");
+    expect(detectedAttachmentMediaType(source.slice(0,-1),"image/heic")).toBeNull();
+    expect(detectedAttachmentMediaType(appended,"image/heic")).toBeNull();
   });
 
   it("rejects an image whose declared dimensions exceed the decode pixel limit",async()=>{

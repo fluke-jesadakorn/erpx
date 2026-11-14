@@ -20,6 +20,7 @@ import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/adapters/
 import {financePaymentReversalSources} from '@erpx/server-finance/adapters/supplier-payment-correction-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import type {SalesPostingSetupProductScope} from '@erpx/server-finance/adapters/sales-posting-setup';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 const sales='finance.sales-posting';
 async function receiptSource(database:SqlDatabase,actor:WorkContext,id:string,issue:boolean){
@@ -40,6 +41,12 @@ async function owned<Result>(actor:WorkContext,id:string,issue:{key:string}|unde
  try{return await owner.transaction(async database=>{
   await database.batch([...financeSourceDocumentReadLeases(database,actor.companyId,true,'supplier-correction'),database.prepare('LOCK TABLE finance_customer_receipts,finance_periods IN SHARE ROW EXCLUSIVE MODE')]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyPurchaseReadLocks(database,actor.companyId).slice(1));
+  // Non-Field receipt readers/manual issuers remain until their owners move.
+  // Native confirmation alone issues Field copies; internal TS callers cannot
+  // read or issue them by bypassing the HTTP source selector.
+  const native=await database.prepare(`SELECT EXISTS(SELECT 1 FROM finance_customer_receipts r WHERE r.company_id=? AND r.${issue?'payment_id':'id'}=? AND erpx_finance_field_payment_owned(r.payment_id))
+    OR (? AND EXISTS(SELECT 1 FROM finance_payments p WHERE p.company_id=? AND p.id=? AND erpx_finance_field_payment_owned(p.id))) native`).bind(actor.companyId,id,!!issue,actor.companyId,id).first<{native:boolean}>();
+  if(native?.native)throw new ApiError(503,'NATIVE_FINANCE_RECEIPT_REQUIRED','Use the native Field receipt interface. Native confirmation retains its issued copy.');
   // Preserve the original read-only record-scope 404 before checking a stale
   // selected assignment. Values remain private until all final guards pass.
   // These two readers have no audit, storage IO or mutation effects.
@@ -54,7 +61,7 @@ async function owned<Result>(actor:WorkContext,id:string,issue:{key:string}|unde
   if(before&&(!after||after.image!==before.image||after.sales!==before.sales)||capability===sales&&!after?.sales)throw new ApiError(409,'SALES_RECEIPT_SOURCE_CHANGED','The original immutable customer receipt source changed before completion.');
   if(authority!==await current(database,actor,!!issue,capability===sales))throw new ApiError(409,'SALES_POSTING_CONTEXT_CHANGED','The selected Finance authority changed before customer receipt completion.');
   await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability,purpose:'history'});
-  if(boundary){const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(guard)]);boundary.observe?.(observed);}return result;
+  if(boundary){const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database,guard)]);boundary.observe?.(observed);}return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 export function withSalesCustomerReceiptRead<Result>(actor:WorkContext,id:string,run:(database:SqlDatabase)=>Promise<Result>){return owned(actor,id,undefined,run);}

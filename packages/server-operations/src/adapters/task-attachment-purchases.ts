@@ -12,7 +12,7 @@ import {workTaskSocialReadPolicy} from '@erpx/server-collaboration/public/work-t
 import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {workPackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,purchaseCommandBoundary,observePurchaseResults} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,purchaseCommandBoundary,observePurchaseResults} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -21,6 +21,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {staffGuard} from '@erpx/server-operations/adapters/staff-policy';
 import {projectTaskRecordPolicy} from '@erpx/server-operations/adapters/project-task-record-policy';
 import {workTaskOwnsAttachmentAction} from '@erpx/server-operations/adapters/work-task-purchases';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 export type WorkTaskAttachmentPurchase={companyId:string;targetId:string;actor:WorkContext;purpose:CapabilityPurpose;capabilities:string[];witness:string;ownedAction:boolean;writer:'creator'|'assignee'|'delegate'};
 function source(ownedAction:boolean){return `SELECT t.id,t.company_id,t.branch_id,t.department_id,t.project_id,t.state,t.creator_user_id,t.assignee_user_id,t.template_id,social.work_social,
@@ -33,7 +34,7 @@ function source(ownedAction:boolean){return `SELECT t.id,t.company_id,t.branch_i
 const fileUnits=new WeakSet<SqlDatabase>();
 type Source={id:string;company_id:string;branch_id:string|null;department_id:string|null;project_id:string|null;state:string;creator_user_id:string;assignee_user_id:string;template_id:string|null;work_social:boolean;witness:string};
 export async function workTaskAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation?:AttachmentOperation):Promise<WorkTaskAttachmentPurchase|null>{
- const mode=await workPackageEnforcementMode();if(type!=='staff_task'||mode==='disabled')return null;
+ const mode=await appsPackageEnforcementMode();if(type!=='staff_task'||mode==='disabled')return null;
  const ownedAction=workTaskOwnsAttachmentAction(database,actor,id),row=await database.prepare(source(ownedAction)).bind(id,actor.companyId).first<Source>();
  if(!row)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original task evidence owner is unavailable.');
  // The existing Project owner separately licenses its actual foundation.
@@ -44,19 +45,19 @@ export async function workTaskAttachmentPurchaseScope(database:SqlDatabase,actor
 }
 export async function authorizeWorkTaskAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){
  const scope=await workTaskAttachmentPurchaseScope(database,actor,type,id,operation);if(!scope)return;
- for(const capability of scope.capabilities)await checkPurchasedCapability(database,await workPackageEnforcementMode(),{companyId:scope.companyId,capability,purpose:operation==='read'?'history':scope.purpose});
+ for(const capability of scope.capabilities)await checkPurchasedCapability(database,await appsPackageEnforcementMode(),{companyId:scope.companyId,capability,purpose:operation==='read'?'history':scope.purpose});
 }
 /** A file command leases its actual native task, routine/social source and
  * current original IAM/HR before its first transactional SELECT. */
 export async function workTaskAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly WorkTaskAttachmentPurchase[]){
- if(!scopes.length||await workPackageEnforcementMode()==='disabled')return [];
+ if(!scopes.length||await appsPackageEnforcementMode()==='disabled')return [];
  const locks=[...new Set(scopes.map(scope=>scope.companyId))].sort().map(company=>companyPurchaseReadLocks(database,company));
  await database.batch([...locks.map(items=>items[0]),database.prepare('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE'),workTaskApprovalSourceLocks(database),workTaskSocialSourceLocks(database),workTaskSocialAudienceSourceLocks(database),projectSocialSourceReadLocks(database),socialPmsSourceReadLocks(database)]);
  await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);fileUnits.add(database);
  return locks.flatMap(items=>items.slice(1));
 }
 export async function workTaskAttachmentCommandBoundary(database:SqlDatabase,scopes:readonly WorkTaskAttachmentPurchase[]){
- const mode=await workPackageEnforcementMode();if(!scopes.length||mode==='disabled')return;
+ const mode=await appsPackageEnforcementMode();if(!scopes.length||mode==='disabled')return;
  const unique=[...new Map(scopes.map(scope=>[`${scope.companyId}:${scope.targetId}:${scope.purpose}:${scope.actor.userId}`,scope])).values()],boundaries=unique.flatMap(scope=>scope.capabilities.map(capability=>{const key=`work-task-file-purchase:${randomUUID()}`;return {key,boundary:purchaseCommandBoundary(database,mode,key,{companyId:scope.companyId,capability,purpose:scope.purpose})!};}));
  const social=await Promise.all(unique.map(scope=>workTaskSocialReadPolicy(database,scope.actor,scope.targetId)));
  const guards=(phase:string)=>unique.flatMap((scope,index)=>{
@@ -65,8 +66,8 @@ export async function workTaskAttachmentCommandBoundary(database:SqlDatabase,sco
   return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),staffGuard(database,key,actor.companyId,actor.userId,'work-task-file-staff'),assertion(database,key,'work-task-file-source',`EXISTS(WITH ${viewer} AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)
  SELECT 1 FROM (${source(scope.ownedAction)}) work_task_file_source CROSS JOIN ${viewer} WHERE work_task_file_source.project_id IS NULL AND witness=? AND ${writer}
  AND ${projectTaskRecordPolicy('work_task_file_source.id','work_task_file_source.company_id',viewer)}
- AND EXISTS(SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${current.where}))`,[actor.userId,actor.assignmentId,scope.targetId,scope.companyId,scope.witness,actor.companyId,actor.branchId,actor.departmentId,...current.args]),assertion(database,key,'work-task-file-social-source',social[index].where,social[index].args),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)];
+ AND EXISTS(SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${current.where}))`,[actor.userId,actor.assignmentId,scope.targetId,scope.companyId,scope.witness,actor.companyId,actor.branchId,actor.departmentId,...current.args]),assertion(database,key,'work-task-file-social-source',social[index].where,social[index].args),clearWorkflowCommandAssertions(database, key)];
  });
- return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards('before')],after:[...financeDeferredEffectStatements(database),...guards('after'),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key))],observe:mode==='shadow'?observePurchaseResults:undefined};
+ return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards('before')],after:[...financeDeferredEffectStatements(database),...guards('after'),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>clearWorkflowCommandAssertions(database, item.key))],observe:mode==='shadow'?observePurchaseResults:undefined};
 }
 export function workTaskAttachmentFailure(error:unknown){let cause=error;for(let depth=0;depth<5&&cause&&typeof cause==='object';depth++){const item=cause as {code?:string;detail?:string;cause?:unknown};if(item.code==='23514'&&(item.detail?.includes('work-task-file-before:')||item.detail?.includes('work-task-file-after:')))return new ApiError(409,'WORK_TASK_ATTACHMENT_CHANGED','The original task evidence, current assignment or purchased source changed.');cause=item.cause;}return null;}

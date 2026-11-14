@@ -1,6 +1,7 @@
 import {afterAll,beforeAll,expect,it,vi} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {hashPassword} from 'better-auth/crypto';
+import { nativeTestPasswordHash } from '../../support/native-account-sso';
 import {env,applyMigrations} from '../../support/runtime-env';
 import {seedExpenseCompany} from '../../../fixtures/expenses/company';
 const requestContext=vi.hoisted(()=>({headers:new Headers()}));
@@ -12,7 +13,8 @@ import {productSsoRequest} from '@erpx/server-identity_access/public/product-sso
 import {legalCommand,detail,hash} from '@erpx/server-legal/public/legal/service';
 import {access} from '@erpx/server-legal/public/legal/access';
 import {queueLegalAi,drainLegalAi} from '@erpx/server-legal/public/legal/jobs';
-import {queueInspection,drainLegalProcessing} from '@erpx/server-legal/public/legal/processing';
+import {queueInspection} from '@erpx/server-legal/public/legal/processing';
+import {withLegalQueuedCompletion} from '@erpx/server-legal/adapters/queued-purchases';
 import {measureReads} from '@erpx/server-runtime/public/runtime/read-metrics';
 const holding=env.H001_DB,control=env.CONTROL_DB,issuer='https://account-dev-erpx.jesadakorn.com',portal='https://legal-portal-dev-erpx.jesadakorn.com';
 beforeAll(async()=>{await applyMigrations(control,env.CONTROL_TEST_MIGRATIONS);await applyMigrations(holding,env.STAFF_TEST_MIGRATIONS);vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_LEGAL_PACKAGE_ENFORCEMENT','disabled');});
@@ -20,18 +22,47 @@ afterAll(()=>vi.unstubAllEnvs());
 function request(origin:string,path:string,cookie='',method='GET',body?:unknown){return new Request(origin+path,{method,headers:{host:new URL(origin).host,origin,cookie,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});}
 const cookies=(response:Response)=>response.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
 async function normalPortalAccount(){
- const userId=randomUUID(),email=userId+'@example.test',now=Date.now(),password='Fictional-Legal-Completion-2026!';await control.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)').bind(userId,'Original external contract recipient',email,now,now).run();await control.prepare('INSERT INTO account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") VALUES(?,?,\'credential\',?,?,?,?)').bind(randomUUID(),userId,userId,await hashPassword(password),now,now).run();
- const signedIn=await(await createAuth(issuer)).handler(request(issuer,'/api/auth/sign-in/email','','POST',{email,password}));expect(signedIn.status).toBe(200);const central=cookies(signedIn),start=await productSsoRequest(request(portal,'/sso/start?next='+encodeURIComponent('/legal-portal/test')),'start');expect(start.status).toBe(303);const authorizeUrl=new URL(start.headers.get('location')!),authorized=await productSsoRequest(request(issuer,authorizeUrl.pathname+authorizeUrl.search,central),'authorize');expect(authorized.status).toBe(303);const callbackUrl=new URL(authorized.headers.get('location')!),callback=await productSsoRequest(request(portal,callbackUrl.pathname+callbackUrl.search,cookies(start)),'callback');expect(callback.status).toBe(303);expect(await holding.prepare('SELECT 1 FROM assignments WHERE user_id=?').bind(userId).first()).toBeNull();expect(await control.prepare('SELECT 1 FROM platform_assignments WHERE user_id=?').bind(userId).first()).toBeNull();return {userId,email,cookie:cookies(callback)};
+ const userId=randomUUID(),email=userId+'@example.test',now=Date.now(),password='Fictional-Legal-Completion-2026!';await control.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)').bind(userId,'Original external contract recipient',email,now,now).run();await control.prepare('INSERT INTO account(id,"accountId","providerId","userId",password,"createdAt","updatedAt",issuer) VALUES(?,?,\'credential\',?,?,?,?,\'local:credential\')').bind(randomUUID(),userId,userId,await nativeTestPasswordHash(password),now,now).run();
+ const signedIn=await(await import("@erpx/server-identity_access/public/native-account-http")).nativeAccountHttp(request(issuer,'/api/auth/sign-in/email','','POST',{email,password}));expect(signedIn.status).toBe(200);const central=cookies(signedIn),start=await productSsoRequest(request(portal,'/sso/start?next='+encodeURIComponent('/legal-portal/test')),'start');expect(start.status).toBe(303);const authorizeUrl=new URL(start.headers.get('location')!),authorized=await productSsoRequest(request(issuer,authorizeUrl.pathname+authorizeUrl.search,central),'authorize');expect(authorized.status).toBe(303);const callbackUrl=new URL(authorized.headers.get('location')!),callback=await productSsoRequest(request(portal,callbackUrl.pathname+callbackUrl.search,cookies(start)),'callback');expect(callback.status).toBe(303);expect(await holding.prepare('SELECT 1 FROM assignments WHERE user_id=?').bind(userId).first()).toBeNull();expect(await control.prepare('SELECT 1 FROM platform_assignments WHERE user_id=?').bind(userId).first()).toBeNull();return {userId,email,cookie:cookies(callback)};
 }
 
 type Kind='ai'|'inspection';
 const aiEnvironment:Parameters<typeof drainLegalAi>[1]={AI_BASE_URL:'https://fixture.invalid',AI_MODEL:'isolated-completion-fixture',AI_API_KEY:'fictional-fixture-only'};
+/**
+ * Native-seeding oracle for the retired TypeScript processing drain.
+ *
+ * The production OCR/PDF job worker is native (`src/composition/src/legal_runtime_worker.rs`
+ * with `erpx-server-legal/src/adapters/postgres_processing.rs`); the runtime job
+ * scheduler calls it instead of the deleted TS drain. Retained integration tests
+ * still need a claimed job to reach its durable terminal rows, so this helper
+ * reproduces only the native worker's owner effects directly against PostgreSQL:
+ * recover expired leases, claim one eligible job, retain the matching inspection
+ * and access evidence, then complete or fail it through the retained completion
+ * envelope (`withLegalQueuedCompletion`), which keeps the same current-assignment
+ * and deferred authority checks. It is test-only and never runs in a request path.
+ */
+async function drainNativeInspectionJobs(database:typeof holding){
+ const now=Date.now(),token=randomUUID();
+ await database.prepare("UPDATE legal_processing_jobs SET state=CASE WHEN attempts<3 THEN 'queued' ELSE 'failed' END,error='PROCESSING_INTERRUPTED',lease_token=NULL,lease_until=NULL WHERE state='running' AND lease_until<?").bind(now).run();
+ const job=await database.prepare(`UPDATE legal_processing_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=? WHERE id=(SELECT j.id FROM legal_processing_jobs j WHERE j.state='queued' ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1) RETURNING *`).bind(token,now+600000).first<{id:string;item_id:string;document_id:string;checksum:string;kind:string;actor_json:string}>();
+ if(!job)return;
+ const actor=JSON.parse(job.actor_json) as {userId:string},inspectionId=randomUUID();
+ const result={text:'Native seeded OCR evidence for the retained completion oracle',pages:[{page:1,text:'Native seeded OCR evidence'}],pageMapping:false,truncated:false,checksum:job.checksum,requiresReview:true,inspectionId,processingJobId:job.id};
+ await database.prepare("INSERT INTO legal_document_inspections(id,document_id,kind,result_json,created_by,created_at) VALUES(?,?,?,?,?,?)").bind(inspectionId,job.document_id,job.kind,JSON.stringify(result),actor.userId,now).run();
+ await database.prepare("INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)").bind(randomUUID(),job.item_id,job.document_id,actor.userId,`document.${job.kind}`,now).run();
+ try{
+  await withLegalQueuedCompletion(database,'legal_processing_jobs',job.id,async owner=>{await owner.prepare("UPDATE legal_processing_jobs SET state='completed',result_json=?,error=NULL,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=? AND state='running'").bind(JSON.stringify(result),job.id,token).run();});
+ }catch(error){
+  const code=error instanceof Error&&'code' in error?String(error.code):'DOCUMENT_PROCESSING_FAILED';
+  await database.prepare("UPDATE legal_processing_jobs SET state='failed',error=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?").bind(code,job.id,token).run();
+ }
+}
 async function claimedFixture(kind:Kind){
  const account=await normalPortalAccount(),f=await seedExpenseCompany(holding,env.H001_FILES),owner=await f.member('original-queued-completion-'+kind,'legal_manager');await legalCommand(holding,owner,{action:'settings',enabled:true,aiEnabled:true},randomUUID());const item=await legalCommand(holding,owner,{action:'create',item:{kind:'contract',classification:'confidential',title:'Original '+kind+' claimed-job source',ownerId:owner.userId,data:{contractType:'Supply',parties:'Company and Supplier'}}},randomUUID());
  const command=async(action:string,extra:Record<string,unknown>={})=>legalCommand(holding,owner,{action,id:item.id,expectedVersion:(await access(holding,owner,item.id)).version,...extra},randomUUID());await command('document',{name:'Original immutable processing evidence',body:'Original source text for local inspection and supplied AI generation.'});const document=(await detail(holding,owner,item.id)).documents[0];await command('share',{documentId:document.id,email:account.email,expiresAt:Date.now()+86400000});const share=(await detail(holding,owner,item.id)).shares[0],source=await access(holding,owner,item.id),jobId=randomUUID();
  if(kind==='ai')await queueLegalAi(holding,owner,{id:item.id,expectedVersion:source.version,question:'Summarize the actual original evidence'},jobId);else await queueInspection(holding,owner,document.id,'ocr',jobId);
  let providerCalls=0;const generate:NonNullable<Parameters<typeof drainLegalAi>[2]> = async()=>{providerCalls++;return {result:{summary:'Unverified fixture summary; requires independent review',draft:'',risks:[],sources:[],claims:[]},inputTokens:1,outputTokens:1};};
- return {account,owner,item,document,share,source,jobId,drain:(replacement:NonNullable<Parameters<typeof drainLegalAi>[2]>=generate)=>kind==='ai'?drainLegalAi(holding,aiEnvironment,replacement):drainLegalProcessing(holding,env.H001_FILES),providerCalls:()=>providerCalls};
+ return {account,owner,item,document,share,source,jobId,drain:(replacement:NonNullable<Parameters<typeof drainLegalAi>[2]>=generate)=>kind==='ai'?drainLegalAi(holding,aiEnvironment,replacement):drainNativeInspectionJobs(holding),providerCalls:()=>providerCalls};
 }
 const table=(kind:Kind)=>kind==='ai'?'legal_ai_proposals':'legal_processing_jobs',terminal=(kind:Kind)=>kind==='ai'?'proposed':'completed';
 it.each(['ai','inspection'] as const)('finalizes an actual claimed disabled %s job concurrently with its normal SSO Portal comment without a hidden database retry',async kind=>{

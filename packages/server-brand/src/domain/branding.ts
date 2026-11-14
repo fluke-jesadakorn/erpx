@@ -1,6 +1,8 @@
 import { BusinessRuleError } from "@erpx/server-shared/index";
 import type { ActiveBrandIdentity } from "@erpx/server-brand/domain/identity";
 export type BrandActor={holdingId:string;holdingName:string;holdingSlug:string;companyId:string;branchId:string|null};
+export type BrandOwnerType="holding_brand"|"branch_brand"|"company_storefront_brand";
+export type BrandRecordKind="order"|"invoice"|"payment"|"journal"|"expense";
 export type BrandStorefrontRow={slug:string;display_name:string;short_name:string|null;accent_color:string|null;logo_attachment_id:string|null;logo_publication_id:string|null};
 export type BrandUploadIntent={id:string;owner_type:"holding_brand"|"branch_brand"|"company_storefront_brand";owner_id:string;purpose:BrandVariant|"logo";revision:number;original_name:string};
 export type BrandProfileInput={scopeKind:"holding"|"branch";scopeId:string;documentMode?:DocumentBrandMode;remove?:BrandVariant;commandId:string};

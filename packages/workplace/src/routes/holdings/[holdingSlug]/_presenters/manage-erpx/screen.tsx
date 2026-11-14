@@ -1,4 +1,7 @@
+import { nativePlatformAdminFailure, nativePlatformAdministrationOrRetained, nativePlatformOperationsForPresentation } from "@erpx/feature-platform_administration/lib/native-platform-administration";
 import { platformOperationsForPresentation } from "@erpx/server-platform_administration/public/presentation-queries";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { headers } from "next/headers";
 import {PlatformOperationDetail,CollectionRecordLink} from "@erpx/feature-records/components/platform-operation-detail";
 
 import { PageContent } from "@erpx/ui/components/patterns";
@@ -51,8 +54,15 @@ export default async function ManageErpxPage({
   const content = destinations[destination];
   if (!content) notFound();
   if (destination === "home") {
-    const { platform: actor } = await requireManageErpxContext();
-    const { provisioning, operations } = await platformOperationsForPresentation(actor);
+    const { platform: actor, work } = await requireManageErpxContext();
+    const { provisioning, operations } = await nativePlatformAdministrationOrRetained(
+      async () => nativePlatformOperationsForPresentation(work, actor, await headers()),
+      () => platformOperationsForPresentation(actor),
+    ).catch((error) => {
+      const failure = nativePlatformAdminFailure(error);
+      if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+      throw error;
+    });
     const choices = (await workspaceChoices()).filter(
       (choice): choice is WorkspaceHoldingChoice =>
         choice.kind === "holding" && choice.holdingSlug !== "erpx",

@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-30T19:34:10.255435+00:00",
+  "scope": "Acme native Count and Field visit Files contributor profile; not complete Field/workflows/owners",
+  "integrationTarget": "codex/rust-backend-migration",
+  "baseCommit": "c57bed200830a8073a887fffb198b28fa0f02f46",
+  "guestSourceCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
+  "sourceIdentity": "Guest merged Rust source plus exact host/guest overlay hashes; Docker merge metadata does not change these runtime inputs.",
+  "sourceFiles": {
+    ".devcontainer/Dockerfile": "8fcf051d937e9f8e8c3fa8ede3b7c9fa915fea5fe482b314a43ae89e2b9155b3",
+    ".devcontainer/compose.yaml": "3a9c2d743178e6a84da47af1fe3fa96283942d4a33b94c90d8b742274d888cf4",
+    "scripts/local/dev-container": "81d04c07afa0f91ea46d5668c40e73e607e9351c03bb5eee9ce2ce9cfb17ffd9",
+    "scripts/local/dev-container-native-start.ts": "9c7e663d9cd6f41f7bccc4e0d054045992f92a11c34c2a88450bde08e05d9d7c",
+    "scripts/local/dev-container-native.ts": "ef10478c5181c87ea06bd3b4a40effabaa98e9cda8bb1ff2a28e6a44287a24ac",
+    "scripts/local/dev-container-services-lib.sh": "dcfa8013e57f19de5568dfcbeb10bec34b37dd8b408972d2fd20d09dd2d3a8b2",
+    "scripts/local/dev-container-start.ts": "d5c3aeb50c3c968427f4218832c913c60873a11ffdbfc99b916cc11e8d44fd80",
+    "scripts/seed/contributor-service-demo.ts": "2170753e78ba8cce42443e17aca0a8217bbd5ab19ce2b7c91813dd876df0b993",
+    "packages/feature-field_service/src/adapters/server/native-workspace.ts": "e674aeff681f38a807687a28c287d5a9d97cbaead3a5a51a52ee1287139dc786",
+    "tests/unit/field_service/native-reserve.test.ts": "f4ed39c9311e5b9535ea1a7c4e2ec3918fdf411b442e819823c091e7e0844da3",
+    "packages/workplace/src/lib/native-field-family.ts": "42cc7198faadc60627f25b59e0c00d79bbab0a633982051352a18e60c07f8af9",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/[id]/screen.tsx": "02f214c81ae02f7bf38c587ab5205bbd98d68f6fb073551a13aa088d0cb55348",
+    "tests/unit/shared.attachments/field-family-bridge.test.ts": "8b83afd4b8b7ae188e62fc615f937c9b38f3c596f656ffb5fb4b1e809a717415",
+    ".devcontainer/devcontainer.json": "e7ac05f04bf07ab00dd79592bd874d6988b4f97c04351049163764eb6ee2586e",
+    "scripts/testing/fixtures/field-files-browser.mjs": "191b8c1472ce0d92ab9bbc67aabb4a175a63be09814bdc06cbe9b9ce5179e55e"
+  },
+  "workspaceKey": "field-files-q-arm64",
+  "platform": "macOS ARM64 / Colima erpx-opensource-dev / Linux volume source",
+  "toolchainImage": "sha256:51011e0a57507d315dcbee3907cced145dc1f6055166aed402dbd070f930e570",
+  "nativeProcessUid": 65532,
+  "runtimeBinaries": {
+    "api": "2c898107ae29542e5106833fdae31c8d157d4f32753e14e01e8b6c04735915ee",
+    "renderer": "eaf2ac5f7a8feec08c4b2adae9196be876b6bea17f68feb931e80b7b8a087efa"
+  },
+  "checks": {
+    "freshRepositoryCli": "Fresh keyed source/bootstrap, isolated migrations/seed and Account/Apps/Service startup passed after retained bounded fixes.",
+    "officialCli": {
+      "version": "0.90.0",
+      "elapsedMs": 3810,
+      "up": "Reused exact existing project/service container; initialize/postCreate/bootstrap/postStart passed; zero FK errors.",
+      "exec": "Guest source hashes and native/gateway health200 verified.",
+      "notClaimed": "Fresh namespace created by official CLI; editor GUI attachment."
+    },
+    "browser": "Normal Account sign-in/Company/role, one upload202, real scan/preview, bind, checksum download; final post-hook readback zero page/console errors.",
+    "hmr": {
+      "hmrFrames": 20,
+      "websocketErrors": 0,
+      "pageErrors": 0,
+      "consoleErrors": 0
+    },
+    "incrementalRustMs": {
+      "edited": 3562,
+      "restored": 86
+    },
+    "restart": "Object checksum, source, private app keys and cache persist across down/up; observed warm compiles builtModules0.",
+    "rendererFault": "Ordinary start rejects changed renderer and preserves live pair/PIDs; explicit restart publishes new pair; restored original source and binaries.",
+    "orphanVolume": "Actual CLI fails MISSING_LEASE_WITH_EXISTING_DATA before secret/PG/source creation; sentinel unchanged; only test volume removed.",
+    "focusedTests": {
+      "nativeOrigins": 174,
+      "fieldVisibility": 36
+    },
+    "localQuality": "TypeScript app/test typecheck, targeted ESLint, architecture/terminology/structure and catalogue passed. Independent source delta review cleared renderer publication and orphan-volume findings. Documentation references and private evidence availability passed."
+  },
+  "retainedFailures": [
+    "Initial synthetic Support projection due-date constraint failure fixed by UTC derivation; assertions/triggers retained.",
+    "Scanner startup race fixed with bounded real readiness checks.",
+    "Upload202 response body capture failed; exact committed upload reconciled from owned synthetic DB without replay."
+  ],
+  "privateEvidence": [
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/result.json",
+      "sha256": "8689a56905c222cf4878e09bdcab5b6eb765b946881b6a308665d9ff88d2233d",
+      "bytes": 1519,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/8689a56905c222cf4878e09bdcab5b6eb765b946881b6a308665d9ff88d2233d.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/upload-reconciliation.json",
+      "sha256": "c840acd04954c1e5de8e56a5ad01686b0cece7c2363600454350bf251e25bd1c",
+      "bytes": 447,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/c840acd04954c1e5de8e56a5ad01686b0cece7c2363600454350bf251e25bd1c.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/sql-reconciliation.json",
+      "sha256": "61f23bd294cc66b98cd77ba3b68bf7a8bfc4699ccf357945bac3710f5cded35f",
+      "bytes": 289,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/61f23bd294cc66b98cd77ba3b68bf7a8bfc4699ccf357945bac3710f5cded35f.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/hmr-result.json",
+      "sha256": "b07545280864d825c5f22b03f2fbea4e324f4cd14f7dc12ae67b74f570975a39",
+      "bytes": 374,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/b07545280864d825c5f22b03f2fbea4e324f4cd14f7dc12ae67b74f570975a39.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/rust-edit-build.json",
+      "sha256": "d1035c08b60acf083dde9a63e1702629a3f0601b0fdc0506ef416bf8a52bef1d",
+      "bytes": 135,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/d1035c08b60acf083dde9a63e1702629a3f0601b0fdc0506ef416bf8a52bef1d.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/rust-restored-build.json",
+      "sha256": "0805f69a11c31bbb4e24114784ccdc211a8648aa0549cca8456b0f036a9250ef",
+      "bytes": 133,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/0805f69a11c31bbb4e24114784ccdc211a8648aa0549cca8456b0f036a9250ef.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/renderer-lease-final.json",
+      "sha256": "5af32480ab22a2c9b413242dbb03425c7c439d4a25c727cab53063826d7fdb71",
+      "bytes": 257,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/5af32480ab22a2c9b413242dbb03425c7c439d4a25c727cab53063826d7fdb71.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/restart-readback.json",
+      "sha256": "4113212b1fe9857bc7ca0ff5267d91971d294927cd8e4b7ee6c1f2bfc71a5f89",
+      "bytes": 1263,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/4113212b1fe9857bc7ca0ff5267d91971d294927cd8e4b7ee6c1f2bfc71a5f89.json"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/official-cli-up.jsonl",
+      "sha256": "ffdaec23448cd3250c8379e66403a2c0f5e58839a77b269248d6c1a91772a254",
+      "bytes": 357,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/ffdaec23448cd3250c8379e66403a2c0f5e58839a77b269248d6c1a91772a254.jsonl"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/official-cli-exec.out",
+      "sha256": "f926773ea295f5115adec8b406382d919da176bd187e1c160fcec73ee65c6b5f",
+      "bytes": 388,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/f926773ea295f5115adec8b406382d919da176bd187e1c160fcec73ee65c6b5f.out"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/native-origin-unit.log",
+      "sha256": "9c07f54b8b0bad049cf6e678aa45848060b5f6efa66b77710ec4ca55f85f5aad",
+      "bytes": 2398,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/9c07f54b8b0bad049cf6e678aa45848060b5f6efa66b77710ec4ca55f85f5aad.log"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/field-visibility-unit.log",
+      "sha256": "24050abf9345e0c513b85d204141e2a50c287ba28202b81f6249580c225ae1ff",
+      "bytes": 2562,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/24050abf9345e0c513b85d204141e2a50c287ba28202b81f6249580c225ae1ff.log"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/orphan-cli-proof.log",
+      "sha256": "ad402bf9cea588a730820ab7438469005953f4197bda1e11e294d291effcac10",
+      "bytes": 33,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/ad402bf9cea588a730820ab7438469005953f4197bda1e11e294d291effcac10.log"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/orphan-cli-sentinel-before.txt",
+      "sha256": "8e832cdbdd24ff41055fa3b707599fac1c0aa239eacf79331805c77161dab46e",
+      "bytes": 82,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/8e832cdbdd24ff41055fa3b707599fac1c0aa239eacf79331805c77161dab46e.txt"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/orphan-cli-sentinel-after.txt",
+      "sha256": "8e832cdbdd24ff41055fa3b707599fac1c0aa239eacf79331805c77161dab46e",
+      "bytes": 82,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/8e832cdbdd24ff41055fa3b707599fac1c0aa239eacf79331805c77161dab46e.txt"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490.log"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846.log"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/final-catalogue.log",
+      "sha256": "04870adf5199252a1302b03a46f9238ae92c56962af3241e6ec1e36371ec98ba",
+      "bytes": 82,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/04870adf5199252a1302b03a46f9238ae92c56962af3241e6ec1e36371ec98ba.log"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/final-lint.log",
+      "sha256": "6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f",
+      "bytes": 295,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f.log"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/source-after-fences.sha256",
+      "sha256": "377e42e1483e54eae358cb53c97153ac5b794c288f1f256656c10e0e6d2e4224",
+      "bytes": 1562,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/377e42e1483e54eae358cb53c97153ac5b794c288f1f256656c10e0e6d2e4224.sha256"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/source-after-fences-guest.sha256",
+      "sha256": "377e42e1483e54eae358cb53c97153ac5b794c288f1f256656c10e0e6d2e4224",
+      "bytes": 1562,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/377e42e1483e54eae358cb53c97153ac5b794c288f1f256656c10e0e6d2e4224.sha256"
+    },
+    {
+      "path": ".scratch/dev/field-files-contributor-qualification/final-docs.log",
+      "sha256": "a01e6c3ea4f6dffd473bd17d3c896ab6e24256e6661e367803daf55bf2e71500",
+      "bytes": 382,
+      "preservedPrivateCopy": ".scratch/dev/field-files-devcontainer-accepted-evidence/a01e6c3ea4f6dffd473bd17d3c896ab6e24256e6661e367803daf55bf2e71500.log"
+    }
+  ],
+  "limitations": [
+    "ARM64 only; macOS dedicated engine only.",
+    "No complete Field workflow or owner acceptance increment.",
+    "No Tunnel cutover, staging or production change.",
+    "No general job SIGKILL recovery matrix or AMD64/performance/restore acceptance.",
+    "Hosted CI unavailable; no success status fabricated."
+  ],
+  "integrationStatusAtRecording": "Locally qualified; scoped PR pending."
+}

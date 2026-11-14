@@ -6,7 +6,6 @@
   "exports": {
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
     "./adapters/pos-initial-physical-stock-count": "./src/adapters/pos-initial-physical-stock-count.ts",
-    "./adapters/field-service-settlement-sources": "./src/adapters/field-service-settlement-sources.ts",
     "./adapters/transfer-record-purchases": "./src/adapters/transfer-record-purchases.ts",
     "./adapters/inventory-read-projections": "./src/adapters/inventory-read-projections.ts",
     "./adapters/manufacturing-package-obligations": "./src/adapters/manufacturing-package-obligations.ts",
@@ -17,7 +16,6 @@
     "./adapters/production-read-projections": "./src/adapters/production-read-projections.ts",
     "./adapters/pos-package-obligations": "./src/adapters/pos-package-obligations.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
-    "./adapters/manufacturing-lot-sources": "./src/adapters/manufacturing-lot-sources.ts",
     "./adapters/commerce-owner-sources": "./src/adapters/commerce-owner-sources.ts",
     "./adapters/lot-attachment-purchases": "./src/adapters/lot-attachment-purchases.ts",
     "./adapters/pos-core-facts": "./src/adapters/pos-core-facts.ts",
@@ -65,7 +63,6 @@
     "./adapters/pos-initial-physical-stock-count-source-sql": "./src/adapters/pos-initial-physical-stock-count-source-sql.ts",
     "./adapters/attachments-service-facts": "./src/adapters/attachments-service-facts.ts",
     "./adapters/commercial-owner-projection-sources": "./src/adapters/commercial-owner-projection-sources.ts",
-    "./adapters/service-package-obligations": "./src/adapters/service-package-obligations.ts",
     "./adapters/pos-facts": "./src/adapters/pos-facts.ts",
     "./adapters/inventory-counts": "./src/adapters/inventory-counts.ts",
     "./adapters/inventory-transit": "./src/adapters/inventory-transit.ts",
@@ -73,9 +70,7 @@
     "./adapters/attachments-operational-facts": "./src/adapters/attachments-operational-facts.ts",
     "./adapters/transfer-purchases": "./src/adapters/transfer-purchases.ts",
     "./adapters/manufacturing-posting-setup-sources": "./src/adapters/manufacturing-posting-setup-sources.ts",
-    "./adapters/quality-scrap-lots": "./src/adapters/quality-scrap-lots.ts",
     "./adapters/initial-physical-stock-count-source-sql": "./src/adapters/initial-physical-stock-count-source-sql.ts",
-    "./adapters/quality-scrap": "./src/adapters/quality-scrap.ts",
     "./adapters/commerce-attachment-sources": "./src/adapters/commerce-attachment-sources.ts",
     "./adapters/records-record-details-owned-facts": "./src/adapters/records-record-details-owned-facts.ts",
     "./adapters/service-initial-physical-stock-count-source": "./src/adapters/service-initial-physical-stock-count-source.ts",
@@ -85,7 +80,6 @@
     "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",
     "./public/reorder-policy-contract": "./src/public/reorder-policy-contract.ts",
     "./public/pos-initial-physical-stock-count": "./src/public/pos-initial-physical-stock-count.ts",
-    "./public/field-service-settlement-sources": "./src/public/field-service-settlement-sources.ts",
     "./public/transfer-record-purchases": "./src/public/transfer-record-purchases.ts",
     "./public/inventory-read-projections": "./src/public/inventory-read-projections.ts",
     "./public/manufacturing-package-obligations": "./src/public/manufacturing-package-obligations.ts",
@@ -96,7 +90,6 @@
     "./public/production-read-projections": "./src/public/production-read-projections.ts",
     "./public/pos-package-obligations": "./src/public/pos-package-obligations.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
-    "./public/manufacturing-lot-sources": "./src/public/manufacturing-lot-sources.ts",
     "./public/commerce-owner-sources": "./src/public/commerce-owner-sources.ts",
     "./public/lot-attachment-purchases": "./src/public/lot-attachment-purchases.ts",
     "./public/pos-core-facts": "./src/public/pos-core-facts.ts",
@@ -146,7 +139,6 @@
     "./public/initial-physical-stock-count": "./src/public/initial-physical-stock-count.ts",
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",
     "./public/commercial-owner-projection-sources": "./src/public/commercial-owner-projection-sources.ts",
-    "./public/service-package-obligations": "./src/public/service-package-obligations.ts",
     "./public/pos-facts": "./src/public/pos-facts.ts",
     "./public/inventory-counts": "./src/public/inventory-counts.ts",
     "./public/inventory-transit": "./src/public/inventory-transit.ts",
@@ -154,8 +146,6 @@
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
     "./public/transfer-purchases": "./src/public/transfer-purchases.ts",
     "./public/manufacturing-posting-setup-sources": "./src/public/manufacturing-posting-setup-sources.ts",
-    "./public/quality-scrap-lots": "./src/public/quality-scrap-lots.ts",
-    "./public/quality-scrap": "./src/public/quality-scrap.ts",
     "./public/commerce-attachment-sources": "./src/public/commerce-attachment-sources.ts",
     "./public/records-record-details-owned-facts": "./src/public/records-record-details-owned-facts.ts",
     "./public/executive-main-evidence-sources": "./src/public/executive-main-evidence-sources.ts",
@@ -177,7 +167,6 @@
     "./domain/landed-costs": "./src/domain/landed-costs.ts",
     "./domain/manufacturing-initial-physical-stock-count": "./src/domain/manufacturing-initial-physical-stock-count.ts",
     "./domain/reorder-policies": "./src/domain/reorder-policies.ts",
-    "./domain/service-initial-physical-stock-count": "./src/domain/service-initial-physical-stock-count.ts",
     "./domain/manufacturing-initial-physical-stock-count-entry": "./src/domain/manufacturing-initial-physical-stock-count-entry.ts",
     "./domain/initial-physical-stock-count-entry": "./src/domain/initial-physical-stock-count-entry.ts",
     "./domain/reorder-quantity": "./src/domain/reorder-quantity.ts",
@@ -187,7 +176,9 @@
     "./domain/consumption-input": "./src/domain/consumption-input.ts",
     "./domain/pos-initial-physical-stock-count-entry": "./src/domain/pos-initial-physical-stock-count-entry.ts",
     "./domain/reservation-alerts": "./src/domain/reservation-alerts.ts",
-    "./domain/transit": "./src/domain/transit.ts"
+    "./domain/transit": "./src/domain/transit.ts",
+    "./public/service-count-outbox-predicate": "./src/public/service-count-outbox-predicate.generated.ts",
+    "./public/inventory-transfer-read": "./src/public/inventory-transfer-read.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -221,6 +212,6 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
@@ -8,6 +9,10 @@ import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
 import {createAccount,createAccountSchema,createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
 import {settleInvoice} from '@erpx/server-commerce/public/commerce';
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/feature-people_payroll/public/native-payroll-summary-owned",()=>({
+  ownedPeoplePayrollWorkRows:async()=>[],
+  ownedPeoplePayrollRun:async(_actor:{holdingSlug:string},_holdingSlug:string,id:string)=>({run:{id},items:[],exports:[],corrections:[],paymentBatch:null,paymentItems:[]}),
+}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
@@ -164,8 +169,8 @@ it("requires stock approval before balanced GL and posts the counted stock only 
   expect((await resolveFlow(db,f.manager,"stock_count",id)).current).toBeNull();
 });
 it("hands purchase receipt to accounting before drafting and posting its payable",async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,fulfillOrder,invoiceFulfillment}=await import("@erpx/server-commerce/public/commerce");
-  const {postJournal}=await import("@erpx/server-finance/public/finance");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,invoiceFulfillment}=await import("@erpx/server-commerce/public/commerce");
+  const {markFinanceJournalPosted}=await import("../../support/helpers/finance-journal-seed");
   const stock=await stockFixture();
   f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
   const party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Test supplier"},key());
@@ -175,14 +180,14 @@ it("hands purchase receipt to accounting before drafting and posting its payable
   await transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key());
   await choose("order",id,"stock_gl",f.manager.userId);
   const details=await getOrder(f.owner,id);
-  const receipt=await fulfillOrder(f.owner,id,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"2",allocations:[]}]},key());
+  const receipt=await seedCommerceFulfillment(db, f.owner,id,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"2",allocations:[]}]},key());
   const journal=await db.prepare("SELECT j.id,j.status FROM finance_journals j JOIN commerce_fulfillments f ON f.journal_id=j.id WHERE f.id=?").bind(receipt.fulfillmentId).first<{id:string;status:string}>();
   expect(journal?.status).toBe("draft");
   expect((await resolveFlow(db,f.manager,"order",id)).current?.key).toBe("stock_gl");
   await expect(invoiceFulfillment(f.owner,String(receipt.fulfillmentId),{expectedVersion:1,date:"2026-09-02",dueDate:"2026-09-03"},key())).rejects.toBeDefined();
   const journalFlow=await resolveFlow(db,f.owner,"journal",journal!.id);
   await assignFlowPrimary(db,f.owner,"journal",journal!.id,{stepKey:"draft",userId:f.manager.userId,reason:"Keep source order and journal assignment consistent",saveDefault:false,expectedVersion:journalFlow.version,recordVersion:journalFlow.recordVersion},key());
-  await postJournal(f.manager,journal!.id,key(),{expectedVersion:1});
+  await markFinanceJournalPosted(db,journal!.id,f.manager.userId);
   await choose("order",id,"invoicing",f.owner.userId);
   const invoice=await invoiceFulfillment(f.owner,String(receipt.fulfillmentId),{expectedVersion:1,date:"2026-09-02",dueDate:"2026-09-03"},key());
   expect(await db.prepare("SELECT status FROM finance_invoices WHERE id=?").bind(invoice.invoiceId).first("status")).toBe("draft");
@@ -192,7 +197,7 @@ it("hands purchase receipt to accounting before drafting and posting its payable
 });
 
 it("cancels an approved order independently but requires a return after stock moved",async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,fulfillOrder}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder}=await import("@erpx/server-commerce/public/commerce");
   const stock=await stockFixture();
   f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
   const party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Cancellation supplier"},key());
@@ -208,7 +213,7 @@ it("cancels an approved order independently but requires a return after stock mo
   const cancelled=await transitionOrder(f.head,cancellable,{action:"cancel",expectedVersion:3},key());
   expect(cancelled).toMatchObject({state:"cancelled",version:4});
   const received=await approvedOrder(),details=await getOrder(f.owner,received);
-  await fulfillOrder(f.owner,received,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"1",allocations:[]}]},key());
+  await seedCommerceFulfillment(db, f.owner,received,{attachmentSetIds:[],expectedVersion:3,date:"2026-09-02",evidenceIds:[],evidenceNote:"",lines:[{lineId:String(details.lines[0].id),quantity:"1",allocations:[]}]},key());
   await expect(transitionOrder(f.head,received,{action:"cancel",expectedVersion:4},key())).rejects.toMatchObject({code:"ORDER_REVERSAL_REQUIRED"});
 });
 
@@ -231,7 +236,6 @@ it("keeps batched Work equal to detail-authorized flows across roles and scopes"
   const { workOrderRows, getOrder } = await import("@erpx/server-commerce/public/commerce");
   const {workInvoiceRows}=await import('@erpx/server-finance/public/finance'),{getInvoice}=await import('@erpx/server-finance/public/finance-invoice-read');
   const { workJournalRows, journalDetail } = await import("@erpx/server-finance/public/ledger");
-  const { workPayrollRows, getPayrollRun } = await import("@erpx/server-people_payroll/public/people-payroll");
   const party = `party-${key()}`;
   await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'supplier',?,'Work parity supplier','THB',1,1)").bind(party,f.company,party).run();
   await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-01",dueDate:"2026-09-03",currency:"THB",subtotal:"100",tax:"7",taxAccountId:f.accounts.tax,debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());
@@ -242,7 +246,7 @@ it("keeps batched Work equal to detail-authorized flows across roles and scopes"
   for (const actor of [f.owner, f.claimant, f.reviewer, f.payer, { ...f.owner, branchId: f.branch }]) {
     const reference = await otherFlowWork(actor, true);
     expect(await withPolicyReadSnapshot(() => otherFlowWork(actor))).toEqual(reference);
-    for (const [list, detail] of [[workOrderRows,getOrder],[workInvoiceRows,getInvoice],[workJournalRows,journalDetail],[workPayrollRows,getPayrollRun]] as const) {
+    for (const [list, detail] of [[workOrderRows,getOrder],[workInvoiceRows,getInvoice],[workJournalRows,journalDetail]] as const) {
       let rows;
       try { rows = await list(actor); } catch (error) {
         expect(error).toMatchObject({status:403}); continue;

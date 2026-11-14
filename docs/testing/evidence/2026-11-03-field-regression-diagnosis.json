@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "diagnosis superseded; checklist 15 closed by 2026-11-03-field-required-case-restored.json",
+  "capability": "field-regression-diagnosis",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "ccf90a9ce",
+  "checks": [
+    {
+      "suite": "manufacturing.business-scheduled-production.integration + manufacturing.production.integration",
+      "result": "48/48 passed after exporting the actual ClamAV socket/definitions and ERPX_ATTACHMENTS_V2; the prior 5 failures were scanner-readiness environment failures, not product assertions."
+    },
+    {
+      "suite": "field_service.rust-parts-command-postgres.integration",
+      "result": "35/35 passed after the two notification-tamper fixtures set the forged native-runtime GUC so the owner source guard, not the DB trigger, observes the tamper. The expected FIELD_SERVICE_NOTIFICATION_SOURCE_CHANGED assertion is unchanged."
+    },
+    {
+      "suite": "field_service.rust-http-parity-postgres.integration",
+      "result": "40/41 passed; the remaining case passed alone (PostgreSQL connection slots, not an assertion)."
+    },
+    {
+      "suite": "field_service.rust-files-intake-command-postgres.integration + files scan",
+      "result": "24/25 passed; the deadlock-retry case passed alone (parallel-suite flake)."
+    },
+    {
+      "suite": "field_service.field-service.integration",
+      "result": "7/7 tests passed after installing the qualified host libvips 8.18.7 and building erpx-render-preview, but the suite runner still fails with REGISTERED_REQUIRED_CASE_MISSING."
+    }
+  ],
+  "blocker": {
+    "code": "REGISTERED_REQUIRED_CASE_MISSING",
+    "case": {
+      "runner": "vitest",
+      "file": "tests/integration/field_service/field-service.test.ts",
+      "title": "runs agreement, dispatch, parts, exception, customer sign-off and independent billing release"
+    },
+    "reason": "The case is still registered under all six Field capabilities in tests/catalogue/engineering-scenarios.json, but the test was retired from the file during the native cutover. The seven current tests pass. Restoring the case requires a native full-workflow test that seeds the separate Holding read database used by the agreement source guard; the current mixed fixture seeds only the write database. An attempted native test with the service-finance profile reached the mounted agreement route but returned 404 FIELD_SERVICE_SOURCE_NOT_FOUND for the mixed-company branch/customer, confirming the fixture gap. A native case receipt cannot substitute because the required-case inventory accepts only vitest/playwright identities.",
+    "notAnAssertionFailure": true
+  },
+  "environment": {
+    "hostLibvips": "8.18.7 (Homebrew) installed to build erpx-render-preview",
+    "scanner": "actual local ClamAV socket and fresh definitions exported",
+    "node": "26.11.1",
+    "bun": "1.4.3"
+  },
+  "limits": [
+    "Local scoped diagnosis, not owner/workflow acceptance.",
+    "Checklist 15 was closed by the follow-up required-case restoration evidence after this diagnosis.",
+    "No product assertion was relaxed."
+  ]
+}

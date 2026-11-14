@@ -1,29 +1,32 @@
 import { applicationOrigin } from "@erpx/feature-runtime/lib/application-origins";
+import {holdingRoutingEnabled,activeHoldingHosts} from '@erpx/feature-runtime/lib/holding-hosts';
 import { drainProvisioning } from "@erpx/server-identity_access/public/technology";
 import { drainPeopleLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle-jobs";
 import { drainDirectoryOperations } from "@erpx/server-identity_access/public/directory-operations";
-import { drainPositionGpo } from "@erpx/server-identity_access/public/position-gpo";
-import { drainDirectoryJobs } from "@erpx/server-identity_access/public/iam-directories";
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import { drainSocialAgent } from "@erpx/server-collaboration/public/social-agent";
 import { randomUUID } from 'node:crypto';
 import { resourceSlots, registeredResources } from "@erpx/feature-runtime/lib/holding-registry";
 import { project, type EventMessage, type JobEnv } from "@erpx/server-workflow/public/job-projector";
-import { generateOccurrences } from "@erpx/server-operations/public/routines";
 import { drainExpenseAi } from "@erpx/server-people_payroll/public/expense-ai";
 import { drainRequestAi } from "@erpx/server-records/public/request-ai";
 import { cleanupBetaResources } from "@erpx/server-manage_erpx/public/beta-maintenance";
 import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
 import {runtimeJobEffects,type RuntimePendingEvent} from "@erpx/server-workflow/public/runtime-job-effects";
 import {runtimeLegalJobHealthEffects} from "@erpx/server-legal/public/runtime-job-health-effects";
+import { runNativeLegalWorker } from "@erpx/server-runtime/adapters/runtime/native-legal-worker";
 import {runtimeBetaSlotActive} from "@erpx/server-manage_erpx/public/runtime-active-slot-source";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const exec = promisify(execFile);
 
 export type PendingEvent = RuntimePendingEvent;
-export async function claimJob(db: SqlDatabase, now = Date.now()): Promise<PendingEvent | null> {
-  return runtimeJobEffects(db).claim(randomUUID(),now+90_000,now,now);
+export async function claimJob(db: SqlDatabase, now = Date.now(), excludedSourceSql?: string): Promise<PendingEvent | null> {
+  return runtimeJobEffects(db,excludedSourceSql).claim(randomUUID(),now+90_000,now,now);
 }
-export async function runOne(env: JobEnv, holdingId: string, handler = project): Promise<boolean> {
-  const { write } = registeredResources(env, holdingId), row = await claimJob(write);
+export async function runOne(env: JobEnv, holdingId: string, handler = project, excludedSourceSql?: string): Promise<boolean> {
+  const { write } = registeredResources(env, holdingId), row = await claimJob(write, Date.now(), excludedSourceSql);
   if (!row) return false;
   const renewal = setInterval(() => {
     void runtimeJobEffects(write).renew(Date.now()+90_000,row.id,row.lease_token).catch(() => {});
@@ -47,11 +50,9 @@ export async function activeSlots(env: JobEnv) {
 export async function directoryWork(env: JobEnv) {
   const control=env.CONTROL_DB;
   if(control){const delivery=await import("@erpx/server-identity_access/public/account-invitation-delivery");for(const slot of await activeSlots(env))await delivery.promoteAccountInvitationDeliveries(control,registeredResources(env,slot.id).write,slot.id);await delivery.deliverAccountInvitation(control,env);await (await import("@erpx/server-identity_access/public/account-recovery")).deliverAccountRecovery(control,env as JobEnv&{BETTER_AUTH_SECRET:string});}
-  if(env.CONTROL_DB) await drainDirectoryJobs(env.CONTROL_DB as PostgresDatabase);
   for(const slot of await activeSlots(env)) {
     const db=registeredResources(env,slot.id).write as PostgresDatabase;
-    await drainDirectoryJobs(db);
-    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await drainPositionGpo(db); }
+    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await runNativePositionGpoWorker(slot.id); }
     await (await import("@erpx/server-identity_access/public/user-management")).managementWork(db);
   }
 }
@@ -71,7 +72,10 @@ export async function scheduledWork(env: JobEnv) {
     if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-roster")).escalateRosterCoverage(write);
     await (await import("@erpx/server-people_payroll/public/leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
     await (await import("@erpx/server-inventory/public/inventory-reservation-alerts")).escalateInventoryReservations(write);
-    await (await import("@erpx/server-quality/public/quality-alerts")).drainQualityAlerts(write);
+    // The due-soon/overdue escalation inserts are native (erpx quality
+    // quality_alert_worker); Collaboration still routes their notices until a
+    // native Quality notification port lands.
+    await (await import("@erpx/server-collaboration/public/quality-notifications")).routeQualityAlertNotifications(write,Date.now());
     await (await import("@erpx/server-identity_access/public/iam-access-review-alerts")).escalateAccessReviews(write);
     await (await import("@erpx/server-operations/public/staff-task-alerts")).escalateStaffTasks(write);
     await (await import("@erpx/server-collaboration/public/inbox")).drainInboxNotices(write);
@@ -85,7 +89,6 @@ export async function scheduledWork(env: JobEnv) {
     const inboxMetrics=await (await import("@erpx/server-collaboration/public/inbox")).inboxOperationalMetrics(write);
     if(inboxMetrics.oldestDeliveryLagMs>300000||inboxMetrics.unresolvedEventTypes>0||inboxMetrics.failedJobs>0)
       console.warn(JSON.stringify({event:"inbox_delivery_health",holdingId:slot.id,...inboxMetrics}));
-    await generateOccurrences(write);
     await drainRequestAi(write,env);
     if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-evaluation-ai")).drainEvaluationAi(write,env);
     if(!slot.beta) { const financeAi=await import("@erpx/server-finance/public/finance-ai");await financeAi.scanFinanceAi(write,env);await financeAi.drainFinanceAi(write,env); }
@@ -157,15 +160,16 @@ export async function attachmentWork(env: JobEnv) {
 }
 
 export async function pmsWork(env: JobEnv) {
+ const holdingOrigins=holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(activeHoldingHosts().map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{};
  for (const slot of await activeSlots(env)) if (!slot.beta) {
    const db=registeredResources(env,slot.id).write as PostgresDatabase;
    await (await import("../../../../../packages/server-pms/src/public/pms")).drainPms(db);
-   await (await import("@erpx/server-pms/public/pms-booking")).drainBookingPayments(db,{secret:String(env.BETTER_AUTH_SECRET),origin:applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
+   await (await import("@erpx/server-pms/public/pms-booking")).drainBookingPayments(db,{...holdingOrigins,secret:String(env.BETTER_AUTH_SECRET),origin:applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
    await (await import("@erpx/server-pms/public/pms-stripe")).drainPmsStripePayments(db);
    {
      const booking=await import("@erpx/server-pms/public/pms-booking");
      const {simulationBookingEmailProvider}=await import("@erpx/server-pms/public/simulation-email");
-     await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined},simulationBookingEmailProvider(env));
+     await booking.deliverBookingEmails(db,{...holdingOrigins,secret: String(env.BETTER_AUTH_SECRET),origin: applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined},simulationBookingEmailProvider(env));
    }
  }
 
@@ -184,7 +188,7 @@ export async function legalWork(env: JobEnv) {
     const tasks: [string, () => Promise<unknown>][] = [
       ['reminders', async () => (await import("@erpx/server-legal/public/legal/jobs")).legalReminders(write)],
       ['invitations', async () => (await import("@erpx/server-legal/public/legal/invitations")).drainLegalInvitations(write,env)],
-      ['documents', async () => (await import("@erpx/server-legal/public/legal/processing")).drainLegalProcessing(write,files)],
+      ['documents', async () => runNativeLegalWorker(slot.id)],
       ['ai', async () => (await import("@erpx/server-legal/public/legal/jobs")).drainLegalAi(write,env)],
       ['sources', async () => (await import("@erpx/server-legal/public/legal/law-corpus")).drainLegalSourceChecks(write,files)],
     ];
@@ -208,16 +212,69 @@ export async function legalWork(env: JobEnv) {
   }
 }
 
-export async function supportWork(env:JobEnv) {
- for(const slot of await activeSlots(env)) await (await import("@erpx/server-support/public/support-sla-alerts")).drainSupportSla(registeredResources(env,slot.id).write);
-}
-
 export async function customerNotificationWork(env:JobEnv) {
  for(const slot of await activeSlots(env)) {
-  const write=registeredResources(env,slot.id).write;
-  try{await (await import("@erpx/server-sales/public/sales-customer-notifications")).drainCustomerNotifications(write,env);}
-  catch(error){console.error(JSON.stringify({event:"sales_customer_notification_delivery_failed",holdingId:slot.id,code:error instanceof Error?error.name:"DeliveryError"}));}
-  try{await (await import("@erpx/server-customer_authority/public/portal-invitation-delivery")).drainCustomerPortalInvitations(write,env)();}
-  catch(error){console.error(JSON.stringify({event:"customer_portal_invitation_delivery_failed",holdingId:slot.id,code:error instanceof Error?error.name:"DeliveryError"}));}
+  try{await runNativeSalesNotificationWorker(slot.id);}
+  catch(error){console.error(JSON.stringify({event:"sales_customer_notification_delivery_unavailable",holdingId:slot.id,code:String((error as {code?:string}).code??(error instanceof Error?error.name:"DeliveryError")).slice(0,64)}));}
+  try{await runNativeCustomerPortalInvitationWorker(slot.id);}
+  catch(error){console.error(JSON.stringify({event:"customer_portal_invitation_delivery_unavailable",holdingId:slot.id,code:String((error as {code?:string}).code??(error instanceof Error?error.name:"DeliveryError")).slice(0,64)}));}
  }
+}
+
+/**
+ * Runs one bounded native Customer Portal invitation cycle for one exact
+ * Holding. The native worker owns recovery, lease, source/token checks and the
+ * terminal commit; this transport only supplies the reviewed manifest path.
+ * A missing native worker is a hard failure, never a TypeScript delivery.
+ */
+async function runNativeCustomerPortalInvitationWorker(holdingId:string):Promise<void>{
+ const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+ if(!binary||!manifest)throw Object.assign(new Error("The native Customer Portal invitation worker is not configured."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_REQUIRED"});
+ let stdout:string;
+ try{({stdout}=await exec(binary,["customer-portal-invitation-worker","--once","--database-manifest",manifest,"--holding",holdingId],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true}));}
+ catch{throw Object.assign(new Error("The native Customer Portal invitation worker did not complete."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_FAILED"});}
+ let outcome:unknown;
+ try{outcome=JSON.parse(stdout);}
+ catch{throw Object.assign(new Error("The native Customer Portal invitation worker response is invalid."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_RESPONSE_INVALID"});}
+ const holdings=outcome&&typeof outcome==="object"&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
+ if(!Array.isArray(holdings)||holdings.length!==1||!holdings[0]||typeof holdings[0]!=="object"||(holdings[0] as {holdingId?:unknown}).holdingId!==holdingId)throw Object.assign(new Error("The native Customer Portal invitation worker target is invalid."),{code:"NATIVE_CUSTOMER_PORTAL_INVITATION_WORKER_TARGET_MISMATCH"});
+}
+
+/**
+ * Runs one bounded native Position GPO delivery cycle for one exact Holding.
+ * The native worker takes the catalog and provider advisory locks, reconciles
+ * desired mappings, applies the bounded connector effects and commits the unit;
+ * this transport only supplies the reviewed manifest path. A missing worker is
+ * a hard failure, never a TypeScript delivery.
+ */
+async function runNativePositionGpoWorker(holdingId:string):Promise<void>{
+ const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+ if(!binary||!manifest)throw Object.assign(new Error("The native Position GPO worker is not configured."),{code:"NATIVE_POSITION_GPO_WORKER_REQUIRED"});
+ let stdout:string;
+ try{({stdout}=await exec(binary,["position-gpo-worker","--once","--database-manifest",manifest,"--holding",holdingId],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true}));}
+ catch{throw Object.assign(new Error("The native Position GPO worker did not complete."),{code:"NATIVE_POSITION_GPO_WORKER_FAILED"});}
+ let outcome:unknown;
+ try{outcome=JSON.parse(stdout);}
+ catch{throw Object.assign(new Error("The native Position GPO worker response is invalid."),{code:"NATIVE_POSITION_GPO_WORKER_RESPONSE_INVALID"});}
+ const holdings=outcome&&typeof outcome==="object"&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
+ if(!Array.isArray(holdings)||holdings.length!==1||!holdings[0]||typeof holdings[0]!=="object"||(holdings[0] as {holdingId?:unknown}).holdingId!==holdingId)throw Object.assign(new Error("The native Position GPO worker target is invalid."),{code:"NATIVE_POSITION_GPO_WORKER_TARGET_MISMATCH"});
+}
+
+/**
+ * Runs one bounded native Sales customer-notice cycle for one exact Holding.
+ * The native worker owns claim, lease, authority, provider dispatch and the
+ * terminal commit; this transport only supplies the reviewed manifest path.
+ * A missing native worker is a hard failure, never a TypeScript delivery.
+ */
+async function runNativeSalesNotificationWorker(holdingId:string):Promise<void>{
+ const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+ if(!binary||!manifest)throw Object.assign(new Error("The native Sales customer-notice worker is not configured."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_REQUIRED"});
+ let stdout:string;
+ try{({stdout}=await exec(binary,["sales-notification-worker","--once","--database-manifest",manifest,"--holding",holdingId],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true}));}
+ catch{throw Object.assign(new Error("The native Sales customer-notice worker did not complete."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_FAILED"});}
+ let outcome:unknown;
+ try{outcome=JSON.parse(stdout);}
+ catch{throw Object.assign(new Error("The native Sales customer-notice worker response is invalid."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_RESPONSE_INVALID"});}
+ const holdings=outcome&&typeof outcome==="object"&&!Array.isArray(outcome)?(outcome as {holdings?:unknown}).holdings:undefined;
+ if(!Array.isArray(holdings)||holdings.length!==1||!holdings[0]||typeof holdings[0]!=="object"||(holdings[0] as {holdingId?:unknown}).holdingId!==holdingId)throw Object.assign(new Error("The native Sales customer-notice worker target is invalid."),{code:"NATIVE_SALES_NOTIFICATION_WORKER_TARGET_MISMATCH"});
 }

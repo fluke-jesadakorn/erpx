@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Manage ERPX now has an owner-local native company-onboarding view, HTTP ingress and a fail-closed Next transport/SSR cutover. Shared composition mounting and the onboarding command remain open; no catalogue workflow or browser verification is claimed.",
+  "capability": "manage-erpx-company-onboarding-native-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "a6c4f5d8a5f683c0243d7624482199d338ff7b46",
+  "scope": {
+    "workflows": [],
+    "catalogueRelationship": "Company onboarding is the pre-Holding lifecycle path used before a customer Company appears in manage_erpx/overview. This is a foundation slice, not completion of manage_erpx/overview, billing, iam or executive.",
+    "domain": "Strict verified-Account onboarding facts: owner slot slug/company/branch/state, allowed available/provisioning/active states, bounded names and an explicit unverified denial. No Holding, Company, assignment or permission is minted.",
+    "application": "One owner read use case that requires verified email, reads only the current Account's reserved beta_slots row and returns the public-registration flag with the owner slot.",
+    "adapters": "Owner SQL over Manage ERPX control-plane beta_slots. The caller must provide a retained SERIALIZABLE transaction; missing transaction and read-committed callers fail closed. A malformed persisted slot is an unavailable source failure, never an invented default.",
+    "http": "Owner-local Router for GET /api/v1/onboarding with exact registered Host selection, duplicate-Host rejection, business-error status mapping and private/no-store/no-referrer/nosniff responses. The backend receives headers and returns data plus a userId context; the router mints no session or authority.",
+    "transport": "Server-only Next transport validates ERPX_NATIVE_MANAGE_ERPX_CONFIG (loopback private base, reserved-port denial, exact registered front origins, timeout), forwards the actual Host and Account cookie, validates the exact response shape and context identity, bounds response bytes and maps failures. Unset or invalid configuration never falls back to the legacy TypeScript read.",
+    "ssr": "The onboarding page reads through the native transport for verified Accounts and renders a temporary-unavailable state when configuration is absent or the native read fails. Unverified Accounts keep the verification-required message and perform no owner read.",
+    "rest": "GET /api/v1/onboarding now serves the native view and returns 503 NATIVE_MANAGE_ERPX_UNAVAILABLE without native configuration. POST /api/v1/onboarding remains the retained TypeScript onboarding command.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, onboarding command, beta team mutation, public-origin policy, release/config read, Platform overview, billing, IAM or executive workflow is claimed."
+  },
+  "changedFiles": [
+    "packages/server-manage_erpx/Cargo.toml",
+    "packages/server-manage_erpx/src/domain/mod.rs",
+    "packages/server-manage_erpx/src/domain/onboarding.rs",
+    "packages/server-manage_erpx/src/application/mod.rs",
+    "packages/server-manage_erpx/src/application/onboarding.rs",
+    "packages/server-manage_erpx/src/adapters/mod.rs",
+    "packages/server-manage_erpx/src/adapters/onboarding.rs",
+    "packages/server-manage_erpx/src/adapters/onboarding_http.rs",
+    "packages/server-manage_erpx/src/public/mod.rs",
+    "packages/server-manage_erpx/src/public/onboarding.rs",
+    "packages/server-manage_erpx/src/public/onboarding_http.rs",
+    "tests/integration/manage_erpx/rust-onboarding-postgres.test.rs",
+    "tests/unit/manage_erpx/native-manage-erpx-transport.test.ts",
+    "tests/catalogue/suite-manifest.json",
+    "packages/feature-platform_administration/package.json",
+    "packages/feature-platform_administration/src/adapters/server/native-manage-erpx.ts",
+    "packages/workplace/src/lib/native-manage-erpx.ts",
+    "packages/workplace/src/routes/api/v1/onboarding/route.ts",
+    "packages/workplace/src/routes/onboarding/page.tsx",
+    "docs/testing/evidence/2026-11-04-manage-erpx-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test administrator> cargo test -p erpx-server-manage-erpx --locked",
+      "result": "9 passed, 0 failed, 0 ignored",
+      "targets": {
+        "lib": "8 passed (domain validation, application denial/no-slot, HTTP target configuration and handler request/error/header behavior)",
+        "onboarding_postgres": "1 passed"
+      },
+      "note": "The mission's package spelling erpx-server-manage_erpx does not resolve; the actual Cargo package is erpx-server-manage-erpx."
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-manage-erpx --all-targets --locked -- -D warnings",
+      "result": "pass"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check <changed Rust files>",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "manage_erpx.rust-onboarding-postgres.integration",
+      "cases": [
+        "owner slot is read only through owner_user_id and a different owner receives its own slot",
+        "unknown owner receives no slot; malformed oversized persisted name fails unavailable",
+        "state transition provisioning -> active is read back from the persisted row",
+        "the public-registration flag passes through without hiding the owner slot",
+        "missing transaction and read-committed callers fail closed as persistence errors",
+        "an unverified Account is denied before any slot is returned"
+      ],
+      "evidence": "A disposable erpx_dev_rust_* control database created by the existing guarded local test administrator, actual control migrations, beta_slots/user rows, strict readback and cleanup by exact lease."
+    },
+    "http": {
+      "test": "adapters::onboarding_http::tests::handler_returns_private_bounded_json_and_maps_transport_failures",
+      "result": "pass",
+      "cases": [
+        "registered Host reaches the backend and returns data plus owner context",
+        "response carries private/no-store, no-referrer and nosniff",
+        "unknown Host is 404, duplicate Host is 422 and backend conflict is 409",
+        "empty, duplicate and malformed target configuration is rejected"
+      ],
+      "limit": "The test calls the owner handler with a recording backend; it does not prove a mounted composition backend or a network listener."
+    },
+    "typescript": {
+      "unit": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/manage_erpx/native-manage-erpx-transport.test.ts\"]' vitest run --config tests/config/vitest.unit.config.mts: 8 passed",
+      "unitCoverage": [
+        "valid loopback/private and exact front-origin configuration",
+        "reserved private port, non-loopback base, malformed JSON and duplicate origin rejection",
+        "exact Host and cookie forwarding",
+        "unregistered Host denial before transport",
+        "context mismatch, extra response fields, malformed slug/state rejection",
+        "bounded owner error and non-JSON success rejection",
+        "unset configuration returns no view without a legacy fallback",
+        "invalid configured service maps to 503 NATIVE_MANAGE_ERPX_UNAVAILABLE"
+      ],
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-platform_administration/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p apps/compat/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed TypeScript files: pass (repository's existing Pages directory warning only)"
+    },
+    "structure": {
+      "command": "node_modules/.bin/tsx scripts/testing/layout.ts",
+      "result": "layout_status=0"
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json parses with 841 unique suites and contains manage_erpx.native-onboarding-transport.unit and manage_erpx.rust-onboarding-postgres.integration",
+      "runner": "Bun is not installed in this worktree, so the catalogue command itself was not run. The Vitest selection was executed directly with the catalogue-validated file selection."
+    },
+    "browser": "not run; no browser, authenticated page render or public URL was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_manage_erpx::public::onboarding::{read_onboarding_view, PgOnboardingViewRead, OnboardingViewReadPort, OnboardingActor, OnboardingView, CompanySlot, CompanySlotState}",
+      "erpx_server_manage_erpx::public::onboarding_http::{manage_erpx_router, ManageErpxHttpTarget, ManageErpxHttpBackend, ManageErpxOnboardingRequest, ManageErpxHttpResponse}"
+    ],
+    "backendRequired": "Implement ManageErpxHttpBackend in src/composition for each exact onboarding front Host: resolve the normal Account session and verified email, open the retained control-plane SERIALIZABLE transaction, call read_onboarding_view with the configured ERPX_PUBLIC_BETA flag, and return data plus {userId}. Unknown or foreign hosts must remain 404 and the backend must not mint a session, verified email, Holding, Company or authority.",
+    "privateDevelopmentApi": [
+      "Build one ManageErpxHttpTarget per registered onboarding host.",
+      "router = router.merge(erpx_server_manage_erpx::public::onboarding_http::manage_erpx_router(targets).map_err(|_| \"PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID\")?);",
+      "Mount /api/v1/onboarding before the generic 404 fallback; the retained POST route must remain explicitly separate until the onboarding command is migrated."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_MANAGE_ERPX_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"hosts\":[\"https://<registered-compat-or-account-host>\"]} for the app that serves the onboarding page/route. Unset or invalid configuration intentionally returns 503/no view.",
+    "schema": "No migration or schema change. Existing control beta_slots and beta_policy sources are unchanged.",
+    "lockfiles": "No dependency, Cargo.toml workspace, Cargo.lock or package lockfile change. Only the owner package test target was added.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, docs/status/** and other owners' implementation. Concurrent uncommitted Platform Administration and People Payroll work in this worktree was preserved and is not claimed by this evidence."
+  },
+  "legacy": {
+    "removedConsumers": [
+      "The onboarding page no longer imports onboardingPresentationQueries or reads beta_slots directly.",
+      "GET /api/v1/onboarding no longer imports onboardingView or runtimeEnv for its read; it calls the native transport and fails closed without configuration."
+    ],
+    "retainedWithReasons": [
+      "POST /api/v1/onboarding and the TypeScript onboarding application still own company bootstrap across control and holding databases; the native HTTP router is read-only.",
+      "packages/server-manage_erpx/src/adapters/onboarding-presentation-query.ts and its public export remain a compatibility adapter with no product-route consumer. Removal is gated on migrating/removing the retained onboarding POST, updating tests/unit/shared.work/presentation-owner-queries.test.ts and the generated ownership manifest without editing packages/contracts/** here.",
+      "Beta team, beta API, beta email, public-origin, resource cleanup and all four Manage ERPX catalogue workflows remain legacy/partial as recorded by docs/status. No status register was edited."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private route serves the owner router yet. The HTTP test backend is a recording fake.",
+    "The onboarding page and GET route intentionally fail closed until ERPX_NATIVE_MANAGE_ERPX_CONFIG is deployed with the matching host. No TypeScript owner-read fallback remains on that path.",
+    "The onboarding command, beta team invitations, beta API, email, public-origin policy and resource cleanup remain TypeScript.",
+    "Platform overview, customer billing, Platform IAM and Platform Executive are not advanced by this slice; concurrent uncommitted Platform Administration work exists but is not part of this evidence.",
+    "Reads do not create versions, CAS receipts, idempotency keys, audit or outbox rows; those command invariants were not applicable and no command path was weakened.",
+    "No browser, authenticated render, Next dev server, staging, private production, Cloudflare or public URL verification was run.",
+    "No root Cargo.toml, Cargo.lock, package lockfile, src/composition/**, docs/status/** or packages/contracts/** file was edited. Cargo.lock remains unchanged."
+  ]
+}

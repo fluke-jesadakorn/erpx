@@ -1,6 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { iamContext } from "@erpx/server-identity_access/public/iam-context";
-import { readManagement } from "@erpx/server-identity_access/public/user-management";
+import { nativeUserManagementAvailable, nativeUserManagementRead } from "@erpx/server-identity_access/public/native-user-management";
 import {
   accessComparison,
   accessDetail,
@@ -17,7 +17,18 @@ export async function GET(
   try {
     const { holdingSlug, path = [] } = await context.params,
       { db, actor } = await iamContext(holdingSlug);
-    if (path.join("/") === "management") return Response.json(canonicalDestinationLinks({data:await readManagement(db,actor)}),{headers:{"Cache-Control":"private, no-store"}});
+    if (path.join("/") === "management") {
+      if (!nativeUserManagementAvailable())
+        throw new ApiError(
+          503,
+          "NATIVE_USER_MANAGEMENT_REQUIRED",
+          "The native user-management service is unavailable.",
+        );
+      return Response.json(
+        canonicalDestinationLinks({data:await nativeUserManagementRead(request.headers, holdingSlug)}),
+        {headers:{"Cache-Control":"private, no-store"}},
+      );
+    }
     const data = await peopleAccessData(db, actor),
       params = new URL(request.url).searchParams;
     let result: unknown;

@@ -35,6 +35,7 @@
     "./adapters/attachments-policy-facts": "./src/adapters/attachments-policy-facts.ts",
     "./adapters/initial-physical-stock-sources": "./src/adapters/initial-physical-stock-sources.ts",
     "./adapters/purchase-boundary": "./src/adapters/purchase-boundary.ts",
+    "./public/purchase-boundary": "./src/public/purchase-boundary.ts",
     "./adapters/pms-day-control-facts": "./src/adapters/pms-day-control-facts.ts",
     "./adapters/stripe-provider": "./src/adapters/stripe-provider.ts",
     "./adapters/pms-rollout-facts": "./src/adapters/pms-rollout-facts.ts",
@@ -43,7 +44,6 @@
     "./adapters/pms-counter-payment-facts": "./src/adapters/pms-counter-payment-facts.ts",
     "./adapters/attachments-finance-facts": "./src/adapters/attachments-finance-facts.ts",
     "./adapters/startup": "./src/adapters/startup.ts",
-    "./adapters/customer-authority-merge": "./src/adapters/customer-authority-merge.ts",
     "./adapters/commerce-attachment-sources": "./src/adapters/commerce-attachment-sources.ts",
     "./adapters/records-record-details-owned-facts": "./src/adapters/records-record-details-owned-facts.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
@@ -89,7 +89,6 @@
     "./public/pms-counter-payment-facts": "./src/public/pms-counter-payment-facts.ts",
     "./public/attachments-finance-facts": "./src/public/attachments-finance-facts.ts",
     "./public/startup": "./src/public/startup.ts",
-    "./public/customer-authority-merge": "./src/public/customer-authority-merge.ts",
     "./public/commerce-attachment-sources": "./src/public/commerce-attachment-sources.ts",
     "./public/records-record-details-owned-facts": "./src/public/records-record-details-owned-facts.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
@@ -139,7 +138,7 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "sharp": "0.35.4",
-    "zod": "4.5.4"
+    "sharp": "0.35.5",
+    "zod": "4.6.7"
   }
 }

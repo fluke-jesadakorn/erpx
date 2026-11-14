@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "defaults",
+      "raw": "{\"expectedVersion\":1}",
+      "normalized": "{\"expectedVersion\":1,\"attachmentSetIds\":[]}"
+    },
+    {
+      "name": "trim",
+      "raw": "{\"reason\":\"\\ufeff Reviewed \\ufeff\",\"expectedVersion\":3}",
+      "normalized": "{\"expectedVersion\":3,\"attachmentSetIds\":[],\"reason\":\"Reviewed\"}"
+    },
+    {
+      "name": "nested-unknown",
+      "raw": "{\"expectedVersion\":2,\"unknown\":{\"nested\":[1,{\"x\":true}]},\"attachmentSetIds\":[\"set-1\"]}",
+      "normalized": "{\"expectedVersion\":2,\"attachmentSetIds\":[\"set-1\"]}"
+    },
+    {
+      "name": "surrogate-key",
+      "raw": "{\"\\ud800\":{\"nested\":true},\"expectedVersion\":2}",
+      "normalized": "{\"expectedVersion\":2,\"attachmentSetIds\":[]}"
+    },
+    {
+      "name": "nested-surrogate-key",
+      "raw": "{\"expectedVersion\":2,\"ignored\":{\"\\ud800\":1}}",
+      "normalized": "{\"expectedVersion\":2,\"attachmentSetIds\":[]}"
+    },
+    {
+      "name": "duplicate-version",
+      "raw": "{\"expectedVersion\":1,\"expectedVersion\":3}",
+      "normalized": "{\"expectedVersion\":3,\"attachmentSetIds\":[]}"
+    },
+    {
+      "name": "float-integer",
+      "raw": "{\"expectedVersion\":2.0}",
+      "normalized": "{\"expectedVersion\":2,\"attachmentSetIds\":[]}"
+    },
+    {
+      "name": "invalid-null",
+      "raw": "{\"expectedVersion\":null}",
+      "normalized": null
+    },
+    {
+      "name": "zero-cas",
+      "raw": "{\"expectedVersion\":0}",
+      "normalized": null
+    },
+    {
+      "name": "unsafe-cas",
+      "raw": "{\"expectedVersion\":9007199254740992}",
+      "normalized": null
+    },
+    {
+      "name": "short-reason",
+      "raw": "{\"expectedVersion\":1,\"reason\":\"  x  \"}",
+      "normalized": null
+    },
+    {
+      "name": "bad-ids",
+      "raw": "{\"expectedVersion\":1,\"attachmentSetIds\":[\"\"]}",
+      "normalized": null
+    },
+    {
+      "name": "too-many-ids",
+      "raw": "{\"expectedVersion\":1,\"attachmentSetIds\":[\"set\",\"set\",\"set\",\"set\",\"set\",\"set\",\"set\",\"set\",\"set\",\"set\",\"set\"]}",
+      "normalized": null
+    },
+    {
+      "name": "nonobject",
+      "raw": "[]",
+      "normalized": null
+    },
+    {
+      "name": "bad-json",
+      "raw": "{",
+      "normalized": null
+    }
+  ]
+}

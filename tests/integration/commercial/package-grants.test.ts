@@ -5,7 +5,7 @@ import { env, applyMigrations } from "../../support/runtime-env";
 import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
 import type { CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
 import { randomUUID } from "node:crypto";
-import { readCommandCapability, readEffectiveCapability } from "@erpx/server-commercial/public/capability-decision";
+import { readCommandCapability, readEffectiveCapability, capabilityRevisionSource } from "@erpx/server-commercial/public/capability-decision";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const db = env.H001_DB;
@@ -13,6 +13,22 @@ let authorized = true, obligations = 0;
 const store = packageGrantStore(db, { authorize: async () => { if (!authorized) throw new Error("FORBIDDEN"); return { userId: "provider-fixture" }; }, obligations: async () => obligations, now: () => 1000 });
 const change = (companyId: string = randomUUID(), packageId = "work") => ({ idempotencyKey: randomUUID(), expectedVersion: 0, grant: { companyId, packageId, packageVersion: 1, state: "active", startsAt: 0, endsAt: null, version: 1, reason: "Fixture administrator decision", evidence: "test:reviewed" } as CompanyPackageGrant });
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
+it("preserves the JSONB purchase revision's JavaScript rounding and phase boundaries", async () => {
+  // The purchase reader uses JSONB aggregation; the same BIGINT selected as a
+  // scalar follows the runtime's distinct, safe-integer checked parser.
+  const row = await db.prepare(`SELECT jsonb_build_object('companyId','revision-company','packageId','support',
+    'packageVersion',1,'state','active','startsAt',9007199254740993::bigint,
+    'endsAt',9007199254740995::bigint,'version',1,'reason','fixture','evidence','fixture') AS grant`).first<{ grant: string | CompanyPackageGrant }>();
+  expect(row).not.toBeNull();
+  const grant = typeof row!.grant === "string" ? JSON.parse(row!.grant) as CompanyPackageGrant : row!.grant;
+  expect(grant.startsAt).toBe(9007199254740992);
+  expect(grant.endsAt).toBe(9007199254740996);
+  await expect(db.prepare("SELECT 9007199254740993::bigint AS unsafe").first()).rejects.toThrow();
+  expect(capabilityRevisionSource("revision-company", [grant], 9007199254740990)).toBe(
+    '{"companyId":"revision-company","grants":[["support",1,1,"active",9007199254740992,9007199254740996,"future"]],"history":[]}');
+  expect(capabilityRevisionSource("revision-company", [grant], 9007199254740992)).toContain('9007199254740996,"current"');
+  expect(capabilityRevisionSource("revision-company", [grant], 9007199254740996)).toContain('9007199254740996,"expired"');
+});
 it("reads the capability on the actual owner transaction, refuses a pool and rechecks expiry/owner gates", async () => {
   const input = change(randomUUID(), "pos"); await store.apply(input);
   const query = { companyId: input.grant.companyId, capability: "pos.sales", purpose: "new-work" as const, now: 1000 };

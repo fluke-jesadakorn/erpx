@@ -1,0 +1,38 @@
+[package]
+name="erpx-server-support"
+version.workspace=true
+edition.workspace=true
+rust-version.workspace=true
+license.workspace=true
+publish.workspace=true
+autotests=false
+[dependencies]
+erpx-server-shared.workspace=true
+erpx-server-runtime.workspace=true
+jiff = { version = "=0.2.35", default-features = false, features = ["std", "tzdb-bundle-always"] }
+sqlx.workspace=true
+
+serde.workspace=true
+serde_json.workspace=true
+time.workspace=true
+
+
+[[test]]
+name = "ticket_portal_rules"
+path = "../../tests/unit/support/rust-ticket-portal-rules.test.rs"
+
+[[test]]
+name = "service_teams"
+path = "../../tests/unit/support/rust-service-teams.test.rs"
+
+[[test]]
+name = "record_source"
+path = "../../tests/unit/support/rust-support-record-source.test.rs"
+
+[[test]]
+name = "record_source_postgres"
+path = "../../tests/integration/support/rust-support-record-source-postgres.test.rs"
+
+
+[lints]
+workspace = true

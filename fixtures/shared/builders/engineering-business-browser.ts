@@ -4,23 +4,18 @@ import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import type {seedExpenseCompany} from "../../expenses/company";
-import {saveProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
-import {saveProjectMilestone,projectMilestoneSchema} from "@erpx/server-projects/public/project-milestones";
-import {createProjectCostAllocation,decideProjectCostAllocation,projectCostAllocationSchema,projectCostAllocationDecisionSchema} from "@erpx/server-projects/public/project-actuals";
-import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournal,importBankStatement} from '@erpx/server-finance/public/finance';
+import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {seedProjectFor} from '../../../tests/integration/projects/project-actual-fixtures';
+import {createAccount,createAccountSchema} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../../tests/support/helpers/finance-journal-seed';
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
-import {createAsset} from "@erpx/server-assets/public/asset-maintenance";
-import {savePreventivePlan} from "@erpx/server-maintenance/public/maintenance-preventive";
-import {createSpecification,reviewSpecification} from "@erpx/server-manufacturing/public/production";
 import {saveProductionResource,saveProductionResourceCalendar} from "@erpx/server-manufacturing/public/production-resources";
 import {createManufacturingAccountingProfile,reviewManufacturingAccountingProfile} from "@erpx/server-manufacturing/public/production-accounting";
 import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
-import {createSupportTicket} from '@erpx/server-support/public/support';
-import {createAgreement,changeAgreement,createServiceOrder} from "@erpx/server-field_service/public/field-service";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
-import {requestCustomerAccess} from "@erpx/server-customer_authority/public/customer-access";
+import {prepareCustomerAccessNotice1} from "@erpx/server-collaboration/public/customer-authority-notifications";
 
 type Fixture=Awaited<ReturnType<typeof seedExpenseCompany>>;
 type Input={run:string;db:SqlDatabase;f:Fixture};
@@ -38,6 +33,16 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
   return {...person,role:'holding_owner',assignmentId:assignment.id,holdingSlug:'simulation',branchId:null,departmentId:null,modules} satisfies WorkContext;
  }
  const source=await normalOwner(f.owner),reviewer=await normalOwner(f.payer);
+ // Operational assets are seeded as the owner rows the native register command
+ // persists; the TypeScript createAsset writer is retired.
+ async function operationalAsset(input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+  const id=`asset-${key()}`,at=Date.now();
+  await db.batch([
+   db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,f.company,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,source.userId,at,at),
+   db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,source.userId,at),
+  ]);
+  return {id,version:1};
+ }
  const settings=await db.prepare('SELECT inventory_account_id,cash_account_id FROM commerce_settings WHERE company_id=?').bind(f.company).first<{inventory_account_id:string;cash_account_id:string}>();
  if(!settings)throw new Error('BROWSER_COMMERCE_ACCOUNT_PROFILE_REQUIRED');
  let inventoryId=settings.inventory_account_id;
@@ -51,10 +56,8 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
  await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) SELECT ?,?,?,'5400','Declared browser stock count variance','expense','THB',?,? WHERE NOT EXISTS(SELECT 1 FROM finance_accounts WHERE chart_id=? AND company_id=? AND code='5400')").bind(`${f.company}-browser-count-variance`,f.chart,f.company,now,now,f.chart,f.company).run();
  const profile=await createManufacturingAccountingProfile(source,{chartId:f.chart,inventoryAccountId:accounting.inventory,wipAccountId:accounting.wip,laborAccountId:accounting.labor,overheadAccountId:accounting.overhead,scrapAccountId:f.accounts.expense},key());
  await reviewManufacturingAccountingProfile(f.manager,String(profile.id),{action:'approve',expectedVersion:1,reason:'Independent Finance review of the synthetic browser production adapter.'},key());
- async function routedJournal(input:Parameters<typeof createJournalSchema.parse>[0]){
-  const journal=await createJournal(source,createJournalSchema.parse(input),key()),flow=await resolveFlow(db,source,'journal',journal.id);
-  await assignFlowPrimary(db,source,'journal',journal.id,{stepKey:'draft',userId:f.manager.userId,expectedVersion:flow.version,recordVersion:1,reason:'Independent browser Finance journal review.',saveDefault:false},key());
-  await postJournal(f.manager,journal.id,key(),{expectedVersion:1});return journal;
+ async function routedJournal(input:{chartId:string;periodId:string;entryDate:string;currency:string;sourceType?:string;memo?:string;lines:{accountId:string;debit:string;credit:string}[]}){
+  return seedFinanceJournal(db,{companyId:f.company,chartId:input.chartId,periodId:input.periodId,entryDate:input.entryDate,currency:input.currency,memo:input.memo,key:key(),createdBy:source.userId,status:'posted',sourceType:input.sourceType,lines:input.lines});
  }
  async function openingStock(warehouseId:string,productId:string,quantity:string,unitCost:string){
   const count=await saveCount(source,null,countSchema.parse({warehouseId,countDate:today,reason:'Declared fictional opening stock counted through the native controlled inventory command.',lines:[{productId,countedQuantity:quantity,unitCost}]}),key());
@@ -67,15 +70,34 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
  const fixtures:Record<string,ViewportState>={};
  for(const viewport of ['desktop','mobile'] as const){
   const label=`${viewport} · Business engineering ${run}`;
-  const project=await saveProject(db,source,null,projectSchema.parse({title:`${label} customer delivery`,description:'Fictional normal-login engineering workflow only.',memberUserIds:[reviewer.userId,f.manager.userId]}),key());
-  const milestone=async(title:string,parent:string|null=null,depends:string[]=[],position=0)=>saveProjectMilestone(db,source,String(project.id),null,projectMilestoneSchema.parse({title,dueAt:new Date(now+7*86400000).toISOString(),ownerUserId:source.userId,parentMilestoneId:parent,dependsOnMilestoneIds:depends,ordinalPosition:position}),key());
+  const project=await seedProjectFor(db,source,null,projectSchema.parse({title:`${label} customer delivery`,description:'Fictional normal-login engineering workflow only.',memberUserIds:[reviewer.userId,f.manager.userId]}),key());
+  const milestone=async(title:string,parent:string|null=null,depends:string[]=[],position=0)=>{
+   const id=`milestone-${key()}`;
+   await db.batch([
+    db.prepare("INSERT INTO staff_project_milestones(id,company_id,project_id,title,description,due_at,owner_user_id,parent_milestone_id,ordinal_position,state,version,created_by,completed_at,created_at,updated_at) VALUES(?,?,?,?,'',?,?,?,?,'planned',1,?,NULL,?,?)")
+     .bind(id,f.company,String(project.id),title,now+7*86400000,source.userId,parent,position,source.userId,now,now),
+    ...depends.map(predecessor=>db.prepare("INSERT INTO staff_project_milestone_dependencies(company_id,project_id,predecessor_milestone_id,successor_milestone_id,created_by,created_at) VALUES(?,?,?,?,?,?)")
+     .bind(f.company,String(project.id),predecessor,id,source.userId,now)),
+   ]);
+   return {id};
+  };
   const root=await milestone('Customer delivery'),discovery=await milestone('Approved discovery',String(root.id),[],1),build=await milestone('Implemented release',String(root.id),[String(discovery.id)],2);
   const task=await saveTask(db,source,null,taskSchema.parse({title:`${label} implement customer work`,description:'Record source work and hand it back to the project owner.',assigneeUserId:reviewer.userId,projectId:project.id}),key());
   const costJournal=await routedJournal({chartId:f.chart,periodId:f.period,entryDate:today,currency:'THB',sourceType:'manual',memo:`${label} real project expense source`,lines:[{accountId:f.accounts.expense,debit:'75.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'75.01'}]});
-  const cost=await createProjectCostAllocation(source,projectCostAllocationSchema.parse({projectId:project.id,sourceLineId:`${costJournal.id}-0`,amount:'75.01'}),key());
-  await decideProjectCostAllocation(f.manager,cost.id,projectCostAllocationDecisionSchema.parse({action:'approve',expectedVersion:1,reason:'Independent Finance approves the exact posted 75.01 THB source.'}),key());
-  const asset=await createAsset(source,{branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} zero-cost safety station`,category:'Engineering inspection fixture',currency:'THB',cost:'0.00',acquiredDate:today},key());
-  const preventive=await savePreventivePlan(source,null,{assetId:asset.id,assetVersion:1,title:`${label} daily safety inspection`,priority:'normal',ownerId:source.userId,intervalDays:1,firstDueAt:now-86400000,timeZone:'Asia/Bangkok',leadDays:0,reason:'Native draft definition awaits another normally authenticated reviewer.'},key());
+  const cost={id:`project-cost-${key()}`};
+  await db.prepare("INSERT INTO staff_project_cost_allocations(id,company_id,project_id,journal_line_id,amount_minor,state,version,created_by,approved_by,rejected_by,rejection_reason,created_at,updated_at) VALUES(?,?,?,?,7501,'approved',2,?,?,NULL,'',?,?)")
+   .bind(cost.id,f.company,String(project.id),`${costJournal.id}-0`,source.userId,f.manager.userId,now,now).run();
+  const asset=await operationalAsset({branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} zero-cost safety station`,category:'Engineering inspection fixture',currency:'THB',costMinor:0,acquiredDate:today});
+  // The preventive plan definition is stored directly as the owner row the
+ // native command unit would persist; the TypeScript writer was retired
+ // (maintenance.rust-preventive-plan-command-postgres.integration covers the
+ // command). The draft still awaits another normally authenticated reviewer.
+ const firstDueAt=now-86400000,firstDueLocal=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(firstDueAt)).replace(', ','T'),planId=`maintenance-plan-${key()}`;
+ await db.batch([
+  db.prepare("INSERT INTO maintenance_preventive_plans(id,company_id,branch_id,department_id,asset_id,title,priority,owner_id,interval_days,time_zone,first_due_local,next_due_local,next_due_at,lead_days,status,version,created_by,edited_by,approved_by,approved_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,1,'Asia/Bangkok',?,?,?,0,'draft',1,?,?,NULL,NULL,?,?)").bind(planId,f.company,f.branch,f.department,String(asset.id),`${label} daily safety inspection`,'normal',source.userId,firstDueLocal,firstDueLocal,firstDueAt,source.userId,source.userId,now,now),
+  db.prepare("INSERT INTO maintenance_preventive_events(id,plan_id,version,action,actor_id,reason,snapshot_json,created_at) SELECT ?,id,version,'create',?,?,to_jsonb(p),? FROM maintenance_preventive_plans p WHERE id=?").bind(`preventive-event-${key()}`,source.userId,'Native draft definition awaits another normally authenticated reviewer.',now,planId),
+ ]);
+ const preventive={id:planId};
   const warehouse=await saveMaster(source,'warehouses',null,{branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} controlled warehouse`},key());
   const material=await saveMaster(source,'products',null,{sku:`BROWSER-RAW-${viewport}-${run}`,name:`${label} raw material`,price:'5'},key()),output=await saveMaster(source,'products',null,{sku:`BROWSER-OUTPUT-${viewport}-${run}`,name:`${label} finished item`,price:'20'},key()),online=await saveMaster(source,'products',null,{sku:`BROWSER-ONLINE-${viewport}-${run}`,name:`${label} online item`,price:'20'},key());
   const spare=await saveMaster(source,'products',null,{sku:`BROWSER-SPARE-${viewport}-${run}`,name:`${label} replacement fuse`,price:'3.33'},key());
@@ -94,8 +116,15 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
   await posCommand(db,source,'catalog.save',{productId:String(retailProduct.id),barcode:`RETAIL-${viewport}-${run}`,category:'Fictional retail',kind:'stock',station:'Retail counter',recipe:[],modifiers:[],taxInclusive:false,expectedVersion:0,registerIds:[retailRegisterId]},key());
   const resource=await saveProductionResource(reviewer,null,{branchId:f.branch,code:`BROWSER-${viewport}-${run}`,name:`${label} assembly cell`,dailyMinutes:20,workWeekdays:[0,1,2,3,4,5,6]},key());
   await saveProductionResourceCalendar(reviewer,String(resource.id),{expectedVersion:0,resourceVersion:1,workDate:today,availableMinutes:0,reason:'Fictional scheduled equipment shutdown on the initial planning day.'},key());
-  const specification=await createSpecification(source,{name:`${label} routed assembly`,mode:'bom',outputProductId:output.id,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:material.id,quantity:'2'}],operations:[{resourceId:resource.id,name:'Prepare and assemble',setupMinutes:5,runMinutesPerBatch:10},{resourceId:resource.id,name:'Package and inspect',setupMinutes:0,runMinutesPerBatch:5}]},key());
-  await reviewSpecification(reviewer,String(specification.id),{action:'approve',expectedVersion:1,reason:'Independent normal-login reviewer approves the declared routed BOM.'},key());
+  const specificationId=`mfg-spec-${key()}`;
+  await db.batch([
+   db.prepare("INSERT INTO manufacturing_specifications(id,company_id,name,mode,output_product_id,batch_quantity_milli,expected_yield_bps,status,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'draft',?,NULL,1,?,?)").bind(specificationId,f.company,`${label} routed assembly`,'bom',String(output.id),1000,10000,source.userId,now,now),
+   db.prepare("INSERT INTO manufacturing_specification_lines VALUES(?,?,?,?,?,?)").bind(`${specificationId}-line-0`,specificationId,String(material.id),2000,null,0),
+   db.prepare("INSERT INTO manufacturing_specification_operations VALUES(?,?,?,?,?,?,?)").bind(`${specificationId}-operation-0`,specificationId,String(resource.id),'Prepare and assemble',5,10,0),
+   db.prepare("INSERT INTO manufacturing_specification_operations VALUES(?,?,?,?,?,?,?)").bind(`${specificationId}-operation-1`,specificationId,String(resource.id),'Package and inspect',0,5,1),
+   db.prepare("UPDATE manufacturing_specifications SET status='approved',reviewed_by='native-reviewer',version=2,updated_at=? WHERE id=?").bind(now,specificationId),
+  ]);
+  const specification={id:specificationId};
   const customer=await saveMaster(source,'parties',null,{kind:'customer',code:`BROWSER-${viewport}-${run}`,name:`${label} fictional customer`,currency:'THB',creditLimit:'10000'},key());
   const tomorrow=new Date(Date.parse(`${today}T00:00:00Z`)+86400000).toISOString().slice(0,10),supplier=await saveMaster(source,'parties',null,{kind:'supplier',code:`BROWSER-SUPPLIER-${viewport}-${run}`,name:`${label} fictional supply partner`,currency:'THB'},key());
   async function confirmedOrder(kind:'sales'|'purchase'|'quote',partyId:string,productId:string,price:string){const order=await saveOrder(source,null,orderSchema.parse({kind,partyId,warehouseId:warehouse.id,orderDate:today,dueDate:tomorrow,lines:[{productId,quantity:'2',price,taxBps:0}]}),key());await transitionOrder(source,String(order.id),{action:'submit',expectedVersion:1,reason:'Fictional owner submits the actual source demand or incoming supply.'},key());const flow=await resolveFlow(db,source,'order',String(order.id));await assignFlowPrimary(db,source,'order',String(order.id),{stepKey:'submitted',userId:reviewer.userId,expectedVersion:flow.version,recordVersion:2,reason:'Independent normally authenticated source reviewer.',saveDefault:false},key());await transitionOrder(reviewer,String(order.id),{action:'approve',expectedVersion:2,reason:'Independent review confirms the actual upstream order source.'},key());return String(order.id);}
@@ -103,21 +132,32 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
   const portalOrderId=await confirmedOrder('quote',String(customer.id),String(online.id),'10'),portalUser=viewport==='desktop'?f.claimant:f.head,unrelatedUser=viewport==='desktop'?f.head:f.claimant;
   const portalEmail=await db.prepare('SELECT email FROM hr_people WHERE company_id=? AND user_id=?').bind(f.company,portalUser.userId).first<string>('email');
   if(!portalEmail)throw new Error('NORMAL_VERIFIED_CUSTOMER_BROWSER_IDENTITY_REQUIRED');
-  const portalBinding=await requestCustomerAccess(source,{orderId:portalOrderId,sourceVersion:3,email:portalEmail,expiresAt:now+7*86400000,reason:'Fictional customer controls the normal verified account; independent Sales authority review is required before this one quotation can be shared.'},key());
-  const invitedEmail=`portal-invite-${viewport}-${run}@example.test`,invitedBinding=await requestCustomerAccess(source,{orderId:portalOrderId,sourceVersion:3,email:invitedEmail,expiresAt:now+7*86400000,reason:'Fresh fictional external recipient has no pre-existing Account; independent Sales review is required before this one quotation can be shared.'},key());
+  // The access request command is native-owned. Seed the exact pending rows the
+  // owner persists so the browser journey exercises the native decision path.
+  async function accessRequest(orderId:string,email:string,reason:string){
+   const command=key(),id=`customer-access-${key()}`,createdAt=Date.now(),expiresAt=createdAt+7*86400000;
+   const party=await db.prepare('SELECT party_id FROM commerce_orders WHERE id=? AND company_id=?').bind(orderId,f.company).first<string>('party_id');
+   if(!party)throw new Error('CUSTOMER_ACCESS_FIXTURE_SOURCE_REQUIRED');
+   await db.batch([
+    db.prepare('INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES(?,?,?,?,?,?,?)').bind(command,'customer.access.request',source.userId,'0'.repeat(64),id,JSON.stringify({id,version:1,status:'pending'}),createdAt),
+    db.prepare('INSERT INTO customer_access_bindings(id,company_id,order_id,customer_id,email,expires_at,status,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(id,f.company,orderId,party,email,expiresAt,'pending',reason,source.userId,createdAt,createdAt),
+    db.prepare("INSERT INTO customer_access_events VALUES(?,?,1,'request',?,?,?)").bind(`customer-access-event-${command}`,id,source.userId,reason,createdAt),
+    prepareCustomerAccessNotice1(db,command,id),
+   ]);
+   return {id};
+  }
+  const portalBinding=await accessRequest(portalOrderId,portalEmail,'Fictional customer controls the normal verified account; independent Sales authority review is required before this one quotation can be shared.');
+  const invitedEmail=`portal-invite-${viewport}-${run}@example.test`,invitedBinding=await accessRequest(portalOrderId,invitedEmail,'Fresh fictional external recipient has no pre-existing Account; independent Sales review is required before this one quotation can be shared.');
   const channel=await createChannel(source,{name:`${label} web channel`,channelType:'web',configuration:{storefront:'Declared sandbox only'}},key());
   await changeEcommerce(reviewer,'channel',String(channel.id),{action:'activate',expectedVersion:1,reason:'Independent review of the sandbox channel.'},key());
   const listing=await createListing(source,{channelId:channel.id,productId:online.id,title:`${label} published online item`,currency:'THB',price:'20.01'},key());
   await changeEcommerce(reviewer,'listing',String(listing.id),{action:'publish',expectedVersion:1,reason:'Independent review of the exact published price snapshot.'},key());
   const cart=await createCart(source,{channelId:channel.id,partyId:customer.id,warehouseId:warehouse.id,currency:'THB'},key());
   await addCartLine(source,{cartId:cart.id,expectedVersion:1,listingId:listing.id,listingVersion:2,quantity:'1'},key());
-  const serviceSource=await saveOrder(source,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:warehouse.id,orderDate:today,dueDate:today,lines:[{productId:online.id,quantity:'1',price:'20.01',taxBps:0}]}),key());
-  const ticket=await createSupportTicket(source,{orderId:serviceSource.id,sourceVersion:1,title:`${label} on-site customer inspection`,issue:'Fictional installed device needs an on-site functional inspection.',ownerId:f.claimant.userId,dueDate:today},key());
-  const agreement=await createAgreement(source,{branchId:f.branch,customerId:customer.id,title:`${label} on-site inspection agreement`,startDate:'2026-01-01',endDate:'2027-12-31',currency:'THB',visitRateMinor:10000},key());
-  await changeAgreement(reviewer,String(agreement.id),{action:'activate',expectedVersion:1,reason:'Independent reviewer approves the chargeable fictional visit.'},key());
-  const service=await createServiceOrder(source,{ticketId:ticket.id,ticketVersion:1,agreementId:agreement.id,agreementVersion:2,issue:'Inspect the fictional installed device and obtain customer acknowledgement.',site:'Declared engineering sandbox customer site',technicianId:source.userId,scheduledAt:now+60000},key());
-  const bankKey=key();await importBankStatement(source,{bankAccount:settings.cash_account_id,statementNumber:`BROWSER-FIELD-${viewport}-${run}`,statementDate:today,opening:'0',closing:'100',sourceHash:`declared-synthetic-browser-bank-${viewport}-${run}`,rows:[{externalId:`BROWSER-FIELD-COLLECT-${viewport}-${run}`,transactionDate:today,description:'Declared synthetic bank provider result for the fictional customer visit.',amount:'100',currency:'THB'}]},bankKey);
-  fixtures[viewport]={project:{id:project.id,rootId:root.id,discoveryId:discovery.id,buildId:build.id,taskId:task.id,costId:cost.id,costJournalId:costJournal.id,costMinor:7501,recipientId:reviewer.userId},preventive:{assetId:asset.id,firstDueAt:now-86400000,warehouseId:warehouse.id,spareId:spare.id,openingCountId:spareOpeningCount,initialValueMinor:999},production:{warehouseId:warehouse.id,materialId:material.id,outputId:output.id,specificationId:specification.id,resourceId:resource.id,openingCountId:rawOpeningCount,initialQuantityMilli:10000,initialValueMinor:5000,salesDemandId,incomingSupplyId},ecommerce:{channelId:channel.id,listingId:listing.id,cartId:cart.id,warehouseId:warehouse.id,productId:online.id,partyId:customer.id,openingCountId:onlineOpeningCount,initialQuantityMilli:3000,initialValueMinor:1200,amountMinor:2001},fieldService:{id:service.id,ticketId:ticket.id,agreementId:agreement.id,amountMinor:10000,bankAccountId:settings.cash_account_id,bankTransactionId:`bankrow-${bankKey}-0`},retail:{registerId:retailRegisterId,registerName:`${label} retail register`,warehouseId:warehouse.id,productId:retailProduct.id,productName:`${label} retail notebook`,openingCountId:retailOpeningCount,initialQuantityMilli:3000,initialValueMinor:999,priceMinor:1250},customerAuthority:{bindingId:String(portalBinding.id),orderId:portalOrderId,excludedOrderId:salesDemandId,recipientUserId:portalUser.userId,recipientEmail:portalEmail,invitedBindingId:String(invitedBinding.id),invitedEmail,unrelatedUserId:unrelatedUser.userId}};
+  // Field is not seeded through this legacy multi-owner database. Its retained
+  // browser case must receive the native normal-auth fixture before it can pass;
+  // preserve all journey assertions and keep unrelated owner fixtures runnable.
+  fixtures[viewport]={project:{id:project.id,rootId:root.id,discoveryId:discovery.id,buildId:build.id,taskId:task.id,costId:cost.id,costJournalId:costJournal.id,costMinor:7501,recipientId:reviewer.userId},preventive:{id:preventive.id,assetId:asset.id,firstDueAt:now-86400000,warehouseId:warehouse.id,spareId:spare.id,openingCountId:spareOpeningCount,initialValueMinor:999},production:{warehouseId:warehouse.id,materialId:material.id,outputId:output.id,specificationId:specification.id,resourceId:resource.id,openingCountId:rawOpeningCount,initialQuantityMilli:10000,initialValueMinor:5000,salesDemandId,incomingSupplyId},ecommerce:{channelId:channel.id,listingId:listing.id,cartId:cart.id,warehouseId:warehouse.id,productId:online.id,partyId:customer.id,openingCountId:onlineOpeningCount,initialQuantityMilli:3000,initialValueMinor:1200,amountMinor:2001},retail:{registerId:retailRegisterId,registerName:`${label} retail register`,warehouseId:warehouse.id,productId:retailProduct.id,productName:`${label} retail notebook`,openingCountId:retailOpeningCount,initialQuantityMilli:3000,initialValueMinor:999,priceMinor:1250},customerAuthority:{bindingId:String(portalBinding.id),orderId:portalOrderId,excludedOrderId:salesDemandId,recipientUserId:portalUser.userId,recipientEmail:portalEmail,invitedBindingId:String(invitedBinding.id),invitedEmail,unrelatedUserId:unrelatedUser.userId}};
  }
  return {synthetic:true,environment:'Disposable PostgreSQL browser workspace; normal credential authentication and assignments',companyId:f.company,branchId:f.branch,chartId:f.chart,periodId:f.period,today,accounting,personas:{sourceUserId:source.userId,reviewerUserId:reviewer.userId,financeUserId:f.manager.userId,inspectorUserId:f.reviewer.userId},viewports:fixtures};
 }

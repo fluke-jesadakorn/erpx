@@ -14,6 +14,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {procurementSourcePredicate} from "@erpx/server-procurement/adapters/record-purchases";
 import {supplierBillSourcePredicate} from "@erpx/server-procurement/adapters/record-purchases";
 import {supplierBillOwnerPredicate} from "@erpx/server-procurement/adapters/bill-source-sql";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 export type ProcurementAttachmentPurchase={companyId:string;capability:"supply.purchasing";purpose:CapabilityPurpose;actor:WorkContext;targetId:string;targetType:"procurement_rfq"|"supplier_bill_match";witness:string};
 const image="SELECT (to_jsonb(r)-'version'-'updated_at')::text image FROM procurement_rfqs r WHERE id=? AND company_id=?";
@@ -45,9 +46,9 @@ export async function procurementAttachmentCommandBoundary(database:SqlDatabase,
   database.prepare(`SELECT id FROM ${table} WHERE id=? AND company_id=? FOR SHARE`).bind(scope.targetId,scope.companyId),database.prepare("SELECT id FROM assignments WHERE id=? AND company_id=? FOR SHARE").bind(a.assignmentId,a.companyId),...workContextGuards(database,a,key),...iamMutationGuards(database,a,key),
   assertion(database,key,`${name}-owner`,`(${bill?billImage():image})=?`,[scope.targetId,scope.companyId,scope.witness]),
   assertion(database,key,`${name}-authority`,`EXISTS(SELECT 1 FROM ${table} rfq_file_scope WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) AND ${assignmentReadSql("rfq_file_scope",bill?"finance.write":"commerce.purchase")})`,[scope.targetId,scope.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,a.assignmentId,a.userId,a.role]),
-  database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)
+  clearWorkflowCommandAssertions(database, key)
  ];});
- return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
+ return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>clearWorkflowCommandAssertions(database, item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
 }
 export function procurementAttachmentFailure(error:unknown){
  let current=error;for(let depth=0;depth<5&&current&&typeof current==="object";depth++){const failure=current as {code?:string;detail?:string;cause?:unknown};if(failure.code==="23514"&&failure.detail?.includes("rfq-file-")){const result=new ApiError(409,"RFQ_ATTACHMENT_CHANGED","The RFQ file source or authority changed. Refresh before retrying.");result.cause=current;return result;}current=failure.cause;}return null;

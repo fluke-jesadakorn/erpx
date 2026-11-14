@@ -1,3 +1,4 @@
+import {createHash} from "node:crypto";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { legalReferences, addLegalReference } from "@erpx/server-legal/public/legal/references";
 import { legalKnowledge, lawCitation } from "@erpx/server-legal/public/legal/knowledge";
@@ -18,7 +19,7 @@ import {
 import { boundedBody } from "@erpx/server-legal/public/legal/body";
 import { featureDetail, featureCommand } from "@erpx/server-legal/public/legal/features";
 import { retentionView, retentionCommand } from "@erpx/server-legal/public/legal/retention";
-import { queueInspection, processingStatus } from "@erpx/server-legal/public/legal/processing";
+import { findInspectionSource, queueInspection, processingStatus } from "@erpx/server-legal/public/legal/processing";
 import { trustView, trustCommand } from "@erpx/server-legal/public/legal/trust";
 import {
   startRevision,
@@ -45,12 +46,16 @@ import {
 } from "@erpx/server-legal/public/legal/documents";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { legalData, legalWorkspaceDetail as detail, legalCommand } from "@erpx/server-legal/public/legal/service";
+import { legalData, legalRecordData, legalWorkspaceDetail as detail, legalCommand } from "@erpx/server-legal/public/legal/service";
 import { sendEnvelope, signingAction } from "@erpx/server-legal/public/legal/signing";
 import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
+import { legalReadScope } from "@erpx/server-legal/public/purchases";
+import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalExport, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
+import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
+function nativeFailure(error: unknown): never { const failure = nativeLegalFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
 export async function GET(request: Request, ctx: Context) {
   try {
     const { holdingSlug, path = [] } = await ctx.params,
@@ -181,16 +186,54 @@ export async function GET(request: Request, ctx: Context) {
         canonicalDestinationLinks({ data: await legalAiHistory(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
-    if (path.length === 2 && path[0] === "documents")
+    if (path.length === 2 && path[0] === "documents") {
+      const format = new URL(request.url).searchParams.get("format");
+      if (nativeLegalAvailable()) {
+        const native = await nativeLegalExport(a, holdingSlug, path[1], format, request.headers).catch(nativeFailure);
+        if (native && !native.requires_provider) {
+          const headers = {
+            "Content-Type": native.media_type,
+            "Content-Disposition": `attachment; filename="document"; filename*=UTF-8''${encodeURIComponent(native.name)}`,
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+          };
+          if (native.object_key) {
+            const object = await files.get(native.object_key);
+            if (!object)
+              throw new ApiError(404, "LEGAL_DOCUMENT_UNAVAILABLE", "The original document is unavailable.");
+            const bytes = await object.arrayBuffer();
+            if (createHash("sha256").update(new Uint8Array(bytes)).digest("hex") !== native.checksum)
+              throw new ApiError(502, "LEGAL_DOCUMENT_INTEGRITY", "The original document failed its integrity check.");
+            return new Response(bytes, { headers });
+          }
+          return new Response(native.body, { headers });
+        }
+      }
       return await documentExport(
         write,
         files,
         a,
         path[1],
-        new URL(request.url).searchParams.get("format"),
+        format,
       );
+    }
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Resource not found.");
+    if (nativeLegalAvailable() && path.length === 0) {
+      const native = await nativeLegalRegister(a, holdingSlug, Object.fromEntries(query), request.headers).catch(nativeFailure);
+      if (native) {
+        const shell = await legalRecordData(write, a);
+        const purchases = (await legalReadScope(write, a)).purchases;
+        return Response.json(canonicalDestinationLinks({ data: { ...shell, items: native.records, total: native.total, page: native.page, counts: native.counts, enabled: native.enabled, purchases } }), { headers: { "Cache-Control": "private, no-store" } });
+      }
+    }
+    if (nativeLegalAvailable() && path.length === 1) {
+      const native = await nativeLegalDetail(a, holdingSlug, path[0], request.headers).catch(nativeFailure);
+      if (native) {
+        const purchases = (await legalReadScope(write, a)).purchases;
+        return Response.json(canonicalDestinationLinks({ data: { ...native, purchases } }), { headers: { "Cache-Control": "private, no-store" } });
+      }
+    }
     return Response.json(
       canonicalDestinationLinks({
         data: path.length
@@ -235,20 +278,89 @@ export async function POST(request: Request, ctx: Context) {
         throw new ApiError(422, "EXECUTED_METADATA_REQUIRED", "Supply the signed file and its signing details.");
       let parsed: unknown;
       try { parsed = JSON.parse(metadata); } catch { throw new ApiError(422, "INVALID_JSON", "Signing details are invalid."); }
-      return Response.json(canonicalDestinationLinks({ data: await importExecutedCopy(write, files, a, path[1], Number(form.get("expectedVersion")), parsed, file.name, file.type, new Uint8Array(await file.arrayBuffer()), key) }), { headers: { "Cache-Control": "private, no-store" } });
+      const expectedVersion = Number(form.get("expectedVersion"));
+      const fileBytes = new Uint8Array(await file.arrayBuffer());
+      if (nativeLegalAvailable()) {
+        const set = await createAttachmentSet(write, a, {
+          targetType: "legal_item",
+          targetId: path[1],
+          componentKind: "record",
+          componentRef: `executed:${key}`,
+          purposeKey: "legal_document",
+          expectedTargetVersion: expectedVersion,
+        }, `${key}:set`, { compatibilityAdapter: true });
+        const reserved = await reserveAttachmentFile(write, a, set.id, {
+          filename: file.name,
+          mediaType: file.type,
+          bytes: fileBytes.byteLength,
+        }, `${key}:file`, { compatibilityAdapter: true });
+        const uploaded = await completeAttachmentUpload(write, files, a, reserved.uploadIntentId, fileBytes.buffer as ArrayBuffer, { compatibilityAdapter: true });
+        const sourceState = await scanAttachmentNow(write, files, uploaded.sourceId);
+        if (sourceState !== "available") {
+          throw new ApiError(
+            sourceState === "malware_rejected" ? 422 : 503,
+            sourceState === "malware_rejected" ? "LEGAL_UPLOAD_REJECTED" : "LEGAL_SCAN_UNAVAILABLE",
+            sourceState === "malware_rejected" ? "The upload was rejected by malware scanning." : "The upload could not pass malware scanning.",
+          );
+        }
+        const native = await nativeLegalCommand(a, holdingSlug, {
+          action: "executed.import",
+          id: path[1],
+          expectedVersion,
+          attachmentLinkId: uploaded.attachmentLinkId,
+          metadata: parsed,
+        }, key, request.headers).catch(nativeFailure);
+        if (native) return Response.json(canonicalDestinationLinks({ data: native }), { headers: { "Cache-Control": "private, no-store" } });
+      }
+      return Response.json(canonicalDestinationLinks({ data: await importExecutedCopy(write, files, a, path[1], expectedVersion, parsed, file.name, file.type, fileBytes, key) }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (path.length === 2 && path[0] === "upload") {
       const body = await boundedBody(request, 10 * 1024 * 1024);
+      const bytes = new Uint8Array(body);
+      const expectedVersion = Number(request.headers.get("X-Record-Version"));
+      const name = decodeURIComponent(request.headers.get("X-File-Name") ?? "Document");
+      if (nativeLegalAvailable()) {
+        const set = await createAttachmentSet(write, a, {
+          targetType: "legal_item",
+          targetId: path[1],
+          componentKind: "record",
+          componentRef: `document:${key}`,
+          purposeKey: "legal_document",
+          expectedTargetVersion: expectedVersion,
+        }, `${key}:set`, { compatibilityAdapter: true });
+        const reserved = await reserveAttachmentFile(write, a, set.id, {
+          filename: name,
+          mediaType: request.headers.get("Content-Type") ?? "",
+          bytes: bytes.byteLength,
+        }, `${key}:file`, { compatibilityAdapter: true });
+        const uploaded = await completeAttachmentUpload(write, files, a, reserved.uploadIntentId, bytes.buffer as ArrayBuffer, { compatibilityAdapter: true });
+        const sourceState = await scanAttachmentNow(write, files, uploaded.sourceId);
+        if (sourceState !== "available") {
+          throw new ApiError(
+            sourceState === "malware_rejected" ? 422 : 503,
+            sourceState === "malware_rejected" ? "LEGAL_UPLOAD_REJECTED" : "LEGAL_SCAN_UNAVAILABLE",
+            sourceState === "malware_rejected" ? "The upload was rejected by malware scanning." : "The upload could not pass malware scanning.",
+          );
+        }
+        const native = await nativeLegalCommand(a, holdingSlug, {
+          action: "document.import",
+          id: path[1],
+          expectedVersion,
+          attachmentLinkId: uploaded.attachmentLinkId,
+          name,
+        }, key, request.headers).catch(nativeFailure);
+        if (native) return Response.json(canonicalDestinationLinks({ data: native }), { headers: { "Cache-Control": "private, no-store" } });
+      }
       return Response.json(canonicalDestinationLinks({
         data: await uploadDocument(
           write,
           files,
           a,
           path[1],
-          Number(request.headers.get("X-Record-Version")),
-          decodeURIComponent(request.headers.get("X-File-Name") ?? "Document"),
+          expectedVersion,
+          name,
           request.headers.get("Content-Type") ?? "",
-          new Uint8Array(body),
+          bytes,
           key,
         ),
       }));
@@ -257,10 +369,24 @@ export async function POST(request: Request, ctx: Context) {
       path.length === 3 &&
       path[0] === "documents" &&
       (path[2] === "ocr" || path[2] === "verify")
-    )
+    ) {
+      if (nativeLegalAvailable()) {
+        const source = await findInspectionSource(write, a.companyId, path[1]);
+        if (source) {
+          const native = await nativeLegalCommand(a, holdingSlug, {
+            action: "document.inspect",
+            id: source.id,
+            expectedVersion: Number(source.version),
+            documentId: path[1],
+            kind: path[2],
+          }, key, request.headers).catch(nativeFailure);
+          if (native) return Response.json(canonicalDestinationLinks({ data: { id: path[1], jobId: native.jobId, state: "queued" } }), { headers: { "Cache-Control": "private, no-store" } });
+        }
+      }
       return Response.json(canonicalDestinationLinks({
         data: await queueInspection(write, a, path[1], path[2], key),
       }));
+    }
     if (path.length && path[0] !== "release-acceptance")
       throw new ApiError(404, "NOT_FOUND", "Unknown Legal action.");
     const text = new TextDecoder().decode(await boundedBody(request, 500000));
@@ -271,6 +397,10 @@ export async function POST(request: Request, ctx: Context) {
       raw = JSON.parse(text);
     } catch {
       throw new ApiError(422, "INVALID_JSON", "Invalid JSON.");
+    }
+    if (path.length === 0 && nativeLegalAvailable() && nativeLegalCommandSelected(raw)) {
+      const data = await nativeLegalCommand(a, holdingSlug, raw, key, request.headers).catch(nativeFailure);
+      if (data) return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (path[0] === "release-acceptance") {
       if (path.length === 3 && ["review", "revoke"].includes(path[2])) {

@@ -9,6 +9,7 @@ import {companyPurchaseReadLocks} from "@erpx/server-commercial/public/purchase-
 import {serviceRefundCashOwnerShape,serviceRefundCashSourceReadLocks,readServiceRefundCashSource,serviceRefundCashSourceGuard,type ServiceRefundCashSource} from "@erpx/server-commerce/public/finance-refund-source";
 import {requireFinanceCurrentAuthority} from "@erpx/server-finance/adapters/purchase-boundary";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/adapters/finance-transactions";
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Target={type:"obligation";id:string}|{type:"instructions";ids:readonly string[]};
 type Operation="finance.refund.approve"|"finance.refund.prepare"|"finance.refund.export"|"finance.refund.exception"|"finance.refund.confirm"|"finance.bank.import";
@@ -78,7 +79,7 @@ export async function withServiceRefundCashPreparation<Result>(actor:WorkContext
    const result=await run(transaction,cashScope);
    await flushFinanceDeferredEffects(database);
    // No fallback/reselection after effects; the first actual receipt image wins.
-   for(const selected of captured.values())await database.batch([serviceRefundCashSourceGuard(database,actor,guard,selected),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(guard)]);
+   for(const selected of captured.values())await database.batch([serviceRefundCashSourceGuard(database,actor,guard,selected),clearWorkflowCommandAssertions(database,guard)]);
    await requireFinanceCurrentAuthority(database,actor,guard);
    return result;
   },database);

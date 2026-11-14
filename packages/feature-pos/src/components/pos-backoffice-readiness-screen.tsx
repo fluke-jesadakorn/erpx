@@ -5,10 +5,11 @@ import { FrontLocalizedTree } from "@erpx/front/components/front-language";
 import type {BackofficePosConsoleContext} from "@erpx/feature-pos/components/pos-backoffice-console";
 
 export function BackofficePosConsoleReadinessScreen({context}: {context: BackofficePosConsoleContext}) {
-  const {tr, data, erpBase, register, shift, dailyPosRoot, currentTabLoaded} = context;
+  const {tr, language, data, erpBase, register, shift, dailyPosRoot, currentTabLoaded} = context;
   return <FrontLocalizedTree>{(
                 <SetupChecklist
                   title={tr("Ready to sell")}
+                  labels={{ready:tr("Ready"),review:tr("Review"),setup:tr("Set up"),remaining:count=>language==="th"?`เตรียม ${count} รายการ`:`${count} to prepare`}}
                   items={[
                     {
                       id: "settings",
@@ -43,7 +44,7 @@ export function BackofficePosConsoleReadinessScreen({context}: {context: Backoff
                             id: "products",
                             label: tr("Products in Commerce"),
                             ready: data.products.length > 0,
-                            owner: "Commerce",
+                            owner: tr("Commerce"),
                             href: canonicalUiHref(`${erpBase}/commerce`),
                             detail: data.products.length
                               ? `${data.products.length} ${tr("active products available")}`

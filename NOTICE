@@ -1,0 +1,63 @@
+ERPX
+Copyright 2026 ERPX contributors.
+
+ERPX-owned current source and documentation are provided under Apache-2.0.
+Third-party material retains its own license and attribution.
+
+This source tree includes:
+
+- shadcn source: Copyright (c) 2023 shadcn, MIT License.
+  See vendor/shadcn/LICENSE and vendor/shadcn/source-lock.json.
+- Noto Sans Thai font software: Copyright 2022 The Noto Project Authors,
+  SIL Open Font License 1.1. See public/fonts/OFL.txt and
+  public/fonts/NotoSansThai-OFL.txt.
+- Dingbat Unicode mapping data from dingbat-to-unicode 1.0.2:
+  Copyright (c) 2021 Michael Williamson, BSD-2-Clause.
+  See packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt and
+  packages/server-legal/src/adapters/document_docx/dingbats.rs.
+- ICU4X compiled collation software/data 2.1.0 (CLDR 48): Unicode-3.0.
+  Copyright 2020-2024 Unicode, Inc.; adapted ICU portions retain their notices.
+  See packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt and Cargo.lock.
+
+- ryu-js 1.0.3 floating-point formatter: Apache-2.0 (selected from
+  Apache-2.0 OR BSL-1.0). See
+  packages/server-workflow/licenses/ryu-js-1.0.3-Apache-2.0.txt and Cargo.lock.
+
+- Development OCR models: tesseract-ocr/tessdata_fast, Apache-2.0.
+  Models are fetched explicitly into ignored development fixtures; their
+  pinned origin and hashes are in fixtures/legal/documents/worker-bootstrap-provider.v1.json.
+  See packages/server-legal/licenses/tesseract-tessdata-fast-Apache-2.0.txt.
+
+- Directory LDAP protocol dependencies from kanidm/ldap3:
+  ldap3_proto 0.8.1 retains MPL-2.0 and ldap3_lber 0.8.1 retains MIT.
+  The dependencies are unmodified; corresponding source locations and archive
+  hashes are recorded in packages/server-identity_access/licenses/directory-ldap-provenance.json.
+  See the accompanying MPL-2.0 and MIT license texts in that directory.
+
+
+- Optional Files preview renderer: libvips Rust bindings 2.3.0 retain MIT;
+  native libvips 8.18.7 retains LGPL-2.1-or-later. Synthetic preview fixtures
+  embed Compact ICC Profiles under CC0-1.0 and a public-domain CMYK profile
+  by Graeme W. Gill. See fixtures/files/preview/provenance.json and its licenses/.
+  ERPX-owned wrappers retain their project license; native binary/image and
+  complete transitive runtime qualification remain pending.
+
+- Optional native Directory OIDC verification: RustCrypto p521 0.14.0 retains
+  Apache-2.0 OR MIT. ERPX prepares its public-key verification integration; this does not
+  imply that upstream exposes no signing API or has been independently audited.
+  Exact unmodified licenses, upstream/archive checksum and selected feature scope
+  are in packages/server-identity_access/licenses/p521-0.14.0-source.json.
+  Full transitive artifact notices and release qualification remain required.
+
+- Optional native Directory OIDC public-verification preparation also retains
+  RustCrypto ml-dsa 0.1.1 and rsa 0.9.10 under Apache-2.0 OR MIT.
+  Exact unmodified upstream licenses, source commits, archive checksums and the
+  added dependency inventory are recorded in
+  packages/server-identity_access/licenses/oidc-crypto-provenance.json.
+  This metadata does not establish completed OIDC functionality, an independent
+  security audit or release qualification. Upstream audit limitations and RSA
+  private-key timing warnings remain recorded in that provenance file.
+
+See LICENSING.md and docs/community/provenance.json for the scope of the
+current project grant and the incomplete historical and asset review.
+This notice is informational; it does not change any license terms.

@@ -1,4 +1,5 @@
 import {hydratePmsReceiptAllocationCredits} from "../../../../packages/server-pms/src/adapters/pms";
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
 import {publicSurfaceOrigin} from '@erpx/server-identity_access/public/public-surface-entry';
@@ -30,6 +31,7 @@ export async function bookingEnv(): Promise<BookingEnv> {
     return {
         secret: env.BETTER_AUTH_SECRET,
         origin: publicSurfaceOrigin('booking',env.ERPX_PUBLIC_ORIGIN),
+        ...(holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(holdingHosts.map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{}),
         apiKey: env.RESEND_API_KEY,
         from: env.RESEND_FROM,
     };
@@ -238,20 +240,6 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             id: string;
         }) => db.prepare('UPDATE pms_booking_payments SET last_error=?,updated_at=? WHERE id=?').bind(facts.fact0, facts.now, facts.id).run(),
         writePmsBookingRefundRequests2: (facts: {
-            fact0: string;
-            now: number;
-            id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET last_error=?,updated_at=? WHERE payment_id=? AND state IN ('approved','processing','requires_action')").bind(facts.fact0, facts.now, facts.id).run(),
-        writePmsBookingPayments10: (facts: {
-            now: number;
-            id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET last_error=NULL,updated_at=? WHERE id=?').bind(facts.now, facts.id).run(),
-        writePmsBookingPayments11: (facts: {
-            fact0: string;
-            now: number;
-            id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET last_error=?,updated_at=? WHERE id=?').bind(facts.fact0, facts.now, facts.id).run(),
-        writePmsBookingRefundRequests3: (facts: {
             fact0: string;
             now: number;
             id: string;

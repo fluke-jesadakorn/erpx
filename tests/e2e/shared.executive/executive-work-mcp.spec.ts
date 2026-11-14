@@ -65,7 +65,7 @@ test(executiveWorkHostCaseTitle, browserProjects(["desktop"], "The isolated brow
   await expect(connection).toContainText("active");
 
   const observer = await createWorkflowUiObserver(page, testInfo, {
-    routeSource: "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx",
+    routeSource: "packages/feature-apps/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx",
     targetSource: "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/executive/screen.tsx",
     checks: [
       "Account authentication completed through its normal email and password form.",

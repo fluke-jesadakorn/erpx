@@ -1,0 +1,21 @@
+//! Native Social owner port. No commit, purchase or cross-owner authority here.
+pub const CONTRACT_VERSION: &str = "collaboration.social.v1";
+
+pub use crate::adapters::social::{
+    CommentPageRow, CurrentSocialEffects, FeedComment, FeedFilter, FeedPost, FeedRecord,
+    RevisionRow, apply_plan, lock_social_sources, read_comment, read_comment_page, read_comments,
+    read_feed, read_feed_page, read_post, read_revisions, read_thread, retain_effects,
+};
+pub use crate::adapters::social_upload_files::{
+    SocialUploadFilesFuture, SocialUploadFilesPort, UnavailableSocialUploadFiles,
+};
+pub use crate::adapters::social_pg::{
+    PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, UnavailableSocialRecords,
+};
+pub use crate::application::social::{Access, SocialUnit, authorize_read, execute};
+pub use crate::domain::social::{
+    Audience, Change, CommentSnapshot, CommentState, DraftSnapshot, FeedCursor, FollowTarget,
+    LinkedRecord, LinkedRecordInput, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot,
+    PostSource, PostState, Receipt, SocialActor, hashtags, normalize_tag, normalize_tags,
+    plan_receipt, post_not_found, post_tags, text,
+};

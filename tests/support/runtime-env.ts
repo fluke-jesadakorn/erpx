@@ -7,6 +7,7 @@ import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem
 import { migrateDatabase, refreshMigrationCoverage } from "@erpx/server-runtime/public/runtime/migrations";
 import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
 import { assertSuiteDatabaseIdentity, createSuiteDatabases, cleanupSuiteDatabases, databaseTracks, type DatabaseSlot, type NativeFixturePlan } from './postgres-templates';
+import { startNativeAccountSsoProxy, stopNativeAccountSsoProxy } from './native-account-sso';
 
 const adminUrl=process.env.ERPX_TEST_ADMIN_URL ?? 'postgresql://erpx_test_admin@127.0.0.1:5432/postgres';
 const parsedAdminUrl=new URL(adminUrl);
@@ -78,16 +79,28 @@ export async function setupDatabases(){
     }else for(const name of names){const database=`${prefix}_${name.toLowerCase()}`;await admin.query(`CREATE DATABASE "${database}" TEMPLATE template0`);legacyCreatedNames.push(database);}
   }
   finally {await admin.end();}
+  // The native test service verifies the full reviewed migration inventory.
+  // Disposable suite databases start at baseline, so apply every current
+  // migration before the proxy starts; production schema checks stay exact.
+  if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') {
+    // The suite read-control slot is reserved for old-schema Control upgrade
+    // cases; those cases apply their own exact migration roots. The native
+    // Account fixture never reads this slot.
+    for (const name of selectedNames.filter(name => name !== 'CONTROL_READ_DB'))
+      await migrateDatabase(databases[name], databaseTracks[name]);
+  }
   const manifestPath=join(directory,'databases.json'),manifestDatabases=Object.fromEntries(selectedNames.map(name=>{const url=new URL(adminUrl);url.pathname=`${prefix}_${name.toLowerCase()}`;return [name,url.href];}));
   const slots=['h001','h002','h003'].filter(id=>selectedNames.includes(`${id.toUpperCase()}_DB` as DatabaseSlot)&&selectedNames.includes(`${id.toUpperCase()}_READ_DB` as DatabaseSlot)).map(id=>({id,write:`${id.toUpperCase()}_DB`,read:`${id.toUpperCase()}_READ_DB`,files:`${id.toUpperCase()}_FILES`}));
   await writeFile(manifestPath,JSON.stringify({version:1,databases:manifestDatabases,slots},null,2)+'\n',{mode:0o600});
   for(const name of runtimeEnvironmentNames)originalRuntimeEnvironment.set(name,process.env[name]);
   for(const name of ['ERPX_MARKETING_ORIGIN','ERPX_FRONT_PMS_ORIGIN','ERPX_FRONT_POS_ORIGIN','ERPX_MINIO_ENDPOINT','ERPX_MINIO_BUCKET','ERPX_MINIO_ACCESS_KEY','ERPX_MINIO_SECRET_KEY'])delete process.env[name];
-  Object.assign(process.env,{ERPX_DATABASE_MANIFEST:manifestPath,ERPX_MIGRATION_DATABASE_MANIFEST:join(directory,'databases-migrations.json'),ERPX_ENVIRONMENT:'local',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com',ERPX_DATA_DIR:directory,ERPX_PROCESS_ROLE:'app',ERPX_PUBLIC_BETA:'false',BETTER_AUTH_URL:'http://localhost:3100',BETTER_AUTH_SECRET:'test-runtime-secret-never-used-outside-integration'});
+  Object.assign(process.env,{ERPX_DATABASE_MANIFEST:manifestPath,ERPX_MIGRATION_DATABASE_MANIFEST:join(directory,'databases-migrations.json'),ERPX_ENVIRONMENT:'local',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com',ERPX_DATA_DIR:directory,ERPX_PROCESS_ROLE:'app',ERPX_PUBLIC_BETA:'false',BETTER_AUTH_URL:'http://localhost:3100',BETTER_AUTH_SECRET:env.BETTER_AUTH_SECRET});
+  if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') await startNativeAccountSsoProxy();
   fixtureTimings.setupMs=performance.now()-started;
 }
 export async function cleanupDatabases(){
   if(fixturePlan?.benchmark)await writeFile(join(fixturePlan.benchmark.directory,prefix+'.json'),JSON.stringify({file:fixtureFile,mode:fixturePlan.benchmark.mode,...fixtureTimings})+'\n',{mode:0o600});
+  if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') await stopNativeAccountSsoProxy();
   try{
     await Promise.all(Object.values(databases).map(db=>db.close()));
     if(fixturePlan){if(brokerDatabasesCreated)await cleanupSuiteDatabases(fixturePlan.root,prefix);}

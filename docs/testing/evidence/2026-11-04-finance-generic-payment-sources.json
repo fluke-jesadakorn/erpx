@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native generic controlled-payment create/review/confirm/import are integrated with transport; the authenticated browser journey remains open.",
+  "capability": "finance-generic-controlled-payment",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commits": [
+    "263bb8ca3",
+    "8b6a84754"
+  ],
+  "scope": {
+    "create": "Supplier payments and customer receipts from open Company invoices with current party/bank/invoice guards and exact requested-Money snapshots.",
+    "decisions": "Independent approve and third-person release reuse the native review adapter; Field lineage is skipped only for non-Field invoices.",
+    "settlement": "Settlement journal direction is kind-aware: receivable credits the AR control, payable debits the AP control; realized FX direction is kind-aware.",
+    "transport": "Create observes POST /finance/invoices/{id}/payment-runtime; generic payment workspaces use the finance.banking purchase guard and accept payment/banking shapes."
+  },
+  "tests": [
+    "finance.rust-generic-payment-postgres.integration: 5 passed (create/approve/release, confirmation directions, persisted journal/allocation/invoice/bank settlement, generic bank import then confirm, wrong-kind and expense-claim refusal)",
+    "vitest native-service-invoice transport: 34 passed",
+    "finance.rust-service-invoice-posting.unit: 10 passed (Field receipt decisions unchanged)"
+  ],
+  "limits": [
+    "No generic payment workflow is claimed verified; generic bank-statement import and the authenticated browser journey are not yet exercised.",
+    "The generic path does not change invoice posting ownership; Field-specific invoice posting remains separate.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

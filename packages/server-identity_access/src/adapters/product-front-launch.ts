@@ -1,5 +1,5 @@
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
-import {holdingRoutingEnabled,holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import 'server-only';
 import {NextResponse} from 'next/server';
 import {productHostForHost,configuredProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';

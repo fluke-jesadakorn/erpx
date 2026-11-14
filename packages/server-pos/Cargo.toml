@@ -1,0 +1,51 @@
+[package]
+name="erpx-server-pos"
+version.workspace=true
+edition.workspace=true
+rust-version.workspace=true
+license.workspace=true
+publish.workspace=true
+autotests=false
+[dependencies]
+erpx-server-shared.workspace=true
+erpx-server-runtime.workspace=true
+sqlx.workspace=true
+serde_json.workspace=true
+[[test]]
+name = "cash_movement"
+path = "../../tests/unit/pos/rust-cash-movement.test.rs"
+
+[[test]]
+name = "cash_movement_http"
+path = "../../tests/unit/pos/rust-pos-cash-http.test.rs"
+
+[[test]]
+name = "cash_movement_postgres"
+path = "../../tests/integration/pos/rust-cash-movement-postgres.test.rs"
+
+[[test]]
+name = "pos_commands"
+path = "../../tests/unit/pos/rust-pos-commands.test.rs"
+
+[[test]]
+name = "pos_command_http"
+path = "../../tests/unit/pos/rust-pos-command-http.test.rs"
+
+[[test]]
+name = "pos_commands_postgres"
+path = "../../tests/integration/pos/rust-pos-commands-postgres.test.rs"
+
+[[test]]
+name = "pos_workspace"
+path = "../../tests/unit/pos/rust-pos-workspace.test.rs"
+
+[[test]]
+name = "pos_workspace_http"
+path = "../../tests/unit/pos/rust-pos-workspace-http.test.rs"
+
+[[test]]
+name = "pos_workspace_postgres"
+path = "../../tests/integration/pos/rust-pos-workspace-postgres.test.rs"
+
+[lints]
+workspace=true

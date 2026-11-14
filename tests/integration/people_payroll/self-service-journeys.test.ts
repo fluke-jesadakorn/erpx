@@ -9,13 +9,14 @@ import {createOvertime,commandOvertime,previewOvertime,overtimeWork,setOvertimeE
 import {getOvertime} from '@erpx/server-people_payroll/public/overtime-read';
 import { enrichFlowWork } from "@erpx/server-workflow/public/flow-work";
 import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
-import { createPayrollRun,calculatePayrollRun,payrollRunSchema } from "@erpx/server-people_payroll/public/people-payroll";
+import { payrollRunSchema } from "@erpx/server-people_payroll/public/people-payroll";
+import { calculatePayrollRun,createPayrollRun } from "../../support/helpers/payroll-run-seed";
 import { leaveItems } from "@erpx/server-work_projection/public/calendar/leave";
 import { calendarAccess } from "@erpx/server-work_projection/public/calendar/access";
 import { calendarQuerySchema } from "@erpx/feature-work_projection/lib/calendar";
 import { overtimeDetailsSchema } from "@erpx/feature-people_payroll/lib/overtime";
 import { assertLeaveAttachmentAccess,availableLeaveEvidence,leaveEvidenceManifest,pendingLeaveEvidenceCount } from "@erpx/server-people_payroll/public/leave-evidence";
-import { withdrawAttachmentLink } from "@erpx/server-files/public/attachments/service";
+import { withdrawSeededAttachment } from "../../support/helpers/attachment-v2";
 import { getLeaveEvidence } from "@erpx/server-work_projection/public/work";
 import { prepareLocalBrowserHrReviewer,prepareLocalBrowserLeaveRecords } from "../../../fixtures/people_payroll/builders/local-browser-leave";
 import {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
@@ -169,7 +170,7 @@ describe('Staff self-service transactional journeys',()=>{
   await approveLeave('h001',id,{override:false,expectedVersion:1,note:''},key(),manager);
   expect(await db.prepare('SELECT state,binding_type FROM attachment_links WHERE id=?').bind(supporting.linkId).first()).toEqual({state:'bound',binding_type:'leave_approval'});
   expect((await getLeave('h001',id,employee)).evidence_version).toBe(1);
-  await expect(withdrawAttachmentLink(db,employee,supporting.linkId,'Replace the supporting photo',key())).rejects.toMatchObject({code:'BOUND_ATTACHMENT_IMMUTABLE'});
+  await expect(withdrawSeededAttachment(db,employee,supporting.linkId,'Replace the supporting photo',key())).rejects.toMatchObject({code:'BOUND_ATTACHMENT_IMMUTABLE'});
   await expect(approveLeave('h001',id,{override:false,expectedVersion:2,note:''},key(),hr)).rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
   const certificate=await stageLeaveEvidence(id,2,'medical_certificate','application/pdf','certificate-checksum');
   await approveLeave('h001',id,{override:false,expectedVersion:2,note:''},key(),hr);

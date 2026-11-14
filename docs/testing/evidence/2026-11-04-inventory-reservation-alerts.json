@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Sales and Manufacturing reservation alert job qualified; Inventory owner remains partial",
+  "capability": "inventory-reservation-alerts",
+  "base": "bfac81852bafc2e68ad543d94558dca70de4e4e6",
+  "branch": "codex/inventory-reservations-cutover",
+  "sourceCommit": "b98e87b491b7aa140647ca68c962f2f729d7c120",
+  "changes": [
+    "src/composition/src/inventory_reservation_alerts.rs: native serializable sweep for Sales order and Manufacturing order reservations",
+    "src/composition/src/field_dependency_worker.rs: the scheduled worker runs the Field, Sales and Manufacturing alert sources",
+    "src/composition/src/private_development_api.rs: collapse a pre-existing clippy::collapsible_if at the private-field-api gate"
+  ],
+  "behavior": {
+    "sales": "inventory_order_reservations joined to commerce_order_lines/commerce_orders, active quantity, confirmed/partially fulfilled orders, creator and reservation-creator recipients",
+    "manufacturing": "manufacturing_material_reservations joined to manufacturing_orders, active quantity, reserved orders, creator and reservation-creator recipients",
+    "phases": [
+      "expiring within 24 hours",
+      "expired"
+    ],
+    "deduplication": "notification id includes phase, source, reservation id, expires_at and recipient; ON CONFLICT DO NOTHING",
+    "productionGate": "inventory module rollout_state pilot/available; development matches the owner contract TRUE predicate",
+    "atomicity": "serializable transaction, source table share locks, SET CONSTRAINTS ALL IMMEDIATE"
+  },
+  "checks": {
+    "postgres": "inventory.rust-inventory-reservation-alerts-postgres.integration 2/2",
+    "cases": [
+      "Sales and Manufacturing expiring sweep inserts four recipient notifications",
+      "a second sweep is idempotent",
+      "expired reservations insert four expired notifications",
+      "fully consumed reservations and planned Manufacturing orders are ignored",
+      "production gate blocks without a rollout and admits after an inventory pilot rollout"
+    ],
+    "fieldCollaboration": "29/29 with RUST_MIN_STACK=8388608; the default 2 MB test stack overflows in an unrelated finance invoice case",
+    "gates": "cargo clippy private-field-api with -D warnings, typecheck, structure, architecture, docs, catalogue (33 modules, 781 suites)"
+  },
+  "browser": {
+    "note": "This is a scheduled notification producer; no new user-facing route was added. The existing Field reservation/issue/completion browser journey and the stock reservation integration cases remain the user-path evidence for reservation release and consumption."
+  },
+  "limits": [
+    "POS reservations are owned by the POS source and are not included in this alert sweep, matching the existing Sales/Manufacturing owner contract.",
+    "The production rollout predicate is the inventory pilot/available gate; the full legal-specific release predicate is unchanged.",
+    "The Inventory owner remains partial: availability and issues/movements are separate workflows."
+  ]
+}

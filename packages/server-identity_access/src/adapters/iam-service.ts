@@ -15,15 +15,10 @@ import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { runtimeEnv } from "@erpx/server-runtime/public/runtime";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
-export { roleInput, grantInput, reviewInput, accessReviewCampaignInput, accessReviewDecisionInput } from '@erpx/server-identity_access/domain/iam-service';
-import { roleInput, grantInput, reviewInput, accessReviewCampaignInput, accessReviewDecisionInput } from '@erpx/server-identity_access/domain/iam-service';
+export { roleInput, grantInput, reviewInput } from '@erpx/server-identity_access/domain/iam-service';
+import { grantInput, reviewInput } from '@erpx/server-identity_access/domain/iam-service';
 
-export async function startAccessReviewCampaign(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof accessReviewCampaignInput>, key: string) { return serviceCommands(db).startAccessReviewCampaign(actor, input, key); }
-export async function decideAccessReviewItem(db: PostgresDatabase, actor: IamActor, itemId: string, input: z.infer<typeof accessReviewDecisionInput>, key: string) { return serviceCommands(db).decideAccessReviewItem(actor, itemId, input, key); }
-export async function cancelAccessReviewCampaign(db: PostgresDatabase, actor: IamActor, id: string, expectedVersion: number, reason: string, key: string) { return serviceCommands(db).cancelAccessReviewCampaign(actor, id, expectedVersion, reason, key); }
 async function review(client: PoolClient, actor: IamActor, kind: string, payload: unknown, reason: string) { return serviceCommands().review(serviceTransaction(client, actor), actor, kind, payload, reason); }
-export async function saveIamRole(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof roleInput>, key: string) { return serviceCommands(db).saveIamRole(actor, input, key); }
-
 export async function grantIamAccess(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof grantInput>, key: string) { return serviceCommands(db).grantIamAccess(actor, input, key); }
 export async function revokeIamAssignment(db: PostgresDatabase, actor: IamActor, id: string, version: number, reason: string, key: string) { return serviceCommands(db).revokeIamAssignment(actor, id, version, reason, key); }
 export async function applyIamRevocation(c: PoolClient, actor: IamActor, id: string, version: number, reason: string, approved = false) { return serviceCommands().applyIamRevocation(serviceTransaction(c, actor), actor, id, version, reason, approved); }
@@ -31,24 +26,6 @@ export async function decideIamReview(db: PostgresDatabase, actor: IamActor, id:
 export { review as proposeIamReview };
 function serviceTransaction(c: PoolClient, actor: IamActor): IamServiceTransaction {
     return { ...grantTransaction(c, actor),
-activeReviewAssignments: async (facts) => { const { observedNow } = facts; return (await c.query("SELECT id,user_id,role,scope_kind,scope_node_id,source,valid_until,version FROM assignments WHERE company_id=$1 AND revoked_at IS NULL AND iam_assignment_active(id,$2) AND iam_principal_active(user_id,$1,$2) ORDER BY user_id,role,id", [actor.companyId, observedNow])).rows; },
-insertReviewCampaign: async (facts) => { const { id, input, now } = facts; return void await c.query("INSERT INTO iam_access_review_campaigns(id,company_id,name,due_at,status,version,created_by,reason,created_at,updated_at) VALUES($1,$2,$3,$4,'open',1,$5,$6,$7,$7)", [id, actor.companyId, input.name, input.dueAt, actor.userId, input.reason, now]); },
-insertReviewItem: async (facts) => { const { key, index, id, a } = facts; return void await c.query("INSERT INTO iam_access_review_items(id,campaign_id,company_id,assignment_id,assignment_version,user_id,role,scope_kind,scope_node_id,source,valid_until) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)", [`access-review-item-${key}-${index}`, id, actor.companyId, a.id, a.version, a.user_id, a.role, a.scope_kind, a.scope_node_id, a.source, a.valid_until]); },
-insertCampaignStartedEvent: async (facts) => { const { key, id, input, assignments, now } = facts; return void await c.query("INSERT INTO iam_access_review_events(id,campaign_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,'started',$4,$5,$6)", [`access-review-event-${key}`, id, actor.companyId, actor.userId, JSON.stringify({ name: input.name, dueAt: input.dueAt, reason: input.reason, assignmentIds: assignments.map(a => a.id) }), now]); },
-lockReviewItem: async (facts) => { const { itemId } = facts; return (await c.query("SELECT i.*,c.status campaign_status,c.version campaign_version,c.created_by FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id WHERE i.id=$1 AND i.company_id=$2 FOR UPDATE OF i,c", [itemId, actor.companyId])).rows[0] ?? null; },
-reviewerSamePerson: async (facts) => { const { item } = facts; return (await c.query("SELECT iam_same_person($1,$2,$3) same", [item.user_id, actor.userId, actor.companyId])).rows[0] ?? null; },
-lockReviewAssignment: async (facts) => { const { item } = facts; return (await c.query("SELECT * FROM assignments WHERE id=$1 AND company_id=$2 FOR UPDATE", [item.assignment_id, actor.companyId])).rows[0] ?? null; },
-reviewAssignmentActive: async (facts) => { const { item, observedNow } = facts; return (await c.query("SELECT iam_assignment_active($1,$2) active", [item.assignment_id, observedNow])).rows[0] ?? null; },
-reviewRecoveryMember: async (facts) => { const { item } = facts; return (await c.query("SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=$2 AND login_policy='emergency' AND status='active'", [actor.companyId, item.user_id])).rowCount; },
-recordItemDecision: async (facts) => { const { input, now, itemId } = facts; return void await c.query("UPDATE iam_access_review_items SET decision=$1,decided_by=$2,decision_reason=$3,decided_at=$4 WHERE id=$5", [input.decision, actor.userId, input.reason, now, itemId]); },
-insertDecisionEvent: async (facts) => { const { key, item, itemId, input, now } = facts; return void await c.query("INSERT INTO iam_access_review_events(id,campaign_id,item_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [`access-review-event-${key}`, item.campaign_id, itemId, actor.companyId, input.decision === "keep" ? "kept" : "revoked", actor.userId, JSON.stringify({ assignmentId: item.assignment_id, assignmentVersion: item.assignment_version, userId: item.user_id, role: item.role, scopeKind: item.scope_kind, scopeNodeId: item.scope_node_id, source: item.source, validUntil: item.valid_until, reason: input.reason }), now]); },
-pendingReviewItems: async (facts) => { const { item } = facts; return (await c.query("SELECT count(*) n FROM iam_access_review_items WHERE campaign_id=$1 AND decision='pending'", [item.campaign_id])).rows[0] ?? null; },
-completeReviewCampaign: async (facts) => { const { remaining, campaignVersion, now, item } = facts; return void await c.query("UPDATE iam_access_review_campaigns SET status=$1,version=$2,completed_at=$3,updated_at=$4 WHERE id=$5", [remaining ? "open" : "completed", campaignVersion, remaining ? null : now, now, item.campaign_id]); },
-insertCampaignCompletedEvent: async (facts) => { const { key, item, now } = facts; return void await c.query("INSERT INTO iam_access_review_events(id,campaign_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,'completed',$4,$5,$6)", [`${`access-review-event-${key}`}-complete`, item.campaign_id, actor.companyId, actor.userId, JSON.stringify({ completedItems: true }), now]); },
-lockReviewCampaign: async (facts) => { const { id } = facts; return (await c.query("SELECT * FROM iam_access_review_campaigns WHERE id=$1 AND company_id=$2 FOR UPDATE", [id, actor.companyId])).rows[0] ?? null; },
-decidedReviewItems: async (facts) => { const { id } = facts; return (await c.query("SELECT count(*) n FROM iam_access_review_items WHERE campaign_id=$1 AND decision!='pending'", [id])).rows[0] ?? null; },
-cancelReviewCampaign: async (facts) => { const { version, now, id } = facts; return void await c.query("UPDATE iam_access_review_campaigns SET status='cancelled',version=$1,updated_at=$2 WHERE id=$3", [version, now, id]); },
-insertCampaignCancelledEvent: async (facts) => { const { key, id, reason, now } = facts; return void await c.query("INSERT INTO iam_access_review_events(id,campaign_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,'cancelled',$4,$5,$6)", [`access-review-event-${key}`, id, actor.companyId, actor.userId, JSON.stringify({ reason }), now]); },
 insertIndependentReview: async (facts) => {
             const { id, kind, payload, observedNow, reason } = facts;
             return void await c.query("INSERT INTO iam_reviews(id,company_id,kind,payload,created_by,created_person,created_at,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [
@@ -64,35 +41,6 @@ insertIndependentReview: async (facts) => {
                 observedNow,
                 reason,
             ]);
-        },
-lockProposedRole: async (facts) => {
-            const { id } = facts;
-            return (await c.query("SELECT * FROM iam_roles WHERE id=$1 AND company_id IN ($2,'*') FOR UPDATE", [id, actor.companyId])).rows[0] ?? null;
-        },
-createProposedRole: async (facts) => {
-            const { id, input } = facts;
-            return void await c.query("INSERT INTO iam_roles(company_id,id,name) VALUES($1,$2,$3)", [actor.companyId, id, input.name]);
-        },
-nextRoleRevision: async (facts) => {
-            const { id } = facts;
-            return (await c.query("SELECT COALESCE(MAX(revision),0)+1 next FROM iam_role_revisions WHERE company_id=$1 AND role_id=$2", [actor.companyId, id])).rows[0] ?? null;
-        },
-appendRoleRevision: async (facts) => {
-            const { id, revision, input, observedNow } = facts;
-            return void await c.query("INSERT INTO iam_role_revisions VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [
-                actor.companyId,
-                id,
-                revision,
-                JSON.stringify([...new Set(input.permissions)]),
-                JSON.stringify([...new Set(input.grantablePermissions)]),
-                JSON.stringify(input.scopes),
-                actor.userId,
-                observedNow,
-            ]);
-        },
-affectedRoleUsers: async (facts) => {
-            const { id } = facts;
-            return (await c.query(`SELECT DISTINCT user_id FROM ${actor.platform ? "platform_assignments" : "assignments"} WHERE role=$1 AND revoked_at IS NULL ${actor.platform ? "" : "AND company_id=$2"}`, actor.platform ? [id] : [id, actor.companyId])).rows;
         },
 lockRevokedAssignment: async (facts) => {
             const { id } = facts;

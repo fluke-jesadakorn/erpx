@@ -3,9 +3,12 @@ import {expenseDb as db,expenseFixture,key} from "./expense-fixture";
 import type {AttachmentOwnerTuple,AttachmentOwnerFixture} from "./engineering-finance-people-attachment-owners";
 import {saveEmployeeRequest,actOnEmployeeRequest,employeeRequestSchema,requestActionSchema} from '@erpx/server-records/public/employee-requests';
 import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
-import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {seedServiceTeam} from "./service-team-seed";
 import {createLeave,submitLeave,approveLeave,newLeaveSchema,leaveDraftSchema} from '@erpx/server-people_payroll/public/leave';
-import {saveTask,transitionTask,taskSchema,taskActionSchema} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {executeCommand} from '@erpx/server-workflow/public/commands';
+import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
 import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
 import {postExpense} from '@erpx/server-people_payroll/public/expenses';
 import {saveExpenseAccounting} from '@erpx/server-people_payroll/public/expense-workflow';
@@ -15,7 +18,7 @@ import {createExpensePayment,confirmExpensePayment,expensePaymentSchema} from '@
 import {createParty,partySchema,createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
 import {settleInvoice,settlementSchema} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {posCommand} from '@erpx/server-pos/public/pos-core';
+import {posSeedCommand} from './pos-native-seed';
 import {accountKeys} from "@erpx/server-pos/public/rules/pos";
 import {pmsCommand,loadPms} from "../../../packages/server-pms/src/public/pms";
 import {pmsAccountKeys,records,record,type Config} from "@erpx/server-pms/public/rules/pms";
@@ -45,8 +48,21 @@ export async function serviceHospitalityAttachmentOwner(tuple:AttachmentOwnerTup
   return {...standard(String(invoice.id),"finance_invoices",f.payer,2),componentRef:"legacy-upload-adapter",bindingType:"invoice_payment_settlement",bindAction:(set,command)=>settleInvoice(f.payer,String(invoice.id),settlementSchema.parse({expectedVersion:2,date:"2026-09-05",amount:"100",reference:"SYNTHETIC-SUPPLIER-001",attachmentSetIds:[set]}),command)};
  }
  if(tuple.targetType==="staff_task"){
-  const task=await saveTask(db,f.claimant,null,taskSchema.parse({title:"Synthetic task intake",assigneeUserId:f.claimant.userId}),key());await transitionTask(db,f.claimant,String(task.id),taskActionSchema.parse({action:"start",expectedVersion:1}),key());
-  return {...standard(String(task.id),"staff_tasks",f.claimant,2),componentRef:"task:in_progress",bindingType:"task_action",bindAction:(set,command)=>transitionTask(db,f.claimant,String(task.id),taskActionSchema.parse({action:"complete",expectedVersion:2,note:reason,attachmentSetIds:[set]}),command)};
+  const task=await saveTask(db,f.claimant,null,taskSchema.parse({title:"Synthetic task intake",assigneeUserId:f.claimant.userId}),key()),id=String(task.id),now=Date.now();
+  // Native Staff Work owns the transition/completion command. Seed the settled
+  // in-progress row, then execute only the retained Files binding effects.
+  await db.prepare("UPDATE staff_tasks SET state='in_progress',version=version+1,updated_at=? WHERE id=? AND version=1").bind(now,id).run();
+  let bound:unknown;
+  return {...standard(id,"staff_tasks",f.claimant,2),componentRef:"task:in_progress",bindingType:"task_action",bindAction:async(set,command)=>{
+   if(bound)return bound;
+   const prepared=await prepareAttachmentBinding(db,f.claimant,{attachmentSetIds:[set],bindingContract:{targetType:"staff_task",bindingType:"task_action",contexts:[{purposeKey:"task_evidence",componentKind:"action",componentRef:"task:in_progress"}]},targetId:id,expectedTargetVersion:2,commandId:command,bindingId:`${id}:complete:3`});
+   bound=await executeCommand(db,f.claimant,command,"task.complete",{action:"complete",expectedVersion:2,attachmentSetIds:[set]},id,3,{id,state:"completed",version:3,manifest:prepared.manifest},[
+    ...prepared.guards,
+    db.prepare("UPDATE staff_tasks SET state='completed',completion_note=?,blocked_reason=NULL,version=version+1,updated_at=? WHERE id=? AND version=2").bind(reason,Date.now(),id),
+    ...prepared.steps,
+   ]);
+   return bound;
+  }};
  }
  if(tuple.targetType==="leave_request"){
   const input=newLeaveSchema.parse({startDate:"2026-09-14",days:2,handoverNote:reason});
@@ -55,7 +71,7 @@ export async function serviceHospitalityAttachmentOwner(tuple:AttachmentOwnerTup
   return {...standard(String(leave.id),"leave_requests",f.claimant,2),componentRef:`leave-evidence:${tuple.purposeKey}`,bindingType:"leave_approval",bindAction:(_set,command)=>approveLeave("h001",String(leave.id),{expectedVersion:2,note:reason,override:false},command,f.head)};
  }
  if(tuple.targetType==="employee_request"){
-  await saveServiceTeam(db,f.owner,null,serviceTeamSchema.parse({name:"Synthetic IT evidence team",members:[{userId:f.it.userId,responsibility:"lead"}],coverage:[{category:"it",scopeKind:"holding",scopeNodeId:f.company}]}),key());
+  await seedServiceTeam(f.company,f.owner.userId,serviceTeamSchema.parse({name:"Synthetic IT evidence team",members:[{userId:f.it.userId,responsibility:"lead"}],coverage:[{category:"it",scopeKind:"holding",scopeNodeId:f.company}]}),`team-${key()}`);
   const request=await saveEmployeeRequest(db,f.claimant,null,employeeRequestSchema.parse({kind:"service",category:"it",title:"Synthetic service request",description:reason,location:"Synthetic office",branchId:f.branch,departmentId:f.department}),key());
   const requestId=String(request.id),action=async(actor:WorkContext,name:string,extra:Record<string,unknown>={})=>{const row=await getEmployeeRequest(db,actor,requestId);return actOnEmployeeRequest(db,actor,requestId,requestActionSchema.parse({action:name,expectedVersion:row.version,note:reason,...extra}),key());};
   if(tuple.purposeKey==="fulfillment"){
@@ -83,7 +99,7 @@ async function posOwner(f:Fixture,tuple:AttachmentOwnerTuple):Promise<Attachment
  }
  await db.prepare("INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode) VALUES(?,?,?,?,?,'retail')").bind(register,f.company,f.branch,warehouse,"Synthetic till").run();
  await db.prepare("INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES(?,?,?,?,?,1,10000)").bind(shift,register,f.company,f.branch,cashier.userId).run();
- const cmd=(actor:WorkContext,op:string,input:unknown,command=key())=>posCommand(db,actor,op,input,command);
+ const pos=posSeedCommand(db),cmd=(actor:WorkContext,op:string,input:unknown,command=key())=>pos(actor,op,input,command);
  await cmd(f.owner,"settings.save",{enabled:true,currency:"THB",timezone:"Asia/Bangkok",cashierDiscountBps:0,accounts,expectedVersion:0});
  await cmd(f.manager,"accounting.approve",{expectedVersion:1});
  await cmd(f.owner,"catalog.save",{productId:product,barcode:key(),category:"Retail",kind:"stock",station:"Shop",recipe:[],modifiers:[],taxInclusive:false,registerIds:[register],expectedVersion:0});

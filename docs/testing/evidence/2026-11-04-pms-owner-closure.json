@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "PMS now has a native property/room board read (Rooms and Housekeeping sections), an owner-local HTTP router, and a fail-closed Next transport/SSR/API cutover for those sections. Shared composition mounting, the Account/Holding backend, the People staff port and the Commercial package entitlement binding remain composition work, so no PMS workflow is claimed complete or browser-verified.",
+  "capability": "pms-owner-room-board-read-slice",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "eef300c42053ef87be1c007a910e22dfaae1a3db",
+  "scope": {
+    "workflows": [
+      "pms/rooms",
+      "pms/housekeeping"
+    ],
+    "domain": "packages/server-pms/src/domain/room_board.rs owns the typed property summary, property/config, raw PMS record envelope, room summary, list metadata, staff option, board setup facts and workspace projection. PmsBoardActor enforces pms.read, the pms module, a branch/company selection without department, a current work-context expiry and one of pms.housekeeping/pms.inspect/pms.maintenance. PmsBoardEntitlement preserves the retained pms.front-desk package-history guard; PmsBoardVisibility filters rate, guest and financial facts before serialization.",
+    "application": "packages/server-pms/src/application/room_board.rs enforces the actor and package entitlement, validates Company/branch property scope, rejects a foreign or missing requested property with a scoped PMS_NOT_FOUND, applies pricing/guest/financial visibility, redacts the chart/accounts config unless accounting is granted, computes readiness from property setup facts, bounds properties/records/staff, and removes a selected id that is not visible.",
+    "adapters": "packages/server-pms/src/adapters/room_board.rs reads only pms_properties and pms_records inside a caller-owned serializable transaction. It keeps the exact Company/branch property predicate, returns all Property-filtered rooms up to 500, pages 50 room ids with the retained room filters, bounds room types/rates/tasks/blocks/in-house stays, reads only in-house guest/reservation/guest-account links when the actor has guest visibility, and computes room readiness counts. No cross-owner SQL is invented; staff labels and package entitlement are public application ports.",
+    "http": "packages/server-pms/src/adapters/pms_http.rs exposes GET /api/v1/holdings/{holding_slug}/pms/rooms with one bounded query (section, property, status, q, building, floor, typeId, page, selectedId, from, to). It validates exact registered Host/Holding targets, rejects duplicates/unknown names/malformed percent encodings/oversized or invalid selections/request bodies, returns private/no-store and no-referrer/nosniff responses, and maps BusinessError to bounded statuses. Session resolution, selected Company scope, package entitlement, the serializable unit and People staff stay behind PmsHttpBackend.",
+    "transport": "packages/feature-pms/src/adapters/server/native-pms.ts validates ERPX_NATIVE_PMS_CONFIG (loopback only, no reserved ports 3000/3001/3100/3101/3103/8080 or owned app ports, exact unique HTTPS Holding origins, unique Hosts/slugs/ids, 250..30000 ms), forwards the actual session cookie, Host, branch/department selectors and rendered-context CAS headers, and strictly validates property/record/list-meta/room-summary/staff/booking/readiness fields plus the returned context identity and bounded response.",
+    "ssr": "packages/workplace/src/lib/native-pms.ts maps the retained WorkContext into the native page context. The PMS console Rooms/Housekeeping presenters and the standard Front daily entry read only through the native transport and return 503 NATIVE_PMS_UNAVAILABLE when ERPX_NATIVE_PMS_CONFIG is absent, malformed or failing. The existing GET /api/v1/holdings/{slug}/pms route also serves Rooms/Housekeeping natively and 503s without configuration. There is no silent TypeScript room-board fallback. All other PMS sections remain on the retained pmsWorkspace read; the POST command route is unchanged.",
+    "notClaimed": "No command cutover, shared composition mount, real Account/People/Commercial port implementation, browser journey, authenticated page render, staging or private production verification. No whole-workflow completion flag is changed."
+  },
+  "changedFiles": [
+    ".env.example",
+    "packages/feature-pms/package.json",
+    "packages/feature-pms/src/adapters/server/native-pms.ts",
+    "packages/server-pms/Cargo.toml",
+    "packages/server-pms/src/domain/mod.rs",
+    "packages/server-pms/src/domain/room_board.rs",
+    "packages/server-pms/src/application/mod.rs",
+    "packages/server-pms/src/application/room_board.rs",
+    "packages/server-pms/src/adapters/mod.rs",
+    "packages/server-pms/src/adapters/room_board.rs",
+    "packages/server-pms/src/adapters/pms_http.rs",
+    "packages/server-pms/src/public/mod.rs",
+    "packages/server-pms/src/public/room_board.rs",
+    "packages/server-pms/src/public/pms_http.rs",
+    "packages/workplace/package.json",
+    "packages/workplace/src/lib/native-pms.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/[[...section]]/screen.tsx",
+    "packages/workplace/src/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry.tsx",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/route.ts",
+    "tests/unit/pms/rust-pms-room-board.test.rs",
+    "tests/integration/pms/rust-pms-room-board-postgres.test.rs",
+    "tests/integration/pms/rust-pms-http.test.rs",
+    "tests/unit/pms/native-pms-transport.test.ts",
+    "tests/catalogue/suite-manifest.json",
+    "docs/testing/evidence/2026-11-04-pms-owner-closure.json"
+  ],
+  "verification": {
+    "rust": {
+      "command": "ERPX_TEST_ADMIN_URL=\"$(grep -m1 '^ERPX_TEST_ADMIN_URL=' .env.local | cut -d= -f2-)\" cargo test -p erpx-server-pms --locked",
+      "result": "27 passed, 0 failed, 0 ignored",
+      "targets": {
+        "initial_count_modules_postgres": "6 passed (existing foundation checks)",
+        "pms_http": "4 passed",
+        "pms_room_board": "10 passed",
+        "pms_room_board_postgres": "4 passed",
+        "scheduled_legal_postgres": "3 passed (existing foundation checks)",
+        "lib": "0 passed",
+        "doc-tests": "0 passed"
+      },
+      "postgresCases": [
+        "board read is Company/branch scoped, returns only PMS-owned rows, keeps rooms/room types/in-house stays/tasks/maintenance blocks, excludes rates and guest rows for a housekeeping actor, redacts stay prices, and preserves the expected room summary plus staff readback",
+        "room filters, 50-row pagination and hasNext, selected-id visibility and the default 30/60-day list window are bounded",
+        "a foreign Company, foreign branch and missing requested property fail closed with PMS_NOT_FOUND; the selected property's own board remains readable",
+        "a missing transaction is rejected with PMS_BOARD_TRANSACTION_REQUIRED and a read-committed transaction with PMS_BOARD_SERIALIZABLE_REQUIRED"
+      ],
+      "httpCases": [
+        "the actual ephemeral loopback Router serves a Rooms/Housekeeping query, preserves Host/Holding/section/property/status/q/page/selectedId/from/to forwarding and private/no-referrer/nosniff headers",
+        "unknown Holding targets return 404; duplicate, unknown, malformed, oversized-page, incomplete-range, reversed-range and empty-id queries return 422 before the backend",
+        "a backend conflict maps to 409 and invalid/duplicate Holding targets or non-HTTPS origins are rejected"
+      ],
+      "unitCases": [
+        "read requires pms.read, the pms module, a branch/company selection, a current context and a room-board role",
+        "selection bounds page, status, query bytes and the 93-day date range",
+        "housekeeping filters rate/guest facts, redacts stay prices and booking policy, sorts/dedupes staff and serializes the transport field names",
+        "manager visibility retains pricing/guest records; hidden records and foreign properties fail closed",
+        "an enforced package without pms.front-desk history returns PACKAGE_REQUIRED",
+        "property readiness and booking facts follow config and setup facts; empty scope returns an explicit snapshot:null workspace"
+      ]
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-pms --all-targets --locked",
+      "result": "pass; no erpx-server-pms warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on all new PMS Rust and test files",
+      "result": "pass"
+    },
+    "typescript": {
+      "unit": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/pms/native-pms-transport.test.ts\"]' ./node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts: 6 passed",
+      "transportCases": [
+        "room board forwards the configured Holding, session cookie, selected branch and current CAS headers and returns the validated workspace",
+        "missing authority and a changed response context fail closed before transport",
+        "foreign Company properties, unrequested permissions, missing fields and duplicate record ids are rejected",
+        "bounded owner 409 errors map without a TypeScript fallback",
+        "fail-closed availability toggles only with ERPX_NATIVE_PMS_CONFIG",
+        "reserved loopback ports, non-loopback bases, non-HTTPS or duplicate Holding origins and undersized timeouts are rejected"
+      ],
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-pms/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p apps/pms/tsconfig.json: pass",
+        "tsc --noEmit -p apps/launcher/tsconfig.json: pass",
+        "tsc --noEmit -p apps/compat/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed PMS TypeScript files: pass (only the repository's existing Next pages-directory warning)"
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json contains pms.rust-pms-room-board.unit, pms.rust-pms-room-board-postgres.integration, pms.rust-pms-http.integration and pms.native-pms-transport.unit",
+      "validation": "tsx scripts/testing/catalogue.ts validateCatalogue: TEST_CATALOGUE_VALID:864; tsx scripts/testing/layout.ts: pass"
+    },
+    "browser": "not run; no browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was performed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_pms::public::room_board::{PmsBoardActor, PmsBoardSelection, PmsBoardSection, PmsBoardVisibility, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardRepository, PmsStaffDirectory, PmsBoardFuture, pms_room_board, PmsWorkspace, PmsSnapshot, PmsProperty, PmsPropertyRow, PmsPropertySummary, PmsRecord, PmsRoomSummary, PmsListMeta, PmsStaff, PmsBoardData, PmsBoardSetup, PgPmsBoardRead, read_room_properties, read_room_board, lock_room_board_sources, readiness, readiness_from_facts, visible_records, staff}",
+      "erpx_server_pms::public::pms_http::{pms_http_router, PmsHttpTarget, PmsHttpBackend, PmsHttpReadRequest, PmsHttpResponse, PmsHttpFuture}"
+    ],
+    "backendRequired": "Implement PmsHttpBackend in src/composition: resolve the normal Account/Holding session, require pms.read and the pms module, validate the selected Company/branch and rendered-context CAS, enforce the current Commercial pms.front-desk package history entitlement through the public Commercial boundary, open one serializable transaction, call lock_room_board_sources and pms_room_board with PgPmsBoardRead, and implement PmsStaffDirectory from the public Identity/People recipient reference. Return the exact rendered context alongside data. No cross-owner SQL may be added to the PMS adapter.",
+    "privateDevelopmentApi": [
+      "Build one PmsHttpTarget per registered Holding with exact host, slug and HTTPS origin.",
+      "router = router.merge(erpx_server_pms::public::pms_http::pms_http_router(targets).map_err(|_| \"PRIVATE_API_PMS_CONFIGURATION_INVALID\")?);",
+      "Mount GET /api/v1/holdings/{slug}/pms/rooms before the generic 404 fallback. The retained GET /api/v1/holdings/{slug}/pms route uses this path only for view=list and section=rooms|housekeeping."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_PMS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app. Unset configuration intentionally returns 503 NATIVE_PMS_UNAVAILABLE for Rooms/Housekeeping; all other PMS sections keep their retained TypeScript read.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles and other owners' implementation.",
+    "schemaDelta": "none; no migration, table, index, trigger, grant or destructive data change was added"
+  },
+  "legacyInventory": {
+    "removedReadConsumers": [
+      "The PMS console Rooms and Housekeeping presenters no longer call pmsWorkspace; they read the native room board and fail closed with 503 NATIVE_PMS_UNAVAILABLE without ERPX_NATIVE_PMS_CONFIG.",
+      "The standard Front daily entry uses the native room board for rooms and housekeeping; it does not fall back to the TypeScript workspace reader.",
+      "The GET /api/v1/holdings/{slug}/pms route serves view=list&section=rooms|housekeeping through the native transport and 503s without configuration; its POST command route is unchanged."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-pms/src/public/pms.ts still exports pmsWorkspace for dashboard, reservations, front-desk, guest-accounts, cashier, inventory, guests, reports, night-audit and setup sections.",
+      "The retained front screens packages/workplace/src/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-rooms.tsx and pms-housekeeping.tsx still import pmsWorkspace but are not routed by the standard daily entry; they were not edited to avoid changing an unused legacy path.",
+      "All PMS command writers, idempotency, CAS, audit/outbox, Finance/Inventory/People same-transaction guards and rollback behavior remain TypeScript and unchanged.",
+      "Commercial package enforcement remains a public composition boundary; the native owner read models it as PmsBoardEntitlement and does not query Commercial tables."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no production/private route serves the owner router. The HTTP test backend is a recording fake.",
+    "The People staff and Commercial package entitlement ports are application contracts only; no production implementation exists in this slice. Composition must bind them before enabling ERPX_NATIVE_PMS_CONFIG.",
+    "Only property/room/housekeeping reads are native. Reservations, guest accounts, cashier, folios, inventory, reports, night audit, setup and all commands remain on the retained TypeScript path.",
+    "No browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was run.",
+    "The root Cargo.toml, Cargo.lock, package lockfiles, src/composition/**, packages/contracts/**, docs/status/** and other owners' implementation were not edited by this slice. Concurrent uncommitted procurement/sales/composition work was preserved.",
+    "Bun is not installed in this worktree, so bun run test:catalogue --check and bun run structure:check could not run; the equivalent catalogue and layout validators were executed with tsx and passed."
+  ],
+  "blockers": [
+    "Implement and mount PmsHttpBackend, including the Account/Holding session, CAS, serializable unit, People staff port and Commercial package entitlement check.",
+    "Decide whether native room/housekeeping commands are added before retiring the retained TypeScript command writers.",
+    "Run an authenticated browser journey for the native Rooms/Housekeeping sections after composition is mounted and ERPX_NATIVE_PMS_CONFIG is set."
+  ],
+  "nextAction": "Bind PgPmsBoardRead, the People staff port and the Commercial pms.front-desk entitlement in src/composition, mount pms_http_router for each registered Holding, then exercise the native room board against real Account/People data before cutover. Keep ERPX_NATIVE_PMS_CONFIG unset until that backend exists; the fail-closed 503 is intentional."
+}

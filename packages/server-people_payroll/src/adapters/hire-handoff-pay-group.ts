@@ -18,6 +18,7 @@ import {financialConstraintError} from '@erpx/server-workflow/public/command-gua
 import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import type {HireHandoffPayGroupInput} from '@erpx/server-people_payroll/domain/hire-handoff-pay-group';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const capability='recruit.offers',operation='people.pay-group.create';
 const authorityImage=(actor:WorkContext)=>JSON.stringify([actor.iam?.queuedAssignmentVersion,actor.iam?.identityVersion,actor.iam?.roleRevision,actor.iam?.hrAppointmentVersion]);
 export const hireHandoffPayGroupEnvelope=(handoffId:string,input:HireHandoffPayGroupInput)=>({hireHandoffId:handoffId,...input});
@@ -48,7 +49,7 @@ export async function withHireHandoffPayGroupCommand<Result extends {id:string}>
    if((await groups(tx,actor,before.row.currency)).results.length)throw new ApiError(409,'HIRE_PAY_GROUP_ALREADY_AVAILABLE','Choose the existing active same-currency Company pay group.');
    result=await run(tx);
   }
-  const observed=await tx.batch([...boundary.after,tx.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(fence)]);boundary.observe?.(observed);
+  const observed=await tx.batch([...boundary.after,clearWorkflowCommandAssertions(tx, fence)]);boundary.observe?.(observed);
   await flushFinanceDeferredEffects(tx);const final=await authority(tx,actor);if(authorityImage(authorized)!==authorityImage(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original HR preparation authority changed.');if((await source(tx,actor,handoffId)).image!==before.image)throw new ApiError(409,'HIRE_PAY_GROUP_SOURCE_CHANGED','The accepted hire changed before pay-group creation committed.');
   const actual=await tx.prepare('SELECT to_jsonb(p)::text image FROM hr_pay_groups p WHERE id=? AND company_id=?').bind(result.id,actor.companyId).first<string>('image');if(!actual)throw new ApiError(409,'HIRE_PAY_GROUP_SOURCE_CHANGED','The original Company pay group is unavailable.');
   if(!receipt){const row=JSON.parse(actual) as Record<string,unknown>,expected=input.input;if(row.name!==expected.name||row.country_code!==expected.countryCode||row.currency!==expected.currency||row.frequency!==expected.frequency||row.timezone!==expected.timezone||Number(row.overtime_multiplier_bps)!==expected.overtimeMultiplierBps||row.proration_method!==expected.prorationMethod||row.status!=='active'||row.created_by!==actor.userId||(await groups(tx,actor,before.row.currency)).results.some(group=>group.id!==result.id))throw new ApiError(409,'HIRE_PAY_GROUP_SOURCE_CHANGED','The actual created Company pay group changed before commit.');}

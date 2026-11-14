@@ -9,6 +9,7 @@
     "./adapters/executive-milestone-cohort": "./src/adapters/executive-milestone-cohort.ts",
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
     "./adapters/actuals": "./src/adapters/actuals.ts",
+    "./adapters/native-project-commands": "./src/adapters/native-project-commands.ts",
     "./adapters/scheduled-tasks": "./src/adapters/scheduled-tasks.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/operations-staff-tasks-facts": "./src/adapters/operations-staff-tasks-facts.ts",
@@ -17,7 +18,6 @@
     "./adapters/structure": "./src/adapters/structure.ts",
     "./adapters/staff-projects": "./src/adapters/staff-projects.ts",
     "./adapters/product-presentation-request": "./src/adapters/product-presentation-request.ts",
-    "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
     "./adapters/work-ui-staff-facts": "./src/adapters/work-ui-staff-facts.ts",
     "./adapters/queued-routine-source": "./src/adapters/queued-routine-source.ts",
     "./adapters/collaboration-home-projections": "./src/adapters/collaboration-home-projections.ts",
@@ -25,7 +25,6 @@
     "./adapters/task-creation": "./src/adapters/task-creation.ts",
     "./adapters/optional-project-options": "./src/adapters/optional-project-options.ts",
     "./adapters/routine-project-options": "./src/adapters/routine-project-options.ts",
-    "./adapters/attachment-read": "./src/adapters/attachment-read.ts",
     "./adapters/record-purchases": "./src/adapters/record-purchases.ts",
     "./adapters/people-evaluation-facts": "./src/adapters/people-evaluation-facts.ts",
     "./adapters/purchases": "./src/adapters/purchases.ts",
@@ -41,6 +40,7 @@
     "./adapters/social-purchase-sources": "./src/adapters/social-purchase-sources.ts",
     "./public/product-entry": "./src/public/product-entry.ts",
     "./public/project-actuals": "./src/public/project-actuals.ts",
+    "./public/native-project-commands": "./src/public/native-project-commands.ts",
     "./public/collaboration-home-sources": "./src/public/collaboration-home-sources.ts",
     "./public/executive-milestone-cohort": "./src/public/executive-milestone-cohort.ts",
     "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
@@ -51,7 +51,6 @@
     "./public/operations-routines-facts": "./src/public/operations-routines-facts.ts",
     "./public/staff-projects": "./src/public/staff-projects.ts",
     "./public/product-presentation-request": "./src/public/product-presentation-request.ts",
-    "./public/attachment-purchases": "./src/public/attachment-purchases.ts",
     "./public/work-ui-staff-facts": "./src/public/work-ui-staff-facts.ts",
     "./public/queued-routine-source": "./src/public/queued-routine-source.ts",
     "./public/collaboration-home-projections": "./src/public/collaboration-home-projections.ts",
@@ -59,7 +58,6 @@
     "./public/task-creation": "./src/public/task-creation.ts",
     "./public/optional-project-options": "./src/public/optional-project-options.ts",
     "./public/routine-project-options": "./src/public/routine-project-options.ts",
-    "./public/attachment-read": "./src/public/attachment-read.ts",
     "./public/record-purchases": "./src/public/record-purchases.ts",
     "./public/people-evaluation-facts": "./src/public/people-evaluation-facts.ts",
     "./public/purchases": "./src/public/purchases.ts",
@@ -112,8 +110,8 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "next": "16.4.0",
+    "next": "16.4.3",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

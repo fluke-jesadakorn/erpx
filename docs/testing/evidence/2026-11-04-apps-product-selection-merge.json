@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Apps all-scope product selection merged; the Apps owner still has three unstarted workflows",
+  "capability": "apps-product-selection-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 30,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/30",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T20:43:29Z",
+    "base": "3083db9ca94a8c27fab70b04b0c2f76d63ad4171",
+    "head": "35b638ef294295aa6828c9f830b4a811f2b3d7cc",
+    "mergeCommit": "d53262fe6bc0525e8ab9a24653b695893308f96d",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "apps:all-company-branch-department-product-selection",
+    "changedFiles": 5,
+    "fix": "packages/server-work_projection/src/adapters/product-launcher.ts recovery links skip 401/403/404 bindings",
+    "tests": "tests/unit/shared.ui/product-launcher.test.ts all-product/all-scope matrix and per-Company withdrawal"
+  },
+  "verification": {
+    "unit": "shared.ui.product-launcher.unit + identity_access.product-sso.unit: 7 files, 122/122",
+    "gates": "typecheck, structure, architecture, docs, catalogue (33 modules, 780 suites)",
+    "browser": "Desktop normal-auth: Helpdesk entry with Company name, Apps workspace Company/branch/department, assignment withdrawal shows no products, restore returns the Helpdesk tile; pageErrors 0, consoleErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 13,
+    "workflowsPartial": 5,
+    "workflowsMerged": 13,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "The all-product/all-scope proof is the launcher projection matrix; the browser covers the Helpdesk entry, Apps workspace scopes, withdrawal and restoration.",
+    "Front products still need their own apps for a click-through; their selection hrefs and Company slug hydration are matrix-verified.",
+    "The Apps owner remains open: company executive/MCP, single-product direct entry and dirty product switch are separate workflows."
+  ]
+}

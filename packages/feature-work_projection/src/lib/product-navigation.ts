@@ -1,11 +1,11 @@
 import {canonicalUiHref,workspacePathParts,destinations} from '@erpx/feature-work_projection/lib/destination-registry';
-import {destinationProduct,developmentProductOrigin,product,productIds,sharedHostKeys,modulePlacement,type ProductHostKey} from '@erpx/contracts/product-registry';
-import {safeProductReturnPath} from '@erpx/contracts/account-navigation';
-import {adminWorkspaceTarget} from '@erpx/contracts/admin-workspace';
-import {accountWorkspaceTarget} from '@erpx/contracts/account-workspace';
-import {publicSurfaceTarget,publicSurfaceLaunchPath,legalEnrollmentEntryTarget} from '@erpx/contracts/public-surface-entry';
+import {destinationProduct,developmentProductOrigin,product,productIds,sharedHostKeys,modulePlacement,type ProductHostKey} from '@erpx/server-commercial/public/product-registry';
+import {safeProductReturnPath} from '@erpx/contracts/product-return-path';
+import {adminWorkspaceTarget} from '@erpx/server-identity_access/public/rules/admin-workspace';
+import {accountWorkspaceTarget} from '@erpx/server-identity_access/public/rules/account-workspace';
+import {publicSurfaceTarget,publicSurfaceLaunchPath,legalEnrollmentEntryTarget} from '@erpx/server-identity_access/public/rules/public-surface-entry';
 import type {UrlObject} from 'node:url';
-import {holdingHostForHost,holdingOrigin,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
+import {holdingHostForHost,holdingOrigin,holdingUiUrl,holdingPublicUiUrl,holdingFrontUiUrl,parseHoldingRoute} from '@erpx/feature-runtime/lib/holding-hosts';
 
 export type ProductNavigationScope={audience:ProductHostKey|null;companyId?:string;companySlug?:string;workspaceBase?:string;holdingSlug?:string};
 const credentials=['code','state','token','session_token','_rsc'];

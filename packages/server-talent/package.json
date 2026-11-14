@@ -7,7 +7,6 @@
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
     "./adapters/product-entry": "./src/adapters/product-entry.ts",
     "./adapters/executive-evidence-sources": "./src/adapters/executive-evidence-sources.ts",
-    "./adapters/requisition": "./src/adapters/requisition.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/talent": "./src/adapters/talent.ts",
     "./adapters/product-presentation-request": "./src/adapters/product-presentation-request.ts",
@@ -37,11 +36,11 @@
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/attachments-sensitive-facts": "./src/public/attachments-sensitive-facts.ts",
     "./index": "./src/index.ts",
-    "./application/requisition": "./src/application/requisition.ts",
     "./application/talent": "./src/application/talent.ts",
     "./domain/product-entry": "./src/domain/product-entry.ts",
     "./domain/requisition": "./src/domain/requisition.ts",
-    "./domain/talent": "./src/domain/talent.ts"
+    "./domain/talent": "./src/domain/talent.ts",
+    "./public/native-talent-lifecycle-page": "./src/public/native-talent-lifecycle-page.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -49,7 +48,6 @@
   },
   "dependencies": {
     "@erpx/catalogue": "workspace:*",
-    "@erpx/contracts": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-runtime": "workspace:*",
@@ -66,8 +64,8 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "next": "16.4.0",
+    "next": "16.4.3",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

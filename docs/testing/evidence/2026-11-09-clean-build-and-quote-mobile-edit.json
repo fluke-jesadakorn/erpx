@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The previously untracked Files/Workflow field-attachment ancestry, routing, quality-inspection descriptor and Count-origin modules are integrated, so a clean archive of the integration HEAD now builds the full private development service. The missing mobile draft-edit journey was also replayed on the final source: a mobile 390x844 Edit draft saved version 3 with the exact quantity/note and 1+3N Finance Money rows. sales/quotes closes again; sales/orders and cancellations remain partial.",
+  "capability": "clean-full-service-build-and-quote-mobile-edit",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "23ae21209e83d7aa33a6623a379d05ac85fe44b9",
+  "scope": {
+    "integration": "Added the required Files adapters/public ports (quality_inspection_descriptors, field_attachment_ancestry, field_attachment_routing, count_history_attachment_sources) and Workflow record-origin/asset-purchase/count-origin modules plus their tracked call-site changes. These are the external modules HEAD already referenced; nothing was deleted and no runtime behavior was invented.",
+    "cleanBuild": "git archive HEAD extracted to a fresh directory and cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business completed successfully.",
+    "mobileEdit": "Mobile 390x844 Edit draft on QT-2026-000010 (order-bf576781-6935-415c-b87f-e9eccee50d98) changed quantity to 3 and note to 'Mobile edit native quote'. POST /orders/order-bf576781... returned version 3; detail readback returned quantity_milli 3000, subtotal_minor 3000, note exact.",
+    "money": "Version 3 Money rows persisted: order total 3000; line-0 unit_price 1000, subtotal 3000, tax 0. Version 1 and 2 rows remain immutable."
+  },
+  "verification": {
+    "cleanArchive": "PASS: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business (fresh git archive of HEAD).",
+    "filesWorkflowTests": "cargo test -p erpx-server-files -p erpx-server-workflow --locked: all non-provider suites pass (1+3+12+25+6+25+8+6). The ClamAV provider suite fails only because the local scanned socket/signature fixture is absent; no Files/Workflow assertion failed.",
+    "commerce": "cargo test -p erpx-server-commerce --locked 62/62; quote create/edit and guard suites remain green.",
+    "browser": "Desktop create/edit and mobile create were previously evidenced; mobile edit now passes on the same source. Screenshot: .scratch/dev/commerce-mobile-edit.png."
+  },
+  "workflowClosure": {
+    "sales/quotes": "Verified against the registered quotation scope: native price lists, list/detail, draft create/update with Money snapshots, quote submit/approve/return/cancel/conversion, desktop and mobile create/edit, and a clean full-service archive build. Purchase orders, sales-order fulfillment/invoicing/settlement/returns and confirmed sales cancellation are separate workflows or retained operations."
+  },
+  "counts": {
+    "verified": 84,
+    "partial": 37,
+    "unstarted": 85,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "1 verified / 2 partial / 2 unstarted of 5"
+  },
+  "remaining": [
+    "sales/orders: fulfillment, invoicing, settlement and returns; guarded approval/cancel still needs an independent approver browser journey",
+    "sales/feature-cancellations: purchase/foreign-goods cancellation and independent browser cancel",
+    "positive-cost Assets browser verification blocked by server-assets/composition API drift",
+    "Provider ClamAV fixture required only for that provider suite"
+  ],
+  "nextAction": "Port Commerce fulfillment/invoicing/settlement/returns to close sales/orders; then return to positive-cost Assets after integrating the server-assets/composition API revision."
+}

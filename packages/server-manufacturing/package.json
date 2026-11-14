@@ -11,7 +11,6 @@
     "./adapters/existing-posting-sources": "./src/adapters/existing-posting-sources.ts",
     "./adapters/posting-profiles": "./src/adapters/posting-profiles.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
-    "./adapters/lots": "./src/adapters/lots.ts",
     "./adapters/inventory-executive-owner-projections": "./src/adapters/inventory-executive-owner-projections.ts",
     "./adapters/production-command-sources": "./src/adapters/production-command-sources.ts",
     "./adapters/finance-close-source": "./src/adapters/finance-close-source.ts",
@@ -34,7 +33,6 @@
     "./adapters/executive-main-evidence-sources": "./src/adapters/executive-main-evidence-sources.ts",
     "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",
     "./public/posting-setup": "./src/public/posting-setup.ts",
-    "./public/production-lots": "./src/public/production-lots.ts",
     "./public/production": "./src/public/production.ts",
     "./public/production-read-projections": "./src/public/production-read-projections.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
@@ -97,6 +95,6 @@
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

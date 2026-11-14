@@ -12,6 +12,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {peoplePackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure,companyPurchaseReadLocks,holdingPurchaseReadLocks,readPurchasedAccesses,type PackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Capability="people.directory"|"people.lifecycle"|"foundation.identity";
 type Target={kind:"person"|"engagement"|"compensation"|"lifecycle"|"preparation-plan"|"preparation-complete";id:string};
@@ -28,7 +29,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  if(permission)requirePermission(actor,permission);
  const row=await database.prepare(`SELECT ${where} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) people_owner_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"PEOPLE_ACCESS_CHANGED","Choose a current authorized People work role.");
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 /** Full People readers use this base capability. Typed worker/learner and
  * organization contact readers retain their smaller owner contracts. */
@@ -58,7 +59,7 @@ export async function withPeoplePurchasedCommand<Result>(actor:WorkContext,comma
    await current(database,actor,key,command.permission);
    if(target){const after=await source(database,target);if(JSON.stringify(expected)!==JSON.stringify(after))throw new ApiError(409,"PEOPLE_SOURCE_CHANGED","The original People owner identity changed.");}
    if(created&&JSON.stringify(createdSource)!==JSON.stringify(await source(database,created)))throw new ApiError(409,"PEOPLE_SOURCE_CHANGED","The created People record changed its original owner.");
-   const observed=await database.batch([...boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);boundary.observe?.(observed);
+   const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database, key)]);boundary.observe?.(observed);
   };
   await check();composition.checks.push(check);return result;
  };

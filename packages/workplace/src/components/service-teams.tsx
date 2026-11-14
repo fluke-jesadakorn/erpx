@@ -7,11 +7,11 @@ import { TimeText } from "@erpx/feature-people_payroll/components/time/time-pref
 import { useState } from "react";
 import { Combobox } from "@erpx/ui/components/popups";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type {previewServiceTeam} from '@erpx/server-support/public/service-teams';
+import type {ServiceTeamPreview} from '@erpx/server-support/public/service-teams';
 import { Dialog } from "@erpx/ui/components/dialog";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import {useStaffCommand} from '@erpx/feature-work_projection/components/use-staff-command';
-import { useRecoverableDraft } from "@erpx/ui/components/use-recoverable-draft";
+import { useRecoverableDraft } from "@erpx/feature-shared/components/use-recoverable-draft";
 import { serviceCategories, categoryLabel } from "@erpx/feature-people_payroll/lib/employee-services";
 import type { serviceTeamOptions } from "@erpx/server-support/public/service-team-options";
 import styles from "@erpx/workplace/components/services.module.css";
@@ -113,7 +113,7 @@ function TeamEditor({
   userId: string;
   done: () => void;
 }) {
-  const [preview,setPreview]=useState<Awaited<ReturnType<typeof previewServiceTeam>>|null>(null),[previewError,setPreviewError]=useState(""),[previewing,setPreviewing]=useState(false);
+  const [preview,setPreview]=useState<ServiceTeamPreview|null>(null),[previewError,setPreviewError]=useState(""),[previewing,setPreviewing]=useState(false);
   const ready = useHydrated(),
     command = useStaffCommand(base),
     firstNode = options.nodes.find((n) => n.kind === "company") ?? options.nodes[0];

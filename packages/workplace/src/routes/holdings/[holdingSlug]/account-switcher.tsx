@@ -23,7 +23,7 @@ import {
   setContextSwitching,
 } from "@erpx/feature-work_projection/lib/context-switch";
 
-import type { DeviceAccount as DeviceSession } from "@erpx/feature-identity_access/lib/device-accounts";
+import type { DeviceAccountDto as DeviceSession } from "@erpx/contracts/account-auth";
 
 type Props = {
   accountNavigation?: boolean;
@@ -66,8 +66,8 @@ function LegacyAccountSwitcher({
   const [deviceRevision, setDeviceRevision] = useState<number | null>(null);
 
   async function loadAccounts() {
-    const { nodeDeviceAccounts } = await import("@erpx/feature-identity_access/lib/node-device-accounts");
-    const result = await nodeDeviceAccounts.list();
+    const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
+    const result = await authClient.multiSession.listDeviceSessions();
     if (result.data) { setSessions(result.data.accounts); setDeviceRevision(result.data.revision); }
     else { setDeviceRevision(null); setError(result.error?.message ?? "Saved accounts could not be loaded."); }
   }
@@ -128,8 +128,11 @@ function LegacyAccountSwitcher({
         onCommitted: () => setOpen(false),
         action: async () => {
           if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-          const { nodeDeviceAccounts } = await import("@erpx/feature-identity_access/lib/node-device-accounts");
-          const result = await nodeDeviceAccounts.activate(session.handle, deviceRevision);
+          const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
+          const result = await authClient.multiSession.setActive({
+            handle: session.handle,
+            revision: deviceRevision,
+          });
           if (result.error?.code === "DEVICE_ACCOUNTS_CHANGED") await loadAccounts();
           if (result.error)
             throw new Error(result.error.message ?? "Account could not be selected.");
@@ -154,8 +157,12 @@ function LegacyAccountSwitcher({
         onCommitted: () => setOpen(false),
         action: async () => {
           if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-          const { nodeDeviceAccounts } = await import("@erpx/feature-identity_access/lib/node-device-accounts");
-          const result = await nodeDeviceAccounts.signIn(String(form.get("email")), String(form.get("password")), deviceRevision ?? undefined);
+          const { authClient } = await import("@erpx/feature-identity_access/lib/auth-client");
+          const result = await authClient.signIn.email({
+            email: String(form.get("email")),
+            password: String(form.get("password")),
+            ...(deviceRevision === null ? {} : { revision: deviceRevision }),
+          });
           if (result.error) throw new Error(result.error.message ?? "Account could not be added.");
         },
       });

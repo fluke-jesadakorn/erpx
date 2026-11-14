@@ -1,3 +1,6 @@
+import {headers} from 'next/headers';
+import {serviceCountWriterOwner} from '@erpx/server-inventory/public/service-initial-physical-stock-count';
+import {serviceCountRead} from '../../../../../../lib/service-count-native-read';
 import {countPurchaseControls} from "@erpx/server-inventory/public/count-purchases";
 import {CountEnvironment} from "@erpx/feature-inventory/components/count-purchase-context";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
@@ -37,9 +40,11 @@ export default async function Count({
   const { holdingSlug, id } = await params,
     actor = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(actor));
+  const serviceOwned=await serviceCountWriterOwner(actor,id).catch((e)=>pageError(e,holdingSlug));
+  const requestHeaders=serviceOwned==='service'?await headers():null;
   const purchase=await countPurchaseControls(actor,id);
   const [detail, options] = await Promise.all([
-    countDetail(actor, id).catch((e) => pageError(e, holdingSlug)),
+    (serviceOwned==='service'?serviceCountRead(requestHeaders!,actor,holdingSlug,{kind:'generic-detail',id}):countDetail(actor,id)).catch((e) => pageError(e, holdingSlug)),
     canPrepareCounts(actor) && purchase?.newWork!==false
       ? countOptions(actor).catch((e) => pageError(e, holdingSlug))
       : Promise.resolve({ warehouses: [], products: [], stock: [], lots: [], currency: "" }),
@@ -49,7 +54,7 @@ export default async function Count({
     stale =
       lines.some((l) => Number(l.current_version) !== Number(l.snapshot_version)) ||
       lotLines.some((l) => Number(l.current_version) !== Number(l.snapshot_version));
-  const flow = await documentFlow(actor, "stock_count", id);
+  const flow = serviceOwned==='service'?await serviceCountRead(requestHeaders!,actor,holdingSlug,{kind:'flow',id}).catch((e)=>pageError(e,holdingSlug)):await documentFlow(actor, "stock_count", id);
   return (
     <CountEnvironment purchase={purchase}><FeaturePage className="ui-page-content" data-source="live">
       <WorkReturn base={base} />

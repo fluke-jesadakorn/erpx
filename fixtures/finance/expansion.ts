@@ -17,7 +17,8 @@ import {
   snapshotFinancialReport,
   exportFinancialReport,
 } from "@erpx/server-finance/public/finance-planning";
-import {createJournal,createJournalSchema,postJournal,postInvoice,importBankStatement,createPeriod,beginClose,closePeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../tests/support/helpers/finance-journal-seed';
+import {postInvoice,importBankStatement,createPeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
 import {
   createBankCsvMapping,
   bankCsvMappingSchema,
@@ -204,18 +205,15 @@ export async function seedFinanceExpansionRehearsal(
     .bind(f.period)
     .run();
   const close = async (x: typeof f, id: string) => {
-    const prepared = await beginClose(x.reviewer, id, key());
-    await closePeriod(
-      x.manager,
-      id,
-      {
-        expectedVersion: Number(prepared.version),
-        attachmentSetIds: [],
-        proof:
-          "Independent retained GL, bank and source-owner reconciliation for synthetic engineering close",
-      },
-      key(),
-    );
+    // The native period-close command owns this transition; seed its persisted
+    // state so retained fixture assertions exercise the closed period without a
+    // retired TypeScript close writer.
+    await db
+      .prepare(
+        "UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=?",
+      )
+      .bind(x.manager.userId, Date.now(), id)
+      .run();
   };
   const statement = async (
     date: string,
@@ -575,21 +573,20 @@ export async function seedFinanceExpansionRehearsal(
   );
   const cashLines = [];
   for (const amount of ["60.01", "39.99"]) {
-    const j = await createJournal(
-      preparer,
-      createJournalSchema.parse({
-        chartId: f.chart,
-        periodId: september,
-        entryDate: "2026-09-04",
-        currency: "THB",
-        lines: [
-          { accountId: f.accounts.cash, debit: amount, credit: "0" },
-          { accountId: f.accounts.revenue, debit: "0", credit: amount },
-        ],
-      }),
-      key(),
-    );
-    await postJournal(approver, String(j.id), key(), { expectedVersion: 1 });
+    const j = await seedFinanceJournal(db, {
+      companyId: preparer.companyId,
+      chartId: f.chart,
+      periodId: september,
+      entryDate: "2026-09-04",
+      currency: "THB",
+      key: key(),
+      createdBy: preparer.userId,
+      status: "posted",
+      lines: [
+        { accountId: f.accounts.cash, debit: amount, credit: "0" },
+        { accountId: f.accounts.revenue, debit: "0", credit: amount },
+      ],
+    });
     cashLines.push(
       String(
         await db

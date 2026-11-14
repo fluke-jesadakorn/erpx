@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support evidence merged; the Support owner is complete (1/41)",
+  "capability": "support-evidence-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 28,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/28",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T20:31:58Z",
+    "base": "12606c52948c14dd0f7ea003e6e0fb6580137b29",
+    "head": "445fb45759b1c64168ca2514ea886b762faacdb7",
+    "mergeCommit": "5bef7e74461ee4859e4318411bbe742774dd288c",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "support/feature-attachments",
+    "changedFiles": 19,
+    "nativeWriter": "src/composition/src/support_evidence_command.rs",
+    "http": "src/composition/src/support_evidence_http.rs",
+    "transport": "packages/feature-support/src/adapters/server/native-support-evidence.ts",
+    "excluded": ["files upload intake remains the Files owner workflow"]
+  },
+  "verification": {
+    "postgres": "support.rust-support-evidence-command-postgres.integration 3/3",
+    "unit": "erpx-server-support 45/45",
+    "transport": "support.native-support-evidence-transport.unit 4/4",
+    "existing": "ticket 2/2, incident 3/3, session 3/3, SLA 3/3",
+    "gates": "cargo clippy, typecheck, structure, architecture, docs, catalogue (33 modules, 780 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile normal-auth lifecycles bind a reviewed internal_evidence set and withdraw it; persisted ticket v2 then v3, set bound, attachment revoked, attachment-bind/attachment-revoke events; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 12,
+    "workflowsPartial": 6,
+    "workflowsMerged": 12,
+    "workflowsTotal": 206,
+    "supportOwner": {"workflows": 6, "verified": 6, "merged": 6}
+  },
+  "limits": [
+    "The browser fixture pre-seeded the draft upload set; upload intake remains the Files owner workflow.",
+    "The browser exercised internal_evidence; customer_shareable uses the same contract and is covered by domain/application rules.",
+    "The legacy private evidence read adapter remains for previously uploaded files during migration.",
+    "The Support app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

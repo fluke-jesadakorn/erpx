@@ -2,7 +2,6 @@ import type {Clock} from '@erpx/server-shared/index';
 import {eventWork,projectionWork,type EventMessage,type ProjectionSource,type ProjectionWork} from '@erpx/server-workflow/domain/job-projector';
 export interface JobProjectorPorts{
  knownHolding(id:string):boolean; clock:Clock; production:boolean;
- pmsEvent(message:EventMessage):Promise<void>;
  customerNotificationId(fulfillmentId:string):Promise<string|null>;
  deliverCustomerNotification(id:string):Promise<void>;
  legalAi():Promise<void>;executiveGeneration():Promise<void>;socialAgent(id:string):Promise<void>;
@@ -13,7 +12,6 @@ export interface JobProjectorPorts{
 export function createJobProjectorApplication(ports:JobProjectorPorts){
  async function project(message:EventMessage){
   if(!ports.knownHolding(message.holdingId))throw Error('INVALID_HOLDING');
-  if(message.eventType.startsWith('pms.'))await ports.pmsEvent(message);
   if(message.eventType==='commerce.customer-notification.queue'||message.eventType==='commerce.customer-notification.retry'){
    const id=message.eventType.endsWith('.queue')?await ports.customerNotificationId(message.aggregateId):message.aggregateId;
    if(id)await ports.deliverCustomerNotification(id);

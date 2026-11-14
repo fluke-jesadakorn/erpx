@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button, Card, Field, PageContent, TextInput } from "@erpx/ui/components/foundation";
 
@@ -27,7 +28,7 @@ export function CustomerPortalEnrollment({verifiedReturn=false}:{verifiedReturn?
     if(!token){setMessage("Open the complete invitation link from your email.");return;}
     setBusy(true);setMessage("");if(action==='signup')setVerificationRetryNeeded(false);
     try{
-      const response=await fetch("/api/customer-portal/enroll",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,token,...values})});
+      const response=await holdingFetch("/api/customer-portal/enroll",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,token,...values})});
       const body=await response.json().catch(()=>null);
       if(!response.ok){
         const code=body&&typeof body==='object'?(body as {error?:{code?:unknown}}).error?.code:null;

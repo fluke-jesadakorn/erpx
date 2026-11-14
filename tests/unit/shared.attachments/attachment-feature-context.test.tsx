@@ -103,7 +103,7 @@ it("keeps external legacy file mutations behind enabled-mode guards", () => {
   );
 });
 
-it("suppresses staged attachment IDs as soon as the global mode stops allowing mutations", () => {
+it("suppresses staged attachment IDs as soon as the global mode stops allowing mutations", async () => {
   const panel = readFileSync(
     "packages/feature-files/src/components/attachment-panel.tsx",
     "utf8",
@@ -118,7 +118,16 @@ it("suppresses staged attachment IDs as soon as the global mode stops allowing m
   );
   expect(panel).toContain("if (!wasEnabled || mutationsEnabled) return;");
   expect(panel).toContain("{draftMutable && fieldName && set?.id && (");
-  expect(panel).toContain("const submissionBlocked =\n    draftMutable &&");
+  const ts = await import("typescript"), file = ts.createSourceFile("panel.tsx", panel, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let expression: import("typescript").Expression | undefined;
+  const visit = (node: import("typescript").Node) => { if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "submissionBlocked") expression = node.initializer; ts.forEachChild(node, visit); };
+  visit(file);
+  expect(expression).toBeDefined();
+  const evaluate = new Function("pendingWithdrawal", "pendingBind", "draftMutable", "requiredCount", "readyCount", "activeLinks", "bindable", `return (${expression!.getText(file)});`) as (withdrawal: boolean, bind: boolean, mutable: boolean, required: number, ready: number, links: unknown[], bindable: boolean) => boolean;
+  expect(evaluate(false, false, false, 1, 0, [{}], false)).toBe(false);
+  expect(evaluate(false, false, true, 1, 0, [{}], false)).toBe(true);
+  expect(evaluate(true, false, false, 0, 0, [], true)).toBe(true);
+  expect(evaluate(false, true, false, 0, 0, [], true)).toBe(true);
   expect(incident).toContain('attachmentMode === "enabled"');
 });
 

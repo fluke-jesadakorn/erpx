@@ -9,5 +9,5 @@ export function financeDocumentFormUnchanged(completion: WorkCommandCompletion |
 }
 export function financeDocumentCommandContext() {
   const context = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]");
-  return context ? [context.dataset.workUser,context.dataset.workRevision,context.dataset.workCompany,context.dataset.workAssignment].join(":") : "server";
+  return context ? JSON.stringify([context.dataset.workUser,context.dataset.workRevision,context.dataset.workCompany,context.dataset.workAssignment,context.dataset.workAssignmentVersion]) : "server";
 }

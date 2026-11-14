@@ -2,20 +2,16 @@ import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { z } from "zod";
 import type { TaskSource } from "@erpx/server-collaboration/public/social-task";
 import type { RecordScope, StaffActor } from "@erpx/server-operations/public/staff-policy";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { getProject } from "@erpx/server-projects/public/staff-projects";
 import type {readablePost} from '@erpx/server-collaboration/public/social-source';
 import type { taskSourceStatements } from "@erpx/server-collaboration/public/social-task";
 import type {approvalView} from '@erpx/server-workflow/public/approval-planning';
 import type {closeApprovals} from '@erpx/server-workflow/public/approval-planning';
-import type {openApproval} from '@erpx/server-workflow/public/approval-planning';
-import type {prepareDecision} from '@erpx/server-workflow/public/approval-planning';
 import type {taskRoute} from '@erpx/server-workflow/public/approval-planning';
 import type { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import type { staffGuard } from "@erpx/server-operations/public/staff-policy";
 import type { notification } from "@erpx/server-operations/public/staff-policy";
-import type { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { taskFieldsSchema, taskSchema, taskActionSchema, taskDelegationSchema, taskDelegationRevokeSchema, type TaskRow, isOrdinaryTask, type TaskDetail, canConfigureTask, canAttachTask, isActiveDelegate, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
+import { taskFieldsSchema, taskSchema, type TaskRow, isOrdinaryTask, type TaskDetail, canConfigureTask, canAttachTask, isActiveDelegate, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { OperationsCommands } from '@erpx/server-operations/domain/commands';
 type Tail<Value extends unknown[]> = Value extends [
@@ -36,17 +32,6 @@ export interface StaffTasksRepository<Effect> {
     }>;
     readGetTaskRow(id: string, companyId: string, userId: string, userId2: string, userId3: string, userId4: string, userId5: string, userId6: string, userId7: string, userId8: string): Promise<TaskRow | null>;
     guard3(key: string, step: string, id: string, version: number, companyId: string, value: string[]): Effect;
-    guard4(key: string, value: "task-delegation-unique", companyId: string, id: string, now: number, now2: number): Effect;
-    stageDelegateTaskEffect(delegationId: string, companyId: string, id: string, userId: string, delegateUserId: string, now: number, expiresAt: number, reason: string, now2: number, now3: number): Effect;
-    stageDelegateTaskEffect2(now: number, id: string, companyId: string): Effect;
-    readRevokeTaskDelegationDelegation(delegationId: string, companyId: string, id: string, now: number, now2: number): Promise<{
-        id: string;
-        delegate_user_id: string;
-        version: number;
-    } | null>;
-    guard8(key: string, value: "task-delegation-active", id: string, companyId: string, id2: string, now: number, now2: number): Effect;
-    stageRevokeTaskDelegationEffect(userId: string, reason: string, now: number, now2: number, id: string, companyId: string): Effect;
-    stageRevokeTaskDelegationEffect2(now: number, id: string, companyId: string): Effect;
     guard11(key: string, value: "task-configure", id: string, companyId: string, userId: string, userId2: string): Effect;
     guard12(key: string, value: "task-version", id: string, version: number, states: string[]): Effect;
     guard13(key: string, value: "task-project", projectId: string, companyId: string, userId: string, userId2: string): Effect;
@@ -57,12 +42,6 @@ export interface StaffTasksRepository<Effect> {
     }>;
     readTaskDetailDelegationHistory(companyId: string, id: string): Promise<{
         results: (TaskDetail["delegationHistory"][number])[];
-    }>;
-    stageTransitionTaskEffect(state: string, action: "submit" | "start" | "save-progress" | "complete" | "approve" | "reject" | "cancel", note: string, now: number, id: string): Effect;
-    readTransitionTaskFollowers(id: string): Promise<{
-        results: ({
-            principal_id: string;
-        })[];
     }>;
 }
 export interface StaffTasksPorts<Effect> {
@@ -80,13 +59,10 @@ export interface StaffTasksPorts<Effect> {
     taskSourceStatements(...args: Tail<Parameters<typeof taskSourceStatements>>): PortResult<ReturnType<typeof taskSourceStatements>, Effect>;
     approvalView(...args: Tail<Parameters<typeof approvalView>>): PortResult<ReturnType<typeof approvalView>, Effect>;
     closeApprovals(...args: Tail<Parameters<typeof closeApprovals>>): PortResult<ReturnType<typeof closeApprovals>, Effect>;
-    openApproval(...args: Tail<Parameters<typeof openApproval>>): PortResult<ReturnType<typeof openApproval>, Effect>;
-    prepareDecision(...args: Tail<Parameters<typeof prepareDecision>>): PortResult<ReturnType<typeof prepareDecision>, Effect>;
     taskRoute(...args: Tail<Parameters<typeof taskRoute>>): PortResult<ReturnType<typeof taskRoute>, Effect>;
     activeStaff(...args: Tail<Parameters<typeof activeStaff>>): PortResult<ReturnType<typeof activeStaff>, Effect>;
     staffGuard(...args: Tail<Parameters<typeof staffGuard>>): PortResult<ReturnType<typeof staffGuard>, Effect>;
     notification(...args: Tail<Parameters<typeof notification>>): PortResult<ReturnType<typeof notification>, Effect>;
-    prepareAttachmentBinding(...args: Tail<Parameters<typeof prepareAttachmentBinding>>): PortResult<ReturnType<typeof prepareAttachmentBinding>, Effect>;
 }
 export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effect>) {
     const r = ports.repository;
@@ -109,74 +85,6 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
     }
     const{getTask,taskSourceReadGuard,taskWorkState}=createStaffTaskRead(ports);
 
-    async function delegateTask(actor: StaffActor, id: string, input: z.infer<typeof taskDelegationSchema>, key: string) {
-        const prior = await ports.commands.replay<{
-            id: string;
-            delegationId: string;
-            version: number;
-            expiresAt: number;
-        }>(actor, key, "task.delegate", id, input);
-        if (prior)
-            return prior;
-        const task = await getTask(actor, id);
-        if (!canConfigureTask(actor, task))
-            throw new BusinessRuleError(403, "TASK_DELEGATION_REQUIRED", "Only the task creator or project owner can delegate this task.");
-        if (["completed", "cancelled"].includes(task.state))
-            throw new BusinessRuleError(409, "TASK_TERMINAL", "Completed or cancelled tasks cannot be delegated.");
-        if (samePerson(actor, input.delegateUserId) || samePerson({ ...actor, userId: input.delegateUserId }, task.assignee_user_id))
-            throw new BusinessRuleError(422, "TASK_DELEGATE_INVALID", "Choose a different active staff member as the temporary delegate.");
-        const approvers = [
-            ...JSON.parse(task.start_approvers_json) as string[],
-            ...JSON.parse(task.completion_approvers_json) as string[],
-        ];
-        if (approvers.some((userId) => userId === input.delegateUserId))
-            throw new BusinessRuleError(422, "TASK_DELEGATE_INDEPENDENCE", "A configured approver cannot also receive temporary task ownership.");
-        const expiresAt = Date.parse(input.expiresAt), now = ports.clock.now();
-        if (!Number.isFinite(expiresAt) || expiresAt <= now)
-            throw new BusinessRuleError(422, "TASK_DELEGATE_EXPIRY", "Delegation expiry must be in the future.");
-        if (expiresAt > now + 90 * 86400000)
-            throw new BusinessRuleError(422, "TASK_DELEGATE_EXPIRY", "Delegation expiry cannot be more than 90 days away.");
-        await ports.activeStaff(actor.companyId, input.delegateUserId);
-        const delegationId = `task-delegation-${key}`;
-        const result = { id, delegationId, version: input.expectedVersion + 1, expiresAt };
-        return ports.commands.commit(actor, key, "task.delegate", input, id, result.version, result, [
-            ports.staffGuard(key, actor.companyId, actor.userId),
-            ports.staffGuard(key, actor.companyId, input.delegateUserId, "delegate-staff"),
-            configurationGuard(key, actor, task),
-            taskVersionGuard(key, id, input.expectedVersion, [task.state]),
-            r.guard4(key, "task-delegation-unique", actor.companyId, id, now, now),
-            r.stageDelegateTaskEffect(delegationId, actor.companyId, id, actor.userId, input.delegateUserId, now, expiresAt, input.reason, now, now),
-            r.stageDelegateTaskEffect2(now, id, actor.companyId),
-            ports.notification(task, input.delegateUserId, "task", id, result.version, `Task delegated to you until ${new Date(expiresAt).toISOString()}`),
-        ], scope(task));
-    }
-    async function revokeTaskDelegation(actor: StaffActor, id: string, input: z.infer<typeof taskDelegationRevokeSchema>, key: string) {
-        const recordId = `${id}:${input.delegationId}`;
-        const prior = await ports.commands.replay<{
-            id: string;
-            delegationId: string;
-            version: number;
-            status: string;
-        }>(actor, key, "task.delegate-revoke", recordId, input);
-        if (prior)
-            return prior;
-        const task = await getTask(actor, id);
-        if (!canConfigureTask(actor, task))
-            throw new BusinessRuleError(403, "TASK_DELEGATION_REQUIRED", "Only the task creator or project owner can revoke this delegation.");
-        const delegation = await r.readRevokeTaskDelegationDelegation(input.delegationId, actor.companyId, id, ports.clock.now(), ports.clock.now());
-        if (!delegation)
-            throw new BusinessRuleError(404, "TASK_DELEGATION_NOT_FOUND", "Active task delegation not found.");
-        const result = { id, delegationId: delegation.id, version: input.expectedVersion + 1, status: "revoked" };
-        return ports.commands.commit(actor, key, "task.delegate-revoke", input, recordId, result.version, result, [
-            ports.staffGuard(key, actor.companyId, actor.userId),
-            configurationGuard(key, actor, task),
-            taskVersionGuard(key, id, input.expectedVersion, [task.state]),
-            r.guard8(key, "task-delegation-active", delegation.id, actor.companyId, id, ports.clock.now(), ports.clock.now()),
-            r.stageRevokeTaskDelegationEffect(actor.userId, input.reason, ports.clock.now(), ports.clock.now(), delegation.id, actor.companyId),
-            r.stageRevokeTaskDelegationEffect2(ports.clock.now(), id, actor.companyId),
-            ports.notification(task, delegation.delegate_user_id, "task", id, result.version, "Task delegation revoked; the accountable assignee resumes ownership."),
-        ], scope(task));
-    }
     function configurationGuard(key: string, actor: StaffActor, task: TaskRow) {
         return r.guard11(key, "task-configure", task.id, actor.companyId, actor.userId, actor.userId);
     }
@@ -288,110 +196,7 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
         const delegationHistory = (await r.readTaskDetailDelegationHistory(actor.companyId, id)).results;
         return { task, ...work, delegation, delegationHistory, attachments };
     }
-    async function transitionTask(actor: WorkContext, id: string, input: z.infer<typeof taskActionSchema>, key: string) {
-        const operation = `task.${input.action}`, prior = await ports.commands.replay<{
-            id: string;
-            state: string;
-            version: number;
-            manifest?: unknown;
-        }>(actor, key, operation, id, input);
-        if (prior)
-            return prior;
-        await ports.activeStaff(actor.companyId, actor.userId);
-        const detail = await taskDetail(actor, id), task = detail.task;
-        if (!detail.permittedActions.includes(input.action))
-            throw new BusinessRuleError(403, "TASK_ACTION_UNAVAILABLE", detail.blockedReason ??
-                "This action is unavailable for this participant and task state.");
-        const attachmentSetIds = input.attachmentSetIds ?? [];
-        if (attachmentSetIds.length && !["submit", "save-progress", "complete"].includes(input.action))
-            throw new BusinessRuleError(422, "TASK_ATTACHMENT_ACTION", "Bind task evidence only when submitting, saving progress, or completing the task.");
-        const prepared = attachmentSetIds.length
-            ? await ports.prepareAttachmentBinding(actor, {
-                attachmentSetIds,
-                bindingContract: {
-                    targetType: "staff_task",
-                    bindingType: "task_action",
-                    contexts: [{ purposeKey: "task_evidence", componentKind: "action", componentRef: `task:${task.state}` }],
-                },
-                targetId: id,
-                expectedTargetVersion: input.expectedVersion,
-                commandId: key,
-                bindingId: `${id}:${input.action}:${input.expectedVersion + 1}`,
-            })
-            : null;
-        const steps: Effect[] = [
-            ...(prepared?.guards ?? []),
-            ...(input.action !== "cancel"
-                ? [
-                    ports.staffGuard(key, actor.companyId, task.assignee_user_id, "task-assignee"),
-                ]
-                : []),
-            taskVersionGuard(key, id, input.expectedVersion, [task.state]),
-            ports.staffGuard(key, actor.companyId, actor.userId),
-        ];
-        let state = task.state;
-        if (input.action === "submit" || input.action === "complete") {
-            const phase = input.action === "submit" ? "start" : "completion", users: string[] = JSON.parse(phase === "start"
-                ? task.start_approvers_json
-                : task.completion_approvers_json);
-            if (input.action === "submit")
-                steps.push(configurationGuard(key, actor, task));
-            else if (!input.note.trim() && !isOrdinaryTask(task))
-                throw new BusinessRuleError(422, "COMPLETION_NOTE_REQUIRED", "Add a completion note for the reviewer.");
-            const route = await ports.taskRoute(task, task.creator_user_id, task.assignee_user_id, phase, users, !!task.source_post_id);
-            if (users.length)
-                steps.push(...(await ports.openApproval(key, "task", id, phase, task.creator_user_id, task.assignee_user_id, route, input.expectedVersion + 1)).statements);
-            state = users.length
-                ? phase === "start"
-                    ? "start_approval"
-                    : "completion_approval"
-                : phase === "start"
-                    ? "ready"
-                    : "completed";
-        }
-        else if (input.action === "start")
-            state = "in_progress";
-        else if (input.action === "approve" || input.action === "reject") {
-            const decision = await ports.prepareDecision(actor, key, "task", id, input.action === "approve", input.note, input.expectedVersion);
-            steps.push(...decision.statements);
-            state =
-                input.action === "reject"
-                    ? decision.instance.phase === "start"
-                        ? "draft"
-                        : "rework"
-                    : decision.final
-                        ? decision.instance.phase === "start"
-                            ? "ready"
-                            : "completed"
-                        : task.state;
-        }
-        else if (input.action === "cancel") {
-            if (!input.note.trim())
-                throw new BusinessRuleError(422, "REASON_REQUIRED", "Explain why the task is being cancelled.");
-            steps.push(configurationGuard(key, actor, task), ...ports.closeApprovals(key, "task", id, actor.userId, "cancel", input.note, input.expectedVersion));
-            state = "cancelled";
-        }
-        steps.push(r.stageTransitionTaskEffect(state, input.action, input.note, ports.clock.now(), id), ...(prepared?.steps ?? []), ports.notification(task, task.assignee_user_id, "task", id, input.expectedVersion + 1, `Task ${state.replaceAll("_", " ")}`));
-        if (task.source_post_id) {
-            const post = await ports.readablePost(actor, task.source_post_id);
-            const followers = await r.readTransitionTaskFollowers(post.id);
-            for (const user of new Set([post.author_id, task.creator_user_id, ...followers.results.map(f => f.principal_id)])) {
-                if (user === actor.userId)
-                    continue;
-                try {
-                    await ports.readablePost({ companyId: actor.companyId, userId: user }, post.id);
-                    steps.push(ports.notification(post, user, 'post', post.id, input.expectedVersion + 1, 'Work on a conversation you follow has progressed'));
-                }
-                catch (e) {
-                    if (!(e instanceof BusinessRuleError) || e.status !== 404)
-                        throw e;
-                }
-            }
-        }
-        return ports.commands.commit(actor, key, operation, input, id, input.expectedVersion + 1, { id, state, version: input.expectedVersion + 1, ...(prepared ? { manifest: prepared.manifest } : {}) }, steps, scope(task));
-    }
-
-    return { listTasks, getTask, taskSourceReadGuard, canConfigureTask, delegateTask, revokeTaskDelegation, taskVersionGuard, validateTaskConfiguration, configGuards, saveTask, taskWorkState, taskDetail, transitionTask, canAttachTask };
+    return { listTasks, getTask, taskSourceReadGuard, canConfigureTask, taskVersionGuard, validateTaskConfiguration, configGuards, saveTask, taskWorkState, taskDetail, canAttachTask };
 }
 
 export type StaffTaskReadPorts<Effect>=Pick<StaffTasksPorts<Effect>,'readablePost'|'approvalView'|'taskRoute'>&{repository:Pick<StaffTasksRepository<Effect>,'readGetTaskRow'|'guard3'>};

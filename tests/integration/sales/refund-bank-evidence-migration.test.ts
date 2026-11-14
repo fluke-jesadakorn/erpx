@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {postgresBackupTools} from '../../support/postgres-tools';
 import {expect,it,vi} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
@@ -11,8 +12,9 @@ import {migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
 import {packageGrantStore} from '@erpx/server-commercial/public/package-grants';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
+import {postInvoice} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
+import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 
 let db:PostgresDatabase,files:LocalFileStore;
@@ -69,7 +71,7 @@ async function zeroLedgerSalesCompany() {
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),salesManager=await actor('sales-manager','sales_manager'),treasury=await actor('treasury','treasury');
-  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
+  const {positionSchema}=await import('@erpx/server-organization/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[salesManager,3],[treasury,4]] as const){
@@ -122,7 +124,7 @@ async function actualSalesServiceBeforeGoods(noVat=false){
   const approved=await api.decideSalesPostingDefaults(z.manager,String(draft.id),{contextKey:(await zeroSalesEnvelope(z.manager)).contextKey,input:{expectedVersion:1,action:'approve',reason:'Original independent reviewer approves actual service defaults before the goods extension'}},key());
   const customer=await saveMaster(z.owner,'parties',null,{kind:'customer',code:key(),name:'Actual pre-existing service customer'},key()),service=await saveMaster(z.owner,'products',null,{sku:key(),name:'Actual pre-existing installed service',itemType:'service',price:'100',taxBps:noVat?0:700},key()),order=await saveOrder(z.owner,null,orderSchema.parse({kind:'sales',partyId:customer.id,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId:service.id,quantity:'1',price:'100',taxBps:noVat?0:700}]}),key()),orderId=String(order.id);
   await transitionOrder(z.owner,orderId,{expectedVersion:1,action:'submit'},key());await transitionOrder(z.salesManager,orderId,{expectedVersion:2,action:'approve'},key());await assignZeroSales(z,'order',orderId,'confirmed',z.owner);
-  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completion=await fulfillOrder(z.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original customer accepted the actual pre-existing service',lines:[{lineId,quantity:'1'}]}),key());
+  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completion=await seedCommerceFulfillment(db, z.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original customer accepted the actual pre-existing service',lines:[{lineId,quantity:'1'}]}),key());
   await assignZeroSales(z,'order',orderId,'invoicing',z.owner);
   const invoiced=await invoiceFulfillment(z.owner,String(completion.fulfillmentId),{expectedVersion:1,date:'2026-09-04',dueDate:'2026-09-10'},key()),invoiceId=String(invoiced.invoiceId);
   await assignZeroSales(z,'invoice',invoiceId,'draft',z.manager);await postInvoice(z.manager,invoiceId,{expectedVersion:1,periodId:refs.period.id,entryDate:'2026-09-04'},key());await assignZeroSales(z,'invoice',invoiceId,'posted',z.treasury);
@@ -159,7 +161,7 @@ async function companyServiceCashFixture(twoBanks=false){
   }
   const detail=await getOrder(s.z.owner,s.orderId),returned=await requestCommerceReturn(s.z.owner,s.fulfillmentId,returnRequestSchema.parse({expectedVersion:2,date:'2026-09-06',reason:'Actual Company service customer independently accepts the whole credit',lines:[{lineId:String(detail.fulfillmentLines[0].id),quantity:'1'}]}),key());
   const reviewed=await decideCommerceReturn(s.z.salesManager,String(returned.id),'approve',{expectedVersion:1,reason:'Different actual Sales manager reviews the original completed service'},key());
-  expect(reviewed.stockJournalId).toBeUndefined();await assignZeroSales(s.z,'journal',String(reviewed.creditJournalId),'draft',s.z.manager);await postJournal(s.z.manager,String(reviewed.creditJournalId),key(),{expectedVersion:1});
+  expect(reviewed.stockJournalId).toBeUndefined();await assignZeroSales(s.z,'journal',String(reviewed.creditJournalId),'draft',s.z.manager);await markFinanceJournalPosted(db,String(reviewed.creditJournalId),s.z.manager.userId);
   const completed=await completeCommerceReturn(s.z.manager,String(returned.id),{expectedVersion:2},key()),refundId=String(completed.refundId),refunds=await import('@erpx/server-finance/public/refunds');
   expect(completed.refundMinor).toBe(twoBanks?7500:5000);
   const reviewer=await s.z.actor('independent-cash-source-reviewer','finance_approver');

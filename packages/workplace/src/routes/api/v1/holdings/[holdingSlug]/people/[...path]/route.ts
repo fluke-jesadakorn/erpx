@@ -6,8 +6,6 @@ import { organizationDraftApi } from "@erpx/server-organization/public/organizat
 import { rehireInput, createRehireEngagement, peopleLifecycleData, previewPackage, savePackage, bindPositionPackage, previewLifecycle, saveLifecycle, cancelLifecycle, requestLifecycleAccess, lifecycleSettingsInput, saveLifecycleSettings, completePreparationTask } from "@erpx/server-people_payroll/public/people-lifecycle";
 import { packageInput, lifecycleInput } from "@erpx/feature-people_payroll/lib/people-lifecycle";
 import { placementBatchInput, previewPlacementBatch, submitPlacementBatch } from "@erpx/server-people_payroll/public/people-placement-batch";
-import { positionMoveInput, positionMoveSubmitInput } from "@erpx/feature-people_payroll/lib/position-moves";
-import { previewPositionMove, submitPositionMove, positionMoves, cancelPositionMove } from "@erpx/server-organization/public/position-moves";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { directoryOperationsApi } from "@erpx/server-identity_access/public/directory-operations-api";
 import { peopleTemplatesData,saveHoldingTemplate,adoptHoldingTemplate,adoptTemplateInput } from "@erpx/server-people_payroll/public/people-templates";
@@ -16,13 +14,16 @@ import {saveSpendingTemplate,spendingTemplateSchema} from '@erpx/server-people_p
 import { expenseRoute } from "@erpx/server-people_payroll/public/expense-routing";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {organizationOverview,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationPositionMoveCommand, nativeOrganizationPositionMoveList, nativeOrganizationPositionSave, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
+import { ownedPeoplePayrollRun, ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
+import { nativePeoplePayrollCommand, nativePeoplePayrollFailure, peoplePayrollPageContext } from "@erpx/feature-people_payroll/public/native-payroll-summary-page";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@erpx/server-identity_access/public/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
 import { z } from "zod";
 import {getPayslip,getPayslipExport,listPayslips,issuePostedPayslips,issuePayslipSchema} from "@erpx/server-people_payroll/public/payroll-payslips";
-import { cancelPayrollRun, payrollCancelSchema } from "@erpx/server-people_payroll/public/payroll-cancellation";
+import { payrollCancelSchema } from "@erpx/server-people_payroll/public/payroll-cancellation";
 import { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@erpx/server-people_payroll/public/payroll-adjustments";
 import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryPage,payrollRecoveryAgreement,payrollRecoveryRequestSchema,payrollRecoveryConsentSchema,payrollRecoveryReviewSchema,payrollRecoveryRecognizeSchema} from "@erpx/server-people_payroll/public/payroll-recoveries";
 import { thaiPayrollConfiguration,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema,thaiPayrollProfileDecisionSchema } from "@erpx/server-people_payroll/public/payroll-statutory";
@@ -45,7 +46,6 @@ import {
   createCompensation,
   createCountryPack,
   createEngagement,
-  createPayrollRun,
   createPayGroup,
   createPerson,
   createPaymentBatch,
@@ -53,17 +53,13 @@ import {
   createPersonSchema,
   createEngagementSchema,
   exportPaymentBatch,
-  getPayrollRun,
-  listPayrollRuns,
   listPeople,
   getPerson,
   peopleSummary,
-  payrollSummary,
   payrollRunSchema,
   payGroupSchema,
   paymentBatchSchema,
   paymentConfirmationSchema,
-  calculatePayrollRun,
   approvePayrollRun,
   prepareFinalPay,
   finalPayPreparationSchema,
@@ -79,7 +75,6 @@ import {
   payrollAccountMappingSchema,
   savePayrollAccountMapping,
   approvePayrollAccountMapping,
-  postPayroll,
   approvePaymentBatch,
   getPaymentFile,
   listCountryPacks,
@@ -108,6 +103,11 @@ function parsed<T>(result: z.ZodSafeParseResult<T>): T {
   return result.data;
 }
 const legacySupersedeInput = z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()}).strict();
+/** Native People Payroll commands remain authoritative; transport/config failure is 503, never a TS writer. */
+async function payrollCommand(...args: Parameters<typeof nativePeoplePayrollCommand>) {
+  try { return await nativePeoplePayrollCommand(...args); }
+  catch (error) { const failure = nativePeoplePayrollFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -117,12 +117,12 @@ export async function GET(request: Request, context: Context) {
     if(p[0]==='payroll'&&p[1]?.startsWith('posting-prerequisites')){if(p[1]!=='posting-prerequisites'||p.length!==2)throw new ApiError(404,'NOT_FOUND','People resource not found.');const query=new URL(request.url).searchParams;if([...query.keys()].length!==new Set(query.keys()).size)throw new ApiError(422,'VALIDATION_FAILED','Select one Payroll group.');return Response.json(canonicalDestinationLinks({data:await payrollPostingPrerequisites(actor,parsed(payrollPostingPrerequisitesSelectionSchema.safeParse(Object.fromEntries(query))))}),{headers:{'Cache-Control':'private, no-store'}});}
     if(p[0]==='payroll'&&p[1]==='runs'&&p[3]?.startsWith('final-pay-cancellation')){if(p[3]!=='final-pay-cancellation'||p.length!==4||!p[2])throw new ApiError(404,'NOT_FOUND','People resource not found.');return Response.json(canonicalDestinationLinks({data:await getFinalPayCancellation(actor,p[2])}),{headers:{'Cache-Control':'private, no-store'}});}
     if(p[0]==="hire-handoffs"&&p.length===1)return Response.json(canonicalDestinationLinks({data:await hireHandoffQueue(actor)}),{headers:{"Cache-Control":"private, no-store"}});
-    if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1))}),{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1),undefined,undefined,request.headers)}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="templates"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await peopleTemplatesData(write as PostgresDatabase,iamActorFromWork(actor))}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="lifecycle" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await peopleLifecycleData(write,actor)}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="drafts"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await organizationDraftApi(write as PostgresDatabase,actor,p.slice(2))}),{headers:{"Cache-Control":"private, no-store"}});}
-    if(p[0]==="organization" && p.length===1){requirePermission(actor,"people.manage");const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await organizationOverview(write,actor,Object.fromEntries(new URL(request.url).searchParams))}),{headers:{"Cache-Control":"private, no-store"}});}
-    if(p[0]==="organization" && p[1]==="position-moves" && p.length<=3){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await positionMoves(write,actor,p[2])}),{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="organization" && p.length===1){requirePermission(actor,"people.manage");const {write}=await holdingResources(actor.holdingId);const query=Object.fromEntries(new URL(request.url).searchParams);let native:Awaited<ReturnType<typeof nativeOrganizationWorkspace>>;try{native=await nativeOrganizationWorkspace(actor,holdingSlug,query,request.headers);}catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}if(native)return Response.json(canonicalDestinationLinks({data:nativeOrganizationOverview(native,await organizationOverview(write,actor,query))}),{headers:{"Cache-Control":"private, no-store"}});return Response.json(canonicalDestinationLinks({data:await organizationOverview(write,actor,query)}),{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="organization" && p[1]==="position-moves" && p.length<=3){let native:Awaited<ReturnType<typeof nativeOrganizationPositionMoveList>>;try{native=await nativeOrganizationPositionMoveList(actor,holdingSlug,p[2],request.headers);}catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}if(native===undefined)throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization position-move service is unavailable.");return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="acceptance" && p.length===2){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await companyBusinessAcceptance(write,actor)}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="readiness") {const {write}=await holdingResources(actor.holdingId);const kind=new URL(request.url).searchParams.get("kind");const route=await expenseRoute(write,actor.companyId,actor.userId,[],false,kind==="purchase"||kind==="payment"?kind:"expense");return Response.json(canonicalDestinationLinks({data:{ready:!route.blockedReason,blockedReason:route.blockedReason,steps:route.steps}}));}
     if (p.length === 0 || (p[0] === "people" && !p[1])) return Response.json(canonicalDestinationLinks({ data: await listPeople(actor) }), { headers: { "Cache-Control": "private, no-store" } });
@@ -150,10 +150,10 @@ export async function GET(request: Request, context: Context) {
       if(p.length===4&&p[3]==="export"){const issued=await getPayslipExport(actor,p[2]);return new Response(issued.html,{headers:{"Content-Type":"text/html; charset=utf-8","Content-Disposition":`attachment; filename="${p[2]}.html"`,"Cache-Control":"private, no-store","ETag":issued.checksum,"Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"}});}
     }
     if(p[0]==="payroll"&&p[1]==="runs"&&p[2]&&p[3]==="payslips"&&p.length===4)return Response.json(canonicalDestinationLinks({data:await listPayslips(actor,{runId:p[2],ownOnly:false})}),{headers:{"Cache-Control":"private, no-store"}});
-    if (p[0] === "payroll" && p[1] === "summary" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await payrollSummary(actor,new URL(request.url).searchParams.get("payMonth")??undefined)}),{headers:{"Cache-Control":"private, no-store"}});
+    if (p[0] === "payroll" && p[1] === "summary" && p.length === 2) { const data=await ownedPeoplePayrollSummary(actor,holdingSlug,new URL(request.url).searchParams.get("payMonth")??undefined); if(data===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll reader is unavailable."); return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}}); }
     if (p[0] === "country-packs") return Response.json(canonicalDestinationLinks({ data: await listCountryPacks(actor) }));
     if (p[0] === "payroll" && p[1] === "thai-configuration") return Response.json(canonicalDestinationLinks({data:await thaiPayrollConfiguration(actor,new URL(request.url).searchParams.get("engagementId")??undefined)}),{headers:{"Cache-Control":"private, no-store"}});
-    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) return Response.json(canonicalDestinationLinks({ data: await listPayrollRuns(actor) }));
+    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) { const data=await ownedPeoplePayrollRuns(actor,holdingSlug); if(data===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll reader is unavailable."); return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}}); }
     if (p[0] === "payroll" && p[1] === "posting-options" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await payrollPostingOptions(actor)}),{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "payroll" && p[1] === "cost-assignments" && p[2] && p.length === 3) return Response.json(canonicalDestinationLinks({data:await payrollCostAssignments(actor,p[2])}),{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "payroll" && p[1] === "advances" && p.length === 2) return Response.json(canonicalDestinationLinks({ data: await payrollAdvancePage(actor) }));
@@ -171,7 +171,7 @@ export async function GET(request: Request, context: Context) {
       throw new ApiError(404,'NOT_FOUND','Payroll remittance resource not found.');
     }
     if (p[0] === "payroll" && p[1] === "runs" && p[2] && p[3] === "liabilities") return Response.json(canonicalDestinationLinks({data:await getPayrollLiabilities(actor,p[2])}),{headers:{"Cache-Control":"private, no-store"}});
-    if (p[0] === "payroll" && p[1] === "runs" && p[2]) return Response.json(canonicalDestinationLinks({ data: await getPayrollRun(actor,p[2]) }));
+    if (p[0] === "payroll" && p[1] === "runs" && p[2]) { const data=await ownedPeoplePayrollRun(actor,holdingSlug,p[2]); if(data===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll reader is unavailable."); return Response.json(canonicalDestinationLinks({ data })); }
     if (p[0] === "payments" && p[1] === "batches" && p[3] === "file") { const result=await getPaymentFile(actor,p[2]); const headers=new Headers({"Content-Type":"text/csv","Content-Disposition":`attachment; filename="${p[2]}.csv"`,"Cache-Control":"private, no-store"}); if(result.checksum)headers.set("ETag",result.checksum); return new Response(result.object.body,{status:200,headers}); }
     throw new ApiError(404,"NOT_FOUND","People resource not found.");
   } catch (error) { return errorResponse(error); }
@@ -185,7 +185,7 @@ export async function POST(request: Request, context: Context) {
     if(p[0]==='payroll'&&p[1]==='runs'&&p[3]?.startsWith('final-pay-cancellation')){if(p[3]!=='final-pay-cancellation'||p.length!==4||!p[2])throw new ApiError(404,'NOT_FOUND','People resource not found.');return Response.json(canonicalDestinationLinks({data:await cancelFinalPayPreparation(actor,p[2],parsed(finalPayCancellationSchema.safeParse(input)),id)}),{headers:{'Cache-Control':'private, no-store'}});}
     if(p[0]==="payroll"&&p[1]==="runs"&&p[2]&&p[3]==="issue-payslips"&&p.length===4)return Response.json(canonicalDestinationLinks({data:await issuePostedPayslips(actor,p[2],parsed(issuePayslipSchema.safeParse(input)),id)}),{status:201});
     if(p[0]==="hire-handoffs"&&(p.length===1||(p.length===2&&p[1]==="consume")))return Response.json(canonicalDestinationLinks({data:await consumeHireHandoff(actor,parsed(hireConsumptionSchema.safeParse(input)),id)}),{status:201});
-    if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1),input,id)}));}
+    if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1),input,id,request.headers)}));}
     if(p[0]==="templates"&&p.length===2&&["publish","preview","adopt"].includes(p[1])){const {write}=await holdingResources(actor.holdingId),iam=iamActorFromWork(actor);return Response.json(canonicalDestinationLinks({data:p[1]==="publish"?await saveHoldingTemplate(write as PostgresDatabase,iam,input,id):await adoptHoldingTemplate(write as PostgresDatabase,iam,parsed(adoptTemplateInput.safeParse(input)),id,p[1]==="preview")}));}
     if(p[0]==="lifecycle") {
       const {write}=await holdingResources(actor.holdingId),db=write as PostgresDatabase;
@@ -211,25 +211,30 @@ export async function POST(request: Request, context: Context) {
     }
     if(p[0]==="organization") {
       if(p[1]==="drafts"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await organizationDraftApi(write as PostgresDatabase,actor,p.slice(2),input,id)}));}
+      let native:unknown;
+      try{
+        native=await nativeOrganizationChange(actor,holdingSlug,p,input,id,request.headers);
+        if(native===undefined)native=await nativeOrganizationPositionSave(actor,holdingSlug,p,input,id,request.headers);
+        if(native===undefined)native=await nativeOrganizationPositionMoveCommand(actor,holdingSlug,p,input,id,request.headers,origin??undefined);
+      }
+      catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}
+      if(native)return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});
+      if(p[1]==="position-moves")throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization position-move service is unavailable.");
+      if(p[1]==="levels" && p.length===2)throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization level catalog is unavailable.");
+      if(p[1]==="positions" && p.length<=3)throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization position service is unavailable.");
+      if(p[1]==="templates" && (p.length===2 || p.length===3 || (p.length===4 && p[3]==="apply")))throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization template service is unavailable.");
       const {write}=await holdingResources(actor.holdingId);
       if(p[1]==="changes"&&p[2]==="preview"&&p.length===3)return Response.json(canonicalDestinationLinks({data:await previewOrganizationNodeChange(write,actor,parsed(organizationNodeChangeSchema.safeParse(input)))}));
-      if(p[1]==="position-moves" && p[2]==="preview" && p.length===3)return Response.json(canonicalDestinationLinks({data:await previewPositionMove(write as PostgresDatabase,actor,parsed(positionMoveInput.safeParse(input)))}));
-      if(p[1]==="position-moves" && p[2]==="submit" && p.length===3){const data=parsed(positionMoveSubmitInput.safeParse(input));const {previewToken,expiresAt,...move}=data;return Response.json(canonicalDestinationLinks({data:await submitPositionMove(write as PostgresDatabase,actor,move,previewToken,expiresAt,id)}));}
-      if(p[1]==="position-moves" && p[2] && p[3]==="cancel" && p.length===4)return Response.json(canonicalDestinationLinks({data:await cancelPositionMove(write as PostgresDatabase,actor,p[2],parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)).expectedVersion,id)}));
       if(p[1]==="positions" && p[2] && p[3]==="default-pay")return Response.json(canonicalDestinationLinks({data:await savePositionPayDefault(write,actor,p[2],parsed(positionPayInput.safeParse(input)),id)}));
       if(p[1]==="levels" && p[2] && p[3]==="default-leave")return Response.json(canonicalDestinationLinks({data:await saveLevelLeaveDefault(write,actor,p[2],parsed(levelLeaveInput.safeParse(input)),id)}));
       if(p[1]==="spending-template")return Response.json(canonicalDestinationLinks({data:await saveSpendingTemplate(write,actor,parsed(spendingTemplateSchema.safeParse(input)),id)}));
       if(p[1]==="acceptance" && p[2]==="submit") return Response.json(canonicalDestinationLinks({data:await submitCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceSubmitSchema.safeParse(input)),id)}));
       if(p[1]==="acceptance" && p[2]==="review") return Response.json(canonicalDestinationLinks({data:await decideCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceDecisionSchema.safeParse(input)),id)}));
       if(p[1]==="acceptance" && p[2]==="revoke") return Response.json(canonicalDestinationLinks({data:await revokeCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceRevokeSchema.safeParse(input)),id)}));
-      if(p[1]==="levels" && p.length===2)return Response.json(canonicalDestinationLinks({data:await installStaffLevels(write,actor,id)}));
       if(p[1]==="changes"&&["draft","submit"].includes(p[2])&&p.length===3)return Response.json(canonicalDestinationLinks({data:await saveOrganizationNodeChange(write,actor,null,parsed(organizationNodeChangeSchema.safeParse(input)),id,p[2]==="submit")}));
       if(p[1]==="changes"&&p[2]&&["draft","submit"].includes(p[3]))return Response.json(canonicalDestinationLinks({data:await saveOrganizationNodeChange(write,actor,p[2],parsed(organizationNodeChangeSchema.safeParse(input)),id,p[3]==="submit")}));
       if(p[1]==="changes"&&p[2]&&p[3]==="review")return Response.json(canonicalDestinationLinks({data:await decideOrganizationNodeChange(write,actor,p[2],parsed(organizationNodeDecisionSchema.safeParse(input)),id)}));
       if(p[1]==="changes"&&p[2]&&p[3]==="cancel"){const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input));return Response.json(canonicalDestinationLinks({data:await cancelOrganizationNodeChange(write,actor,p[2],data.expectedVersion,id)}));}
-      if(p[1]==="positions" && p.length<=3)return Response.json(canonicalDestinationLinks({data:await savePosition(write,actor,p[2]??null,parsed(positionSchema.safeParse(input)),id)}));
-      if(p[1]==="templates" && p[3]==="apply")return Response.json(canonicalDestinationLinks({data:await applyOrganizationTemplate(write,actor,p[2],parsed(applyOrganizationTemplateSchema.safeParse(input)),id)}));
-      if(p[1]==="templates" && p.length<=3)return Response.json(canonicalDestinationLinks({data:await saveOrganizationTemplate(write,actor,p[2]??null,parsed(organizationTemplateSchema.safeParse(input)),id)}));
     }
     if(p[0]==="directory"&&p[2]==="invite")return Response.json(canonicalDestinationLinks({data:await invitePerson(actor,p[1],parsed(grantSchema.safeParse(input)),id)}));
     if(p[0]==="directory"&&p[2]==="invitations"&&p[3]&&p[4]==="retry")return Response.json(canonicalDestinationLinks({data:await retryInvitationDelivery(actor,p[1],p[3],id)}));
@@ -256,12 +261,12 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "time-entries" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await updateTimeEntry(actor,p[1],parsed(timeEntryUpdateSchema.safeParse(input)),id)}));
     if (p[0] === "time-entries" && p[2] === "reject") return Response.json(canonicalDestinationLinks({data:await rejectTimeEntry(actor,p[1],parsed(timeEntryReviewSchema.safeParse(input)),id)}));
     if (p[0] === "time-entries" && p[2] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json(canonicalDestinationLinks({data:await approveTimeEntry(actor,p[1],data.expectedVersion,id)})); }
-    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) { const data=parsed(payrollRunSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createPayrollRun(actor,data,id)}),{status:201}); }
+    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) { const data=parsed(payrollRunSchema.safeParse(input)); const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,"runs",data,id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native}),{status:201}); }
     if (p[0] === "payroll" && p[1] === "pay-groups" && p[2] && p[3] === "account-mappings") return Response.json(canonicalDestinationLinks({data:await savePayrollAccountMapping(actor,p[2],parsed(payrollAccountMappingSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "cost-assignments" && p[2] && p[3] === "verify") return Response.json(canonicalDestinationLinks({data:await verifyPayrollCostAssignment(actor,p[2],parsed(payrollCostVerificationSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "account-mappings" && p[2] && p[3] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json(canonicalDestinationLinks({data:await approvePayrollAccountMapping(actor,p[2],data.expectedVersion,id)})); }
-    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "calculate") return Response.json(canonicalDestinationLinks({data:await calculatePayrollRun(actor,p[2],id)}));
-    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "cancel" && p.length === 4) return Response.json(canonicalDestinationLinks({data:await cancelPayrollRun(actor,p[2],parsed(payrollCancelSchema.safeParse(input)),id)}));
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "calculate") { const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/calculate`,{},id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native})); }
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "cancel" && p.length === 4) { const data=parsed(payrollCancelSchema.safeParse(input)); const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/cancel`,data,id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native})); }
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "adjustments" && p.length === 4) return Response.json(canonicalDestinationLinks({data:await createPayrollAdjustment(actor,p[2],parsed(payrollAdjustmentCreateSchema.safeParse(input)),id)}),{status:201});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "adjustment-edit" && p.length === 4) return Response.json(canonicalDestinationLinks({data:await editPayrollAdjustment(actor,p[2],parsed(payrollAdjustmentEditSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "recoveries" && p.length === 4) return Response.json(canonicalDestinationLinks({data:await requestPayrollRecovery(actor,p[2],parsed(payrollRecoveryRequestSchema.safeParse(input)),id)}),{status:201});
@@ -281,7 +286,7 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "payroll" && p[1] === "corrections" && p[2] && p[3] === "decide") return Response.json(canonicalDestinationLinks({data:await decidePayrollCorrection(actor,p[2],parsed(payrollCorrectionDecisionSchema.safeParse(input)),id)}));
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "export-review") return Response.json(canonicalDestinationLinks({data:await exportPayrollReview(actor,p[2],id)}));
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "accounting-preview") return Response.json(canonicalDestinationLinks({data:await previewPayrollAccounting(actor,p[2],parsed(payrollPostSchema.safeParse(input)))}));
-    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "post") { const data=parsed(payrollPostSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await postPayroll(actor,p[2],data,id)})); }
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "post") { const data=parsed(payrollPostSchema.safeParse(input)); const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`runs/${p[2]}/post`,data,id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native})); }
     if (p[0] === "payroll" && p[1] === "advances" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await requestPayrollAdvance(actor,parsed(payrollAdvanceRequestSchema.safeParse(input)),id)}),{status:201});
     if (p[0] === "payroll" && p[1] === "advances" && p[2] && p[3] === "decide") return Response.json(canonicalDestinationLinks({data:await decidePayrollAdvance(actor,p[2],parsed(payrollAdvanceDecisionSchema.safeParse(input)),id)}));
     if (p[0] === "payments" && p[1] === "batches" && p.length === 2) { const data=parsed(paymentBatchSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createPaymentBatch(actor,data,id)}),{status:201}); }

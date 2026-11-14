@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "POS now has a bounded native cash-movement command (cash in/out against an open register session), an owner-local HTTP router, a strict Next command transport, and a configured API cutover. The POS owner remains pending/partial: session close/review, sale/return/payment lifecycles, Finance posting, Inventory reservations, Stripe, shared composition mounting, root workspace changes, browser acceptance and package-atomic composition remain open.",
+  "capability": "pos-owner-cash-movement-command-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "db99c8c79485ae32985016845dcad2be64dfb329",
+  "scope": {
+    "workflows": [
+      "pos/feature-register-session"
+    ],
+    "workflowBoundary": "The qualified slice records one cash-in/cash-out movement for an existing open register session, exactly the retained cash.create command. It does not open/close/review a session, approve cash, take a payment, complete a sale, request/approve a refund, post Finance, reserve/consume Inventory, or touch Stripe. Those POS workflows are not claimed.",
+    "domain": "POS command actor policy (pos.sell, pos module, selected-context expiry, branch-only workspace), exact shift identity and Company/branch scope, open-session state, expected-version CAS, non-zero bounded amount, normalised 3..1000-character reason, UUID command receipt, and persisted movement/readback validation.",
+    "application": "One create_cash_movement use case requires the current actor before any source call, checks the canonical command receipt before a fresh write, loads the shift FOR UPDATE through the owner port, validates scope/version/state, checks the prepared day close and POS setup, inserts the movement, applies an exact shift version update, writes the idempotency receipt and POS audit in the same unit, and validates committed readback before returning.",
+    "adapters": "Read/write SQL is POS-owned only: pos_shifts, pos_cash_movements, pos_receipts, pos_audit, pos_settings and pos_day_closes. The caller's serializable Holding transaction is required; no commit occurs in the adapter. No Finance, Inventory, Commerce, IAM or PMS SQL is invented. The retained cash.create command has no Finance/Inventory/Commercial row effect; no such guard is fabricated.",
+    "http": "Owner-local POST /api/v1/holdings/{holding_slug}/pos/cash/create. Exact registered Host/Holding target, exact HTTPS origin, Idempotency-Key, application/json, empty-query, 8 KiB body and exact {id, expectedVersion, amountMinor, reason} input. Responses carry private/no-store, no-referrer and nosniff; bounded BusinessError status mapping. The composition backend receives transport facts and must supply the normal Account session, current Company/branch authority, package admission and serializable owner unit.",
+    "transport": "ERPX_NATIVE_POS_CASH_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie and context headers, exact command body, exact {id} receipt, rendered-context equality, and bounded 256 KiB response. A configured failure never falls back to the retained TypeScript command.",
+    "ssr": "This command slice has no server-rendered read surface. The Next cutover is the POS API transport: cash.create uses the native client only when ERPX_NATIVE_POS_CASH_CONFIG is set. An unset configuration retains the original posCommand path. Once configured, configuration/host/context/transport/response failures surface instead of silently using the retained command.",
+    "purchaseAndIdentity": "The Next route performs the retained pos.shifts settle-existing package preflight before the native call. This is a preflight, not an atomic owner unit; the composition backend must repeat current IAM, Holding/Company/branch and purchase admission inside the native serializable owner transaction. The owner re-checks permission, module, expiry and Company/branch scope.",
+    "notClaimed": "No browser journey, authenticated page render, Next dev server, shared composition mount, root workspace membership change, catalogue registration, Finance/Inventory/Commercial command effect, sale/return/payment/session-close flow, outbox event, provider call, production or staging acceptance."
+  },
+  "changedFiles": [
+    "packages/server-pos/Cargo.toml",
+    "packages/server-pos/src/lib.rs",
+    "packages/server-pos/src/domain/mod.rs",
+    "packages/server-pos/src/domain/cash_movement.rs",
+    "packages/server-pos/src/application/mod.rs",
+    "packages/server-pos/src/application/cash_movement.rs",
+    "packages/server-pos/src/adapters/mod.rs",
+    "packages/server-pos/src/adapters/cash_movement.rs",
+    "packages/server-pos/src/adapters/cash_movement_http.rs",
+    "packages/server-pos/src/public/mod.rs",
+    "packages/server-pos/src/public/cash_movement.rs",
+    "packages/server-pos/src/public/cash_movement_http.rs",
+    "packages/feature-pos/package.json",
+    "packages/feature-pos/src/adapters/server/native-pos-cash.ts",
+    "packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts",
+    "tests/unit/pos/rust-cash-movement.test.rs",
+    "tests/unit/pos/rust-pos-cash-http.test.rs",
+    "tests/integration/pos/rust-cash-movement-postgres.test.rs",
+    "tests/unit/pos/native-pos-cash-transport.test.ts"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-pos --locked -- --test-threads=1",
+      "result": "20 passed, 0 failed, 0 ignored across 4 test targets (lib 0, cash_movement 8, cash_movement_http 5, cash_movement_postgres 7, doc-tests 0)",
+      "targets": {
+        "cash_movement": "8 passed: permission/module/expiry/department policy before source, amount/version/reason negatives, Company/branch scope, closed state, day close, setup, replay, idempotency conflict, CAS loss, corrupt receipt, readback mismatch and receipt identity binding",
+        "cash_movement_http": "5 passed: exact target/origin/query/header/body forwarding, duplicate and malformed negatives, bounded owner status mapping, private/no-referrer/nosniff headers, exact distinct HTTPS target configuration",
+        "cash_movement_postgres": "7 passed: committed movement/shift version/receipt/audit readback, replay without duplicate rows, idempotency and stale-CAS negatives, Company/branch/company-wide isolation, prepared day and missing setup negatives, forced rollback plus committed readback, serializable/missing-transaction guards"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-pos --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-pos warning"
+    },
+    "rustfmt": {
+      "command": "cargo fmt --package erpx-server-pos -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "cash_movement_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database on 127.0.0.1:5432)",
+      "fixture": "Real Holding Write migrations with synthetic Company/branch/warehouse/register/session rows. No cross-owner row is written by the qualified command.",
+      "limit": "The local fixture helper is a POS-local copy without tokio; it leases and drops only the database it creates. Tests use sqlx::test_block_on for the current-thread runtime."
+    },
+    "httpRouter": {
+      "limit": "The HTTP test calls the exact owner dispatch function with HeaderMap/body inputs and inspects the axum Response; it does not open a socket or prove Router mounting in src/composition. Router construction and target validation are covered."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/pos/native-pos-cash-transport.test.ts: 7 passed",
+      "retained": "vitest tests/unit/pos/pos-application.test.ts, latest-read.test.ts and the new transport: 191 passed across 3 files; unset configuration retains posCommand",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-pos/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "eslint on the changed TypeScript files: pass (existing Pages directory warning only)",
+      "runner": "The transport test was run with an ignored temporary Vitest config because tests/catalogue/suite-manifest.json is a shared register concurrently modified by other owners. This subagent did not edit the shared catalogue register."
+    },
+    "static": {
+      "diffCheck": "git diff --check on POS-owned files: pass",
+      "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+    }
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_pos::public::cash_movement::{CashMovementActor, CreateCashMovement, ValidatedCashMovement, CashShift, CashReceipt, CashMovementReadback, CashMovementReceipt, CashMovementRepository, PgCashMovementCommand, create_cash_movement, receipt_identity, parse_receipt_result, valid_uuid}",
+      "erpx_server_pos::public::cash_movement_http::{CashMovementHttpTarget, CashMovementHttpBackend, CashMovementHttpRequest, CashMovementHttpResponse, CashMovementHttpState, cash_movement_router}"
+    ],
+    "backendRequired": "Implement CashMovementHttpBackend in src/composition: parse the normal Account/Holding request and rendered context, require the configured Holding/Company/branch, repeat the retained pos.shifts settle-existing package admission and current assignment authority inside one serializable transaction, build CashMovementActor, call create_cash_movement with PgCashMovementCommand, map PgTransactionError to BusinessError, and return the owner {id} plus the validated context. The Next preflight is not atomic.",
+    "privateDevelopmentApi": [
+      "Build one CashMovementHttpTarget per registered Holding with exact host, slug, HTTPS origin and backend.",
+      "router = router.merge(erpx_server_pos::public::cash_movement_http::cash_movement_router(targets).map_err(|_| \"PRIVATE_API_POS_CASH_CONFIGURATION_INVALID\")?);",
+      "Mount /pos/cash/create before the generic 404 fallback."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_POS_CASH_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "schema": "No PostgreSQL schema or migration change. All columns and constraints used already exist in 0030_pos.sql and 0365_pos_daily_operations.sql.",
+    "cargo": "erpx-server-pos is already a root workspace member and Cargo.lock already contains its package entry. This slice added no third-party dependency and did not modify the root Cargo.toml or Cargo.lock."
+  },
+  "legacyInventory": {
+    "removed": [
+      "When ERPX_NATIVE_POS_CASH_CONFIG is present, POST .../pos/cash/create no longer calls posCommand for that operation; the native owner command replaces that single command path.",
+      "No retained TypeScript POS file was deleted. The generic POS command route, sale/return/payment/session-close/review flows and every other POS operation remain on their existing paths."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-pos/src/adapters/pos-core.ts::posCommand remains the unset-config and non-cash.create command path, including withPosPurchasedCommand, work-context/IAM mutation guards and Finance deferred effects.",
+      "The retained POS page/workspace, shift close/review, cash approve, sale, refund, payment, kitchen, day and Stripe paths are unchanged.",
+      "The Next route retains requireWorkContext, origin, key, image upload, room-charge/read endpoints and canonicalDestinationLinks behavior."
+    ]
+  },
+  "concurrentWork": {
+    "preserved": "This worktree contains concurrent uncommitted PMS, Procurement, Manufacturing, CRM and Sales work plus root Cargo.toml/Cargo.lock and .env.example edits from other agents. None of those files were reverted or included in this POS changed-file inventory. The POS test run used the root workspace membership and lockfile already present.",
+    "typecheckImpact": "The affected feature-pos, workplace and tests/config typechecks pass with the concurrent work present."
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private/production route serves the POS cash router yet. The HTTP test backend is a recording fake and the router is not mounted in src/composition.",
+    "The Next package preflight and the native owner unit are separate transactions. A composition mount must keep authoritative IAM, package purchase and the serializable POS write in one unit.",
+    "cash.create has no Finance, Inventory or Commerce row effect in the retained implementation; no same-transaction cross-owner guard is claimed or invented.",
+    "No command_assertions/work-context/IAM mutation guard is emitted by the native slice; those are composition responsibilities and remain open for the mount.",
+    "The native receipt identity normalises the validated reason and uses a canonical field order. It is not byte-for-byte identical to the retained JSON.stringify hash for every input ordering, so a command key must not cross the legacy/native boundary.",
+    "The HTTP adapter test exercises the exact dispatch function, not a loopback socket or the shared composition Router.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. No POS workflow is claimed browser-verified.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

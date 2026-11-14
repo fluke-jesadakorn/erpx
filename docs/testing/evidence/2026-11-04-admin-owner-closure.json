@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Bounded Admin company-administration Organization read cutover. The Admin organization page and Admin technology API now consume the existing native Organization owner port when ERPX_NATIVE_ORGANIZATION_CONFIG is configured, while Brand identity and IAM assignment reads already use their owner-native ports. This slice adds no Rust, schema, composition or dependency change and does not claim browser verification.",
+  "capability": "admin-company-organization-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "f3b4302de",
+  "branch": "codex/rust-backend-migration",
+  "scope": {
+    "workflow": "admin:company-brand-organization-iam",
+    "workflowsConsidered": {
+      "admin:company-brand-organization-iam": "advanced: Organization owner read is now native on the Admin company-administration page/API; Brand identity and IAM assignment reads were already native in this worktree.",
+      "admin:platform-only-entry": "unchanged: current Platform authority and Manage ERPX remain in the Platform Administration slice.",
+      "admin:provider-authority-separation": "unchanged: Provider/Platform Commercial authority remains retained.",
+      "admin:legacy-preview-apply-and-audit": "unchanged: Commercial legacy preview/apply/audit remains retained."
+    },
+    "surface": "Admin Company Administration -> Technology -> Organization (/holdings/[holdingSlug]/administration/technology/organization) and GET /api/v1/holdings/[holdingSlug]/technology/organization.",
+    "nativeOwnerReuse": "The Admin surface reuses the existing Organization owner HTTP read through ERPX_NATIVE_ORGANIZATION_CONFIG. No cross-owner SQL, no new Rust owner crate, no new route in src/composition and no new environment variable were added.",
+    "composition": "Native Organization supplies the Company-scoped node tree, positions and staff levels. The retained Admin read remains authoritative for People rows, private-field redaction, canMovePeople and the Company-manage ceiling (native canManage can only narrow, never raise, the retained value). Positions are accepted only when active and exactly within the selected Branch/Department scope.",
+    "failClosed": "A native actor or Company mismatch, duplicate node/position/level identity, malformed row, changed Holding context or configured owner failure is mapped to a bounded ApiError and never silently replaced by the retained organization projection. Unset native configuration keeps the explicit retained TypeScript page/API path; the existing Organization native read requires people.manage, so actors without that permission keep the retained read instead of receiving a broken configured page.",
+    "brandAndIam": "Brand identity already reads through the native Brand owner transport and IAM assignment rows already read through the native Identity Access transport in this worktree. Those owner slices were not changed.",
+    "notClaimed": "No authenticated browser page, shared composition mount, Admin home/settings/user-account dashboard, new Rust owner workflow, schema migration or deployment was performed."
+  },
+  "changedFiles": [
+    "packages/workplace/src/lib/native-admin-organization.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/administration/technology/organization/_screen.tsx",
+    "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route.ts",
+    "packages/workplace/package.json",
+    "tests/unit/admin/native-admin-organization.test.ts",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "verification": {
+    "newUnit": {
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/admin/native-admin-organization.test.ts\"]' node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts",
+      "result": "15 passed, 0 failed, 0 skipped",
+      "cases": [
+        "native nodes/levels/positions replace only the Organization-owned projection while retained People and canMovePeople stay unchanged",
+        "inactive and out-of-scope native positions are dropped without filtering People rows",
+        "native canManage never raises a retained false Company-manage ceiling",
+        "actor, Company and duplicate-identity mismatches fail with NATIVE_ORGANIZATION_RESPONSE_INVALID",
+        "actors without people.manage skip the native owner call",
+        "the existing owner port receives the current actor, Holding, query and incoming headers",
+        "unset owner transport returns undefined for the retained path",
+        "a changed Holding context is rejected before the owner call",
+        "a configured owner failure maps to 503 NATIVE_ORGANIZATION_UNAVAILABLE with no retained fallback",
+        "an unexpected owner error propagates unchanged",
+        "the shared Admin read boundary keeps the exact retained projection when unconfigured",
+        "the same composed projection serves the Admin SSR page and JSON API path",
+        "the shared Admin read boundary surfaces a configured owner failure before any retained projection"
+      ]
+    },
+    "regressionUnit": {
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/identity_access/admin-workspace.test.ts\",\"tests/unit/organization/organization-services.test.ts\",\"tests/unit/shared.work/presentation-owner-queries.test.ts\"]' node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts",
+      "result": "78 passed, 0 failed, 0 skipped",
+      "breakdown": "organization-services 53, admin-workspace 13, presentation-owner-queries 12"
+    },
+    "typechecks": {
+      "passed": [
+        "node_modules/.bin/tsc --noEmit",
+        "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+        "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json",
+        "node_modules/.bin/tsc --noEmit --project packages/feature-admin/tsconfig.json",
+        "node_modules/.bin/tsc --noEmit --project apps/admin/tsconfig.json"
+      ]
+    },
+    "lint": "Targeted eslint on the new module, changed screen, changed Admin API route and new test: pass (only the repository's existing Next pages-directory warning).",
+    "structure": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0.",
+    "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 1 on pre-existing owner/module-private import findings in legal, pos, supply and other owner files. No finding names a changed Admin/Workplace file.",
+    "catalogue": "Added suite admin.native-admin-organization.unit to tests/catalogue/suite-manifest.json. Full catalogue validation remains blocked by pre-existing/current entries unrelated to this slice: customer_360.rust-* verification inputs first, then billing.rust-billing-workspace.unit references a billing module absent from the module registry. The new suite's file, module ids and owner inventory were checked directly and the file is discoverable by the standard unit runner.",
+    "diffCheck": "git diff --check: pass.",
+    "runner": "Bun 1.4.3 is not installed in this worktree, so the checks used the installed Node.js 26.12.0, node_modules/.bin/vitest and node_modules/.bin/tsc. No dependency or lockfile was changed.",
+    "browser": "Not run. No Next dev server, authenticated session, public URL, staging, private production or Cloudflare route was accessed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed.",
+    "dependencyDelta": "none; no root Cargo.toml, Cargo.lock or package lockfile change. The only manifest change is the existing Workplace public export for the new server-only lib.",
+    "compositionDelta": "No src/composition change and no router mount. The Admin slice reuses the existing Organization private-development HTTP mount and native transport.",
+    "ownerPortsReused": [
+      "@erpx/feature-organization/lib/native-organization (nativeOrganizationWorkspace, nativeOrganizationFailure)",
+      "Existing Organization router GET /api/v1/holdings/{holding_slug}/people/organization through ERPX_NATIVE_ORGANIZATION_CONFIG"
+    ]
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "No retained TypeScript source file was deleted.",
+      "When ERPX_NATIVE_ORGANIZATION_CONFIG is configured and the actor has people.manage, the Admin page/API organization projection uses native nodes/positions/levels instead of the retained organizationAccessData tree."
+    ],
+    "retained": [
+      "People rows, individual private-field redaction, reporting issues and canMovePeople remain the retained Admin/People projection.",
+      "Role, package, assignment, Brand identity, IAM reviews, Directory, lifecycle, automation, technology and GPO reads are unchanged.",
+      "Actors without people.manage and all environments without ERPX_NATIVE_ORGANIZATION_CONFIG keep the retained organizationAccessData page/API read.",
+      "A configured native failure never falls back to the retained organization projection."
+    ]
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No authenticated Admin browser journey was run; the Admin workflow remains unverified in the browser.",
+      "The Organization native read is gated by people.manage, so Company admins with only organization.manage/iam.read retain the TypeScript organization projection.",
+      "Brand and IAM admin reads were already native in this worktree but are not re-verified here.",
+      "Full catalogue validation is blocked by concurrent uncommitted entries; no status register was edited."
+    ],
+    "nextAction": "Run the authenticated Admin organization page against the configured native Organization API, then qualify the Admin Brand/IAM pages in the same browser cohort. If organization.manage-only admins must use the native tree, extend the owner read policy in a separate Organization/Identity slice instead of widening this Admin transport."
+  }
+}

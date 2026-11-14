@@ -1,3 +1,4 @@
+import {reservedWorkspaceSlug} from '@erpx/contracts/holding-hosts';
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
 import { businessRoles,type BusinessRole } from "@erpx/feature-identity_access/lib/business-roles";
 import { seedWorker } from "./seed-roster";
@@ -92,7 +93,7 @@ function orgStatements(db: Db, holding: string) {
         .bind(branchId, "branch", branchId, branchName, company.id, company.id, branchId, "active"));
       for (const [slug, label] of [["operations", "Operations"], ["finance", "Finance"], ["people", "People"]] as const) {
         statements.push(db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES(?,?,?,?,?,?,?,?,1) ON CONFLICT DO NOTHING")
-          .bind(`dept:${branchId}:${slug}`, "department", slug, `${branchName} ${label}`, branchId, company.id, branchId, "active"));
+          .bind(`dept:${branchId}:${slug}`, "department", reservedWorkspaceSlug(slug)?slug+'-dept':slug, `${branchName} ${label}`, branchId, company.id, branchId, "active"));
       }
     }
   }

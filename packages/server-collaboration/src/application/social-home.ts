@@ -49,17 +49,7 @@ export interface SocialHomeRepository<Effect> {
     guardPersonAudience(key: string, value: string, userId: string, companyId: string, now: number, now2: number, departmentId: string | null, departmentId2: string | null, branchId: string | null, branchId2: string | null, branchId3: string | null): Effect;
     draft(id: string, companyId: string): Promise<PostDraft | null>;
     publishedComment(published_comment_id: string, comment_parent_post_id: string): Promise<Record<string, unknown> | null>;
-    prepareCommentDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string): Effect;
-    guardCommentDraft(key: string, value: "draft", id: string, userId: string): Effect;
-    cancelCommentDraft(now: number, now2: number, id: string): Effect;
-    revokeCommentFiles(now: number, id: string): Effect;
-    expireCommentUploads(now: number, id: string): Effect;
-    prepareEditDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string, expectedVersion: number): Effect;
     editDraft(id: string, companyId: string): Promise<PostDraft | null>;
-    guardEditDraft(key: string, value: "draft", id: string, userId: string): Effect;
-    cancelEditDraft(now: number, now2: number, id: string): Effect;
-    revokeEditFiles(now: number, id: string): Effect;
-    expireEditUploads(now: number, id: string): Effect;
     commentDraftExists(id: string): Promise<Record<string, unknown> | null>;
     richDraftExists(id: string): Promise<Record<string, unknown> | null>;
     guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number): Effect;
@@ -310,55 +300,6 @@ const{socialUploadOwner}=createSocialUploadRead(ports);
         }
     }
 
-    async function createCommentUploadDraft(actor: StaffActor, postId: string, key: string) {
-        const post = await ports.readablePost(actor, postId), id = `comment-upload-${key}`, now = ports.clock.now();
-        return ports.commands.commit(actor, key, "social.comment.upload.create", { postId }, id, 1, { id }, [
-            ports.sourceGuard(key, post, actor.userId, "source"),
-            r.prepareCommentDraft(id, actor.userId, actor.companyId, post.branch_id, now, now, postId),
-        ]);
-    }
-    async function cancelCommentUploadDraft(actor: StaffActor, id: string, key: string) {
-        const prior = await ports.commands.replay<{id:string}>(actor,key,"social.comment.upload.cancel",id,{id});
-        if (prior) return prior;
-        const draft = await r.draft(id,actor.companyId);
-        if (!draft || draft.author_id !== actor.userId || draft.cancelled_at !== null || draft.published_post_id || draft.published_comment_id || draft.edit_post_id || !draft.comment_parent_post_id)
-            throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Comment upload draft unavailable.");
-        const now = ports.clock.now();
-        return ports.commands.commit(actor, key, "social.comment.upload.cancel", { id }, id, draft.version + 1, { id }, [
-            r.guardCommentDraft(key, "draft", id, actor.userId),
-            r.cancelCommentDraft(now, now, id),
-            r.revokeCommentFiles(now, id),
-            r.expireCommentUploads(now, id),
-        ]);
-    }
-    async function createPostEditUploadDraft(actor: StaffActor, postId: string, expectedVersion: number, key: string) {
-        const post = await ports.readablePost(actor, postId);
-        if (post.author_id !== actor.userId || post.kind !== "team" || post.linked_module)
-            throw new BusinessRuleError(403, "POST_AUTHOR_REQUIRED", "Only the author can edit this team post.");
-        if (post.version !== expectedVersion)
-            throw new BusinessRuleError(409, "POST_CHANGED", "This post changed. Reload it before editing.");
-        const id = `post-edit-upload-${key}`, now = ports.clock.now();
-        return ports.commands.commit(actor, key, "social.post.edit-upload.create", { postId, expectedVersion }, id, 1, { id, version: 1 }, [
-            ports.sourceGuard(key, post, actor.userId, "source"),
-            r.prepareEditDraft(id, actor.userId, actor.companyId, post.branch_id, now, now, postId, expectedVersion),
-        ]);
-    }
-    async function cancelPostEditUploadDraft(actor: StaffActor, id: string, key: string) {
-        const prior = await ports.commands.replay<{id:string}>(actor,key,"social.post.edit-upload.cancel",id,{id});
-        if (prior) return prior;
-        const draft = await r.editDraft(id, actor.companyId);
-        if (!draft || !draft.edit_post_id || draft.edit_saved_version !== null || draft.cancelled_at !== null || draft.published_post_id || draft.published_comment_id || draft.comment_parent_post_id)
-            throw new BusinessRuleError(404, "UPLOAD_DRAFT_UNAVAILABLE", "Post edit upload draft unavailable.");
-        if (draft.author_id !== actor.userId)
-            throw new BusinessRuleError(404, "UPLOAD_DRAFT_UNAVAILABLE", "Post edit upload draft unavailable.");
-        const now = ports.clock.now();
-        return ports.commands.commit(actor, key, "social.post.edit-upload.cancel", { id }, id, draft.version + 1, { id }, [
-            r.guardEditDraft(key, "draft", id, actor.userId),
-            r.cancelEditDraft(now, now, id),
-            r.revokeEditFiles(now, id),
-            r.expireEditUploads(now, id),
-        ]);
-    }
     async function savePostDraft(actor: Actor, id: string | null, input: z.infer<typeof postDraftSchema>, key: string) {
         const recordId = id ?? `post-draft-${key}`, now = ports.clock.now();
         const existing = id ? await socialUploadOwner(actor, id, true) : null;
@@ -846,7 +787,7 @@ const{socialUploadOwner}=createSocialUploadRead(ports);
             ? { id, version: post.version + 1 }
             : { id }, steps);
     }
-    return { socialAudienceOptions, socialUploadOwner, createCommentUploadDraft, cancelCommentUploadDraft, createPostEditUploadDraft, cancelPostEditUploadDraft, savePostDraft, publishPost, postComments, postViews, postView, homePosts, postRevisionHistory, postAction };
+    return { socialAudienceOptions, socialUploadOwner, savePostDraft, publishPost, postComments, postViews, postView, homePosts, postRevisionHistory, postAction };
 }
 
 export type createSocialUploadReadPorts<Effect>=Pick<SocialHomePorts<Effect>,"readablePost">&{repository:Pick<SocialHomeRepository<Effect>,"draft"|"publishedComment">};

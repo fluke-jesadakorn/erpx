@@ -11,7 +11,7 @@ DO $$
 DECLARE node record; base text; replacement text; suffix integer;
 BEGIN
   FOR node IN SELECT id,kind,slug,parent_id,branch_id FROM organization_nodes
-    WHERE kind IN ('branch','department') AND slug IN ('apps','work','pos','pms','finance','people','sales','supply','assets','projects','recruit','learn','support','service','legal','manufacturing','admin','booking','portal','legal-portal','forms','book','customer-portal','departments','sso','api','_next','__erpx','login','logout','launch','choose-work-role','applications','account','provider','platform','robots.txt','manifest.webmanifest','brand','fonts','vendor') ORDER BY id
+    WHERE kind IN ('branch','department') AND slug IN ('apps','pos','pms','finance','people','sales','supply','assets','projects','recruit','learn','support','service','legal','manufacturing','admin','booking','portal','legal-portal','forms','book','customer-portal','departments','sso','api','_next','__erpx','login','logout','launch','choose-work-role','applications','account','provider','platform','robots.txt','manifest.webmanifest','brand','fonts','vendor') ORDER BY id
   LOOP
     base := left(node.slug,60) || CASE WHEN node.kind='branch' THEN '-branch' ELSE '-dept' END;
     replacement := base; suffix := 1;

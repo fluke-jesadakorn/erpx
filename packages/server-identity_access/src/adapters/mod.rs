@@ -1,0 +1,162 @@
+pub(crate) mod account_credentials_http;
+pub(crate) mod account_credentials_postgres;
+pub(crate) mod account_crypto;
+pub(crate) mod account_http;
+pub(crate) mod account_invitations_http;
+pub(crate) mod account_invitations_postgres;
+pub(crate) mod account_mail_crypto;
+pub(crate) mod account_mail_postgres;
+#[cfg(any(feature = "mail-resend", feature = "mail-smtp"))]
+pub(crate) mod account_mail_transport;
+pub(crate) mod account_postgres;
+pub(crate) mod account_sessions;
+pub(crate) mod portal_session;
+pub(crate) mod account_sso_crypto;
+pub(crate) mod account_sso_http;
+pub(crate) mod account_sso_postgres;
+pub(crate) mod postgres_invitation_authority;
+
+pub(crate) mod postgres_work_context;
+
+pub(crate) mod holding_work_context;
+
+pub(crate) mod permission_catalog;
+pub(crate) mod permission_catalog_lock;
+pub(crate) mod quality_recipients;
+pub(crate) mod quality_scrap_approvers;
+pub(crate) mod sales_recipient;
+pub mod work_admission;
+
+pub(crate) mod postgres_effective_authority;
+
+pub(crate) mod authorized_work;
+
+pub(crate) mod queued_work;
+pub(crate) mod release_reviewers;
+
+pub(crate) mod account_revocation_postgres;
+
+pub(crate) mod account_device_http;
+
+pub(crate) mod account_group_recovery;
+pub(crate) mod account_mfa_crypto;
+pub(crate) mod account_mfa_postgres;
+pub(crate) mod account_security_http;
+pub(crate) mod account_security_postgres;
+pub(crate) mod recovery_http;
+pub(crate) mod recovery_postgres;
+
+pub(crate) mod assignment_http;
+pub(crate) mod assignment_postgres;
+
+pub(crate) mod account_holding_bindings;
+pub(crate) mod account_inbound_http;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ber;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap_tls;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap_wire;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_profiles;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_ldap_snapshot;
+pub(crate) mod operational_worker;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_mapping_postgres;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_postgres;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_snapshot_postgres;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_issuance_postgres;
+
+pub(crate) mod directory_http;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_work;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_work_preflight;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_work_sources;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_profile_tag;
+
+pub(crate) mod directory_source_postgres;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_source_admin;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_admin_sources;
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_source_review;
+
+#[cfg(feature = "directory-ldaps")]
+pub(crate) mod directory_connection_postgres;
+
+#[cfg(feature = "directory-ldaps")]
+pub mod directory_connection_http;
+
+pub(crate) mod oidc_url_values;
+
+pub(crate) mod field_service_assignment;
+
+pub(crate) mod journal_flow_participants;
+
+pub(crate) mod field_service_workspace;
+
+pub(crate) mod selected_command_authority;
+pub(crate) mod service_initial_count_authority;
+pub(crate) mod service_count_flow_participants;
+
+pub(crate) mod collaboration_candidates;
+
+pub(crate) mod push_session;
+
+pub(crate) mod account_work_roles;
+
+pub mod account_companies;
+
+pub mod account_control_scope;
+pub(crate) mod platform_commercial_authority;
+
+pub mod account_work_presentation;
+pub(crate) mod quality_same_person;
+pub(crate) mod operations_recipients;
+pub(crate) mod staff_notifications;
+
+pub(crate) mod iam_roles_postgres;
+pub(crate) mod iam_roles_http;
+
+pub(crate) mod staff_facts;
+
+pub(crate) mod pms_social_event_recipients;
+
+pub mod routine_owner;
+
+pub(crate) mod position_gpo_postgres;
+#[cfg(feature = "position-gpo-connector")]
+pub(crate) mod position_gpo_directory;
+pub(crate) mod position_gpo_http;
+
+pub(crate) mod people_access_postgres;
+pub(crate) mod people_access_http;
+pub(crate) mod people_grants_postgres;
+pub(crate) mod people_grants_http;
+
+pub(crate) mod directory_operation_http;
+pub(crate) mod directory_operation_postgres;
+
+pub(crate) mod user_management_postgres;
+pub mod user_management_http;

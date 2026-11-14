@@ -61,7 +61,6 @@
     "./adapters/finance-close-source": "./src/adapters/finance-close-source.ts",
     "./adapters/expense-posting-setup": "./src/adapters/expense-posting-setup.ts",
     "./adapters/finance-record-sources": "./src/adapters/finance-record-sources.ts",
-    "./adapters/service-parts-posting-sources": "./src/adapters/service-parts-posting-sources.ts",
     "./adapters/inventory-transfers-sources": "./src/adapters/inventory-transfers-sources.ts",
     "./adapters/workflow-command-effects": "./src/adapters/workflow-command-effects.ts",
     "./adapters/planning-resource-sources": "./src/adapters/planning-resource-sources.ts",
@@ -94,7 +93,6 @@
     "./adapters/pos-startup-masters": "./src/adapters/pos-startup-masters.ts",
     "./adapters/pos-facts": "./src/adapters/pos-facts.ts",
     "./adapters/finance-sales-sources": "./src/adapters/finance-sales-sources.ts",
-    "./adapters/service-initial-physical-stock-masters": "./src/adapters/service-initial-physical-stock-masters.ts",
     "./adapters/manufacturing-initial-physical-stock-sources": "./src/adapters/manufacturing-initial-physical-stock-sources.ts",
     "./adapters/pms-rollout-facts": "./src/adapters/pms-rollout-facts.ts",
     "./adapters/pos-posting-setup": "./src/adapters/pos-posting-setup.ts",
@@ -113,7 +111,6 @@
     "./adapters/inventory-landed-costs-sources": "./src/adapters/inventory-landed-costs-sources.ts",
     "./adapters/manufacturing-posting-setup-sources": "./src/adapters/manufacturing-posting-setup-sources.ts",
     "./adapters/service-parts-posting-proof": "./src/adapters/service-parts-posting-proof.ts",
-    "./adapters/customer-authority-merge": "./src/adapters/customer-authority-merge.ts",
     "./adapters/sales-editor": "./src/adapters/sales-editor.ts",
     "./adapters/quality-workspace-stock": "./src/adapters/quality-workspace-stock.ts",
     "./adapters/finance-refund-notice-source": "./src/adapters/finance-refund-notice-source.ts",
@@ -182,7 +179,6 @@
     "./public/finance-close-source": "./src/public/finance-close-source.ts",
     "./public/expense-posting-setup": "./src/public/expense-posting-setup.ts",
     "./public/finance-record-sources": "./src/public/finance-record-sources.ts",
-    "./public/service-parts-posting-sources": "./src/public/service-parts-posting-sources.ts",
     "./public/inventory-transfers-sources": "./src/public/inventory-transfers-sources.ts",
     "./public/workflow-command-effects": "./src/public/workflow-command-effects.ts",
     "./public/planning-resource-sources": "./src/public/planning-resource-sources.ts",
@@ -217,7 +213,6 @@
     "./public/pos-startup-masters": "./src/public/pos-startup-masters.ts",
     "./public/pos-facts": "./src/public/pos-facts.ts",
     "./public/finance-sales-sources": "./src/public/finance-sales-sources.ts",
-    "./public/service-initial-physical-stock-masters": "./src/public/service-initial-physical-stock-masters.ts",
     "./public/manufacturing-initial-physical-stock-sources": "./src/public/manufacturing-initial-physical-stock-sources.ts",
     "./public/pms-rollout-facts": "./src/public/pms-rollout-facts.ts",
     "./public/pos-posting-setup": "./src/public/pos-posting-setup.ts",
@@ -236,7 +231,6 @@
     "./public/inventory-landed-costs-sources": "./src/public/inventory-landed-costs-sources.ts",
     "./public/manufacturing-posting-setup-sources": "./src/public/manufacturing-posting-setup-sources.ts",
     "./public/service-parts-posting-proof": "./src/public/service-parts-posting-proof.ts",
-    "./public/customer-authority-merge": "./src/public/customer-authority-merge.ts",
     "./public/sales-editor": "./src/public/sales-editor.ts",
     "./public/quality-workspace-stock": "./src/public/quality-workspace-stock.ts",
     "./public/finance-refund-notice-source": "./src/public/finance-refund-notice-source.ts",
@@ -263,9 +257,7 @@
     "./domain/manufacturing-posting-setup": "./src/domain/manufacturing-posting-setup.ts",
     "./domain/expense-posting-setup": "./src/domain/expense-posting-setup.ts",
     "./domain/sales-service-products": "./src/domain/sales-service-products.ts",
-    "./domain/service-parts-posting-setup": "./src/domain/service-parts-posting-setup.ts",
     "./domain/pos-startup-masters": "./src/domain/pos-startup-masters.ts",
-    "./domain/service-initial-physical-stock-masters": "./src/domain/service-initial-physical-stock-masters.ts",
     "./domain/pos-posting-setup": "./src/domain/pos-posting-setup.ts",
     "./domain/commerce": "./src/domain/commerce.ts",
     "./domain/manufacturing-existing-posting-setup": "./src/domain/manufacturing-existing-posting-setup.ts"
@@ -303,6 +295,6 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

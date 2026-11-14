@@ -15,17 +15,17 @@ afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{recursive:true,for
 
 describe('isolated Executive Work role-selection edge policy',()=>{
  const expected={run:'a'.repeat(12),companyId:'company-fixture',assignmentId:'assignment-fixture',assignmentVersion:1,email:'owner@example.test',password:'fixture-password-that-is-not-used-here',token:'erpx_exec_'+'a'.repeat(43)};
- const selection=(headers:Record<string,string|undefined>={})=>({method:'POST',origin:'https://work-dev-erpx.jesadakorn.com',path:'/launch',headers:{'content-type':'application/x-www-form-urlencoded',origin:'null','sec-fetch-site':'same-origin','sec-fetch-mode':'navigate','sec-fetch-dest':'document',...headers},body:new URLSearchParams({companyId:expected.companyId,next:'/holdings/acme/insights/executive',assignmentId:expected.assignmentId,assignmentVersion:String(expected.assignmentVersion),revision:'0'}).toString()});
+ const selection=(headers:Record<string,string|undefined>={})=>({method:'POST',origin:'https://apps-dev-erpx.jesadakorn.com',path:'/launch',headers:{'content-type':'application/x-www-form-urlencoded',origin:'null','sec-fetch-site':'same-origin','sec-fetch-mode':'navigate','sec-fetch-dest':'document',...headers},body:new URLSearchParams({companyId:expected.companyId,next:'/holdings/acme/insights/executive',assignmentId:expected.assignmentId,assignmentVersion:String(expected.assignmentVersion),revision:'0'}).toString()});
  it('allows the exact null-origin same-origin document navigation used by the browser role form',()=>{
   expect(executiveWorkPostKind(selection(),expected)).toBe('role-selection');
-  expect(executiveWorkPostKind(selection({origin:'https://work-dev-erpx.jesadakorn.com'}),expected)).toBe('role-selection');
+  expect(executiveWorkPostKind(selection({origin:'https://apps-dev-erpx.jesadakorn.com'}),expected)).toBe('role-selection');
  });
  it('denies null-origin role posts when any Fetch Metadata value leaves the exact navigation shape',()=>{
   for(const mismatch of [{'sec-fetch-site':'cross-site'},{'sec-fetch-mode':'cors'},{'sec-fetch-dest':'empty'}])expect(executiveWorkPostKind(selection(mismatch),expected)).toBeNull();
  });
  const workspacePreference=(headers:Record<string,string|undefined>={},body:unknown={base:'/holdings/acme'},path='/api/v1/workspace-preference',search='')=>({
-  method:'POST',origin:'https://work-dev-erpx.jesadakorn.com',path,search,headers:{
-   'content-type':'application/json',origin:'https://work-dev-erpx.jesadakorn.com','sec-fetch-site':'same-origin','sec-fetch-mode':'cors','sec-fetch-dest':'empty',
+  method:'POST',origin:'https://apps-dev-erpx.jesadakorn.com',path,search,headers:{
+   'content-type':'application/json',origin:'https://apps-dev-erpx.jesadakorn.com','sec-fetch-site':'same-origin','sec-fetch-mode':'cors','sec-fetch-dest':'empty',
    'x-erpx-context-company':expected.companyId,'x-erpx-context-assignment':expected.assignmentId,'x-erpx-context-revision':'1',...headers,
   },body:JSON.stringify(body),
  });
@@ -51,9 +51,9 @@ describe('isolated Executive Work role-selection edge policy',()=>{
    workspacePreference({origin:'https://attacker.invalid'}),
    workspacePreference({'content-type':'text/plain'}),
   ]) expect(executiveWorkPostKind(request,expected,1)).toBeNull();
-  expect(executiveWorkPostKind({method:'POST',origin:'https://work-dev-erpx.jesadakorn.com',path:'/api/v1/unlisted',headers:{origin:'https://work-dev-erpx.jesadakorn.com'},body:'{}'},expected,1)).toBeNull();
+  expect(executiveWorkPostKind({method:'POST',origin:'https://apps-dev-erpx.jesadakorn.com',path:'/api/v1/unlisted',headers:{origin:'https://apps-dev-erpx.jesadakorn.com'},body:'{}'},expected,1)).toBeNull();
  });
- const mcpRequest=(message:Record<string,unknown>)=>({method:'POST',origin:'https://work-dev-erpx.jesadakorn.com',path:'/api/mcp/executive',headers:{authorization:`Bearer ${expected.token}`,'content-type':'application/json'},body:JSON.stringify(message)});
+ const mcpRequest=(message:Record<string,unknown>)=>({method:'POST',origin:'https://apps-dev-erpx.jesadakorn.com',path:'/api/mcp/executive',headers:{authorization:`Bearer ${expected.token}`,'content-type':'application/json'},body:JSON.stringify(message)});
  it('allows the current MCP client tools/list shape only with omitted or empty parameters',()=>{
   const message={jsonrpc:'2.0',id:1,method:'tools/list'};
   expect(executiveWorkPostKind(mcpRequest(message),expected)).toBe('mcp-read');
@@ -66,19 +66,19 @@ describe('isolated Executive Work role-selection edge policy',()=>{
   expect(executiveWorkPostKind(mcpRequest({...message,extra:true}),expected)).toBeNull();
  });
  it('allows only the credential-bound no-query Streamable HTTP event-stream read',()=>{
-  const eventStream={method:'GET',origin:'https://work-dev-erpx.jesadakorn.com',path:'/api/mcp/executive',search:'',headers:{origin:'https://work-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream'},body:''};
+  const eventStream={method:'GET',origin:'https://apps-dev-erpx.jesadakorn.com',path:'/api/mcp/executive',search:'',headers:{origin:'https://apps-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream'},body:''};
   expect(executiveWorkGetKind(eventStream,expected)).toBe('mcp-event-stream');
   for(const change of [
    {path:'/api/mcp/other'},
    {search:'?resume=1'},
    {origin:'https://account-dev-erpx.jesadakorn.com'},
    {headers:{origin:'https://attacker.invalid',authorization:`Bearer ${expected.token}`,accept:'text/event-stream'}},
-   {headers:{origin:'https://work-dev-erpx.jesadakorn.com',authorization:'Bearer wrong',accept:'text/event-stream'}},
-   {headers:{origin:'https://work-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'application/json, text/event-stream'}},
-   {headers:{origin:'https://work-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream',cookie:'browser-session'}},
-   {headers:{origin:'https://work-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream','content-type':'application/json'}},
-   {headers:{origin:'https://work-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream','content-length':'1'}},
-   {headers:{origin:'https://work-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream','transfer-encoding':'chunked'}},
+   {headers:{origin:'https://apps-dev-erpx.jesadakorn.com',authorization:'Bearer wrong',accept:'text/event-stream'}},
+   {headers:{origin:'https://apps-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'application/json, text/event-stream'}},
+   {headers:{origin:'https://apps-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream',cookie:'browser-session'}},
+   {headers:{origin:'https://apps-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream','content-type':'application/json'}},
+   {headers:{origin:'https://apps-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream','content-length':'1'}},
+   {headers:{origin:'https://apps-dev-erpx.jesadakorn.com',authorization:`Bearer ${expected.token}`,accept:'text/event-stream','transfer-encoding':'chunked'}},
    {body:'unexpected'},
    {method:'HEAD'},
    {method:'POST'},
@@ -176,7 +176,7 @@ describe('explicit owned product-host browser mode preflight',()=>{
  });
  it('requires the private plan to authorize the exact isolated workflow scope',()=>{expect(productHostWorkflowIsArmed({},null)).toBe(true);expect(productHostWorkflowIsArmed({},'work.request-draft')).toBe(false);expect(productHostWorkflowIsArmed({},'finance.sales-invoice')).toBe(false);expect(productHostWorkflowIsArmed({allowIsolatedBusinessWorkflow:'work.request-draft'},'work.request-draft')).toBe(true);expect(productHostWorkflowIsArmed({allowIsolatedBusinessWorkflow:'finance.sales-invoice'},'finance.sales-invoice')).toBe(true);expect(productHostWorkflowIsArmed({allowIsolatedBusinessWorkflow:'finance.sales-invoice'},'work.request-draft')).toBe(false);});
  it('allows only a service-request draft create on Work and its same-run cancellation across the owner handoff',()=>{
-  const scope='work.request-draft' as const,idempotencyKey='migration-case-1234',createdDraftIds=new Set<string>(),base={method:'POST',origin:'https://work-dev-erpx.jesadakorn.com',workflowHeader:scope,idempotencyKey,createdDraftIds},create={...base,path:'/api/v1/holdings/simulation/requests',body:JSON.stringify({kind:'service',category:'it',title:'Migration Work draft case',description:'A fictional isolated owner workflow.'})};
+  const scope='work.request-draft' as const,idempotencyKey='migration-case-1234',createdDraftIds=new Set<string>(),base={method:'POST',origin:'https://apps-dev-erpx.jesadakorn.com',workflowHeader:scope,idempotencyKey,createdDraftIds},create={...base,path:'/api/v1/holdings/simulation/requests',body:JSON.stringify({kind:'service',category:'it',title:'Migration Work draft case',description:'A fictional isolated owner workflow.'})};
   expect(permitsProductHostBusinessWrite(scope,create)).toBe(true);expect(permitsProductHostBusinessWrite(scope,{...create,origin:'https://support-dev-erpx.jesadakorn.com'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,origin:'https://finance-dev-erpx.jesadakorn.com'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,workflowHeader:'work'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,body:JSON.stringify({...JSON.parse(create.body),kind:'purchase'})})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,body:JSON.stringify({...JSON.parse(create.body),title:'Unscoped request'})})).toBe(false);
   const ownId=`request-${idempotencyKey}`,cancel={...base,createdDraftIds:new Set([ownId]),path:`/api/v1/holdings/simulation/requests/${ownId}/actions`,body:JSON.stringify({action:'cancel',expectedVersion:2})};expect(permitsProductHostBusinessWrite(scope,cancel)).toBe(true);expect(permitsProductHostBusinessWrite(scope,{...cancel,origin:'https://support-dev-erpx.jesadakorn.com'})).toBe(true);expect(permitsProductHostBusinessWrite(scope,{...cancel,origin:'https://finance-dev-erpx.jesadakorn.com'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,path:'/api/v1/holdings/simulation/requests/request_other/actions'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,body:JSON.stringify({action:'approve',expectedVersion:2})})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,body:JSON.stringify({action:'cancel',expectedVersion:2,note:'outside the exact UI command'})})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,method:'GET'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,path:'/api/v1/holdings/other/requests/request_123/actions'})).toBe(false);expect(permitsProductHostBusinessWrite(null,create)).toBe(false);
  });
@@ -208,16 +208,16 @@ describe('explicit owned product-host browser mode preflight',()=>{
   expect(permitsProductHostFinanceInvoice(null,base)).toBe(false);
  });
  it('permits only the exact read-only service preview on Work and Support for this workflow',()=>{
-  const scope='work.request-draft' as const,workOrigin='https://work-dev-erpx.jesadakorn.com',supportOrigin='https://support-dev-erpx.jesadakorn.com',path='/api/v1/holdings/simulation/requests/preview',createdDraftIds=new Set(['request-migration-case-1234']),base={method:'POST',origin:workOrigin,path,workflowHeader:scope,createdDraftIds},body={kind:'service',category:'it',branchId:null,departmentId:null,parentRequestId:null};
+  const scope='work.request-draft' as const,workOrigin='https://apps-dev-erpx.jesadakorn.com',supportOrigin='https://support-dev-erpx.jesadakorn.com',path='/api/v1/holdings/simulation/requests/preview',createdDraftIds=new Set(['request-migration-case-1234']),base={method:'POST',origin:workOrigin,path,workflowHeader:scope,createdDraftIds},body={kind:'service',category:'it',branchId:null,departmentId:null,parentRequestId:null};
   expect(permitsProductHostRequestPreview(scope,{...base,body:JSON.stringify(body)})).toBe(true);expect(permitsProductHostRequestPreview(scope,{...base,origin:supportOrigin,body:JSON.stringify({...body,id:'request-migration-case-1234'})})).toBe(true);expect(permitsProductHostRequestPreview(scope,{...base,origin:supportOrigin,body:JSON.stringify({...body,id:'request-from-another-run'})})).toBe(false);expect(permitsProductHostRequestPreview(scope,{...base,body:JSON.stringify({...body,kind:'purchase'})})).toBe(false);expect(permitsProductHostRequestPreview(scope,{...base,body:JSON.stringify({...body,category:'other'})})).toBe(false);expect(permitsProductHostRequestPreview(scope,{...base,body:JSON.stringify({...body,extra:true})})).toBe(false);expect(permitsProductHostRequestPreview(scope,{...base,path:'/api/v1/holdings/simulation/requests',body:JSON.stringify(body)})).toBe(false);expect(permitsProductHostRequestPreview(scope,{...base,workflowHeader:'',body:JSON.stringify(body)})).toBe(false);expect(permitsProductHostRequestPreview(null,{...base,body:JSON.stringify(body)})).toBe(false);
  });
  it('allows only exact isolated workspace and home-read preference writes',()=>{
-  const origin='https://work-dev-erpx.jesadakorn.com',workspace={method:'POST',origin,path:'/api/v1/workspace-preference',body:JSON.stringify({base:'/holdings/simulation'})};
+  const origin='https://apps-dev-erpx.jesadakorn.com',workspace={method:'POST',origin,path:'/api/v1/workspace-preference',body:JSON.stringify({base:'/holdings/simulation'})};
   expect(permitsProductHostUiWrite(workspace)).toBe(true);expect(permitsProductHostUiWrite({...workspace,body:JSON.stringify({base:'/holdings/riverside-lantern'})})).toBe(true);expect(permitsProductHostUiWrite({...workspace,body:JSON.stringify({base:'/holdings/other'})})).toBe(false);expect(permitsProductHostUiWrite({...workspace,body:JSON.stringify({base:'/holdings/simulation',role:'owner'})})).toBe(false);expect(permitsProductHostUiWrite({...workspace,origin:'https://account-dev-erpx.jesadakorn.com'})).toBe(false);expect(permitsProductHostUiWrite({...workspace,method:'GET'})).toBe(false);
   const readHome={method:'POST',origin,path:'/api/v1/holdings/simulation/navigation',body:JSON.stringify({action:'read-home'})};expect(permitsProductHostUiWrite(readHome)).toBe(true);expect(permitsProductHostUiWrite({...readHome,path:'/api/v1/holdings/other/navigation'})).toBe(false);expect(permitsProductHostUiWrite({...readHome,body:JSON.stringify({action:'assign-role'})})).toBe(false);expect(permitsProductHostUiWrite({...readHome,body:JSON.stringify({action:'read-home',companyId:'other'})})).toBe(false);
  });
  it('allows opaque Origin only for the exact native same-origin /launch document POST',()=>{
-  const valid={origin:'null',targetOrigin:'https://work-dev-erpx.jesadakorn.com',method:'POST',path:'/launch',fetchSite:'same-origin',fetchMode:'navigate',fetchDest:'document'};
+  const valid={origin:'null',targetOrigin:'https://apps-dev-erpx.jesadakorn.com',method:'POST',path:'/launch',fetchSite:'same-origin',fetchMode:'navigate',fetchDest:'document'};
   expect(permitsProductHostRequestOrigin(valid)).toBe(true);
   expect(permitsProductHostRequestOrigin({...valid,origin:undefined})).toBe(false);
   expect(permitsProductHostRequestOrigin({...valid,origin:'https://evil.test'})).toBe(false);
@@ -226,7 +226,7 @@ describe('explicit owned product-host browser mode preflight',()=>{
   expect(permitsProductHostRequestOrigin({...valid,fetchSite:'cross-site'})).toBe(false);
   expect(permitsProductHostRequestOrigin({...valid,fetchMode:'cors'})).toBe(false);
   expect(permitsProductHostRequestOrigin({...valid,fetchDest:'empty'})).toBe(false);
-  expect(permitsProductHostRequestOrigin({...valid,origin:'https://work-dev-erpx.jesadakorn.com'})).toBe(true);
+  expect(permitsProductHostRequestOrigin({...valid,origin:'https://apps-dev-erpx.jesadakorn.com'})).toBe(true);
  });
  it('refuses the disabled arm before reaching an artifact, socket or fixture',async()=>{await expect(refusedPlan({enabled:false})()).rejects.toThrow('CURRENT_EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');});
  it('refuses stale source or verification identities and expired arms',async()=>{for(const change of [{runtimeFingerprint:'f'.repeat(64)},{verificationFingerprint:'f'.repeat(64)},{expiresAt:Date.now()-1}])await expect(refusedPlan(change)()).rejects.toThrow('CURRENT_EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');});

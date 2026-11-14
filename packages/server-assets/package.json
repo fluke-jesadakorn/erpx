@@ -10,17 +10,14 @@
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
-    "./adapters/assets": "./src/adapters/assets.ts",
     "./adapters/attachment-read": "./src/adapters/attachment-read.ts",
     "./adapters/record-purchases": "./src/adapters/record-purchases.ts",
     "./adapters/purchases": "./src/adapters/purchases.ts",
     "./adapters/attachments-policy-facts": "./src/adapters/attachments-policy-facts.ts",
     "./adapters/attachments-service-facts": "./src/adapters/attachments-service-facts.ts",
-    "./adapters/service-package-obligations": "./src/adapters/service-package-obligations.ts",
     "./adapters/metric-purchases": "./src/adapters/metric-purchases.ts",
     "./adapters/attachments-operational-facts": "./src/adapters/attachments-operational-facts.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
-    "./adapters/maintenance-transaction": "./src/adapters/maintenance-transaction.ts",
     "./public/financial-workflow-sources": "./src/public/financial-workflow-sources.ts",
     "./public/records-source-facts": "./src/public/records-source-facts.ts",
     "./public/field-service-references": "./src/public/field-service-references.ts",
@@ -33,16 +30,11 @@
     "./public/purchases": "./src/public/purchases.ts",
     "./public/attachments-policy-facts": "./src/public/attachments-policy-facts.ts",
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",
-    "./public/service-package-obligations": "./src/public/service-package-obligations.ts",
     "./public/metric-purchases": "./src/public/metric-purchases.ts",
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
-    "./public/maintenance-transaction": "./src/public/maintenance-transaction.ts",
     "./index": "./src/index.ts",
-    "./application/assets": "./src/application/assets.ts",
-    "./application/registration": "./src/application/registration.ts",
-    "./domain/assets": "./src/domain/assets.ts",
-    "./domain/registration": "./src/domain/registration.ts"
+    "./domain/assets": "./src/domain/assets.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -69,6 +61,6 @@
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

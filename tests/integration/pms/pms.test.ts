@@ -26,9 +26,8 @@ import { readablePmsSource } from "@erpx/server-pms/public/pms/source";
 import { previewPmsImport,approvePmsImport,applyPmsImport } from "@erpx/server-pms/public/pms/import";
 import { publishHandover,acknowledgeHandover,handoverView } from "@erpx/server-operations/public/handover";
 import {homePosts,postView} from '@erpx/server-collaboration/public/social-home';
-import { projectPmsSocialEvent } from "@erpx/server-pms/public/pms/social-events";
 import type { EventMessage } from "@erpx/server-workflow/public/job-projector";
-import {createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal,markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
@@ -84,14 +83,6 @@ async function cmd(operation: string, input: unknown = {}, actor = owner) {
     { propertyId, expectedVersion: s.property.version, operation, input },
     key(),
   );
-}
-async function projectCommittedEvent(eventType:string) {
-  const event=await db.prepare("SELECT * FROM outbox_events WHERE event_type=? AND payload_json::jsonb->>'companyId'=? ORDER BY created_at DESC,id LIMIT 1")
-    .bind(eventType,f.company).first<{id:string;event_type:string;aggregate_id:string;aggregate_version:number;payload_json:string}>();
-  if(!event)throw new Error("Expected committed PMS event");
-  const message={id:event.id,holdingId:"h001",eventType:event.event_type,aggregateId:event.aggregate_id,aggregateVersion:event.aggregate_version,payload:JSON.parse(event.payload_json)} satisfies EventMessage;
-  await projectPmsSocialEvent(db,message);
-  return message;
 }
 beforeEach(async context => {
   f = await seedExpenseCompany(db, env.H001_FILES, !context.task.name.startsWith("blocks a new booking"));
@@ -662,11 +653,6 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
     nextAction: "Match imported bank evidence to this hotel transfer",
   });
   expect((await pmsWork(owner)).find((item) => item.id === pending.id)).toMatchObject({queue:"waiting",canAct:false});
-  await projectCommittedEvent("pms.payment.request_transfer");
-  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,reviewer.userId).first<number>("count")).toBe(1);
-  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,owner.userId).first<number>("count")).toBe(0);
   const statement=key(),bankId=key();
   await db.prepare("INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,source_hash,imported_by,created_at) VALUES(?,?,?,?,?,0,10700,?,?,?)").bind(statement,f.company,accounts.bank,"PMS-STATEMENT-1",initial.property.businessDate,key(),reviewer.userId,Date.now()).run();
   await db.prepare("INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES(?,?,?,?,?,10600,'THB')").bind(bankId,statement,f.company,initial.property.businessDate,"PMS-BANK-001").run();
@@ -701,14 +687,6 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
   expect(Number(payment!.amount_minor)).toBe(10700);
   expect(await balance(accounts.bank)).toBe(10700);
   expect(records(await snapshot(),"entry").filter(row=>row.id===result.entryId)).toHaveLength(1);
-  const verificationEvent=await projectCommittedEvent("pms.payment.verify_transfer");
-  await projectPmsSocialEvent(db,verificationEvent);
-  const notification=await db.prepare("SELECT record_id,message FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,owner.userId).first<{record_id:string;message:string}>();
-  expect(notification?.message).toContain("Bank transfer verified");
-  expect((await postView(db,owner,notification!.record_id)).linkedSources[0]).toMatchObject({id:pending.id,available:true});
-  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
-    .bind(f.company,owner.userId).first<number>("count")).toBe(1);
 });
 
 it("cancels an unverified hotel transfer without changing guest account or ledger", async () => {
@@ -966,13 +944,8 @@ it("separates security deposits, enforces refund independence and reverses advan
   });
   await cmd("refund.approve", { id: refund }, reviewer);
   expect((await pmsWork(owner)).find(item=>item.id===refund)).toMatchObject({queue:"todo",canAct:true,nextAction:"Pay approved refund",responsibleQueue:"Cashier"});
-  await projectCommittedEvent("pms.refund.approve");
-  expect(await db.prepare("SELECT message FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'").bind(f.company,owner.userId).first("message")).toContain("Refund approved");
   await cmd("refund.pay", { id: refund, method: "cash", shiftId: sh });
   expect((await pmsWork(owner)).some(item=>item.id===refund)).toBe(false);
-  const payoutEvent=await projectCommittedEvent("pms.refund.pay");
-  await projectPmsSocialEvent(db,payoutEvent);
-  expect((await homePosts(db,owner)).find(post=>post.linkedSources.some(source=>source.id===refund))?.body).toContain("Refund paid");
   expect(await balance(accounts.advance)).toBe(0);
   expect(await balance(accounts.tax)).toBe(0);
   expect(await balance(accounts.deposit)).toBe(-5000);
@@ -1159,18 +1132,6 @@ it("rejects a handover from a stale PMS source and bounds task pages with cursor
   await expect(pmsTaskPage(db,receiver,{cursor:page.nextCursor!})).rejects.toMatchObject({status:422});
 });
 
-it("projects durable PMS events once and combines room updates in the same Social post",async()=>{
-  await clean();
-  const events=(await db.prepare("SELECT * FROM outbox_events WHERE event_type IN ('pms.task.complete','pms.task.inspect') AND payload_json::jsonb->>'companyId'=? ORDER BY created_at,id").bind(f.company).all<{id:string;event_type:string;aggregate_id:string;aggregate_version:number;payload_json:string}>()).results;
-  const messages=events.map(event=>({id:event.id,holdingId:"h001",eventType:event.event_type,aggregateId:event.aggregate_id,aggregateVersion:event.aggregate_version,payload:JSON.parse(event.payload_json)} satisfies EventMessage));
-  await Promise.all(messages.map(message=>projectPmsSocialEvent(db,message)));
-  await Promise.all(messages.map(message=>projectPmsSocialEvent(db,message)));
-  expect(await db.prepare("SELECT count(*) FROM pms_social_event_receipts WHERE event_id IN (?,?)").bind(...events.map(event=>event.id)).first<number>("count")).toBe(2);
-  const posts=await homePosts(db,owner);
-  expect(posts.filter(post=>post.author_name==="PMS")).toHaveLength(1);
-  expect(posts[0].linkedSources[0].available).toBe(true);
-});
-
 async function cutoverDefinition(opening={due:0,advance:0,advanceTax:0,deposit:0}){
   return {propertyId,expectedVersion:(await snapshot()).property.version,cutoverDate:"2026-09-01",currency:"THB",source:"legacy-test",
     roomTypes:[{key:"type",existingId:typeId,name:"Deluxe",capacity:2}],rooms:[{key:"room",existingId:roomId,number:"101",typeKey:"type"}],
@@ -1205,11 +1166,8 @@ it("traces imported advance and deposit to the approved opening journal and reco
   const input=await cutoverDefinition({due:0,advance:20000,advanceTax:0,deposit:5000});
   const preview=await previewPmsImport(db,owner,input,key()) as {id:string};
   await expect(approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1},key())).rejects.toMatchObject({code:"PMS_IMPORT_JOURNAL"});
-  const journal=await createJournal(owner,{chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",memo:"Hotel cutover balances",isOpening:true,sourceType:"opening_import",lines:[
-    {accountId:accounts.cash,debit:"250.00",credit:"0.00"},{accountId:accounts.advance,debit:"0.00",credit:"200.00"},{accountId:accounts.deposit,debit:"0.00",credit:"50.00"}]},key());
-  const flow=await resolveFlow(db,owner,"journal",journal.id);
-  await assignFlowPrimary(db,owner,"journal",journal.id,{stepKey:"draft",userId:reviewer.userId,reason:"Assign independent hotel cutover review",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
-  await postJournal(reviewer,journal.id,key(),{expectedVersion:journal.version});
+  const journal=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",memo:"Hotel cutover balances",isOpening:true,sourceType:"opening_import",key:key(),createdBy:owner.userId,postedBy:reviewer.userId,status:"posted",lines:[
+    {accountId:accounts.cash,debit:"250.00",credit:"0.00"},{accountId:accounts.advance,debit:"0.00",credit:"200.00"},{accountId:accounts.deposit,debit:"0.00",credit:"50.00"}]});
   await approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1,openingJournalId:journal.id},key());
   await applyPmsImport(db,owner,{id:preview.id,expectedVersion:2},key());
   const home=await pmsFinanceOverview(owner);
@@ -1228,14 +1186,20 @@ it("settles the original opening receivable and invoices only new hotel service 
   await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,'Opening equity','equity','THB',1,1)").bind(equityId,f.chart,f.company,equityId).run();
   await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer',?,'Imported guest','THB','active',1,1)").bind(partyId,f.company,partyId).run();
   await db.prepare("UPDATE finance_accounts SET is_control=1,control_kind='receivable' WHERE id=?").bind(accounts.receivable).run();
-  const definition=openingTrialBalanceSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",
-    lines:[{accountId:accounts.receivable,debit:"200.00",credit:"0",subledgerKind:"receivable"},{accountId:equityId,debit:"0",credit:"200.00",subledgerKind:"none"}],
-    subledgerItems:[{kind:"receivable",partyId,reference:"LEGACY-HOTEL-1",dueDate:"2026-09-02",controlAccountId:accounts.receivable,offsetAccountId:equityId,amount:"200.00"}]});
-  const financePreview=await previewOpeningTrialBalance(owner,definition);
-  const journal=await importOpeningTrialBalance(owner,{...definition,previewToken:financePreview.previewToken},key());
-  const flow=await resolveFlow(db,owner,"journal",journal.id);
-  await assignFlowPrimary(db,owner,"journal",journal.id,{stepKey:"draft",userId:reviewer.userId,reason:"Assign independent opening balance posting",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
-  await postJournal(reviewer,journal.id,key(),{expectedVersion:journal.version});
+  // Native opening preview/import owns production; this PMS oracle needs the
+  // same retained draft opening journal and subledger invoice as SQL facts.
+  const journalId=`journal-seed-${key()}`,journal={id:journalId,version:1},invoiceId=`${journalId}-subledger-0`,at=Date.now();
+  await db.batch([
+    db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,is_opening,status,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'2026-09-01','THB',1000000,'opening_import',?,'Verified opening trial balance and subledger schedules',1,'draft',1,?,?,?)")
+      .bind(journalId,f.company,f.chart,f.period,`J-SEED-${journalId}`,f.chart,owner.userId,at,at),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'Imported opening receivable',20000,0,20000,0,'{}',0)")
+      .bind(`${journalId}-0`,journalId,accounts.receivable),
+    db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,'Opening equity',0,20000,0,20000,'{}',1)")
+      .bind(`${journalId}-1`,journalId,equityId),
+    db.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,base_total_minor,base_outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,status,journal_id,version,created_by,created_at,updated_at) VALUES(?,?,?,'receivable','LEGACY-HOTEL-1','2026-09-01','2026-09-02','THB',20000,0,20000,20000,20000,20000,?,?,'opening_import',?,'draft',?,1,?,?,?)")
+      .bind(invoiceId,f.company,partyId,accounts.receivable,equityId,journalId,journalId,owner.userId,at,at),
+  ]);
+  await markFinanceJournalPosted(db,journal.id,reviewer.userId);
   const originalInvoice=`${journal.id}-subledger-0`,cutover=await cutoverDefinition({due:20000,advance:0,advanceTax:0,deposit:0});
   const importDefinition={...cutover,guests:cutover.guests.map(guest=>({...guest,partyId})),reservations:cutover.reservations.map(reservation=>({...reservation,openingInvoiceId:originalInvoice}))};
   const preview=await previewPmsImport(db,owner,importDefinition,key()) as {id:string};
@@ -2482,7 +2446,7 @@ it("serializes concurrent last group pickups and returns quota after cancellatio
 });
 
 it('PMS rendered handover receipt uses native source counts and versioned retry without licensing full Work while native role loss hides the initial content',async()=>{
- const {pmsHomeWrite}=await import('@erpx/server-pms/public/pms/home-api'),{acknowledgeHandoverVersion}=await import('@erpx/server-operations/public/handover'),{postAction}=await import('@erpx/server-collaboration/public/social-home');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ const {pmsHomeWrite}=await import('@erpx/server-pms/public/pms/home-api'),{acknowledgeHandoverVersion}=await import('@erpx/server-operations/public/handover'),{postAction}=await import('@erpx/server-collaboration/public/social-home');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,receiver=await f.member('Actual receipt shift receiver','pms_housekeeping'),source=await readablePmsSource(db,owner,taskId),work={items:await pmsWork(owner),unavailableSources:[]},published=await publishHandover(db,owner,work,{date:new Date(Date.now()+7*3600000).toISOString().slice(0,10),body:'Actual current room handover needs a read receipt',sources:[{kind:'pms_record',id:taskId,sourceVersion:source.version}],recipientIds:[receiver.userId]},key()),initial=(await pmsHome(receiver,{postId:published.id})).posts[0];
  expect(initial.handoverReceipt).toMatchObject({postId:published.id,postVersion:1,recipientCount:1,acknowledgedCount:0,canAcknowledge:true});const original=key();expect(await pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},original,1)).toMatchObject({postVersion:1,acknowledged:true,acknowledgedCount:1});await postAction(db,owner,published.id,{action:'edit',expectedVersion:1,body:'Amended room handover must be read again'},key());expect(await pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},original,1)).toEqual({postId:published.id,postVersion:1,acknowledged:true});await expect(pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},key(),1)).rejects.toMatchObject({code:'HANDOVER_SOURCE_CHANGED'});expect((await pmsHome(receiver,{postId:published.id})).posts[0].handoverReceipt).toMatchObject({postVersion:2,acknowledged:false,acknowledgedCount:0});expect(await pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},key())).toMatchObject({postId:published.id,postVersion:2});expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['pms']);
  await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),receiver.assignmentId).run();await expect(pmsHome(receiver,{postId:published.id})).rejects.toMatchObject({code:'PMS_ACCESS_CHANGED'});await expect(acknowledgeHandoverVersion(db,receiver,published.id,original,1)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(await db.prepare('SELECT count(*) n FROM social_handover_acknowledgements WHERE post_id=?').bind(published.id).first('n')).toBe(2);
@@ -2492,7 +2456,7 @@ it('includedSocial enters the actual Hotel conversation with all enforcement dis
  const {savePostDraft,publishPost,postAction}=await import('@erpx/server-collaboration/public/social-home'),{socialPostProductSourceEntry,socialPostSourceOnly}=await import('@erpx/server-collaboration/public/product-entry'),{socialPageData}=await import('@erpx/server-collaboration/public/social-page');
  const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,receiver=await f.member('Actual included Hotel reader','pms_housekeeping'),draft=await savePostDraft(db,owner,null,{body:'Exact Hotel handoff text',audience:{kind:'participants',userIds:[receiver.userId]},sources:[{kind:'pms_record',id:taskId}],purpose:'handover',expectedVersion:1},key()),publishKey=key(),published=await publishPost(db,owner,draft.id,draft.version,publishKey),scope={companyId:receiver.companyId,branchId:receiver.branchId,departmentId:receiver.departmentId,userId:receiver.userId,assignmentId:receiver.assignmentId,assignmentVersion:(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(receiver.assignmentId).first<number>('version'))!,role:receiver.role};
  expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toBeNull();await pmsPackage();expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toEqual({purchasePurpose:'history'});expect(await socialPostSourceOnly(receiver,published.id)).toBe(true);expect((await socialPageData(receiver,{postId:published.id,sourceOnly:true})).options).toEqual({branches:[],audiences:[],projects:[]});
- vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');expect((await postView(db,receiver,published.id)).purchase).toMatchObject({newWork:true,settleExisting:true,history:true});vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');expect((await postView(db,receiver,published.id)).body).toBe('Exact Hotel handoff text');expect(await socialPostProductSourceEntry(db,{...scope,assignmentVersion:scope.assignmentVersion+1},{kind:'post',id:published.id})).toBeNull();
+ vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');expect((await postView(db,receiver,published.id)).purchase).toMatchObject({newWork:true,settleExisting:true,history:true});vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');expect((await postView(db,receiver,published.id)).body).toBe('Exact Hotel handoff text');expect(await socialPostProductSourceEntry(db,{...scope,assignmentVersion:scope.assignmentVersion+1},{kind:'post',id:published.id})).toBeNull();
  await pmsPackage('draining');expect((await postView(db,receiver,published.id)).purchase).toMatchObject({newWork:false,settleExisting:true,history:true,createTask:false});await expect(postAction(db,owner,published.id,{action:'edit',body:'Unlicensed amended Hotel handoff',expectedVersion:1},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});await postAction(db,receiver,published.id,{action:'comment',body:'Close the existing shift handoff'},key());expect(await publishPost(db,owner,draft.id,draft.version,publishKey)).toEqual(published);
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(receiver.assignmentId).run();expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toBeNull();await expect(postView(db,receiver,published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['pms']);expect(receiver.modules).not.toContain('collaboration');
 });
@@ -2575,8 +2539,7 @@ it('minibar addon follows the native transferred charge instead of counting late
 it('minibar addon refuses a valid unrelated same-Company posted journal behind its native posting pointer',async()=>{
  await pmsPackage();await pmsPackage('active',null,'pms-minibar-linen');await pmsPackage('active',null,'finance');vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');const source=await minibarAddonFixture(),booking=await book(),movement=await cmd('minibar.charge',{itemId:source.minibar,quantity:1,guestAccountId:booking.guestAccountId,roomId}),entry=records(await snapshot(),'entry').find(row=>row.data.sourceKey===`minibar:${movement.id}`)!;
  const shift=(await cmd('shift.open',{name:'Native minibar source settled',opening:0})).id;await cmd('payment.receive',{guestAccountId:booking.guestAccountId,amount:1070,method:'cash',shiftId:shift});
- const unrelated=await createJournal(owner,{chartId:f.chart,periodId:f.period,entryDate:'2026-09-01',currency:'THB',memo:'Unrelated independently reviewed native journal',isOpening:false,sourceType:'manual',lines:[{accountId:accounts.receivable,debit:'10.70',credit:'0'},{accountId:accounts.revenue,debit:'0',credit:'10'},{accountId:accounts.tax,debit:'0',credit:'0.70'}]},key()),flow=await resolveFlow(db,owner,'journal',unrelated.id);
- await assignFlowPrimary(db,owner,'journal',unrelated.id,{stepKey:'draft',userId:reviewer.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Independently route the unrelated journal',saveDefault:false},key());await postJournal(reviewer,unrelated.id,key(),{expectedVersion:unrelated.version});
+ const unrelated=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-09-01',currency:'THB',memo:'Unrelated independently reviewed native journal',sourceType:'manual',key:key(),createdBy:owner.userId,postedBy:reviewer.userId,status:'posted',lines:[{accountId:accounts.receivable,debit:'10.70',credit:'0'},{accountId:accounts.revenue,debit:'0',credit:'10'},{accountId:accounts.tax,debit:'0',credit:'0.70'}]});
  await pmsPackage('draining',null,'pms-minibar-linen');expect((await minibarAddonObservation()).total).toBe(0);const withdrawal=await minibarAddonWithdrawal(),posting=await db.prepare('SELECT id,journal_id FROM pms_postings WHERE property_id=? AND source_key=?').bind(propertyId,`${entry.id}:charge`).first<{id:string;journal_id:string}>();expect(posting).not.toBeNull();
  expect(await db.prepare('SELECT company_id,status,currency,source_type FROM finance_journals WHERE id=?').bind(unrelated.id).first()).toEqual({company_id:f.company,status:'posted',currency:'THB',source_type:'manual'});
  const shape=(id:string)=>db.prepare('SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY account_id').bind(id).all();expect((await shape(unrelated.id)).results).toEqual((await shape(posting!.journal_id)).results);
@@ -2589,8 +2552,7 @@ it('minibar addon refuses a valid unrelated same-Company posted journal behind i
 it('minibar addon settles its actual imported opening pocket without sweeping another bill in the same reviewed opening journal',async()=>{
  await pmsPackage();await pmsPackage('active',null,'pms-minibar-linen');await pmsPackage('active',null,'finance');vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');const source=await minibarAddonFixture(),secondRoom=(await cmd('room.save',{number:'102',typeId})).id,base=await cutoverDefinition({due:0,advance:2140,advanceTax:0,deposit:0});
  const definition={...base,rooms:[...base.rooms,{key:'other-room',existingId:secondRoom,number:'102',typeKey:'type'}],reservations:[...base.reservations,{...base.reservations[0],key:'independent-opening',roomKey:'other-room',opening:{due:0,advance:1070,advanceTax:0,deposit:0}}]},preview=await previewPmsImport(db,owner,definition,key()) as {id:string};
- const journal=await createJournal(owner,{chartId:f.chart,periodId:f.period,entryDate:'2026-09-01',currency:'THB',memo:'Actual two-bill imported opening advances',isOpening:true,sourceType:'opening_import',lines:[{accountId:accounts.cash,debit:'32.10',credit:'0'},{accountId:accounts.advance,debit:'0',credit:'32.10'}]},key()),flow=await resolveFlow(db,owner,'journal',journal.id);
- await assignFlowPrimary(db,owner,'journal',journal.id,{stepKey:'draft',userId:reviewer.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Review the actual imported guest advances',saveDefault:false},key());await postJournal(reviewer,journal.id,key(),{expectedVersion:journal.version});await approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1,openingJournalId:journal.id},key());const applyBody={id:preview.id,expectedVersion:2},applyKey=key(),appliedImport=await applyPmsImport(db,owner,applyBody,applyKey);
+ const journal=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-09-01',currency:'THB',memo:'Actual two-bill imported opening advances',isOpening:true,sourceType:'opening_import',key:key(),createdBy:owner.userId,postedBy:reviewer.userId,status:'posted',lines:[{accountId:accounts.cash,debit:'32.10',credit:'0'},{accountId:accounts.advance,debit:'0',credit:'32.10'}]});await approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1,openingJournalId:journal.id},key());const applyBody={id:preview.id,expectedVersion:2},applyKey=key(),appliedImport=await applyPmsImport(db,owner,applyBody,applyKey);
  const pockets=(await db.prepare("SELECT b.source_key,b.amount_minor,b.entry_id FROM pms_import_balances b WHERE b.batch_id=? AND b.pocket='advance' ORDER BY b.source_key").bind(preview.id).all<{source_key:string;amount_minor:number;entry_id:string}>()).results;expect(pockets).toHaveLength(2);const selected=pockets.find(row=>row.source_key==='legacy-1')!,independent=pockets.find(row=>row.source_key==='independent-opening')!,guestAccountId=record(await snapshot(),'entry',selected.entry_id).data.guestAccountId,otherAccountId=record(await snapshot(),'entry',independent.entry_id).data.guestAccountId;
  expect(selected.amount_minor).toBe(2140);expect(independent.amount_minor).toBe(1070);expect(record(await snapshot(),'guest_account',otherAccountId).data.advance).toBe(1070);
  const charged=await cmd('minibar.charge',{itemId:source.minibar,quantity:1,guestAccountId,roomId});expect(charged.id).toBeTruthy();expect(record(await snapshot(),'guest_account',guestAccountId).data).toMatchObject({due:0,advance:1070});await pmsPackage('draining',null,'pms-minibar-linen');const withdrawal=await minibarAddonWithdrawal();expect((await minibarAddonObservation()).observations.find(row=>row.moduleId==='finance')!.outstanding).toBeGreaterThan(0);await expect(minibarAddonReview(withdrawal,true)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');

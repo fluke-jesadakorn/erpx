@@ -1,8 +1,12 @@
+import {nativeFieldJournalWorkspaceReadback} from '@erpx/feature-finance/public/server';
+import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
+import {nativeFinanceBankCommand} from '@erpx/feature-finance/lib/native-finance-bank';
+import {nativeFinanceBankHttpGet} from '@erpx/feature-finance/lib/native-finance-bank-read';
+import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
+import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeSupplierBillCreate, nativeSupplierBillEdit, nativeSupplierBillPost, nativeSupplierBillDetail, nativeSupplierBillVoid, nativePeriodClose, nativePeriodCloseWorkspace, nativeFinanceSetupCommand, nativeOpeningBalance, nativeRevenueRecognition } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
-import {confirmServiceNoCharge} from "@erpx/server-finance/public/service-no-charge";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import {editManualDraft,manualDraftEditSchema} from "@erpx/server-finance/public/finance-manual-drafts";
 import {financeEntrypointQueries} from "@erpx/server-finance/public/entrypoint-queries";
 import {prepareBillingCorrection,decideBillingCorrection,billingCorrectionSchema,billingCorrectionDecisionSchema} from "@erpx/server-finance/public/finance-billing-corrections";
 import {instrumentWorkspace,prepareInstrument,decideInstrument,prepareInstrumentRun,decideInstrumentRun,reverseInstrumentRun,instrumentEditionSchema,instrumentDecisionSchema,instrumentRunSchema,instrumentReversalSchema} from "@erpx/server-finance/public/finance-instruments";
@@ -12,7 +16,8 @@ import { financeAiDecisionSchema } from "@erpx/feature-finance/lib/finance-ai";
 import { holdingResources, runtimeEnv } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { accountingProfiles,prepareAccountingProfile,decideAccountingProfile,accountingProfileSchema,accountingProfileDecisionSchema,financialEvents } from "@erpx/server-finance/public/accounting-profiles";
 import { vatWorkspace,vatPackageDetail,vatPackageExport,prepareVatEntry,reviewVatEntry,prepareVatCorrection,reviewVatCorrection,vatCorrectionDetail,taxEntryDetail,vatCorrectionSchema,prepareVatPackage,approveVatPackage,exportVatWorkpaper,recordVatFiling,supersedeVatPackage,vatEntrySchema,taxReviewSchema,vatPackageSchema,vatFilingSchema } from "@erpx/server-finance/public/finance-tax-register";
-import {listSupplierBatches,supplierBatchWorkspace,createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema} from "@erpx/server-procurement/public/supplier-payments";
+import {listSupplierBatches,supplierBatchWorkspace,supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema} from "@erpx/server-procurement/public/supplier-payments";
+import {nativeSupplierBatchCreate,nativeSupplierBatchDecision,nativeSupplierBatchExport,nativeSupplierBatchExportRecovery,nativeSupplierInstructionConfirm,nativeSupplierInstructionResult} from "@erpx/feature-finance/public/server";
 import {importRefundBankEvidence,refundBankEvidenceSchema,recoverRefundExport,listRefunds,refundWorkspace,approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,recordRefundException,refundApprovalSchema,refundInstructionSchema,refundExportSchema,refundConfirmationSchema,refundExceptionSchema} from "@erpx/server-finance/public/refunds";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import {prepareGroupReportEdition,decideGroupReportEdition,groupReportEditionExport,groupExpansionWorkspace,groupReportEditionSchema,groupReportDecisionSchema} from "@erpx/server-finance/public/finance-group-editions";
@@ -24,7 +29,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {createFinanceStarter,financeStarterSchema} from "@erpx/server-finance/public/finance-starter";
-import {aging,beginClose,cancelClose,cancelCloseSchema,closePeriod,createAccount,createAccountSchema,changeAccountStatus,changeAccountStatusSchema,createChart,createChartSchema,createInvoice,voidDraftInvoice,createJournal,createJournalSchema,createParty,createPeriod,createPeriodSchema,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,recognizeRevenue,importOpeningTrialBalance,openingTrialBalanceSchema,previewOpeningTrialBalance,importAccounts,importBankStatement,listAccounts,listCharts,listJournals,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,postJournal,postJournalBatch,journalBatchSchema,reconcileBankTransaction,reopenPeriod,reverseJournal,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,closeProofSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
+import {aging,createInvoice,voidDraftInvoice,createParty,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,listAccounts,listCharts,listJournals,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,postJournalBatch,journalBatchSchema,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import { z } from "zod";
 import {financeDueWorkspace,scheduleFinanceDraft,decideFinanceDueDraft,financeDueDraftSchema,financeDueDecisionSchema} from "@erpx/server-finance/public/finance-due-drafts";
@@ -39,7 +44,8 @@ import { calculationDecisionSchema, calculationRunDetail, calculationRunSchema, 
 import { consolidationDecisionSchema, consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, consolidationRunWorkspace, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "@erpx/server-finance/public/finance-consolidation";
 import { accrualRunPostSchema, accrualScheduleDecisionSchema, accrualSchedulePage, accrualScheduleSchema, createAccrualSchedule, decideAccrualSchedule, postAccrualRun, prepareAccrualRun } from "@erpx/server-finance/public/finance-accruals";
 import { createGroupEntity, createIntercompany, decideIntercompany, groupEntitySchema, intercompanyDecisionSchema, intercompanyTransactionSchema, intercompanyWorkspace } from "@erpx/server-finance/public/finance-intercompany";
-import { createProjectCostAllocation, decideProjectCostAllocation, listProjectCostAllocations, listProjectCostSources, projectCostAllocationDecisionSchema, projectCostAllocationSchema } from "@erpx/server-projects/public/project-actuals";
+import { listProjectCostAllocations, listProjectCostSources, projectCostAllocationDecisionSchema, projectCostAllocationSchema } from "@erpx/server-projects/public/project-actuals";
+import { nativeProjectCommand } from "@erpx/server-projects/public/native-project-commands";
 import { decideStatementPackage, decideYearClosing, prepareStatementPackage, prepareYearClosing, reportingDecisionSchema, reportingWorkspace, statementPackageDetail, statementPackageExport, statementPackageSchema, yearClosingSchema } from "@erpx/server-finance/public/finance-reporting";
 import {decideTaxIdentity,prepareTaxIdentity,taxIdentityDecisionSchema,taxIdentitySchema,taxIdentityWorkspace} from "@erpx/server-finance/public/finance-tax-identities";
 import {decideWithholdingPackage,prepareWithholdingPackage,remitWithholdingPackage,reverseWithholdingRemittance,withholdingMonthlyWorkspace,withholdingPackageExport,withholdingPackageSchema,withholdingPackageDecisionSchema,withholdingRemittanceSchema,withholdingRemittanceReversalSchema} from "@erpx/server-finance/public/finance-withholding-remittance";
@@ -82,8 +88,34 @@ type FinanceRouteContext = { params: Promise<{ holdingSlug: string; path: string
 export async function GET(request: Request, context: FinanceRouteContext) {
   try {
     const { holdingSlug, path } = await context.params;
+    const parts = segments(path);
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "edit-workspace") {
+      const response = await nativeJournalEditReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "create-workspace") {
+      const response = await nativeJournalCreateReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reversal-workspace") {
+      const response = await nativeJournalReverseReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "workspace") {
+      const actor=requirePermission(await requireWorkContext(holdingSlug),"finance.read");
+      const field=await nativeFieldJournalWorkspaceReadback(request,actor,holdingSlug,parts[1]);if(field)return field;
+      const response = await nativeJournalPostReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-    const parts = segments(path); const search = new URL(request.url).searchParams;
+    if(parts.length===1&&parts[0]==="bank"){
+      const native=await nativeFinanceBankHttpGet(request,actor,holdingSlug);
+      if(native)return native;
+    }
+    const search = new URL(request.url).searchParams;
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==1)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');
       if([...search.keys()].length)throw new ApiError(422,'VALIDATION_FAILED','Expense setup uses the current Company without a query selector.');
@@ -139,7 +171,7 @@ export async function GET(request: Request, context: FinanceRouteContext) {
       if (parts[1] && parts[2] === "accounts") return Response.json(canonicalDestinationLinks({ data: await listAccounts(actor, parts[1]) }));
       return Response.json(canonicalDestinationLinks({ data: await listCharts(actor) }));
     }
-    if(parts[0]==="supplier-batches"&&parts.length===3&&parts[2]==="export")return Response.json(canonicalDestinationLinks({data:await recoverSupplierExport(actor,parts[1])}));
+    if(parts[0]==="supplier-batches"&&parts.length===3&&parts[2]==="export"){const native=await nativeSupplierBatchExportRecovery(request,holdingSlug,parts[1]);if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance supplier-batch export recovery service is unavailable.");}
     if(parts[0]==="supplier-batches")return Response.json(canonicalDestinationLinks({data:parts[1]?await supplierBatchWorkspace(actor,parts[1]):await listSupplierBatches(actor)}));
     if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="export")return Response.json(canonicalDestinationLinks({data:await recoverRefundExport(actor,parts[1])}));
     if(parts[0]==="refunds")return Response.json(canonicalDestinationLinks({data:parts[1]?await refundWorkspace(actor,parts[1]):await listRefunds(actor)}));
@@ -155,8 +187,23 @@ export async function GET(request: Request, context: FinanceRouteContext) {
       if (!projectId) throw new ApiError(422, "PROJECT_ID_REQUIRED", "Select a project for posted cost sources.");
       return Response.json(canonicalDestinationLinks({ data: await listProjectCostSources(actor, projectId) }));
     }
-    if (parts[0] === "invoices") return parts[1] ? Response.json(canonicalDestinationLinks({ data: await getInvoice(actor, parts[1]) })) : Response.json(canonicalDestinationLinks({ data: await listInvoices(actor) }));
-    if (parts[0] === "payments") return parts[1] ? Response.json(canonicalDestinationLinks({ data: await getPayment(actor, parts[1]) })) : Response.json(canonicalDestinationLinks({ data: await listPayments(actor) }));
+    if (parts[0] === "invoices") {
+      if(parts[1]){const native=await nativeServiceInvoiceReadback(request,actor,holdingSlug,parts[1]);if(native)return native;return Response.json(canonicalDestinationLinks({data:await getInvoice(actor,parts[1])}));}
+      return Response.json(canonicalDestinationLinks({data:await listInvoices(actor)}));
+    }
+    if(parts[0]==="payables"&&parts.length===2){
+      const native=await nativeSupplierBillDetail(request,actor,holdingSlug,parts[1]);
+      if(native)return native;
+      return Response.json(canonicalDestinationLinks({data:await getInvoice(actor,parts[1])}));
+    }
+    if(parts[0]==="periods"&&parts.length===3&&parts[2]==="workspace"){
+      const native=await nativePeriodCloseWorkspace(request,actor,holdingSlug,parts[1]);
+      if(native)return native;
+    }
+    if (parts[0] === "payments") {
+      if(parts[1]){const native=await nativeServicePaymentReadback(request,actor,holdingSlug,parts[1]);if(native)return native;return Response.json(canonicalDestinationLinks({data:await getPayment(actor,parts[1])}));}
+      return Response.json(canonicalDestinationLinks({data:await listPayments(actor)}));
+    }
     if (parts[0] === "trial-balance") return Response.json(canonicalDestinationLinks({ data: await trialBalance(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined,reportDateSchema.parse({startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})) }));
     if (parts[0] === "statements") return Response.json(canonicalDestinationLinks({ data: await statements(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined,reportDateSchema.parse({startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})) }));
     if (parts[0] === "aging") { const kind = search.get("kind"); if (kind !== "payable" && kind !== "receivable") throw new ApiError(422, "INVALID_AGING_KIND", "kind must be payable or receivable."); return Response.json(canonicalDestinationLinks({ data: await aging(actor, kind, search.get("asOf") ?? new Date().toISOString().slice(0, 10),search.get("chartId")??undefined) })); }
@@ -174,8 +221,93 @@ export async function POST(request: Request, context: FinanceRouteContext) {
   try {
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
     const { holdingSlug, path } = await context.params;
+    const parts = segments(path);
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "edit") {
+      const response = await nativeJournalEdit(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance manual-draft edit service is unavailable.");
+    }
+    if (parts.length === 1 && parts[0] === "journals") {
+      const response = await nativeJournalCreate(request, holdingSlug);
+      if (response) return response;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance journal-create service is unavailable.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reverse") {
+      const response = await nativeJournalReverse(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance journal-reversal service is unavailable.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "post") {
+      const response = await nativeJournalPost(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance journal-post service is unavailable.");
+    }
+    if (parts.length === 3 && parts[0] === "invoices" && parts[2] === "post") {
+      const response = await nativeServiceInvoicePost(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
+    if(parts.length===3&&parts[0]==="invoices"&&parts[2]==="confirm-no-charge")return nativeServiceNoCharge(request,holdingSlug,parts[1]);
+    if(parts.length===2&&parts[0]==="invoices"){
+      const response=await nativeSalesInvoiceEdit(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="invoices"&&parts[2]==="void"){
+      const response=await nativeSalesInvoiceVoid(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===1&&parts[0]==="payables"){
+      const response=await nativeSupplierBillCreate(request.clone(),holdingSlug);
+      if(response)return response;
+    }
+    if(parts.length===2&&parts[0]==="payables"){
+      const response=await nativeSupplierBillEdit(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="payables"&&parts[2]==="post"){
+      const response=await nativeSupplierBillPost(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="payables"&&parts[2]==="void"){
+      const response=await nativeSupplierBillVoid(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="periods"&&["begin-close","cancel-close","close","reopen"].includes(parts[2])){
+      const response=await nativePeriodClose(request.clone(),holdingSlug,parts[1],parts[2] as "begin-close"|"cancel-close"|"close"|"reopen");
+      if(response)return response;
+      throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance period-close service is unavailable.");
+    }
+    if(parts.length===3&&parts[0]==="revenue-obligations"&&parts[2]==="recognize"){
+      const response=await nativeRevenueRecognition(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+      throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance revenue-recognition service is unavailable.");
+    }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-    const parts = segments(path); const input = await body(request);
+    if(parts[0]==="opening-balances"&&(parts[1]==="preview"||parts[1]==="import")){
+      const native=await nativeOpeningBalance(request.clone(),holdingSlug,parts[1]);
+      if(native)return native;
+      throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance opening-balance service is unavailable.");
+    }
+    const rawPayment=isNativeServicePaymentRequest(parts)?request.clone():null;
+    const rawBank=parts[0]==="bank"?request.clone():null;
+    const input = await body(request).catch(error=>{void rawPayment?.body?.cancel().catch(()=>undefined);void rawBank?.body?.cancel().catch(()=>undefined);throw error;});
+    if(rawBank){try{const native=await nativeFinanceBankCommand(rawBank,actor,holdingSlug,parts,input);if(native)return native;
+      if(parts[0]==="bank"&&parts[1]==="statements"&&parts[2]==="import"){
+        if(typeof input==="object"&&input!==null&&typeof (input as Record<string,unknown>).settlementPaymentId==="string")throw new ApiError(422,"SERVICE_PAYMENT_BANK_SOURCE_INVALID","Import one exact bank receipt for the released Service payment's account, currency, date and amount.");
+        throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance bank import service is unavailable.");
+      }
+      if(parts[0]==="bank"&&parts[1]==="transactions"&&parts[3]==="reconcile"&&parts.length===4)throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance bank reconciliation service is unavailable.");
+    }finally{void rawBank.body?.cancel().catch(()=>undefined);}}
+    if(rawPayment){try{const native=await nativeServicePaymentCommand(rawPayment,actor,holdingSlug,parts,input);if(native)return native;}finally{void rawPayment.body?.cancel().catch(()=>undefined);}}
+    if(parts[0]==="charts"&&parts.length===1){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"chart",input:input as Record<string,unknown>});if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance chart-create service is unavailable.");}
+    if(parts[0]==="charts"&&parts[1]==="import"){
+      const normalized=typeof input==="object"&&input!==null&&"csv" in input&&typeof (input as Record<string,unknown>).csv==="string"?{...(input as Record<string,unknown>),rows:csvRows((input as Record<string,unknown>).csv as string)}:input;
+      const parsed=z.object({chartId:z.string().min(1),rows:z.array(z.object({code:z.string(),name:z.string(),category:z.enum(["asset","liability","equity","revenue","expense","other_income","other_expense"]),currency:z.string().optional(),controlKind:z.enum(["none","receivable","payable","bank"]).optional()})).min(1)}).safeParse(normalized);
+      if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid chart import.");
+      const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"import",input:parsed.data as Record<string,unknown>});if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance account-import service is unavailable.");
+    }
+    if(parts[0]==="charts"&&parts[2]==="accounts"&&parts.length===3){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"account",chartId:parts[1],input:{...(input as Record<string,unknown>),chartId:parts[1]}});if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance account-create service is unavailable.");}
+    if(parts[0]==="charts"&&parts[2]==="accounts"&&parts[4]==="status"&&parts.length===5){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"status",chartId:parts[1],accountId:parts[3],input:input as Record<string,unknown>});if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance account-status service is unavailable.");}
+    if(parts[0]==="periods"&&parts.length===1){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"period",input:input as Record<string,unknown>});if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance period-create service is unavailable.");}
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==2)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');
       const key=needCommand(request);
@@ -270,8 +402,8 @@ export async function POST(request: Request, context: FinanceRouteContext) {
       if(parts[2]==="file")return Response.json(canonicalDestinationLinks({data:await recordVatFiling(actor,parts[1],vatFilingSchema.parse(input),needCommand(request))}));
       if(parts[2]==="supersede")return Response.json(canonicalDestinationLinks({data:await supersedeVatPackage(actor,parts[1],taxReviewSchema.parse(input),needCommand(request))}));
     }
-    if(parts[0]==="project-cost-allocations"&&parts.length===1){const parsed=projectCostAllocationSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid project cost allocation.");return Response.json(canonicalDestinationLinks({data:await createProjectCostAllocation(actor,parsed.data,needCommand(request))}),{status:201});}
-    if(parts[0]==="project-cost-allocations"&&parts.length===3&&parts[2]==="review"){const parsed=projectCostAllocationDecisionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Project cost review evidence is required.");return Response.json(canonicalDestinationLinks({data:await decideProjectCostAllocation(actor,parts[1],parsed.data,needCommand(request))}));}
+    if(parts[0]==="project-cost-allocations"&&parts.length===1){const parsed=projectCostAllocationSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid project cost allocation.");const data=await nativeProjectCommand(request,holdingSlug,{operation:"cost-allocation.create",projectId:parsed.data.projectId,key:needCommand(request),body:parsed.data,branchSlug:actor.scope.kind==='holding'?undefined:actor.scope.branchSlug,departmentSlug:actor.scope.kind==='department'?actor.scope.departmentSlug:undefined});return Response.json(canonicalDestinationLinks({data}),{status:201});}
+    if(parts[0]==="project-cost-allocations"&&parts.length===3&&parts[2]==="review"){const parsed=projectCostAllocationDecisionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Project cost review evidence is required.");const key=needCommand(request),{write:projectCostDb}=await holdingResources(actor.holdingId),row=await projectCostDb.prepare("SELECT project_id FROM staff_project_cost_allocations WHERE id=? AND company_id=?").bind(parts[1],actor.companyId).first<{project_id:string}>();if(!row)throw new ApiError(404,"PROJECT_COST_NOT_FOUND","Project cost allocation not found.");const data=await nativeProjectCommand(request,holdingSlug,{operation:"cost-allocation.review",projectId:row.project_id,recordId:parts[1],key,body:parsed.data,branchSlug:actor.scope.kind==='holding'?undefined:actor.scope.branchSlug,departmentSlug:actor.scope.kind==='department'?actor.scope.departmentSlug:undefined});return Response.json(canonicalDestinationLinks({data}));}
     if(parts[0]==="calculation-runs"&&parts.length===1)return Response.json(canonicalDestinationLinks({data:await createCalculationRun(actor,calculationRunSchema.parse(input),needCommand(request))}),{status:201});
     if(parts[0]==="calculation-runs"&&parts.length===3&&["review","approve","reject"].includes(parts[2]))return Response.json(canonicalDestinationLinks({data:await decideCalculationRun(actor,parts[1],calculationDecisionSchema.parse(input),parts[2] as "review"|"approve"|"reject",needCommand(request))}));
     if(parts[0]==="intercompany"&&parts.length===1){const parsed=intercompanyTransactionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid intercompany transaction.");return Response.json(canonicalDestinationLinks({data:await createIntercompany(actor,parsed.data,needCommand(request))}),{status:201});}
@@ -288,45 +420,29 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if(parts[0]==="fx-revaluations"&&parts.length===1)return Response.json(canonicalDestinationLinks({data:await prepareFxRevaluation(actor,prepareFxRevaluationSchema.parse(input),needCommand(request))}),{status:201});
     if(parts[0]==="fx-revaluations"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="reject"))return Response.json(canonicalDestinationLinks({data:await decideFxRevaluation(actor,parts[1],decideFxRevaluationSchema.parse(input),parts[2],needCommand(request))}));
     if(parts[0]==="periods"&&parts.length===3&&parts[2]==="close-checks")return Response.json(canonicalDestinationLinks({data:await snapshotCloseChecks(actor,parts[1],needCommand(request))}));
-    if(parts[0]==="supplier-batches"&&parts.length===1)return Response.json(canonicalDestinationLinks({data:await createSupplierBatch(actor,supplierBatchSchema.parse(input),needCommand(request))}),{status:201});
-    if(parts[0]==="supplier-batches"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="cancel"))return Response.json(canonicalDestinationLinks({data:await decideSupplierBatch(actor,parts[1],supplierDecisionSchema.parse(input),needCommand(request),parts[2])}));
-    if(parts[0]==="supplier-batches"&&parts.length===3&&parts[2]==="export")return Response.json(canonicalDestinationLinks({data:await exportSupplierBatch(actor,parts[1],supplierExportSchema.parse(input),needCommand(request))}));
-    if(parts[0]==="supplier-instructions"&&parts.length===3&&parts[2]==="result")return Response.json(canonicalDestinationLinks({data:await recordSupplierResult(actor,parts[1],supplierResultSchema.parse(input),needCommand(request))}));
-    if(parts[0]==="supplier-instructions"&&parts.length===3&&parts[2]==="confirm")return Response.json(canonicalDestinationLinks({data:await confirmSupplierInstruction(actor,parts[1],supplierConfirmSchema.parse(input),needCommand(request))}));
+    if(parts[0]==="supplier-batches"&&parts.length===1){const parsed=supplierBatchSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid supplier batch.");const native=await nativeSupplierBatchCreate(request,holdingSlug);if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance supplier-batch service is unavailable.");}
+    if(parts[0]==="supplier-batches"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="cancel")){const parsed=supplierDecisionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Supplier decision evidence is required.");const native=await nativeSupplierBatchDecision(request,holdingSlug,parts[1],parts[2]);if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance supplier-batch decision service is unavailable.");}
+    if(parts[0]==="supplier-batches"&&parts.length===3&&parts[2]==="export"){const parsed=supplierExportSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Review the current supplier batch version.");const native=await nativeSupplierBatchExport(request,holdingSlug,parts[1]);if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance supplier-batch export service is unavailable.");}
+    if(parts[0]==="supplier-instructions"&&parts.length===3&&parts[2]==="result"){const parsed=supplierResultSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Supplier bank result evidence is required.");const native=await nativeSupplierInstructionResult(request,holdingSlug,parts[1],parsed.data);if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance supplier-bank-result service is unavailable.");}
+    if(parts[0]==="supplier-instructions"&&parts.length===3&&parts[2]==="confirm"){const parsed=supplierConfirmSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Supplier payment confirmation evidence is required.");const native=await nativeSupplierInstructionConfirm(request,holdingSlug,parts[1]);if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance supplier-payment confirmation service is unavailable.");}
     if(parts[0]==="refunds"&&parts.length===3&&parts[2]==="approve")return Response.json(canonicalDestinationLinks({data:await approveRefund(actor,parts[1],refundApprovalSchema.parse(input),needCommand(request))}));
     if(parts[0]==="refunds"&&parts.length===3&&parts[2]==="instructions")return Response.json(canonicalDestinationLinks({data:await prepareRefundInstruction(actor,parts[1],refundInstructionSchema.parse(input),needCommand(request))}),{status:201});
     if(parts[0]==="refund-instructions"&&parts.length===2&&parts[1]==="export")return Response.json(canonicalDestinationLinks({data:await exportRefundInstructions(actor,refundExportSchema.parse(input),needCommand(request))}));
     if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="bank-evidence")return Response.json(canonicalDestinationLinks({data:await importRefundBankEvidence(actor,parts[1],refundBankEvidenceSchema.parse(input),needCommand(request))}),{status:201});
     if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="confirm")return Response.json(canonicalDestinationLinks({data:await confirmRefundInstruction(actor,parts[1],refundConfirmationSchema.parse(input),needCommand(request))}));
     if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="exception")return Response.json(canonicalDestinationLinks({data:await recordRefundException(actor,parts[1],refundExceptionSchema.parse(input),needCommand(request))}));
-    if (parts[0] === "charts" && parts[1] === "import") {
-      const normalized = typeof input === "object" && input !== null && "csv" in input && typeof input.csv === "string" ? { ...(input as Record<string, unknown>), rows: csvRows(input.csv) } : input;
-      const parsed = z.object({ chartId: z.string().min(1), rows: z.array(z.object({ code: z.string(), name: z.string(), category: z.enum(["asset", "liability", "equity", "revenue", "expense", "other_income", "other_expense"]), currency: z.string().optional(), controlKind:z.enum(["none","receivable","payable","bank"]).optional() })).min(1) }).safeParse(normalized);
-      if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid chart import.");
-      return Response.json(canonicalDestinationLinks({ data: await importAccounts(actor, parsed.data.chartId, parsed.data.rows, needCommand(request)) }), { status: 201 });
-    }
     if(parts[0]==="setup"&&parts[1]==="starter"&&parts.length===2)return Response.json(canonicalDestinationLinks({data:await createFinanceStarter(actor,financeStarterSchema.parse(input),needCommand(request))}),{status:201});
-    if (parts[0] === "charts" && parts.length === 1) { const parsed = createChartSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid chart."); return Response.json(canonicalDestinationLinks({ data: await createChart(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
-    if (parts[0] === "charts" && parts[2] === "accounts" && parts[4] === "status" && parts.length === 5) { const parsed = changeAccountStatusSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid account status change."); return Response.json(canonicalDestinationLinks({ data: await changeAccountStatus(actor, parts[1], parts[3], parsed.data, needCommand(request)) })); }
-    if (parts[0] === "charts" && parts[2] === "accounts" && parts.length === 3) { const parsed = createAccountSchema.safeParse({ ...(typeof input === "object" && input !== null ? input : {}), chartId: parts[1] }); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid account."); return Response.json(canonicalDestinationLinks({ data: await createAccount(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
-    if (parts[0] === "periods" && parts.length === 1) { const parsed = createPeriodSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid period."); return Response.json(canonicalDestinationLinks({ data: await createPeriod(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
-    if (parts[0] === "journals" && parts.length === 1) { const parsed = createJournalSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid journal."); return Response.json(canonicalDestinationLinks({ data: await createJournal(actor, {...parsed.data,sourceType:"manual",sourceId:undefined,isOpening:false}, needCommand(request)) }), { status: 201 }); }
-    if (parts[0] === "opening-balances" && parts[1] === "preview") { const parsed = openingTrialBalanceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json(canonicalDestinationLinks({ data: await previewOpeningTrialBalance(actor, parsed.data) })); }
-    if (parts[0] === "opening-balances" && parts[1] === "import") { const parsed = openingTrialBalanceSchema.extend({previewToken:z.string().length(64)}).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json(canonicalDestinationLinks({ data: await importOpeningTrialBalance(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
-    if(parts[0]==="journals"&&parts.length===3&&parts[2]==="edit")return Response.json(canonicalDestinationLinks({data:await editManualDraft(actor,parts[1],manualDraftEditSchema.parse(input),needCommand(request))}));
+    // Batch posting remains on the TypeScript owner service until a native
+    // batch command exists; single create/edit/post/reverse are native-only above.
     if(parts[0]==="journals"&&parts.length===2&&parts[1]==="batch-post")return Response.json(canonicalDestinationLinks({data:await postJournalBatch(actor,journalBatchSchema.parse(input),needCommand(request))}));
-    if (parts[0] === "journals" && parts[2] === "post") { const parsed = z.object({ expectedVersion: z.number().int().positive() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "expectedVersion is required."); return Response.json(canonicalDestinationLinks({ data: await postJournal(actor, parts[1], needCommand(request), parsed.data) })); }
-    if (parts[0] === "journals" && parts[2] === "reverse") { const parsed = z.object({ periodId: z.string(), entryDate: z.string().date(), memo: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "A reversal period and date are required."); return Response.json(canonicalDestinationLinks({ data: await reverseJournal(actor, parts[1], needCommand(request), parsed.data) }), { status: 201 }); }
-    if(parts[0]==="periods"&&parts.length===3&&parts[2]==="cancel-close")return Response.json(canonicalDestinationLinks({data:await cancelClose(actor,parts[1],cancelCloseSchema.parse(input),needCommand(request))}));
-    if (parts[0] === "periods" && parts[2] === "begin-close") return Response.json(canonicalDestinationLinks({ data: await beginClose(actor, parts[1], needCommand(request)) }));
-    if (parts[0] === "periods" && parts[2] === "close") { const parsed = closeProofSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Close evidence is required."); return Response.json(canonicalDestinationLinks({ data: await closePeriod(actor, parts[1], parsed.data, needCommand(request)) })); }
-    if (parts[0] === "periods" && parts[2] === "reopen") { const parsed = closeProofSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Reopen evidence is required."); return Response.json(canonicalDestinationLinks({ data: await reopenPeriod(actor, parts[1], parsed.data, needCommand(request)) })); }
     if (parts[0] === "parties" && parts.length === 1) { const parsed = partySchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid party."); return Response.json(canonicalDestinationLinks({ data: await createParty(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "invoices" && parts.length === 1) { const parsed = invoiceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid invoice."); return Response.json(canonicalDestinationLinks({ data: await createInvoice(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if(parts[0]==="invoices"&&parts.length===2){const parsed=invoiceSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0].message);return Response.json(canonicalDestinationLinks({data:await createInvoice(actor,parsed.data,needCommand(request),parts[1])}));}
-    if(parts[0]==="invoices"&&parts.length===3&&parts[2]==="confirm-no-charge")return Response.json(canonicalDestinationLinks({data:await confirmServiceNoCharge(actor,parts[1],input,needCommand(request))}));
     if(parts[0]==="invoices"&&parts[2]==="void"){const data=z.object({expectedVersion:z.number().int().positive()}).parse(input);return Response.json(canonicalDestinationLinks({data:await voidDraftInvoice(actor,parts[1],data.expectedVersion,needCommand(request))}));}
     if (parts[0] === "invoices" && parts[2] === "post") { const parsed = invoicePostingSchema.extend({expectedVersion:z.number().int().positive()}).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Posting period, date and a valid exchange rate are required."); return Response.json(canonicalDestinationLinks({ data: await postInvoice(actor, parts[1], parsed.data, needCommand(request)) })); }
+    if(parts[0]==="payables"&&parts.length===1){const parsed=invoiceSchema.safeParse({...input,kind:"payable"});if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid supplier bill.");return Response.json(canonicalDestinationLinks({data:await createInvoice(actor,parsed.data,needCommand(request))}),{status:201});}
+    if(parts[0]==="payables"&&parts.length===2){const parsed=invoiceSchema.safeParse({...input,kind:"payable"});if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid supplier bill.");return Response.json(canonicalDestinationLinks({data:await createInvoice(actor,parsed.data,needCommand(request),parts[1])}));}
+    if(parts[0]==="payables"&&parts.length===3&&parts[2]==="post"){const parsed=invoicePostingSchema.extend({expectedVersion:z.number().int().positive()}).safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED","Posting period, date and a valid exchange rate are required.");return Response.json(canonicalDestinationLinks({data:await postInvoice(actor,parts[1],parsed.data,needCommand(request))}));}
     if (parts[0] === "payments" && parts.length === 1) { const parsed = z.object({ partyId: z.string().optional(), kind: z.enum(["payment", "receipt", "refund"]), paymentNumber: z.string(), paymentDate: z.string().date(), currency: z.string().length(3), amount: z.string(), bankAccount: z.string().optional(), settlementInvoiceId:z.string().min(1).max(128).optional(),correctionPaymentId:z.string().min(1).max(128).optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid payment."); return Response.json(canonicalDestinationLinks({ data: await createPayment(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "payments" && parts[2] === "approve") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment approval evidence is required."); return Response.json(canonicalDestinationLinks({ data: await approvePayment(actor, parts[1], parsed.data, needCommand(request)) })); }
     if (parts[0] === "payments" && parts[2] === "release") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment release evidence is required."); return Response.json(canonicalDestinationLinks({ data: await releasePayment(actor, parts[1], parsed.data, needCommand(request)) })); }
@@ -348,9 +464,6 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "loans" && parts.length === 1) { const parsed = loanSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid loan."); return Response.json(canonicalDestinationLinks({ data: await createLoan(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "revenue-contracts" && parts.length === 1) { const parsed = revenueContractSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid revenue contract."); return Response.json(canonicalDestinationLinks({ data: await createRevenueContract(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "revenue-obligations" && parts.length === 1) { const parsed = revenueObligationSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid revenue obligation."); return Response.json(canonicalDestinationLinks({ data: await createRevenueObligation(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
-    if (parts[0] === "revenue-obligations" && parts[2] === "recognize") { const parsed = z.object({ amount: z.string(), periodId: z.string(), entryDate: z.string().date() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Revenue recognition period, date and amount are required."); return Response.json(canonicalDestinationLinks({ data: await recognizeRevenue(actor, parts[1], parsed.data, needCommand(request)) })); }
-    if (parts[0] === "bank" && parts[1] === "statements" && parts[2] === "import") { const parsed = z.object({ settlementPaymentId:z.string().min(1).optional(), bankAccount: z.string(), statementNumber: z.string(), statementDate: z.string().date(), opening: z.string(), closing: z.string(), closingFxRate:z.string().optional(), sourceHash: z.string().min(8), rows: z.array(z.object({ externalId: z.string(), transactionDate: z.string().date(), description: z.string().optional(), amount: z.string(), currency: z.string().length(3) })).max(500) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid bank statement."); return Response.json(canonicalDestinationLinks({ data: await importBankStatement(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
-    if (parts[0] === "bank" && parts[1] === "transactions" && parts[3] === "reconcile") { const parsed = z.object({ expectedVersion: z.number().int().positive(), matchedType: z.string(), matchedId: z.string(), proof: z.string(), attachmentSetIds: z.array(z.string().min(1)).max(20).default([]) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Reconciliation evidence is required."); return Response.json(canonicalDestinationLinks({ data: await reconcileBankTransaction(actor, parts[2], parsed.data, needCommand(request)) })); }
     throw new ApiError(404, "NOT_FOUND", "Finance resource not found.");
   } catch (error) { return errorResponse(error); }
 }

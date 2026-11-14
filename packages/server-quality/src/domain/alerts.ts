@@ -1,4 +1,3 @@
-import {z} from 'zod';
 export type QualityAlert = {
   id: string;
   hold_id: string;
@@ -21,15 +20,4 @@ export type QualityAlert = {
 };
 
 
-export const acknowledgeSchema = z.object({
-  expectedVersion: z.number().int().positive(),
-  reason: z.string().trim().min(3).max(2000),
-});
-
-
-export type QualityAlertAcknowledgement=z.infer<typeof acknowledgeSchema>;
-export type QualityAlertResult={dueSoon:number;overdue:number};
 export const qualityTerminalStates=['released','cancelled','disposed'];
-export function qualityAlertDate(now: number) {
-  return new Date(now).toISOString().slice(0, 10);
-}

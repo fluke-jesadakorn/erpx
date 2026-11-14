@@ -19,6 +19,7 @@ import {commercialOwnerProjectionSources as inventorySources} from '@erpx/server
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/adapters/owner-source-locks';
 import {salesGoodsPostingSetupSchema,type SalesGoodsPostingSetupInput,type SalesGoodsPostingSetupResult,type SalesGoodsPostingSetupView} from '@erpx/server-commerce/domain/sales-goods-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const operation='commerce.sales-goods-posting-setup.initialize';
 const capabilities=['sales.orders','inventory.stock-core','finance.sales-posting'] as const;
@@ -99,7 +100,7 @@ export async function initializeSalesGoodsPostingSetup(actor:WorkContext,raw:unk
   if(!sameMapping(await current(database,actor.companyId),mapping(input)))throw new ApiError(409,'SALES_GOODS_POSTING_SOURCE_CHANGED','The original goods posting mapping changed before completion.');
   const finalFinance=await salesGoodsPostingFinanceState(database,actor),finalDocuments=await documentState(database,actor.companyId);
   if(finance.image!==finalFinance.image||documents.image!==finalDocuments.image||!replay&&finance.defaults&&JSON.stringify(finance.service)!==JSON.stringify(await salesGoodsPostingEffectiveService(database,actor)))throw new ApiError(409,'SALES_GOODS_POSTING_SOURCE_CHANGED','The original reviewed Sales settings or document economics changed before completion.');
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));return result;
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 

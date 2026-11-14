@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "Commerce now has a native quotation/sales-order draft create/update writer. Draft creation and editing resolve the active Company price list, enforce customer/warehouse/product/version/date/duplicate guards, calculate discount/tax with integer minor units, persist header and replacement lines under exact expected versions, and write command receipt, audit and outbox in the same serializable transaction with persisted readback and rollback. The native HTTP router, composition service, strict TS transport and Next Commerce order route are wired. Purchase orders, request/RFQ handoffs, Money snapshot rows, approval/cancellation cross-owner guards, fulfillment, invoicing, settlement and returns remain retained.",
+  "capability": "commerce-native-order-draft-save",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "5ef1092f2f786f1c701c010b5d724c79b1ce6aef",
+  "commit": "80214487b2cb562ad497d3e914b366968e2ba0a9",
+  "scope": {
+    "domain": "Quote/sales-only SaveOrderCommand validation, exact decimal quantity (3 places) and price (2 places) parsing into minor units, JavaScript-safe integer bounds, unique product lines, date ordering, customer/warehouse/product/price-list source validation, active list selection by customer then effective date, list item tax equality, discount bps and delegated discount threshold, positive total, create/update plan and exact persisted readback.",
+    "application": "save_order re-checks current IAM write authority, serializes the command key, resolves the exact receipt before writes, reads the scoped settings currency and sources, locks an existing draft for update, enforces expected version and kind lock, writes header/lines plus receipt/audit/outbox in one unit, and validates the persisted document before returning. Replay is byte-identical and a changed request under the same key is rejected.",
+    "adapters": "Commerce-owned commerce_orders/commerce_order_lines writes with read-only commerce_settings, finance_parties, commerce_warehouses, commerce_products and sales_price_lists/sales_price_list_items guards. Quote numbers use erpx_sales_document_number; sales numbers use the retained SO-<sha256(key)[..24]>. SQL requires the caller's serializable transaction and never commits or retries.",
+    "http": "POST /api/v1/holdings/{holding_slug}/commerce/orders for create and POST /api/v1/holdings/{holding_slug}/commerce/orders/{order_id} for update. Exact target/origin, Idempotency-Key, JSON content type, bounded body, strict key/line shape, private/no-store plus no-referrer/nosniff and bounded error mapping.",
+    "transport": "ERPX_NATIVE_COMMERCE_ORDER_CONFIG gains save() create/update transport with strict input validation, exact JSON body and response receipt {id,version}; configured native failures never fall back to the retained writer. The Next route selects native only for quote/sales; purchase orders keep the retained path.",
+    "devContainer": "The keyed development container exports ERPX_NATIVE_COMMERCE_ORDER_CONFIG for the acme Holding."
+  },
+  "changedFiles": [
+    "packages/server-commerce/src/domain/order.rs",
+    "packages/server-commerce/src/application/order.rs",
+    "packages/server-commerce/src/adapters/order.rs",
+    "packages/server-commerce/src/adapters/order_http.rs",
+    "packages/server-commerce/src/public/order.rs",
+    "src/composition/src/commerce.rs",
+    "src/composition/src/private_development_api.rs",
+    "packages/feature-commerce/src/public/native-commerce-orders.ts",
+    "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+    "scripts/local/dev-container-start.ts",
+    "tests/unit/commerce/rust-commerce-order-http.test.rs",
+    "tests/integration/commerce/rust-commerce-order-postgres.test.rs",
+    "tests/unit/commerce/native-commerce-orders-transport.test.ts"
+  ],
+  "verification": {
+    "rust": "cargo test -p erpx-server-commerce --locked: lib 5, consumption_postgres 8, order 25, order_http 4, order_postgres 14, service_count_masters_postgres 1, doc-tests 0; all passed. New PostgreSQL cases cover priced quote create, automatic customer-list precedence, delegated discount reason, exact quote number, CAS update and line replacement, stale/kind-locked/non-draft denial, selected-list and tax guards, product/warehouse/party/date/duplicate denials, replay conflict, and deferred outbox rollback with exact retry.",
+    "rustChecks": "cargo check --workspace --locked passed; cargo clippy -p erpx-server-commerce --all-targets --no-deps -- -D warnings passed; rustfmt --check passed on the changed Rust files.",
+    "typescript": "tsc --noEmit and tsc --noEmit --project tests/config/tsconfig.json passed; eslint on the changed TS files passed with only the repository pages-directory notice.",
+    "registered": "bun run test:integration -- tests/integration/sales/sales-pricing.test.ts: 16/16 passed, including independent price-list activation, discount approval, current/future list selection, concurrency, rollback and withdrawal history.",
+    "transport": "vitest tests/unit/commerce/native-commerce-orders-transport.test.ts: 7/7 passed, including exact create/update save body, idempotency key, content type, URL and receipt validation.",
+    "browser": "Not claimed. The keyed container account login succeeds and reaches the Sales workspace chooser, but an authenticated work role could not be established: the chooser re-renders/navigates in a loop, matching the existing blocked native-work-role cohort. Container gateway 3100 and native 44817 health are 200; no desktop/mobile Commerce save journey is counted."
+  },
+  "legacyRetained": [
+    "Purchase-order create/update and request/RFQ order handoffs",
+    "Money transaction snapshot rows for order and line revisions",
+    "Sales-order approval Finance credit guard and confirmed sales-order cancellation Inventory reversal guard",
+    "Fulfillment, invoicing, settlement and returns"
+  ],
+  "concurrentWork": "Only the Commerce owner slice, its composition mount, the strict transport, the Next order route, the dev-container native config and owner tests were changed. Other dirty worktree files were not staged.",
+  "blockersAndNextAction": {
+    "blocker": "Native browser acceptance still requires an authenticated selected work role in the keyed container; the chooser does not establish one.",
+    "nextAction": "Continue with the next dependency-ready non-browser bundle while retaining sales/quotes and sales/orders as partial; retry browser acceptance when the keyed work-role selection is restored."
+  }
+}

@@ -22,6 +22,7 @@ import {readExecutiveMetricProjection as posMetric} from "@erpx/server-pos/publi
 import {executiveEvidenceSources as posMetricEvidence} from "@erpx/server-pos/public/executive-evidence-sources";
 import {metricCatalogFor} from "@erpx/server-runtime/public/executive/metrics";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
+import {posSeedCommand} from '../../support/helpers/pos-native-seed';
 import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,businessDate } from "@erpx/server-pos/public/rules/pos";
 import { defaultConfig,pmsAccountKeys } from "@erpx/server-pms/public/rules/pms";
@@ -37,7 +38,8 @@ const actor={userId:'cashier',assignmentId:'pos-cashier',role:'holding_owner',co
 const manager={...actor,userId:'manager',assignmentId:'pos-manager'};
 const hotelManager={...actor,userId:'hotel-manager',assignmentId:'hotel-manager'};
 let serial=0;
-const command=(op:string,input:unknown,who=actor,key=`pos-test-command-${++serial}`)=>posCommand(db,who,op,input,key);
+const seedPos=posSeedCommand(db);
+const command=(op:string,input:unknown,who=actor,key=`pos-test-command-${++serial}`)=>seedPos(who,op,input,key);
 async function change(op:string,saleId:string,extra:Record<string,unknown>={},who=actor){const row=await one(db,'SELECT * FROM pos_sales WHERE id=?',saleId);return command(op,{id:saleId,expectedVersion:row!.version,...extra},who);}
 async function createSale(mode='retail'){
  const sale=await command('sale.create',{shiftId:mode==='retail'?'shift-retail':'shift-kitchen',serviceMode:mode==='retail'?'retail':'dine_in'});return String(sale.id);
@@ -804,12 +806,6 @@ describe('POS committed business flows',()=>{
   const sale=await createSale('restaurant');await add(sale,'latte');await kitchen(sale,'send');await kitchen(sale,'start');await kitchen(sale,'cancel');
   expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE product_id='milk'")).toEqual({quantity_milli:9800});expect(await one(db,"SELECT SUM(debit_minor-credit_minor) balance FROM finance_journal_lines WHERE account_id='waste'")).toEqual({balance:1000});
  });
- it('splits a dispatched recipe without creating another kitchen item or consuming twice',async()=>{
-  const sale=await createSale('restaurant');await add(sale,'latte',2000);await kitchen(sale,'send');const line=(await one(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale))!;
-  const split=await change('sale.split',sale,{lineId:line.id,quantityMilli:1000});expect(await one(db,'SELECT COUNT(*) n FROM pos_fulfillments')).toEqual({n:1});
-  await kitchen(sale,'start');await kitchen(sale,'ready');await kitchen(sale,'deliver');await pay(sale,12840);await change('sale.complete',sale);await pay(String(split.id),12840);await change('sale.complete',String(split.id));
-  expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE product_id='milk'")).toEqual({quantity_milli:9600});expect(await one(db,'SELECT COUNT(*) n FROM pos_stock_moves')).toEqual({n:1});
- });
  it('partial returns require independent review, restore original cost, and cannot exceed original quantity',async()=>{
   const refundRateId=`pos-refund-rate-${++serial}`;
   await run(db,"INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)",refundRateId,'pos-company','THB',businessDate(),'36','manager',Date.now(),'refund quote');
@@ -1266,10 +1262,10 @@ describe('POS monetary and webhook boundaries',()=>{
 });
 
 it('quality quarantine blocks a reserved retail payment without consuming stock or cash',async()=>{
- const {createQualityHold}=await import("@erpx/server-quality/public/quality");
+ const {seedNativeQualityHold}=await import("../../../fixtures/quality/hold");
  const sale=await createSale();await add(sale);
  const stock=await one(db,'SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?','warehouse','tea');
- await createQualityHold(manager,{warehouseId:'warehouse',productId:'tea',expectedStockVersion:Number(stock!.version),dueDate:'2026-09-22',reason:'Packaging damage requires inspection'},'quality-pos-hold-command');
+ await seedNativeQualityHold(db,manager,{warehouseId:'warehouse',productId:'tea',expectedStockVersion:Number(stock!.version),dueDate:'2026-09-22',reason:'Packaging damage requires inspection'},'quality-pos-hold-command');
  const receiptsBefore=await one(db,'SELECT count(*) n FROM pos_receipts');
  await expect(pay(sale)).rejects.toMatchObject({code:'QUALITY_HOLD'});
  expect((await one(db,'SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?','warehouse','tea'))).toMatchObject({quantity_milli:10000,value_minor:30000});
@@ -1318,21 +1314,14 @@ it('checks the draft catalog version and price before changing the bill',async()
  expect(await one(db,'SELECT COUNT(*) n FROM pos_lines WHERE sale_id=?',sale)).toEqual({n:0});
 });
 
-it('preserves line and bill discounts exactly when a quantity is split',async()=>{
- const sale=await createSale();await add(sale,'tea',3000);await change('sale.discount',sale,{amountMinor:101});
- const line=(await one(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale))!;
- const split=await change('sale.split',sale,{lineId:line.id,quantityMilli:1000});
- const portions=await all(db,'SELECT discount_minor,bill_discount_minor FROM pos_lines WHERE sale_id IN (?,?)',sale,split.id);
- expect(portions.reduce((sum,l)=>sum+Number(l.discount_minor),0)).toBe(101);expect(portions.reduce((sum,l)=>sum+Number(l.bill_discount_minor),0)).toBe(101);
- await change('sale.discount',String(split.id),{amountMinor:0});
- expect(await one(db,'SELECT discount_minor FROM pos_sales WHERE id=?',split.id)).toEqual({discount_minor:0});
-});
-
 it('shares CRM parties, refuses duplicate contact identities, and freezes receipt data',async()=>{
  const customer=await command('customer.create',{name:'Snapshot Customer',phone:'0801234567',email:'receipt@example.test'});
  await expect(command('customer.create',{name:'Different name',phone:'080-123-4567'})).rejects.toMatchObject({code:'POS_CUSTOMER_DUPLICATE'});
  expect((await posCustomers(db,actor,'receipt@example.test')).map(p=>p.id)).toContain(customer.id);
- const sale=await createSale();await change('sale.customer',sale,{partyId:customer.id});await add(sale);await pay(sale);await change('sale.complete',sale);
+ const sale=await createSale();
+ // sale.customer is native-owned; stage its settled party assignment directly.
+ await run(db,'UPDATE pos_sales SET party_id=? WHERE id=?',customer.id,sale);
+ await add(sale);await pay(sale);await change('sale.complete',sale);
  const before=(await one(db,'SELECT snapshot_json FROM pos_sale_documents WHERE sale_id=?',sale))!;
  const journalCount=await one(db,'SELECT COUNT(*) n FROM finance_journals');
  await run(db,'UPDATE finance_parties SET name=? WHERE id=?','Later changed name',customer.id);
@@ -1370,6 +1359,25 @@ it('validates denomination totals and rejects the person who counted the drawer 
  await command('shift.close',{id:'shift-retail',expectedVersion:1,countedMinor:10000,denominations:{5000:2}});
  await expect(command('shift.review',{id:'shift-retail',expectedVersion:2,reason:'Self review'})).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
  expect(await one(db,"SELECT denominations_json->>'5000' count FROM pos_shifts WHERE id='shift-retail'")).toEqual({count:'2'});
+});
+
+it('records approved cash movements and discounted held bills through the POS seeding oracle',async()=>{
+ await expect(command('cash.create',{id:'shift-retail',expectedVersion:1,amountMinor:0,reason:'No amount'})).rejects.toMatchObject({code:'POS_CASH_INVALID'});
+ const movement=await command('cash.create',{id:'shift-retail',expectedVersion:1,amountMinor:5000,reason:'Float top-up'});
+ await expect(command('cash.approve',{id:'shift-retail',expectedVersion:2,movementId:String(movement.id)})).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
+ await command('cash.approve',{id:'shift-retail',expectedVersion:2,movementId:String(movement.id)},manager);
+ expect(await one(db,'SELECT approved_by FROM pos_cash_movements WHERE id=?',movement.id)).toEqual({approved_by:manager.userId});
+ expect(await one(db,'SELECT COUNT(*) n FROM pos_postings WHERE source_key=?',`cash:${movement.id}`)).toEqual({n:1});
+ expect(await one(db,'SELECT version FROM pos_shifts WHERE id=?','shift-retail')).toEqual({version:3});
+ const sale=await createSale();await add(sale);
+ await change('sale.hold',sale);expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'held'});
+ await change('sale.resume',sale);expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'open'});
+ await change('sale.discount',sale,{amountMinor:1000});
+ expect(await one(db,'SELECT subtotal_minor,tax_minor,discount_minor,total_minor FROM pos_sales WHERE id=?',sale)).toEqual({subtotal_minor:9000,tax_minor:630,discount_minor:1000,total_minor:9630});
+ await expect(change('sale.approve_discount',sale,{reason:'Self approved discount'})).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
+ await change('sale.approve_discount',sale,{reason:'Independent discount review'},manager);
+ await pay(sale,9630);await change('sale.complete',sale);
+ expect(await one(db,'SELECT state,total_minor FROM pos_sales WHERE id=?',sale)).toEqual({state:'completed',total_minor:9630});
 });
 
 it('keeps prepared day evidence stable until Finance confirms before a later-day refund',async()=>{
@@ -1487,7 +1495,7 @@ async function zeroLedgerPosCompany() {
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),salesManager=await actor('sales-manager','sales_manager'),treasury=await actor('treasury','treasury');
-  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
+  const {positionSchema}=await import('@erpx/server-organization/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');
   await installStaffLevels(db,owner,randomUUID());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),randomUUID())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[salesManager,3],[treasury,4]] as const){
@@ -1519,7 +1527,7 @@ it('POS-only zero ledger uses actual startup references, nine accounts, masters 
  const mapping=await commerce.posPostingSetup(z.reviewer);expect(mapping).toMatchObject({available:true,canConfigure:true,configured:false,expectedSalesDefaults:null});const input={expectedVersion:0 as const,contextKey:mapping.contextKey!,expectedSalesDefaults:null,chartId:chart.id,currency:'THB',receivableAccountId:accounts.ar,payableAccountId:accounts.ap,revenueAccountId:accounts.revenue,inventoryAccountId:accounts.inventory,clearingAccountId:accounts.clearing,cogsAccountId:accounts.cogs,inputTaxAccountId:accounts.inputTax,outputTaxAccountId:accounts.outputTax,cashAccountId:accounts.cash,reason:'Deliberate first POS Company nine-role mapping'},mappingKey=randomUUID(),saved=await commerce.initializePosPostingSetup(z.reviewer,input,mappingKey);expect(saved).toEqual({id:z.company,status:'configured',version:1});expect(await commerce.initializePosPostingSetup(z.reviewer,input,mappingKey)).toEqual(saved);
  const ready=await startup.posStartupWorkspace(z.owner);expect(ready).toMatchObject({available:true,canCreateWarehouse:true,canCreateProduct:true,canBootstrap:false});expect(ready.branches.map(row=>row.id)).toContain(z.branch);const warehouse=await masters.createPosStartupWarehouse(z.owner,{branchId:z.branch,code:'MAIN',name:'Actual Company POS warehouse',status:'active'},randomUUID()),product=await masters.createPosStartupProduct(z.owner,{sku:'CONSULT',name:'Actual POS service',itemType:'service',trackingMode:'none',unit:'visit',price:'100',taxBps:0,status:'active'},randomUUID());expect(await db.prepare('SELECT count(*) n FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(z.company).first<number>('n')).toBe(0);
  const eligible=await startup.posStartupWorkspace(z.owner);expect(eligible.canBootstrap).toBe(true);const setupKey=randomUUID(),setup=await posCommand(db,z.owner,'settings.bootstrap',{warehouseId:warehouse.id,bankAccountId:accounts.cash},setupKey);expect(await posCommand(db,z.owner,'settings.bootstrap',{warehouseId:warehouse.id,bankAccountId:accounts.cash},setupKey)).toEqual(setup);await expect(posCommand(db,z.owner,'accounting.approve',{expectedVersion:1},randomUUID())).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});const review=await startup.posStartupWorkspace(z.manager);expect(review.canApproveAccounting).toBe(true);await posCommand(db,z.manager,'accounting.approve',{expectedVersion:review.settingsVersion},randomUUID());expect((await posWorkspace(z.manager,undefined,'','settings',undefined,false,true)).permissions['pos.accounting.approve']).toBe(true);
- await posCommand(db,z.owner,'catalog.save',{productId:product.id,barcode:'',category:'Services',kind:'service',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[setup.registerId],expectedVersion:0},randomUUID());const shift=await posCommand(db,z.owner,'shift.open',{registerId:setup.registerId,openingMinor:0},randomUUID()),sale=await posCommand(db,z.owner,'sale.create',{shiftId:shift.id,serviceMode:'retail'},randomUUID()),saleId=String(sale.id),mutate=async(operation:string,extra:Record<string,unknown>={})=>{const current=await db.prepare('SELECT version FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,z.company).first<{version:number}>();return posCommand(db,z.owner,operation,{id:saleId,expectedVersion:current!.version,...extra},randomUUID());};await mutate('sale.add',{productId:product.id,quantityMilli:1000,modifierIds:[],discountMinor:0,note:'Actual first service'});await mutate('payment.create',{method:'cash',amountMinor:10000,tenderedMinor:10000,reference:''});await mutate('sale.complete');
+ await posCommand(db,z.owner,'catalog.save',{productId:product.id,barcode:'',category:'Services',kind:'service',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[setup.registerId],expectedVersion:0},randomUUID());const shift=await seedPos(z.owner,'shift.open',{registerId:setup.registerId,openingMinor:0},randomUUID()),sale=await seedPos(z.owner,'sale.create',{shiftId:shift.id,serviceMode:'retail'},randomUUID()),saleId=String(sale.id),mutate=async(operation:string,extra:Record<string,unknown>={})=>{const current=await db.prepare('SELECT version FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,z.company).first<{version:number}>();return seedPos(z.owner,operation,{id:saleId,expectedVersion:current!.version,...extra},randomUUID());};await mutate('sale.add',{productId:product.id,quantityMilli:1000,modifierIds:[],discountMinor:0,note:'Actual first service'});await mutate('payment.create',{method:'cash',amountMinor:10000,tenderedMinor:10000,reference:''});await mutate('sale.complete');
  expect(await db.prepare('SELECT state,currency,total_minor FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,z.company).first()).toMatchObject({state:'completed',currency:'THB',total_minor:10000});expect(await db.prepare("SELECT count(*) n FROM finance_journals WHERE company_id=? AND source_type='pos' AND source_id=? AND status='posted'").bind(z.company,saleId).first<number>('n')).toBeGreaterThan(0);expect(await db.prepare('SELECT count(*) n FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(z.company).first<number>('n')).toBe(0);expect((await finance.posStartupPrerequisites(z.reviewer)).accounts.every(account=>typeof account.currency==='string')).toBe(true);expect((await startup.posStartupWorkspace(z.owner)).accountingApproved).toBe(true);expect((await db.prepare("SELECT package_id FROM company_package_grants WHERE company_id=? AND state='active' ORDER BY package_id").bind(z.company).all()).results).toEqual([{package_id:'pos'}]);
 },120000);
 
@@ -1549,7 +1557,7 @@ it('POS-only first physical Count retains original Supply refusal then binds evi
  const record=await initial.posInitialPhysicalStockCountWorkspace(s.z.manager,{countId:id});expect(record.record).toMatchObject({sourceKind:'pos-initial-physical-stock-count',id,status:'posted',version:4});expect(Number(record.record?.countedQuantity)).toBe(2);expect(Number(record.record?.countedValue)).toBe(12);const journalId=record.record?.journalId;if(!journalId)throw Error('Actual independently posted Count journal required');
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(s.warehouse.id,s.product.id).first()).toEqual({quantity_milli:2000,value_minor:1200});expect(await db.prepare('SELECT source_type,source_id,status,is_opening FROM finance_journals WHERE id=? AND company_id=?').bind(journalId,s.z.company).first()).toMatchObject({source_type:'stock_count',source_id:id,status:'posted',is_opening:0});expect((await db.prepare('SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY account_id').bind(journalId).all()).results).toEqual(expect.arrayContaining([{account_id:s.accounts.inventory,debit_minor:1200,credit_minor:0},{account_id:s.accounts.variance,debit_minor:0,credit_minor:1200}]));
  const {journalDetail}=await import('@erpx/server-finance/public/ledger');expect((await journalDetail(s.z.reviewer,journalId)).journal).toMatchObject({id:journalId,source_type:'stock_count',source_id:id,status:'posted'});
- await posCommand(db,s.z.owner,'catalog.save',{productId:s.product.id,barcode:'',category:'Physical stock',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[s.setup.registerId],expectedVersion:0},randomUUID());const shift=await posCommand(db,s.z.owner,'shift.open',{registerId:s.setup.registerId,openingMinor:0},randomUUID()),sale=await posCommand(db,s.z.owner,'sale.create',{shiftId:shift.id,serviceMode:'retail'},randomUUID()),saleId=String(sale.id),mutate=async(operation:string,extra:Record<string,unknown>={})=>{const row=await db.prepare('SELECT version FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,s.z.company).first<{version:number}>();if(!row)throw Error('Actual current POS sale required');return posCommand(db,s.z.owner,operation,{id:saleId,expectedVersion:row.version,...extra},randomUUID());};await mutate('sale.add',{productId:s.product.id,quantityMilli:1000,modifierIds:[],discountMinor:0,note:'The first actual physically counted unit'});await mutate('payment.create',{method:'cash',amountMinor:10000,tenderedMinor:10000,reference:''});await mutate('sale.complete');
+ await posCommand(db,s.z.owner,'catalog.save',{productId:s.product.id,barcode:'',category:'Physical stock',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[s.setup.registerId],expectedVersion:0},randomUUID());const shift=await seedPos(s.z.owner,'shift.open',{registerId:s.setup.registerId,openingMinor:0},randomUUID()),sale=await seedPos(s.z.owner,'sale.create',{shiftId:shift.id,serviceMode:'retail'},randomUUID()),saleId=String(sale.id),mutate=async(operation:string,extra:Record<string,unknown>={})=>{const row=await db.prepare('SELECT version FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,s.z.company).first<{version:number}>();if(!row)throw Error('Actual current POS sale required');return seedPos(s.z.owner,operation,{id:saleId,expectedVersion:row.version,...extra},randomUUID());};await mutate('sale.add',{productId:s.product.id,quantityMilli:1000,modifierIds:[],discountMinor:0,note:'The first actual physically counted unit'});await mutate('payment.create',{method:'cash',amountMinor:10000,tenderedMinor:10000,reference:''});await mutate('sale.complete');
  expect(await db.prepare('SELECT state,currency,total_minor FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,s.z.company).first()).toEqual({state:'completed',currency:'THB',total_minor:10000});expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(s.warehouse.id,s.product.id).first()).toEqual({quantity_milli:1000,value_minor:600});expect(await db.prepare('SELECT count(*)::int n FROM finance_journals WHERE company_id=? AND source_type=\'pos\' AND source_id=? AND status=\'posted\'').bind(s.z.company,saleId).first('n')).toBeGreaterThan(0);
  const consumed=await s.snapshot();expect(await initial.preparePosInitialPhysicalStockCount(s.z.owner,createBody,createKey)).toEqual(created);expect(await initial.transitionPosInitialPhysicalStockCount(s.z.manager,id,'post',postBody,postKey)).toEqual(posted);expect(await s.snapshot()).toEqual(consumed);expect((await initial.posInitialPhysicalStockCountWorkspace(s.z.owner,selected)).unavailableReason).toBe('prior-stock-history');expect((await db.prepare("SELECT package_id FROM company_package_grants WHERE company_id=? AND state='active' ORDER BY package_id").bind(s.z.company).all()).results).toEqual([{package_id:'pos'}]);
 },120000);

@@ -1,7 +1,6 @@
 import { canonicalGuestAccount, legacyGuestAccount } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import { z } from 'zod';
-import { type PosAccounts, settingsSchema, catalogSchema, money, qty, saleAmounts, recipeQuantities, portion, businessDate as evaluateBusinessDate, accountKeys } from "@erpx/server-pos/domain/pos";
-import { currencyDefinition } from "@erpx/feature-finance/lib/company-money";
+import { type PosAccounts, settingsSchema, catalogSchema, recipeQuantities, portion, businessDate as evaluateBusinessDate, accountKeys } from "@erpx/server-pos/domain/pos";
 import { scaledAmount } from "@erpx/feature-commerce/lib/commerce-math";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
@@ -25,8 +24,6 @@ export type PosUnit<Effect extends PosEffect> = {
     saveReversalRequest(row: PosRow): Promise<void>;
     reviewReversalRequest(id: string, state: string, actorId: string, reason: string, now: number): Promise<void>;
     prepareAccounting(companyId: string, accounts: PosAccounts, preparedBy: string): Promise<void>;
-    approveAccounting(companyId: string, approvedBy: string): Promise<void>;
-    saveOperationalSettings(companyId: string, enabled: boolean, discount: number): Promise<void>;
     assertHotelDay(companyId: string, registerId: unknown, date: string): Promise<void>;
     assertFulfillmentHotelDay(companyId: string, fulfillmentId: unknown, date: string): Promise<void>;
     linkRegister(id: string, propertyId: string | null): Promise<void>;
@@ -103,18 +100,6 @@ export type PosUnit<Effect extends PosEffect> = {
         fact4: string;
         fact5: number;
     }): Promise<PosRows<Record<string, unknown>>>;
-    readPosPayments1(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosSales1(facts: {
-        saleId: string;
-        saleId2: string;
-        saleId3: string;
-        saleId4: string;
-        fact4: number;
-        saleId5: string;
-        clearApproval: boolean;
-    }): Promise<PosRows<Record<string, unknown>>>;
     readCommerceStock1(facts: {
         warehouse_id: string | number | boolean | null;
         productId: string;
@@ -132,10 +117,6 @@ export type PosUnit<Effect extends PosEffect> = {
     writePosFulfillments1(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    readCommerceStock2(facts: {
-        warehouse_id: string | number | boolean | null;
-        productId: string;
-    }): Promise<PosRow | null>;
     readInventoryLedger1(facts: {
         warehouse_id: string | number | boolean | null;
         productId: string;
@@ -280,24 +261,12 @@ export type PosUnit<Effect extends PosEffect> = {
     writeCommandAssertions1(facts: {
         key: string;
     }): Promise<PosRows<Record<string, unknown>>>;
-    readAttachmentSets1(facts: {
-        companyId: string;
-        fact1: Array<string>;
-        placeholders: string;
-    }): Promise<PosRows<{
-        id: string;
-        purpose_key: string;
-        component_kind: string;
-    }>>;
     writePosReceipts1(facts: {
         key: string;
         companyId: string;
         hash: string;
         fact3: string;
         fact4: number;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writeCommandAssertions2(facts: {
-        key: string;
     }): Promise<PosRows<Record<string, unknown>>>;
     readOrganizationNodes1(facts: {
         company: string;
@@ -434,12 +403,6 @@ export type PosUnit<Effect extends PosEffect> = {
         registerId: string;
         name: string;
     }): Promise<PosRow | null>;
-    writePosTables1(facts: {
-        tid: `${string}-${string}-${string}-${string}-${string}`;
-        registerId: string;
-        name: string;
-        seats: number;
-    }): Promise<PosRows<Record<string, unknown>>>;
     readPosCatalog1(facts: {
         productId: string;
         company: string;
@@ -497,121 +460,6 @@ export type PosUnit<Effect extends PosEffect> = {
     writePosRegisterCatalog3(facts: {
         rid: string;
         productId: string;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosRegisters7(facts: {
-        registerId: string;
-    }): Promise<PosRow | null>;
-    readPmsProperties1(facts: {
-        company: string;
-        branch_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosShifts1(facts: {
-        sid: `${string}-${string}-${string}-${string}-${string}`;
-        id: string | number | boolean | null;
-        company: string;
-        branch_id: string | number | boolean | null;
-        user: string;
-        fact5: number;
-        openingMinor: number;
-        fact7: string;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosShifts2(facts: {
-        id: string;
-    }): Promise<PosRow | null>;
-    writePosCashMovements1(facts: {
-        mid: `${string}-${string}-${string}-${string}-${string}`;
-        id: string | number | boolean | null;
-        amountMinor: number;
-        reason: string;
-        user: string;
-        null: null;
-        fact6: number;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosShifts2(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosCashMovements1(facts: {
-        movementId: string | undefined;
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosCashMovements2(facts: {
-        user: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosSales3(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosCashMovements2(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosPayments5(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosRefundPayments1(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosCashMovements3(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosShifts3(facts: {
-        countedMinor: number;
-        expected: number;
-        fact2: number;
-        fact3: number;
-        user: string;
-        fact5: string | null;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosShifts4(facts: {
-        user: string;
-        reason: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosShifts5(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosShifts3(facts: {
-        shiftId: string;
-    }): Promise<PosRow | null>;
-    readCompanyFxRates1(facts: {
-        company: string;
-        currency: string;
-    }): Promise<PosRow | null>;
-    readPosRegisters8(facts: {
-        register_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosTables2(facts: {
-        tableId: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readFinanceParties1(facts: {
-        partyId: string;
-        company: string;
-    }): Promise<PosRow | null>;
-    writePosSales4(facts: {
-        sid: `${string}-${string}-${string}-${string}-${string}`;
-        company: string;
-        branch_id: string | number | boolean | null;
-        id: string | number | boolean | null;
-        id2: string | number | boolean | null;
-        fact5: string;
-        currency: string | number | boolean | null;
-        fact7: string;
-        fact8: string | null;
-        fact9: string | null;
-        guests: number;
-        serviceMode: "retail" | "dine_in" | "takeaway";
-        user: string;
-        fact13: number;
-        fact14: number;
-        accounts_json: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readOrganizationNodes2(facts: {
-        company: string;
-    }): Promise<PosRow | null>;
-    writePosSales5(facts: {
-        fact0: string;
-        sid: `${string}-${string}-${string}-${string}-${string}`;
     }): Promise<PosRows<Record<string, unknown>>>;
     readPosDayCloses1(facts: {
         company_id: string | number | boolean | null;
@@ -689,9 +537,6 @@ export type PosUnit<Effect extends PosEffect> = {
     readPosPayments7(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRow | null>;
-    readPosLines4(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow[]>;
     readPosLines5(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRow | null>;
@@ -699,209 +544,13 @@ export type PosUnit<Effect extends PosEffect> = {
         propertyId: string;
         company: string;
     }): Promise<PosRow | null>;
-    readPosFulfillments2(facts: {
-        itemId: string;
-    }): Promise<PosRow | null>;
-    writePosFulfillments4(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     writePosSales7(facts: {
         fact0: number;
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales8(facts: {
-        user: string;
-        reason: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales9(facts: {
-        user: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readCommerceProducts3(facts: {
-        register_id: string | number | boolean | null;
-        productId: string;
-        company: string;
-    }): Promise<PosRow | null>;
-    readPosRegisters10(facts: {
-        register_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosFulfillments5(facts: {
-        fid: `${string}-${string}-${string}-${string}-${string}`;
-        company: string;
-        branch_id: string | number | boolean | null;
-        warehouse_id: string | number | boolean | null;
-        productId: string;
-        quantityMilli: number;
-        kind: string;
-        fact7: string;
-        note: string;
-        fact9: string;
-        accounts_json: string | number | boolean | null;
-        currency: string | number | boolean | null;
-        business_date: string | number | boolean | null;
-        fact13: number;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines1(facts: {
-        lid: `${string}-${string}-${string}-${string}-${string}`;
-        id: string | number | boolean | null;
-        fid: `${string}-${string}-${string}-${string}-${string}`;
-        productId: string;
-        name: string | number | boolean | null;
-        quantityMilli: number;
-        price: number;
-        tax_bps: string | number | boolean | null;
-        fact8: boolean;
-        discountMinor: number;
-        subtotal: number;
-        tax: number;
-        fact12: string;
-        note: string;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readFinanceParties2(facts: {
-        partyId: string;
-        company: string;
-    }): Promise<PosRow | null>;
-    writePosSales10(facts: {
-        partyId: string | null;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosLines6(facts: {
-        lineId: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosFulfillments6(facts: {
-        quantityMilli: number;
-        note: string;
-        fulfillment_id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines2(facts: {
-        quantityMilli: number;
-        discount: number;
-        subtotal: number;
-        tax: number;
-        note: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales11(facts: {
-        user: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosLines7(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow[]>;
-    writePosLines3(facts: {
-        discount: number;
-        extra: number;
-        subtotal: number;
-        tax: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales12(facts: {
-        user: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosLines8(facts: {
-        lineId: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosReservations3(facts: {
-        fulfillment_id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines4(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales13(facts: {
-        fact0: "held" | "open";
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosTables3(facts: {
-        tableId: string;
-        register_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosSales14(facts: {
-        tableId: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines5(facts: {
-        id: string | number | boolean | null;
-        id2: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales15(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosLines9(facts: {
-        lineId: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosFulfillments3(facts: {
-        fid: string;
-    }): Promise<PosRow | null>;
-    writePosSales16(facts: {
-        target: `${string}-${string}-${string}-${string}-${string}`;
-        fact1: string;
-        user: string;
-        fact3: number;
-        fact4: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines6(facts: {
-        target: `${string}-${string}-${string}-${string}-${string}`;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosFulfillments7(facts: {
-        newFid: string;
-        quantityMilli: number;
-        fact2: number;
-        fid: string;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosFulfillments8(facts: {
-        quantityMilli: number;
-        fid: string;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines7(facts: {
-        fact0: `${string}-${string}-${string}-${string}-${string}`;
-        target: `${string}-${string}-${string}-${string}-${string}`;
-        newFid: string;
-        quantityMilli: number;
-        discount: number;
-        billDiscount: number;
-        amount: number;
-        tax: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines8(facts: {
-        quantityMilli: number;
-        amount: number;
-        tax: number;
-        discount: number;
-        billDiscount: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales17(facts: {
-        issuer_json: string | number | boolean | null;
-        user: string;
-        target: `${string}-${string}-${string}-${string}-${string}`;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosFulfillments4(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow[]>;
-    readPosLines10(facts: {
-        id: string | number | boolean | null;
-        id2: string | number | boolean | null;
-    }): Promise<PosRow | null>;
     writePosReservations4(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    writePosFulfillments9(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales18(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosSales4(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
     readPosFulfillments5(facts: {
         id: string;
     }): Promise<PosRow | null>;
@@ -915,85 +564,14 @@ export type PosUnit<Effect extends PosEffect> = {
     readPosLines12(facts: {
         id: string | number | boolean | null;
     }): Promise<PosRow | null>;
-    writePosReservations5(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     writePosFulfillments10(facts: {
         state: string;
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    writePosFulfillments11(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosShifts5(facts: {
-        shift_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosLines13(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosPayments8(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosFulfillments6(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow[]>;
-    readPosConnections1(facts: {
-        company: string;
-    }): Promise<PosRow | null>;
-    writePosPayments2(facts: {
-        pid: `${string}-${string}-${string}-${string}-${string}`;
-        id: string | number | boolean | null;
-        company: string;
-        method: "cash" | "edc" | "transfer" | "stripe_card" | "stripe_promptpay";
-        amountMinor: number;
-        tenderedMinor: number;
-        reference: string;
-        fact7: string | number | boolean | null;
-        fact8: string | number | boolean;
-        user: string;
-        fact10: number;
-        fact11: number;
-        fact12: string | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosPayments3(facts: {
-        fact0: number;
-        pid: `${string}-${string}-${string}-${string}-${string}`;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosPayments9(facts: {
-        pid: `${string}-${string}-${string}-${string}-${string}`;
-    }): Promise<PosRow | null>;
-    writePosSales19(facts: {
-        fact0: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosPayments10(facts: {
-        id: string;
-        company: string;
-    }): Promise<PosRow | null>;
     readFinanceBankTransactions1(facts: {
         bankTransactionId: string;
         company: string;
     }): Promise<PosRow | null>;
-    readPosPayments11(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writeFinanceBankTransactions1(facts: {
-        fact0: string | number | boolean | null;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosPayments12(facts: {
-        id: string;
-        company: string;
-    }): Promise<PosRow | null>;
-    writePosPayments4(facts: {
-        fact0: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosSales20(facts: {
-        fact0: number;
-        sale_id: string | number | boolean | null;
-        sale_id2: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
     readPosPayments13(facts: {
         id: string;
     }): Promise<PosRow | null>;
@@ -1040,10 +618,6 @@ export type PosUnit<Effect extends PosEffect> = {
     readFinanceBankMatchTargets1(facts: {
         journal_id: string | number | boolean | null;
     }): Promise<PosRow | null>;
-    readFinanceBankTransactions2(facts: {
-        bankTransactionId: string;
-        company: string;
-    }): Promise<PosRow | null>;
     readFinanceJournalLines2(facts: {
         journal_id: string | number | boolean | null;
         bank_account: string | number | boolean | null;
@@ -1072,10 +646,6 @@ export type PosUnit<Effect extends PosEffect> = {
         fact0: string;
         id: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
-    readPosJobs3(facts: {
-        id: string;
-        company: string;
-    }): Promise<PosRow | null>;
     readPosRefundPayments3(facts: {
         record_id: string | number | boolean | null;
         company: string;
@@ -1090,105 +660,6 @@ export type PosUnit<Effect extends PosEffect> = {
     writePosJobs4(facts: {
         fact0: string;
         id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosDayCloses2(facts: {
-        company_id: string | number | boolean | null;
-        branch_id: string | number | boolean | null;
-        business_date: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPmsSources2(facts: {
-        fact0: string;
-    }): Promise<PosRow | null>;
-    readPosLines14(facts: {
-        lineId: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosRefunds2(facts: {
-        rid: `${string}-${string}-${string}-${string}-${string}`;
-        id: string | number | boolean | null;
-        company_id: string | number | boolean | null;
-        branch_id: string | number | boolean | null;
-        fact4: string | null;
-        fact5: "advance" | "sale";
-        reason: string;
-        fact7: string;
-        amount: number;
-        user: string;
-        fact10: number;
-        fact11: string;
-        tax: number;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosRefunds1(facts: {
-        id: string;
-    }): Promise<PosRow | null>;
-    writePosRefunds3(facts: {
-        user: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosPayments15(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow[]>;
-    readPosLines15(facts: {
-        lineId: string;
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosFulfillments7(facts: {
-        fulfillment_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    readPosStockMoves1(facts: {
-        id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writeCommerceStock3(facts: {
-        warehouse_id: string | number | boolean | null;
-        product_id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writeCommerceStock4(facts: {
-        quantityMilli: number;
-        restoredCost: number;
-        warehouse_id: string | number | boolean | null;
-        product_id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosStockMoves3(facts: {
-        fact0: `${string}-${string}-${string}-${string}-${string}`;
-        company_id: string | number | boolean | null;
-        warehouse_id: string | number | boolean | null;
-        product_id: string | number | boolean | null;
-        id: string | number | boolean | null;
-        id2: string | number | boolean | null;
-        number: string | number | boolean | null;
-        fact7: "return";
-        quantityMilli: number;
-        restoredCost: number;
-        date: string;
-        fact11: number;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosLines9(facts: {
-        quantityMilli: number;
-        fact1: number;
-        taxMinor: number;
-        restoredCost: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosRefundPayments1(facts: {
-        rpid: `${string}-${string}-${string}-${string}-${string}`;
-        id: string | number | boolean | null;
-        id2: string | number | boolean | null;
-        amount: number;
-        fact4: "cash" | "transfer" | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    writePosPayments6(facts: {
-        amount: number;
-        id: string | number | boolean | null;
-    }): Promise<PosRows<Record<string, unknown>>>;
-    readPosShifts6(facts: {
-        payout_shift_id: string | number | boolean | null;
-        companyId: string;
-        branch_id: string | number | boolean | null;
-    }): Promise<PosRow | null>;
-    writePosRefunds4(facts: {
-        user: string;
-        id: string | number | boolean | null;
-        id2: string | number | boolean | null;
     }): Promise<PosRows<Record<string, unknown>>>;
     readPosRefundPayments5(facts: {
         refundPaymentId: string;
@@ -1303,22 +774,6 @@ export type PosUnit<Effect extends PosEffect> = {
     assertProductionModuleEnabled(arg0: string, arg1: "pos"): Promise<void>;
     workContextGuards(arg0: WorkContext, arg1: string): Effect[];
     iamMutationGuards(arg0: WorkContext, arg1: string): Effect[];
-    prepareAttachmentBinding(arg0: WorkContext, arg1: {
-        attachmentSetIds: string[];
-        bindingContract: {
-            targetType: string;
-            bindingType: string;
-            contexts: {
-                purposeKey: string;
-                componentKind: "action";
-                componentRef: string;
-            }[];
-        };
-        targetId: string;
-        expectedTargetVersion: number;
-        commandId: string;
-        bindingId: string;
-    }): Promise<PosAttachmentBinding<Effect>>;
     posDayCommand(arg0: WorkContext, arg1: string, arg2: unknown): Promise<{
         id: string | number | boolean | null;
         state: string;
@@ -1451,13 +906,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
     const pair = (debit: string, credit: string, amount: number) => [{ account: debit, debit: amount, credit: 0 }, { account: credit, debit: 0, credit: amount }];
     async function audit(db: PosUnit<Effect>, companyId: string, branchId: string | null, actorId: string, operation: string, recordId: string, details: unknown) { await db.writePosAudit1({ fact0: id(), companyId: companyId, branchId: branchId, actorId: actorId, operation: operation, recordId: recordId, fact6: JSON.stringify(details), fact7: ports.clock.now() }); }
     async function enqueue(db: PosUnit<Effect>, companyId: string, kind: string, recordId: string, payload: unknown = {}) { await db.writePosJobs1({ fact0: id(), companyId: companyId, kind: kind, recordId: recordId, fact4: JSON.stringify(payload), fact5: ports.clock.now() }); }
-    async function editable(db: PosUnit<Effect>, sale: PosRow) {
-        if (!['open', 'held'].includes(str(sale, 'state')))
-            fail('POS_SALE_LOCKED', 'This bill cannot be edited');
-        if (await db.readPosPayments1({ id: sale.id }))
-            fail('POS_PAYMENT_STARTED', 'This bill already has a payment');
-    }
-    async function refreshSale(db: PosUnit<Effect>, saleId: string, clearApproval = true) { await db.writePosSales1({ saleId: saleId, saleId2: saleId, saleId3: saleId, saleId4: saleId, fact4: ports.clock.now(), saleId5: saleId, clearApproval: clearApproval }); }
     async function ingredients(db: PosUnit<Effect>, f: PosRow) {
         return recipeQuantities(json<Array<{
             productId: string;
@@ -1622,26 +1070,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                     await tx.writeCommandAssertions1({ key: key });
                     return canonicalGuestAccount(json<Record<string, unknown>>(old.result_json));
                 }
-                const attachmentInput = z.object({ id: z.string().min(1), expectedVersion: z.number().int().positive(), attachmentSetIds: z.array(z.string().min(1)).max(20).default([]) }).passthrough().safeParse(input);
-                const attachmentDescriptor = operation === 'sale.cancel' ? { targetType: 'pos_sale', purposeKey: 'void_evidence', bindingType: 'pos_void', componentRef: 'void' }
-                    : operation === 'refund.approve' || operation === 'refund.reject' ? { targetType: 'pos_refund', purposeKey: 'refund_evidence', bindingType: 'pos_refund_decision', componentRef: 'refund-decision' }
-                        : operation === 'shift.review' ? { targetType: 'pos_shift', purposeKey: 'cash_variance', bindingType: 'pos_cash_variance_review', componentRef: 'variance-review' } : null;
-                const attachmentData = attachmentInput.success ? attachmentInput.data : null, attachmentSetIds = attachmentData?.attachmentSetIds ?? [];
-                if (attachmentSetIds.length && !attachmentDescriptor)
-                    fail('POS_ATTACHMENT_ACTION', 'Files can be bound only to a void, refund decision, or cash-variance review.', 422);
-                if (attachmentSetIds.length && !attachmentData)
-                    fail('POS_ATTACHMENT_INPUT', 'Choose evidence for the current record revision.', 422);
-                if (attachmentSetIds.length) {
-                    const placeholders = attachmentSetIds.map(() => '?').join(','), sets = (await tx.readAttachmentSets1({ companyId: actor.companyId, fact1: attachmentSetIds, placeholders: placeholders })).results;
-                    if (sets.length !== new Set(attachmentSetIds).size || sets.some(set => set.component_kind !== 'action' || set.purpose_key !== attachmentDescriptor!.purposeKey))
-                        fail('POS_ATTACHMENT_PURPOSE', 'Choose only the evidence purpose for this POS action.', 422);
-                }
-                const attachmentBinding = attachmentSetIds.length ? await tx.prepareAttachmentBinding(actor, { attachmentSetIds, bindingContract: { targetType: attachmentDescriptor!.targetType, bindingType: attachmentDescriptor!.bindingType, contexts: [{ purposeKey: attachmentDescriptor!.purposeKey, componentKind: 'action', componentRef: attachmentDescriptor!.componentRef }] }, targetId: attachmentData!.id, expectedTargetVersion: attachmentData!.expectedVersion, commandId: key, bindingId: `${attachmentData!.id}:${operation}:${attachmentData!.expectedVersion + 1}` }) : null;
-                if (attachmentBinding)
-                    await tx.batch(attachmentBinding.guards);
                 const result = await perform(tx, actor, operation, input, key);
-                if (attachmentBinding)
-                    await tx.batch(attachmentBinding.steps);
                 await tx.writePosReceipts1({ key: key, companyId: actor.companyId, hash: hash, fact3: JSON.stringify(result), fact4: ports.clock.now() });
                 await audit(tx, actor.companyId, actor.branchId, actor.userId, operation, String(result.id ?? key), { input, result, assignmentId: actor.assignmentId });
                 await tx.writeCommandAssertions1({ key: key });
@@ -1819,22 +1248,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             input = { id: sale.id, expectedVersion: request.sale_version, propertyId: request.property_id, expectedPropertyVersion: request.property_version, reason: request.reason, restockLineIds: json<string[]>(request.restock_line_ids_json) };
             op = 'sale.reverse_room_charge';
         }
-        if (op === 'accounting.approve') {
-            const q = z.object({ expectedVersion: z.number().int().positive() }).strict().parse(input), settings = await config(db, company);
-            if (actor.branchId) fail('POS_COMPANY_SETTINGS', 'Review accounting at Company scope', 403);
-            version(settings, q);
-            if (!settings.accounting_prepared_by || samePerson(actor, settings.accounting_prepared_by))
-                fail('POS_INDEPENDENT_REVIEW', 'Another accounting reviewer must approve the mapping.');
-            await db.approveAccounting(company, user);
-            return { id: company, state: 'approved', version: q.expectedVersion + 1 };
-        }
-        if (op === 'settings.operations') {
-            const q = z.object({ expectedVersion: z.number().int().positive(), enabled: z.boolean(), cashierDiscountBps: z.number().int().min(0).max(10000) }).strict().parse(input), settings = await config(db, company);
-            if (actor.branchId) fail('POS_COMPANY_SETTINGS', 'Configure company policy at Company scope', 403);
-            version(settings, q);
-            await db.saveOperationalSettings(company, q.enabled, q.cashierDiscountBps);
-            return { id: company, version: q.expectedVersion + 1 };
-        }
         if (op.startsWith('day.'))
             return db.posDayCommand(actor, op, input);
         if (op === 'customer.create')
@@ -1894,15 +1307,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             if (p.propertyId !== undefined) await db.linkRegister(rid, p.propertyId);
             return { id: rid };
         }
-        if (op === 'table.create') {
-            const p = z.object({ registerId: z.string(), name: z.string().trim().min(1).max(40), seats: z.number().int().min(1).max(100) }).parse(input);
-            scopeRow(actor, await db.readPosRegisters4({ registerId: p.registerId }));
-            if (await db.readPosTables1({ registerId: p.registerId, name: p.name }))
-                fail('POS_TABLE_NAME_EXISTS', 'A table with this name already exists at this register', 422);
-            const tid = id();
-            await db.writePosTables1({ tid: tid, registerId: p.registerId, name: p.name, seats: p.seats });
-            return { id: tid };
-        }
         if (op === 'catalog.image') {
             const p = z.object({ productId: z.string().min(1), imageId: z.string().min(1), expectedVersion: z.number().int().positive() }).parse(input);
             const c = await db.readPosCatalog1({ productId: p.productId, company: company });
@@ -1951,102 +1355,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                     await db.writePosRegisterCatalog3({ rid: rid, productId: p.productId });
             }
             return { id: p.productId };
-        }
-        if (op === 'shift.open') {
-            const p = z.object({ registerId: z.string(), openingMinor: money }).parse(input), register = scopeRow(actor, await db.readPosRegisters7({ registerId: p.registerId })), settings = await config(db, company);
-            if (!settings.accounting_approved_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the posting accounts before selling.');
-            if (!settings.enabled)
-                fail('POS_DISABLED', 'POS transactions are not enabled');
-            const hotel = register.property_id ? await db.readPmsProperties1({ company: company, branch_id: register.branch_id }) : null;
-            if (hotel && (hotel.state !== 'open' || hotel.business_date !== businessDate()))
-                fail('POS_HOTEL_DAY_CLOSED', 'Finish or recover the hotel day close before opening a restaurant cash session');
-            await db.assertPosDayWritable(company, str(register, 'branch_id'), businessDate());
-            await openPeriod(db, company, businessDate());
-            const sid = id();
-            await db.writePosShifts1({ sid: sid, id: register.id, company: company, branch_id: register.branch_id, user: user, fact5: ports.clock.now(), openingMinor: p.openingMinor, fact7: businessDate() });
-            return { id: sid };
-        }
-        if (op.startsWith('shift.') || op.startsWith('cash.')) {
-            const p = base.extend({ amountMinor: z.number().int().min(-99999999999).max(99999999999).optional(), countedMinor: money.optional(), denominations: z.record(z.string(), z.number().int().nonnegative().max(100000)).optional(), reason: z.string().trim().min(3).max(1000).optional(), movementId: z.string().optional() }).parse(input);
-            const shift = scopeRow(actor, await db.readPosShifts2({ id: p.id }));
-            version(shift, p);
-            await db.assertPosDayWritable(company, str(shift, 'branch_id'), str(shift, 'business_date'));
-            const settings = await config(db, company), a = json<PosAccounts>(settings.accounts_json);
-            if (op === 'cash.create') {
-                if (shift.state !== 'open' || !p.amountMinor || !p.reason)
-                    fail('POS_CASH_INVALID', 'Enter the amount and reason in an open cash session', 422);
-                const mid = id();
-                await db.writePosCashMovements1({ mid: mid, id: shift.id, amountMinor: p.amountMinor, reason: p.reason, user: user, null: null, fact6: ports.clock.now() });
-                await db.writePosShifts2({ id: shift.id });
-                return { id: mid };
-            }
-            if (op === 'cash.approve') {
-                if (shift.state !== 'open')
-                    fail('POS_SHIFT_CLOSED', 'Cash session is closed');
-                const m = await db.readPosCashMovements1({ movementId: p.movementId, id: shift.id });
-                if (!m || m.approved_by || samePerson(actor, m.created_by))
-                    fail('POS_INDEPENDENT_REVIEW', 'A different approver must review the record');
-                await posting(db, company, str(shift, 'branch_id'), a, businessDate(), str(settings, 'currency'), `cash:${m.id}`, str(shift, 'id'), user, pair(num(m, 'amount_minor') > 0 ? a.cash : a.cashTransfer, num(m, 'amount_minor') > 0 ? a.cashTransfer : a.cash, Math.abs(num(m, 'amount_minor'))));
-                await db.writePosCashMovements2({ user: user, id: m.id });
-            }
-            else if (op === 'shift.close') {
-                if (shift.state !== 'open' || p.countedMinor === undefined)
-                    fail('POS_SHIFT_INVALID', 'Enter the actual counted amount', 422);
-                if (await db.readPosSales3({ id: shift.id }))
-                    fail('POS_OPEN_SALES', 'Close or cancel open bills before closing the cash session');
-                if (await db.readPosCashMovements2({ id: shift.id }))
-                    fail('POS_CASH_REVIEW_PENDING', 'There are unapproved cash movements');
-                const cash = await db.readPosPayments5({ id: shift.id });
-                const refunds = await db.readPosRefundPayments1({ id: shift.id });
-                const movements = await db.readPosCashMovements3({ id: shift.id });
-                const expected = num(shift, 'opening_minor') + num(cash!, 'n') - num(refunds!, 'n') + num(movements!, 'n');
-                if (p.denominations) {
-                    const denominations = [100000, 50000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 25];
-                    if (Object.keys(p.denominations).some(k => !denominations.includes(Number(k))) || Object.entries(p.denominations).reduce((n, [k, v]) => n + Number(k) * v, 0) !== p.countedMinor)
-                        fail('POS_CASH_COUNT', 'Denomination counts must match the counted amount', 422);
-                }
-                await db.writePosShifts3({ countedMinor: p.countedMinor, expected: expected, fact2: p.countedMinor - expected, fact3: ports.clock.now(), user: user, fact5: p.denominations ? JSON.stringify(p.denominations) : null, id: shift.id });
-            }
-            else if (op === 'shift.review') {
-                if (shift.state !== 'closed' || samePerson(actor, shift.opened_by) || samePerson(actor, shift.closed_by) || !p.reason)
-                    fail('POS_INDEPENDENT_REVIEW', 'A different manager must review the total with a reason');
-                const variance = num(shift, 'variance_minor');
-                await posting(db, company, str(shift, 'branch_id'), a, businessDate(), str(settings, 'currency'), `shift:${shift.id}`, str(shift, 'id'), user, pair(variance > 0 ? a.cash : a.cashDifference, variance > 0 ? a.cashDifference : a.cash, Math.abs(variance)));
-                await db.writePosShifts4({ user: user, reason: p.reason, id: shift.id });
-            }
-            else
-                fail('POS_ACTION_UNKNOWN', 'Command not found', 404);
-            await db.writePosShifts2({ id: shift.id });
-            return { id: shift.id };
-        }
-        if (op === 'sale.create') {
-            const p = z.object({ shiftId: z.string(), tableId: z.string().nullable().optional(), guests: z.number().int().min(1).max(100).default(1), partyId: z.string().nullable().optional(), serviceMode: z.enum(['retail', 'dine_in', 'takeaway']), currency: z.string().regex(/^[A-Z]{3}$/).refine(value => Boolean(currencyDefinition(value))).optional() }).parse(input);
-            const shift = scopeRow(actor, await db.readPosShifts3({ shiftId: p.shiftId })), settings = await config(db, company);
-            if (!settings.accounting_approved_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the posting accounts before selling.');
-            if (!settings.enabled)
-                fail('POS_DISABLED', 'New transactions are temporarily paused');
-            if (p.currency && p.currency !== settings.currency)
-                fail('POS_CURRENCY_SETUP_REQUIRED', `The selected ${p.currency} currency needs a POS register, supported payment accounts and pricing setup before a new sale can start.`, 422);
-            if (p.currency && p.currency !== 'USD' && !await db.readCompanyFxRates1({ company: company, currency: p.currency }))
-                fail('MANUAL_RATE_REQUIRED', `Confirm a manual USD/${p.currency} rate before starting this sale.`, 422);
-            const register = (await db.readPosRegisters8({ register_id: shift.register_id }))!;
-            await db.assertHotelDay(company, shift.register_id, businessDate());
-            await db.assertPosDayWritable(company, str(shift, 'branch_id'), businessDate());
-            if (shift.business_date !== businessDate())
-                fail('POS_SHIFT_DATE', 'Close the previous business day cash session before selling');
-            if (!register)
-                fail('POS_REGISTER_DISABLED', 'Sales point is disabled');
-            if (p.serviceMode === 'retail' && register.mode !== 'retail' || p.serviceMode !== 'retail' && register.mode !== 'restaurant')
-                fail('POS_MODE_INVALID', 'Mode does not match the sales point', 422);
-            if (p.tableId && !await db.readPosTables2({ tableId: p.tableId, id: register.id }))
-                fail('POS_TABLE_INVALID', 'Table is not at this sales point', 422);
-            if (p.partyId && !await db.readFinanceParties1({ partyId: p.partyId, company: company }))
-                fail('POS_CUSTOMER_INVALID', 'Customer is not available', 422);
-            const sid = id();
-            await db.writePosSales4({ sid: sid, company: company, branch_id: shift.branch_id, id: register.id, id2: shift.id, fact5: `POS-${businessDate().replaceAll('-', '')}-${sid.slice(0, 8).toUpperCase()}`, currency: settings.currency, fact7: businessDate(), fact8: p.partyId ?? null, fact9: p.tableId ?? null, guests: p.guests, serviceMode: p.serviceMode, user: user, fact13: ports.clock.now(), fact14: ports.clock.now(), accounts_json: settings.accounts_json });
-            const issuer = await db.readOrganizationNodes2({ company: company });
-            await db.writePosSales5({ fact0: JSON.stringify({ companyName: issuer?.display_name ?? company, registerName: register.name, branchId: shift.branch_id }), sid: sid });
-            return { id: sid };
         }
         if (op.startsWith('sale.')) {
             const p = base.passthrough().parse(input), sale = await saleRow(db, actor, p.id);
@@ -2155,144 +1463,7 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 await db.capturePosReceipt(str(sale, 'id'));
                 return { id: sale.id, state: 'completed', tender: 'room_charge', propertyId: p.propertyId, stayId: p.stayId, guestAccountEntryId: result.entryId };
             }
-            if (op === 'sale.approve_discount') {
-                const q = z.object({ reason: z.string().trim().min(3).max(1000) }).parse(p);
-                if (samePerson(actor, sale.discount_requested_by ?? sale.created_by))
-                    fail('POS_INDEPENDENT_REVIEW', 'A different manager must approve the discount');
-                await db.writePosSales8({ user: user, reason: q.reason, id: sale.id });
-                return { id: sale.id };
-            }
-            await editable(db, sale);
-            if (op === 'sale.add') {
-                await db.writePosSales9({ user: user, id: sale.id });
-                const q = z.object({ productId: z.string(), quantityMilli: qty, modifierIds: z.array(z.string()).max(30).default([]), discountMinor: money.default(0), note: z.string().max(500).default('') }).parse(p);
-                const product = await db.readCommerceProducts3({ register_id: sale.register_id, productId: q.productId, company: company });
-                if (!product)
-                    fail('POS_PRODUCT_INVALID', 'สินค้านี้ไม่ได้เปิดขายใน catalog ของจุดขาย กรุณาให้ผู้ดูแลเปิดขายก่อน', 422);
-                const validation = z.object({ expectedCatalogVersion: z.number().int().positive().optional(), expectedPriceMinor: money.optional() }).parse(p);
-                if (validation.expectedCatalogVersion !== undefined && validation.expectedCatalogVersion !== num(product, 'catalog_version') || validation.expectedPriceMinor !== undefined && validation.expectedPriceMinor !== num(product, 'price_minor'))
-                    fail('POS_CATALOG_CHANGED', 'ราคา/ตัวเลือกเปลี่ยน กรุณาตรวจตะกร้าก่อนส่งใหม่');
-                const modifiers = json<z.infer<typeof catalogSchema>['modifiers']>(product.modifiers_json ?? '[]').filter(m => q.modifierIds.includes(m.id));
-                if (modifiers.length !== q.modifierIds.length)
-                    fail('POS_MODIFIER_INVALID', 'Invalid modifiers', 422);
-                const kind = str(product, 'kind') || 'stock', price = num(product, 'price_minor') + modifiers.reduce((n, m) => n + m.priceMinor, 0), amounts = saleAmounts(q.quantityMilli, price, num(product, 'tax_bps'), Boolean(product.tax_inclusive), q.discountMinor);
-                if (kind === 'recipe' && sale.service_mode === 'retail')
-                    fail('POS_RESTAURANT_REQUIRED', 'Prepared menus require a restaurant sales point', 422);
-                const recipe = kind === 'stock' ? [{ productId: q.productId, quantityMilli: 1000 }] : kind === 'recipe' ? json<Array<{
-                    productId: string;
-                    quantityMilli: number;
-                }>>(product.recipe_json) : [];
-                recipe.push(...modifiers.flatMap(m => m.ingredients));
-                const register = (await db.readPosRegisters10({ register_id: sale.register_id }))!, fid = id(), lid = id();
-                await db.writePosFulfillments5({ fid: fid, company: company, branch_id: sale.branch_id, warehouse_id: register.warehouse_id, productId: q.productId, quantityMilli: q.quantityMilli, kind: kind, fact7: str(product, 'station') || 'Kitchen', note: q.note, fact9: JSON.stringify(recipe), accounts_json: sale.accounts_json, currency: sale.currency, business_date: sale.business_date, fact13: ports.clock.now() });
-                await db.writePosLines1({ lid: lid, id: sale.id, fid: fid, productId: q.productId, name: product.name, quantityMilli: q.quantityMilli, price: price, tax_bps: product.tax_bps, fact8: Boolean(product.tax_inclusive), discountMinor: q.discountMinor, subtotal: amounts.subtotal, tax: amounts.tax, fact12: JSON.stringify(modifiers), note: q.note });
-            }
-            else if (op === 'sale.customer') {
-                const q = z.object({ partyId: z.string().nullable() }).parse(p);
-                if (q.partyId && !await db.readFinanceParties2({ partyId: q.partyId, company: company }))
-                    fail('POS_CUSTOMER_INVALID', 'Customer is not available', 422);
-                await db.writePosSales10({ partyId: q.partyId, id: sale.id });
-            }
-            else if (op === 'sale.update_line') {
-                const q = z.object({ lineId: z.string(), quantityMilli: qty, discountMinor: money, note: z.string().max(500).default('') }).parse(p);
-                const line = await db.readPosLines6({ lineId: q.lineId, id: sale.id });
-                if (!line)
-                    fail('POS_LINE_INVALID', 'Line is not on this bill', 422);
-                if (q.quantityMilli !== num(line, 'quantity_milli') && line.fulfillment_state !== 'draft')
-                    fail('POS_ITEM_IN_KITCHEN', 'รายการที่ส่งครัวแล้วต้องแยกบิล หรือให้ผู้อนุมัติยกเลิกพร้อมบันทึกของเสีย');
-                if (line.fulfillment_state === 'draft')
-                    await db.writePosFulfillments6({ quantityMilli: q.quantityMilli, note: q.note, fulfillment_id: line.fulfillment_id });
-                const amounts = saleAmounts(q.quantityMilli, num(line, 'price_minor'), num(line, 'tax_bps'), Boolean(line.tax_inclusive), q.discountMinor + num(line, 'bill_discount_minor'));
-                await db.writePosLines2({ quantityMilli: q.quantityMilli, discount: amounts.discount, subtotal: amounts.subtotal, tax: amounts.tax, note: q.note, id: line.id });
-                await db.writePosSales9({ user: user, id: sale.id });
-            }
-            else if (op === 'sale.discount') {
-                const q = z.object({ amountMinor: money }).parse(p), lines = await db.readPosLines7({ id: sale.id });
-                const weights = lines.map(l => scaledAmount(num(l, 'price_minor'), num(l, 'quantity_milli'), 1000) - num(l, 'discount_minor') + num(l, 'bill_discount_minor'));
-                const total = weights.reduce((n, w) => n + w, 0);
-                if (q.amountMinor > total)
-                    fail('POS_DISCOUNT_AMOUNT', 'Discount exceeds the bill amount', 422);
-                let previous = 0;
-                for (const [i, l] of lines.entries()) {
-                    const extra = weights[i] && q.amountMinor ? portion(q.amountMinor, previous, weights[i], total) : 0;
-                    previous += weights[i];
-                    const discount = num(l, 'discount_minor') - num(l, 'bill_discount_minor') + extra;
-                    const amounts = saleAmounts(num(l, 'quantity_milli'), num(l, 'price_minor'), num(l, 'tax_bps'), Boolean(l.tax_inclusive), discount);
-                    await db.writePosLines3({ discount: discount, extra: extra, subtotal: amounts.subtotal, tax: amounts.tax, id: l.id });
-                }
-                await db.writePosSales9({ user: user, id: sale.id });
-            }
-            else if (op === 'sale.remove') {
-                const q = z.object({ lineId: z.string() }).parse(p), line = await db.readPosLines8({ lineId: q.lineId, id: sale.id });
-                if (!line || !['draft', 'cancelled'].includes(str(line, 'fulfillment_state')))
-                    fail('POS_ITEM_IN_KITCHEN', 'Cancel the kitchen item before removing it from the bill');
-                await db.writePosReservations3({ fulfillment_id: line.fulfillment_id });
-                await db.writePosLines4({ id: line.id });
-            }
-            else if (op === 'sale.hold' || op === 'sale.resume') {
-                await db.writePosSales13({ fact0: op === 'sale.hold' ? 'held' : 'open', id: sale.id });
-            }
-            else if (op === 'sale.move_table') {
-                const q = z.object({ tableId: z.string() }).parse(p);
-                if (!await db.readPosTables3({ tableId: q.tableId, register_id: sale.register_id }))
-                    fail('POS_TABLE_INVALID', 'Table is not at this sales point', 422);
-                await db.writePosSales14({ tableId: q.tableId, id: sale.id });
-            }
-            else if (op === 'sale.merge') {
-                const q = z.object({ targetId: z.string(), targetVersion: z.number().int().positive() }).parse(p);
-                if (q.targetId === sale.id)
-                    fail('POS_MERGE_INVALID', 'Select a different bill', 422);
-                const target = await saleRow(db, actor, q.targetId);
-                version(target, { expectedVersion: q.targetVersion });
-                await editable(db, target);
-                if (target.register_id !== sale.register_id || target.shift_id !== sale.shift_id || target.party_id !== sale.party_id)
-                    fail('POS_MERGE_INVALID', 'Bills must use the same sales point, cash session, and customer');
-                await db.writePosLines5({ id: target.id, id2: sale.id });
-                await db.writePosSales15({ id: sale.id });
-                await refreshSale(db, str(target, 'id'));
-            }
-            else if (op === 'sale.split') {
-                const q = z.object({ lineId: z.string(), quantityMilli: qty }).parse(p), line = await db.readPosLines9({ lineId: q.lineId, id: sale.id });
-                if (!line || q.quantityMilli > num(line, 'quantity_milli'))
-                    fail('POS_SPLIT_INVALID', 'Invalid split quantity', 422);
-                const target = id(), fid = str(line, 'fulfillment_id'), f = (await db.readPosFulfillments3({ fid: fid }))!;
-                let newFid = fid;
-                await db.writePosSales16({ target: target, fact1: `POS-${target.slice(0, 8).toUpperCase()}`, user: user, fact3: ports.clock.now(), fact4: ports.clock.now(), id: sale.id });
-                if (q.quantityMilli === num(line, 'quantity_milli'))
-                    await db.writePosLines6({ target: target, id: line.id });
-                else {
-                    if (f.kind !== 'recipe' || f.state === 'draft') {
-                        if (f.reserved)
-                            fail('POS_SPLIT_RESERVED', 'Reserved items cannot be split yet');
-                        newFid = id();
-                        await db.writePosFulfillments7({ newFid: newFid, quantityMilli: q.quantityMilli, fact2: ports.clock.now(), fid: fid });
-                        await db.writePosFulfillments8({ quantityMilli: q.quantityMilli, fid: fid });
-                    }
-                    const amount = portion(num(line, 'subtotal_minor'), 0, q.quantityMilli, num(line, 'quantity_milli')), tax = portion(num(line, 'tax_minor'), 0, q.quantityMilli, num(line, 'quantity_milli')), discount = portion(num(line, 'discount_minor'), 0, q.quantityMilli, num(line, 'quantity_milli'));
-                    const billDiscount = portion(num(line, 'bill_discount_minor'), 0, q.quantityMilli, num(line, 'quantity_milli'));
-                    await db.writePosLines7({ fact0: id(), target: target, newFid: newFid, quantityMilli: q.quantityMilli, discount: discount, billDiscount: billDiscount, amount: amount, tax: tax, id: line.id });
-                    await db.writePosLines8({ quantityMilli: q.quantityMilli, amount: amount, tax: tax, discount: discount, billDiscount: billDiscount, id: line.id });
-                }
-                await db.writePosSales17({ issuer_json: sale.issuer_json, user: user, target: target });
-                await refreshSale(db, target);
-                await refreshSale(db, str(sale, 'id'));
-                return { id: target };
-            }
-            else if (op === 'sale.cancel') {
-                for (const f of await db.readPosFulfillments4({ id: sale.id })) {
-                    if (!['draft', 'queued', 'cancelled'].includes(str(f, 'state')))
-                        fail('POS_KITCHEN_ACTIVE', 'Cancel the kitchen task and record waste before cancelling the bill');
-                    if (await db.readPosLines10({ id: f.id, id2: sale.id }))
-                        fail('POS_SHARED_KITCHEN', 'This kitchen item is on a separate bill. Handle the item first');
-                    await db.writePosReservations4({ id: f.id });
-                    await db.writePosFulfillments9({ id: f.id });
-                }
-                await db.writePosSales18({ id: sale.id });
-            }
-            else
-                fail('POS_ACTION_UNKNOWN', 'Command not found', 404);
-            await refreshSale(db, str(sale, 'id'));
-            return { id: sale.id, version: (await db.readPosSales4({ id: sale.id }))!.version };
+            fail('POS_ACTION_UNKNOWN', 'Command not found', 404);
         }
         if (op.startsWith('kitchen.')) {
             const p = base.extend({ reason: z.string().min(3).max(500).optional() }).parse(input), f = scopeRow(actor, await db.readPosFulfillments5({ id: p.id }));
@@ -2340,91 +1511,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 await db.writePosFulfillments1({ id: f.id });
             return { id: f.id, state };
         }
-        if (op === 'payment.create') {
-            const p = base.extend({ method: z.enum(['cash', 'transfer', 'edc', 'stripe_card', 'stripe_promptpay']), amountMinor: money.refine(n => n > 0), tenderedMinor: money, reference: z.string().max(150).default(''), payerEmail: z.union([z.email(), z.literal('')]).default('') }).parse(input), sale = await saleRow(db, actor, p.id);
-            version(sale, p);
-            await db.assertHotelDay(company, sale.register_id, str(sale, 'business_date'));
-            await db.assertPosDayWritable(company, str(sale, 'branch_id'), str(sale, 'business_date'));
-            if (ports.environment("NODE_ENV") === 'production' && !['cash', 'transfer'].includes(p.method) && ports.environment("POS_STRIPE_LIVE_ENABLED") !== 'true')
-                fail('POS_TENDER_COMING_SOON', 'The pilot accepts cash and verified bank transfers only', 403);
-            if (!['open', 'held', 'payment_pending'].includes(str(sale, 'state')))
-                fail('POS_SALE_LOCKED', 'Bill is not ready for payment');
-            const settings = await config(db, company);
-            if (!settings.accounting_approved_by) fail('POS_ACCOUNTING_REVIEW_REQUIRED', 'Finance must approve the posting accounts before selling.');
-            if (!settings.enabled)
-                fail('POS_DISABLED', 'New transactions are temporarily paused');
-            await openPeriod(db, company, str(sale, 'business_date'));
-            if (!await db.readPosShifts4({ shift_id: sale.shift_id }))
-                fail('POS_SHIFT_CLOSED', 'Cash session is closed');
-            const gross = await db.readPosLines5({ id: sale.id });
-            if (num(sale, 'discount_minor') > scaledAmount(num(gross!, 'n'), num(settings, 'cashier_discount_bps'), 10000) && !sale.discount_approved_by)
-                fail('POS_DISCOUNT_APPROVAL', 'This discount must be approved before payment');
-            const reserved = await db.readPosPayments8({ id: sale.id });
-            if (p.amountMinor > num(sale, 'total_minor') - num(reserved!, 'n') || p.tenderedMinor < p.amountMinor || p.method !== 'cash' && p.tenderedMinor !== p.amountMinor)
-                fail('POS_PAYMENT_AMOUNT', 'Invalid payment or tendered amount', 422);
-            if (['transfer', 'edc'].includes(p.method) && p.reference.trim().length < 2)
-                fail('POS_REFERENCE_REQUIRED', 'Enter the payment reference', 422);
-            if (p.method === 'stripe_promptpay' && !p.payerEmail)
-                fail('POS_PROMPTPAY_EMAIL_REQUIRED', 'กรอกอีเมลผู้จ่ายสำหรับ PromptPay และการคืนเงินก่อนสร้าง QR', 422);
-            for (const f of await db.readPosFulfillments4({ id: sale.id })) {
-                if (f.state === 'cancelled')
-                    fail('POS_ITEM_CANCELLED', 'Remove cancelled items before taking payment');
-                await reserve(db, f);
-            }
-            let connection: PosRow | null = null;
-            if (p.method.startsWith('stripe_')) {
-                if (sale.currency !== 'THB')
-                    fail('POS_STRIPE_CURRENCY', 'This Stripe POS version accepts THB only');
-                connection = await db.readPosConnections1({ company: company });
-                if (connection?.livemode && ports.environment("POS_STRIPE_LIVE_ENABLED") !== 'true')
-                    fail('POS_LIVE_NOT_ENABLED', 'Complete sandbox testing before accepting live payments');
-                if (!connection?.charges_enabled || !connection.payouts_enabled || !(p.method === 'stripe_card' ? connection.card_enabled : connection.promptpay_enabled))
-                    fail('POS_STRIPE_NOT_READY', 'The Stripe account is not ready for this payment method');
-            }
-            const pid = id();
-            await db.writePosPayments2({ pid: pid, id: sale.id, company: company, method: p.method, amountMinor: p.amountMinor, tenderedMinor: p.tenderedMinor, reference: p.reference, fact7: connection?.account_id ?? null, fact8: connection?.livemode ?? false, user: user, fact10: ports.clock.now(), fact11: ports.clock.now(), fact12: p.payerEmail || null });
-            await capturePosMoney(db, sale, 'pos_payment', pid, 'requested', str(sale, 'business_date'), String(p.amountMinor));
-            if (connection)
-                await enqueue(db, company, 'checkout', pid);
-            else if (p.method === 'transfer')
-                await db.writePosPayments3({ fact0: ports.clock.now(), pid: pid });
-            else
-                await receivePayment(db, (await db.readPosPayments9({ pid: pid }))!, user);
-            await db.writePosSales2({ fact0: ports.clock.now(), id: sale.id });
-            return { id: pid, saleId: sale.id };
-        }
-        if (op === 'payment.verify_transfer') {
-            const p = base.extend({ bankTransactionId: z.string().min(1), bankVersion: z.number().int().positive() }).parse(input);
-            const payment = await db.readPosPayments10({ id: p.id, company: company });
-            if (!payment)
-                fail('POS_NOT_FOUND', 'Payment not found', 404);
-            version(payment, p);
-            if (payment.method !== 'transfer' || payment.state !== 'pending')
-                fail('POS_TRANSFER_STATE', 'Only a pending bank transfer can be verified');
-            if (samePerson(actor, str(payment, 'created_by')))
-                fail('POS_INDEPENDENT_VERIFICATION', 'A different Finance user must verify the transfer', 403);
-            const sale = await saleRow(db, actor, str(payment, 'sale_id'));
-            const accounts = json<PosAccounts>(sale.accounts_json);
-            const bank = await db.readFinanceBankTransactions1({ bankTransactionId: p.bankTransactionId, company: company });
-            if (!bank || num(bank, 'version') !== p.bankVersion || !['unmatched', 'proposed'].includes(str(bank, 'match_status')) || bank.bank_account !== accounts.bank || bank.currency !== sale.currency || num(bank, 'amount_minor') !== num(payment, 'amount_minor') || str(bank, 'external_id').trim() !== str(payment, 'reference').trim() || str(bank, 'transaction_date') < str(sale, 'business_date'))
-                fail('POS_BANK_EVIDENCE_MISMATCH', 'Match the exact imported bank account, reference, date, currency, and amount');
-            await receivePayment(db, payment, user, str(bank, 'transaction_date'));
-            const settled = await db.readPosPayments11({ id: payment.id });
-            await db.writeFinanceBankTransactions1({ fact0: settled!.finance_payment_id, id: bank.id });
-            return { id: payment.id, saleId: sale.id, state: 'succeeded', bankTransactionId: bank.id };
-        }
-        if (op === 'payment.cancel_transfer') {
-            const p = base.parse(input), payment = await db.readPosPayments10({ id: p.id, company: company });
-            if (!payment)
-                fail('POS_NOT_FOUND', 'Payment not found', 404);
-            version(payment, p);
-            await saleRow(db, actor, str(payment, 'sale_id'));
-            if (payment.method !== 'transfer' || payment.state !== 'pending')
-                fail('POS_TRANSFER_STATE', 'Only a pending bank transfer can be cancelled');
-            await db.writePosPayments4({ fact0: ports.clock.now(), id: payment.id });
-            await db.writePosSales20({ fact0: ports.clock.now(), sale_id: payment.sale_id, sale_id2: payment.sale_id });
-            return { id: payment.id, saleId: payment.sale_id, state: 'cancelled' };
-        }
         if (op === 'payment.retry' || op === 'payment.cancel') {
             const p = base.extend({ payerEmail: z.email().optional() }).parse(input), payment = await db.readPosPayments13({ id: p.id });
             if (!payment)
@@ -2445,8 +1531,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 await db.writePosJobs2({ id: payment.id });
             return { id: payment.id };
         }
-        if (op.startsWith('refund.'))
-            return refundCommand(db, actor, op, input);
         if (op === 'settlement.refresh') {
             if (actor.branchId)
                 fail('POS_COMPANY_SETTINGS', 'Reconcile from the company area', 403);
@@ -2566,121 +1650,6 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
             return { id: job.id };
         }
         fail('POS_ACTION_UNKNOWN', 'POS command not found', 404);
-    }
-    async function refundCommand(db: PosUnit<Effect>, actor: WorkContext, op: string, input: unknown): Promise<Record<string, unknown>> {
-        const user = actor.userId;
-        if (op === 'refund.request') {
-            const p = base.extend({ reason: z.string().trim().min(3).max(1000), lines: z.array(z.object({ lineId: z.string(), quantityMilli: qty, restock: z.boolean() })).max(100).default([]), amountMinor: money.optional(), payoutShiftId: z.string().optional() }).parse(input), sale = await saleRow(db, actor, p.id);
-            version(sale, p);
-            await db.assertPosDayWritable(str(sale, 'company_id'), str(sale, 'branch_id'), businessDate());
-            if (await db.readPosDayCloses1({ company_id: sale.company_id, branch_id: sale.branch_id, business_date: sale.business_date }))
-                fail('POS_DAY_REVIEW_PENDING', 'Finance must confirm the original day close before a refund can change its source records');
-            if (await db.readPmsSources2({ fact0: `pos:${sale.id}:${sale.id}` }))
-                fail('POS_ROOM_CHARGE_REVERSAL', 'Reverse this charge on the hotel guest account; it has no POS payment to refund');
-            if (!['completed', 'payment_pending'].includes(str(sale, 'state')))
-                fail('POS_REFUND_SALE', 'Bill has no payment');
-            if (new Set(p.lines.map(l => l.lineId)).size !== p.lines.length)
-                fail('POS_DUPLICATE_LINE', 'Duplicate refund item', 422);
-            const advance = sale.state !== 'completed', snapshots: Array<Record<string, unknown>> = [];
-            let amount = 0, tax = 0;
-            if (advance) {
-                if (!p.amountMinor || p.lines.length)
-                    fail('POS_ADVANCE_REFUND', 'Enter an advance payment refund amount without selecting items', 422);
-                amount = p.amountMinor;
-            }
-            else
-                for (const part of p.lines) {
-                    const l = await db.readPosLines14({ lineId: part.lineId, id: sale.id });
-                    if (!l || num(l, 'returned_milli') + part.quantityMilli > num(l, 'quantity_milli'))
-                        fail('POS_REFUND_QUANTITY', 'Refund quantity exceeds the original item', 422);
-                    const subtotal = portion(num(l, 'subtotal_minor'), num(l, 'returned_milli'), part.quantityMilli, num(l, 'quantity_milli')), vat = portion(num(l, 'tax_minor'), num(l, 'returned_milli'), part.quantityMilli, num(l, 'quantity_milli'));
-                    amount += subtotal + vat;
-                    tax += vat;
-                    snapshots.push({ ...part, subtotalMinor: subtotal, taxMinor: vat, previousReturned: num(l, 'returned_milli') });
-                }
-            if (amount <= 0)
-                fail('POS_REFUND_EMPTY', 'Select an item with a refund amount', 422);
-            const rid = id();
-            await db.writePosRefunds2({ rid: rid, id: sale.id, company_id: sale.company_id, branch_id: sale.branch_id, fact4: p.payoutShiftId ?? null, fact5: advance ? 'advance' : 'sale', reason: p.reason, fact7: JSON.stringify(snapshots), amount: amount, user: user, fact10: ports.clock.now(), fact11: businessDate(), tax: tax });
-            return { id: rid };
-        }
-        const p = base.extend({ reason: z.string().trim().min(3).max(1000).optional() }).parse(input), refund = scopeRow(actor, await db.readPosRefunds1({ id: p.id }));
-        version(refund, p);
-        if (refund.state !== 'requested' || samePerson(actor, refund.requested_by))
-            fail('POS_INDEPENDENT_REVIEW', 'A different manager must approve the pending request');
-        if (op === 'refund.reject') {
-            if (!p.reason)
-                fail('POS_REASON_REQUIRED', 'Enter a reason', 422);
-            await db.writePosRefunds3({ user: user, id: refund.id });
-            return { id: refund.id };
-        }
-        if (op !== 'refund.approve')
-            fail('POS_ACTION_UNKNOWN', 'Refund command not found', 404);
-        const sale = await saleRow(db, actor, str(refund, 'sale_id'));
-        await db.assertHotelDay(actor.companyId,sale.register_id,str(refund,'accounting_date'));
-        const a = json<PosAccounts>(sale.accounts_json), date = str(refund, 'accounting_date');
-        const payments = await db.readPosPayments15({ id: sale.id });
-        if (payments.reduce((n, r) => n + num(r, 'amount_minor') - num(r, 'refunded_minor'), 0) < num(refund, 'amount_minor'))
-            fail('POS_REFUND_EXCEEDED', 'Refund exceeds the remaining payment amount');
-        if (refund.kind === 'advance' && sale.state === 'completed')
-            fail('POS_REFUND_CHANGED', 'Bill is closed. Request a refund from the item');
-        if (refund.kind === 'sale' && sale.state !== 'completed')
-            fail('POS_REFUND_CHANGED', 'Bill status changed');
-        for (const part of json<Array<{
-            lineId: string;
-            quantityMilli: number;
-            restock: boolean;
-            subtotalMinor: number;
-            taxMinor: number;
-            previousReturned: number;
-        }>>(refund.lines_json)) {
-            const line = (await db.readPosLines15({ lineId: part.lineId, id: sale.id }))!;
-            if (!line || num(line, 'returned_milli') !== part.previousReturned || part.quantityMilli + num(line, 'returned_milli') > num(line, 'quantity_milli'))
-                fail('POS_REFUND_CHANGED', 'This item has already been refunded. Create a new request');
-            const f = (await db.readPosFulfillments7({ fulfillment_id: line.fulfillment_id }))!;
-            let restoredCost = 0;
-            if (part.restock) {
-                if (f.kind !== 'stock' || f.state !== 'delivered')
-                    fail('POS_RETURN_NOT_STOCK', 'Only delivered items can be returned to inventory', 422);
-                const returned = await db.readPosStockMoves1({ id: f.id });
-                restoredCost = portion(num(f, 'cost_minor'), num(returned!, 'qty'), part.quantityMilli, num(f, 'quantity_milli'));
-                await db.writeCommerceStock3({ warehouse_id: f.warehouse_id, product_id: f.product_id });
-                await db.writeCommerceStock4({ quantityMilli: part.quantityMilli, restoredCost: restoredCost, warehouse_id: f.warehouse_id, product_id: f.product_id });
-                await db.writePosStockMoves3({ fact0: id(), company_id: sale.company_id, warehouse_id: f.warehouse_id, product_id: f.product_id, id: f.id, id2: refund.id, number: sale.number, fact7: 'return', quantityMilli: part.quantityMilli, restoredCost: restoredCost, date: date, fact11: ports.clock.now() });
-                await posting(db, str(sale, 'company_id'), str(sale, 'branch_id'), a, date, str(sale, 'currency'), `return:${refund.id}:${line.id}`, str(refund, 'id'), user, pair(a.inventory, a.cogs, restoredCost));
-            }
-            await db.writePosLines9({ quantityMilli: part.quantityMilli, fact1: part.subtotalMinor + part.taxMinor, taxMinor: part.taxMinor, restoredCost: restoredCost, id: line.id });
-        }
-        await posting(db, str(sale, 'company_id'), str(sale, 'branch_id'), a, date, str(sale, 'currency'), `refund:${refund.id}`, str(refund, 'id'), user, [{ account: refund.kind === 'advance' ? a.advance : a.revenue, debit: num(refund, 'amount_minor') - num(refund, 'tax_minor'), credit: 0 }, { account: a.outputTax, debit: num(refund, 'tax_minor'), credit: 0 }, { account: a.refund, debit: 0, credit: num(refund, 'amount_minor') }]);
-        if (refund.kind === 'sale')
-            await capturePosReversal(db, sale, 'pos_refund', str(refund, 'id'), 'total', date, String(refund.amount_minor), { sourceType: 'pos_sale', sourceId: str(sale, 'id'), amountKind: 'total' });
-        let remaining = num(refund, 'amount_minor');
-        for (const payment of payments) {
-            const amount = Math.min(remaining, num(payment, 'amount_minor') - num(payment, 'refunded_minor'));
-            if (!amount)
-                continue;
-            const manualPromptPay = payment.method === 'stripe_promptpay' && !payment.payer_email;
-            const rpid = id();
-            await db.writePosRefundPayments1({ rpid: rpid, id: refund.id, id2: payment.id, amount: amount, fact4: manualPromptPay ? (refund.payout_shift_id ? 'cash' : 'transfer') : null });
-            await db.writePosPayments6({ amount: amount, id: payment.id });
-            if (str(payment, 'method').startsWith('stripe_') && !manualPromptPay)
-                await enqueue(db, str(sale, 'company_id'), 'refund', rpid);
-            else {
-                if (payment.method === 'cash' || (manualPromptPay && refund.payout_shift_id)) {
-                    const shift = await db.readPosShifts6({ payout_shift_id: refund.payout_shift_id, companyId: actor.companyId, branch_id: sale.branch_id });
-                    if (!shift)
-                        fail('POS_REFUND_SHIFT_REQUIRED', 'Specify an open cash session for cash refund payout');
-                }
-                // Manual methods require the approver to confirm money was actually returned.
-                if (!p.reason)
-                    fail('POS_REFUND_PROOF_REQUIRED', 'Enter proof/reference for the cash, transfer, or EDC refund', 422);
-                await completeRefundPayment(db, rpid, user);
-            }
-            remaining -= amount;
-        }
-        await db.writePosRefunds4({ user: user, id: refund.id, id2: refund.id });
-        await releaseUnpaidReservations(db, str(sale, 'id'));
-        return { id: refund.id };
     }
     async function completeRefundPayment(db: PosUnit<Effect>, refundPaymentId: string, actorId: string, date?: string) {
         const rp = await db.readPosRefundPayments5({ refundPaymentId: refundPaymentId });

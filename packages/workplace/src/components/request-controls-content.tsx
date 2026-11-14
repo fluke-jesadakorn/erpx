@@ -15,7 +15,7 @@ import Link from "@erpx/workplace/components/workspace-link";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
-import { useRecoverableDraft } from "@erpx/ui/components/use-recoverable-draft";
+import { useRecoverableDraft } from "@erpx/feature-shared/components/use-recoverable-draft";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@erpx/feature-shared/lib/ai/guided-intake";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import {useStaffCommand} from '@erpx/feature-work_projection/components/use-staff-command';

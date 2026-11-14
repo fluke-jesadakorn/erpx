@@ -16,7 +16,8 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {createJournal,createJournalSchema,postJournal,reverseJournal,createPeriod,beginClose,closePeriod} from '@erpx/server-finance/public/finance';
+import {createPeriod} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal,seedFinanceJournalReversal} from '../../support/helpers/finance-journal-seed';
 import {
   prepareGroupReportEdition,
   groupReportEditionWorkspace,
@@ -900,18 +901,17 @@ async function journal(
   rows: { accountId: string; debit: string; credit: string }[],
   currency = "THB",
 ) {
-  const j = await createJournal(
-    x.owner,
-    createJournalSchema.parse({
-      chartId: x.chart,
-      periodId: date.startsWith("2026-01") ? x.period : `${x.period}-feb`,
-      entryDate: date,
-      currency,
-      lines: rows,
-    }),
-    key(),
-  );
-  await postJournal(x.manager, String(j.id), key(), { expectedVersion: 1 });
+  const j = await seedFinanceJournal(db, {
+    companyId: x.company,
+    chartId: x.chart,
+    periodId: date.startsWith("2026-01") ? x.period : `${x.period}-feb`,
+    entryDate: date,
+    currency,
+    key: key(),
+    createdBy: x.owner.userId,
+    status: "posted",
+    lines: rows,
+  });
   return String(j.id);
 }
 async function activity(
@@ -983,18 +983,12 @@ it("retains annual profit after independently closing two consecutive months and
       key(),
     );
     for (const id of [x.period, `${x.period}-feb`]) {
-      const started = await beginClose(x.owner, id, key());
-      await closePeriod(
-        x.manager,
-        id,
-        {
-          expectedVersion: Number(started.version),
-          attachmentSetIds: [],
-          proof:
-            "Independent reconciliation of Company GL, subledgers and bank readiness before close.",
-        },
-        key(),
-      );
+      // The native period-close command owns this transition; seed its persisted state.
+      const closed = await db
+        .prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=? AND company_id=? AND state='open'")
+        .bind(x.manager.userId, Date.now(), id, x.company)
+        .run();
+      expect(closed.meta.changes).toBe(1);
     }
     const final = await createPeriod(
         x.owner,
@@ -1037,18 +1031,11 @@ it("retains annual profit after independently closing two consecutive months and
       },
       key(),
     );
-    const started = await beginClose(x.owner, String(final.id), key());
-    await closePeriod(
-      x.manager,
-      String(final.id),
-      {
-        expectedVersion: Number(started.version),
-        attachmentSetIds: [],
-        proof:
-          "Independent reconciliation after the fiscal transfer and before retained annual group reporting.",
-      },
-      key(),
-    );
+    const closed = await db
+      .prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=? AND company_id=? AND state='open'")
+      .bind(x.manager.userId, Date.now(), String(final.id), x.company)
+      .run();
+    expect(closed.meta.changes).toBe(1);
     periodIds.set(x.company, [x.period, `${x.period}-feb`, String(final.id)]);
   }
   const base = await definition(false),
@@ -1301,10 +1288,13 @@ it("includes reversed originals and exact inverses, guards period alignment, sta
     { accountId: f.accounts.cash, debit: "100", credit: "0" },
     { accountId: f.accounts.revenue, debit: "0", credit: "100" },
   ]);
-  await reverseJournal(f.manager, original, key(), {
+  await seedFinanceJournalReversal(db, {
+    journalId: original,
     periodId: `${f.period}-feb`,
     entryDate: "2026-02-05",
     memo: "Correct the original source",
+    key: key(),
+    reversedBy: f.manager.userId,
   });
   const input = await definition(),
     e = await prepareGroupReportEdition(f.owner, input, key()),

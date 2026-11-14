@@ -86,6 +86,8 @@
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/project-package-obligation-sources": "./src/public/project-package-obligation-sources.ts",
     "./public/people-app-entrypoint-facts": "./src/public/people-app-entrypoint-facts.ts",
+    "./public/native-staff-work-page": "./src/public/native-staff-work-page.ts",
+    "./public/native-routines-page": "./src/public/native-routines-page.ts",
     "./public/task-attachment-read": "./src/public/task-attachment-read.ts",
     "./public/work-package-obligations": "./src/public/work-package-obligations.ts",
     "./public/staff-policy": "./src/public/staff-policy.ts",
@@ -162,7 +164,8 @@
     "./domain/handover-time": "./src/domain/handover-time.ts",
     "./domain/staff-task-alerts": "./src/domain/staff-task-alerts.ts",
     "./domain/handover": "./src/domain/handover.ts",
-    "./domain/queue-policy": "./src/domain/queue-policy.ts"
+    "./domain/queue-policy": "./src/domain/queue-policy.ts",
+    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -193,6 +196,6 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

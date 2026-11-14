@@ -1,5 +1,5 @@
 import 'server-only';
-import {holdingRoutingEnabled,holdingPublicUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingPublicUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import {applicationOrigin} from '@erpx/feature-runtime/lib/application-origins';
 import {configuredProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import type {BookingEnv} from '@erpx/server-pms/domain/booking';

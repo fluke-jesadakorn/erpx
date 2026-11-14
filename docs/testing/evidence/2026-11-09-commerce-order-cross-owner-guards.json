@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The native Commerce transition path now has the two retained cross-owner guards: Finance-owned sales-order credit-limit exposure on approval and Inventory-owned reservation release on confirmed sales-order cancellation. The guarded transition is wired into the shared composition on the same serializable unit; the retained retain-only transition still fails closed. Sales-order browser approval remains unverified because the keyed container has no independently authenticated sales approver, so sales/orders and cancellations stay partial.",
+  "capability": "commerce-order-cross-owner-guards",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "3f78244181c662f7b9a710e4f281f3f40a1991c8",
+  "scope": {
+    "domain": "TransitionGuardMode::Retained keeps the previous quotation-only, fail-closed behavior. Native mode permits sales-order approval and confirmed sales cancellation only through the same independent-approver, discount-reason, state/version and zero-fulfillment checks.",
+    "finance": "sales_order_credit_allows locks the scoped finance_parties row and evaluates the exact retained exposure formula: unlimited when credit_limit_minor=0; otherwise limit >= prospective order total + draft/in_review invoice totals or posted outstanding + confirmed/partially fulfilled/fulfilled sales totals minus invoiced fulfillment totals, excluding voided invoices. Company and party scope are bound.",
+    "inventory": "release_confirmed_sales_order_reservations updates only remaining quantity (quantity-consumed) with release_reason='Source order cancelled' for lines of the exact Company/order. Consumed, foreign-Company and other-order rows are untouched; a second call is idempotent.",
+    "composition": "ComposedCommerceOrders delegates owner reads/writes to PgCommerceOrders and supplies the Finance/Inventory guard ports on the same serializable connection. transition_order_guarded calls the credit guard for sales approval and the reservation release for confirmed sales cancellation before the order update; any later failure rolls the whole unit back.",
+    "http": "The existing Commerce transition route now reaches the guarded composition. Draft/quote behavior is unchanged."
+  },
+  "changedFiles": [
+    "packages/server-finance/src/adapters/sales_order_credit.rs",
+    "packages/server-finance/src/public/sales_order_credit.rs",
+    "packages/server-inventory/src/adapters/commerce_order_cancellation.rs",
+    "packages/server-inventory/src/public/commerce_order_cancellation.rs",
+    "packages/server-commerce/src/domain/order.rs",
+    "packages/server-commerce/src/application/order.rs",
+    "packages/server-commerce/src/public/order.rs",
+    "packages/server-commerce/src/adapters/order.rs",
+    "src/composition/src/commerce.rs",
+    "tests/unit/commerce/rust-commerce-order.test.rs",
+    "tests/integration/finance/rust-sales-order-credit-postgres.test.rs",
+    "tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs"
+  ],
+  "verification": {
+    "commerceUnit": "cargo test -p erpx-server-commerce --locked: 62/62 pass. native_sales_approval_uses_finance_credit_and_cancel_releases_reservations proves a denied credit guard returns SALES_ORDER_CREDIT_LIMIT without a transition, an allowed guard approves with the exact total/party, a fulfilled confirmed order refuses release, and an unfulfilled confirmed order releases before the update. The retained transition still returns COMMERCE_SALES_APPROVAL_FINANCE_GUARD / ORDER_REVERSAL_REQUIRED.",
+    "finance": "cargo test -p erpx-server-finance --locked --test sales_order_credit_postgres: 2/2 pass. The formula case covers unlimited, draft total, posted outstanding, voided exclusion, confirmed sales minus invoiced fulfillments, draft sales exclusion, missing party, foreign Company and out-of-unit failure.",
+    "inventory": "cargo test -p erpx-server-inventory --locked --test commerce_order_cancellation_postgres: 2/2 pass. Exact remaining release (800 from 1000-200, preserving prior released 100), consumed/other/foreign rows untouched, idempotent second call, rollback restores 100, out-of-unit failure.",
+    "httpSmoke": "Native Next route sales create order-sales-guard-smoke-0001 version 1 (200), submit version 2 (200), self-approval 403 INDEPENDENT_APPROVER_REQUIRED, and draft cancellation of order-sales-guard-smoke-0002 version 2 (200). Two 1+3N Finance Money snapshot groups persisted for both sales orders.",
+    "checks": "cargo check --workspace --locked and rustfmt --check pass; cargo clippy -p erpx-server-commerce --lib -D warnings passes. The repository already has external clippy warnings in server-inventory initial-count sources and server-finance bank/period/pos sources; those files are untouched."
+  },
+  "limitations": [
+    "No independently authenticated sales approver is available in the keyed container, so the approval credit policy and confirmed cancellation were exercised by unit/owner PostgreSQL tests and the guarded composition rather than a browser/HTTP independent-approval journey.",
+    "Fulfillment, invoicing, settlement and returns remain retained; purchase orders remain retained.",
+    "A clean full-service archive build still requires the external untracked server-files modules."
+  ],
+  "counts": {
+    "verified": 84,
+    "partial": 37,
+    "unstarted": 85,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "1 verified / 2 partial / 2 unstarted of 5"
+  },
+  "nextAction": "Provide an independent seeded sales approver session, replay sales approval and confirmed cancellation through the selected Next route/browser, then port fulfillment/invoicing/settlement/returns to close sales/orders. Separately rebuild the keyed container with the Assets/Finance handoff for positive-cost Assets."
+}

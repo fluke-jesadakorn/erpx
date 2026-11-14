@@ -8,7 +8,7 @@ import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/re
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {lockQueuedCommandAuthority,requireQueuedAccountAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
-import {workPackageEnforcementMode,companyPurchaseReadLocks,readPurchasedAccess,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,companyPurchaseReadLocks,readPurchasedAccess,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {calendarPeopleProjectionSources} from '@erpx/server-people_payroll/public/calendar-people-projection-sources';
@@ -36,13 +36,13 @@ async function ready(database:SqlDatabase,actor:WorkContext){
  if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Manual Work Calendar is not released for this Company.');
 }
 export async function calendarPurchaseControls(database:SqlDatabase,actor:WorkContext):Promise<CalendarPurchaseControls|undefined>{
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return;
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
  await current(database,actor,`calendar-read:${randomUUID()}`);
  const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.calendar'});
  const released=!!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed');
  return {newWork:released&&access.newWork,settleExisting:released&&access.settleExisting,history:released&&access.history,revision:access.revision};
 }
-export async function requireCalendarCurrentActor(database:SqlDatabase,actor:WorkContext){if(await workPackageEnforcementMode()!=='disabled')await current(database,actor,`calendar-current:${randomUUID()}`);}
+export async function requireCalendarCurrentActor(database:SqlDatabase,actor:WorkContext){if(await appsPackageEnforcementMode()!=='disabled')await current(database,actor,`calendar-current:${randomUUID()}`);}
 export function calendarPurchasedItems(items:CalendarItem[],access:CalendarPurchaseControls|undefined){
  if(!access)return items;if(!access.history)return [];
  return items.map(item=>({...item,permittedActions:item.permittedActions.filter(action=>['appointment.save','announcement.save','announcement.published'].includes(action)?access.newWork:access.settleExisting)}));
@@ -84,7 +84,7 @@ export async function requireCalendarReminderRecordAuthority(database:SqlDatabas
  * and People preparation retain their existing named original owner units. */
 export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase,actor:WorkContext,input:CalendarCommand,key:string,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'CALENDAR_TRANSACTION_REQUIRED','Calendar requires its complete owned Holding transaction.');
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return owner.transaction(run);
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return owner.transaction(run);
  try{return await owner.transaction(async database=>{
   await calendarManualSourceReadLocks(database,actor.companyId);
   const id='id'in input&&input.id?input.id:`calendar-${key}`,operation=`calendar.${input.action}`,receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND actor_id=? AND operation=? AND record_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,actor.userId,operation,id,actor.companyId).first(),purpose=receipt?'history' as const:calendarCommandPurpose(input),scope={companyId:actor.companyId,capability:'work.calendar',purpose},guard=`calendar-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,guard,scope)!;

@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support SLA watch merged; Support attachments remain the final owner workflow",
+  "capability": "support-sla-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 26,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/26",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T20:14:53Z",
+    "base": "8cef73ea8aba282235aec46e00e654baa1429104",
+    "head": "8297de8143649deef3c1ea70ed86cf7f65ef07bd",
+    "mergeCommit": "e882717ac01a067b02b0b678dded0ae605efc533",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "support/sla-watch",
+    "changedFiles": 24,
+    "nativeWriter": "src/composition/src/support_sla_command.rs",
+    "businessTime": "packages/server-support/src/domain/business_time.rs",
+    "drainJob": "erpx-server support-sla-drain --once --development-config",
+    "http": "src/composition/src/support_sla_http.rs",
+    "transport": "packages/feature-support/src/adapters/server/native-support-sla.ts",
+    "excluded": ["support/feature-attachments"]
+  },
+  "verification": {
+    "postgres": "support.rust-support-sla-command-postgres.integration 3/3",
+    "unit": "erpx-server-support 38/38",
+    "transport": "support.native-support-sla-transport.unit 4/4",
+    "existing": "ticket 2/2, incident 3/3, session 3/3",
+    "gates": "cargo clippy, typecheck, structure, architecture, docs, catalogue (33 modules, 778 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile normal-auth lifecycles: create policy, independent approve, attach from the ticket detail, native drain of a breached clock, manager acknowledgement; persisted approved policy v2, running clock on ticket v2, alert v2 acknowledged, four receipts/audit/outbox rows; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 0,
+    "ownersTotal": 41,
+    "workflowsVerified": 11,
+    "workflowsPartial": 6,
+    "workflowsMerged": 11,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "Support evidence attachments remain the final separate Support workflow.",
+    "The browser breach used a fixture time advance of sla_clock_json.dueAt; the drain itself is the native CLI.",
+    "Policy retirement and ticket resolve clock stop are PostgreSQL-tested; the browser journey covers create/approve/attach/acknowledge.",
+    "The Support app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

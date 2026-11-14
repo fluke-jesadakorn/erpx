@@ -4,8 +4,11 @@ import {get} from 'node:http';
 // Bun's native HTTP client is not used for gateway readiness/prewarm traffic.
 if(process.versions.bun||process.version!=='v26.11.1')throw Error('PINNED_NODE_PREWARM_REQUIRED');
 const input=JSON.parse(readFileSync(0,'utf8'));
+const contributor=process.env.NODE_ENV==='development'&&process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE==='container-localhost';
+const contributorHosts=['account.erpx.localhost:3443','acme.erpx.localhost:3443','northstar.erpx.localhost:3443','erpx-internal.erpx.localhost:3443'];
+const validHost=host=>typeof host==='string'&&(contributor?contributorHosts.includes(host):/^[-a-z0-9.]+$/.test(host));
 if(input.version!==1||![3100,3104].includes(input.port)||!Array.isArray(input.apps)||!input.apps.length
-  ||input.apps.some(app=>!app||typeof app.id!=='string'||!/^[-a-z0-9]+$/.test(app.id)||typeof app.host!=='string'||!/^[-a-z0-9.]+$/.test(app.host))
+  ||input.apps.some(app=>!app||typeof app.id!=='string'||!/^[-a-z0-9]+$/.test(app.id)||!validHost(app.host))
   ||input.token!==null&&!/^[a-f0-9]{48}$/.test(input.token))throw Error('EXPLICIT_GATEWAY_PREWARM_REQUIRED');
 for(const app of input.apps){
   await new Promise((done,reject)=>{

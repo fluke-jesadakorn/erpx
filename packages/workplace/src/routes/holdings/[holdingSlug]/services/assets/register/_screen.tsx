@@ -8,7 +8,8 @@ import { Table, TableFrame, Field, Select } from "@erpx/ui/components/foundation
 import { StatusBadge } from "@erpx/ui/components/primitives";
 import { AssetConsole } from "@erpx/feature-assets/components/asset-maintenance-console";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
-import { assetWorkspace } from "@erpx/server-assets/public/asset-maintenance";
+import { ownedAssetWorkspace } from "@erpx/feature-assets/public/native-assets";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -29,7 +30,7 @@ export default async function Assets({ params, searchParams }: {
             notFound();
         forbidden();
     }
-    const assetData = await assetWorkspace(actor).catch(error => pageError(error, holdingSlug));
+    const assetData = await ownedAssetWorkspace(actor, holdingSlug).then(data => { if (!data) throw new ApiError(503, 'NATIVE_ASSETS_UNAVAILABLE', 'The native Assets reader is unavailable.'); return data; }).catch(error => pageError(error, holdingSlug));
     
     
     const term = typeof query.q === 'string' ? query.q.toLocaleLowerCase() : '', unit = typeof query.unit === 'string' ? query.unit : null, category = typeof query.category === 'string' ? query.category : null, status = typeof query.status === 'string' ? query.status : null;

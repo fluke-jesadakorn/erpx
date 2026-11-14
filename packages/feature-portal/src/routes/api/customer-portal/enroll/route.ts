@@ -1,13 +1,12 @@
 import { z } from "zod";
-import { customerPortalInvitationEnrollment, releaseCustomerPortalEnrollmentAttempt, acceptCustomerPortalInvitation } from "@erpx/server-customer_authority/public/portal-invitation-enrollment";
 import { currentSession } from "@erpx/server-identity_access/public/authorization";
-import { withCurrentPrivateSessionRead } from "@erpx/server-identity_access/public/private-session-read";
 import { createCustomerPortalSessionApplication } from "@erpx/server-customer_360/public/verified-portal-account";
 import { createAuth, invitationVerificationOutcome } from "@erpx/server-identity_access/public/auth";
-import { configuredProductOrigin, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
+import { configuredProductHandoff, configuredProductOrigin, productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { runtimeEnv } from "../../../../../../../packages/server-runtime/src/public/runtime";
+import { nativePortalEnrollment, nativePortalEnrollmentFailure } from "../../../../public/native-portal-enrollment";
 
 export const dynamic = "force-dynamic";
 const responseHeaders = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
@@ -19,6 +18,23 @@ async function boundedPortalBody(request:Request,limit:number){
   const reader=request.body?.getReader();if(!reader)return new Uint8Array();const chunks:Uint8Array[]=[];let total=0;
   while(true){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>limit){await reader.cancel();throw new ApiError(413,"BODY_TOO_LARGE","The request body is too large.");}chunks.push(value);}
   const body=new Uint8Array(total);let offset=0;for(const chunk of chunks){body.set(chunk,offset);offset+=chunk.byteLength;}return body;
+}
+/** The native enrollment owner is mandatory; the retired TypeScript writer has
+ * no fallback. A bounded transport failure keeps the reviewed status policy. */
+function enrollment() {
+  const client = nativePortalEnrollment();
+  if (!client)
+    throw new ApiError(503, "NATIVE_PORTAL_ENROLLMENT_CONFIGURATION_REQUIRED", "Customer Portal enrollment requires the native Customer Authority service.");
+  return client;
+}
+async function native<Result>(run: () => Promise<Result>): Promise<Result> {
+  try {
+    return await run();
+  } catch (error) {
+    const failure = nativePortalEnrollmentFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
@@ -33,9 +49,9 @@ export async function POST(request: Request) {
     const input=bodySchema.parse(raw);
     if(input.action==="signup") {
       if(!env.RESEND_API_KEY||!env.RESEND_FROM)throw new ApiError(503,"EMAIL_NOT_CONFIGURED","Invitation account verification is not configured.");
-      const invite=await customerPortalInvitationEnrollment(input.token);
+      const client=enrollment(),invite=await native(()=>client.reserve(input.token));
       let reservationReleased=false;
-      const releaseReservation=async()=>{if(!reservationReleased){await releaseCustomerPortalEnrollmentAttempt(invite.reservation);reservationReleased=true;}};
+      const releaseReservation=async()=>{if(!reservationReleased){await native(()=>client.release(invite.reservation));reservationReleased=true;}};
       if(invite.attempts>3){await releaseReservation();throw new ApiError(429,"INVITATION_RATE_LIMIT","Too many attempts. Check the invited email or ask the sender to issue a new link.");}
       try{
         const callbackURL=new URL("/customer-portal/enroll?verified=1",origin).href,auth=await createAuth(origin,undefined,invite.email),headers=new Headers(request.headers);
@@ -55,13 +71,12 @@ export async function POST(request: Request) {
         return new Response(response.body,{status:response.status,statusText:response.statusText,headers:outputHeaders});
       }catch(error){await releaseReservation();throw error;}
     }
-    const {session,requestHeaders}=await currentSession(),application=createCustomerPortalSessionApplication({error:(status,code,message)=>new ApiError(status,code,message)}),user=application.verify(session.user),captured=JSON.stringify({session,headers:[...requestHeaders.entries()]});
-    const sessionHost=productHostForHost(requestHeaders.get("host"));if(sessionHost!==null&&sessionHost!=="account")throw new ApiError(404,"NOT_FOUND","Not found.");
-    const assertCurrent=async()=>{if(JSON.stringify({session,headers:[...requestHeaders.entries()]})!==captured)throw new ApiError(401,"SESSION_REVOKED","Sign in again to accept this invitation.");};
-    return await withCurrentPrivateSessionRead({userId:user.userId,email:user.email,sessionId:session.session.id,audience:sessionHost},async assertSession=>{
-      const assertRequestCurrent=async()=>{await assertCurrent();await assertSession();};
-      const data=await acceptCustomerPortalInvitation(input.token,user,assertRequestCurrent);
-      return Response.json({data},{headers:responseHeaders});
-    });
+    const {session}=await currentSession(),application=createCustomerPortalSessionApplication({error:(status,code,message)=>new ApiError(status,code,message)});
+    application.verify(session.user);
+    const cookie=request.headers.get("cookie")??"";
+    const client=enrollment();
+    const accepted=await native(()=>client.accept(input.token,cookie));
+    const portalPath=`/customer-portal/${encodeURIComponent(accepted.holdingSlug)}`;
+    return Response.json({data:{...accepted,portalUrl:configuredProductHandoff("portal",portalPath)??portalPath}},{headers:responseHeaders});
   } catch(error) { return errorResponse(error); }
 }

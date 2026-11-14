@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "id": "erpx-example",
+      "app": "apps",
+      "route": "/applications/example-module",
+      "source": "packages/feature-runtime/src/modules/example/page.tsx",
+      "apiContract": "erpx.example.http",
+      "apiVersion": "1.0.0"
+    }
+  ]
+}

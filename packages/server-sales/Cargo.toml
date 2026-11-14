@@ -1,0 +1,113 @@
+[package]
+name = "erpx-server-sales"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-identity-access.workspace = true
+erpx-server-people-payroll.workspace = true
+erpx-server-commercial.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
+uuid.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "sales_documents"
+path = "../../tests/unit/sales/rust-sales-documents.test.rs"
+
+[[test]]
+name = "sales_documents_http"
+path = "../../tests/unit/sales/rust-sales-documents-http.test.rs"
+
+[[test]]
+name = "sales_documents_postgres"
+path = "../../tests/integration/sales/rust-sales-documents-postgres.test.rs"
+
+[[test]]
+name = "sales_price_lists"
+path = "../../tests/unit/sales/rust-sales-price-lists.test.rs"
+
+[[test]]
+name = "sales_price_lists_http"
+path = "../../tests/unit/sales/rust-sales-price-lists-http.test.rs"
+
+[[test]]
+name = "sales_price_lists_postgres"
+path = "../../tests/integration/sales/rust-sales-price-lists-postgres.test.rs"
+
+[[test]]
+name = "sales_order_cancellation"
+path = "../../tests/unit/sales/rust-sales-order-cancellation.test.rs"
+
+[[test]]
+name = "sales_order_cancellation_http"
+path = "../../tests/unit/sales/rust-sales-order-cancellation-http.test.rs"
+
+[[test]]
+name = "sales_order_cancellation_postgres"
+path = "../../tests/integration/sales/rust-sales-order-cancellation-postgres.test.rs"
+
+[[test]]
+name = "sales_notification_execution"
+path = "../../tests/unit/sales/rust-sales-notification-execution.test.rs"
+
+[[test]]
+name = "sales_notification_execution_postgres"
+path = "../../tests/integration/sales/rust-sales-notification-execution-postgres.test.rs"
+
+[[test]]
+name = "customer_followups"
+path = "../../tests/unit/sales/rust-sales-followups.test.rs"
+
+[[test]]
+name = "sales_notification_commands"
+path = "../../tests/unit/sales/rust-sales-notification-commands.test.rs"
+
+[[test]]
+name = "sales_notification_commands_http"
+path = "../../tests/unit/sales/rust-sales-notification-commands-http.test.rs"
+
+[[test]]
+name = "sales_notification_commands_postgres"
+path = "../../tests/integration/sales/rust-sales-notification-commands-postgres.test.rs"
+
+[[test]]
+name = "customer_followups_http"
+path = "../../tests/unit/sales/rust-sales-followups-http.test.rs"
+
+[[test]]
+name = "customer_followups_postgres"
+path = "../../tests/integration/sales/rust-sales-followups-postgres.test.rs"
+
+[[test]]
+name = "sales_notification_reconciliation"
+path = "../../tests/unit/sales/rust-sales-notification-reconciliation.test.rs"
+
+[[test]]
+name = "sales_notification_reconciliation_http"
+path = "../../tests/unit/sales/rust-sales-notification-reconciliation-http.test.rs"
+
+[[test]]
+name = "sales_notification_reconciliation_postgres"
+path = "../../tests/integration/sales/rust-sales-notification-reconciliation-postgres.test.rs"
+
+[lints]
+workspace = true

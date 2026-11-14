@@ -18,7 +18,7 @@ export function refreshWorkspaceStyles(check = false) {
 // Resource-only @source inputs never cause JavaScript imports to execute.
 // The previous derived list can reference a file just deleted or renamed. It
 // cannot be an input to deriving its replacement. Normal task graphs stay strict.
-const styleGraph = loadWorkspaceGraph(root,{excludeStyleSources:true});
+const styleGraph = loadWorkspaceGraph(root,{excludeStyleSources:true,runtimeOnly:true});
 for (const app of [...appDefinitions, { id: "compat", directory: "apps/compat" }]) {
   const path = resolve(root, app.directory, "src/app/globals.css"), contents=workspaceStyleSheet(styleGraph,app.directory);
   if (check) { if (readFileSync(path, "utf8") !== contents) throw new Error(`WORKSPACE_STYLE_INPUTS_STALE:${app.id}`); }

@@ -11,6 +11,35 @@ vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>router
 import {contextSwitchBlockReason,registerContextSwitchBlocker} from '@erpx/feature-work_projection/lib/context-switch';
 import {useFinanceCommand} from '@erpx/feature-finance/components/use-finance-command';
 import {useRefundCommand} from '@erpx/feature-finance/components/use-refund-command';
+import {createFinanceSubmission,type FinanceSubmissionReply} from '../../../packages/feature-finance/src/application/submit-command';
+import type {PendingFinanceSubmission} from '../../../packages/feature-finance/src/domain/submission';
+
+function scopedSubmission(){
+ type Completion={edit:number};type Result={id:string};
+ let current=true,reply!:(value:FinanceSubmissionReply<Result>)=>void,fail!:(error:Error)=>void;
+ const response=new Promise<FinanceSubmissionReply<Result>>((resolve,reject)=>{reply=resolve;fail=reject;});
+ const completion={edit:1},attempts=new Map<string,PendingFinanceSubmission<Completion>>(),effects:string[]=[],acknowledge=vi.fn(()=>true);
+ const submit=createFinanceSubmission(attempts,{
+  hasAttempt:()=>false,retainedCompletion:()=>undefined,captureCompletion:()=>completion,canBegin:()=>true,
+  trackPending:(_token,_completion,pending)=>{effects.push(`track:${pending}`);},
+  captureContext:()=>()=>{if(!current)throw Error('Synthetic account/Company/role context changed.');},
+  submit:()=>response,completionUnchanged:()=>true,refresh:()=>{effects.push('refresh');},
+  setPending:pending=>{effects.push(`pending:${pending}`);},setHasAttempt:pending=>{effects.push(`attempt:${pending}`);},setError:message=>{effects.push(`error:${message}`);},
+ });
+ return {send:()=>submit({target:'/original/finance/post',body:'{"expectedVersion":1}'},'settle-existing'),reply,fail,effects,attempts,acknowledge,switchContext(){current=false;}};
+}
+it.each(['acknowledged','rejected','network'] as const)('retains the original attempt without changing the new view after a late %s response from another context',async kind=>{
+ const h=scopedSubmission(),pending=h.send(),before=[...h.effects];h.switchContext();
+ if(kind==='network')h.fail(Error('Synthetic late network failure.'));
+ else if(kind==='rejected')h.reply({kind:'rejected',definitive:true,message:'Synthetic old-account rejection.'});
+ else h.reply({kind:'acknowledged',data:{id:'original'},acknowledge:h.acknowledge});
+ expect(await pending).toBeNull();expect(h.effects).toEqual(before);expect(h.acknowledge).not.toHaveBeenCalled();
+ expect(h.attempts.size).toBe(1);expect([...h.attempts.values()][0].uncertain).toBe(true);
+});
+it('still releases a definitively rejected first attempt and updates its original view',async()=>{
+ const h=scopedSubmission(),pending=h.send();h.reply({kind:'rejected',definitive:true,message:'Synthetic current rejection.'});
+ expect(await pending).toBeNull();expect(h.attempts.size).toBe(0);expect(h.effects).toContain('track:false');expect(h.effects).toContain('error:Synthetic current rejection.');expect(h.effects.at(-1)).toBe('pending:false');
+});
 
 const pendingBlockers:(()=>void)[]=[];
 afterEach(()=>{for(const unregister of pendingBlockers.splice(0))unregister();pendingTracker.track=()=>{};vi.unstubAllGlobals();router.refresh.mockReset();});
@@ -115,7 +144,7 @@ it.each(['finance','refund'] as const)('keeps unchanged %s hook parsed-success b
 it('keeps a source-owned invoice posting on its exact path until original confirmation and retains newer edits',async()=>{
  const ts=await import('typescript'),{readFile}=await import('node:fs/promises'),{resolve}=await import('node:path'),source=await readFile(resolve('packages/feature-finance/src/components/invoice-controls.tsx'),'utf8'),ast=ts.createSourceFile('invoice-controls.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declaration=ast.statements.find(statement=>ts.isFunctionDeclaration(statement)&&statement.name?.text==='useInvoiceCommand');
  if(!declaration)throw Error('ACTUAL_INVOICE_COMMAND_HOOK_REQUIRED');
- const compiled=ts.transpileModule(declaration.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,cells:{value:unknown}[]=[],form={isConnected:true,getAttribute:(name:string)=>name==='data-erpx-edit-version'?completionEdit:null},completion={form,formEditVersion:'submitted-invoice-edit'},calls:{url:RequestInfo|URL;init:RequestInit|undefined;completion:unknown;mode:unknown}[]=[],acknowledge=vi.fn(),announce=vi.fn(),trackPending=vi.fn(),invoiceRouter={push:vi.fn(),refresh:vi.fn()};let completionEdit='submitted-invoice-edit',hookIndex=0;
+ const compiled=ts.transpileModule(declaration.getText(ast),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,cells:{value:unknown}[]=[],form={isConnected:true,getAttribute:(name:string)=>name==='data-erpx-edit-version'?completionEdit:null},completion={form,formEditVersion:'submitted-invoice-edit'},calls:{url:RequestInfo|URL;init:RequestInit|undefined;completion:unknown;mode:unknown}[]=[],acknowledge=vi.fn(),announce=vi.fn(),trackPending=vi.fn(),invoiceRouter={push:vi.fn(),refresh:vi.fn()};let completionEdit='submitted-invoice-edit',hookIndex=0;
  const useState=(initial:unknown)=>{const index=hookIndex++;cells[index]??={value:initial};return[cells[index].value,(value:unknown)=>{cells[index].value=typeof value==='function'?Reflect.apply(value,undefined,[cells[index].value]):value;}];},useRef=(initial:unknown)=>{const index=hookIndex++;cells[index]??={value:{current:initial}};return cells[index].value;};
  const workFetch=vi.fn(async(url:RequestInfo|URL,init?:RequestInit,receivedCompletion?:unknown,mode?:unknown)=>{calls.push({url,init,completion:receivedCompletion,mode});if(calls.length===1)throw Error('Original response was lost after commit');if(calls.length===2)return Response.json({error:{code:'WORK_ROLE_UNAVAILABLE',message:'The original role is no longer available.'}},{status:409});return Response.json({data:{id:'original-invoice'}});});
  const build=new Function('useFinanceActionAllowed','useRouter','useRef','useState','useFinanceDraftCommandPending','financeDocumentCommandContext','financeDocumentCommandAllowed','financeDocumentFormUnchanged','captureFinanceForm','acknowledgeFinanceForm','announceWorkChange','workFetch','canonicalUiHref',`${compiled}\nreturn useInvoiceCommand;`) as (...ports:unknown[])=>(base:string,purpose:'new-work'|'settle-existing',post?:{path:string;canPost:boolean})=>Record<string,unknown>;

@@ -1,1 +1,1 @@
-export {prepareQualityNotification,prepareQualityScrapNotification,routeQualityAlertNotifications} from '@erpx/server-collaboration/adapters/quality-notifications';
+export {prepareQualityNotification,routeQualityAlertNotifications} from '@erpx/server-collaboration/adapters/quality-notifications';

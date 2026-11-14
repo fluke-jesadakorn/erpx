@@ -25,7 +25,7 @@ export function rosterOwnerReadVersion(value:unknown,kind:'templates'|'shifts'|'
  return row.version;
 }
 function changed(){return Object.assign(Error('Your Roster source, account, Company or role changed. Return to the original owner and recover the submitted request; your newer draft is retained.'),{code:'WORK_CONTEXT_CHANGED'});}
-function workOwner(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment]):'server';}
+function workOwner(){const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';}
 function native(source:RosterOwnerSource,input:RosterCommand,key:string):Native{
  const data=source.data,newId=`roster-${key}`;
  if(input.action==='template.save'){

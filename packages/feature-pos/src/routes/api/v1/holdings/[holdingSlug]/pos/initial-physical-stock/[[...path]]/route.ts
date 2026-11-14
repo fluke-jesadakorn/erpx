@@ -1,7 +1,8 @@
 import {requireWorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin';
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
-import {posInitialPhysicalStockCountWorkspace,preparePosInitialPhysicalStockCount,transitionPosInitialPhysicalStockCount,posInitialPhysicalStockCountFlow,assignPosInitialPhysicalStockCountFlow,posInitialPhysicalStockCountSchema,posInitialPhysicalStockCountActionSchema,posInitialPhysicalStockCountSelectionSchema,posInitialPhysicalStockCountFlowSchema,type PosInitialPhysicalStockCountAction} from '@erpx/server-inventory/public/pos-initial-physical-stock-count';
+import {posInitialPhysicalStockCountWorkspace,posInitialPhysicalStockSeed,posInitialPhysicalStockCountFlow,assignPosInitialPhysicalStockCountFlow,posInitialPhysicalStockCountSchema,posInitialPhysicalStockCountActionSchema,posInitialPhysicalStockCountSelectionSchema,posInitialPhysicalStockCountFlowSchema,type PosInitialPhysicalStockCountAction} from '@erpx/server-inventory/public/pos-initial-physical-stock-count';
+import {nativeStockCountSave,nativeStockCountTransition} from '@erpx/feature-inventory/lib/native-stock-count-command';
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 const headers={'Cache-Control':'private, no-store'};
 const missing=()=>new ApiError(404,'NOT_FOUND','Pos initial physical stock route not found.');
@@ -23,9 +24,9 @@ export async function POST(request:Request,context:Context){
   const {holdingSlug,path=[]}=await context.params,actor=await requireWorkContext(holdingSlug);
   if(!(path.length===0||path[0]!=='masters'&&path.length===2&&(path[1]==='flow'||isAction(path[1]))))throw missing();
   const key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const input=await request.json();let data;
-  if(path.length===0)data=await preparePosInitialPhysicalStockCount(actor,posInitialPhysicalStockCountSchema.parse(input),key);
-  else if(path[1]==='flow')data=await assignPosInitialPhysicalStockCountFlow(actor,path[0],posInitialPhysicalStockCountFlowSchema.parse(input),key);
-  else if(isAction(path[1]))data=await transitionPosInitialPhysicalStockCount(actor,path[0],path[1],posInitialPhysicalStockCountActionSchema.parse(input),key);
-  else throw missing();return Response.json({data},{status:path.length===0?201:200,headers});
+  if(path.length===0){const seed=await posInitialPhysicalStockSeed(actor,posInitialPhysicalStockCountSchema.parse(input),key),native=await nativeStockCountSave(request,holdingSlug,null,seed.input,seed.seed);if(!native)throw new ApiError(503,'NATIVE_INVENTORY_COUNT_UNAVAILABLE','The native stock Count command is unavailable.');return native;}
+  if(path[1]==='flow')data=await assignPosInitialPhysicalStockCountFlow(actor,path[0],posInitialPhysicalStockCountFlowSchema.parse(input),key);
+  else if(isAction(path[1])){const native=await nativeStockCountTransition(request,holdingSlug,path[0],path[1],posInitialPhysicalStockCountActionSchema.parse(input));if(!native)throw new ApiError(503,'NATIVE_INVENTORY_COUNT_UNAVAILABLE','The native stock Count command is unavailable.');return native;}
+  else throw missing();return Response.json({data},{status:200,headers});
  }catch(error){return failure(error);}
 }

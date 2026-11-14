@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Quality owner native read/decision and native cancellation slice. Workspace/detail decisions over quality-owned relations and one owner-local HTTP/Next transport are implemented; the cancellation command preserves CAS, independence, local idempotency, rollback and persisted readback. Hold/inspection/release/disposition/specification writes and cross-owner presentation labels remain retained. No browser journey is claimed.",
+  "capability": "quality-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "054d43ea3af50daa989599dca8f4b77bf7a840e4",
+  "scope": {
+    "workflows": [
+      "quality/inspections",
+      "quality/results",
+      "quality/release-gates",
+      "quality/feature-cancellation"
+    ],
+    "domain": "packages/server-quality/src/domain/quality.rs owns hold/inspection/cancellation statuses, measurement evaluation, release/cancellation/disposition decision derivation, retained next-action copy, reason bounds and the uninspected-hold/independent-review cancellation plan.",
+    "application": "packages/server-quality/src/application/quality.rs owns current quality.read authorization, Company/branch/department scope, workspace/detail views and the cancellation use case. Neither layer mints IAM, purchase or Workflow authority.",
+    "adapters": "packages/server-quality/src/adapters/quality_read.rs reads only Quality-owned relations (inventory_quality_holds, inspections, measurements, specifications, spec metrics, cancellations, disposition events and alerts) inside a caller-owned serializable transaction. It locks those relations, bounds every read, keeps a database/backend/xid/postmaster snapshot with require_current, and applies the native cancellation update plus immutable cancellation row. Cross-owner stock, lot, product, warehouse, attachment, Finance, Inventory-count and notification facts were not added as SQL.",
+    "http": "packages/server-quality/src/adapters/quality_http.rs exposes GET /api/v1/holdings/{holding_slug}/quality, GET /api/v1/holdings/{holding_slug}/quality/{id} and POST /api/v1/holdings/{holding_slug}/quality/{id}/cancel. It validates exact registered host/slug targets, origin, one Idempotency-Key, JSON content type, bounded body, paths and owner error mapping. Session resolution, current Company scope, purchase admission and the owner transaction stay behind QualityHttpBackend.",
+    "frontend": "packages/feature-quality/src/adapters/server/native-quality.ts is an opt-in loopback transport for ERPX_NATIVE_QUALITY_CONFIG. Unset configuration keeps the retained Quality reader. Configured transport, authority or response failures close with 503 NATIVE_QUALITY_UNAVAILABLE and never retry the retained reader. The Quality workspace/detail presenters and Quality route overlay native decision flags and, when configured, send cancellation through the native command. Native cancellation is preceded by the retained Commercial purchase/current-authority preflight in native-quality-owned.ts.",
+    "notNativeYet": [
+      "Manual hold creation, inspection, release, scrap disposition, specification create/activate/cancel and alert acknowledgement remain the retained TypeScript writers because they compose Inventory stock/lot facts, Files evidence, Workflow receipts, Finance and/or Inventory count posting.",
+      "Workspace stock, lot, product, specification labels, eligible recipient counts and attachment metadata remain retained TypeScript reads. No native Commerce/Inventory presentation port was added.",
+      "Quality work projection, inbox/calendar handoffs and the due/overdue alert sweep remain retained."
+    ]
+  },
+  "files": [
+    "packages/server-quality/src/domain/mod.rs",
+    "packages/server-quality/src/domain/quality.rs",
+    "packages/server-quality/src/application/mod.rs",
+    "packages/server-quality/src/application/quality.rs",
+    "packages/server-quality/src/adapters/quality_read.rs",
+    "packages/server-quality/src/adapters/quality_http.rs",
+    "packages/server-quality/src/adapters/mod.rs",
+    "packages/server-quality/src/public/quality_read.rs",
+    "packages/server-quality/src/public/quality_http.rs",
+    "packages/server-quality/src/public/mod.rs",
+    "packages/server-quality/src/lib.rs",
+    "packages/server-quality/Cargo.toml",
+    "packages/feature-quality/src/adapters/server/native-quality.ts",
+    "packages/feature-quality/src/adapters/server/native-quality-page.ts",
+    "packages/feature-quality/src/adapters/server/native-quality-owned.ts",
+    "packages/feature-quality/src/lib/native-quality.ts",
+    "packages/feature-quality/package.json",
+    "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/[id]/screen.tsx",
+    "packages/server-runtime/src/public/http_support.rs",
+    "tests/unit/quality/rust-quality-decisions.test.rs",
+    "tests/unit/quality/native-quality-transport.test.ts",
+    "tests/integration/quality/rust-quality-read-cancel-postgres.test.rs",
+    "tests/integration/quality/rust-quality-http.test.rs",
+    "tests/support/quality/quality-facts.rs",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "behavior": {
+    "readScope": "quality.read is required and a department-scoped assignment returns 403 QUALITY_SCOPE_REQUIRED before the repository. Company is mandatory; an optional branch filter is applied in SQL. Foreign Company and out-of-branch detail ids return QUALITY_HOLD_NOT_FOUND.",
+    "readUnit": "The adapter requires an active transaction and SERIALIZABLE isolation (QUALITY_TRANSACTION_REQUIRED / QUALITY_SERIALIZABLE_REQUIRED), takes a SHARE lock on the eight Quality-owned relations, and retains the transaction/database identity. require_current re-reads the workspace or detail and returns 409 QUALITY_READ_CHANGED on any concurrent change.",
+    "readBounds": "At most 1000 holds, 1000 inspections, 5000 measurements, 1000 specification metrics, 200 cancellations, 200 disposition events and 1000 alerts are admitted; overflow returns 503 QUALITY_READ_LIMIT. Every integer is checked against the JavaScript safe-integer boundary.",
+    "inspectionResults": "Evaluate one value for every captured metric, reject duplicates/unknown or missing metrics (QUALITY_MEASUREMENTS_REQUIRED), derive pass/fail from the min/max limits, reject a conflicting requested result (QUALITY_RESULT_DERIVED), require an explicit result without a specification (QUALITY_RESULT_REQUIRED), and reject measurements on a hold without a specification (QUALITY_SPEC_REQUIRED).",
+    "releaseAndCancellationDecisions": "The hold creator cannot inspect; release requires awaiting_release + pass + quality.release + a different creator and inspector; cancellation is offered only on an uninspected held hold; cancellation review requires cancel_pending + quality.release + a different creator and requester; failed stock offers disposition only to an independent quality.release holder. The detail next-action copy mirrors the retained presenter.",
+    "cancellation": "The native writer checks the current Company/branch, expected version and the uninspected-hold invariant. request moves held to cancel_pending; approve moves cancel_pending to cancelled with cancelled_by/cancelled_at; reject returns cancel_pending to held. Every accepted action inserts one immutable inventory_quality_cancellations row at expected_version + 1. The writer checks exact ids and the IAM-owned iam_same_person merged-identity fact before an approve/reject, so a merged alias cannot review its own request. The update is a compare-and-swap on id, company, expected version and source status.",
+    "idempotency": "A cancellation id is derived as quality-cancel-{Idempotency-Key}. Repeating the same key, actor, hold, action and reason returns the saved receipt without a second event; reusing the key with different facts returns 409 QUALITY_CANCELLATION_CONFLICT. This is owner-local replay only; Workflow command receipts and audit/outbox retention remain a composition obligation.",
+    "quarantine": "Reject restores the hold to held rather than releasing stock. The existing database quarantine triggers remain authoritative; no Quality read or cancellation path writes commerce_stock, inventory_lots, command_receipts, audit_events or outbox_events.",
+    "transport": "Native responses are camelCase envelopes ({data: ...}) with Cache-Control: private, no-store, Referrer-Policy: no-referrer and X-Content-Type-Options: nosniff. Unknown target, duplicate/foreign host, foreign origin, missing/duplicate key, non-JSON body, malformed payload and owner errors map to 404/422/403/409/503 as appropriate."
+  },
+  "verification": {
+    "rust": {
+      "command": "ERPX_TEST_ADMIN_URL=\"$(grep -m1 '^ERPX_TEST_ADMIN_URL=' .env.local | cut -d= -f2-)\" cargo test -p erpx-server-quality --locked -- --test-threads=1",
+      "result": "25 passed, 0 failed, 0 ignored",
+      "breakdown": {
+        "lib": "0 passed",
+        "consumption_postgres (existing)": "7 passed",
+        "quality_decisions": "7 passed",
+        "quality_http": "4 passed",
+        "quality_read_cancel_postgres": "7 passed",
+        "doc-tests": "0 passed"
+      },
+      "newCases": [
+        "derives_measurement_results_and_rejects_conflicting_or_incomplete_values",
+        "separates_independent_inspection_release_cancellation_and_disposition_decisions",
+        "cancellation_plan_preserves_independence_and_uninspected_hold_invariants",
+        "department_scope_and_missing_read_deny_before_the_repository",
+        "cancellation_requires_the_exact_action_permission_and_a_bounded_reason",
+        "workspace_and_detail_read_only_quality_owned_facts_in_current_scope",
+        "current_workspace_snapshot_rejects_a_changed_hold_in_the_same_transaction",
+        "cancellation_requests_and_approves_once_with_local_idempotency (including a merged-alias reject denial)",
+        "cancellation_rejects_inspected_holds_and_a_late_failure_rolls_back",
+        "cancellation_rejection_returns_to_held_and_keeps_the_hold_quarantined",
+        "quality_reads_require_an_owned_serializable_unit",
+        "readback_uses_the_owner_transaction_and_persists_the_cancellation_event",
+        "reads_the_registered_holding_with_session_headers_and_bounded_headers",
+        "rejects_unknown_targets_duplicate_headers_and_malformed_commands",
+        "forwards_one_canonical_cancellation_and_preserves_owner_errors",
+        "rejects_configuration_that_can_escape_the_registered_origin"
+      ]
+    },
+    "typescript": {
+      "transport": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/quality/quality-services.test.ts\",\"tests/unit/quality/native-quality-transport.test.ts\"]' ./node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts: 2 files, 33 passed (27 existing + 6 new)",
+      "featureQualityTypecheck": "tsc --noEmit --project packages/feature-quality/tsconfig.json: pass",
+      "featureSupplyTypecheck": "tsc --noEmit --project packages/feature-supply/tsconfig.json: pass",
+      "workplaceTypecheck": "tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+      "testTypecheck": "tsc --noEmit --project tests/config/tsconfig.json: pass",
+      "eslint": "eslint changed Quality TypeScript files: pass with the existing Pages directory warning only"
+    },
+    "static": {
+      "clippy": "cargo clippy -p erpx-server-quality --all-targets --locked -- -D warnings: pass",
+      "rustfmt": "rustfmt --edition 2024 --check on changed Quality/runtime support Rust files: pass",
+      "diffCheck": "git diff --check on Quality-owned files and the runtime support re-export: pass"
+    },
+    "environment": "Bun 1.4.3 was not on PATH in this worktree. The pinned node_modules TypeScript/vitest/eslint binaries were used with Node.js 26.12.0. The PostgreSQL tests used the existing guarded erpx_test_admin at 127.0.0.1:5432 and disposable erpx_dev_rust_* databases from the local ignored .env.local; no staging, private production or Cloudflare service was accessed.",
+    "notRun": "bun scripts/testing/layout.ts (structure:check) was not run because Bun 1.4.3 is unavailable in this worktree. The node --experimental-strip-types fallback failed with ERR_MODULE_NOT_FOUND for the extensionless scripts/testing/catalogue import, so no structure result is claimed."
+  },
+  "sharedCompositionDelta": {
+    "applied": [
+      "packages/server-runtime/src/public/http_support.rs now re-exports axum::serve and serde_json::{self, Value, json} so an owner-local router can be tested without a second dependency edge or a lockfile change. No Cargo.lock or package lockfile was edited."
+    ],
+    "required": [
+      "Mount quality_router(QualityHttpTarget...) in src/composition/private_development_api.rs for each exact registered Holding target and expose the resulting private route to the Next transport.",
+      "Implement QualityHttpBackend in src/composition using the normal Account session proof, current IAM assignment/version/revision, Company/branch/department scope and the retained quality purchase admission. The backend must not trust headers that the retained requireWorkContext already resolved.",
+      "Open PgUnitOfWork with SERIALIZABLE isolation for every read and command, call lock_quality_read_sources, construct PgQualityRead and PgQualityCancellation on the borrowed connection, and run quality_workspace/quality_detail/cancel_quality_hold. Map PgTransactionError business errors without converting persistence failures into a successful retained fallback.",
+      "Persist the Workflow command receipt, audit event and cancellation notification outbox in the same composition unit as the Quality cancellation. The Quality adapter deliberately does not write command_receipts, audit_events or outbox_events; its local quality-cancel-{key} row only covers repeated HTTP delivery.",
+      "Recheck quality purchase capability and current authority inside the native transaction. native-quality-owned.ts performs a retained preflight only; it cannot preserve the purchase boundary across two separate transactions.",
+      "For a complete SSR payload cutover, provide a composition-owned Quality catalog port for product/warehouse/lot labels and eligible-recipient counts, or keep the retained qualityWorkspace/qualityDetail reader for those fields and use the native decision overlay as implemented here.",
+      "Register the native Quality HTTP smoke case in the composition-owned Rust test target when the mount exists. The owner-local PostgreSQL and HTTP test targets are registered in packages/server-quality/Cargo.toml; a true HTTP+Postgres test needs a test target in src/composition/Cargo.toml, which this subagent is prohibited from editing."
+    ],
+    "schema": "No schema change. The native slice uses the existing quality tables and triggers from migrations 0206/0213/0244/0245/0252/0281/0283/0284.",
+    "whyNotAppliedHere": "This implementation subagent is prohibited from editing src/composition/**, packages/contracts/**, docs/status/**, root Cargo.toml, Cargo.lock and package lockfiles."
+  },
+  "legacy": {
+    "removed": [
+      "No retained Quality reader or writer was deleted. When ERPX_NATIVE_QUALITY_CONFIG is set, the detail/workspace decision flags and the cancellation POST select the native path; the retained TypeScript path remains the explicit unset-configuration fallback."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-quality/src/adapters/quality.ts remains the writer for create hold, inspect, release, scrap disposition, specification create/activate/cancel and alert acknowledgement because those commands compose Commerce stock, Inventory lots/counts, Files evidence, Workflow receipts and Finance posting.",
+      "packages/server-quality/src/adapters/quality.ts::qualityWorkspace/qualityDetail remain the label, stock/lot option, specification list, attachment and eligible-recipient readers for the Quality console. The native overlay only replaces decision flags and the cancellation command.",
+      "qualityWork, quality-alert work, inbox/calendar handoffs and the alert drain remain retained until their owner native cutovers."
+    ],
+    "why": "The mission forbids inventing cross-owner SQL and the Quality crate has no Rust public ports for Commerce/Inventory presentation data, Files evidence or the Workflow command/outbox machinery. Those facts stay behind named owner ports rather than being copied into Quality."
+  },
+  "limits": [
+    "No authenticated browser journey was run. Do not claim browser verification from this evidence.",
+    "The native HTTP router is not mounted in the running composition; it is proven by a loopback transport test with a reference backend. A composed HTTP+PostgreSQL test remains blocked by the prohibition on editing src/composition/Cargo.toml and src/composition/**.",
+    "The native read deliberately omits product/warehouse/lot names, stock/lot options, attachment descriptors and eligible-recipient counts. The Quality pages still require the retained reader for those labels; only decision flags and the cancellation command are native.",
+    "The native cancellation writer is reached in this slice by the owner adapter and route preflight, not by a composed session/current-IAM unit. The composition backend must recheck purchase, current authority and Workflow receipt/outbox in the same transaction.",
+    "The native read decision overlay uses exact user ids for independence. Merged IAM aliases are enforced at the native cancellation write by iam_same_person, but the read-only decision flags remain advisory and are not a substitute for the write guard.",
+    "The detail page reads retained labels/history before the native decision. If the two versions differ, the page uses the native version and flags but does not refetch the retained history in the same request; the native version prevents a stale action gate.",
+    "The existing consumption_postgres suite still covers initial-count history and stock-consumption hold decisions; it was not replaced by this slice.",
+    "Bun 1.4.3 was unavailable on PATH; equivalent pinned node_modules TypeScript/vitest/eslint commands were run. Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

@@ -42,6 +42,8 @@ All staff-facing producers should publish only meaningful assignments, decisions
 
 ## Development verification
 
+Current verification follows the [scoped test guide](../../testing/README.md) and [Holding development routing](../../../ops/macos/holding-development.md), using normal authentication. The migration/seed/Console-host commands and Cloudflare correction below are dated pre-Holding records, not instructions for current setup. Do not rerun them to verify a documentation change.
+
 > Recorded observations apply to their stated date/environment. Current coverage and remaining acceptance are in the [verification inventory](../../status/capability-delivery-matrix.md); old gaps do not override current owner behavior.
 
 Apply `0004_messaging.sql` through the existing holding-write migration runner, then grant application/jobs roles access to the new tables using the existing provisioning pattern. Do not edit older applied migrations. The migration was applied to the two local `erpx_dev_*_write` databases for the public dev server, not production databases.

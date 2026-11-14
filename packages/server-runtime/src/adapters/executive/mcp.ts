@@ -8,7 +8,8 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeEnv } from "../../../../../packages/server-runtime/src/public/runtime";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { consumeExecutiveRateLimit, findExecutiveToken, recheckExecutivePrincipal, resolveExecutivePrincipal, type ExecutivePrincipal, type TokenRow } from "@erpx/server-runtime/public/executive/connections";
+import { findExecutiveToken, recheckExecutivePrincipal, resolveExecutivePrincipal, type ExecutivePrincipal, type TokenRow } from "@erpx/server-runtime/public/executive/connections";
+import { consumeNativeExecutiveRateLimit } from "@erpx/server-runtime/public/executive/native-connections";
 import { reportAccess, reportData } from "@erpx/server-runtime/public/executive/reports";
 import { metricCatalogFor, queryMetric } from "@erpx/server-runtime/public/executive/metrics";
 import { createExecutiveTools, type ExecutiveMcpUnit } from "@erpx/server-runtime/application/executive/mcp";
@@ -73,7 +74,7 @@ export async function handleExecutiveMcp(request: Request) {
         token = await findExecutiveToken(control, request.headers.get("authorization"));
         // Expired/revoked attempts still have attribution, but never reach a business read.
         const p = await resolveExecutivePrincipal(control, token);
-        await consumeExecutiveRateLimit(control, token);
+        await consumeNativeExecutiveRateLimit(request.headers.get("authorization"));
         if (request.method !== "POST")
             throw new ApiError(405, "METHOD_NOT_ALLOWED", "Use Streamable HTTP POST. This endpoint holds no sessions or subscription streams.");
         const raw = await readBody(request);

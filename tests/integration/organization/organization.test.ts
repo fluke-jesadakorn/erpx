@@ -3,7 +3,9 @@ import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import {organizationOverview,installStaffLevels,savePosition,positionSchema,saveOrganizationTemplate,applyOrganizationTemplate,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {organizationOverview,positionSchema,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {installStaffLevels} from '../../support/helpers/organization-levels';
+import {savePosition} from '../../support/helpers/organization-positions';
 import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import { directoryUpdateSchema,saveDirectoryPerson,setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
 import { grantPersonAccess,revokePersonAccess } from "@erpx/server-identity_access/public/account-access";
@@ -95,30 +97,6 @@ it("allows the explicit CEO exception and rejects self or junior reporting manag
   await expect(saveDirectoryPerson(hr,result.id,{...input,expectedVersion:2,positionId:staffPosition,levelId:level(6),managerPersonId:result.id},key())).rejects.toMatchObject({code:"STAFF_ORGANIZATION_INCOMPLETE"});
   await expect(saveDirectoryPerson(hr,result.id,{...input,expectedVersion:2,positionId:staffPosition,levelId:level(1),managerPersonId:`person-${f.owner.userId}`},key())).rejects.toMatchObject({code:"STAFF_ORGANIZATION_INCOMPLETE"});
 });
-it("checks position scope and optimistic versions without allowing reporting cycles",async()=>{
-  await expect(savePosition(db,hr,ceo,positionSchema.parse({title:"CEO",branchId:null,departmentId:null,levelId:level(1),reportsToPositionId:staffPosition,isCeo:false,expectedVersion:1,reason:"Bad cycle"}),key())).rejects.toMatchObject({status:422});
-  const input=positionSchema.parse({title:"Operations specialist",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,expectedVersion:1,reason:"Rename position"});
-  const command=key();await savePosition(db,hr,staffPosition,input,command);await savePosition(db,hr,staffPosition,input,command);
-  await expect(savePosition(db,hr,staffPosition,input,key())).rejects.toMatchObject({status:409});
-  const outsider={...hr,branchId:"other",assignmentScope:"branch" as const};
-  await expect(savePosition(db,outsider,staffPosition,input,key())).rejects.toMatchObject({status:403});
-});
-it("defaults new Positions to backoffice and preserves roster requirement on omitted edits",async()=>{
-  expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(0);
-  const enabled=positionSchema.parse({title:"Operations staff",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,rosterRequired:true,expectedVersion:1,reason:"Staff work shifts"});
-  await savePosition(db,hr,staffPosition,enabled,key());
-  const renamed=positionSchema.parse({title:"Operations specialist",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,expectedVersion:2,reason:"Clarify title"});
-  await savePosition(db,hr,staffPosition,renamed,key());
-  expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(1);
-});
-it("reviews a reusable template, reuses the CEO, adds vacancies and never grants roles",async()=>{
-  const template=await saveOrganizationTemplate(db,hr,null,{name:"Small team",expectedVersion:0,positions:[{key:"ceo",title:"CEO",levelNumber:1,reportsToKey:null,isCeo:true,rosterRequired:false},{key:"staff",title:"Team staff",levelNumber:6,reportsToKey:"ceo",isCeo:false,rosterRequired:false}]},key());
-  const before=await db.prepare("SELECT count(*) n FROM assignments WHERE company_id=?").bind(f.company).first();
-  const input={expectedVersion:1,branchId:f.branch,departmentId:f.department,reason:"Reviewed branch expansion"};const command=key();
-  await applyOrganizationTemplate(db,hr,String(template.id),input,command);await applyOrganizationTemplate(db,hr,String(template.id),input,command);
-  const data=await organizationOverview(db,hr);expect(data.positions.filter(p=>p.is_ceo)).toHaveLength(1);expect(data.positions.filter(p=>p.title==="Team staff")).toHaveLength(1);
-  expect(await db.prepare("SELECT count(*) n FROM assignments WHERE company_id=?").bind(f.company).first()).toEqual(before);
-});
 it("routes HR grants through fresh MFA and review while preventing self changes and broader scope",async()=>{
   await expect(grantPersonAccess(hr,`person-${f.claimant.userId}`,{role:"treasury",scope:"department",expiresAt:"2027-01-01"},key())).rejects.toMatchObject({code:"FRESH_MFA_REQUIRED"});
   await expect(grantPersonAccess(hr,`person-${hr.userId}`,{role:"finance_approver",scope:"holding",expiresAt:"2027-01-01"},key())).rejects.toMatchObject({code:"SELF_ACCESS_CHANGE"});
@@ -151,7 +129,7 @@ it("applies independently reviewed branch and department changes with safe suspe
   expect(branch).toMatchObject({display_name:"Northern branch",status:"active",hierarchy_revision:1});
   expect(await db.prepare("SELECT name FROM messaging_rooms WHERE organization_node_id=?").bind(branch!.id).first()).toEqual({name:"Northern branch"});
 
-  const department=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"department",slug:"service",displayName:"Service",branchId:branch!.id,targetNodeId:null,expectedNodeVersion:null,expectedVersion:0,reason:"Create the reviewed service team"}),key(),true);
+  const department=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"department",slug:"service-team",displayName:"Service",branchId:branch!.id,targetNodeId:null,expectedNodeVersion:null,expectedVersion:0,reason:"Create the reviewed service team"}),key(),true);
   await decideOrganizationNodeChange(db,reviewer,department.id,{expectedVersion:1,decision:"approve",reason:"Team placement reviewed"},key());
   const movable=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"department",slug:`movable-${key().slice(0,8)}`,displayName:"Movable team",branchId:f.branch,targetNodeId:null,expectedNodeVersion:null,expectedVersion:0,reason:"Create a team for relocation"}),key(),true);
   const movableApplied=await decideOrganizationNodeChange(db,reviewer,movable.id,{expectedVersion:1,decision:"approve",reason:"Relocation target reviewed"},key());

@@ -1,0 +1,42 @@
+{
+  "recordedAt": "2026-11-09T10:30:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "aaca34b3c",
+  "bundle": "work-projection-platform-preference",
+  "scope": "TypeScript/frontend cutover for the live Platform-role preference 503. No Rust business port, browser, production or owner completion is claimed.",
+  "changes": [
+    "packages/feature-admin/src/routes/api/v1/platform/assignments/active/route.ts now selects through the existing Provider context store with the current session, accountKey/contextKey/revision CAS, a fresh idempotency key, the existing receipt/audit unit and the Platform cookie.",
+    "packages/server-work_projection/src/adapters/workspace-preferences.ts no longer throws NATIVE_PLATFORM_PREFERENCE_UNAVAILABLE and no longer imports an unimplemented platform writer. A Company-less workspace path is a no-op selector.",
+    "packages/server-work_projection/src/public/workspace-preferences.ts removes the dead rememberPlatformRole export.",
+    "packages/workplace/src/routes/api/v1/workspace-preference/route.ts keeps /platform as a selector-only destination and does not persist a Company-less workspace.",
+    "tests/integration/shared.ui/workspace-preferences.test.ts now asserts that a Company-less platform path preserves the current Holding workspace and delegates Platform assignment persistence to the Provider context store."
+  ],
+  "checks": [
+    {
+      "command": "bun run typecheck (packages/server-work_projection)",
+      "result": "passed"
+    },
+    {
+      "command": "bun run typecheck (packages/feature-admin)",
+      "result": "passed"
+    },
+    {
+      "command": "bun x tsc --noEmit --project tests/config/tsconfig.json",
+      "result": "passed"
+    },
+    {
+      "command": "bun x eslint <five changed files>",
+      "result": "no errors; only the repository pages-directory warning"
+    }
+  ],
+  "notRun": [
+    "The integration runner is currently blocked by an externally added, not-yet-registered tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs (TEST_INVENTORY_MISMATCH). The workspace-preferences test was not executed through the catalogue.",
+    "The Playwright context-switching journey was not run. It requires the SSO fixture and a current dev server; the existing 127.0.0.1:3100 health endpoint is 200.",
+    "No production, staging, gateway or Cloudflare change."
+  ],
+  "next": [
+    "Run identity_access.context-switching.e2e once the external catalogue entry is registered and the authorized SSO fixture is available.",
+    "Implement the Work Projection quick-access preference Rust port (Control unit, receipt/conflict, version and revocation) and then the work-card port after Support/Workflow authority.",
+    "Calendar and work-item projections remain TypeScript and are not part of this bundle."
+  ]
+}

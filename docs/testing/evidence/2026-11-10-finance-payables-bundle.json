@@ -1,0 +1,79 @@
+{
+  "schema": "erpx.evidence/finance-payables-bundle/v10",
+  "recorded_at": "2026-11-10T18:10:00+07:00",
+  "head": "d30f8047970f368f3e144da7411146defe2bbab8",
+  "owner": "finance",
+  "workflow": "finance/payables",
+  "status": "superseded",
+  "scope": "Historical Finance payables bundle. Superseded by 2026-11-10-finance-owner-certification.json under the user-approved same-currency scope; native foreign-currency FX is excluded and retained via the postInvoice goods-FX path.",
+  "implemented": {
+    "procurement_match": "packages/server-procurement/src/adapters/finance_supplier_bill_match.rs: lock/load the reviewed match, stage posted with an event, and return on void with receipt deactivation. Finance validates match status/version/invoice link, supplier, dates, accounts, totals, primary fulfillment and every active receipt version.",
+    "variance_lines": "Matched bills debit clearing at expected subtotal, post the price variance to the approved variance account, debit input tax and credit payable at the actual total; positive and negative variance are tested.",
+    "source_version": "migrations/postgres/holding-write/1100_finance_invoice_source_version.sql retains the post-link Commerce version; Finance compares it at post time.",
+    "repair": "migrations/postgres/holding-write/1101_procurement_bill_match_repair.sql repairs pre-port matches stranded by earlier native posts/voids, with events and receipt deactivation; the test executes the migration against synthetic posted/voided rows.",
+    "matched_void": "Finance allows commerce_fulfillment in draft/posted void; the composition releases the Commerce fulfillment link and returns the Procurement match (status returned, invoice_id null, version+1, event). Posted void keeps the exact reversal, independent approver, period/allocation guards and receipt.",
+    "notifications": "packages/server-collaboration/src/adapters/supplier_bill_match_notification.rs selects current finance.write recipients and inserts posted/returned supplier_bill notifications in the same unit. supplier_bill_postgres asserts both.",
+    "fx_gate": "Native Finance rejects a foreign-currency commerce invoice with SUPPLIER_BILL_GOODS_FX_UNSUPPORTED before writes; the native client falls back only for the post command to the retained Commerce goods-carrying FX posting path. The matched-void guard surfaces its 409.",
+    "ui": "InvoiceActions is mounted for posted payables and exposes draft/posted void for commerce_fulfillment; the posted matched-void form is reachable.",
+    "http": "Private HTTP 4xx responses preserve application/json; the app route surfaces the native business code."
+  },
+  "gates": {
+    "finance.rust-supplier-bill-postgres.integration": "18/18 pass in 134.81 s with --test-threads=2 (matched post, positive/negative variance, receipt versions, consolidated stale secondary rejection, migration-1101 repair, draft/posted void, replay, stale match CAS, posted re-match, notifications, bad period, non-purchase, stale/unposted source)",
+    "sales.commerce-foreign-goods.integration": "5/5 pass; Commerce retains the finance_invoice draft:v1 snapshot",
+    "finance.generic-payments.integration": "17/17 pass (heavy inbox case timeout 60 s; assertions unchanged)",
+    "finance unit suites": "149/149 pass (8 files)",
+    "cargo test -p erpx-server-finance": "131 tests across binaries, 0 failed",
+    "cargo test -p erpx-server-procurement": "35 tests, 0 failed",
+    "cargo test -p erpx-server-collaboration": "compile-verified; notification SQL exercised by supplier_bill_postgres",
+    "cargo_check": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass",
+    "typecheck": "bunx tsc --noEmit exit 0",
+    "structure": "bun run structure:check pass",
+    "migration": "1100 and 1101 applied to H001/H002/H003; no stranded invoiced/posted matches remain"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "bill": "invoice-fc2aedf23493e6a9152fcd875356ee2be4d2",
+      "result": "Void posted bill summary rendered, September 2026 selected, reversing journal submitted through the app route; no page error observed.",
+      "persisted": "invoice voided v3; match bill-match-dev-browser returned v3 with invoice_id NULL; receipt inactive; fulfillment invoice_id NULL, version 3.",
+      "log": "run output observed in the session; the persisted mobile log is .scratch/dev/rust-migration/current/finance-matched-void-mobile.log",
+      "screenshot": ".scratch/dev/finance-matched-void-1440x900.png"
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "bill": "invoice-41305dfa9f0134bc0eb58cecd050dc88bbeb",
+      "result": "Void posted bill summary rendered in the mobile layout, September 2026 selected, reversing journal submitted through the app route; no page error.",
+      "persisted": "invoice voided v3; match bill-match-dev-browser-mobile returned v3 with invoice_id NULL; receipt inactive; fulfillment invoice_id NULL, version 3.",
+      "log": ".scratch/dev/rust-migration/current/finance-matched-void-mobile.log",
+      "screenshot": ".scratch/dev/finance-matched-void-390x844.png"
+    }
+  },
+  "runtime": {
+    "matched_post": "invoice-401700d00713b1b95d5eddee11eb8bcc6408 posted through the app route with journal journal-finance-procurement-match-app-20261110; Procurement match bill-match-dev-401700 advanced to posted v2; lines clearing 240000 / tax 16800 / payable 256800.",
+    "matched_void": "The holding owner voided the bill through the app route: invoice voided v3 with reversal journal invoice-reversal-finance-procurement-match-void-20261110; match returned v3 with invoice_id NULL; receipt inactive; fulfillment invoice_id NULL, version 3.",
+    "stale_source": "A changed Commerce source returns 409 SUPPLIER_BILL_SOURCE_CHANGED with application/json on both the app route and direct 3198; log .scratch/dev/rust-migration/current/finance-source-version-stale-runtime.log"
+  },
+  "review": {
+    "verdict": "SUPERSEDED",
+    "fixed_after_review": [
+      "Procurement match post/void lifecycle with events, receipt deactivation and native notifications.",
+      "Positive and negative price-variance journal lines.",
+      "Receipt-version validation for every active match receipt, with a consolidated stale-secondary test.",
+      "Migration 1101 repair test.",
+      "Stale match-version CAS test and posted re-match test.",
+      "Desktop/mobile matched-void browser acceptance with DB readback.",
+      "FX matched void fails closed; FX native post is scoped to the retained goods-FX path; the fallback is post-only so void surfaces 409."
+    ],
+    "remaining_blockers": [
+      "Native foreign-currency Commerce goods-carrying/FX posting and void are still not implemented; a scope decision is required (implement or document exclusion).",
+      "The 6-subagent roster and Common frozen-bundle coordination remain absent."
+    ],
+    "superseded_by": "docs/testing/evidence/2026-11-10-finance-owner-certification.json",
+    "note": "The rejection history above is retained for provenance; the corrected same-currency certification is recorded in the owner certification."
+  },
+  "remaining": [
+    "Historical bundle. Finance is certified as owner 6/41 under the same-currency scope in 2026-11-10-finance-owner-certification.json.",
+    "Native foreign-currency Commerce goods-carrying/FX posting and matched void remain a follow-up Commerce bundle.",
+    "The 6-subagent roster and Common frozen-bundle coordination remain absent; the user-directed waiver is recorded in the owner certification."
+  ]
+}

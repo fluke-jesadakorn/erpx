@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Learning now has a bounded native owner slice: an independently reviewed course catalogue, eligible-worker assignment, learner start/completion evidence, reviewer waiver/cancellation, a same-transaction eligibility handoff and certificate, reviewer certificate revocation, and Company/branch/department-scoped workspace/detail reads. The owner also has an owner-local HTTP router, a strict Next transport, configured workspace/detail/command cutover, retained package preflight, and fail-closed native configuration. The owner remains pending overall: shared composition mounting, root workspace membership, private attachment binding, native package purchase admission, worker startup, work projection, notifications, benefit consumption and browser acceptance remain open.",
+  "capability": "learning-course-assignment-result-certificate-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "8c2f8d66e",
+  "verificationHead": "54b1545be",
+  "scope": {
+    "workflows": [
+      "learning/course-catalog",
+      "learning/feature-assignments",
+      "learning/feature-attendance-results",
+      "learning/feature-completion",
+      "learning/feature-eligibility-handoff"
+    ],
+    "workflowBoundary": "The qualified slice covers course draft/review/retirement, assignment creation for an eligible current worker, the assigned learner's start and attendance/result completion, reviewer waiver/cancellation, the versioned completion certificate and eligibility handoff, certificate revocation, and workspace/detail reads. Course material attachments, private completion attachments, package purchase enforcement, worker preparation/placement, work items, notifications, benefit consumption, executive evidence and every other Learning workflow remain retained TypeScript.",
+    "domain": "Current actor policy (learning module, records.read/write/review, selected-context expiry), exact Company and optional branch/department scope, bounded course fields, date-only due/certificate dates, independent course review, published/version-matched course assignment, active People placement plus current IAM assignment/principal eligibility, assignment state transitions (assigned -> in_progress -> completed/waived/cancelled), learner-only start/complete, reviewer-only waive/cancel, attendance/score/evidence shape, completion reason, certificate valid-from/expiry ordering, versioned handoff/certificate source, immutable event/status projections, CAS expected versions, idempotent commands and exact receipt/row/event/handoff/certificate projections.",
+    "application": "create_course authorizes write before validation/replay. change_course authorizes write+review, replays by key, locks the course, rejects self-review/stale version/wrong status, then commits one CAS review. create_assignment authorizes write+review, replays, requires a published current course and active in-scope eligible placement, then commits the assignment and assign event. change_assignment authorizes write, rejects unsupported attachment binding, replays, requires review for waiver/cancellation, requires the eligible learner for start/complete, enforces the state machine and certificate dates, then commits one CAS transition with optional handoff/certificate. revoke_certificate authorizes write+review, replays, locks the certificate/assignment, checks current source version and prior revocation, then commits one immutable revocation. workspace/detail validate every bounded row and scope before presentation.",
+    "adapters": "Read/write SQL is Learning-owned (`learning_courses`, `learning_course_events`, `learning_assignments`, `learning_assignment_events`, `learning_eligibility_handoffs`, `learning_certificates`, `learning_certificate_revocations`) plus read-only projections of the existing IAM assignment/principal and People person/engagement rows already used by the retained Learning reader. No IAM, People, Commerce, Files or Benefits row is mutated. The caller's serializable Holding transaction is required; no transaction is opened, committed or retried here.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/learning/workspace, GET /api/v1/holdings/{holding_slug}/learning/assignments/{assignment_id}, POST /api/v1/holdings/{holding_slug}/learning/courses, POST /api/v1/holdings/{holding_slug}/learning/courses/{course_id}, POST /api/v1/holdings/{holding_slug}/learning/assignments, POST /api/v1/holdings/{holding_slug}/learning/assignments/{assignment_id} and POST /api/v1/holdings/{holding_slug}/learning/certificates/{certificate_id}/revoke. Exact registered Host/Holding targets and HTTPS origins, strict Idempotency-Key/Content-Type/JSON body validation, typed command bodies with unknown-field rejection, bounded 32 KiB bodies, duplicate/unknown query rejection, private/no-store and no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company/branch/department scope, module/permission authority, purchase admission and the serializable owner unit.",
+    "transport": "ERPX_NATIVE_LEARNING_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact command bodies, exact workspace/detail/receipt shapes, Company/scope coherence, personal-selector coherence, unique ordered rows/events, handoff/certificate source-version and identity coherence, and a 2 MiB response bound. A configured failure never falls back to the retained reader or command. The one explicit retained shape is a completion carrying private attachment set IDs, which the bounded native slice does not own.",
+    "ssr": "The Learning course, assignment, mine, knowledge workspace and assignment detail surfaces use the native workspace/detail reads when ERPX_NATIVE_LEARNING_CONFIG is present. An unset configuration retains learningWorkspace/learningAssignmentDetail. Once configured, a malformed or failed native read is surfaced through the existing page/route error policy rather than silently replaced. The retained course-material/completion attachment panels, worker preparation, work items and benefit continuation remain in place.",
+    "purchaseAndIdentity": "The Next cutover keeps the retained requireLearningPurchasedRead/learningPurchaseControls preflight and enforces new-work versus settle-existing capability for course/assignment/result/certificate commands. This is a preflight, not an atomic owner unit; the composition backend must repeat current IAM, selected scope, feature release and purchase admission inside its own serializable owner transaction. The owner adapter independently rechecks module/permission/selected-context and the learner's current IAM/People eligibility.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue acceptance qualification, attachment binding, notification effect, work projection, worker preparation, package purchase command, benefit consumption, executive evidence, job, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    ".env.example",
+    "packages/server-learning/Cargo.toml",
+    "packages/server-learning/src/lib.rs",
+    "packages/server-learning/src/domain/mod.rs",
+    "packages/server-learning/src/domain/learning.rs",
+    "packages/server-learning/src/application/mod.rs",
+    "packages/server-learning/src/application/learning.rs",
+    "packages/server-learning/src/adapters/mod.rs",
+    "packages/server-learning/src/adapters/learning.rs",
+    "packages/server-learning/src/adapters/learning_http.rs",
+    "packages/server-learning/src/public/mod.rs",
+    "packages/server-learning/src/public/learning.rs",
+    "packages/server-learning/src/public/learning_http.rs",
+    "packages/server-learning/src/public/native-learning.ts",
+    "packages/server-learning/package.json",
+    "packages/feature-learn/src/lib/native-learning-command.ts",
+    "packages/feature-learn/src/routes/api/v1/holdings/[holdingSlug]/learning/route.ts",
+    "packages/feature-learn/package.json",
+    "packages/workplace/src/lib/native-learning.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/knowledge/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/learning/[id]/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/learning/courses/_screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/learning/mine/_screen.tsx",
+    "packages/workplace/package.json",
+    "tests/unit/learning/rust-learning.test.rs",
+    "tests/unit/learning/rust-learning-http.test.rs",
+    "tests/integration/learning/rust-learning-postgres.test.rs",
+    "tests/unit/learning/native-learning-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-learning-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-learning --locked -- --test-threads=1",
+      "result": "19 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, learning 10, learning_http 3, learning_postgres 6, doc-tests 0)",
+      "workspaceNote": "packages/server-learning is not listed in the root Cargo.toml workspace members, which this subagent is prohibited from editing. The exact --locked command was executed in an isolated mirror containing a copy of the current root Cargo.toml with only packages/server-learning added to members, a mirror-generated lock from the current root lock, and symlinked real packages/tests/migrations/src/vendor trees. The repository root Cargo.toml and Cargo.lock were not modified by this subagent; the workspace owner must register the package and regenerate the lock before the command is directly reproducible.",
+      "targets": {
+        "learning": "10 passed: actor context/module/permissions/scope, calendar/UTC dates, course field normalization, independent course review/CAS/status, assignment input/action shape and retained-attachment rejection, published-course/eligible-placement creation, learner completion certificate/handoff defaults and date negatives, reviewer waiver/cancellation source preservation, certificate revocation scope/version/prior-revocation, terminal-row invariants.",
+        "learning_http": "3 passed: exact distinct targets/HTTPS origins, actual loopback router forwarding workspace/detail/course-create/course-change/assignment-create/assignment-change/certificate-revoke, unknown query/host/Holding, malformed personal selector, missing/short Idempotency-Key, malformed JSON/content type/GET body, unknown body field, conflict mapping, private/no-store/no-referrer/nosniff headers.",
+        "learning_postgres": "6 passed: reviewed course create/publish/self-review/CAS/replay with receipt/audit/outbox; eligible assignment creation with course/version/status/scope/ineligible negatives and exact replay; learner start/complete with attendance/score/evidence, one handoff/certificate at source version 3, replay/stale CAS/ineligible-learner negatives; reviewer waiver/cancellation and certificate revocation with scope/version/prior-revocation negatives; Company/branch/department/personal workspace and detail isolation; transaction/serializable guards and rolled-back certificate failure followed by an exact retry."
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-learning --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-learning warning"
+    },
+    "rustfmt": {
+      "command": "cargo fmt -p erpx-server-learning -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "learning_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic IAM members/assignments, People person/engagement rows, Learning courses and assignments. The owner writes only learning_* and command_receipts/audit_events/outbox_events; the read path performs no owner write.",
+      "cases": [
+        "a draft course and reviewed publication persist exact fields, independent reviewer, CAS version and one immutable event/receipt/audit/outbox row; same-key replay is byte-identical",
+        "assignment creation requires a current published course version and an active in-scope worker with a current IAM assignment/principal and active People engagement; stale, draft, ineligible, out-of-branch and key-conflict cases leave no assignment/receipt",
+        "learner start and completion persist attendance, score, evidence and completion reason; completion writes one handoff and one certificate at the new assignment version and appends one event; exact replay returns the prior receipt and later completion attempts fail with LEARNING_STATE_CHANGED",
+        "rejecting certificate dates before their valid-from date leaves the assignment in progress and writes no receipt",
+        "reviewer waiver issues a waived certificate while preserving the existing result evidence; cancellation issues no certificate; revocation is reviewer-only, idempotent, version-scoped, and refuses a foreign or already-revoked certificate",
+        "workspace/detail hide foreign Company, branch and department rows, honour the personal selector, omit people for non-reviewers, and return the assignment, ordered history, handoff and certificate",
+        "a PostgreSQL function failure before the certificate insert rolls back the assignment transition, event, handoff and all receipts/audit/outbox rows; dropping the fault and retrying the unchanged key persists once",
+        "a caller outside a transaction and a caller inside a read-committed transaction fail closed with persistence ownership errors"
+      ]
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards exact workspace/detail/course create/course change/assignment create/assignment change/certificate revoke facts and returns owner data plus rendered context",
+        "unknown query, unknown Host/Holding, malformed personal selector, missing/short Idempotency-Key and malformed body/content type/GET body are bounded 4xx",
+        "an owner conflict maps to 409 LEARNING_STATE_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets, non-HTTPS origins, origins with paths and non-lowercase Holding slugs fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/learning/native-learning-transport.test.ts: 10 passed (workspace Host/session/personal/context forwarding, scoped detail, exact course/assignment/certificate bodies and keys, owner conflict, foreign/duplicate/extra-key/changed-context rejection, unset selector and attached-completion retention, purchase preflight denial, malformed configured selector mapped to 503 without fallback, reserved port/insecure origin/malformed configuration, failure mapping)",
+      "typechecks": [
+        "tsc --noEmit --project packages/server-learning/tsconfig.json: pass",
+        "tsc --noEmit --project packages/feature-learn/tsconfig.json: pass",
+        "tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit --project .scratch/learning/tsconfig.json (the new transport test only): pass",
+        "tsc --noEmit (root): pass",
+        "tsc --noEmit --project tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed TypeScript files: pass (the repository's existing Next pages-directory warning only)",
+      "runner": "Bun 1.4.3 is not installed in this worktree, so the transport test was run with a temporary Vitest config (same server-only alias and fork isolation); no shared catalogue config was edited."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 1; the 20 printed findings are pre-existing files in Legal, POS, Supply, Quality, Assets, Maintenance, Operations, PMS, Manage ERPX and Platform Administration. No Learning path appears in the failure list.",
+      "diffCheck": "git diff --check restricted to the changed tracked Learning files: pass. The repository-wide git diff --check currently reports a concurrent other-owner blank line at EOF in packages/server-identity_access/Cargo.toml, which this subagent did not edit."
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "no new external dependency; the new crate uses the existing shared/runtime/sqlx/serde/serde_json workspace set. No root Cargo.toml, Cargo.lock or package lockfile change was authored by this subagent. The three package.json edits add only local export entries.",
+    "compositionDelta": "No src/composition change and no composition backend mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_learning::public::learning::{LearningActor, LearningCommandRepository, LearningReadRepository, PgLearning, create_course, change_course, create_assignment, change_assignment, revoke_certificate, learning_workspace, learning_detail}",
+      "erpx_server_learning::public::learning_http::{learning_http_router, LearningHttpTarget, LearningHttpBackend, LearningHttpRequest, LearningHttpResponse, LearningHttpCommand}"
+    ],
+    "backendRequired": "Implement LearningHttpBackend in src/composition: parse the normal Account/Holding request, require the learning module and records.read/write/review, require the configured Holding/Company and selected branch/department, run the retained feature-release and purchase admission inside one serializable Holding transaction, build LearningActor from the current authority, call create_course/change_course/create_assignment/change_assignment/revoke_certificate/learning_workspace/learning_detail with PgLearning, and map PgTransactionError to BusinessError. The Next purchase preflight is not atomic and must be repeated. The backend also renders the exact context object (user, Holding, Company, branch/department slugs, assignment/version, revision, role, scope kind, modules, permissions, expiry).",
+    "privateDevelopmentApi": [
+      "Build one LearningHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_learning::public::learning_http::learning_http_router(targets).map_err(|_| \"PRIVATE_API_LEARNING_CONFIGURATION_INVALID\")?);",
+      "Mount /learning/workspace, /learning/assignments/{id}, /learning/courses, /learning/courses/{id}, /learning/assignments, /learning/assignments/{id} and /learning/certificates/{id}/revoke before the generic 404 fallback."
+    ],
+    "rootWorkspace": "Add \"packages/server-learning\" to the root Cargo.toml [workspace] members and the corresponding workspace dependency entry, then update Cargo.lock in the integration change. This subagent did not make that shared edit.",
+    "nextEnvironment": "Set ERPX_NATIVE_LEARNING_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "When ERPX_NATIVE_LEARNING_CONFIG is present, the Learning course/assignment/mine workspace and assignment detail reads use native Learning rows instead of learningWorkspace/learningAssignmentDetail.",
+      "Native course draft/publish/reject/retire, assignment create, learner start/complete, reviewer waive/cancel and certificate revoke commands replace the retained command path for those actions when configured.",
+      "No retained TypeScript Learning source file was deleted."
+    ],
+    "retained": [
+      "learningWorkspace/learningAssignmentDetail/createLearningCourse/changeLearningCourse/createLearningAssignment/changeLearningAssignment/revokeLearningCertificate remain the unset-config reader and command path and the source for tests and non-configured deployments.",
+      "A completion carrying private attachment set IDs is explicitly retained because the bounded native slice does not bind Files attachments; the route returns to the retained command for that input shape even when native is configured.",
+      "Course material attachments, completion certificate attachments, attachment access audits, purchase enforcement commands, worker preparation/placement, learningWork/work projection, collaboration assignment notices, benefit consumption, executive evidence and benefit continuation remain retained.",
+      "The retained Learning console continues to render from the same course/assignment/event/handoff/certificate keys when native data is served."
+    ],
+    "cutover": "Only the Learning workspace/detail reads and course/assignment/certificate commands switch to the native owner when configured. An unset config retains TypeScript. A configured invalid or failed native read/command throws through the retained page/route error policy and never reads the TypeScript path as a fallback. Attached completion remains an explicit retained input shape."
+  },
+  "concurrentWork": {
+    "preserved": "This worktree also contains concurrent uncommitted talent/benefits/PMS/support work, including .env.example additions, a modified talent closure evidence file and additional owner packages. Those files were not reverted or included in this slice beyond the additive Learning configuration lines in .env.example. No other owner's Rust or TypeScript implementation was edited.",
+    "rootManifests": "The repository root Cargo.toml and Cargo.lock do not contain an erpx-server-learning entry and were not edited by this subagent. The exact locked test command was run in the isolated mirror described above.",
+    "headAdvance": "The worktree HEAD advanced from the mission base 8c2f8d66e through other agents' Customer Authority, Support and Talent commits to 54b1545be during this task. The Learning crate, public transport, tests and cutover files remain uncommitted authored work in this worktree."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "packages/server-learning is not a root Cargo workspace member and the root lock has no package entry; the workspace owner must register it",
+      "No composition backend implements the public ports or mounts learning_http_router",
+      "No authenticated browser or deployment verification was performed",
+      "Private course/completion attachment binding, notification preparation, worker startup and package purchase admission remain retained or composition-owned",
+      "The full architecture check exits 1 on pre-existing concurrent findings outside Learning",
+      "Course material/completion attachment commands and all other Learning workflows remain retained TypeScript"
+    ],
+    "nextAction": "Have the composition owner register the crate, implement the Account/scope/permission/purchase backend and mount the router; then qualify private attachment binding with Files same-transaction guards, followed by Learning notifications and work projection, and finally benefit consumption/executive evidence. Browser acceptance remains deferred."
+  }
+}

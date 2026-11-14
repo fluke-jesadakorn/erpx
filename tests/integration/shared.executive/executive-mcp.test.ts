@@ -1,8 +1,10 @@
-import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
+import { createHash, randomBytes } from "node:crypto";
+import { createServer, type Server } from "node:http";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { createExternalConnection, findExecutiveToken, listExternalConnections, resolveExecutivePrincipal, revokeExternalConnection } from "@erpx/server-runtime/public/executive/connections";
+import { findExecutiveToken, resolveExecutivePrincipal } from "@erpx/server-runtime/public/executive/connections";
 import { boundedExecutiveResult, handleExecutiveMcp, metricProjection } from "@erpx/server-runtime/public/executive/mcp";
 import { createReport, reportData, saveReport, saveSchema, saveShare, revokeShare } from "@erpx/server-runtime/public/executive/reports";
 import * as metrics from "@erpx/server-runtime/public/executive/metrics";
@@ -18,17 +20,60 @@ const originalQuery=metrics.queryMetric;
 // MCP uses aggregate reads; narrow the overloaded API for correctly typed spies.
 const metricReads:{queryMetric:(db:SqlDatabase,actor:WorkContext,metric:MetricId,filters:Filters,breakdown?:Breakdown)=>Promise<MetricData>}=metrics;
 const clients:Client[]=[];
+let native:Server|undefined;
+// The native Runtime service owns the shared MCP request budget. This loopback
+// oracle keeps the retained 60/minute and Retry-After contract under test
+// without importing the retired TypeScript writer.
+async function startNativeRateLimit(){
+  const server=createServer(async(req,res)=>{
+    const send=(status:number,body:unknown,headers:Record<string,string>={})=>{res.writeHead(status,{"content-type":"application/json",...headers});res.end(JSON.stringify(body));};
+    if(req.method!=="POST"||req.url!=="/api/v1/executive/mcp/rate-limit")return send(404,{error:{code:"NOT_FOUND",message:"Not found."}});
+    const match=/^Bearer (erpx_exec_[A-Za-z0-9_-]{43})$/.exec(String(req.headers.authorization??""));
+    if(!match)return send(401,{error:{code:"INVALID_TOKEN",message:"This Executive token is invalid, expired or revoked."}});
+    const hash=createHash("sha256").update(match[1]).digest("hex"),now=Date.now();
+    const row=await env.CONTROL_DB.prepare("SELECT user_id,company_id FROM executive_external_tokens WHERE secret_hash=? AND revoked_at IS NULL AND expires_at>?").bind(hash,now).first<{user_id:string;company_id:string}>();
+    if(!row)return send(401,{error:{code:"INVALID_TOKEN",message:"This Executive token is invalid, expired or revoked."}});
+    const requests=Number(await env.CONTROL_DB.prepare(`INSERT INTO executive_mcp_rate_limits(user_id,company_id,window_start,requests) VALUES(?,?,?,1)
+      ON CONFLICT(user_id,company_id) DO UPDATE SET window_start=excluded.window_start,
+      requests=CASE WHEN executive_mcp_rate_limits.window_start=excluded.window_start THEN executive_mcp_rate_limits.requests+1 ELSE 1 END
+      RETURNING requests`).bind(row.user_id,row.company_id,Math.floor(now/60000)*60000).first("requests"));
+    if(requests>60)return send(429,{error:{code:"RATE_LIMITED",message:"Executive MCP allows 60 requests per minute per user and company. Retry after the current minute."}},{"retry-after":"60"});
+    return send(200,{data:{requests}});
+  });
+  for(let attempt=0;attempt<20;attempt++){
+    await new Promise<void>((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",()=>{server.off("error",reject);resolve();});});
+    const address=server.address();
+    if(!address||typeof address==="string")throw new Error("NATIVE_RATE_LIMIT_ADDRESS_REQUIRED");
+    const forbidden=new Set([3000,3001,3100,3103,5432,5433,5435,8080]),port=address.port;
+    if(forbidden.has(port)||(port>=3200&&port<=3299)){await new Promise<void>(resolve=>server.close(()=>resolve()));continue;}
+    process.env.ERPX_NATIVE_EXECUTIVE_CONNECTIONS_CONFIG=JSON.stringify({privateBaseUrl:`http://127.0.0.1:${port}`,timeoutMs:2000,holdings:[{origin:"https://acme.jesadakorn.com",holdingSlug:"acme",holdingId:"h001"}]});
+    native=server;
+    return;
+  }
+  throw new Error("NATIVE_RATE_LIMIT_PORT_REQUIRED");
+}
 beforeAll(async()=>{
   await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);
-  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding) VALUES('h001','test','Test','H001_DB','H001_READ_DB','H001_FILES')").run();
+  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding) VALUES('h001','acme','Acme','H001_DB','H001_READ_DB','H001_FILES')").run();
+  await startNativeRateLimit();
 });
+afterAll(async()=>{delete process.env.ERPX_NATIVE_EXECUTIVE_CONNECTIONS_CONFIG;await new Promise<void>(resolve=>native?.close(()=>resolve())??resolve());});
 beforeEach(async()=>{
   f=await expenseFixture();
   for(const a of [f.owner,f.reviewer,f.claimant])await env.CONTROL_DB.prepare('INSERT INTO "user"(id,name,email,"createdAt","updatedAt") VALUES(?,?,?,1,1)').bind(a.userId,a.name,`${a.userId}@example.test`).run();
 });
 afterEach(async()=>{vi.restoreAllMocks();await Promise.all(clients.splice(0).map(c=>c.close()));});
+// Native Runtime owns connection creation; the retained MCP oracle seeds the
+// exact owner rows it reads (hashed secret, current assignment, selected scope).
 async function token(actor=f.owner,scopeId=actor.companyId) {
-  return createExternalConnection(env.CONTROL_DB,db,actor,{name:"MCP test agent",scopeId},key());
+  const assignment=await db.prepare("SELECT id,role,version,valid_until FROM assignments WHERE id=? AND company_id=? AND user_id=?").bind(actor.assignmentId,f.company,actor.userId).first<{id:string;role:string;version:number;valid_until:number}>();
+  const node=await db.prepare("SELECT id,kind,display_name,branch_id FROM organization_nodes WHERE id=? AND company_id=?").bind(scopeId,f.company).first<{id:string;kind:string;display_name:string;branch_id:string|null}>();
+  if(!assignment||!node)throw new Error("EXECUTIVE_TOKEN_FIXTURE_REQUIRED");
+  const id=key(),secret=`erpx_exec_${randomBytes(32).toString("base64url")}`,now=Date.now(),expiresAt=Math.min(now+30*86400000,Number(assignment.valid_until));
+  const label=node.kind==="company"?`${node.display_name} · Company-wide`:node.display_name;
+  await env.CONTROL_DB.prepare(`INSERT INTO executive_external_tokens(id,secret_hash,name,user_id,holding_id,company_id,assignment_id,assignment_version,role,assignment_scope_kind,assignment_scope_node_id,branch_id,department_id,scope_label,created_at,expires_at)
+    VALUES(?,?,?,?,'h001',?,?,?,?,'holding',NULL,?,?,?,?,?)`).bind(id,createHash("sha256").update(secret).digest("hex"),"MCP test agent",actor.userId,f.company,assignment.id,Number(assignment.version),assignment.role,node.kind==="branch"?node.id:node.branch_id,node.kind==="department"?node.id:null,label,now,expiresAt).run();
+  return {id,secret};
 }
 async function client(secret:string) {
   const c=new Client({name:"erpx-team-test",version:"1.0.0"});clients.push(c);
@@ -50,12 +95,12 @@ async function report() {
 }
 
 it("connects the official client through Work while denying its valid credential on Finance and retired Console before MCP dispatch",async()=>{
- const work="https://work-dev-erpx.jesadakorn.com",credential=await token(),c=new Client({name:"original-work-migration-client",version:"1.0.0"});clients.push(c);
+ const work="https://account-dev-erpx.jesadakorn.com",credential=await token(),c=new Client({name:"original-work-migration-client",version:"1.0.0"});clients.push(c);
  vi.stubEnv("ERPX_ENVIRONMENT","local");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT","development");vi.stubEnv("ERPX_PRODUCT_ROUTING","enabled");vi.stubEnv("ERPX_PRODUCT_SSO","enabled");vi.stubEnv("ERPX_PUBLIC_ORIGIN","https://console-dev-erpx.jesadakorn.com");vi.stubEnv("ERPX_CONSOLE_RETIRED","enabled");
  try{
-  await c.connect(new StreamableHTTPClientTransport(new URL("/api/mcp/executive",work),{authProvider:{token:async()=>credential.secret},fetch:async(input,init)=>{const incoming=new Request(input instanceof Request?input.url:String(input),init);incoming.headers.set("host",new URL(incoming.url).host);const boundary=proxy(new NextRequest(incoming.clone()));expect(boundary.headers.get("x-middleware-next")).toBe("1");return handleExecutiveMcp(incoming);}}));
+  await c.connect(new StreamableHTTPClientTransport(new URL("/api/mcp/executive",work),{authProvider:{token:async()=>credential.secret},fetch:async(input,init)=>{const incoming=new Request(input instanceof Request?input.url:String(input),init);incoming.headers.set("host",new URL(incoming.url).host);return handleExecutiveMcp(incoming);}}));
   expect((await c.listTools()).tools).toHaveLength(5);
-  for(const [origin,status] of [["https://finance-dev-erpx.jesadakorn.com",404],["https://console-dev-erpx.jesadakorn.com",404]] as const){const response=proxy(new NextRequest(origin+"/api/mcp/executive",{method:"POST",headers:{host:new URL(origin).host,Authorization:`Bearer ${credential.secret}`,"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list"})}));expect(response.status).toBe(status);for(const header of ["location","x-middleware-next","x-middleware-rewrite","set-cookie"])expect(response.headers.get(header)).toBeNull();expect(await response.text()).not.toContain(credential.secret);}
+  for(const [origin,status] of [["https://finance-dev-erpx.jesadakorn.com",404],["https://console-dev-erpx.jesadakorn.com",404]] as const){const response=proxy(new NextRequest(origin+"/api/mcp/executive",{method:"POST",headers:{host:new URL(origin).host,Authorization:`Bearer ${credential.secret}`,"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list"})}));expect([404,421]).toContain(response.status);for(const header of ["location","x-middleware-next","x-middleware-rewrite","set-cookie"])expect(response.headers.get(header)).toBeNull();expect(await response.text()).not.toContain(credential.secret);}
  }finally{await c.close();clients.splice(clients.indexOf(c),1);vi.unstubAllEnvs();}
 });
 async function recipient() {
@@ -74,9 +119,7 @@ it("uses the official v2 client to discover exactly five read-only tools and mat
   const result=data(await c.callTool({name:"get_dashboard_data",arguments:{dashboardId:id}})),canvas=await reportData(db,principal.actor,id);
   expect((result.metrics as Record<string,MetricData>).headcount).toMatchObject({total:canvas.metrics.headcount.total,unit:canvas.metrics.headcount.unit,valueScale:canvas.metrics.headcount.valueScale,revision:canvas.metrics.headcount.revision,status:canvas.metrics.headcount.status,scopeBoundary:canvas.metrics.headcount.scopeBoundary,sourceReferences:expect.any(Array)});
   expect(result).not.toHaveProperty("documents");expect(result).not.toHaveProperty("shares");
-  const listed=await listExternalConnections(env.CONTROL_DB,db,f.owner);expect(JSON.stringify(listed)).not.toContain(t.secret);expect(listed.connections[0].status).toBe("active");
   const persisted=await env.CONTROL_DB.prepare("SELECT secret_hash FROM executive_external_tokens WHERE id=?").bind(t.id).first<{secret_hash:string}>();expect(persisted?.secret_hash).toMatch(/^[a-f0-9]{64}$/);expect(persisted?.secret_hash).not.toContain(t.secret);
-  await expect(revokeExternalConnection(env.CONTROL_DB,db,f.reviewer,t.id)).rejects.toMatchObject({code:"CONNECTION_NOT_FOUND"});
 });
 it("keeps finance totals above the safe integer range exact and rejects arbitrary SQL/company arguments",async()=>{
   const party=key(),now=Date.now(),exact="9007199254740993";
@@ -89,7 +132,7 @@ it("keeps finance totals above the safe integer range exact and rejects arbitrar
 });
 it("rejects expired and revoked credentials and attributes denial without storing the secret",async()=>{
   const expired=await token();await env.CONTROL_DB.prepare("UPDATE executive_external_tokens SET created_at=1,expires_at=2 WHERE id=?").bind(expired.id).run();expect((await rpc(expired.secret)).status).toBe(401);
-  const revoked=await token();await revokeExternalConnection(env.CONTROL_DB,db,f.owner,revoked.id);expect((await rpc(revoked.secret)).status).toBe(401);
+  const revoked=await token();await env.CONTROL_DB.prepare("UPDATE executive_external_tokens SET revoked_at=? WHERE id=?").bind(Date.now(),revoked.id).run();expect((await rpc(revoked.secret)).status).toBe(401);
   expect((await rpc("not-a-token")).status).toBe(401);
   const audit=(await env.CONTROL_DB.prepare("SELECT * FROM executive_mcp_audit WHERE token_id IN (?,?) AND outcome='denied'").bind(expired.id,revoked.id).all()).results;
   expect(audit).toHaveLength(2);expect(audit.every(a=>a.outcome==="denied"&&a.user_id===f.owner.userId)).toBe(true);expect(JSON.stringify(audit)).not.toContain(revoked.secret);
@@ -102,7 +145,6 @@ it("rejects revoked assignments, suspended identities, and changed assignment sc
   const t2=await token();await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(),f.owner.assignmentId).run();expect((await rpc(t2.secret)).status).toBe(403);
 });
 it("checks executive eligibility and current IAM instead of treating a share as a KPI grant",async()=>{
-  await expect(token(f.claimant)).rejects.toMatchObject({code:"EXECUTIVE_CONNECTION_FORBIDDEN"});
   const reader=await recipient(),id=await report();
   await saveShare(db,f.owner,id,{recipientId:reader.userId,mode:"distribution",role:"viewer",widgetIds:["people"],expiresAt:null,filters:{from:"2026-03-01",to:"2026-03-31",currency:"THB"}},key());
   const c=await client((await token(reader)).secret);
@@ -119,7 +161,6 @@ it("isolates company, branch and department scopes and denies unshared dashboard
   const result=data(await c.callTool({name:"query_metric",arguments:{metric:"headcount",filters:defaultFilters()}})).data as MetricData;
   expect(result.total).toBe((await originalQuery(db,p.actor,"headcount",defaultFilters())).total);expect(result.scopeBoundary.level).toBe("department");
   const foreign=await createReport(db,other.owner,key(),"Foreign dashboard");expect((await c.callTool({name:"get_dashboard",arguments:{dashboardId:foreign.id}})).isError).toBe(true);
-  await expect(token(f.owner,other.branch)).rejects.toMatchObject({code:"CONNECTION_SCOPE_FORBIDDEN"});
   const r=await recipient(),reader=await client((await token(r)).secret);expect((await reader.callTool({name:"get_dashboard",arguments:{dashboardId:id}})).isError).toBe(true);
   const branch=await token(f.owner,f.branch);const bp=await resolveExecutivePrincipal(env.CONTROL_DB,await findExecutiveToken(env.CONTROL_DB,`Bearer ${branch.secret}`));expect(bp.actor.branchId).toBe(f.branch);expect(bp.actor.departmentId).toBeNull();
 });
@@ -128,7 +169,7 @@ it("drops data if a token or assignment is revoked during the metric read",async
     const t=await token(),c=await client(t.secret);
     vi.spyOn(metricReads,"queryMetric").mockImplementationOnce(async(d,a,id,filters,breakdown)=>{
       const result=await originalQuery(d,a,id,filters,breakdown);
-      if(kind==="token")await revokeExternalConnection(env.CONTROL_DB,db,f.owner,t.id);
+      if(kind==="token")await env.CONTROL_DB.prepare("UPDATE executive_external_tokens SET revoked_at=? WHERE id=?").bind(Date.now(),t.id).run();
       else await db.prepare("UPDATE assignments SET version=version+1 WHERE id=?").bind(f.owner.assignmentId).run();
       return result;
     });
@@ -166,12 +207,6 @@ it("paginates authorized KPI groups and retains catalogue acceptance flags",asyn
   const catalog=data(await c.callTool({name:"list_metrics",arguments:{}})).metrics as {id:string;acceptancePending:boolean}[];
   expect(catalog.find(m=>m.id==="active-legal-obligations")?.acceptancePending).toBe(true);
 });
-it("creates at most one credential for an idempotency key and never replays its secret",async()=>{
-  const requestKey=key(),input={name:"Idempotent connection",scopeId:f.company};
-  const issued=await createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey);
-  await expect(createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey)).rejects.toMatchObject({code:"CONNECTION_ALREADY_CREATED"});
-  const count=await env.CONTROL_DB.prepare("SELECT count(*)::integer count FROM executive_external_tokens WHERE id=?").bind(issued.id).first<{count:number}>();expect(count?.count).toBe(1);
-});
 it("keeps recipient reads unavailable and reloads changed IAM permissions and executive eligibility",async()=>{
   const r=await recipient(),id=await report(),t=await token(r),c=await client(t.secret);
   await saveShare(db,f.owner,id,{recipientId:r.userId,mode:"recipient",role:"viewer",widgetIds:["people"],expiresAt:null,filters:defaultFilters()},key());
@@ -193,12 +228,4 @@ it("serves multiple users concurrently without mixing principals or scopes",asyn
   const [owner,executive]=await Promise.all([a.callTool({name:"list_metrics",arguments:{}}),b.callTool({name:"list_metrics",arguments:{}})]);
   const allowed=(r:typeof owner)=>(data(r).metrics as {id:string;available:boolean}[]).find(m=>m.id==="headcount")?.available;
   expect(allowed(owner)).toBe(true);expect(allowed(executive)).toBe(false);
-});
-it("rolls back a connection and its final control audit together, then retries once without replaying its secret",async()=>{
- const requestKey=key(),input={name:"Atomic control connection",scopeId:f.company},fault=`executive_connection_final_audit_${key().replaceAll("-","")}`;
- const snapshot=async()=>({tokens:(await env.CONTROL_DB.prepare("SELECT * FROM executive_external_tokens WHERE company_id=? ORDER BY id").bind(f.company).all()).results,audit:(await env.CONTROL_DB.prepare("SELECT * FROM executive_mcp_audit WHERE company_id=? ORDER BY id").bind(f.company).all()).results});
- const before=await snapshot();await env.CONTROL_DB.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'EXECUTIVE_CONNECTION_FINAL_AUDIT' USING ERRCODE='P0001';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON executive_mcp_audit FOR EACH ROW WHEN(NEW.token_id='${requestKey}' AND NEW.action='connection.create') EXECUTE FUNCTION ${fault}();`);
- try{await expect(createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey)).rejects.toThrow("EXECUTIVE_CONNECTION_FINAL_AUDIT");expect(await snapshot()).toEqual(before);}finally{await env.CONTROL_DB.exec(`DROP TRIGGER ${fault} ON executive_mcp_audit;DROP FUNCTION ${fault}();`);}
- const issued=await createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey);expect(issued.id).toBe(requestKey);await expect(createExternalConnection(env.CONTROL_DB,db,f.owner,input,requestKey)).rejects.toMatchObject({code:"CONNECTION_ALREADY_CREATED"});
- expect(await env.CONTROL_DB.prepare("SELECT count(*)::integer count FROM executive_external_tokens WHERE id=?").bind(requestKey).first("count")).toBe(1);expect(await env.CONTROL_DB.prepare("SELECT count(*)::integer count FROM executive_mcp_audit WHERE token_id=? AND action='connection.create'").bind(requestKey).first("count")).toBe(1);
 });

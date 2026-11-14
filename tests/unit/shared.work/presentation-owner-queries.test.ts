@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   settings: vi.fn(), organization: vi.fn(), lifecycle: vi.fn(), management: vi.fn(), project: vi.fn(),
   portalList: vi.fn(), catalog: vi.fn(), provisioning: vi.fn(), bindings: vi.fn(), operations: vi.fn(),
   workspace: vi.fn(), slot: vi.fn(),
+  brand: { workspace: vi.fn(), profiles: vi.fn() },
 }));
 vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: state.holding, runtimeEnv: state.env, activeHoldingBindings: state.bindings }));
 vi.mock("@erpx/server-operations/public/staff-settings", () => ({ staffSettings: state.settings }));
@@ -22,12 +23,19 @@ vi.mock("@erpx/server-pms/public/pms-booking", () => ({ bookingDatabase: state.b
 vi.mock("@erpx/server-platform_administration/public/platform-operations", () => ({ platformProvisioningSnapshot: state.provisioning, summarizePlatformOperations: state.operations }));
 vi.mock("@erpx/server-work_projection/public/workspace-preferences", () => ({ readWorkspacePreference: state.workspace }));
 vi.mock("@erpx/server-manage_erpx/public/people-app-entrypoint-facts", () => ({ ownerOnboardingSlot: state.slot }));
+vi.mock("@erpx/server-brand/public/branding", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  resolveWorkspaceBrand: state.brand.workspace,
+  nativeListBrandProfiles: state.brand.profiles,
+}));
 import { peoplePayrollPresentationQueries } from "@erpx/server-people_payroll/public/presentation-queries";
 import { iamPresentationQueries } from "@erpx/server-identity_access/public/presentation-context-queries";
 import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
 import { legalPortalPresentationQueries } from "@erpx/server-legal/public/presentation-context-queries";
 import { bookingPresentationQueries } from "@erpx/server-pms/public/presentation-context-queries";
 import { platformOperationsForPresentation } from "@erpx/server-platform_administration/public/presentation-queries";
+import { workProjectionPresentationQueries } from "@erpx/server-work_projection/public/presentation-queries";
+import { operationsPresentationQueries } from "@erpx/server-operations/public/presentation-queries";
 import { publicBetaEnabled } from "@erpx/server-runtime/public/presentation-configuration";
 import { savedWorkspaceForPresentation } from "@erpx/server-work_projection/public/workspace-entry-presentation-query";
 import { onboardingPresentationQueries } from "@erpx/server-manage_erpx/public/onboarding-presentation-query";
@@ -126,5 +134,27 @@ describe("Owner presentation query composition", () => {
     state.workspace.mockResolvedValueOnce({ workspace_path: "/holdings/acme/home" });
     expect(await savedWorkspaceForPresentation("user")).toEqual({ workspace_path: "/holdings/acme/home" });
     expect(state.workspace).toHaveBeenCalledExactlyOnceWith(state.db, "user");
+  });
+  it("delegates the workspace brand and the operations profile list to the native Brand owner read", async () => {
+    const workspace = { scopeKind: "branch", scopeId: "branch", label: "North", initials: "N", primaryUrl: null, inverseUrl: null, documentMode: "both" };
+    const profiles = { holding: { ...workspace, scopeKind: "holding" }, branches: [workspace], storefront: { companyId: "company", holdingSlug: "acme", companySlug: "acme", companyName: "Acme", shortName: "Acme", accentColor: "#3659c9", logoUrl: null } };
+    state.brand.workspace.mockResolvedValueOnce(workspace);
+    const work = await workProjectionPresentationQueries("holding");
+    expect(await work.resolveWorkspaceBrand(actor)).toEqual(workspace);
+    expect(state.brand.workspace).toHaveBeenCalledExactlyOnceWith(actor);
+    expect(state.holding).toHaveBeenCalledExactlyOnceWith("holding");
+    state.brand.profiles.mockResolvedValueOnce(profiles);
+    const operations = await operationsPresentationQueries("holding");
+    expect(await operations.listBrandProfiles(actor)).toEqual(profiles);
+    expect(state.brand.profiles).toHaveBeenCalledExactlyOnceWith(actor);
+  });
+  it("propagates the native Brand refusal without substituting a retained read", async () => {
+    const refusal = { status: 409, code: "COMPANY_REQUIRED" };
+    const work = await workProjectionPresentationQueries("holding");
+    state.brand.workspace.mockRejectedValueOnce(refusal);
+    await expect(work.resolveWorkspaceBrand(actor)).rejects.toBe(refusal);
+    const operations = await operationsPresentationQueries("holding");
+    state.brand.profiles.mockRejectedValueOnce(refusal);
+    await expect(operations.listBrandProfiles(actor)).rejects.toBe(refusal);
   });
 });

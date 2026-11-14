@@ -2,13 +2,15 @@ import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {z} from "zod";
 import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin";
-import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
+import {publicScope,requireWorkContext} from "@erpx/server-identity_access/public/authorization";
 import {holdingResources} from "../../../../../../../../../packages/server-runtime/src/public/runtime";
 import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
 import {attachmentsV2ReadOnly} from "@erpx/server-files/public/attachments/feature";
 import {attachmentPolicy,authorizeAttachmentTarget} from "@erpx/server-files/public/attachments/policy";
 import {createAttachmentSet,reserveAttachmentFile} from "@erpx/server-files/public/attachments/service";
 import {legacyAttachmentPolicy} from "@erpx/server-files/public/attachments/legacy-policy";
+import {withNativeSupportAttachment} from "@erpx/server-files/public/native-support-attachments";
+import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
 import {appUploadTaskState} from "@erpx/server-operations/public/app-upload-task-source";
 const allowedTypes = [
   "image/jpeg",
@@ -71,6 +73,23 @@ export async function POST(
     if (!attachmentsV2ReadOnly()) {
       const commandKey=request.headers.get("Idempotency-Key")??"";
       if(!/^[a-zA-Z0-9:_.-]{8,180}$/.test(commandKey))throw new ApiError(422,"COMMAND_KEY_REQUIRED","A valid Idempotency-Key is required.");
+      if(parsed.data.ownerType==="support_ticket"){
+        const mapped=legacyAttachmentPolicy(parsed.data.ownerType,parsed.data.purpose);
+        if(!mapped)throw new ApiError(422,"ATTACHMENT_PURPOSE_UNSUPPORTED","This legacy file purpose is not registered. Use an explicit attachment set and purpose.");
+        if(parsed.data.expectedVersion===undefined)throw new ApiError(422,"EXPECTED_VERSION_REQUIRED","Add the current Support case version.");
+        const data=await withNativeSupportAttachment(async client=>{
+          const set=await client.create(request.headers,actor,{key:`${commandKey}:set`,targetId:parsed.data.ownerId,purposeKey:mapped.purposeKey as "support_evidence"|"internal_evidence"|"customer_shareable",expectedTargetVersion:parsed.data.expectedVersion!});
+          const reserved=await client.reserve(request.headers,actor,set.id,{key:`${commandKey}:file`,filename:parsed.data.filename,mediaType:parsed.data.mediaType,bytes:parsed.data.bytes});
+          return {set,reserved};
+        });
+        return Response.json(canonicalDestinationLinks({data:{
+          id:data.reserved.uploadIntentId,
+          ...data.reserved,
+          uploadUrl:`/api/v1${workspaceBase(publicScope(actor))}/uploads/${data.reserved.uploadIntentId}/content`,
+          attachmentSetId:data.set.id,
+          expectedTargetVersion:parsed.data.expectedVersion,
+        }}),{status:201});
+      }
       const mapped=legacyAttachmentPolicy(parsed.data.ownerType,parsed.data.purpose);
       if(!mapped)throw new ApiError(422,"ATTACHMENT_PURPOSE_UNSUPPORTED","This legacy file purpose is not registered. Use an explicit attachment set and purpose.");
       const {write}=await holdingResources(actor.holdingId),policy=attachmentPolicy(parsed.data.ownerType,mapped.purposeKey,mapped.componentKind),scope=await authorizeAttachmentTarget(write,actor,policy,parsed.data.ownerId,"write");

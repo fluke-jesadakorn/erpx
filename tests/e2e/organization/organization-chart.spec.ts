@@ -149,12 +149,28 @@ test("occupancy filters preserve selection, search, refresh and browser Back", a
   const base = await organizationSession(context, "hr_admin");
   const organization = await chartPrerequisites(page, context, base, await readOrganization(context, base), "vacant");
   const drafts = await mockPeopleDraft(page, organization), directory = await readPeopleDirectory(context, base);
-  const companyId = organization.positions[0].company_id, positions = directory.positions.filter(position => position.companyId === companyId);
-  const people = directory.people.filter(person => person.companyId === companyId);
+  const companyId = organization.positions[0].company_id;
+  const companyPositions = directory.positions.filter(position => position.companyId === companyId);
+  const companyPeople = directory.people.filter(person => person.companyId === companyId);
+  const department = directory.nodes.find(node => node.kind === "department" && companyPositions.some(position => position.departmentId === node.id && !companyPeople.some(person => person.positionId === position.id)))!;
+  const positions = companyPositions.filter(position => position.departmentId === department.id);
+  const people = companyPeople.filter(person => person.departmentId === department.id);
   const filled = positions.filter(position => people.some(person => person.positionId === position.id));
   const vacant = positions.filter(position => !people.some(person => person.positionId === position.id));
   expect(filled.length).toBeGreaterThan(0); expect(vacant.length).toBeGreaterThan(0);
   await openPeopleWorkspace(page, `${base}/people?${new URLSearchParams({ unit: `company:${companyId}`, occupancy: "invalid" })}`);
+  await expect(page.getByTestId("people-result-counts")).toContainText(`${companyPositions.length} positions · ${companyPeople.length} people`);
+  await expect(positionRows(page)).toHaveCount(0);
+  await expect(occupancyFilters(page)).toHaveCount(0);
+  await page.getByTestId(`people-unit-summary-${department.branchId}`).getByRole("button").first().click();
+  await expect(page.getByTestId(`people-unit-summary-${department.id}`)).toBeVisible();
+  await page.getByTestId(`people-unit-summary-${department.id}`).getByRole("button").first().click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("unit")).toBe(`department:${department.id}`);
+  await page.goBack();
+  await expect(page.getByTestId(`people-unit-summary-${department.id}`)).toBeVisible();
+  await page.goForward();
+  await expect(positionRows(page)).toHaveCount(positions.length);
+  await page.reload();
   await expect(occupancyButton(page, "All")).toHaveAttribute("aria-pressed", "true");
   await expect(occupancyButton(page, "All")).toHaveText(`All${positions.length}`);
   await expect(occupancyButton(page, "Filled")).toHaveText(`Filled${filled.length}`);
@@ -165,7 +181,7 @@ test("occupancy filters preserve selection, search, refresh and browser Back", a
   await expect(positionRows(page)).toHaveCount(filled.length);
   await expect(page.getByTestId("people-unassigned")).toHaveCount(0);
   await expect(page.locator('[data-occupancy="vacant"]')).toHaveCount(0);
-  await expect.poll(() => new URL(page.url()).searchParams.get("unit")).toBe(`company:${companyId}`);
+  await expect.poll(() => new URL(page.url()).searchParams.get("unit")).toBe(`department:${department.id}`);
   await occupancyButton(page, "Vacant").click();
   await expect(positionRows(page)).toHaveCount(vacant.length);
   await expect(page.locator('[data-testid^="people-person-"]')).toHaveCount(0);
@@ -181,9 +197,10 @@ test("occupancy filters preserve selection, search, refresh and browser Back", a
   await page.getByTestId(`people-person-${person.engagementId}`).getByRole("button").first().click();
   const detail = page.getByTestId("people-detail");
   await expect(detail.getByRole("heading", { name: person.legalName, exact: true })).toBeVisible({ timeout: 30_000 });
-  // Keep the detail beside the list so occupancy can change without closing it.
-  await page.setViewportSize({ width: 2560, height: 1200 });
+  await expect(detail).toHaveAttribute("role", "dialog");
+  await detail.getByRole("button", {name: "Close details", exact: true}).click();
   await occupancyButton(page, "Filled").click();
+  await page.getByTestId(`people-person-${person.engagementId}`).getByRole("button").first().click();
   await expect.poll(() => new URL(page.url()).searchParams.get("occupancy")).toBe("filled");
   await expect.poll(() => new URL(page.url()).searchParams.get("person")).toBe(person.engagementId);
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe(person.legalName);
@@ -219,14 +236,15 @@ test("Without position and Archived exclude vacancy filters and empty position r
   await expect(positionRows(page)).toHaveCount(0);
   await expect(page.getByTestId("people-unassigned")).toHaveCount(0);
   await openPeopleWorkspace(page, `${base}/people?${new URLSearchParams({ unit: `company:${companyId}`, occupancy: "vacant", status: "archived" })}`);
-  await expect(page.getByRole("heading", { name: "Archived people", exact: true })).toBeVisible();
+  await expect(page.getByTestId("people-result-counts")).toContainText("archived people");
   await expect(occupancyFilters(page)).toHaveCount(0);
   await expect(page.getByText("Vacant position", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "+ Add person", exact: true })).toHaveCount(0);
   expect(await positionRows(page).evaluateAll(rows => rows.every(row => !!row.querySelector('[data-testid^="people-person-"]')))).toBe(true);
   if (info.project.name === "mobile") await page.getByRole("button", { name: /^Choose unit/ }).click();
   await page.getByRole("combobox", { name: "People status" }).selectOption("current");
-  await expect(occupancyButton(page, "Vacant")).toHaveAttribute("aria-pressed", "true");
+  await expect(occupancyFilters(page)).toHaveCount(0);
+  await expect(page.getByTestId("people-unit-summaries")).toBeVisible();
   expect(drafts.writes).toEqual([]);
 });
 
@@ -241,7 +259,7 @@ test("compact groups retain multiple holders, duplicate titles and keyboard acti
   const holders = directory.people.filter(person => person.positionId === multiple.id);
   const duplicates = positions.filter(position => position.title === multiple.title);
   expect(duplicates.length).toBeGreaterThan(1);
-  await openPeopleWorkspace(page, `${base}/people?${new URLSearchParams({ unit: `company:${companyId}` })}`);
+  await openPeopleWorkspace(page, `${base}/people?${new URLSearchParams({ unit: `company:${companyId}`, q: directory.companies.find(company => company.id === companyId)!.name })}`);
   const row = page.getByTestId(`people-position-${multiple.id}`);
   for (const position of duplicates) await expect(page.getByTestId(`people-position-${position.id}`)).toBeVisible();
   for (const holder of holders) {
@@ -299,7 +317,7 @@ test("mocked draft moves update occupancy, group counts and Undo immediately", a
   const person = directory.people.find(person => person.positionId === source.id)!;
   const filledCount = positions.filter(position => directory.people.some(person => person.positionId === position.id)).length;
   expect(source && target && person).toBeTruthy();
-  await openPeopleWorkspace(page, `${base}/people?${new URLSearchParams({ unit: `company:${companyId}`, occupancy: "filled" })}`);
+  await openPeopleWorkspace(page, `${base}/people?${new URLSearchParams({ unit: `company:${companyId}`, q: directory.companies.find(company => company.id === companyId)!.name, occupancy: "filled" })}`);
   const personRow = page.getByTestId(`people-person-${person.engagementId}`);
   await personRow.getByRole("button", { name: `Actions for ${person.legalName}`, exact: true }).click();
   await personRow.getByRole("menuitem", { name: "Move…", exact: true }).click();
@@ -379,27 +397,23 @@ test("legacy organization selection survives refresh and browser Back in the sin
   await expect.poll(() => new URL(page.url()).searchParams.get("position")).toBe(position.id);
   const detail = page.getByTestId("people-detail");
   await expect(detail.getByRole("heading", { name: position.title, exact: true })).toBeVisible();
-  if (info.project.name === "mobile") {
-    await detail.getByRole("button", { name: "Close details", exact: true }).click();
-    await expect(detail).toHaveCount(0);
-    await expect.poll(() => new URL(page.url()).searchParams.get("position")).toBeNull();
-  }
+  await detail.getByRole("button", { name: "Close details", exact: true }).click();
+  await expect(detail).toHaveCount(0);
+  await expect.poll(() => new URL(page.url()).searchParams.get("position")).toBeNull();
   await page.getByRole("searchbox", { name: "Search people, positions, and units" }).fill(person.legal_name);
   await page.getByTestId(`people-person-${person.engagement_id}`).getByRole("button").first().click();
   await expect(detail.getByRole("heading", { name: person.legal_name, exact: true })).toBeVisible();
   await page.goBack();
-  if (info.project.name === "mobile") {
-    await expect(detail).toHaveCount(0);
-    await expect.poll(() => new URL(page.url()).searchParams.get("person")).toBeNull();
-    await expect(page.getByRole("searchbox", { name: "Search people, positions, and units" })).toHaveValue(person.legal_name);
-    await page.goBack();
-  }
+  await expect(detail).toHaveCount(0);
+  await expect.poll(() => new URL(page.url()).searchParams.get("person")).toBeNull();
+  await expect(page.getByRole("searchbox", { name: "Search people, positions, and units" })).toHaveValue(person.legal_name);
+  await page.goBack();
   await expect(detail.getByRole("heading", { name: position.title, exact: true })).toBeVisible();
   await page.reload();
   await expect(detail.getByRole("heading", { name: position.title, exact: true })).toBeVisible();
   await expect(page.getByRole("tablist")).toHaveCount(0);
   await detail.getByRole("button", { name: "Close details", exact: true }).click();
-  await page.getByRole("searchbox", { name: "Search people, positions, and units" }).fill("");
+  await page.getByRole("searchbox", { name: "Search people, positions, and units" }).fill(organization.nodes.find(node => node.id === position.department_id)!.display_name);
   const bottomPosition = page.locator('[data-testid^="people-position-"]').last();
   const bottomId = (await bottomPosition.getAttribute("data-testid"))!.slice("people-position-".length);
   const bottomTitle = organization.positions.find(position => position.id === bottomId)!.title;

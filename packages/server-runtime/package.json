@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./domain/native-engineering-roster": "./src/domain/native-engineering-roster.ts",
+    "./public/native-engineering-roster": "./src/public/native-engineering-roster.ts",
     "./adapters/identity-management-binding-facts": "./src/adapters/identity-management-binding-facts.ts",
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
     "./adapters/application-request": "./src/adapters/application-request.ts",
@@ -18,6 +20,7 @@
     "./adapters/runtime/migrations": "./src/adapters/runtime/migrations.ts",
     "./adapters/runtime/read-metrics": "./src/adapters/runtime/read-metrics.ts",
     "./adapters/runtime/jobs": "./src/adapters/runtime/jobs.ts",
+    "./adapters/runtime/native-legal-worker": "./src/adapters/runtime/native-legal-worker.ts",
     "./adapters/runtime/redis-cache": "./src/adapters/runtime/redis-cache.ts",
     "./adapters/runtime/types": "./src/adapters/runtime/types.ts",
     "./adapters/runtime/filesystem": "./src/adapters/runtime/filesystem.ts",
@@ -117,6 +120,7 @@
     "./public/executive/access": "./src/public/executive/access.ts",
     "./public/executive/brand-evidence-contract": "./src/public/executive/brand-evidence-contract.ts",
     "./public/executive/connections": "./src/public/executive/connections.ts",
+    "./public/executive/native-connections": "./src/public/executive/native-connections.ts",
     "./public/executive/crm-evidence": "./src/public/executive/crm-evidence.ts",
     "./public/executive/agent-evidence": "./src/public/executive/agent-evidence.ts",
     "./public/executive/evidence-contract": "./src/public/executive/evidence-contract.ts",
@@ -171,7 +175,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.984.0",
+    "@aws-sdk/client-s3": "3.1156.0",
     "@erpx/catalogue": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
@@ -220,12 +224,12 @@
     "@erpx/server-talent": "workspace:*",
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "@modelcontextprotocol/server": "2.3.0",
-    "drizzle-orm": "0.45.2",
-    "pg": "8.23.0",
-    "redis": "6.2.1",
-    "sanitize-html": "2.17.7",
+    "@modelcontextprotocol/server": "2.4.0",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "redis": "6.3.0",
+    "sanitize-html": "2.18.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

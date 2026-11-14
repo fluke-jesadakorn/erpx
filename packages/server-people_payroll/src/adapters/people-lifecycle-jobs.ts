@@ -4,7 +4,6 @@ import "server-only";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import type { LifecycleCase } from "@erpx/feature-people_payroll/lib/people-lifecycle";
-import { drainPositionMoves } from "@erpx/server-organization/public/position-moves";
 import type { PoolClient } from 'pg';
 import { type LifecycleEngagementFacts } from '@erpx/server-people_payroll/domain/people-lifecycle-jobs';
 import { createPeopleLifecycleWorker, type PeopleLifecycleWorkerRepository } from '@erpx/server-people_payroll/application/people-lifecycle-jobs';
@@ -16,6 +15,7 @@ import {transactionDatabase} from '@erpx/server-runtime/public/runtime/postgres'
 import {peoplePackageEnforcementMode,holdingPurchaseReadLocks,purchaseCommandBoundary,checkPurchasedCapability,purchaseCommandFailure,companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 function repository(client: PoolClient): PeopleLifecycleWorkerRepository {
     return { readAvailable() { return client.query<{
             available: boolean;
@@ -67,7 +67,7 @@ function repository(client: PoolClient): PeopleLifecycleWorkerRepository {
         applyEffect24(currentId: string, now: number, code: string) { return client.query<Record<string, unknown>>("UPDATE people_lifecycle_cases SET attempts=attempts+1,next_attempt_at=$2+LEAST(3600000,1000*power(2,LEAST(attempts,12)))::bigint,last_error=$3 WHERE id=$1 AND status='scheduled'", [currentId, now, code]); } };
 }
 export async function drainPeopleLifecycle(raw: PostgresDatabase, now = Date.now()) { const mode=await peoplePackageEnforcementMode();return createPeopleLifecycleWorker({ withSession: async (run) => { const client = await iamDb(raw).pool.connect(); try {
-        return await run({ repository: repository(client), transaction: async (run) => { const projectTarget=await projectWorkerJobPreflight(raw,now);await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE'); try {
+        return await run({ repository: repository(client), transaction: async (run) => { const projectTarget=await projectWorkerJobPreflight(transactionDatabase(client),now);await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE'); try {
                 const database=transactionDatabase(client),original=repository(client);
                 let projectJob:Awaited<ReturnType<typeof prepareProjectWorkerJob>>|undefined;
                 if(projectTarget){await projectWorkerJobSourceLocks(database);await database.batch(companyPurchaseReadLocks(database,projectTarget.company_id).slice(1));}
@@ -82,7 +82,7 @@ export async function drainPeopleLifecycle(raw: PostgresDatabase, now = Date.now
                 }};
                 const result = await run({ repository: guarded });
                 if(projectJob)await projectJob.finish();
-                else if(selected){await flushFinanceDeferredEffects(database);if(queuedAuthority&&!(await original.readValid(queuedAuthority,Date.now())).rowCount)throw Error("LIFECYCLE_AUTHORITY_CHANGED");const current=await database.prepare(sourceImageSql).bind(selected.id).first<string>("image");if(!sourceImage||sourceImage!==current)throw Error("LIFECYCLE_PURCHASE_SOURCE_CHANGED");const observed=await database.batch([...boundary!.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(boundaryKey)]);boundary!.observe?.(observed);}
+                else if(selected){await flushFinanceDeferredEffects(database);if(queuedAuthority&&!(await original.readValid(queuedAuthority,Date.now())).rowCount)throw Error("LIFECYCLE_AUTHORITY_CHANGED");const current=await database.prepare(sourceImageSql).bind(selected.id).first<string>("image");if(!sourceImage||sourceImage!==current)throw Error("LIFECYCLE_PURCHASE_SOURCE_CHANGED");const observed=await database.batch([...boundary!.after,clearWorkflowCommandAssertions(database, boundaryKey!)]);boundary!.observe?.(observed);}
                 await client.query('COMMIT');
                 return result;
             }
@@ -93,4 +93,4 @@ export async function drainPeopleLifecycle(raw: PostgresDatabase, now = Date.now
     }
     finally {
         client.release();
-    } }, drainPositionMoves: time => drainPositionMoves(raw, time), drainOrganizationDrafts: time => drainOrganizationDrafts(raw, time) }).drainPeopleLifecycle(now); }
+    } }, drainOrganizationDrafts: time => drainOrganizationDrafts(raw, time) }).drainPeopleLifecycle(now); }

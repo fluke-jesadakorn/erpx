@@ -6,7 +6,7 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { currentPushSession } from '@erpx/server-identity_access/public/collaboration-push-session';
-import { sessionFromRequest } from '@erpx/server-identity_access/public/auth';
+import { sessionFromRequest } from '@erpx/server-identity_access/public/account-session';
 import { holdingBindingBySlug, holdingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { requestPublicOrigin } from '@erpx/server-manage_erpx/public/public-origin';
 import { configuredProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
@@ -152,6 +152,7 @@ function application(db: SqlDatabase, control?: SqlDatabase) {
         }, async removeInvalidSubscription(id: string) { return db.prepare("DELETE FROM push_subscriptions WHERE id=?").bind(id).run(); }, async newDeliveries(company_id: string, user_id: string, cursor_at: number, cursor_id: string) {
             return db.prepare(`SELECT d.id,d.delivered_at,e.category FROM inbox_deliveries d
       JOIN inbox_events e ON e.id=d.event_id WHERE d.company_id=? AND d.user_id=?
+      AND NOT erpx_field_push_source(e.source_type,e.source_id,e.company_id)
       AND (d.delivered_at,d.id)>(?,?) ORDER BY d.delivered_at,d.id LIMIT 50`)
                 .bind(company_id, user_id, cursor_at, cursor_id)
                 .all<{
@@ -173,7 +174,7 @@ function application(db: SqlDatabase, control?: SqlDatabase) {
         }, async leasePendingDelivery(value: unknown, value2: number, now: number, now2: number) {
             return db.prepare(`UPDATE push_delivery_jobs SET lease_token=?,lease_until=?,attempts=attempts+1
       WHERE id=(SELECT j.id FROM push_delivery_jobs j WHERE j.status='pending' AND j.next_attempt_at<=?
-        AND (j.lease_until IS NULL OR j.lease_until<?) ORDER BY j.next_attempt_at,j.id
+        AND (j.lease_until IS NULL OR j.lease_until<?) AND NOT erpx_field_push_job(j) ORDER BY j.next_attempt_at,j.id
         FOR UPDATE SKIP LOCKED LIMIT 1)
       RETURNING *`).bind(value, value2, now, now2).first<DeliveryJob>();
         }, async currentDelivery(id: string, lease_token: string) {

@@ -24,7 +24,6 @@
     "./adapters/metric-purchases": "./src/adapters/metric-purchases.ts",
     "./adapters/collaboration-notification-lead": "./src/adapters/collaboration-notification-lead.ts",
     "./adapters/sales-package-obligations": "./src/adapters/sales-package-obligations.ts",
-    "./adapters/customer-authority-merge": "./src/adapters/customer-authority-merge.ts",
     "./adapters/analytics-purchases": "./src/adapters/analytics-purchases.ts",
     "./adapters/collaboration-notification-snapshot-sources": "./src/adapters/collaboration-notification-snapshot-sources.ts",
     "./adapters/activities": "./src/adapters/activities.ts",
@@ -51,7 +50,6 @@
     "./public/metric-purchases": "./src/public/metric-purchases.ts",
     "./public/collaboration-notification-lead": "./src/public/collaboration-notification-lead.ts",
     "./public/sales-package-obligations": "./src/public/sales-package-obligations.ts",
-    "./public/customer-authority-merge": "./src/public/customer-authority-merge.ts",
     "./public/collaboration-notification-snapshot-sources": "./src/public/collaboration-notification-snapshot-sources.ts",
     "./index": "./src/index.ts",
     "./application/analytics": "./src/application/analytics.ts",
@@ -91,6 +89,6 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

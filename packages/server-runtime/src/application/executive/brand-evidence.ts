@@ -5,7 +5,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { brandEvidenceMetrics, type BrandEvidenceMetric, providerId, fields, inputSchema, type BrandProfileRow, parseCursor, encodeCursor, safeRevision, notFound, timeRange } from '@erpx/server-runtime/domain/executive/brand-evidence';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
-import type { brandProfileEvidenceRow } from "@erpx/server-brand/public/branding";
+import type { readBrandProfileEvidence } from "@erpx/server-brand/public/branding";
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { companyAuthority } from "@erpx/server-operations/public/staff-policy";
 import type { currentAuthority } from "@erpx/server-runtime/public/executive/access";
@@ -29,7 +29,7 @@ export interface BrandEvidencePorts {
     repository: BrandEvidenceRepository;
     clock: Clock;
     digest(value: string): Promise<string>;
-    brandProfileEvidenceRow(...args: Tail<Parameters<typeof brandProfileEvidenceRow>>): ReturnType<typeof brandProfileEvidenceRow>;
+    brandProfileEvidenceRow(...args: Parameters<typeof readBrandProfileEvidence>): ReturnType<typeof readBrandProfileEvidence>;
     assertProductionModuleEnabled(...args: Tail<Parameters<typeof assertProductionModuleEnabled>>): ReturnType<typeof assertProductionModuleEnabled>;
     companyAuthority(...args: Tail<Parameters<typeof companyAuthority>>): ReturnType<typeof companyAuthority>;
     currentAuthority(...args: Tail<Parameters<typeof currentAuthority>>): ReturnType<typeof currentAuthority>;

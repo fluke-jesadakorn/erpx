@@ -1391,48 +1391,8 @@
     },
     {
       "runner": "vitest",
-      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
-      "title": "issuing requires an approved binding that is still current"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
-      "title": "resend advances the signed generation and persists only the token hash"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
-      "title": "Customer Portal invitation verification rejects modified signatures, claims, and malformed tokens"
-    },
-    {
-      "runner": "vitest",
       "file": "tests/integration/customer_authority/customer-access.test.ts",
       "title": "issues a tenant-token invitation and binds only the invited verified Portal identity"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "resend supersedes the previous invitation and accepts only the replacement token"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes queued invitations after their source order is canceled"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes sent invitations after their source order is canceled"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes queued invitations when their customer binding is revoked"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/integration/customer_authority/customer-access.test.ts",
-      "title": "revokes sent invitations when their customer binding is revoked"
     },
     {
       "runner": "vitest",
@@ -1957,10 +1917,24 @@
       "project": "desktop"
     },
     {
-      "runner": "playwright",
-      "file": "tests/e2e/maintenance/workspace-editor-smoke.spec.ts",
-      "title": "Maintenance preventive plan editor opens once after hydration and closes without changes",
-      "project": "desktop"
+      "runner": "vitest",
+      "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+      "title": "keeps equal external subjects separate across providers after the Better Auth account identity migration"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/shared.attachments/attachments-v2.test.ts",
+      "title": "canonical attachment lifecycle serializes a legacy upload against concurrent Field lineage birth before bytes are written"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/people_payroll/leave-attachment-lock.test.ts",
+      "title": "Leave attachment serialization locks Leave before upload rows when approval races file completion"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/people_payroll/expense-v2.test.ts",
+      "title": "rechecks the actual Expense purchase when file completion races entitlement withdrawal"
     }
   ]
 }

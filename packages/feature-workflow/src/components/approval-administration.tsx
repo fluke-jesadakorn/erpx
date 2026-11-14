@@ -24,6 +24,7 @@ export async function ApprovalAdministration({
   const data = await approvalAdministrationData(actor, kind, record);
   if (!data) notFound();
   const { options, rows } = data;
+  const nativeEvidence = data.nativeEvidence?.approval ?? null;
   if (record && !rows.length)
     return (
       <Card as="section" appearance="standard" className="ui-panel">
@@ -93,6 +94,44 @@ export async function ApprovalAdministration({
           </article>
         ))}
       </Card>
+      {nativeEvidence && (
+        <Card as="section" appearance="standard" className="ui-panel">
+          <h2>Native approval evidence</h2>
+          <p className="muted">
+            Owner-issued approval route, decisions and linked command evidence for{" "}
+            {nativeEvidence.instance.record_id}.
+          </p>
+          <p>
+            {nativeEvidence.instance.phase} · cycle {nativeEvidence.instance.cycle} ·{" "}
+            {nativeEvidence.instance.state} · version {nativeEvidence.instance.version}
+          </p>
+          {nativeEvidence.steps.length > 0 && (
+            <ol>
+              {nativeEvidence.steps.map((step) => (
+                <li key={step.id}>
+                  {step.approver_user_id} · {step.authority} · {step.state}
+                </li>
+              ))}
+            </ol>
+          )}
+          {nativeEvidence.history.map((decision) => (
+            <article className="ui-record-item" key={decision.id}>
+              <div className="row-main">
+                <strong>
+                  {decision.action} · {decision.actor_user_id}
+                </strong>
+                <p>{decision.reason || "No additional note"}</p>
+                <small>Reviewed version {decision.reviewed_version}</small>
+              </div>
+            </article>
+          ))}
+          <p className="muted">
+            {nativeEvidence.receipts.length} receipt(s),{" "}
+            {nativeEvidence.audit.length} audit event(s),{" "}
+            {nativeEvidence.outbox.length} outbox event(s).
+          </p>
+        </Card>
+      )}
     </>
   );
 }

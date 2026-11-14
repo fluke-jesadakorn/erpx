@@ -56,7 +56,7 @@ try {
   const css = Object.keys(receipt.files).find(file => file.startsWith(staticPrefix) && file.endsWith('.css'));
   const asset = Object.keys(receipt.files).find(file => file.startsWith('standalone/public/brand/') && /\.(?:svg|png)$/.test(file));
   if (!css || !asset) throw new Error('ARTIFACT_CSS_AND_BRAND_REQUIRED');
-  const pdfAssets=['pdf.worker.min.mjs','cmaps/78-EUC-H.bcmap','standard_fonts/LiberationSans-Regular.ttf','wasm/openjpeg.wasm'].map(name=>`standalone/public/vendor/pdfjs-6.3.289/${name}`);
+  const pdfAssets=['pdf.worker.min.mjs','cmaps/78-EUC-H.bcmap','standard_fonts/LiberationSans-Regular.ttf','wasm/openjpeg.wasm'].map(name=>`standalone/public/vendor/pdfjs-6.4.299/${name}`);
   if(pdfAssets.some(file=>!receipt.files[file]))throw new Error('ARTIFACT_PDF_RUNTIME_ASSETS_REQUIRED');
   for (const [file, path] of [[css, '/_next/static/' + css.slice(staticPrefix.length)], [asset, '/' + asset.slice('standalone/public/'.length)],...pdfAssets.map(file=>[file,'/'+file.slice('standalone/public/'.length)])]) {
     const response = await localResponse(path,10_000);

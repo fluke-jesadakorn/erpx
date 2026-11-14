@@ -12,8 +12,10 @@
     "./components/attachment-feature-context": "./src/components/attachment-feature-context.tsx",
     "./components/record-document-drawer": "./src/components/record-document-drawer.tsx",
     "./lib/attachment-state": "./src/lib/attachment-state.ts",
+    "./lib/native-field-withdraw": "./src/lib/native-field-withdraw.ts",
     "./lib/attachment-client": "./src/lib/attachment-client.ts",
-    "./lib/document-pages": "./src/lib/document-pages.ts"
+    "./lib/document-pages": "./src/lib/document-pages.ts",
+    "./lib/native-field-bind": "./src/lib/native-field-bind.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -24,9 +26,9 @@
     "@erpx/feature-shared": "workspace:*",
     "@erpx/feature-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
-    "pdfjs-dist": "6.3.289",
-    "react": "19.3.0"
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
+    "pdfjs-dist": "6.4.299",
+    "react": "19.3.1"
   }
 }

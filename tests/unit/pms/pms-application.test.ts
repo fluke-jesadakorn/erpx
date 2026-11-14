@@ -1,3 +1,4 @@
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import { ownedReleaseReadDiagnostics } from "@erpx/server-runtime/adapters/runtime/read-request";
 import {expect,it,vi} from "vitest";
 import {pmsPackageCommandAllowed} from "@erpx/feature-pms/lib/package-access";
@@ -7,7 +8,6 @@ import {createPmsReportsApplication,type PmsReportsRepository} from "@erpx/serve
 import {createGuestBookingDocument,type GuestDocumentUnit} from "@erpx/server-pms/application/guest-document";
 import {createStaffBookingChange} from "@erpx/server-pms/application/staff-booking-changes";
 import {createPmsRollout,type PmsRolloutRepository} from "@erpx/server-pms/application/hospitality-rollout";
-import {createPmsSocialProjector,type PmsSocialUnit} from "@erpx/server-pms/application/social-events";
 import {createPmsImport,type PmsImportRepository} from "@erpx/server-pms/application/import";
 import {createPmsBookingRefund,type PmsBookingRefundPorts,type PmsBookingRefundRepository} from "@erpx/server-pms/application/pms-booking-refunds";
 import {productionAccepted} from "@erpx/server-pms/application/hospitality-evidence";
@@ -16,7 +16,6 @@ import {newProperty,executePms} from "@erpx/feature-pms/lib/pms-engine";
 import {createPmsApplication,type PmsUnit} from "@erpx/server-pms/application/pms";
 import {createPmsBooking,type PmsBookingUnit,type PmsBookingRepository} from "@erpx/server-pms/application/pms-booking";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {EventMessage} from "@erpx/server-workflow/public/job-projector";
 function repository<T extends object>(operations:Partial<T>):T{return new Proxy(operations as T,{get(target,name){if(name==="then")return undefined;if(name in target)return Reflect.get(target,name);return ()=>{throw new Error(`unexpected operation: ${String(name)}`);};}});}
 const error=(_status:number,code:string)=>new Error(code),clock={now:()=>100};
 const actor:WorkContext={userId:"reviewer",name:"Reviewer",email:"reviewer@example.test",assignmentId:"assignment",role:"holding_owner",companyId:"company",branchId:null,departmentId:null,holdingId:"H001",holdingSlug:"test",holdingName:"Test",scope:{kind:"holding",holdingId:"H001",holdingSlug:"test",holdingName:"Test",companyId:"company"},assignmentScope:"holding",inherited:false,modules:["pms"],assignments:[],workspaces:[]};
@@ -62,8 +61,6 @@ it("production activation denies a command when no current owner rollout is enab
 it("rollout mutation requires company scope before loading persistence",async()=>{await expect(rollout().changeCompanyFeatureRollout({...actor,branchId:"branch"},{},"key")).rejects.toThrow("FEATURE_COMPANY_REQUIRED");});
 it("formal delivery acceptance requires all four retained evidence gates",()=>{for(const missing of ["automated","browser","provider","production"]as const)expect(productionAccepted({automated:true,browser:true,provider:true,production:true,[missing]:false})).toBe(false);expect(productionAccepted(undefined)).toBe(false);expect(productionAccepted({automated:true,browser:true,provider:true,production:true})).toBe(true);});
 it("PMS source rules keep housekeeping away from guest account and refund money",()=>{const source: PmsSource={id:"source",property_id:"hotel",company_id:"company",branch_id:"branch",property_name:"Hotel",business_date:"2026-10-05",kind:"task",data:{},version:1,updated_at:100};const housekeeper={...actor,role:"pms_housekeeping"};expect(pmsSourceAllowed(housekeeper,source)).toBe(true);for(const kind of ["guest_account","refund","transfer"])expect(pmsSourceAllowed(housekeeper,{...source,kind})).toBe(false);});
-it("unrelated outbox events never open a PMS projection transaction",async()=>{const app=createPmsSocialProjector({transaction:async()=>{throw new Error("unexpected transaction");},clock,hash:()=>"digest"});await expect(app.projectPmsSocialEvent(repository<EventMessage>({eventType:"other.event"}))).resolves.toBeUndefined();});
-it("a retained PMS event receipt stops feed and notification writes",async()=>{const row:PmsSource={id:"reservation",property_id:"hotel",company_id:"company",branch_id:"branch",property_name:"Hotel",business_date:"2026-10-05",kind:"reservation",data:{state:"confirmed"},version:1,updated_at:100};const unit=repository<PmsSocialUnit>({original:async()=>({command_id:"command",created_at:100,actor_id:"creator",result_json:JSON.stringify({id:"reservation",propertyId:"hotel"})}),source:async()=>row,lock:async()=>null,received:async()=>({id:"receipt"})});const app=createPmsSocialProjector({transaction:async work=>work(unit),clock,hash:()=>"digest"});await expect(app.projectPmsSocialEvent(repository<EventMessage>({id:"event",eventType:"pms.reservation.create",aggregateId:"hotel",payload:{id:"hotel",version:1,companyId:"company",branchId:"branch",departmentId:null}}))).resolves.toBeUndefined();});
 it("PMS import permission withdrawal prevents preview validation and unit-of-work acquisition",async()=>{const app=createPmsImport<never>({clock,hash:()=>"digest",require:()=>{throw error(403,"REVOKED");},error,isBusinessError:(_e):_e is Error&{code:string}=>{void _e;return false;}});await expect(app.previewPmsImport(repository<PmsImportRepository<never>>({}),actor,{},"key")).rejects.toThrow("REVOKED");});
 it("PMS refund approval checks operational permission before querying the payment",async()=>{const permissions:string[]=[];const ports=repository<PmsBookingRefundPorts>({clock,require:(_actor,permission)=>{permissions.push(permission);throw error(403,"REVOKED");},error});const app=createPmsBookingRefund(ports);await expect(app.approveBookingRefund(repository<PmsBookingRefundRepository>({}),{...actor,branchId:"branch"},"payment")).rejects.toThrow("REVOKED");expect(permissions).toEqual(["pms.approve"]);});
 it("Finance receipt recovery requires an owner reason before consulting Stripe",async()=>{const app=createPmsBookingRefund(repository<PmsBookingRefundPorts>({clock,require:()=>{},error}));await expect(app.recoverBookingReceipt(repository<PmsBookingRefundRepository>({}),actor,"refund","no")).rejects.toThrow("PMS_RECEIPT_RECOVERY_INPUT");});
@@ -367,7 +364,7 @@ it("the actual PMS worker uses Booking for newly reconciled guest mail while pre
   if(name.endsWith('/pms'))return {drainPms:drain};
   throw Error('Unexpected worker module: '+name);
  };
- const run=new Function('activeSlots','registeredResources','applicationOrigin','modules',code+';return pmsWork;')(async()=>[{id:'H001',beta:false}],()=>({write:db}),applicationOrigin,modules) as (env:Record<string,unknown>)=>Promise<void>;
+ const run=new Function('activeSlots','registeredResources','applicationOrigin','holdingRoutingEnabled','holdingHosts','modules',code+';return pmsWork;')(async()=>[{id:'H001',beta:false}],()=>({write:db}),applicationOrigin,holdingRoutingEnabled,holdingHosts,modules) as (env:Record<string,unknown>)=>Promise<void>;
  const legacy='https://console-dev-erpx.jesadakorn.com';
  try{
   vi.stubEnv('ERPX_PUBLIC_ORIGIN',legacy);vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');

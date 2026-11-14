@@ -358,62 +358,26 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         prepareFinanceJournals1: facts => CommerceFinanceFacts(db).prepareFinanceJournals1(facts),
         prepareFinanceJournalLines1: facts => CommerceFinanceFacts(db).prepareFinanceJournalLines1(facts),
         readAttachments2: facts => CommerceFilesFacts(db).readAttachments2(facts),
-        prepareCommerceFulfillments2: (facts: {
-            fulfillment: string;
-            id: string;
-            fact2: string;
-            date: string;
-            userId: string;
-            fact5: number;
-            fact6: string | null;
-            completionMode: "goods" | "service" | "mixed";
-        }) => db.prepare("INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,evidence_note,completion_kind,completion_note) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.fulfillment, facts.id, facts.fact2, facts.date, facts.userId, facts.fact5, facts.fact6, facts.completionMode, facts.fact6 ?? ""),
         readCommerceOrderLines2: (facts: {
             lineId: string;
             id: string;
         }) => db.prepare("SELECT l.*,p.tracking_mode,p.unit FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.id=? AND l.order_id=?").bind(facts.lineId, facts.id).first<Row>(),
-        readInventoryActiveReservations3: facts => CommerceInventoryFacts(db).readInventoryActiveReservations3(facts),
-        readInventoryOrderReservations3: facts => CommerceInventoryFacts(db).readInventoryOrderReservations3(facts),
         readCommerceFulfillmentLines2: (facts: {
             id: string | number | null;
         }) => db.prepare("SELECT COALESCE(SUM(subtotal_minor),0) subtotal,COALESCE(SUM(tax_minor),0) tax FROM commerce_fulfillment_lines WHERE order_line_id=?").bind(facts.id).first<{
             subtotal: number;
             tax: number;
         }>(),
-        readInventoryLots1: facts => CommerceInventoryFacts(db).readInventoryLots1(facts),
-        readInventoryQualityHolds3: facts => CommerceInventoryFacts(db).readInventoryQualityHolds3(facts),
         prepareCommerceStock2: (facts: {
             warehouse_id: string | number | null;
             product_id: string | number | null;
         }) => commerceCommerceStockEffects(db).prepareCommerceStock2(facts),
-        prepareInventoryOrderReservations4: facts => CommerceInventoryFacts(db).prepareInventoryOrderReservations4(facts),
         prepareCommerceStock3: (facts: {
             fact0: number;
             fact1: number;
             warehouse_id: string | number | null;
             product_id: string | number | null;
         }) => commerceCommerceStockEffects(db).prepareCommerceStock3(facts),
-        prepareCommerceFulfillmentLines1: (facts: {
-            fact0: string;
-            fulfillment: string;
-            id: string | number | null;
-            qty: number;
-            cost: number;
-            subtotal: number;
-            tax: number;
-            stockCurrency: string;
-        }) => db.prepare("INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor,stock_currency) VALUES(?,?,?,?,?,?,?,?)").bind(facts.fact0, facts.fulfillment, facts.id, facts.qty, facts.cost, facts.subtotal, facts.tax, facts.stockCurrency),
-        prepareInventoryLots3: facts => CommerceInventoryFacts(db).prepareInventoryLots3(facts),
-        prepareInventoryLots4: facts => CommerceInventoryFacts(db).prepareInventoryLots4(facts),
-        prepareInventoryLotBalances3: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances3(facts),
-        prepareInventoryLotBalances4: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances4(facts),
-        prepareInventoryLots5: facts => CommerceInventoryFacts(db).prepareInventoryLots5(facts),
-        prepareInventoryLotMoves2: facts => CommerceInventoryFacts(db).prepareInventoryLotMoves2(facts),
-        prepareInventoryFulfillmentLotAllocations1: facts => CommerceInventoryFacts(db).prepareInventoryFulfillmentLotAllocations1(facts),
-        prepareCommerceOrderLines4: (facts: {
-            qty: number;
-            id: string | number | null;
-        }) => db.prepare("UPDATE commerce_order_lines SET fulfilled_milli=fulfilled_milli+? WHERE id=?").bind(facts.qty, facts.id),
         prepareCommerceStockMoves1: (facts: {
             fact0: string;
             warehouse_id: string | number | null;
@@ -423,41 +387,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact5: number;
             fact6: number;
         }) => commerceCommerceStockEffects(db).prepareCommerceStockMoves1(facts),
-        prepareCommerceGoodsValuations1: (facts: {
-            fulfillment: string;
-            companyId: string;
-            chart_id: string | number | null;
-            journal: string;
-            fact4: string;
-            fact5: string;
-            stockCurrency: string;
-            date: string;
-            micros: number;
-            sourceRateId: string | null;
-            targetRateId: string | null;
-            usedLatestFallback: boolean;
-            documentSubtotal: number;
-            value: number;
-            userId: string;
-            fact15: number;
-        }) => db.prepare(`INSERT INTO commerce_goods_valuations(fulfillment_id,company_id,chart_id,journal_id,document_currency,journal_currency,stock_currency,
-    valuation_date,fx_rate_micros,source_rate_id,target_rate_id,used_latest_fallback,document_subtotal_minor,stock_value_minor,captured_by,captured_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(facts.fulfillment, facts.companyId, facts.chart_id, facts.journal, facts.fact4, facts.fact5, facts.stockCurrency, facts.date, facts.micros, facts.sourceRateId, facts.targetRateId, facts.usedLatestFallback, facts.documentSubtotal, facts.value, facts.userId, facts.fact15),
-        prepareCommerceFulfillmentEvidence1: (facts: {
-            fulfillment: string;
-            attachmentId: string;
-            userId: string;
-            fact3: number;
-        }) => db.prepare('INSERT INTO commerce_fulfillment_evidence(fulfillment_id,attachment_id,linked_by,linked_at) VALUES(?,?,?,?)').bind(facts.fulfillment, facts.attachmentId, facts.userId, facts.fact3),
-        prepareCommerceFulfillments3: (facts: {
-            journal: string;
-            fulfillment: string;
-        }) => db.prepare("UPDATE commerce_fulfillments SET journal_id=? WHERE id=?").bind(facts.journal, facts.fulfillment),
-        prepareCommerceOrders6: (facts: {
-            id: string;
-            fact1: number;
-            id2: string;
-        }) => db.prepare("UPDATE commerce_orders SET state=CASE WHEN EXISTS(SELECT 1 FROM commerce_order_lines WHERE order_id=? AND fulfilled_milli<quantity_milli) THEN 'partially_fulfilled' ELSE 'fulfilled' END,version=version+1,updated_at=? WHERE id=?").bind(facts.id, facts.fact1, facts.id2),
         readCommerceFulfillments5: (facts: {
             fulfillmentId: string;
         }) => db.prepare("SELECT * FROM commerce_fulfillments WHERE id=?").bind(facts.fulfillmentId).first<Row>(),
@@ -580,7 +509,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         guardRule21: facts => CommerceFinanceFacts(db).guardRule21(facts),
         guardRule22: facts => CommerceFinanceFacts(db).guardRule22(facts),
         guardRule23: facts => CommerceFilesFacts(db).guardRule23(facts),
-        guardRule24: facts => CommerceInventoryFacts(db).guardRule24(facts),
         guardRule25: (facts: {
             key: string;
             guardId: string;
@@ -591,9 +519,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             guardId: string;
             values: (string | number | null)[];
         }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, facts.values),
-        guardRule27: facts => CommerceInventoryFacts(db).guardRule27(facts),
-        guardRule28: facts => CommerceInventoryFacts(db).guardRule28(facts),
-        guardRule29: facts => CommerceInventoryFacts(db).guardRule29(facts),
         guardRule30: (facts: {
             key: string;
             guardId: string;
@@ -883,9 +808,6 @@ export function saveOrder(actor: WorkContext, id: string | null, input: z.infer<
 export function transitionOrder(actor: WorkContext, id: string, input: z.infer<typeof transitionSchema>, key: string, ownerWrite?: SqlDatabase) {
  return withCommercePurchasedCommand(actor,{operation:`commerce.order.${input.action}`,kindAuthority:true,key,target:{type:"order",id},purpose:["cancel","return"].includes(input.action)?"settle-existing":"new-work",permissions:input.action==="approve"?["commerce.approve"]:[],convert:input.action==="convert"},database=>applicationFor(database).transitionOrder(actor,id,input,key,unit(database)),ownerWrite);
 }
-export function fulfillOrder(actor: WorkContext, id: string, input: z.input<typeof fulfillmentSchema>, key: string) {
- return withCommercePurchasedCommand(actor,{operation:"commerce.order.fulfill",key,target:{type:"order",id},purpose:"settle-existing",permissions:input.completionMode==="service"?["commerce.sales"]:input.completionMode==="mixed"?["inventory.prepare","commerce.sales"]:["inventory.prepare"],transactional:true,stockLines:input.lines.map(line=>line.lineId),financial:true,receiving:true},database=>applicationFor(database).fulfillOrder(actor,id,input,key));
-}
 export function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) {
  return withCommercePurchasedCommand(actor,{operation:"commerce.invoice.create",key,target:{type:"fulfillment",id:fulfillmentId},purpose:"settle-existing",permissions:["finance.write"],transactional:true,financial:true},database=>applicationFor(database).invoiceFulfillment(actor,fulfillmentId,input,key));
 }
@@ -923,12 +845,6 @@ export async function createPosStartupMasterInTransaction(database:SqlDatabase,a
  const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'POS_STARTUP_SOURCE_CHANGED'};
  const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);
  return {result,money:capture.money};
-}
-
-/** Private Service-only bridge, preserving the original native master command. */
-export async function createServiceInitialPhysicalStockMasterInTransaction(database:SqlDatabase,actor:WorkContext,kind:'products'|'warehouses',input:unknown,key:string){
- const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED'};
- const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);return {result,money:capture.money};
 }
 
 /** Sales service catalogue joins the original product writer in its owned unit. */

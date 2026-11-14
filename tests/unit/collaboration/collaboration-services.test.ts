@@ -1,12 +1,10 @@
-import {describe,expect,test,vi} from 'vitest';
+import {afterEach,describe,expect,test,vi} from 'vitest';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createSocialSourceApplication,type SocialSourcePorts,type SocialSourceRepository} from "@erpx/server-collaboration/application/social-source";
 import {createSocialTextApplication,type SocialTextPorts,type SocialTextRepository} from "@erpx/server-collaboration/application/social-text";
-import {createCollaborationWorkApplication,type CollaborationWorkPorts,type CollaborationWorkRepository} from "@erpx/server-collaboration/application/collaboration-work";
 import {createStaffNotificationApplication,type StaffNotificationPorts} from "@erpx/server-collaboration/application/staff-notifications";
 import type {PostRow} from "@erpx/server-collaboration/domain/social-source";
-import type {Source} from "@erpx/server-collaboration/domain/collaboration-work";
 import type {Mention} from "@erpx/server-collaboration/domain/social-text";
 import type {StaffNotification} from "@erpx/server-collaboration/domain/staff-notifications";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['collaboration'],assignments:[],workspaces:[]};
@@ -14,10 +12,8 @@ function repository<R extends object>(facts:Partial<R>,calls:string[]):R{return 
 const post:PostRow={id:'post',kind:'team',company_id:'company',branch_id:null,department_id:null,author_id:'owner',author_name:'Owner',body:'Reviewed source',mentions_json:'[]',content_json:null,rich_content_json:null,audience_kind:'company',audience_id:null,purpose:'update',edited_at:null,retracted_at:null,version:3,state:'published',linked_module:null,created_at:1};
 function sources(facts:Partial<SocialSourceRepository<string>>={}){const calls:string[]=[],ports:SocialSourcePorts<string>={repository:repository<SocialSourceRepository<string>>({publishedPost:async()=>({...post}),selectedComments:async()=>({results:[]}),...facts},calls),clock:{now:()=>42},sha256:async(value)=>{calls.push('hash:'+value);return 'digest';}};return {calls,ports,app:createSocialSourceApplication(ports)};}
 function text(facts:Partial<SocialTextRepository<string>>={}){const calls:string[]=[],ports:SocialTextPorts<string>={repository:repository<SocialTextRepository<string>>({activeMentionAccounts:async()=>({results:[{user_id:'member'}]}),assistantName:async()=>({home_ai_name:'Helper'}),currentAssistantName:async()=>({home_ai_name:'Helper'}),previousAssistantName:async()=>null,...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'notice'},mentionPrincipals:async()=>[{user_id:'member',display_name:'Member'}],getRecord:async()=>{throw Error('Unexpected record lookup');},searchReferences:async()=>[],captureJobAuthority:async(a)=>{calls.push('capture-authority');return a;}};return {calls,ports,app:createSocialTextApplication(ports)};}
-const source=(id:string):Source=>({kind:'asset',type:'asset',id,version:2,title:'Owned '+id,companyId:'company',branchId:'branch',departmentId:null,status:'active',href:'/assets/'+id,label:'Asset'});
-function work(facts:Partial<CollaborationWorkRepository<string>>={}){const calls:string[]=[],ports:CollaborationWorkPorts<string>={repository:repository<CollaborationWorkRepository<string>>({recordRelation:async()=>({id:'relation',source_type:'asset',source_id:'left',target_type:'asset',target_id:'right'}),actionCard:async()=>({id:'card',version:1,status:'open',owner_id:'owner',created_by:'manager',updated_at:1,due_at:100,owner_eligible:1,source_type:'asset',source_id:'left'}),...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'export'},sha256:()=> 'digest',requirePermission(a,p){calls.push(p);return a;},readSourceRecord:async(_a,ref)=>{calls.push('source:'+ref.id);return source(ref.id);},sourceRecordGuards:async(_a,_key,s,step)=>{calls.push('source-guard:'+s.id+':'+step);return ['source:'+s.id];},commands:{async replay<Result=Record<string,unknown>>():Promise<Result|null>{calls.push('replay');return null;},async commit<Result>(_actor:WorkContext,_key:string,op:string,_input:unknown,_id:string,_version:number,result:Result,effects:string[]){calls.push('commit:'+op+':'+effects.join(','));return result;}}};return {calls,ports,app:createCollaborationWorkApplication(ports)};}
 const notice:Omit<StaffNotification,'href'>={id:'notice',record_type:'post',record_id:'post',record_version:1,message:'Review source',created_at:1,read_at:null};
-function notifications(facts:Partial<StaffNotificationPorts>={}){const calls:string[]=[],ports=repository<StaffNotificationPorts>({repository:{notificationRows:async()=>({results:[notice]}),activityLead:async()=>null},readablePost:async(a)=>{calls.push('page:'+String((a as WorkContext).pageRequest));return {...post};},...facts},calls);return {calls,ports,app:createStaffNotificationApplication(ports)};}
+function notifications(facts:Partial<StaffNotificationPorts>={}){const calls:string[]=[],ports=repository<StaffNotificationPorts>({repository:{notificationRows:async()=>({results:[notice]}),activityLead:async()=>null},readablePost:async(a)=>{calls.push('page:'+String((a as WorkContext).pageRequest));return {...post};},nativeFieldNotificationTarget:async()=>undefined,...facts},calls);return {calls,ports,app:createStaffNotificationApplication(ports)};}
 describe('Authorized social sources use facts and injected time',()=>{
  test('missing or no longer readable published sources remain unavailable',async()=>{const f=sources({publishedPost:async()=>null});await expect(f.app.readablePost(actor,'post')).rejects.toMatchObject({code:'POST_NOT_FOUND',status:404});});
  test('linked business posts cannot become standalone source snapshots',async()=>{const f=sources({publishedPost:async()=>({...post,linked_module:'finance'})});await expect(f.app.sourceSnapshot(actor,'post',[])).rejects.toMatchObject({code:'SOURCE_UNSUPPORTED'});});
@@ -34,16 +30,6 @@ describe('Mentions, hashtags and assistant authority',()=>{
  test('assistant jobs capture current delegated authority before any durable effect',async()=>{const f=text();await f.app.textStatements(actor,'post','post','post','@Helper',[{kind:'agent',targetId:'erpx-assistant',label:'Helper',start:0,end:7}]);expect(f.calls[0]).toBe('capture-authority');expect(f.calls.some(c=>c.startsWith('prepareAssistantReply'))).toBe(true);});
  test('deduplicates mentioned targets and normalized hashtag bindings',async()=>{const f=text(),mention:Mention={kind:'person',targetId:'member',label:'Member',start:0,end:7};await f.app.textStatements(actor,'post','post','post','@Member #Topic #topic',[mention,mention]);expect(f.calls.filter(c=>c.startsWith('prepareMention:'))).toHaveLength(1);expect(f.calls.filter(c=>c.startsWith('prepareMentionNotice:'))).toHaveLength(1);expect(f.calls.filter(c=>c.startsWith('prepareTopic:'))).toHaveLength(1);});
  test('own mentions do not create a self notification',async()=>{const f=text();await f.app.textStatements(actor,'post','post','post','@Owner',[{kind:'person',targetId:'owner',label:'Owner',start:0,end:6}]);expect(f.calls.some(c=>c.startsWith('prepareMentionNotice'))).toBe(false);});
-});
-describe('Cross-record relations and action cards',()=>{
- test('module access is checked before fetching record facts',async()=>{const f=work();await expect(f.app.createRecordRelation({...actor,modules:[]},{sourceType:'asset',sourceId:'left',targetType:'asset',targetId:'right',relation:'related',reason:'Reviewed relation'},'key')).rejects.toMatchObject({code:'MODULE_FORBIDDEN'});expect(f.calls).toEqual(['records.write']);});
- test('refuses self relations and cross-company record sources before replay',async()=>{const f=work();await expect(f.app.createRecordRelation(actor,{sourceType:'asset',sourceId:'left',targetType:'asset',targetId:'left',relation:'related',reason:'Reviewed relation'},'key')).rejects.toMatchObject({code:'COLLABORATION_SELF_RELATION'});f.ports.readSourceRecord=async(_a,ref)=>({...source(ref.id),companyId:ref.id==='right'?'other':'company'});await expect(f.app.createRecordRelation(actor,{sourceType:'asset',sourceId:'left',targetType:'asset',targetId:'right',relation:'related',reason:'Reviewed relation'},'other')).rejects.toMatchObject({code:'COLLABORATION_SCOPE_MISMATCH'});expect(f.calls).not.toContain('replay');});
- test('canonical symmetric relation ordering retains source versions and stages both owner guards',async()=>{const f=work();await f.app.createRecordRelation(actor,{sourceType:'asset',sourceId:'z',targetType:'asset',targetId:'a',relation:'duplicates',reason:'Reviewed duplicated asset'},'key');expect(f.calls).toContain('source-guard:a:relation-source');expect(f.calls).toContain('source-guard:z:relation-target');expect(f.calls.at(-1)).toBe('commit:collaboration.relation.create:source:a,source:z,prepareRelation,prepareRelationEvent');});
- test('revoked source permission still prevents replayed relation removal from appearing authorized',async()=>{const f=work();f.ports.commands.replay=async<Result>()=>({id:'relation'}as Result);f.ports.readSourceRecord=async()=>{throw new BusinessRuleError(404,'SOURCE_GONE','Source withdrawn');};await expect(f.app.removeRecordRelation(actor,'relation',1,'Reviewed removal','key')).rejects.toMatchObject({code:'RECORD_RELATION_NOT_FOUND'});});
- test('source visibility failures propagate unexpected errors instead of hiding them',async()=>{const f=work();f.ports.readSourceRecord=async()=>{throw new Error('Provider unavailable');};await expect(f.app.removeRecordRelation(actor,'relation',1,'Reviewed removal','key')).rejects.toThrow('Provider unavailable');});
- test('only a currently eligible named owner can complete an action card',async()=>{const f=work({actionCard:async()=>({id:'card',version:1,status:'open',owner_id:'owner',owner_eligible:0,created_by:'manager',updated_at:1,due_at:100,source_type:'asset',source_id:'left'})});await expect(f.app.changeActionCard(actor,'card',{action:'complete',expectedVersion:1,evidence:'Reviewed completed evidence',reason:'Completed delivery'},'key')).rejects.toMatchObject({code:'ACTION_CARD_OWNER_REQUIRED'});expect(f.calls.some(c=>c.startsWith('prepare'))).toBe(false);});
- test('a completed action card cannot be changed again',async()=>{const f=work({actionCard:async()=>({id:'card',version:2,status:'completed',owner_id:'owner',owner_eligible:1,created_by:'manager',updated_at:1,due_at:100,source_type:'asset',source_id:'left'})});await expect(f.app.changeActionCard(actor,'card',{action:'complete',expectedVersion:2,evidence:'Reviewed evidence',reason:'Completed delivery'},'key')).rejects.toMatchObject({code:'ACTION_CARD_STATE_CHANGED'});});
- test('card creation stages source authority, owner eligibility and notice in the same commit',async()=>{const f=work();await f.app.createActionCard(actor,{sourceType:'asset',sourceId:'left',title:'Concrete follow-up',ownerId:'member',dueAt:100,reason:'Reviewed next action'},'key');expect(f.calls.at(-1)).toBe('commit:collaboration.action.create:source:left,prepareCard,guardCardOwner,prepareCardEvent,prepareCardNotice');});
 });
 describe('Notification projections recheck current source authorization',()=>{
  test('known producer types have resolvers and unknown events stay hidden',async()=>{const f=notifications();expect(f.app.hasStaffNotificationResolver('project_handoff')).toBe(true);expect(f.app.hasStaffNotificationResolver('unknown')).toBe(false);expect(await f.app.visibleNotifications(actor,[{...notice,record_type:'unknown'}])).toEqual([]);});
@@ -100,20 +86,11 @@ describe('Private message intake guards precede owner file creation',()=>{
  test('lost response replay returns the original receipt before creating any new file set',async()=>{const f=messageFile();f.ports.commands.replay=async<Result>()=>({id:'original'} as Result);expect(await f.app.uploadMessagingFile(actor,'room',{id:'10000000-0000-4000-8000-000000000001',name:'image.png',type:'image/png'})).toEqual({id:'original'});expect(f.calls).toEqual([]);});
 });
 
-import {createSocialApplication,type SocialPorts,type SocialRepository} from "@erpx/server-collaboration/application/social";
-import {createPostSchema,createStorySchema} from "@erpx/server-collaboration/domain/social";
 import {createSocialTaskApplication,type SocialTaskPorts} from "@erpx/server-collaboration/application/social-task";
 import {createSocialAgentApplication,type SocialAgentPorts} from "@erpx/server-collaboration/application/social-agent";
 import {createCurrentPushSessionCleanup,createWebPushApplication,type CurrentPushSessionCleanupPorts,type WebPushPorts} from "@erpx/server-collaboration/application/web-push";
 import {createMessagingApplication,type MessagingPorts,type MessagingRepository} from "@erpx/server-collaboration/application/messaging";
 const emptyCalls:string[]=[];
-function basicSocial(facts:Partial<SocialRepository<string>>={}){const calls:string[]=[],ports=repository<SocialPorts<string>>({repository:repository<SocialRepository<string>>({priorReceipt:async()=>null,...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'post'},sha256:async()=> 'digest',visiblePost:async()=>null,commit:async()=>{calls.push('commit');}},calls);return {calls,ports,app:createSocialApplication<string>(ports)};}
-describe('Legacy public conversation and story APIs have real injected business decisions',()=>{
- test('rejects another request under a reused key before publishing any content',async()=>{const f=basicSocial({priorReceipt:async()=>({request_hash:'another',result_json:'{}'})});await expect(f.app.createPost('holding',createPostSchema.parse({body:'Text',audience:'holding'}),'key',actor)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});expect(f.calls).toEqual([]);});
- test('company and branch audience rules are independent of storage adapters',async()=>{const f=basicSocial();await expect(f.app.createPost('holding',createPostSchema.parse({body:'Text',audience:'holding'}),'key',{...actor,assignmentScope:'branch',branchId:'branch'})).rejects.toMatchObject({code:'AUDIENCE_FORBIDDEN'});await expect(f.app.createPost('holding',createPostSchema.parse({body:'Text',audience:'branch'}),'key',actor)).rejects.toMatchObject({code:'AUDIENCE_FORBIDDEN'});});
- test('even a flag receipt does not bypass current source privacy',async()=>{const f=basicSocial({priorReceipt:async()=>({request_hash:'digest',result_json:'{}'})});await expect(f.app.setAppreciation('holding','post',true,'key',actor)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(f.calls).toEqual([]);});
- test('branch stories cannot be published without choosing a branch assignment',async()=>{const f=basicSocial();await expect(f.app.createStory('holding',createStorySchema.parse({title:'News',body:'Text',audience:'branch'}),'key',actor)).rejects.toMatchObject({code:'BRANCH_REQUIRED'});expect(f.calls).toEqual([]);});
-});
 function linkedTask(){const calls:string[]=[],ports:SocialTaskPorts<string>={clock:{now:()=>42},repository:{taskOrigin:async()=>null,aiProvider:async()=>null,guardAiDraft:()=> 'draft',bindTaskOrigin:()=> 'origin'},sources:{read:async()=>({...post}),snapshot:async()=>({post:{...post},hash:'digest'}),guard:(_key,_post,user)=>{calls.push(user);return 'guard:'+user;}},providerGuard:()=> 'provider'};return {calls,ports,app:createSocialTaskApplication<string>(ports)};}
 describe('Conversation to Operations task handoff',()=>{
  test('standalone tasks do not invent a conversation dependency',async()=>{const f=linkedTask();expect(await f.app.taskSourceStatements(actor,'key','task',[])).toEqual([]);});
@@ -263,7 +240,7 @@ test('keeps the shared Social command context free of DOM and preserves each act
 // This is a projection/wiring test, not a native authorization assertion.
 async function initialCountProjectionEntry(surface:'list'|'notifications'|'inbox',items:object[],destinations:(db:unknown,actor:WorkContext,ids:readonly string[])=>Promise<Record<string,string>>){
  const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),name=surface==='list'?'listStaffNotifications':surface==='notifications'?'notificationsPage':'inboxPage',helper=surface==='inbox'?'projectInitialCountInbox':'projectInitialCountNotifications',file=surface==='inbox'?'inbox':'staff-notifications',source=await readFile(new URL(`../../../packages/server-collaboration/src/adapters/${file}.ts`,import.meta.url),'utf8'),tree=ts.createSourceFile(file+'.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),functions=tree.statements.filter((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&[name,helper].includes(node.name?.text??''));
- expect(functions.some(node=>node.name?.text===name)).toBe(true);const code=ts.transpileModule(functions.map(node=>node.getText(tree)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,page={items,nextCursor:'retained-cursor',hasMore:true},application=()=>({listStaffNotifications:async()=>items,notificationsPage:async()=>page,inboxPage:async()=>page}),exposed=async(run:()=>Promise<unknown>)=>run();
+ expect(functions.some(node=>node.name?.text===name)).toBe(true);const code=ts.transpileModule(functions.map(node=>node.getText(tree)).join('\n'),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,page={items,nextCursor:'retained-cursor',hasMore:true},application=()=>({listStaffNotifications:async()=>items,notificationsPage:async()=>page,inboxPage:async()=>page}),exposed=async(run:()=>Promise<unknown>)=>run();
  return new Function('exports','initialPhysicalStockCountDestinations','application','exposed',`${code}\nreturn ${name};`)({},destinations,application,exposed) as (db:unknown,actor:WorkContext,query?:object)=>Promise<unknown>;
 }
 test.each(['list','notifications','inbox'] as const)('projects current native initial Count destinations once at final %s boundary while preserving generic hrefs and immutable source identities',async surface=>{
@@ -273,4 +250,142 @@ test.each(['list','notifications','inbox'] as const)('projects current native in
 });
 test('final Inbox projection propagates an unexpected named owner read failure instead of returning a misleading Supply destination',async()=>{
  const entry=await initialCountProjectionEntry('inbox',[{sourceType:'stock_count',sourceId:'count',href:'/stock-counts/count'}],async()=>{throw Error('Current native source read failed');});await expect(entry({},actor,{})).rejects.toThrow('Current native source read failed');
+});
+
+
+// UI acknowledgement identity must be checked against the original request,
+// not merely accepted because another command returned a plausible receipt.
+import { matchesCollaborationReceipt } from "@erpx/feature-collaboration/lib/collaboration-work-read-model";
+describe("collaboration acknowledgement identity", () => {
+  test("creation and retry require the original idempotency key", () => {
+    const body = JSON.stringify({sourceType:"field_service_order",sourceId:"order"});
+    expect(matchesCollaborationReceipt(body,"original",{id:"action-card-original",version:1,status:"open"})).toBe(true);
+    expect(matchesCollaborationReceipt(body,"original",{id:"action-card-new",version:1,status:"open"})).toBe(false);
+    expect(matchesCollaborationReceipt(body,"original",{id:"action-card-original",version:2,status:"open"})).toBe(false);
+  });
+  test("each transition binds its id, next version and exact status", () => {
+    for (const [entity,action,status] of [["relation","remove","removed"],["card","complete","completed"],["card","cancel","cancelled"],["card","reassign","open"]]) {
+      const body=JSON.stringify({entity,id:"original",action,expectedVersion:7});
+      expect(matchesCollaborationReceipt(body,"retry",{id:"original",version:8,status})).toBe(true);
+      expect(matchesCollaborationReceipt(body,"retry",{id:"other",version:8,status})).toBe(false);
+      expect(matchesCollaborationReceipt(body,"retry",{id:"original",version:7,status})).toBe(false);
+      expect(matchesCollaborationReceipt(body,"retry",{id:"original",version:8,status:"active"})).toBe(false);
+    }
+  });
+  test("relation creation and malformed or overflowing attempts fail closed", () => {
+    expect(matchesCollaborationReceipt('{"entity":"relation"}',"key",{id:"record-relation-key",version:1,status:"active"})).toBe(true);
+    for (const body of ['null','[]','{','{"id":"a","expectedVersion":9007199254740991,"action":"complete"}','{"id":"a","expectedVersion":0,"action":"complete"}']) expect(matchesCollaborationReceipt(body,"key",{id:"a",version:1,status:"completed"})).toBe(false);
+  });
+});
+
+describe('Native Field notification consumers',()=>{
+ test.each(['operations','collaboration'] as const)('uses authorized native %s destinations without invoking the retired reader',async kind=>{
+  const href=kind==='operations'?'/field-service/operations/exception':'/field-service/collaboration';
+  const f=notifications({nativeFieldNotificationTarget:async(a,k,id)=>{expect(a.pageRequest).toBeUndefined();expect(k).toBe(kind);expect(id).toBe('native');return {href};}});
+  expect(await f.app.visibleNotifications(actor,[{...notice,record_type:kind==='operations'?'operational_exception':'collaboration_action',record_id:'native'}])).toMatchObject([{href}]);
+ });
+ test.each([403,404,503])('native denial/failure %s never falls back to legacy',async status=>{
+  const f=notifications({nativeFieldNotificationTarget:async()=>{throw new BusinessRuleError(status,'NATIVE_WITHDRAWN','Unavailable');}}),read=()=>f.app.visibleNotifications(actor,[{...notice,record_type:'operational_exception'}]);
+  if(status===503)await expect(read()).rejects.toMatchObject({status});else expect(await read()).toEqual([]);
+ });
+ test('a legacy partition still uses its owner reader',async()=>{
+  let calls=0;const f=notifications({operationsExceptionDetail:async()=>{calls++;return {} as Awaited<ReturnType<StaffNotificationPorts['operationsExceptionDetail']>>;}});
+  expect(await f.app.visibleNotifications(actor,[{...notice,record_type:'operational_exception',record_id:'legacy'}])).toMatchObject([{href:'/operations/legacy'}]);expect(calls).toBe(1);
+ });
+});
+
+import {mergeCollaborationReadModels,validFieldCollaborationReadModel,type CollaborationWorkReadModel} from '@erpx/feature-collaboration/lib/collaboration-work-read-model';
+describe('Collaboration consumer partition composition',()=>{
+ const legacy:CollaborationWorkReadModel={relations:[{id:'legacy',source_type:'support_ticket',target_type:'support_ticket'}],cards:[],people:[{id:'person',name:'Current'}],sourceTypes:['support_ticket'],canWrite:true,canReview:false};
+ const native:CollaborationWorkReadModel={relations:[{id:'native',source_type:'field_service_order',target_type:'support_ticket',source_id:'order',target_id:'ticket',version:1}],cards:[],people:[{id:'person',name:'Current'}],sourceTypes:['field_service_order','support_ticket'],cardSourceTypes:['field_service_order'],fieldOnlyRelations:true,canWrite:true,canReview:true};
+ test('retains both owner partitions and typed card scopes without duplicating people',()=>{expect(validFieldCollaborationReadModel(native)).toBe(true);const result=mergeCollaborationReadModels(legacy,native);expect(result.relations.map(row=>row.id)).toEqual(['legacy','native']);expect(result.people).toHaveLength(1);expect(result.cardSourceTypes).toEqual(['support_ticket','field_service_order']);expect(result.canReview).toBe(false);});
+ test('rejects legacy leakage and overlapping owner identities instead of hiding duplicates',()=>{expect(()=>mergeCollaborationReadModels({...legacy,relations:native.relations},native)).toThrow('COLLABORATION_CONSUMER_PARTITION_DRIFT');expect(()=>mergeCollaborationReadModels({...legacy,relations:[{...legacy.relations[0],id:'native'}]},native)).toThrow('COLLABORATION_CONSUMER_PARTITION_DRIFT');});
+ test('native card scope cannot silently expand to Support cards',()=>{expect(validFieldCollaborationReadModel({...native,cardSourceTypes:['field_service_order','support_ticket']})).toBe(false);expect(validFieldCollaborationReadModel({...native,fieldOnlyRelations:false})).toBe(false);});
+});
+
+// Native Records and session authority are qualified by the PostgreSQL HTTP
+// suite. These cases exercise only the private Next read-model boundary.
+describe('native Field Inbox transport',()=>{
+ const nativeActor={...actor,holdingId:'h001',holdingSlug:'acme',modules:['field_service'],authority:{sessionId:'native-session',revision:7,assignmentVersion:3},iam:{permissions:['records.read']}} as WorkContext;
+ const config=JSON.stringify({privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingId:'h001',holdingSlug:'acme'}]});
+ const incoming=()=>new Headers({host:'acme.example.test',cookie:'__Host-erpx-product=opaque',authorization:'never-forward','x-forwarded-host':'foreign.example.test','x-erpx-context-assignment':'forged'});
+ const body=()=>{const id='n'.repeat(201),href='/field-service/native-order';return{context:{holdingId:nativeActor.holdingId,userId:nativeActor.userId,companyId:nativeActor.companyId,assignmentId:nativeActor.assignmentId,assignmentVersion:3,revision:7,role:nativeActor.role,branchId:null,departmentId:null,modules:['field_service'],permissions:['records.read'],expiresAt:Date.now()+60000},data:[{id,event_id:'event',company_id:nativeActor.companyId,user_id:nativeActor.userId,delivered_at:20,read_at:null,archived_at:null,source_type:'field_service_order',source_id:'native-order',source_version:1,category:'work',preview:'Review dispatch',secret:'not-a-read-model',native_field_item:{id,eventId:'event',category:'work',message:'Review dispatch',href,createdAt:20,readAt:null,archivedAt:null,sourceType:'field_service_order',sourceId:'native-order',source:{kind:'field_service_order',id:'native-order',href,label:'Field service order'},secret:'never-forward'}}]};};
+ test('forwards opaque proof and captured context, strips extra fields and preserves long delivery ids',async()=>{
+  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const send=vi.fn(async(_input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeFieldInboxCandidatesRequest>[0])=>{void _input;return{status:200,body:body()};});
+  const rows=await createNativeFieldInboxReader(config,send)(incoming(),nativeActor,{all:false,search:'dispatch',limit:100});expect(rows[0].id).toHaveLength(201);expect(rows[0]).not.toHaveProperty('secret');expect(rows[0].native_field_item).not.toHaveProperty('secret');
+  const call=send.mock.calls[0][0];expect(call.headers.get('cookie')).toBe('__Host-erpx-product=opaque');expect(call.headers.get('x-erpx-context-assignment')).toBe(nativeActor.assignmentId);expect(call.headers.get('x-erpx-context-revision')).toBe('7');expect(call.headers.has('authorization')).toBe(false);expect(call.headers.has('x-forwarded-host')).toBe(false);expect(call.query.search).toBe('dispatch');
+ });
+ test('maps a native source-qualified Field cost journal without a Records reference or permission',async()=>{
+  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const financeActor={...nativeActor,modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as WorkContext;
+  const response=body();response.context.modules=['finance'];response.context.permissions=[...financeActor.iam!.permissions];
+  const row=response.data[0];row.source_type='journal';row.source_id='field-cost';
+  row.native_field_item={...row.native_field_item,sourceType:'journal',sourceId:'field-cost',href:'/finance/journals/field-cost',source:null as never};
+  const rows=await createNativeFieldInboxReader(config,async()=>({status:200,body:response}))(incoming(),financeActor,{all:true,limit:100,search:''});
+  expect(rows[0].native_field_item).toMatchObject({sourceType:'journal',sourceId:'field-cost',href:'/finance/journals/field-cost'});expect(rows[0].native_field_item).not.toHaveProperty('source');
+  row.native_field_item.href='/finance/journals/foreign';
+  await expect(createNativeFieldInboxReader(config,async()=>({status:200,body:response}))(incoming(),financeActor,{all:true,limit:100,search:''})).rejects.toMatchObject({code:'NATIVE_FIELD_INBOX_RESPONSE_INVALID'});
+ });
+ test('fails closed on stale identities, spoofed item/source mapping, duplicate deliveries and native errors',async()=>{
+  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  for(const mutate of [(b:ReturnType<typeof body>)=>{b.context.companyId='foreign';},(b:ReturnType<typeof body>)=>{b.context.revision++;},(b:ReturnType<typeof body>)=>{b.data[0].native_field_item.message='forged';},(b:ReturnType<typeof body>)=>{b.data[0].native_field_item.source.href='/other';},(b:ReturnType<typeof body>)=>{b.data.push(b.data[0]);}]){const b=body();mutate(b);await expect(createNativeFieldInboxReader(config,async()=>({status:200,body:b}))(incoming(),nativeActor,{all:false,search:'',limit:100})).rejects.toMatchObject({status:expect.any(Number)});}
+  const send=vi.fn(async()=>({status:200,body:body()})),h=incoming();h.set('origin','https://foreign.example.test');await expect(createNativeFieldInboxReader(config,send)(h,nativeActor,{all:false,search:'',limit:100})).rejects.toMatchObject({code:'ORIGIN_FORBIDDEN'});expect(send).not.toHaveBeenCalled();
+  await expect(createNativeFieldInboxReader(config,async()=>({status:409,body:{error:{code:'WORK_CONTEXT_CHANGED'}}}))(incoming(),nativeActor,{all:false,search:'',limit:100})).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});
+ });
+ test('forwards one immutable native state body/key and rejects wrong receipts or stale Work context',async()=>{
+  const {createNativeFieldInboxState}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const source=body(),data={id:source.data[0].id,readAt:123,archivedAt:null,secret:'not-for-client'},send=vi.fn(async(_input:Parameters<typeof import('@erpx/native-sdk/field-service-parts').nativeFieldInboxStateRequest>[0])=>{void _input;return{status:200,body:{context:source.context,data}};});
+  const h=incoming();h.set('origin','https://acme.example.test');const command=createNativeFieldInboxState(config,send),raw='{"read":true}';
+  expect(await command(h,nativeActor,data.id,raw,'native-inbox-key')).toEqual({id:data.id,readAt:123,archivedAt:null});expect(send.mock.calls[0][0].body).toBe(raw);expect(send.mock.calls[0][0].headers.get('idempotency-key')).toBe('native-inbox-key');expect(send.mock.calls[0][0].headers.has('authorization')).toBe(false);
+  await expect(command(incoming(),nativeActor,data.id,raw,'native-inbox-key')).rejects.toMatchObject({code:'ORIGIN_FORBIDDEN'});
+  await expect(createNativeFieldInboxState(config,async()=>({status:200,body:{context:source.context,data:{...data,id:'foreign'}}}))(h,nativeActor,data.id,raw,'native-inbox-key')).rejects.toMatchObject({code:'NATIVE_FIELD_INBOX_RESPONSE_INVALID'});
+  await expect(createNativeFieldInboxState(config,async()=>({status:200,body:{context:{...source.context,revision:8},data}}))(h,nativeActor,data.id,raw,'native-inbox-key')).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});
+ });
+
+ test('maps native Field-linked owner notices without a legacy lookup or a Field grant for Support',async()=>{
+  const {createNativeFieldInboxReader}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  const linked={...nativeActor,modules:['field_service','operations','collaboration']};
+  for(const kind of ['operational_exception','collaboration_action','support_ticket','stock_count','invoice']){const scoped=['support_ticket','stock_count','invoice'].includes(kind)?{...nativeActor,modules:[],iam:{...nativeActor.iam!,permissions:[kind==='support_ticket'?'support.read':kind==='invoice'?'finance.read':'inventory.read']}}:linked;const b=body(),r=b.data[0],href=kind==='operational_exception'?'/operations/native-order':kind==='support_ticket'?'/field-service/support/native-order':kind==='invoice'?'/finance/invoices/native-order':kind==='stock_count'?'/services/field-service/settings/initial-stock/native-order':'/collaboration';const reply={context:{...b.context,modules:scoped.modules,permissions:scoped.iam!.permissions},data:[{...r,source_type:kind,native_field_item:{...r.native_field_item,sourceType:kind,href,source:null}}]};
+   const rows=await createNativeFieldInboxReader(config,async()=>({status:200,body:reply}))(incoming(),scoped,{all:true,search:'',limit:100});expect(rows[0].source_type).toBe(kind);expect(rows[0].native_field_item?.href).toBe(href);expect(rows[0].native_field_item).not.toHaveProperty('source');}
+ });
+
+});
+
+describe('Native social comment and revision read transport',()=>{
+ const configuration=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000});
+ const session=()=>new Request('https://acme.jesadakorn.com/posts/post-1',{method:'GET',headers:{cookie:'__Host-erpx-product=session','x-erpx-context-company':'company'}});
+ afterEach(()=>{vi.unstubAllGlobals();delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;});
+
+ test('reads a bounded comment page through the exact Holding path and opaque cursor',async()=>{
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
+  const {nativePostComments}=await import('@erpx/server-collaboration/public/native-social-page');
+  const calls:{url:string;method:string;headers:Headers}[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{calls.push({url,method:String(init.method),headers:new Headers(init.headers)});return Response.json({data:{items:[],nextCursor:null,hasMore:false}});}));
+  expect(await nativePostComments(session(),'acme','post 1','1700000000000:comment-1')).toEqual({items:[],nextCursor:null,hasMore:false});
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.method).toBe('GET');
+  expect(calls[0]!.url).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/feed/post%201/comments?cursor=1700000000000%3Acomment-1');
+  expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
+  expect(calls[0]!.headers.get('idempotency-key')).toBeNull();
+ });
+
+ test('reads the author-only revision history without a command key',async()=>{
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
+  const {nativePostRevisions}=await import('@erpx/server-collaboration/public/native-social-page');
+  const calls:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:string)=>{calls.push(url);return Response.json({data:[{prior_version:2,action:'edit',body:'Earlier',created_at:9}]});}));
+  expect(await nativePostRevisions(session(),'acme','post-1')).toEqual([{prior_version:2,action:'edit',body:'Earlier',created_at:9}]);
+  expect(calls).toEqual(['http://127.0.0.1:3105/api/v1/holdings/acme/feed/post-1/revisions']);
+ });
+
+ test('fails closed without configuration and maps the owner read port denial',async()=>{
+  const {nativePostRevisions}=await import('@erpx/server-collaboration/public/native-social-page');
+  delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;
+  await expect(nativePostRevisions(session(),'acme','post-1')).rejects.toMatchObject({code:'NATIVE_COLLABORATION_UNAVAILABLE'});
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
+  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:{code:'SOCIAL_REVISIONS_PORT_UNAVAILABLE',message:'unavailable'}},{status:503})));
+  await expect(nativePostRevisions(session(),'acme','post-1')).rejects.toMatchObject({code:'SOCIAL_REVISIONS_PORT_UNAVAILABLE',status:503});
+ });
 });

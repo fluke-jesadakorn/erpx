@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The reviewer's remaining Commerce save findings are frozen on the pushed tree: replay returns before semantic validation and Finance/Sales work; Finance Money, party and Sales pricing fences are acquired before the protected Money/pricing snapshots; auto-selected, explicit and absent pricing observations are retained, compared with the plan and revalidated after deferred constraints. sales/quotes returns to verified.",
+  "capability": "commerce-save-lock-replay-pricing-freeze",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "0facdbc3885537bde12bf3960a44d042b7364247",
+  "commit": "750d314205e48daf140f815b7d3aebc1c1db0f4e",
+  "scope": {
+    "replay": "The native save checks the canonical receipt and digest before semantic validation and before any Finance, party or Sales lock/snapshot. A save or conversion replay under a held money_transaction_snapshots writer still returns the original 200 receipt.",
+    "locks": "A fresh save acquires Finance Money locks, the Finance party source lock and both Sales pricing relation locks before writing Money or capturing selected pricing; the Sales pricing fence is also taken when the observation is absence. A stale conversion validates Money before its version guard but applies/locks only after the guard.",
+    "pricing": "The save retains the exact selected pricing observation for explicit, auto-selected and absent cases, compares the selected list id/version, every selected item's price/tax, the maximum auto discount and discount-approval flag with the plan, and revalidates the retained lists/items after deferred constraints. A legitimate deferred list change rolls the whole order, lines and Money back.",
+    "guards": "Finance party and Money witnesses remain retained and revalidated after deferred effects; product/warehouse pre-reads and list item/tax ordering match the TypeScript oracle."
+  },
+  "verification": {
+    "cleanArchiveSelectedRoute": "Fresh git archive of 750d31420: commerce_selected_http_postgres 1/1 passed, including replay under Finance contention, party source drift, pricing auto/explicit/absence deferred drift, stale/duplicate Money and selected-route Company isolation.",
+    "cleanArchiveOrderPostgres": "Fresh git archive: order_postgres 18/18 passed.",
+    "cleanArchiveFinanceMoney": "Fresh git archive: commerce_order_money_postgres 7/7 passed.",
+    "cleanArchiveBuild": "Fresh git archive: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business passed.",
+    "worktreeOracles": "With installed node_modules and pinned Bun: Commerce unit 35/35 passed (including the save sequencing probe); Sales price-lists/selected-pricing 7/7 passed.",
+    "checks": "rustfmt --check passes on all changed files; tsc --noEmit previously passed for the unchanged frontend."
+  },
+  "workflowClosure": {
+    "sales/quotes": "Verified on 750d31420: native price lists, quotation list/detail, draft create/update with replay-before-validation, Money/party/Sales source fences and retained witnesses, selected-pricing auto/explicit/absence comparison, original conflict/pre-read error order, quote submit/approve/return/cancel/conversion with Money preflight/retain, desktop/mobile create/edit browser evidence and clean full-service archive tests. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate."
+  },
+  "counts": {
+    "verified": 84,
+    "partial": 38,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "1 verified / 3 partial / 1 unstarted of 5"
+  },
+  "nextAction": "Implement the native goods-fulfillment command with Inventory stock_issue, Commerce fulfillment/order state, Finance goods journal and fulfillment Money, then browser-verify desktop/mobile goods delivery."
+}

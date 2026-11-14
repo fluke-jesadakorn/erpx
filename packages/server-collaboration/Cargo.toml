@@ -1,0 +1,137 @@
+[package]
+name = "erpx-server-collaboration"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../fixtures/collaboration/rust-maintenance-notifications", "../server-maintenance/src/adapters/collaboration-notification-snapshot-sources.ts"]
+
+[features]
+push-provider = ["dep:ring", "dep:base64", "dep:url", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
+
+[dependencies]
+ring = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+webpki-roots = { workspace = true, optional = true }
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+erpx-server-quality.workspace = true
+erpx-server-identity-access.workspace = true
+erpx-server-crm.workspace = true
+
+[[test]]
+name = "maintenance_notifications"
+path = "../../tests/unit/collaboration/rust-maintenance-notifications.test.rs"
+
+[[test]]
+name = "roster_position_notifications"
+path = "../../tests/unit/collaboration/rust-roster-position-notifications.test.rs"
+
+[[test]]
+name = "maintenance_notifications_postgres"
+path = "../../tests/integration/collaboration/rust-maintenance-notifications-postgres.test.rs"
+
+[lints]
+workspace = true
+
+[[test]]
+name = "service_count_flow_notification_postgres"
+path = "../../tests/integration/collaboration/rust-service-count-flow-notification-postgres.test.rs"
+
+[[test]]
+name = "collaboration_work"
+path = "../../tests/unit/collaboration/rust-collaboration-work.test.rs"
+
+[[test]]
+name = "collaboration_work_postgres"
+path = "../../tests/integration/collaboration/rust-collaboration-work-postgres.test.rs"
+
+[[test]]
+name = "collaboration_workspace"
+path = "../../tests/unit/collaboration/rust-collaboration-workspace.test.rs"
+
+[[test]]
+name = "collaboration_workspace_postgres"
+path = "../../tests/integration/collaboration/rust-collaboration-workspace-postgres.test.rs"
+
+[[test]]
+name = "handbook"
+path = "../../tests/unit/collaboration/rust-handbook.test.rs"
+
+[[test]]
+name = "handbook_postgres"
+path = "../../tests/integration/collaboration/rust-handbook-postgres.test.rs"
+
+[[test]]
+name = "social"
+path = "../../tests/unit/collaboration/rust-social.test.rs"
+
+[[test]]
+name = "social_postgres"
+path = "../../tests/integration/collaboration/rust-social-postgres.test.rs"
+
+[[test]]
+name = "messaging"
+path = "../../tests/unit/collaboration/rust-messaging.test.rs"
+
+[[test]]
+name = "messaging_postgres"
+path = "../../tests/integration/collaboration/rust-messaging-postgres.test.rs"
+
+[[test]]
+name = "social_http"
+path = "../../tests/unit/collaboration/rust-social-http.test.rs"
+
+[[test]]
+name = "messaging_http"
+path = "../../tests/unit/collaboration/rust-messaging-http.test.rs"
+
+[[test]]
+name = "collaboration_work_http"
+path = "../../tests/unit/collaboration/rust-collaboration-work-http.test.rs"
+
+[[test]]
+name = "inbox_http"
+path = "../../tests/unit/collaboration/rust-inbox-http.test.rs"
+
+[[test]]
+name = "inbox_targets"
+path = "../../tests/unit/collaboration/rust-inbox-targets.test.rs"
+
+[[test]]
+name = "collaboration_work_pg"
+path = "../../tests/integration/collaboration/rust-collaboration-work-pg-postgres.test.rs"
+
+[[test]]
+name = "collaboration_pg"
+path = "../../tests/unit/collaboration/rust-collaboration-pg.test.rs"
+
+[[test]]
+name = "collaboration_pg_postgres"
+path = "../../tests/integration/collaboration/rust-collaboration-pg-postgres.test.rs"
+
+[[test]]
+name = "staff_facts_postgres"
+path = "../../tests/integration/collaboration/rust-staff-facts-postgres.test.rs"
+
+[[test]]
+name = "work_home_unread_postgres"
+path = "../../tests/integration/collaboration/rust-work-home-unread-postgres.test.rs"
+
+[[test]]
+name = "pms_social_publish_postgres"
+path = "../../tests/integration/collaboration/rust-pms-social-publish-postgres.test.rs"

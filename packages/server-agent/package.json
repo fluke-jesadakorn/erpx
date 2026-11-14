@@ -9,6 +9,7 @@
     "./adapters/collaboration-home-sources": "./src/adapters/collaboration-home-sources.ts",
     "./adapters/operations-guided-intake-facts": "./src/adapters/operations-guided-intake-facts.ts",
     "./adapters/agent-governance": "./src/adapters/agent-governance.ts",
+    "./adapters/native-agent-evidence": "./src/adapters/native-agent-evidence.ts",
     "./adapters/executive-evidence-sources": "./src/adapters/executive-evidence-sources.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/ai-transport": "./src/adapters/ai-transport.ts",
@@ -22,7 +23,7 @@
     "./adapters/finance-ai-quota-sources": "./src/adapters/finance-ai-quota-sources.ts",
     "./adapters/workspace-assistant": "./src/adapters/workspace-assistant.ts",
     "./adapters/collaboration-agent-sources": "./src/adapters/collaboration-agent-sources.ts",
-    "./adapters/ai-providers": "./src/adapters/ai-providers.ts",
+    "./adapters/ai-runtime": "./src/adapters/ai-runtime.ts",
     "./adapters/ai-gateway": "./src/adapters/ai-gateway.ts",
     "./adapters/commercial-usage-facts": "./src/adapters/commercial-usage-facts.ts",
     "./public/collaboration-text-sources": "./src/public/collaboration-text-sources.ts",
@@ -30,6 +31,8 @@
     "./public/collaboration-home-sources": "./src/public/collaboration-home-sources.ts",
     "./public/operations-guided-intake-facts": "./src/public/operations-guided-intake-facts.ts",
     "./public/agent-governance": "./src/public/agent-governance.ts",
+    "./public/native-agent-evidence": "./src/public/native-agent-evidence.ts",
+    "./public/native-agent-evidence-page": "./src/public/native-agent-evidence-page.ts",
     "./public/executive-evidence-sources": "./src/public/executive-evidence-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/ai-transport": "./src/public/ai-transport.ts",
@@ -49,7 +52,6 @@
     "./public/commercial-usage-facts": "./src/public/commercial-usage-facts.ts",
     "./index": "./src/index.ts",
     "./application/governance": "./src/application/governance.ts",
-    "./application/providers": "./src/application/providers.ts",
     "./application/assistant": "./src/application/assistant.ts",
     "./application/transport": "./src/application/transport.ts",
     "./application/gateway": "./src/application/gateway.ts",
@@ -58,7 +60,9 @@
     "./domain/providers": "./src/domain/providers.ts",
     "./domain/assistant": "./src/domain/assistant.ts",
     "./domain/transport": "./src/domain/transport.ts",
-    "./domain/gateway": "./src/domain/gateway.ts"
+    "./domain/gateway": "./src/domain/gateway.ts",
+    "./public/native-agent-governance": "./src/public/native-agent-governance.ts",
+    "./public/native-ai-gateway": "./src/public/native-ai-gateway.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -89,6 +93,6 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

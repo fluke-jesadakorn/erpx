@@ -57,7 +57,8 @@ export const account = pgTable("account", {
   password: text("password"),
   createdAt: epoch("createdAt").notNull(),
   updatedAt: epoch("updatedAt").notNull(),
-  issuer: text("issuer").notNull().default("local:credential"),
+  // Retain historical issuer values; Better Auth 1.7.3+ keys by providerId/accountId.
+  issuer: text("issuer"),
 });
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),

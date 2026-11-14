@@ -1,1 +1,2 @@
-export {operationsRoutineJournalEffects} from '@erpx/server-workflow/adapters/operations-routine-journal-effects';
+// Retired barrel; see the adapter shell for the register-sweep removal condition.
+export {};

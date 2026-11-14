@@ -23,7 +23,6 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const {pmsCommand,loadPms}=await import("../../../packages/server-pms/src/public/pms");
   const {posCommand}=await import("@erpx/server-pos/public/pos-core");
   const {saveMaster}=await import("@erpx/server-commerce/public/commerce");
-  const {saveServiceTeam,serviceTeamSchema}=await import("@erpx/server-support/public/service-teams");
   const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
   const f=await seedExpenseCompany(input.db,input.files);
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind(fixture.legalEntity,f.company).run();
@@ -82,15 +81,23 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
     .bind(f.company,kind,scopeId).first<{version:number}>())?.version??0);
   await changeAppointment(db,admin,{kind:"head",departmentId:f.department,positionId:null,personId:managerPersonId,expectedVersion:await appointmentVersion("head",f.department),reason:"Synthetic department approval route for H002 browser acceptance."},crypto.randomUUID());
   await changeAppointment(db,admin,{kind:"hr",departmentId:null,positionId:null,personId:`person-${actors.hrAdmin.userId}`,expectedVersion:await appointmentVersion("hr",f.company),reason:"Synthetic independent HR route for H002 browser acceptance."},crypto.randomUUID());
-  await saveServiceTeam(db,admin,null,serviceTeamSchema.parse({
-    name:"Riverside purchasing team",
+  const serviceTeamId=crypto.randomUUID(),serviceTeamNow=Date.now(),serviceTeamConfig=JSON.stringify({
+    name:"Riverside purchasing team",active:true,expectedVersion:1,
     members:[
       {userId:actors.purchasingOperator.userId,responsibility:"lead"},
       {userId:actors.purchasingManager.userId,responsibility:"member"},
       {userId:actors.purchasingReviewer.userId,responsibility:"member"},
     ],
     coverage:[{category:"purchasing",scopeKind:"holding",scopeNodeId:f.company}],
-  }),crypto.randomUUID());
+  });
+  await db.batch([
+    db.prepare("INSERT INTO service_teams(id,company_id,name,active,version,configuration_json,created_by,created_at,updated_at) VALUES(?,?,?,1,1,?,?,?,?)").bind(serviceTeamId,f.company,"Riverside purchasing team",serviceTeamConfig,admin.userId,serviceTeamNow,serviceTeamNow),
+    db.prepare("INSERT INTO service_team_revisions(company_id,team_id,version,configuration_json,actor_id,created_at) VALUES(?,?,1,?,?,?)").bind(f.company,serviceTeamId,serviceTeamConfig,admin.userId,serviceTeamNow),
+    db.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,actors.purchasingOperator.userId,"lead"),
+    db.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,actors.purchasingManager.userId,"member"),
+    db.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,actors.purchasingReviewer.userId,"member"),
+    db.prepare("INSERT INTO service_team_coverage(company_id,team_id,category,scope_kind,scope_node_id) VALUES(?,?,?,?,?)").bind(f.company,serviceTeamId,"purchasing","holding",f.company),
+  ]);
   await saveSupplierInvoicePolicy(admin,{matchingMode:"required",expectedVersion:0,reason:"Fictional Riverside scenario requires independent matching of supplier invoices to receipts."},crypto.randomUUID());
   const supplierOne=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-01",name:"Fictional Riverside Food Supply",paymentTermsDays:30},crypto.randomUUID());
   const supplierTwo=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-02",name:"Fictional Lantern Produce Co",paymentTermsDays:30},crypto.randomUUID());
@@ -248,12 +255,8 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const openingEquityId=`${f.company}-hospitality-opening-equity`;
   await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'HOTEL-OPEN','Demo opening inventory equity','equity','THB',?,?)").bind(openingEquityId,f.chart,f.company,now,now).run();
   const openingValue=fixture.restaurant.openingStock.reduce((sum,item)=>sum+item.valueMinor,0);
-  const {createJournal,createJournalSchema,postJournal}=await import("@erpx/server-finance/public/finance");
-  const {resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
-  const opening=await createJournal(admin,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:date,currency:"THB",memo:"Fictional Riverside kitchen opening inventory",sourceType:"manual",isOpening:true,lines:[{accountId:pmsAccounts.inventory,debit:String(openingValue/100),credit:"0"},{accountId:openingEquityId,debit:"0",credit:String(openingValue/100)}]}),crypto.randomUUID());
-  const flow=await resolveFlow(db,admin,"journal",String(opening.id));
-  await assignFlowPrimary(db,admin,"journal",String(opening.id),{stepKey:"draft",userId:finance.userId,expectedVersion:flow.version,recordVersion:1,reason:"Independent review of fictional opening kitchen inventory",saveDefault:false},crypto.randomUUID());
-  await postJournal(finance,String(opening.id),crypto.randomUUID(),{expectedVersion:1});
+  const {seedFinanceJournal}=await import("../../../tests/support/helpers/finance-journal-seed");
+  const opening=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:date,currency:"THB",memo:"Fictional Riverside kitchen opening inventory",key:crypto.randomUUID(),createdBy:admin.userId,status:"posted",isOpening:true,lines:[{accountId:pmsAccounts.inventory,debit:String(openingValue/100),credit:"0"},{accountId:openingEquityId,debit:"0",credit:String(openingValue/100)}]});
   const pos=async(operation:string,details:unknown)=>posCommand(db,admin,operation,details,crypto.randomUUID());
   await pos("settings.save",{enabled:true,currency:"THB",timezone:"Asia/Bangkok",cashierDiscountBps:0,accounts:{chartId:f.chart,...posAccounts},expectedVersion:0});
   await posCommand(db,finance,"accounting.approve",{expectedVersion:1},crypto.randomUUID());

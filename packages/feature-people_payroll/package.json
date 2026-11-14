@@ -115,6 +115,9 @@
     "./components/directory-workspace": "./src/components/directory-workspace.tsx",
     "./components/expense.module.css": "./src/components/expense.module.css",
     "./components/payroll-environment": "./src/components/payroll-environment.tsx",
+    "./public/native-payroll-summary": "./src/public/native-payroll-summary.ts",
+    "./public/native-payroll-summary-page": "./src/public/native-payroll-summary-page.ts",
+    "./public/native-payroll-summary-owned": "./src/public/native-payroll-summary-owned.ts",
     "./lib/people-roster-domain": "./src/lib/people-roster-domain.ts",
     "./lib/people-evaluation": "./src/lib/people-evaluation.ts",
     "./lib/expense-ai": "./src/lib/expense-ai.ts",
@@ -182,9 +185,10 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "zod": "4.5.4"
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "zod": "4.6.7",
+    "@erpx/contracts": "workspace:*"
   }
 }
