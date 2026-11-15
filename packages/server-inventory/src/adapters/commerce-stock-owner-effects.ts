@@ -69,4 +69,3 @@ prepareOutputStock(warehouse_id: string | number | null, output_product_id: stri
                 .prepare("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,?,?,1) ON CONFLICT(warehouse_id,product_id) DO UPDATE SET quantity_milli=commerce_stock.quantity_milli+excluded.quantity_milli,value_minor=commerce_stock.value_minor+excluded.value_minor,version=commerce_stock.version+1")
                 .bind(warehouse_id, output_product_id, output, total);
         }};}
-export function commerceFieldServiceStockLock(db:SqlDatabase,warehouseId:string,productId:string){return db.prepare("UPDATE commerce_stock SET version=version+1 WHERE warehouse_id=? AND product_id=?").bind(warehouseId,productId);}

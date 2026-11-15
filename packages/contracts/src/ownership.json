@@ -2244,7 +2244,6 @@
           "id": "inventory-commands-and-queries",
           "migration": "clean",
           "source": [
-            "packages/server-inventory/src/adapters/field-service-reservations.ts",
             "packages/server-inventory/src/adapters/inventory-consumption.ts",
             "packages/server-inventory/src/adapters/inventory-counts.ts",
             "packages/server-inventory/src/adapters/inventory-landed-costs.ts",
@@ -4064,7 +4063,6 @@
             "packages/server-commerce/src/adapters/inventory-read-projections.ts",
             "packages/server-commerce/src/adapters/inventory-reorder-sources.ts",
             "packages/server-commerce/src/adapters/inventory-reservation-alert-sources.ts",
-            "packages/server-commerce/src/adapters/inventory-service-reservations.ts",
             "packages/server-commerce/src/adapters/inventory-transfers-sources.ts",
             "packages/server-commerce/src/adapters/inventory-transit-sources.ts",
             "packages/server-commerce/src/adapters/invoice-command-policy.ts",
