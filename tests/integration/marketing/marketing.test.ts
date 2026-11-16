@@ -7,9 +7,9 @@ import {
 } from "../../support/helpers/expense-fixture";
 import { createMarketingAsset } from "../../support/helpers/marketing-asset-seed";
 import { reviewMarketingAsset } from "../../support/helpers/marketing-asset-review-seed";
+import { createMarketingCandidate as seedMarketingCandidate } from "../../support/helpers/marketing-candidate-seed";
 import {
   changeMarketing,
-  createMarketingCandidate,
   marketingDetail,
   marketingWorkspace,
 } from "@erpx/server-marketing/public/marketing";
@@ -150,7 +150,7 @@ it("requires explicit consent for lead-capture forms", async () => {
 });
 it("hands a consented attributed candidate to the CRM owner service exactly once", async () => {
   const form = await activeForm(),
-    candidate = await createMarketingCandidate(
+    candidate = await seedMarketingCandidate(
       creator,
       {
         formId: form.id,
@@ -223,7 +223,7 @@ it("hands a consented attributed candidate to the CRM owner service exactly once
     owner_id: reviewer.userId,
   });
   expect(String(lead.source)).toContain("newsletter");
-  await createMarketingCandidate(
+  await seedMarketingCandidate(
     creator,
     {
       formId: form.id,
@@ -265,7 +265,7 @@ it("rejects stale or inactive form sources", async () => {
     key(),
   );
   await expect(
-    createMarketingCandidate(
+    seedMarketingCandidate(
       creator,
       {
         formId: form.id,
@@ -282,7 +282,7 @@ it("rejects stale or inactive form sources", async () => {
   ).rejects.toMatchObject({ code: "CONFLICT" });
 });
 it("rolls back CRM, Marketing, touch, notification and command evidence after a late handoff failure",async()=>{
- const form=await activeForm(),candidate=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:"Atomic handoff",contactDetail:"atomic@example.test",consentEvidence:"Explicit employee approved form consent",attribution:{source:"newsletter"},brief:"Needs an approved proposal"},key()),command=key(),leadId=`lead-${command}-crm`;
+ const form=await activeForm(),candidate=await seedMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:"Atomic handoff",contactDetail:"atomic@example.test",consentEvidence:"Explicit employee approved form consent",attribution:{source:"newsletter"},brief:"Needs an approved proposal"},key()),command=key(),leadId=`lead-${command}-crm`;
  handoffFailure.enabled=true;
  try{await expect(changeMarketing(reviewer,"candidate",String(candidate.id),{action:"handoff",expectedVersion:1,reason:"Independently review consent before handoff",dueDate:"2026-10-10"},command)).rejects.toThrow();}
  finally{handoffFailure.enabled=false;}
@@ -293,7 +293,7 @@ it("rolls back CRM, Marketing, touch, notification and command evidence after a 
  for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) count FROM ${table} WHERE command_id IN (?,?)`).bind(command,`${command}-crm`).first("count")).toBe(0);
 });
 it("serializes concurrent candidate handoffs and replays the committed response without a second CRM record",async()=>{
- const form=await activeForm(),candidate=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:"Concurrent handoff",contactDetail:"concurrent@example.test",consentEvidence:"Explicit prospect consent captured",attribution:{source:"newsletter"},brief:"Discuss service proposal"},key()),body={action:"handoff",expectedVersion:1,reason:"Independently review current candidate",dueDate:"2026-10-10"},commands=[key(),key()];
+ const form=await activeForm(),candidate=await seedMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:"Concurrent handoff",contactDetail:"concurrent@example.test",consentEvidence:"Explicit prospect consent captured",attribution:{source:"newsletter"},brief:"Discuss service proposal"},key()),body={action:"handoff",expectedVersion:1,reason:"Independently review current candidate",dueDate:"2026-10-10"},commands=[key(),key()];
  const outcomes=await Promise.allSettled(commands.map(command=>changeMarketing(reviewer,"candidate",String(candidate.id),body,command)));
  expect(outcomes.filter(outcome=>outcome.status==="fulfilled")).toHaveLength(1);
  const index=outcomes.findIndex(outcome=>outcome.status==="fulfilled"),completed=outcomes[index];
@@ -307,7 +307,7 @@ async function purchasedMarketing(packageId:'sales'|'sales-marketing',state:'act
  const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);
  return packageGrantStore(db,{authorize:async()=>({userId:'isolated-marketing-provider'}),obligations:async()=>{throw Error('MARKETING_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated original Marketing owner purchase',evidence:'test:marketing-purchase'}});
 }
-async function capturedCandidate(){const form=await activeForm(),candidate=await createMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:'Fictional purchased prospect',contactDetail:'Declared synthetic contact channel',consentEvidence:'Explicit synthetic consent to this exact reviewed form',attribution:{source:'native purchased fixture'},brief:'Retain the actual original candidate handoff source'},key());return {form,candidate};}
+async function capturedCandidate(){const form=await activeForm(),candidate=await seedMarketingCandidate(creator,{formId:form.id,formVersion:2,branchId:f.branch,contactName:'Fictional purchased prospect',contactDetail:'Declared synthetic contact channel',consentEvidence:'Explicit synthetic consent to this exact reviewed form',attribution:{source:'native purchased fixture'},brief:'Retain the actual original candidate handoff source'},key());return {form,candidate};}
 it('requires the Marketing addon for new work but settles only an exact existing reviewed candidate through the complete draining CRM handoff',async()=>{
  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await purchasedMarketing('sales');await expect(createMarketingAsset(creator,{kind:'content',name:'Unpurchased Marketing content',configuration:{},preview:{}},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(marketingWorkspace(creator)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
  await purchasedMarketing('sales-marketing');const {form,candidate}=await capturedCandidate(),command=key(),body={action:'handoff' as const,expectedVersion:1,reason:'Independent review of the exact retained consented prospect'};

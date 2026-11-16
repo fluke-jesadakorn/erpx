@@ -146,54 +146,7 @@ replay:(key,operation,id,input)=>replayCommand(write,a,key,operation,id,input),c
 };}
 function application(a:WorkContext,provided?:SqlDatabase,now?:number){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createMarketingApplication({actorId:a.userId,clock:{now:()=>now??Date.now()},canRead:hasModuleAccess(a.modules,'marketing')&&hasPermission(a,'records.read'),canLinkCost:hasPermission(a,'finance.read')&&hasPermission(a,'records.write'),publicationsReadable:attachmentsV2Readable(),authorize:write=>access(a,write),repository:async()=>repository(await database(),a,!provided)});}
 async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingMutation<SqlStatement[]>,result:Result):Promise<Result>{const {key,id,operation:op,now}=m;switch(m.action){
-case "candidate":{const i=m.input;return executeCommand(write, a, key, op, i, id, 1, result, [
-    ...(m.presentation??[]),
-    assertion(
-      write,
-      key,
-      "form",
-      "EXISTS(SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='form' AND status='active' AND version=? AND configuration_json::jsonb->'consentRequired'='true'::jsonb)",
-      [i.formId, a.companyId, i.formVersion],
-    ),
-    assertion(
-      write,
-      key,
-      "branch",
-      `EXISTS(SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?))`,
-      [i.branchId, a.companyId, a.branchId, a.branchId],
-    ),
-    write
-      .prepare(
-        "INSERT INTO marketing_lead_candidates VALUES(?,?,?,?,?,?,?,?,?,?,?,'pending',NULL,?,NULL,1,?,?)",
-      )
-      .bind(
-        id,
-        a.companyId,
-        i.branchId,
-        a.departmentId,
-        i.formId,
-        i.formVersion,
-        i.contactName,
-        i.contactDetail,
-        i.consentEvidence,
-        JSON.stringify(i.attribution),
-        i.brief,
-        a.userId,
-        now,
-        now,
-      ),
-    write
-      .prepare(
-        "INSERT INTO marketing_engagement_events VALUES(?,?,1,'form_submit','web',?,?,?)",
-      )
-      .bind(
-        `marketing-engagement-${key}`,
-        id,
-        i.consentEvidence,
-        a.userId,
-        now,
-      ),
-  ]);}
+case "candidate":{throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Candidate create is native-only.');}
 case "asset":{throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Asset review is native-only.');}
 case "engagement":{throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Candidate engagement is native-only.');}
 case "handoff":{const i=m.input,crm=m.crm;return executeCommand(
@@ -235,7 +188,7 @@ case "handoff":{const i=m.input,crm=m.crm;return executeCommand(
 }}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function marketingWorkspace(a:WorkContext){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireMarketingPurchasedRead(db,a),view=await application(a,db).workspace();return {...view,...(purchase?{purchase,canWrite:hasPermission(a,'records.write'),costHistory:await marketingFinanceHistory(db,a)}: {})};});}
-export function createMarketingCandidate(a:WorkContext,raw:unknown,key:string){return translated(()=>{const input=marketingCandidateSchema.parse(raw);return withMarketingPurchasedCommand(a,{key,operation:'marketing.candidate.create',target:{kind:'candidate',id:`marketing-candidate-${key}`},purpose:'new-work',sources:[{kind:'asset',id:input.formId}]},db=>application(a,db).createCandidate(input,key));});}
+export function createMarketingCandidate(a:WorkContext,raw:unknown,key:string){throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Candidate create is native-only.');}
 export function changeMarketing(a:WorkContext,kind:"asset"|"candidate",id:string,raw:unknown,key:string){return translated(()=>{const input=marketingActionSchema.parse(raw);if(kind==='asset')throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Asset review is native-only.');if(kind==='candidate'&&input.action==='record-engagement')throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Candidate engagement is native-only.');return kind==='candidate'&&input.action==='handoff'?crmMarketingCandidateTransaction(a,id,input,key,(db,now)=>application(a,db,now).change(kind,id,input,key,repository(db,a,false))):withMarketingPurchasedCommand(a,{key,operation:'marketing.candidate.engagement',target:{kind,id},existing:true,purpose:'settle-existing'},db=>application(a,db).change(kind,id,input,key));});}
 export function marketingDetail(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireMarketingPurchasedRead(db,a,{kind:'candidate',id}),view=await application(a,db).detail(id),handoff=purchase?await marketingHandoffControls(db,a):undefined;return {...view,...(purchase?{purchase,canWrite:hasPermission(a,'records.write'),canHandoff:!!handoff?.sales&&hasPermission(a,'records.write')&&view.candidate.created_by!==a.userId,handoffPurchase:handoff?.purchase}: {})};});}
 export function marketingExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:MarketingExecutiveEvidenceMetric,id:string,range?:{from:number;toExclusive:number}){return translated(async()=>{await requireMarketingPurchasedRead(db,a);return application(a,db).evidence(metric,id,range);});}
