@@ -1,4 +1,4 @@
-import {readBenefitEvidence,searchBenefitEvidence} from "@erpx/server-benefits/public/executive-evidence";
+import {readBenefitEvidence,searchBenefitEvidence} from "@erpx/server-benefits/adapters/executive-evidence";
 import "server-only";
 import { type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";

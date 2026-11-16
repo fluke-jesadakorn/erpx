@@ -7,7 +7,7 @@ import {authorizeMessagingAttachmentPurchase} from "@erpx/server-collaboration/p
 import {authorizeEcommerceAttachmentPurchase} from "@erpx/server-ecommerce/public/attachment-purchases";
 import {authorizeWorkTaskAttachmentPurchase} from "@erpx/server-operations/public/task-attachment-purchases";
 import {authorizePortalAttachmentPurchase} from "@erpx/server-customer_authority/public/attachment-purchases";
-import {authorizeBenefitAttachmentPurchase} from "@erpx/server-benefits/public/attachment-purchases";
+import {authorizeBenefitAttachmentPurchase} from "@erpx/server-benefits/adapters/attachment-purchases";
 import {authorizeWorkforceAttachmentPurchase} from "@erpx/server-people_payroll/public/workforce-attachment-purchases";
 import {authorizeCRMAttachmentPurchase} from "@erpx/server-crm/public/attachment-purchases";
 import {authorizeMarketingAttachmentPurchase} from "@erpx/server-marketing/public/attachment-purchases";

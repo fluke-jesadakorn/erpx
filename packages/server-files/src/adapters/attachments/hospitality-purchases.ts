@@ -2,7 +2,7 @@ import {messagingAttachmentCommandBoundary,type MessagingAttachmentPurchase} fro
 import {ecommerceAttachmentCommandBoundary,type EcommerceAttachmentPurchase} from "@erpx/server-ecommerce/public/attachment-purchases";
 import {workTaskAttachmentCommandBoundary,type WorkTaskAttachmentPurchase} from "@erpx/server-operations/public/task-attachment-purchases";
 import {portalAttachmentCommandBoundary,type PortalAttachmentPurchase} from "@erpx/server-customer_authority/public/attachment-purchases";
-import {benefitAttachmentCommandBoundary,type BenefitAttachmentPurchase} from "@erpx/server-benefits/public/attachment-purchases";
+import {benefitAttachmentCommandBoundary,type BenefitAttachmentPurchase} from "@erpx/server-benefits/adapters/attachment-purchases";
 import {workforceAttachmentCommandBoundary,type WorkforceAttachmentPurchase} from "@erpx/server-people_payroll/public/workforce-attachment-purchases";
 import {crmAttachmentCommandBoundary,type CRMAttachmentPurchase} from "@erpx/server-crm/public/attachment-purchases";
 import {marketingAttachmentCommandBoundary,type MarketingAttachmentPurchase} from "@erpx/server-marketing/public/attachment-purchases";

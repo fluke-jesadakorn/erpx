@@ -1,5 +1,5 @@
-import type {readBenefitEvidence,searchBenefitEvidence} from "@erpx/server-benefits/public/executive-evidence";
-import {benefitEvidenceMetrics} from "@erpx/server-benefits/public/rules/executive-evidence";
+import type {readBenefitEvidence,searchBenefitEvidence} from "@erpx/server-benefits/adapters/executive-evidence";
+import {benefitEvidenceMetrics} from "@erpx/server-benefits/domain/executive-evidence";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { z } from 'zod';
 import { type Filters, type MetricId } from "@erpx/server-runtime/public/rules/canvas-domain";
