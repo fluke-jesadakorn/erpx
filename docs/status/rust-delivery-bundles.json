@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 2918,
+    "revision": 2921,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261116-retirement-b",
       "agentId": "lead",
       "startedAt": "2026-11-15T22:28:14.915Z",
-      "heartbeatAt": "2026-11-16T01:19:25.751Z",
-      "expiresAt": "2026-11-16T01:49:25.751Z",
+      "heartbeatAt": "2026-11-16T01:20:14.942Z",
+      "expiresAt": "2026-11-16T01:50:14.942Z",
       "generation": 104,
       "tokenHash": "584f6facd221b564888b72fe0fa00aadb471b2855c62382b0483c99eb96d6bc0"
     },
@@ -42458,8 +42458,8 @@
           "runId": "run-20261116-retirement-b",
           "agentId": "lead",
           "claimedAt": "2026-11-16T01:08:44.710Z",
-          "heartbeatAt": "2026-11-16T01:19:25.751Z",
-          "expiresAt": "2026-11-16T01:49:25.751Z",
+          "heartbeatAt": "2026-11-16T01:20:14.942Z",
+          "expiresAt": "2026-11-16T01:50:14.942Z",
           "generation": 104
         },
         "baseSha": null,
@@ -42772,6 +42772,76 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Port native benefits attachment purchase boundary and executive evidence transport; switch consumers; delete TS writes; record KPI."
+      },
+      {
+        "id": "migrate.marketing.handoff",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "marketing",
+        "workflowIds": [],
+        "workstream": "S11",
+        "kind": "migration",
+        "title": "Migrate Marketing candidate handoff to CRM to native",
+        "scope": "Port the candidate handoff to CRM (create CRM lead, update candidate status, outbox) to a native Rust command, switch the route, delete the TS handoff writer in marketing.ts, migrate tests, record KPI delta.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/adapters/marketing.ts",
+          "packages/server-crm/src/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/marketing/route.ts",
+          "src/composition/src/marketing.rs",
+          "src/composition/src/crm.rs",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing",
+          "owner:crm",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Design native handoff command mirroring crmMarketingCandidateTransaction; implement; switch route; delete TS handoff case; migrate tests."
+      },
+      {
+        "id": "migrate.marketing.public-submission",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "marketing",
+        "workflowIds": [],
+        "workstream": "S11",
+        "kind": "migration",
+        "title": "Migrate Marketing public form submission to native",
+        "scope": "Port public form submission (rate limiting, candidate creation, engagement, receipt) to a native Rust command, switch the route, delete the TS writer in public-submission.ts, migrate tests, record KPI delta.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/adapters/public-submission.ts",
+          "packages/feature-marketing/**",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/marketing/route.ts",
+          "src/composition/src/marketing.rs",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Port native public submission command; switch route; delete TS writer; migrate tests."
       }
     ],
     "migrationProgress": {
@@ -42780,10 +42850,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 227,
+      "totalPackets": 229,
       "migratedPackets": 130,
       "statusCounts": {
-        "pending": 27,
+        "pending": 29,
         "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -42794,7 +42864,7 @@
       }
     },
     "lastCoordinatorGeneration": 104,
-    "updatedAt": "2026-11-16T01:20:03.175Z",
+    "updatedAt": "2026-11-16T01:20:53.087Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
