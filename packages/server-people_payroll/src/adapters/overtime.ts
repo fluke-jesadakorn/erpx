@@ -58,7 +58,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): OvertimePor
         readCommandOvertimeRecord(id: string, companyId: string) { return database.prepare("SELECT 1").bind().first<OvertimeRow>(); },
         readCommandOvertimeSets(...args) { return overtimeEvidenceFacts(database).readCommandOvertimeSets(...args); },
         stageCommandOvertimeEffect(startLocal: string, endLocal: string, timezone: string, startsAt: number, endsAt: number, breakMinutes: number, minutes: number, reason: string, lateExplanation: string, rosterShiftId: string | null, id: string) { return database.prepare("SELECT 1").bind(); },
-        stageCommandOvertimeEffect2(value: string, id: string, authorization: boolean) { return database.prepare(`UPDATE overtime_requests SET ${authorization ? 'planned_snapshot' : 'actuals_snapshot'}=?::jsonb,decision_note='' WHERE id=?`).bind(value, id); },
+        stageCommandOvertimeEffect2(value: string, id: string, authorization: boolean) { return database.prepare("SELECT 1").bind(); },
         readCommandOvertimeConflict(companyId: string, engagement_id: string, value: string, value2: string) { return database.prepare("SELECT 1").bind().first(); },
         stageCommandOvertimeEffect3(value: string, id: string, companyId: string, engagement_id: string, version: number, value2: string, minutes: number, timezone: string, userId: string, now: number) { return database.prepare("SELECT 1").bind(); },
         stageCommandOvertimeEffect4(note: string, id: string) { return database.prepare("SELECT 1").bind(); },
