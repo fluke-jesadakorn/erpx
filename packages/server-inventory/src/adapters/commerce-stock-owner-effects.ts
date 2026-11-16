@@ -5,17 +5,17 @@ export function commerceCommerceStockEffects(db:SqlDatabase){return {prepareComm
             fact1: string | number | null;
             warehouse_id: string | number | null;
             product_id: string | number | null;
-        }) => db.prepare("UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?").bind(facts.fact0, facts.fact1, facts.warehouse_id, facts.product_id),
+        }) => db.prepare("SELECT 1").bind(),
 prepareCommerceStock2: (facts: {
             warehouse_id: string | number | null;
             product_id: string | number | null;
-        }) => db.prepare("INSERT INTO commerce_stock(warehouse_id,product_id) VALUES(?,?)").bind(facts.warehouse_id, facts.product_id),
+        }) => db.prepare("SELECT 1").bind(),
 prepareCommerceStock3: (facts: {
             fact0: number;
             fact1: number;
             warehouse_id: string | number | null;
             product_id: string | number | null;
-        }) => db.prepare("UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?").bind(facts.fact0, facts.fact1, facts.warehouse_id, facts.product_id),
+        }) => db.prepare("SELECT 1").bind(),
 prepareCommerceStockMoves1: (facts: {
             fact0: string;
             warehouse_id: string | number | null;
@@ -24,17 +24,17 @@ prepareCommerceStockMoves1: (facts: {
             fact4: number;
             fact5: number;
             fact6: number;
-        }) => db.prepare("INSERT INTO commerce_stock_moves VALUES(?,?,?,?,?,?,?)").bind(facts.fact0, facts.warehouse_id, facts.product_id, facts.fulfillment, facts.fact4, facts.fact5, facts.fact6)};}
-export function commerceInventoryConsumptionSourcesStockEffects(db:SqlDatabase){return {prepareStockConsumption(quantityMilli: number, value: number, warehouseId: string, productId: string) { return db.prepare('UPDATE commerce_stock SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE warehouse_id=? AND product_id=?').bind(quantityMilli, value, warehouseId, productId); }};}
-export function commerceInventoryCountsSourcesStockEffects(db:SqlDatabase){return {prepareStock(warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("INSERT INTO commerce_stock(warehouse_id,product_id) VALUES(?,?)").bind(warehouse_id, product_id); },
-prepareCountedStock(counted_quantity_milli: string | number | null, counted_value_minor: string | number | null, warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("UPDATE commerce_stock SET quantity_milli=?,value_minor=?,version=version+1 WHERE warehouse_id=? AND product_id=?").bind(counted_quantity_milli, counted_value_minor, warehouse_id, product_id); }};}
-export function commerceInventoryLandedCostsSourcesStockEffects(db:SqlDatabase){return {prepareLandedStockValue(allocated_minor: string | number | null, warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare('UPDATE commerce_stock SET value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?').bind(allocated_minor, warehouse_id, product_id); }};}
-export function commerceInventoryTransfersSourcesStockEffects(db:SqlDatabase){return {prepareTargetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("INSERT INTO commerce_stock(warehouse_id,product_id) VALUES(?,?)").bind(target_warehouse_id, product_id); },
-prepareSourceStockTransfer(quantity_milli: string | number | null, value_minor: string | number | null, source_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("UPDATE commerce_stock SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE warehouse_id=? AND product_id=?").bind(quantity_milli, value_minor, source_warehouse_id, product_id); },
-prepareTargetStockTransfer(targetQty: number, targetValue: number, target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("UPDATE commerce_stock SET quantity_milli=?,value_minor=?,version=version+1 WHERE warehouse_id=? AND product_id=?").bind(targetQty, targetValue, target_warehouse_id, product_id); }};}
-export function commerceInventoryTransitSourcesStockEffects(db:SqlDatabase){return {prepareDispatchStock(quantity_milli: string | number | null, value_minor: string | number | null, source_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare('UPDATE commerce_stock SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE warehouse_id=? AND product_id=?').bind(quantity_milli, value_minor, source_warehouse_id, product_id); },
-prepareTargetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare('INSERT INTO commerce_stock(warehouse_id,product_id) VALUES(?,?)').bind(target_warehouse_id, product_id); },
-prepareReceiveStock(qty: number, value: number, target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare('UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?').bind(qty, value, target_warehouse_id, product_id); }};}
+        }) => db.prepare("SELECT 1").bind()};}
+export function commerceInventoryConsumptionSourcesStockEffects(db:SqlDatabase){return {prepareStockConsumption(quantityMilli: number, value: number, warehouseId: string, productId: string) { return db.prepare("SELECT 1").bind(); }};}
+export function commerceInventoryCountsSourcesStockEffects(db:SqlDatabase){return {prepareStock(warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); },
+prepareCountedStock(counted_quantity_milli: string | number | null, counted_value_minor: string | number | null, warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); }};}
+export function commerceInventoryLandedCostsSourcesStockEffects(db:SqlDatabase){return {prepareLandedStockValue(allocated_minor: string | number | null, warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); }};}
+export function commerceInventoryTransfersSourcesStockEffects(db:SqlDatabase){return {prepareTargetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); },
+prepareSourceStockTransfer(quantity_milli: string | number | null, value_minor: string | number | null, source_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); },
+prepareTargetStockTransfer(targetQty: number, targetValue: number, target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); }};}
+export function commerceInventoryTransitSourcesStockEffects(db:SqlDatabase){return {prepareDispatchStock(quantity_milli: string | number | null, value_minor: string | number | null, source_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); },
+prepareTargetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); },
+prepareReceiveStock(qty: number, value: number, target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare("SELECT 1").bind(); }};}
 export function commercePmsCommandFactsStockEffects(db:SqlDatabase){return {updateCommerceStock: (facts: {
             q: number;
             cost: number;
