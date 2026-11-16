@@ -21,7 +21,8 @@ async campaigns(){return ((await database()).prepare('SELECT id,code,name,versio
 costSources:async()=>marketingExpenseSources(await database(),a.companyId),replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),commit:async(mutation,result)=>commit(await database(),a,mutation,result),
 });}
 async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingCampaignMutation,result:Result):Promise<Result>{const {input:i,key,id,operation:op,now}=m;
- const steps=i.action==='create'?[write.prepare('INSERT INTO marketing_campaigns(id,company_id,code,name,created_by,created_at) VALUES(?,?,?,?,?,?)').bind(id,a.companyId,i.code,i.name,a.userId,now)]:[
+ if(i.action==='create')throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Campaign create is native-only.');
+ const steps=[
   assertion(write,key,'campaign','EXISTS(SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?)',[i.campaignId,a.companyId]),
   prepareMarketingExpenseGuard(write,key,a.companyId,i.journalLineId),
   write.prepare('INSERT INTO marketing_campaign_costs(id,company_id,campaign_id,journal_line_id,evidence,reviewed_by,created_at) VALUES(?,?,?,?,?,?,?)').bind(id,a.companyId,i.campaignId,i.journalLineId,i.evidence,a.userId,now)
@@ -30,4 +31,4 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingCampaig
 }
 export async function marketingCampaigns(a:WorkContext){const db=(await holdingResources(a.holdingId)).write;await requireMarketingPurchasedRead(db,a);return application(a,db).campaigns();}
 export async function marketingCostSources(a:WorkContext){const db=(await holdingResources(a.holdingId)).write;await requireMarketingPurchasedRead(db,a);return await marketingFinanceHistory(db,a)?application(a,db).costSources():[];}
-export function changeMarketingCampaign(a:WorkContext,raw:unknown,key:string){const input=marketingCampaignCommand.parse(raw);return withMarketingPurchasedCommand(a,{key,operation:`marketing.campaign.${input.action}`,target:{kind:input.action==='create'?'campaign':'campaign-cost',id:input.action==='create'?`campaign-${key}`:`campaign-cost-${key}`},purpose:input.action==='create'?'new-work':'settle-existing',sources:input.action==='link-cost'?[{kind:'campaign',id:input.campaignId}]:[],finance:input.action==='link-cost'},db=>application(a,db).change(input,key));}
+export function changeMarketingCampaign(a:WorkContext,raw:unknown,key:string){const input=marketingCampaignCommand.parse(raw);if(input.action==='create')throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Campaign create is native-only.');return withMarketingPurchasedCommand(a,{key,operation:`marketing.campaign.${input.action}`,target:{kind:'campaign-cost',id:`campaign-cost-${key}`},purpose:'settle-existing',sources:[{kind:'campaign',id:input.campaignId}],finance:true},db=>application(a,db).change(input,key));}

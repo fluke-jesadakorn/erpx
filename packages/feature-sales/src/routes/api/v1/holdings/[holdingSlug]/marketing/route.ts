@@ -130,6 +130,11 @@ export async function POST(r: Request, c: C) {
         ),
       );
       if (response) return response;
+      throw new ApiError(
+        503,
+        "NATIVE_MARKETING_LEAD_UNAVAILABLE",
+        "The native Marketing lead writer is unavailable.",
+      );
     }
     if (
       i.entity === "asset" &&
