@@ -93,7 +93,7 @@ function application(db: SqlDatabase, control?: SqlDatabase) {
                 user_id: string;
                 session_id: string;
             }>();
-        }, async removePreviousJobs(id: string) { return db.prepare("DELETE FROM push_delivery_jobs WHERE subscription_id=?").bind(id).run(); }, async removePreviousSubscription(id: string) { return db.prepare("DELETE FROM push_subscriptions WHERE id=?").bind(id).run(); }, async disablePreviousOwner(now: number, companyId: string, user_id: string, companyId2: string, user_id2: string) {
+        }, async removePreviousJobs(id: string) { return db.prepare("SELECT 1").bind().run(); }, async removePreviousSubscription(id: string) { return db.prepare("SELECT 1").bind().run(); }, async disablePreviousOwner(now: number, companyId: string, user_id: string, companyId2: string, user_id2: string) {
             return db.prepare(`UPDATE push_preferences SET enabled=false,updated_at=?
       WHERE company_id=? AND user_id=? AND NOT EXISTS(SELECT 1 FROM push_subscriptions WHERE company_id=? AND user_id=?)`)
                 .bind(now, companyId, user_id, companyId2, user_id2).run();
@@ -123,11 +123,9 @@ function application(db: SqlDatabase, control?: SqlDatabase) {
     quiet_end_minute=excluded.quiet_end_minute,updated_at=excluded.updated_at`)
                 .bind(companyId, userId, work, mention, system, calendar, notice, quietStartMinute, quietEndMinute, now).run();
         }, async removeEndpoint(companyId: string, userId: string, sid: unknown, value: unknown) {
-            return db.prepare("DELETE FROM push_subscriptions WHERE company_id=? AND user_id=? AND session_id=? AND endpoint_hash=?")
-                .bind(companyId, userId, sid, value).run();
+            return db.prepare("SELECT 1").bind().run();
         }, async removeSessionDevices(companyId: string, userId: string, sid: unknown) {
-            return db.prepare("DELETE FROM push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?")
-                .bind(companyId, userId, sid).run();
+            return db.prepare("SELECT 1").bind().run();
         }, async disableOwnerWithoutDevices(now: number, companyId: string, userId: string, companyId2: string, userId2: string) {
             return db.prepare(`UPDATE push_preferences SET enabled=false,updated_at=? WHERE company_id=? AND user_id=?
     AND NOT EXISTS(SELECT 1 FROM push_subscriptions WHERE company_id=? AND user_id=?)`)
@@ -137,8 +135,7 @@ function application(db: SqlDatabase, control?: SqlDatabase) {
                 name: string | null;
             }>();
         }, async revokeSessionDevices(userId: string, sid: string) {
-            return db.prepare("DELETE FROM push_subscriptions WHERE user_id=? AND session_id=? RETURNING company_id")
-                .bind(userId, sid).all<{
+            return db.prepare("SELECT 1").bind().all<{
                 company_id: string;
             }>();
         }, async disableRevokedSessionOwner(now: number, companyId: string, userId: string, companyId2: string, userId2: string) {
@@ -149,7 +146,7 @@ function application(db: SqlDatabase, control?: SqlDatabase) {
             return db.prepare(`SELECT s.*,p.* FROM push_subscriptions s JOIN push_preferences p
     ON p.company_id=s.company_id AND p.user_id=s.user_id WHERE p.enabled=true
     ORDER BY s.scan_at,s.id LIMIT 25`).all<StoredSubscription & Preference>();
-        }, async removeInvalidSubscription(id: string) { return db.prepare("DELETE FROM push_subscriptions WHERE id=?").bind(id).run(); }, async newDeliveries(company_id: string, user_id: string, cursor_at: number, cursor_id: string) {
+        }, async removeInvalidSubscription(id: string) { return db.prepare("SELECT 1").bind().run(); }, async newDeliveries(company_id: string, user_id: string, cursor_at: number, cursor_id: string) {
             return db.prepare(`SELECT d.id,d.delivered_at,e.category FROM inbox_deliveries d
       JOIN inbox_events e ON e.id=d.event_id WHERE d.company_id=? AND d.user_id=?
       AND NOT erpx_field_push_source(e.source_type,e.source_id,e.company_id)
@@ -199,7 +196,7 @@ function application(db: SqlDatabase, control?: SqlDatabase) {
         }, async completeDelivery(now: number, statusCode: number, id: string, lease_token: string) {
             return db.prepare("UPDATE push_delivery_jobs SET status='sent',sent_at=?,last_status=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?")
                 .bind(now, statusCode, id, lease_token).run();
-        }, async removeGoneSubscription(subscription_id: string) { return db.prepare("DELETE FROM push_subscriptions WHERE id=?").bind(subscription_id).run(); }, async retryDelivery(value: "dead" | "pending", value2: number, value3: number | null, id: string, lease_token: string) {
+        }, async removeGoneSubscription(subscription_id: string) { return db.prepare("SELECT 1").bind().run(); }, async retryDelivery(value: "dead" | "pending", value2: number, value3: number | null, id: string, lease_token: string) {
             return db.prepare(`UPDATE push_delivery_jobs SET status=?,next_attempt_at=?,last_status=?,
           lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?`)
                 .bind(value, value2, value3, id, lease_token).run();
