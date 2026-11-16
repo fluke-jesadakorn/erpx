@@ -231,44 +231,7 @@ case "asset":{const i=m.input,expected=m.expected,status=m.status;return execute
           ),
       ],
     );}
-case "engagement":{const i=m.input;return executeCommand(
-      write,
-      a,
-      key,
-      op,
-      i,
-      id,
-      i.expectedVersion + 1,
-      result,
-      [
-        assertion(
-          write,
-          key,
-          "candidate",
-          "EXISTS(SELECT 1 FROM marketing_lead_candidates WHERE id=? AND version=? AND status='pending')",
-          [id, i.expectedVersion],
-        ),
-        write
-          .prepare(
-            "UPDATE marketing_lead_candidates SET version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(now, id),
-        write
-          .prepare(
-            "INSERT INTO marketing_engagement_events VALUES(?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            `marketing-engagement-${key}`,
-            id,
-            i.expectedVersion + 1,
-            i.eventType,
-            i.channel,
-            i.reason,
-            a.userId,
-            now,
-          ),
-      ],
-    );}
+case "engagement":{throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Candidate engagement is native-only.');}
 case "handoff":{const i=m.input,crm=m.crm;return executeCommand(
     write,
     a,
@@ -309,7 +272,7 @@ case "handoff":{const i=m.input,crm=m.crm;return executeCommand(
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function marketingWorkspace(a:WorkContext){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireMarketingPurchasedRead(db,a),view=await application(a,db).workspace();return {...view,...(purchase?{purchase,canWrite:hasPermission(a,'records.write'),costHistory:await marketingFinanceHistory(db,a)}: {})};});}
 export function createMarketingCandidate(a:WorkContext,raw:unknown,key:string){return translated(()=>{const input=marketingCandidateSchema.parse(raw);return withMarketingPurchasedCommand(a,{key,operation:'marketing.candidate.create',target:{kind:'candidate',id:`marketing-candidate-${key}`},purpose:'new-work',sources:[{kind:'asset',id:input.formId}]},db=>application(a,db).createCandidate(input,key));});}
-export function changeMarketing(a:WorkContext,kind:"asset"|"candidate",id:string,raw:unknown,key:string){return translated(()=>{const input=marketingActionSchema.parse(raw);return kind==='candidate'&&input.action==='handoff'?crmMarketingCandidateTransaction(a,id,input,key,(db,now)=>application(a,db,now).change(kind,id,input,key,repository(db,a,false))):withMarketingPurchasedCommand(a,{key,operation:kind==='asset'?`marketing.asset.${input.action}`:'marketing.candidate.engagement',target:{kind,id},existing:true,purpose:input.action==='activate'?'new-work':'settle-existing'},db=>application(a,db).change(kind,id,input,key));});}
+export function changeMarketing(a:WorkContext,kind:"asset"|"candidate",id:string,raw:unknown,key:string){return translated(()=>{const input=marketingActionSchema.parse(raw);if(kind==='candidate'&&input.action==='record-engagement')throw new ApiError(503,'NATIVE_MARKETING_LEAD_UNAVAILABLE','Candidate engagement is native-only.');return kind==='candidate'&&input.action==='handoff'?crmMarketingCandidateTransaction(a,id,input,key,(db,now)=>application(a,db,now).change(kind,id,input,key,repository(db,a,false))):withMarketingPurchasedCommand(a,{key,operation:kind==='asset'?`marketing.asset.${input.action}`:'marketing.candidate.engagement',target:{kind,id},existing:true,purpose:input.action==='activate'?'new-work':'settle-existing'},db=>application(a,db).change(kind,id,input,key));});}
 export function marketingDetail(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireMarketingPurchasedRead(db,a,{kind:'candidate',id}),view=await application(a,db).detail(id),handoff=purchase?await marketingHandoffControls(db,a):undefined;return {...view,...(purchase?{purchase,canWrite:hasPermission(a,'records.write'),canHandoff:!!handoff?.sales&&hasPermission(a,'records.write')&&view.candidate.created_by!==a.userId,handoffPurchase:handoff?.purchase}: {})};});}
 export function marketingExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:MarketingExecutiveEvidenceMetric,id:string,range?:{from:number;toExclusive:number}){return translated(async()=>{await requireMarketingPurchasedRead(db,a);return application(a,db).evidence(metric,id,range);});}
 export function marketingWork(a:WorkContext){return translated(async()=>{if(!hasModuleAccess(a.modules,'marketing')||!hasPermission(a,'records.read'))return [];const db=(await holdingResources(a.holdingId)).write,purchase=await marketingSourceAccess(db,a);if(purchase&&!purchase.history)return [];const rows=await application(a,db).work();return filterMarketingPurchasedWork(db,a,purchase&&!purchase.settleExisting?rows.map(row=>({...row,canAct:false,queue:'waiting' as const})):rows);});}
