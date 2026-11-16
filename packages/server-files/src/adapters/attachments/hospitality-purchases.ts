@@ -60,8 +60,7 @@ async function hospitalityBoundary(database: SqlDatabase, scopes: readonly Hospi
     boundaries.push({ key, boundary: purchaseCommandBoundary(database, mode, key, scope)! });
   }
   if (!boundaries.length) return undefined;
-  return { before: boundaries.flatMap(item => item.boundary.before), after: [...boundaries.flatMap(item => item.boundary.after),
-    ...boundaries.map(item => database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],
+  return { before: boundaries.flatMap(item => item.boundary.before), after: [...boundaries.flatMap(item => item.boundary.after)],
     observe: boundaries.some(item => !!item.boundary.observe) ? observePurchaseResults : undefined };
 }
 

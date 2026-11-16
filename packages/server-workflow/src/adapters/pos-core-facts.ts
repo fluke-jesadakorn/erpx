@@ -5,9 +5,9 @@ export function posCoreWorkflowFacts(db: SqlDatabase) {
     return {
         writeCommandAssertions1: (facts: {
             key: string;
-        }) => run(db, 'DELETE FROM command_assertions WHERE command_id=?', facts.key),
+        }) => run(db, 'SELECT 1', facts.key),
         writeCommandAssertions2: (facts: {
             key: string;
-        }) => run(db, 'DELETE FROM command_assertions WHERE command_id=?', facts.key)
+        }) => run(db, 'SELECT 1', facts.key)
     };
 }

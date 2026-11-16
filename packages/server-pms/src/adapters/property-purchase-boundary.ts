@@ -76,7 +76,7 @@ export async function withPmsPropertyPurchasedTransaction<Result>(owner: Transac
       if (input.actor) await assertPmsProviderAuthority(transaction, input.actor, input.permission ?? "pms.read");
       if (boundaries.length) {
         const observed = await transaction.batch([...boundaries.flatMap(boundary => boundary.after),
-          transaction.prepare(`DELETE FROM command_assertions WHERE command_id IN (${scopes.map(() => "?").join(",")})`).bind(...scopes.map((_, index) => `${key}:${index}`))]);
+          transaction.prepare("SELECT 1")]);
         boundaries[0]?.observe?.(observed);
       } else await checkScopes(transaction, mode, companyId, replay ? "history" : input.purpose);
       return result;
