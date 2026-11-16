@@ -52,7 +52,7 @@ function marketingFixture(overrides:Partial<MarketingRepository<string>>={}){
   async assets(){return [];},async candidates(){return [];},async branches(){return [];},async campaignSummary(){return [];},async campaigns(){return [];},async costSources(){return [];},
   async formReadiness(){return {ready:true,blockers:[],content:null,media:null};},async publications(){return [];},async sourceForm(){return null;},preparePresentation(){return "presentation";},
   async asset(){return null;},async candidate(){return null;},async detail(){return null;},async history(){return [];},async workRows(){return [];},async evidence(){return null;},
-  async replay(){return null;},async createCRMLead(){throw new Error("unexpected CRM handoff");},async commit(mutation,result){mutations.push(mutation);return result;},...overrides,
+  async replay(){return null;},async commit(mutation,result){mutations.push(mutation);return result;},...overrides,
  };
  repository.transaction??=async action=>action(repository);
  const ports={actorId:"reviewer",clock:{now:()=>Date.UTC(2026,9,6)},canRead:true,canLinkCost:false,publicationsReadable:false,authorize(write?:boolean){calls.push(write?"write":"read");},async repository(){return repository;}};
@@ -70,35 +70,11 @@ describe("Marketing owner application ports",()=>{
  test("candidate receipt replay survives a retired source form and a newer candidate version",async()=>{
   const f=marketingFixture({async replay<Result>(){return {id:"saved",status:"pending",version:1} as Result;},async sourceForm(){throw new Error("retired form must not be read");},async candidate(){return {...candidateRow,version:9};}});
   expect(await f.app.createCandidate(marketingCandidate,"saved-key")).toEqual({id:"saved",status:"pending",version:1});
-  expect(await f.app.change("candidate","candidate",{action:"handoff",expectedVersion:1,reason:"Consent independently reviewed"},"saved-key")).toEqual({id:"saved",status:"pending",version:1});
   expect(f.mutations).toEqual([]);
  });
  test("asset independent review remains a prerequisite before a receipt can be returned",async()=>{
   const f=marketingFixture({async asset(){return {kind:"content",status:"draft",version:1,created_by:"reviewer"};},async replay(){throw new Error("receipt must not precede independent review");}});
   await expect(f.app.change("asset","content",{action:"activate",expectedVersion:1,reason:"Approve this content"},"key")).rejects.toMatchObject({status:409,message:"Independent review is required."});
-  expect(f.mutations).toEqual([]);
- });
- test("handoff binds CRM creation and the Marketing commit to the same supplied transaction",async()=>{
-  const f=marketingFixture();const effects:string[]=[];
-  const transaction:MarketingRepository<string>={...f.repository,
-   async candidate(_id,lock){expect(lock).toBe(true);return candidateRow;},
-   async createCRMLead(raw,key){expect(key).toBe("handoff-key-crm");expect(raw).toMatchObject({branchId:"branch",sourceKind:"form",sourceId:"candidate",campaignId:"campaign",dueDate:"2026-10-13"});effects.push("crm");return {id:"crm-lead"};},
-   async commit(mutation,result){expect(mutation).toMatchObject({action:"handoff",operation:"marketing.candidate.handoff",crm:{id:"crm-lead"},now:Date.UTC(2026,9,6)});effects.push("marketing");return result;},
-  };
-  f.repository.transaction=async action=>{effects.push("begin");const result=await action(transaction);effects.push("commit");return result;};
-  expect(await f.app.change("candidate","candidate",{action:"handoff",expectedVersion:1,reason:"Consent independently reviewed"},"handoff-key")).toEqual({id:"candidate",status:"handed_off",version:2,crmLeadId:"crm-lead"});
-  expect(effects).toEqual(["begin","crm","marketing","commit"]);expect(f.mutations).toEqual([]);
- });
- test("a late Marketing failure leaves no committed handoff effects in the transaction port",async()=>{
-  const f=marketingFixture();const durable:string[]=[],pending:string[]=[];
-  const transaction:MarketingRepository<string>={...f.repository,async candidate(){return candidateRow;},async createCRMLead(){pending.push("crm-lead");return {id:"crm-lead"};},async commit(){throw new Error("late rollback");}};
-  f.repository.transaction=async action=>{try{const result=await action(transaction);durable.push(...pending);return result;}finally{pending.length=0;}};
-  await expect(f.app.change("candidate","candidate",{action:"handoff",expectedVersion:1,reason:"Consent independently reviewed"},"key")).rejects.toThrow("late rollback");
-  expect(durable).toEqual([]);expect(pending).toEqual([]);
- });
- test("handoff fails before creating CRM data when a transaction port is unavailable",async()=>{
-  const f=marketingFixture();delete f.repository.transaction;
-  await expect(f.app.change("candidate","candidate",{action:"handoff",expectedVersion:1,reason:"Consent independently reviewed"},"key")).rejects.toMatchObject({status:503,code:"MARKETING_TRANSACTION_REQUIRED"});
   expect(f.mutations).toEqual([]);
  });
  test("campaign cost linking requires Finance access before receipt replay",async()=>{

@@ -15,6 +15,7 @@ import {
   nativeMarketingLeadCampaignCreate,
   nativeMarketingLeadCandidateCreate,
   nativeMarketingLeadFailure,
+  nativeMarketingLeadHandoff,
   nativeMarketingLeadRecordEngagement,
 } from "@erpx/feature-marketing/public/native-marketing-lead";
 type C = { params: Promise<{ holdingSlug: string }> };
@@ -99,11 +100,28 @@ export async function POST(r: Request, c: C) {
         ),
       );
       if (response) return response;
-      throw new ApiError(
-        503,
-        "NATIVE_MARKETING_LEAD_UNAVAILABLE",
-        "The native Marketing lead writer is unavailable.",
+    }
+
+    if (
+      i.entity === "candidate" &&
+      i.action === "handoff" &&
+      typeof i.id === "string"
+    ) {
+      const response = await attempt(() =>
+        nativeMarketingLeadHandoff(
+          r.headers,
+          a,
+          i.id as string,
+          {
+            expectedVersion: Number(i.expectedVersion),
+            reason: String(i.reason ?? ""),
+            dueDate: String(i.dueDate ?? ""),
+          },
+          key,
+        ),
       );
+      if (response) return response;
+      throw new ApiError(503, "NATIVE_MARKETING_LEAD_UNAVAILABLE", "The native Marketing lead command is unavailable.");
     }
     if (i.entity === "campaign" && i.action === "create") {
       const response = await attempt(() =>
@@ -135,11 +153,6 @@ export async function POST(r: Request, c: C) {
         ),
       );
       if (response) return response;
-      throw new ApiError(
-        503,
-        "NATIVE_MARKETING_LEAD_UNAVAILABLE",
-        "The native Marketing lead writer is unavailable.",
-      );
     }
     if (
       i.entity === "asset" &&
@@ -169,11 +182,6 @@ export async function POST(r: Request, c: C) {
         ),
       );
       if (response) return response;
-      throw new ApiError(
-        503,
-        "NATIVE_MARKETING_LEAD_UNAVAILABLE",
-        "The native Marketing lead writer is unavailable.",
-      );
     }
     if (i.entity === "candidate" && typeof i.id !== "string") {
       const response = await attempt(() =>
@@ -194,11 +202,6 @@ export async function POST(r: Request, c: C) {
         ),
       );
       if (response) return response;
-      throw new ApiError(
-        503,
-        "NATIVE_MARKETING_LEAD_UNAVAILABLE",
-        "The native Marketing lead writer is unavailable.",
-      );
     }
     const data =
       i.entity === 'campaign'
@@ -206,13 +209,7 @@ export async function POST(r: Request, c: C) {
         : typeof i.id === "string"
         ? await changeMarketing(a, i.entity as "asset" | "candidate", i.id, i, key)
         : i.entity === "asset"
-          ? ((): never => {
-              throw new ApiError(
-                503,
-                "NATIVE_MARKETING_LEAD_UNAVAILABLE",
-                "The native Marketing lead writer is unavailable.",
-              );
-            })()
+          ? await createMarketingAsset(a, i, key)
           : await createMarketingCandidate(a, i, key);
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
