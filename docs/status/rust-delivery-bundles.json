@@ -43609,29 +43609,31 @@
     "lastCoordinatorGeneration": 119,
     "updatedAt": "2026-11-16T17:13:04.199Z",
     "handoff": {
-      "fromRun": "plan-20261110",
+      "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
-        "coordination.bootstrap"
+        "coordination.bootstrap",
+        "retire.benefits.executive-evidence"
       ],
-      "verifiedPushedCheckpoint": "fdca3d3c29d54df27b173a9a732d813807fffbfb",
-      "remoteVerifiedAt": "2026-11-10T15:52:22+00:00",
-      "summary": "Portable plan/goals, 106 task templates and atomic local claims are implemented and checked; business migration implementation was not executed in this documentation/coordination task.",
-      "nextGoal": "G1",
+      "verifiedPushedCheckpoint": "6aa4279c74fc45a3926b051e8cba2b153ba5a3f6",
+      "remoteVerifiedAt": "2026-11-16T17:21:47Z",
+      "summary": "Native Benefits executive evidence is route-authoritative through a new owner read, private HTTP route, native SDK request, Runtime-owned audit and central dispatch; TypeScript evidence adapter/application/domain/public barrels are deleted and the native-seeded PostgreSQL oracle passes. Owner KPI fell 3 -> 2 and the residual two attachment-purchase writers are classified under retire.benefits.attachment-purchase. Four unsupported migrated packets were downgraded, stale SHAs/KPI reconciled, and remote SHA verified. Full migration retirement remains incomplete.",
+      "nextGoal": "G3",
       "nextCommands": [
         "bun scripts/testing/rust-migration-work.ts status --json",
         "bun scripts/testing/rust-migration-work.ts validate",
-        "bun scripts/testing/rust-migration-work.ts begin --run=<new-unique-run> --agent=<lead>",
-        "bun scripts/testing/rust-migration-work.ts claim inventory.<owner> --run=<new-unique-run> --agent=<worker>"
+        "Recover or heartbeat the central run before further mutations.",
+        "Create and claim a bounded native Files attachment transaction slice, then retire retire.benefits.attachment-purchase (KPI 2 -> 0).",
+        "Create bounded retire tasks for the downgraded Brand, Platform Administration, Planning and Commercial packets."
       ],
-      "externalWip": "42 original dirty files preserved byte-for-byte; no claim/holder handoff obtained. Keep reservation active.",
+      "externalWip": "Unrelated dirty paths remain preserved; only the explicit claimed and ledger paths were committed. No stash, reset or revert was used.",
       "environment": [
         {
           "url": "http://127.0.0.1:3100/api/health",
-          "status": 200
+          "status": 503
         },
         {
           "url": "https://console-dev-erpx.jesadakorn.com/api/health",
-          "status": 200
+          "status": 503
         },
         {
           "url": "http://127.0.0.1:3101/api/health",
@@ -43643,10 +43645,10 @@
         },
         {
           "url": "https://acme.jesadakorn.com/",
-          "status": 307
+          "status": 500
         }
       ],
-      "browserLimit": "Authenticated Holding journey was not verified in this documentation/tooling change.",
+      "browserLimit": "Development health remains degraded because the local ClamAV socket/definitions are unavailable (CLAMAV_DEFINITIONS_STALE); the Holding page returns 500. Authenticated UI verification was not possible.",
       "acceptance": false
     },
     "lastRecovery": {
@@ -43657,14 +43659,14 @@
       "wipReviewed": true,
       "previousRunStopped": true
     },
-    "lastPushedSha": "788e7b66b",
+    "lastPushedSha": "6aa4279c74fc45a3926b051e8cba2b153ba5a3f6",
     "lastKpi": 1960,
     "statusCounts": {
       "done": 51,
-      "migrated": 133,
-      "blocked": 37,
-      "ready_for_integration": 23,
-      "pending": 35,
+      "migrated": 135,
+      "blocked": 80,
+      "ready_for_integration": 0,
+      "pending": 26,
       "deferred": 1
     }
   }
