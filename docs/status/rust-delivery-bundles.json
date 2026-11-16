@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 2903,
+    "revision": 2918,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261116-retirement-b",
       "agentId": "lead",
       "startedAt": "2026-11-15T22:28:14.915Z",
-      "heartbeatAt": "2026-11-16T01:07:18.324Z",
-      "expiresAt": "2026-11-16T01:37:18.324Z",
+      "heartbeatAt": "2026-11-16T01:19:25.751Z",
+      "expiresAt": "2026-11-16T01:49:25.751Z",
       "generation": 104,
       "tokenHash": "584f6facd221b564888b72fe0fa00aadb471b2855c62382b0483c99eb96d6bc0"
     },
@@ -42453,16 +42453,260 @@
           "owner:commercial",
           "resource:composition"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261116-retirement-b",
+          "agentId": "lead",
+          "claimedAt": "2026-11-16T01:08:44.710Z",
+          "heartbeatAt": "2026-11-16T01:19:25.751Z",
+          "expiresAt": "2026-11-16T01:49:25.751Z",
+          "generation": 104
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "sourceSha": "ef41215058f543805b3c1605c03526ffb028993e",
+            "before": 21,
+            "after": 20,
+            "residual": [
+              {
+                "path": "packages/server-marketing/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing attachment purchase authority via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/campaigns.ts",
+                "writes": 1,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing campaign cost-link writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/crm-touches.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing CRM touch writers via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/marketing.ts",
+                "writes": 8,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing asset/candidate writers via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/public-submission.ts",
+                "writes": 4,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing public form submission writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing purchase gating TS writer via native port."
+              }
+            ],
+            "note": "Campaign create writer retired; 20 residual writes remain."
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "sourceSha": "e74463747c6d58e35274ba46fccfc50486dd215c",
+            "before": 20,
+            "after": 18,
+            "residual": [
+              {
+                "path": "packages/server-marketing/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing attachment purchase authority via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/campaigns.ts",
+                "writes": 1,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing campaign cost-link writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/crm-touches.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing CRM touch writers via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/marketing.ts",
+                "writes": 6,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing asset review, candidate create, and handoff writers via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/public-submission.ts",
+                "writes": 4,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing public form submission writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing purchase gating TS writer via native port."
+              }
+            ],
+            "note": "Campaign create and candidate engagement writers retired; 18 residual writes remain."
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "sourceSha": "9f4ba502522b3aff6fcd4e291b811141782c39f9",
+            "before": 18,
+            "after": 16,
+            "residual": [
+              {
+                "path": "packages/server-marketing/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing attachment purchase authority via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/campaigns.ts",
+                "writes": 1,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing campaign cost-link writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/crm-touches.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing CRM touch writers via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/marketing.ts",
+                "writes": 4,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing candidate create and handoff writers via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/public-submission.ts",
+                "writes": 4,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing public form submission writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing purchase gating TS writer via native port."
+              }
+            ],
+            "note": "Asset review writer retired; 16 residual writes remain."
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "sourceSha": "aed374498e37c4b3dfadf6bc2cc0b6ab6ebb5faa",
+            "before": 16,
+            "after": 14,
+            "residual": [
+              {
+                "path": "packages/server-marketing/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing attachment purchase authority via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/campaigns.ts",
+                "writes": 1,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing campaign cost-link writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/crm-touches.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing CRM touch writers via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/marketing.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire remaining Marketing handoff writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/public-submission.ts",
+                "writes": 4,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing public form submission writer via native port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Retire Marketing purchase gating TS writer via native port."
+              }
+            ],
+            "note": "Candidate create writer retired; 14 residual writes remain."
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "sourceSha": "aed374498e37c4b3dfadf6bc2cc0b6ab6ebb5faa",
+            "before": 14,
+            "after": 14,
+            "residual": [
+              {
+                "path": "packages/server-marketing/src/adapters/handover.ts",
+                "writes": 0,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "BLOCKED: no native CRM lead handoff port; needs migrate.marketing.handoff or CRM port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "BLOCKED: native asset attachment purchase boundary not yet available."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/campaigns.ts",
+                "writes": 1,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "BLOCKED: no native campaign cost-link port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/crm-touches.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "BLOCKED: no native marketing touches port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/marketing.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "BLOCKED: handoff to CRM has no native port; remaining writes are handoff only."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/public-submission.ts",
+                "writes": 4,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "BLOCKED: no native public form submission port."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "BLOCKED: shared purchase gating is foundational; cannot remove without native replacement."
+              }
+            ],
+            "note": "All remaining marketing writes blocked on native ports; no KPI change this turn."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "nextAction": "Port native campaign cost linking and public submission; switch routes; delete TS writers; record KPI 21 -> 0."
+        "nextAction": "Blocked: remaining marketing writes need native ports (handoff, public-submission, purchase-gating, crm-touches, campaigns cost-link, attachment-purchases). Create migrate.* tasks for these capabilities."
       },
       {
         "id": "retire.files.residual-writers",
@@ -42495,6 +42739,39 @@
         "blocker": null,
         "handoff": null,
         "nextAction": "Port remaining Files writers to native; switch consumers; delete TS writes; record KPI."
+      },
+      {
+        "id": "retire.benefits.residual-writers",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "benefits",
+        "workflowIds": [],
+        "workstream": "S10",
+        "kind": "migration",
+        "title": "Retire remaining Benefits TypeScript writers",
+        "scope": "Retire the 3 remaining TypeScript write statements in packages/server-benefits/src (attachment-purchases 2, executive-evidence 1) by completing native ports and switching consumers; record owner KPI to 0.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "packages/server-benefits/Cargo.toml",
+          "packages/server-benefits/package.json",
+          "packages/server-runtime/src/adapters/executive/evidence.ts"
+        ],
+        "resources": [
+          "owner:benefits",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "nextAction": "Port native benefits attachment purchase boundary and executive evidence transport; switch consumers; delete TS writes; record KPI."
       }
     ],
     "migrationProgress": {
@@ -42503,11 +42780,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 226,
+      "totalPackets": 227,
       "migratedPackets": 130,
       "statusCounts": {
         "pending": 27,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 130,
@@ -42517,7 +42794,7 @@
       }
     },
     "lastCoordinatorGeneration": 104,
-    "updatedAt": "2026-11-16T01:07:18.325Z",
+    "updatedAt": "2026-11-16T01:20:03.175Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
