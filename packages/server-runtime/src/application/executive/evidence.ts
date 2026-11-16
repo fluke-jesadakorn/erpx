@@ -1,5 +1,10 @@
-import type {readBenefitEvidence,searchBenefitEvidence} from "@erpx/server-benefits/public/executive-evidence";
-import {benefitEvidenceMetrics} from "@erpx/server-benefits/public/rules/executive-evidence";
+const benefitEvidenceMetrics=["active-benefit-elections","published-benefit-plans"] as const;
+type BenefitEvidenceMetric=typeof benefitEvidenceMetrics[number];
+type BenefitEvidenceItem={id:string;label:string;summary:string;status:string;version:number;href:string};
+type BenefitEvidenceSearch={provider:string;metric:BenefitEvidenceMetric;fields:string[];items:BenefitEvidenceItem[];hasMore:boolean;nextCursor:string|null;queryHash:string};
+type BenefitEvidenceRead={provider:string;metric:BenefitEvidenceMetric;fields:string[];record:{id:string;status:string;version:number;updated_at:number;effective_from:string;effective_to:string|null;href:string};queryHash:string};
+declare function searchBenefitEvidence(database:unknown,actor:WorkContext,raw:unknown):Promise<BenefitEvidenceSearch>;
+declare function readBenefitEvidence(database:unknown,actor:WorkContext,metric:string,id:string,filters:Filters):Promise<BenefitEvidenceRead>;
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { z } from 'zod';
 import { type Filters, type MetricId } from "@erpx/server-runtime/public/rules/canvas-domain";

@@ -7,6 +7,9 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
+use erpx_server_benefits::public::executive_evidence::{
+    BenefitEvidenceAction, BenefitEvidenceFilters, BenefitEvidenceRequest, read_benefit_evidence,
+};
 use erpx_server_benefits::public::payroll_source::{
     BenefitsPayrollQuery, BenefitsPayrollScope, BenefitsPayrollSourceRepository,
     PgBenefitsPayrollSource, payroll_benefit_inputs,
@@ -15,6 +18,9 @@ use erpx_server_benefits::public::workspace::{
     BenefitsActor, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
     BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_election_detail,
     benefits_workspace,
+};
+use erpx_server_runtime::public::executive_access::{
+    EvidenceAccessAction, ExecutiveEvidenceAccess, record_executive_evidence_access,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -711,6 +717,133 @@ async fn payroll_source_requires_the_serializable_owner_unit() {
                 if value.code == "BENEFITS_PAYROLL_SOURCE_SERIALIZABLE_REQUIRED"
         ));
         default_isolation.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn native_executive_evidence_is_source_bound_and_audited_on_one_owner_unit() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        sqlx::query(
+            "INSERT INTO assignments(id,user_id,role,company_id,modules_json,valid_from,valid_until,scope_kind) \
+             VALUES('evidence-assignment','owner','employee','company','[]',0,9999999999999,'holding') \
+             ON CONFLICT (id) DO NOTHING",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let filters = BenefitEvidenceFilters {
+            from: "2026-01-01".into(),
+            to: "2026-12-31".into(),
+            currency: "THB".into(),
+        };
+        let hash = "a".repeat(64);
+        let search = BenefitEvidenceRequest {
+            metric: "published-benefit-plans".into(),
+            filters: filters.clone(),
+            query_hash: hash.clone(),
+            query: String::new(),
+            cursor: None,
+            limit: Some(25),
+            record_id: None,
+        };
+        let open = BenefitEvidenceRequest {
+            metric: "published-benefit-plans".into(),
+            filters: filters.clone(),
+            query_hash: hash.clone(),
+            query: String::new(),
+            cursor: None,
+            limit: Some(1),
+            record_id: Some("plan-a".into()),
+        };
+        let evidence_actor = actor("company", &["records.read"]);
+        let result = PgUnitOfWork::new(pool.clone())
+            .run_once::<serde_json::Value, BusinessError, _>(
+                TransactionOptions::default(),
+                move |connection| {
+                    let search = search.clone();
+                    let open = open.clone();
+                    let evidence_actor = evidence_actor.clone();
+                    Box::pin(async move {
+                        let found = read_benefit_evidence(
+                            connection,
+                            &evidence_actor,
+                            "evidence-assignment",
+                            Some("person-owner"),
+                            false,
+                            true,
+                            BenefitEvidenceAction::Search,
+                            search,
+                        )
+                        .await?;
+                        let detail = read_benefit_evidence(
+                            connection,
+                            &evidence_actor,
+                            "evidence-assignment",
+                            Some("person-owner"),
+                            false,
+                            true,
+                            BenefitEvidenceAction::Open,
+                            open,
+                        )
+                        .await?;
+                        for (result, metric, action) in [
+                            (&found, "published-benefit-plans", EvidenceAccessAction::Search),
+                            (&detail, "published-benefit-plans", EvidenceAccessAction::Open),
+                        ] {
+                            record_executive_evidence_access(
+                                connection,
+                                ExecutiveEvidenceAccess {
+                                    company: "company",
+                                    user: "owner",
+                                    assignment: "evidence-assignment",
+                                    provider: "benefits-current-records",
+                                    metric,
+                                    action,
+                                    fields: &[
+                                        "id",
+                                        "status",
+                                        "version",
+                                        "updated_at",
+                                        "effective_from",
+                                        "effective_to",
+                                    ],
+                                    query_hash: &hash,
+                                    at: NOW.get(),
+                                    rows: &result.rows,
+                                },
+                            )
+                            .await?;
+                        }
+                        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                            .execute(&mut *connection)
+                            .await?;
+                        Ok(serde_json::json!({"search":found.data,"open":detail.data}))
+                    })
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(result["search"]["provider"], "benefits-current-records");
+        assert_eq!(result["search"]["metric"], "published-benefit-plans");
+        assert_eq!(result["search"]["items"][0]["id"], "plan-a");
+        assert_eq!(result["search"]["items"][0]["label"], "Plan A");
+        assert_eq!(result["search"]["items"][0]["summary"], "published");
+        assert_eq!(result["search"]["hasMore"], false);
+        assert_eq!(result["open"]["record"]["id"], "plan-a");
+        assert_eq!(result["open"]["record"]["effective_to"], "2026-12-31");
+        let audits: Vec<(String, String, String)> = sqlx::query_as(
+            "SELECT metric_id,action,record_id FROM executive_evidence_access_events \
+             WHERE company_id='company' AND provider_id='benefits-current-records' ORDER BY action,record_id",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(audits.len(), 2);
+        assert_eq!(audits.iter().filter(|audit| audit.1 == "search").count(), 1);
+        assert_eq!(audits.iter().filter(|audit| audit.1 == "open").count(), 1);
+        assert!(audits.iter().all(|audit| audit.0 == "published-benefit-plans" && audit.2 == "plan-a"));
     })
     .await;
 }

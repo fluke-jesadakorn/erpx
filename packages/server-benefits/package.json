@@ -6,7 +6,6 @@
   "exports": {
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
     "./adapters/eligibility": "./src/adapters/eligibility.ts",
-    "./adapters/executive-evidence": "./src/adapters/executive-evidence.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/benefits": "./src/adapters/benefits.ts",
     "./adapters/payroll-owner-facts": "./src/adapters/payroll-owner-facts.ts",
@@ -21,7 +20,6 @@
     "./adapters/attachments-sensitive-facts": "./src/adapters/attachments-sensitive-facts.ts",
     "./adapters/payroll-source-facts": "./src/adapters/payroll-source-facts.ts",
     "./public/eligibility": "./src/public/eligibility.ts",
-    "./public/executive-evidence": "./src/public/executive-evidence.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/benefits": "./src/public/benefits.ts",
     "./public/payroll-owner-facts": "./src/public/payroll-owner-facts.ts",
@@ -30,16 +28,13 @@
     "./public/attachment-read": "./src/public/attachment-read.ts",
     "./public/record-purchases": "./src/public/record-purchases.ts",
     "./public/purchases": "./src/public/purchases.ts",
-    "./public/rules/executive-evidence": "./src/public/rules/executive-evidence.ts",
     "./public/people-payroll-final-owner-projections": "./src/public/people-payroll-final-owner-projections.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/attachments-sensitive-facts": "./src/public/attachments-sensitive-facts.ts",
     "./public/payroll-source-facts": "./src/public/payroll-source-facts.ts",
     "./index": "./src/index.ts",
-    "./application/executive-evidence": "./src/application/executive-evidence.ts",
     "./application/benefits": "./src/application/benefits.ts",
     "./domain/eligibility": "./src/domain/eligibility.ts",
-    "./domain/executive-evidence": "./src/domain/executive-evidence.ts",
     "./domain/benefits": "./src/domain/benefits.ts"
   },
   "scripts": {

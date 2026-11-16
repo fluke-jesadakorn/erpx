@@ -10,6 +10,12 @@ use erpx_server_benefits::public::command_http::{
     BenefitsCommandHttpBackend, BenefitsCommandHttpFuture, BenefitsCommandHttpRequest,
     BenefitsCommandHttpResponse,
 };
+use erpx_server_benefits::public::executive_evidence::{
+    BenefitEvidenceAction, BenefitEvidenceRequest, BenefitsExecutiveEvidenceAction,
+    BenefitsExecutiveEvidenceHttpBackend, BenefitsExecutiveEvidenceHttpFuture,
+    BenefitsExecutiveEvidenceHttpRequest, BenefitsExecutiveEvidenceHttpResponse,
+    read_benefit_evidence,
+};
 use erpx_server_benefits::public::workspace::{
     BenefitsActor, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
     BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_election_detail,
@@ -39,6 +45,9 @@ use erpx_server_people_payroll::public::benefit_person::{
 use erpx_server_files::public::benefit_evidence::PgBenefitsEvidence;
 use erpx_server_learning::public::benefit_learning::PgBenefitLearning;
 use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_runtime::public::executive_access::{
+    EvidenceAccessAction, ExecutiveEvidenceAccess, record_executive_evidence_access,
+};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use erpx_server_shared::public::{CommandKey, TimestampMillis};
@@ -560,6 +569,136 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
             .await
     }
 
+    pub async fn executive_evidence<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        action: BenefitsExecutiveEvidenceAction,
+        body: &Value,
+    ) -> Result<BenefitsExecutiveEvidenceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let body = body.clone();
+        let owner_action = match action {
+            BenefitsExecutiveEvidenceAction::Search => BenefitEvidenceAction::Search,
+            BenefitsExecutiveEvidenceAction::Open => BenefitEvidenceAction::Open,
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("benefits".into()),
+                    destination: "executive/benefits".into(),
+                    api: true,
+                },
+                BenefitsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let actor = benefits_actor(current)?;
+                        let now = clock.now();
+                        let (worker, _names, person) =
+                            benefits_people(connection, &company, current.user_id().as_str(), &[])
+                                .await?;
+                        let person_id = worker.map(|worker| worker.person_id);
+                        let reviewer = actor
+                            .permissions
+                            .iter()
+                            .any(|permission| permission == "benefits.review");
+                        let (entitlement, witness) =
+                            benefits_entitlement(connection, &holding, &company, now).await?;
+                        let request: BenefitEvidenceRequest = serde_json::from_value(body)
+                            .map_err(|_| {
+                                BusinessError::invalid(
+                                    "EVIDENCE_INPUT_INVALID",
+                                    "Use one bounded Benefits executive evidence request.",
+                                )
+                            })?;
+                        let result = read_benefit_evidence(
+                            connection,
+                            &actor,
+                            current.selection().assignment().id.as_str(),
+                            person_id.as_deref(),
+                            reviewer,
+                            entitlement.history_allowed,
+                            owner_action,
+                            request,
+                        )
+                        .await?;
+                        record_executive_evidence_access(
+                            connection,
+                            ExecutiveEvidenceAccess {
+                                company: company.as_str(),
+                                user: current.user_id().as_str(),
+                                assignment: current.selection().assignment().id.as_str(),
+                                provider: "benefits-current-records",
+                                metric: match owner_action {
+                                    BenefitEvidenceAction::Search => "active-benefit-elections",
+                                    BenefitEvidenceAction::Open => "published-benefit-plans",
+                                },
+                                action: match owner_action {
+                                    BenefitEvidenceAction::Search => EvidenceAccessAction::Search,
+                                    BenefitEvidenceAction::Open => EvidenceAccessAction::Open,
+                                },
+                                fields: &[
+                                    "id",
+                                    "status",
+                                    "version",
+                                    "updated_at",
+                                    "effective_from",
+                                    "effective_to",
+                                ],
+                                query_hash: result
+                                    .data
+                                    .get("queryHash")
+                                    .and_then(Value::as_str)
+                                    .ok_or_else(unavailable)?,
+                                at: now.get(),
+                                rows: &result.rows,
+                            },
+                        )
+                        .await?;
+                        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                            .execute(&mut *connection)
+                            .await?;
+                        person.require_current(connection).await.map_err(business)?;
+                        let catalogue = current_package_catalogue()?;
+                        PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        )
+                        .revalidate(&witness, now)
+                        .await
+                        .map_err(business)?;
+                        Ok(BenefitsExecutiveEvidenceHttpResponse {
+                            data: result.data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn command(
         &self,
         host: &str,
@@ -813,6 +952,56 @@ impl<C: Clock + Send + Sync + 'static> BenefitsWorkspaceHttpBackend for Benefits
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .detail(request.host, proof, move || Ok(selection), request.id)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> BenefitsExecutiveEvidenceHttpBackend
+    for BenefitsBackend<C>
+{
+    fn execute<'a>(
+        &'a self,
+        request: BenefitsExecutiveEvidenceHttpRequest<'a>,
+    ) -> BenefitsExecutiveEvidenceHttpFuture<'a, BenefitsExecutiveEvidenceHttpResponse> {
+        Box::pin(async move {
+            let (proof, mut selection) = self.context(request.headers)?;
+            let header = |name: &'static str| {
+                erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+                    request.headers,
+                    name,
+                )
+            };
+            let invalid_context =
+                || BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current work revision.");
+            let revision = header("x-erpx-context-revision")?
+                .ok_or_else(invalid_context)?
+                .parse()
+                .map_err(|_| invalid_context())?;
+            let assignment = header("x-erpx-context-assignment")?
+                .ok_or_else(invalid_context)?
+                .to_owned();
+            let assignment_version = header("x-erpx-context-assignment-version")?
+                .ok_or_else(invalid_context)?
+                .parse()
+                .map_err(|_| invalid_context())?;
+            selection.mutation = false;
+            selection.expected = Some(
+                erpx_server_identity_access::public::work_context::ExpectedWorkSelection {
+                    revision,
+                    assignment_id: erpx_server_shared::public::AssignmentId::new(assignment)?,
+                    assignment_version,
+                },
+            );
+            self.service
+                .executive_evidence(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.action,
+                    request.body,
+                )
                 .await
                 .map_err(business)
         })
