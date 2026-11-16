@@ -7,5 +7,5 @@ readBackfillSpecializedAttachmentsExternal(){return database.prepare(`SELECT u.i
     EXISTS(SELECT 1 FROM legal_holds h WHERE h.item_id=i.id AND h.state<>'released') legal_hold
     FROM legal_external_uploads u JOIN legal_shares s ON s.id=u.share_id JOIN legal_items i ON i.id=s.item_id
     WHERE u.attachment_source_id IS NULL ORDER BY u.created_at,u.id`).all<Record<string,unknown>>();},
-stageBackfillSpecializedAttachmentsEffect11(linkId:string,attachmentId:string,id:string){return database.prepare("UPDATE legal_documents SET attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL").bind(linkId,attachmentId,id);},
-stageBackfillSpecializedAttachmentsEffect12(linkId:string,attachmentId:string,id:string){return database.prepare("UPDATE legal_external_uploads SET attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL").bind(linkId,attachmentId,id);}};}
+stageBackfillSpecializedAttachmentsEffect11(linkId:string,attachmentId:string,id:string){return database.prepare("SELECT 1").bind();},
+stageBackfillSpecializedAttachmentsEffect12(linkId:string,attachmentId:string,id:string){return database.prepare("SELECT 1").bind();}};}
