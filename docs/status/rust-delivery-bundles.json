@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3034,
+    "revision": 3037,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -43444,22 +43444,72 @@
           "resource:composition",
           "resource:native-sdk"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261116-retirement-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-16T16:46:35.081Z",
-          "heartbeatAt": "2026-11-16T16:46:35.081Z",
-          "expiresAt": "2026-11-16T17:16:35.081Z",
-          "generation": 119
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "346221f5099cb9534c2eb64c7a41ba953d74173a",
+        "lastPushedSha": "346221f5099cb9534c2eb64c7a41ba953d74173a",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a",
+            "before": 3,
+            "after": 2,
+            "owner": "benefits",
+            "note": "Deleted the executive-evidence adapter/application/domain/public barrels; attachment-purchases cleanup writers are the classified residual."
+          },
+          {
+            "command": "cargo check -p erpx-server-benefits --offline",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --offline",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a"
+          },
+          {
+            "command": "cargo test -p erpx-server-benefits --offline",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a",
+            "note": "59 tests passed including the native-seeded executive evidence/audit oracle."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a"
+          },
+          {
+            "command": "git diff --check",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "346221f5099cb9534c2eb64c7a41ba953d74173a",
+            "before": 3,
+            "after": 2,
+            "owner": "benefits",
+            "residual": [
+              {
+                "path": "packages/server-benefits/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.benefits.attachment-purchase",
+                "removalCondition": "Mount native Benefits source/purchase authority inside the native Files attachment transaction, switch the Files consumer, move the oracle to native seeding, and delete the two command_assertions cleanup writes."
+              }
+            ]
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the native Benefits evidence owner contract and SDK request, extend the private Benefits route and Runtime audit, switch central dispatch, delete the TS evidence path and move its oracle to native seeding; then record KPI 3 -> 2.",
+        "nextAction": "Continue the bounded Benefits attachment-purchase slice after a native Files transaction contract is available",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -43470,7 +43520,12 @@
           "Deleted TS Benefits evidence adapter/application/domain/public exports",
           "Native-seeded PostgreSQL oracle proving search/open parity and source-revocation behavior",
           "Retirement check reducing Benefits writes from 3 to 2"
-        ]
+        ],
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.benefits.attachment-purchase",
@@ -43539,20 +43594,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 231,
-      "migratedPackets": 131,
+      "migratedPackets": 132,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 131,
+        "migrated": 132,
         "blocked": 75,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 119,
-    "updatedAt": "2026-11-16T16:46:35.082Z",
+    "updatedAt": "2026-11-16T17:13:04.199Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
