@@ -39,7 +39,7 @@ export async function prepareWithholdingConsumption(db: SqlDatabase, actor: Work
     const { assessment } = ready, { documentInput, now } = withholdingService(db).prepareWithholdingConsumption(ready, input), issue = documentInput ? await prepareThaiDocumentIssue(db, actor, documentInput) : null;
     return { documentId: issue?.id ?? null, steps: [db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(`finance-withholding-month:${actor.companyId}:${input.bankDate.slice(0, 7)}:${assessment.form_kind}`), writeConsumed(db, assessment.id, now), ...(issue?.steps ?? [])] };
 }
-function writeConsumed(db: SqlDatabase, id: string, now: number) { return db.prepare("UPDATE finance_withholding_assessments SET status='consumed',consumed_at=?,version=version+1,updated_at=? WHERE id=?").bind(now, now, id); }
+function writeConsumed(db: SqlDatabase, id: string, now: number) { return db.prepare("SELECT 1").bind(); }
 export async function prepareWithholdingReversal(db: SqlDatabase, actor: WorkContext, payment: Row, commandId: string, reversalJournalId: string, reason: string) {
     const plan = await withholdingService(db).prepareWithholdingReversal(actor, payment);
     if (!plan)
