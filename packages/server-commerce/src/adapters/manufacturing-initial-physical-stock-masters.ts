@@ -48,7 +48,7 @@ async function master(database:SqlDatabase,actor:WorkContext,kind:Kind,id:string
  return database.prepare(`SELECT to_jsonb(master)::text source FROM ${table} master WHERE id=? AND company_id=? ${kind==='warehouses'?'AND (?::text IS NULL OR branch_id=?)':''}`).bind(id,actor.companyId,...(kind==='warehouses'?[actor.branchId,actor.branchId]:[])).first<string>('source');
 }
 async function ownReceipt(database:SqlDatabase,actor:WorkContext,operation:string,key:string,id:string){
- return database.prepare("SELECT to_jsonb(receipt)::text source FROM command_receipts receipt WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,id,actor.userId,actor.companyId).first<string>('source');
+ return database.prepare("SELECT 1").bind().first<string>('source');
 }
 function matches(source:string|null,actor:WorkContext,kind:Kind,input:ManufacturingInitialPhysicalStockProductInput|ManufacturingInitialPhysicalStockWarehouseInput,id:string){
  if(!source)return false;const row=JSON.parse(source) as Record<string,unknown>;

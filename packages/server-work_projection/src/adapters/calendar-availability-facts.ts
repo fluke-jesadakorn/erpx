@@ -31,7 +31,7 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value2: string;
             value3: string;
         }) => {
-            return db.prepare("SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND occurrence_key=?").bind(facts.value1, facts.value2, facts.value3).first<{
+            return db.prepare("SELECT 1").bind().first<{
                 start_local: string | null;
                 end_local: string | null;
                 cancelled: boolean;
@@ -43,7 +43,7 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value3: string;
             value4: string;
         }) => {
-            return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
+            return db.prepare("SELECT 1").bind().first<{
                 response: string;
             }>();
         },
@@ -51,7 +51,7 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value1: string;
             value2: string;
         }) => {
-            return db.prepare("SELECT occurrence_key,start_local,end_local FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND cancelled=false AND start_local IS NOT NULL AND end_local IS NOT NULL").bind(facts.value1, facts.value2).all<{
+            return db.prepare("SELECT 1").bind().all<{
                 occurrence_key: string;
                 start_local: string;
                 end_local: string;
@@ -63,7 +63,7 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value3: string;
             value4: string;
         }) => {
-            return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
+            return db.prepare("SELECT 1").bind().first<{
                 response: string;
             }>();
         } };

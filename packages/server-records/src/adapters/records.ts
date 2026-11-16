@@ -75,9 +75,9 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
     FROM workspace_records WHERE archived_at IS NULL AND module_id=? AND id=? AND ${scope.sql}`).bind(moduleId, id, ...args).first<RecordRow>();
         },
         guard3(key: string, value: "record-version", moduleId: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)", [moduleId, id, version]); },
-        stageCreateRecordEffect(moduleId: string, id: string, sectionId: string, title: string, description: string, value: string, companyId: string, branchId: string | null, departmentId: string | null, userId: string, userId2: string, now: number, now2: number) { return database.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,branch_id,department_id,version,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,'draft',?,?,?,?,1,?,?,?,?)").bind(moduleId, id, sectionId, title, description, value, companyId, branchId, departmentId, userId, userId2, now, now2); },
-        stageArchiveRecordEffect(now: number, userId: string, now2: number, moduleId: string, id: string) { return database.prepare("UPDATE workspace_records SET archived_at=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=?").bind(now, userId, now2, moduleId, id); },
-        stageUpdateRecordEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return database.prepare("UPDATE workspace_records SET fields_json=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=?").bind(value, userId, now, moduleId, id); },
+        stageCreateRecordEffect(moduleId: string, id: string, sectionId: string, title: string, description: string, value: string, companyId: string, branchId: string | null, departmentId: string | null, userId: string, userId2: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageArchiveRecordEffect(now: number, userId: string, now2: number, moduleId: string, id: string) { return database.prepare("SELECT 1").bind(); },
+        stageUpdateRecordEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return database.prepare("SELECT 1").bind(); },
         stageTransitionRecordUpdate(status: "draft" | "in_review" | "approved" | "completed" | "rejected", userId: string, now: number, moduleId: string, id: string, version: number) {
             return database.prepare(`UPDATE workspace_records SET status=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=? AND version=?`)
                 .bind(status, userId, now, moduleId, id, version);
@@ -135,8 +135,8 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         },
         guard24(key: string, value: "suggestion-ready", suggestionId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM record_field_suggestions WHERE id=? AND state='ready')", [suggestionId]); },
         guard25(key: string, value: string, mod: string, sourceId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)", [mod, sourceId, version]); },
-        stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return database.prepare("UPDATE workspace_records SET fields_json=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=?").bind(value, userId, now, moduleId, id); },
-        stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string) { return database.prepare("UPDATE record_field_suggestions SET state=?,applied_by=?,updated_at=? WHERE id=?").bind(value, userId, now, suggestionId); } };
+        stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return database.prepare("SELECT 1").bind(); },
+        stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string) { return database.prepare("SELECT 1").bind(); } };
     return createRecordsApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;

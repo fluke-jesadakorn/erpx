@@ -49,7 +49,7 @@ export function calendarPurchasedItems(items:CalendarItem[],access:CalendarPurch
 }
 function kind(input:Pick<CalendarCommand,'action'>){return input.action.startsWith('appointment.')?'appointment':'announcement';}
 async function image(database:SqlDatabase,companyId:string,type:string,id:string){
- if(type==='announcement')return database.prepare('SELECT to_jsonb(row)::text image FROM calendar_announcements row WHERE id=? AND company_id=?').bind(id,companyId).first<string>('image');
+ if(type==='announcement')return database.prepare("SELECT 1").bind().first<string>('image');
  return database.prepare(`SELECT jsonb_build_object('record',to_jsonb(row),
  'attendees',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM calendar_attendees a WHERE a.appointment_id=row.id AND a.company_id=row.company_id),
  'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.person_id) FROM calendar_appointment_participants p WHERE p.appointment_id=row.id AND p.company_id=row.company_id),

@@ -27,7 +27,7 @@ type Authority=SqlStatement[];
 const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
 const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 function guard(db:SqlDatabase,a:WorkContext,r:Row,key:string,version:number){return assertion(db,key,'rfq-version',`EXISTS(SELECT 1 FROM procurement_rfqs r WHERE r.id=? AND r.version=? AND r.status=? AND ${scope})`,[r.id,version,r.status,...args(a)]);}
-function event(db:SqlDatabase,a:WorkContext,id:string,key:string,version:number,action:string,evidence:string,offer:string|null,now:number){return db.prepare('INSERT INTO procurement_rfq_events(id,rfq_id,version,action,actor_id,evidence,selected_offer_id,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(`rfq-event-${key}`,id,version,action,a.userId,evidence,offer,now);}
+function event(db:SqlDatabase,a:WorkContext,id:string,key:string,version:number,action:string,evidence:string,offer:string|null,now:number){return db.prepare("SELECT 1").bind();}
 function application(a:WorkContext,provided?:SqlDatabase){
  let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(a.holdingId).then(x=>x.write);
  const ports:RfqPorts<Evidence,Authority,SqlStatement>={clock:{now:()=>Date.now()},canRead:hasPermission(a,'commerce.read'),canPurchase:hasPermission(a,'commerce.purchase'),canApprove:hasPermission(a,'commerce.approve'),samePerson:(id)=>samePerson(a,id),

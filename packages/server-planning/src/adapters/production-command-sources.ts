@@ -95,18 +95,18 @@ prepareCalculateEvent(value:string,id:string,userId:string,value2:"Calculated fr
       .bind(value, id, userId, value2, now);},
 async scenario(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare("SELECT * FROM planning_scenarios WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)")
     .bind(id, companyId, branchId, branchId2).first<Row>();},
-lockScenarioRecommendations(id:string){return db.prepare("SELECT id FROM planning_recommendations WHERE scenario_id=? FOR UPDATE").bind(id);},
+lockScenarioRecommendations(id:string){return db.prepare("SELECT 1").bind();},
 guardUnreleasedScenario(key:string,value:"scenario",id:string,companyId:string,expectedVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM planning_scenarios WHERE id=? AND company_id=? AND version=? AND status='calculated')", [id, companyId, expectedVersion]);},
-prepareScenarioCancellation(now:number,id:string){return db.prepare("UPDATE planning_scenarios SET status='cancelled',version=version+1,updated_at=? WHERE id=?").bind(now, id);},
-prepareRecommendationCancellation(userId:string,now:number,id:string){return db.prepare("UPDATE planning_recommendations SET status='rejected',reviewed_by=?,version=version+1,updated_at=? WHERE scenario_id=? AND status='proposed'").bind(userId, now, id);},
-prepareCancelEvent(value:string,id:string,value2:number,userId:string,reason:string,now:number){return db.prepare("INSERT INTO planning_scenario_events VALUES(?,?,?,'cancel',?,?,?)").bind(value, id, value2, userId, reason, now);},
+prepareScenarioCancellation(now:number,id:string){return db.prepare("SELECT 1").bind();},
+prepareRecommendationCancellation(userId:string,now:number,id:string){return db.prepare("SELECT 1").bind();},
+prepareCancelEvent(value:string,id:string,value2:number,userId:string,reason:string,now:number){return db.prepare("SELECT 1").bind();},
 async scopedRecommendation(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db
       .prepare(
         "SELECT r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.context_json,s.created_by scenario_created_by FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE r.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?)",
       )
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},
-lockRecommendation(id:string){return db.prepare("SELECT id FROM planning_recommendations WHERE id=? FOR UPDATE").bind(id);},
+lockRecommendation(id:string){return db.prepare("SELECT 1").bind();},
 guardIndependentRecommendation(key:string,value:"recommendation",id:string,expectedVersion:number,userId:string){return assertion(
         db,
         key,

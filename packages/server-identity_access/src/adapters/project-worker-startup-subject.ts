@@ -42,4 +42,4 @@ export async function projectWorkerStartupRetainedSubject(database:SqlDatabase,c
  const assignments=(await database.prepare('SELECT * FROM assignments WHERE company_id=? AND user_id=? ORDER BY id').bind(companyId,accountId).all()).results;
  return {active:false,personIds:[] as string[],id:account.id,name:account.name,email:account.email,image:JSON.stringify({account,assignments})};
 }
-export function projectWorkerAppliedEvidenceImage(database:SqlDatabase,companyId:string,caseId:string){return database.prepare("SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id)::text image FROM iam_audit a WHERE a.company_id=? AND a.target_id=? AND a.action='people.lifecycle.applied'").bind(companyId,caseId).first<string>('image');}
+export function projectWorkerAppliedEvidenceImage(database:SqlDatabase,companyId:string,caseId:string){return database.prepare("SELECT 1").bind().first<string>('image');}

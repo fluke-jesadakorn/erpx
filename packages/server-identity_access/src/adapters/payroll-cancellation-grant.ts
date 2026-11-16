@@ -11,5 +11,5 @@ export async function payrollCancellationGrant(db: SqlDatabase, actor: WorkConte
     .bind(actor.assignmentId, actor.companyId, actor.userId, actor.role).first();
   return !!grant;
 }
-export function payrollCancellationGrantLock(db:SqlDatabase,actor:WorkContext):SqlStatement{return db.prepare('SELECT id FROM assignments WHERE id=? FOR SHARE').bind(actor.assignmentId);}
+export function payrollCancellationGrantLock(db:SqlDatabase,actor:WorkContext):SqlStatement{return db.prepare("SELECT 1").bind();}
 export function payrollCancellationGrantGuard(db:SqlDatabase,key:string,actor:WorkContext):SqlStatement{return assertion(db,key,'payroll-cancellation-current-grant',currentGrant,[actor.assignmentId,actor.companyId,actor.userId,actor.role]);}

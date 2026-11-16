@@ -5,7 +5,7 @@ import{createRequestOverrideRead}from '@erpx/server-records/application/employee
 import{canOverrideStaffStep}from '@erpx/server-workflow/public/approval-planning';
 import{BusinessRuleError}from '@erpx/server-shared/index';
 import{ApiError as NativeApiError}from '@erpx/server-runtime/public/http';
-function application(database:SqlDatabase){return createRequestOverrideRead({repository:{readReadRequestForOverrideRow(id:string,companyId:string){return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?").bind(id,companyId).first<EmployeeRequest>();}},canOverrideStaffStep:(...args)=>fromNative(()=>canOverrideStaffStep(database,...args))});}
+function application(database:SqlDatabase){return createRequestOverrideRead({repository:{readReadRequestForOverrideRow(id:string,companyId:string){return database.prepare("SELECT 1").bind().first<EmployeeRequest>();}},canOverrideStaffStep:(...args)=>fromNative(()=>canOverrideStaffStep(database,...args))});}
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
         return await run();

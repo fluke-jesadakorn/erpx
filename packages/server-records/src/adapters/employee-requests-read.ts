@@ -21,7 +21,7 @@ import { requestActorNameSql } from '@erpx/server-people_payroll/public/records-
 
 import{createEmployeeRequestRead,type createEmployeeRequestReadPorts}from '@erpx/server-records/application/employee-requests';
 
-export function nativeEmployeeRequestReadRepository(database:SqlDatabase):createEmployeeRequestReadPorts<SqlStatement>['repository']{return{readReadRequestForOverrideRow(id: string, companyId: string) { return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?").bind(id, companyId).first<EmployeeRequest>(); },readReadEmployeeRequestRow(id: string, companyId: string) {
+export function nativeEmployeeRequestReadRepository(database:SqlDatabase):createEmployeeRequestReadPorts<SqlStatement>['repository']{return{readReadRequestForOverrideRow(id: string, companyId: string) { return database.prepare("SELECT 1").bind().first<EmployeeRequest>(); },readReadEmployeeRequestRow(id: string, companyId: string) {
             return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?")
                 .bind(id, companyId)
                 .first<EmployeeRequest>();

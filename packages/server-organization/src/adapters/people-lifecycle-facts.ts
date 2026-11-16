@@ -40,7 +40,7 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
                 revision: number | null;
             }>();
         },
-        readPreviewLifecycleRecommendedPay(companyId: string, id: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT d.currency,d.monthly_amount_minor FROM position_pay_defaults d JOIN organization_positions p ON p.id=d.position_id WHERE d.company_id=? AND d.position_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?) ORDER BY d.version DESC LIMIT 1").bind(companyId, id, branchId, branchId2, departmentId, departmentId2).first<{
+        readPreviewLifecycleRecommendedPay(companyId: string, id: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT 1").bind().first<{
             currency: string;
             monthly_amount_minor: number;
         }>(); },

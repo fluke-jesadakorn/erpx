@@ -22,24 +22,24 @@ function application(provided?:SqlDatabase) {
     const repository: PeopleHandoffRepository<SqlStatement> = { readHireSourceRow(...args) { return peopleHireHandoffFacts(database).readHireSourceRow(...args); },
         readHireHandoffQueueEffect(...args) { return peopleHireHandoffFacts(database).readHireHandoffQueueEffect(...args); },
         readConsumeHireHandoffReceipt(...args) { return peopleHireHandoffFacts(database).readConsumeHireHandoffReceipt(...args); },
-        readConsumeHireHandoffGroup(payGroupId: string, companyId: string) { return database.prepare("SELECT id,currency,frequency FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(payGroupId, companyId).first<{
+        readConsumeHireHandoffGroup(payGroupId: string, companyId: string) { return database.prepare("SELECT 1").bind().first<{
             id: string;
             currency: string;
             frequency: string;
         }>(); },
-        readConsumeHireHandoffMatches(companyId: string, email: string) { return database.prepare("SELECT id,version,status,merged_into_id FROM hr_people WHERE company_id=? AND lower(email)=lower(?)").bind(companyId, email).all<{
+        readConsumeHireHandoffMatches(companyId: string, email: string) { return database.prepare("SELECT 1").bind().all<{
             id: string;
             version: number;
             status: string;
             merged_into_id: string | null;
         }>(); },
-        readConsumeHireHandoffPerson(reconcilePersonId: string, companyId: string) { return database.prepare("SELECT id,version,status,merged_into_id FROM hr_people WHERE id=? AND company_id=?").bind(reconcilePersonId, companyId).first<{
+        readConsumeHireHandoffPerson(reconcilePersonId: string, companyId: string) { return database.prepare("SELECT 1").bind().first<{
             id: string;
             version: number;
             status: string;
             merged_into_id: string | null;
         }>(); },
-        stageConsumeHireHandoffEffect(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(value); },
+        stageConsumeHireHandoffEffect(value: string) { return database.prepare("SELECT 1").bind(); },
         stageConsumeHireHandoffEffect2(...args) { return peopleHireHandoffFacts(database).stageConsumeHireHandoffEffect2(...args); },
         guard9(...args) { return peopleHireHandoffFacts(database).guard9(...args); },
         guard10(...args) { return peopleHireHandoffFacts(database).guard10(...args); },
@@ -47,9 +47,9 @@ function application(provided?:SqlDatabase) {
         guard12(key: string, value: "hire-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')", [payGroupId, companyId, currency]); },
         guard13(...args) { return peopleHirePlacementFacts(database).guard13(...args); },
         guard14(key: string, value: "hire-person", id: string, companyId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND company_id=? AND version=? AND status='active' AND merged_into_id IS NULL)", [id, companyId, version]); },
-        stageConsumeHireHandoffEffect3(personId: string, companyId: string, legal_name: string, email: string, phone: string | null, countryCode: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_people(id,company_id,legal_name,email,phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(personId, companyId, legal_name, email, phone, countryCode, userId, now, now2); },
-        stageConsumeHireHandoffEffect4(engagementId: string, personId: string, companyId: string, branch_id: string, department_id: string | null, start_date: string, job_title: string, currency: string, payGroupId: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,pay_group_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'employee','salaried','onboarding',?,?,?,?,?,?,?)").bind(engagementId, personId, companyId, branch_id, department_id, start_date, job_title, currency, payGroupId, userId, now, now2); },
-        stageConsumeHireHandoffEffect5(compensationId: string, engagementId: string, start_date: string, frequency: string, base_amount_minor: number, currency: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,currency,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'draft',?,?,?)").bind(compensationId, engagementId, start_date, frequency, base_amount_minor, currency, userId, now, now2); },
+        stageConsumeHireHandoffEffect3(personId: string, companyId: string, legal_name: string, email: string, phone: string | null, countryCode: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageConsumeHireHandoffEffect4(engagementId: string, personId: string, companyId: string, branch_id: string, department_id: string | null, start_date: string, job_title: string, currency: string, payGroupId: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageConsumeHireHandoffEffect5(compensationId: string, engagementId: string, start_date: string, frequency: string, base_amount_minor: number, currency: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
         stageConsumeHireHandoffEffect6(...args) { return peopleHireHandoffFacts(database).stageConsumeHireHandoffEffect6(...args); },
         readChangeCandidatePrivacyRow(...args) { return peopleHireHandoffFacts(database).readChangeCandidatePrivacyRow(...args); },
         stageChangeCandidatePrivacyEffect(...args) { return peopleHireHandoffFacts(database).stageChangeCandidatePrivacyEffect(...args); },

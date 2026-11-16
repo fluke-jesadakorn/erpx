@@ -44,7 +44,7 @@ export { payrollCancelSchema } from "@erpx/server-people_payroll/domain/payroll-
 export { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@erpx/server-people_payroll/adapters/payroll-adjustments";
 function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
     let database = provided!, files: FileStore;
-    const repository: PeoplePayrollRepository<SqlStatement> = { readPayrollCostAssignmentsEngagement(engagementId: string, companyId: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? AND company_id=?").bind(engagementId, companyId).first(); },
+    const repository: PeoplePayrollRepository<SqlStatement> = { readPayrollCostAssignmentsEngagement(engagementId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
         readPayrollCostAssignmentsEffect(engagementId: string, companyId: string) {
             return database.prepare(`SELECT a.id,a.effective_from,a.effective_to,a.branch_id,a.department_id,a.evidence_status,a.source,a.version,
     v.evidence_ref,v.verified_by,v.created_at verified_at FROM hr_payroll_cost_assignments a
@@ -71,11 +71,11 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
                 current_department_id: string | null;
             }>();
         },
-        readVerifyPayrollCostAssignmentHistory(engagement_id: string, companyId: string) { return database.prepare("SELECT 1 FROM staff_organization_history WHERE engagement_id=? AND company_id=? LIMIT 1").bind(engagement_id, companyId).first(); },
+        readVerifyPayrollCostAssignmentHistory(engagement_id: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
         guard5(commandId: string, value: "assignment-version", assignmentId: string, companyId: string, expectedVersion: number) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_cost_assignments a JOIN hr_engagements e ON e.id=a.engagement_id AND e.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.status='active' AND a.evidence_status='legacy_unverified' AND a.source='migration' AND a.version=? AND a.branch_id IS NOT DISTINCT FROM e.branch_id AND a.department_id IS NOT DISTINCT FROM e.department_id AND NOT EXISTS(SELECT 1 FROM staff_organization_history h WHERE h.engagement_id=a.engagement_id AND h.company_id=a.company_id))", [assignmentId, companyId, expectedVersion]); },
-        stageVerifyPayrollCostAssignmentEffect(now: number, assignmentId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_payroll_cost_assignments SET evidence_status='verified',source='hr_attestation',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(now, assignmentId, companyId, expectedVersion); },
-        stageVerifyPayrollCostAssignmentEffect2(value: string, companyId: string, assignmentId: string, userId: string, evidenceRef: string, expectedVersion: number, now: number) { return database.prepare("INSERT INTO hr_payroll_cost_assignment_verifications(id,company_id,assignment_id,verified_by,evidence_ref,previous_version,created_at) VALUES(?,?,?,?,?,?,?)").bind(value, companyId, assignmentId, userId, evidenceRef, expectedVersion, now); },
-        stageVerifyPayrollCostAssignmentEffect3(assignmentId: string) { return database.prepare("SELECT set_config('erpx.payroll_cost_repair',?,true)").bind(assignmentId); },
+        stageVerifyPayrollCostAssignmentEffect(now: number, assignmentId: string, companyId: string, expectedVersion: number) { return database.prepare("SELECT 1").bind(); },
+        stageVerifyPayrollCostAssignmentEffect2(value: string, companyId: string, assignmentId: string, userId: string, evidenceRef: string, expectedVersion: number, now: number) { return database.prepare("SELECT 1").bind(); },
+        stageVerifyPayrollCostAssignmentEffect3(assignmentId: string) { return database.prepare("SELECT 1").bind(); },
         stageVerifyPayrollCostAssignmentEffect4(now: number, assignmentId: string, companyId: string) {
             return database.prepare(`UPDATE hr_time_entries t SET cost_assignment_id=a.id,cost_branch_id=a.branch_id,cost_department_id=a.department_id,version=t.version+1,updated_at=?
       FROM hr_payroll_cost_assignments a WHERE a.id=? AND a.company_id=? AND t.engagement_id=a.engagement_id AND t.status='approved'
@@ -83,16 +83,16 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
       AND t.cost_assignment_id IS NULL`).bind(now, assignmentId, companyId);
         },
         readCommandCurrent(...args) { return payrollWorkflowFacts(database).readCommandCurrent(...args); },
-        readCommandOld(id: string) { return database.prepare("SELECT 1 FROM hr_command_receipts WHERE command_id=?").bind(id).first(); },
+        readCommandOld(id: string) { return database.prepare("SELECT 1").bind().first(); },
         stageReceiptEffect(id: string, operation: string, digest: string, value: string, now: number) {
             return database.prepare("INSERT INTO hr_command_receipts(command_id,operation,request_hash,result_json,created_at) VALUES(?,?,?,?,?)")
                 .bind(id, operation, digest, value, now);
         },
         readListPeopleRows(...args) { return payrollOrganizationFacts(database).readListPeopleRows(...args); },
-        readGetPersonCompensation(engagement_id: string | number | null) { return database.prepare("SELECT base_amount_minor,hourly_rate_minor,pay_frequency,effective_from AS compensation_effective_from FROM hr_compensation_revisions WHERE engagement_id=? AND status='approved' AND effective_from<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (effective_to IS NULL OR effective_to>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) ORDER BY effective_from DESC LIMIT 1").bind(engagement_id).first(); },
+        readGetPersonCompensation(engagement_id: string | number | null) { return database.prepare("SELECT 1").bind().first(); },
         async readGetPersonLeavetime(personId: string, companyId: string, branchId: string | null, branchId2: string | null) { return database.prepare(`SELECT l.id,l.number,l.start_date,l.days,l.state,l.decision_note FROM leave_requests l JOIN employees e ON e.id=l.employee_id WHERE e.person_id=? AND l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND ${await workforcePurchasedHistorySql("l.company_id")} ORDER BY l.start_date DESC LIMIT 24`).bind(personId, companyId, branchId, branchId2).all(); },
         async readGetPersonLeavetime2(engagement_id: string | number | null) { return database.prepare(`SELECT t.id,t.version,t.submitted_by,t.approved_by,t.work_date,t.regular_hours,t.overtime_hours,t.status,t.note,t.rejection_reason FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id AND e.company_id=t.company_id WHERE t.engagement_id=? AND ${await workforcePurchasedHistorySql("t.company_id")} ORDER BY t.work_date DESC LIMIT 24`).bind(engagement_id).all(); },
-        readGetPersonRevisions(engagement_id: string | number | null) { return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? ORDER BY effective_from DESC,created_at DESC").bind(engagement_id).all(); },
+        readGetPersonRevisions(engagement_id: string | number | null) { return database.prepare("SELECT 1").bind().all(); },
         readGetPersonRecommendedPay(companyId: string, position_id: string | number) {
             return database.prepare(`SELECT currency,monthly_amount_minor,version ${organizationFinalSources.people_payroll_position_pay_defaults_from} WHERE company_id=? AND position_id=? ORDER BY version DESC LIMIT 1`).bind(companyId, position_id).first<{
                 currency: string;
@@ -141,7 +141,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readPeopleSummaryPeopleactivecontractorsrunspending4(companyId: string) {
-            return database.prepare("SELECT COUNT(*) AS count FROM hr_payroll_runs WHERE company_id=? AND status IN ('draft','calculating','preview')").bind(companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 count: number;
             }>();
         },
@@ -151,26 +151,26 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
                 count: number;
             }>();
         },
-        stageCreatePersonEffect(personId: string, value: null, companyId: string, legalName: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_people(id,user_id,company_id,legal_name,preferred_name,email,phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(personId, value, companyId, legalName, value2, value3, value4, countryCode, userId, now, now2); },
-        readCreateEngagementPerson(personId: string, companyId: string) { return database.prepare("SELECT id FROM hr_people WHERE id=? AND company_id=? AND status!='archived'").bind(personId, companyId).first(); },
-        stageCreateEngagementEffect(engagementId: string, personId: string, companyId: string, value: string | null, value2: string | null, workerType: "employee" | "contractor", employmentType: "contractor" | "salaried" | "daily" | "hourly" | "shift", value3: "onboarding", startDate: string, value4: string | null, value5: string | null, jobTitle: string, currency: string, value6: string | null, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,end_date,manager_person_id,job_title,currency,pay_group_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(engagementId, personId, companyId, value, value2, workerType, employmentType, value3, startDate, value4, value5, jobTitle, currency, value6, userId, now, now2); },
-        readCreateCompensationE(engagementId: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT e.* FROM hr_engagements e WHERE e.id=? AND e.company_id=? AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)").bind(engagementId, companyId, branchId, branchId2, departmentId, departmentId2).first<Record<string, string | number | null>>(); },
+        stageCreatePersonEffect(personId: string, value: null, companyId: string, legalName: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        readCreateEngagementPerson(personId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
+        stageCreateEngagementEffect(engagementId: string, personId: string, companyId: string, value: string | null, value2: string | null, workerType: "employee" | "contractor", employmentType: "contractor" | "salaried" | "daily" | "hourly" | "shift", value3: "onboarding", startDate: string, value4: string | null, value5: string | null, jobTitle: string, currency: string, value6: string | null, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        readCreateCompensationE(engagementId: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT 1").bind().first<Record<string, string | number | null>>(); },
         guard31(key: string, value: "engagement", engagementId: string, version: string | number | null, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND version=? AND currency=?)", [engagementId, version, currency]); },
-        stageCreateCompensationEffect(id: string, engagementId: string, effectiveFrom: string, value: string | null, payFrequency: "weekly" | "fortnightly" | "semimonthly" | "monthly" | "off_cycle", base: number, hourly: number, daily: number, standardDailyHours: number, expectedHours: number, currency: string, value2: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,effective_to,pay_frequency,base_amount_minor,hourly_rate_minor,daily_rate_minor,standard_daily_hours,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)").bind(id, engagementId, effectiveFrom, value, payFrequency, base, hourly, daily, standardDailyHours, expectedHours, currency, value2, userId, now, now2); },
-        readPayrollOptionsEffect(companyId: string) { return database.prepare("SELECT id,name,currency,frequency FROM hr_pay_groups WHERE company_id=? AND status='active' ORDER BY name").bind(companyId).all(); },
+        stageCreateCompensationEffect(id: string, engagementId: string, effectiveFrom: string, value: string | null, payFrequency: "weekly" | "fortnightly" | "semimonthly" | "monthly" | "off_cycle", base: number, hourly: number, daily: number, standardDailyHours: number, expectedHours: number, currency: string, value2: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        readPayrollOptionsEffect(companyId: string) { return database.prepare("SELECT 1").bind().all(); },
         readAssignPayGroupMissing(...args) { return payrollOrganizationFacts(database).readAssignPayGroupMissing(...args); },
         guard35(key: string, value: "engagement", engagementId: string, companyId: string, expectedVersion: number, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?))", [engagementId, companyId, expectedVersion, branchId, branchId2, departmentId, departmentId2]); },
         guard36(...args) { return payrollOrganizationFacts(database).guard36(...args); },
         guard37(key: string, value: "pay-group", payGroupId: string | null, engagementId: string, payGroupId2: string | null) { return assertion(database, key, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM hr_pay_groups p JOIN hr_engagements e ON e.id=? WHERE p.id=? AND p.company_id=e.company_id AND p.currency=e.currency AND p.status='active')", [payGroupId, engagementId, payGroupId2]); },
-        stageAssignPayGroupEffect(payGroupId: string | null, now: number, engagementId: string) { return database.prepare("UPDATE hr_engagements SET pay_group_id=?,version=version+1,updated_at=? WHERE id=?").bind(payGroupId, now, engagementId); },
-        readTransitionCompensationEffect(compensationId: string, companyId: string) { return database.prepare("SELECT 1 FROM hr_evaluation_compensation_drafts WHERE compensation_id=? AND company_id=?").bind(compensationId, companyId).first(); },
-        readTransitionCompensationRow(compensationId: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT c.*,e.person_id,e.branch_id,e.department_id FROM hr_compensation_revisions c JOIN hr_engagements e ON e.id=c.engagement_id WHERE c.id=? AND e.company_id=? AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)").bind(compensationId, companyId, branchId, branchId2, departmentId, departmentId2).first<Record<string, string | number | null>>(); },
+        stageAssignPayGroupEffect(payGroupId: string | null, now: number, engagementId: string) { return database.prepare("SELECT 1").bind(); },
+        readTransitionCompensationEffect(compensationId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
+        readTransitionCompensationRow(compensationId: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT 1").bind().first<Record<string, string | number | null>>(); },
         guard41(key: string, value: "revision", compensationId: string, expectedVersion: number, value2: "approved" | "draft") { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_compensation_revisions WHERE id=? AND version=? AND status=?)", [compensationId, expectedVersion, value2]); },
         guard42(key: string, value: "overlap", engagement_id: string | number | null, compensationId: string, effective_to: string | number | null, effective_from: string | number | null) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_compensation_revisions WHERE engagement_id=? AND id!=? AND status IN ('active','approved') AND effective_from<=COALESCE(?,'9999-12-31') AND COALESCE(effective_to,'9999-12-31')>=?)", [engagement_id, compensationId, effective_to, effective_from]); },
-        stageTransitionCompensationEffect(status: "approved" | "superseded", userId: string, now: number, compensationId: string) { return database.prepare("UPDATE hr_compensation_revisions SET status=?,approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(status, userId, now, compensationId); },
+        stageTransitionCompensationEffect(status: "approved" | "superseded", userId: string, now: number, compensationId: string) { return database.prepare("SELECT 1").bind(); },
         stageTransitionCompensationEffect2(...args) { return payrollWorkflowFacts(database).stageTransitionCompensationEffect2(...args); },
         readTransitionEngagementRow(engagementId: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
-            return database.prepare("SELECT e.*,p.user_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.company_id=? AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)").bind(engagementId, companyId, branchId, branchId2, departmentId, departmentId2).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 person_id: string;
                 user_id: string | null;
@@ -187,26 +187,26 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         },
         guard46(key: string, value: "engagement", engagementId: string, companyId: string, expectedVersion: number, status: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=? AND status=?)", [engagementId, companyId, expectedVersion, status]); },
         guard47(...args) { return payrollOrganizationFacts(database).guard47(...args); },
-        stageTransitionEngagementEffect(status: "active" | "suspended" | "ended", status2: "active" | "suspended" | "ended", value: string | null, now: number, engagementId: string) { return database.prepare("UPDATE hr_engagements SET status=?,end_date=CASE WHEN ?='ended' THEN ? ELSE end_date END,version=version+1,updated_at=? WHERE id=?").bind(status, status2, value, now, engagementId); },
-        stageTransitionEngagementEffect2(person_id: string, person_id2: string) { return database.prepare("UPDATE employees SET status=CASE WHEN EXISTS(SELECT 1 FROM hr_engagements WHERE person_id=? AND status='active') THEN 'active' ELSE 'inactive' END WHERE person_id=?").bind(person_id, person_id2); },
+        stageTransitionEngagementEffect(status: "active" | "suspended" | "ended", status2: "active" | "suspended" | "ended", value: string | null, now: number, engagementId: string) { return database.prepare("SELECT 1").bind(); },
+        stageTransitionEngagementEffect2(person_id: string, person_id2: string) { return database.prepare("SELECT 1").bind(); },
         stageTransitionEngagementEffect3(...args) { return payrollIdentityFacts(database).stageTransitionEngagementEffect3(...args); },
-        readCreateTimeEntryE(engagementId: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT e.*,p.user_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.company_id=? AND e.status='active' AND p.status='active' AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)").bind(engagementId, companyId, branchId, branchId2, departmentId, departmentId2).first<Record<string, string | number | null>>(); },
+        readCreateTimeEntryE(engagementId: string, companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT 1").bind().first<Record<string, string | number | null>>(); },
         guard52(key: string, value: "engagement", engagementId: string, version: string | number | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND version=? AND status='active')", [engagementId, version]); },
-        stageCreateTimeEntryEffect(id: string, engagementId: string, companyId: string, workDate: string, regularHours: number, overtimeHours: number, note: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_time_entries(id,engagement_id,company_id,work_date,regular_hours,overtime_hours,note,status,submitted_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?,?)").bind(id, engagementId, companyId, workDate, regularHours, overtimeHours, note, userId, now, now2); },
-        readUpdateTimeEntryEntry(entryId: string, companyId: string, userId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT t.*,e.start_date,e.end_date FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id WHERE t.id=? AND t.company_id=? AND t.submitted_by=? AND e.status='active' AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)").bind(entryId, companyId, userId, branchId, branchId2, departmentId, departmentId2).first<Record<string, string | number | null>>(); },
+        stageCreateTimeEntryEffect(id: string, engagementId: string, companyId: string, workDate: string, regularHours: number, overtimeHours: number, note: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        readUpdateTimeEntryEntry(entryId: string, companyId: string, userId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT 1").bind().first<Record<string, string | number | null>>(); },
         guard55(key: string, value: "editable-time", entryId: string, expectedVersion: number, userId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_time_entries WHERE id=? AND version=? AND status IN ('draft','submitted','rejected') AND submitted_by=?)", [entryId, expectedVersion, userId]); },
-        stageUpdateTimeEntryEffect(workDate: string, regularHours: number, overtimeHours: number, note: string, now: number, entryId: string) { return database.prepare("UPDATE hr_time_entries SET work_date=?,regular_hours=?,overtime_hours=?,note=?,status='submitted',approved_by=NULL,rejection_reason=NULL,version=version+1,updated_at=? WHERE id=?").bind(workDate, regularHours, overtimeHours, note, now, entryId); },
+        stageUpdateTimeEntryEffect(workDate: string, regularHours: number, overtimeHours: number, note: string, now: number, entryId: string) { return database.prepare("SELECT 1").bind(); },
         guard57(key: string, value: "reviewable-time", entryId: string, companyId: string, expectedVersion: number, userId: string, userId2: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.status='submitted' AND t.submitted_by!=? AND (p.user_id IS NULL OR p.user_id!=?) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?))", [entryId, companyId, expectedVersion, userId, userId2, branchId, branchId2, departmentId, departmentId2]); },
-        stageRejectTimeEntryEffect(reason: string, now: number, entryId: string) { return database.prepare("UPDATE hr_time_entries SET status='rejected',rejection_reason=?,version=version+1,updated_at=? WHERE id=?").bind(reason, now, entryId); },
+        stageRejectTimeEntryEffect(reason: string, now: number, entryId: string) { return database.prepare("SELECT 1").bind(); },
         stageRejectTimeEntryEffect2(...args) { return payrollWorkflowFacts(database).stageRejectTimeEntryEffect2(...args); },
         guard60(key: string, value: "time", entryId: string, companyId: string, expectedVersion: number, userId: string, userId2: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.status='submitted' AND t.submitted_by!=? AND (p.user_id IS NULL OR p.user_id!=?) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?))", [entryId, companyId, expectedVersion, userId, userId2, branchId, branchId2, departmentId, departmentId2]); },
-        stageApproveTimeEntryEffect(userId: string, now: number, entryId: string) { return database.prepare("UPDATE hr_time_entries SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(userId, now, entryId); },
+        stageApproveTimeEntryEffect(userId: string, now: number, entryId: string) { return database.prepare("SELECT 1").bind(); },
         stageApproveTimeEntryEffect2(...args) { return payrollWorkflowFacts(database).stageApproveTimeEntryEffect2(...args); },
-        stageCreatePayGroupEffect(groupId: string, companyId: string, name: string, countryCode: string, currency: string, frequency: "weekly" | "fortnightly" | "semimonthly" | "monthly", timezone: string, overtimeMultiplierBps: number, prorationMethod: "calendar_days" | "none", userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,overtime_multiplier_bps,proration_method,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(groupId, companyId, name, countryCode, currency, frequency, timezone, overtimeMultiplierBps, prorationMethod, userId, now, now2); },
-        stageCreateCountryPackEffect(packId: string, countryCode: string, version: string, value: "testing", value2: string, value3: string, userId: string, now: number, now2: number, value4: string | null, value5: string | null, value6: string | null, value7: string | null) { return database.prepare("INSERT INTO hr_country_packs(id,country_code,version,status,rules_json,export_formats_json,created_by,created_at,updated_at,adapter_id,source_digest,effective_from,effective_to) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(packId, countryCode, version, value, value2, value3, userId, now, now2, value4, value5, value6, value7); },
+        stageCreatePayGroupEffect(groupId: string, companyId: string, name: string, countryCode: string, currency: string, frequency: "weekly" | "fortnightly" | "semimonthly" | "monthly", timezone: string, overtimeMultiplierBps: number, prorationMethod: "calendar_days" | "none", userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageCreateCountryPackEffect(packId: string, countryCode: string, version: string, value: "testing", value2: string, value3: string, userId: string, now: number, now2: number, value4: string | null, value5: string | null, value6: string | null, value7: string | null) { return database.prepare("SELECT 1").bind(); },
         readListCountryPacksEffect() { return database.prepare("SELECT id,country_code,version,status,effective_from,effective_to,adapter_id,source_digest,record_version,export_formats_json,validated_by,updated_at FROM hr_country_packs ORDER BY country_code,version DESC").all(); },
         readTransitionCountryPackPack(packId: string) {
-            return database.prepare("SELECT status,country_code,version,rules_json,created_by,record_version,source_digest,adapter_id FROM hr_country_packs WHERE id=?").bind(packId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 status: string;
                 country_code: string;
                 version: string;
@@ -218,10 +218,10 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         guard67(commandId: string, value: "pack-status", packId: string, status: string, record_version: number, source_digest: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status=? AND record_version=? AND source_digest=?)", [packId, status, record_version, source_digest]); },
-        stageTransitionCountryPackEffect(status: "superseded" | "active" | "validated", proof: string, userId: string, now: number, packId: string) { return database.prepare("UPDATE hr_country_packs SET status=?,approval_evidence=?,validated_by=?,record_version=record_version+1,updated_at=? WHERE id=?").bind(status, proof, userId, now, packId); },
+        stageTransitionCountryPackEffect(status: "superseded" | "active" | "validated", proof: string, userId: string, now: number, packId: string) { return database.prepare("SELECT 1").bind(); },
         stageTransitionCountryPackEffect2(...args) { return payrollWorkflowFacts(database).stageTransitionCountryPackEffect2(...args); },
         readCalculateItemPayee(person_id: string, company_id: string) {
-            return database.prepare("SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL").bind(person_id, company_id).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 version: number;
                 legal_name: string;
@@ -230,7 +230,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         },
         readCalculateItemCompensation(id: string, period_end: string, period_start: string) { return database.prepare(`SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1`).bind(id, period_end, period_start).first<Record<string, string | number | null>>(); },
         readCalculateItemTime(id: string, period_start: string, period_end: string) {
-            return database.prepare("SELECT id,version,work_date,regular_hours,overtime_hours,cost_assignment_id,cost_branch_id,cost_department_id FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(id, period_start, period_end).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 version: number;
                 work_date: string;
@@ -242,7 +242,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readCalculateItemHandoffs(id: string, period_start: string, period_end: string) {
-            return database.prepare('SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id').bind(id, period_start, period_end).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 request_id: string;
                 request_version: number;
@@ -266,7 +266,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readCalculateItemCostAssignments(id: string, company_id: string, activeEnd: string, activeStart: string) {
-            return database.prepare("SELECT id,effective_from,effective_to,branch_id,department_id,evidence_status,version FROM hr_payroll_cost_assignments WHERE engagement_id=? AND company_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,id").bind(id, company_id, activeEnd, activeStart).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 effective_from: string;
                 effective_to: string | null;
@@ -301,9 +301,9 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         guard83(key: string, value: "engagement-pay-group", engagement_id: string, companyId: string, payGroupId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND pay_group_id=? AND currency=?)", [engagement_id, companyId, payGroupId, currency]); },
         guard84(key: string, value: "one-final-pay", taskId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_final_pay_preparations WHERE task_id=? AND status!='cancelled')", [taskId]); },
         guard85(key: string, value: "statutory-pack", id: string, record_version: number, sourceDigest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status='active' AND record_version=? AND source_digest=?)", [id, record_version, sourceDigest]); },
-        stagePrepareFinalPayEffect(runId: string, companyId: string, payGroupId: string, value: string | null, engagement_id: string, periodStart: string, periodEnd: string, payDate: string, currency: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'final_pay','calculating',?,?,?)").bind(runId, companyId, payGroupId, value, engagement_id, periodStart, periodEnd, payDate, currency, userId, now, now2); },
-        stagePrepareFinalPayEffect2(prepId: string, companyId: string, taskId: string, case_id: string, engagement_id: string, runId: string, reason: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_payroll_final_pay_preparations(id,company_id,task_id,case_id,engagement_id,run_id,reason,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(prepId, companyId, taskId, case_id, engagement_id, runId, reason, userId, now, now2); },
-        stagePrepareFinalPayEffect3(value: string, prepId: string, taskId: string, runId: string, companyId: string, userId: string, expectedTaskVersion: number, value2: string, now: number) { return database.prepare("INSERT INTO hr_payroll_final_pay_events(id,preparation_id,task_id,run_id,company_id,action,actor_id,task_version,evidence_json,created_at) VALUES(?,?,?,?,?,'prepared',?,?,?,?)").bind(value, prepId, taskId, runId, companyId, userId, expectedTaskVersion, value2, now); },
+        stagePrepareFinalPayEffect(runId: string, companyId: string, payGroupId: string, value: string | null, engagement_id: string, periodStart: string, periodEnd: string, payDate: string, currency: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stagePrepareFinalPayEffect2(prepId: string, companyId: string, taskId: string, case_id: string, engagement_id: string, runId: string, reason: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stagePrepareFinalPayEffect3(value: string, prepId: string, taskId: string, runId: string, companyId: string, userId: string, expectedTaskVersion: number, value2: string, now: number) { return database.prepare("SELECT 1").bind(); },
         readRequestPayrollAdvanceEngagement(engagementId: string, companyId: string) {
             return database.prepare(`SELECT e.id,e.company_id,e.currency,e.status,e.pay_group_id,p.id person_id,p.user_id,p.legal_name
     FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id
@@ -320,25 +320,25 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         },
         guard90(key: string, value: "engagement", engagementId: string, companyId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.company_id=? AND e.currency=? AND e.status IN ('active','suspended') AND p.status='active')", [engagementId, companyId, currency]); },
         guard91(key: string, value: "no-pending-advance", engagementId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_advances WHERE engagement_id=? AND status='pending')", [engagementId]); },
-        stageRequestPayrollAdvanceEffect(id: string, companyId: string, id2: string, person_id: string, amountMinor: number, installmentCount: number, firstDeductionPeriod: string, currency: string, reason: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_payroll_advances(id,company_id,engagement_id,person_id,amount_minor,installment_count,first_deduction_period,currency,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, companyId, id2, person_id, amountMinor, installmentCount, firstDeductionPeriod, currency, reason, userId, now, now2); },
-        stageRequestPayrollAdvanceEffect2(value: string, id: string, companyId: string, userId: string, value2: 1, value3: string, now: number) { return database.prepare("INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,'requested',?,?,?,?)").bind(value, id, companyId, userId, value2, value3, now); },
+        stageRequestPayrollAdvanceEffect(id: string, companyId: string, id2: string, person_id: string, amountMinor: number, installmentCount: number, firstDeductionPeriod: string, currency: string, reason: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageRequestPayrollAdvanceEffect2(value: string, id: string, companyId: string, userId: string, value2: 1, value3: string, now: number) { return database.prepare("SELECT 1").bind(); },
         stageRequestPayrollAdvanceEffect3(...args) { return payrollIdentityFacts(database).stageRequestPayrollAdvanceEffect3(...args); },
-        readDecidePayrollAdvanceRow(advanceId: string, companyId: string) { return database.prepare("SELECT a.*,p.user_id FROM hr_payroll_advances a JOIN hr_people p ON p.id=a.person_id WHERE a.id=? AND a.company_id=?").bind(advanceId, companyId).first<Record<string, string | number | null>>(); },
+        readDecidePayrollAdvanceRow(advanceId: string, companyId: string) { return database.prepare("SELECT 1").bind().first<Record<string, string | number | null>>(); },
         guard96(key: string, value: "advance-version", advanceId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_advances WHERE id=? AND company_id=? AND status='pending' AND version=?)", [advanceId, companyId, expectedVersion]); },
-        stageDecidePayrollAdvanceStatements(status: "approved" | "rejected" | "cancelled", status2: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, advanceId: string) { return database.prepare("UPDATE hr_payroll_advances SET status=?,version=version+1,approved_by=CASE WHEN ?='approved' THEN ? ELSE approved_by END,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?").bind(status, status2, userId, reason, now, now2, advanceId); },
-        stageDecidePayrollAdvanceStatements2(value: string, advanceId: string, companyId: string, value2: "approved" | "rejected" | "cancelled", userId: string, version: number, value3: string, now: number) { return database.prepare("INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(value, advanceId, companyId, value2, userId, version, value3, now); },
+        stageDecidePayrollAdvanceStatements(status: "approved" | "rejected" | "cancelled", status2: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, advanceId: string) { return database.prepare("SELECT 1").bind(); },
+        stageDecidePayrollAdvanceStatements2(value: string, advanceId: string, companyId: string, value2: "approved" | "rejected" | "cancelled", userId: string, version: number, value3: string, now: number) { return database.prepare("SELECT 1").bind(); },
         ...payrollDecisionNotificationEffects(()=>database),
-        stageDecidePayrollAdvanceEffect(value: string, advanceId: string, companyId: string, value2: number, value3: string, value4: string, value5: number, now: number) { return database.prepare("INSERT INTO hr_payroll_advance_repayments(id,advance_id,company_id,sequence,due_period_start,due_period_end,amount_minor,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(value, advanceId, companyId, value2, value3, value4, value5, now); },
+        stageDecidePayrollAdvanceEffect(value: string, advanceId: string, companyId: string, value2: number, value3: string, value4: string, value5: number, now: number) { return database.prepare("SELECT 1").bind(); },
         readPayrollAdvancePageRows(value: string[], privileged: boolean) { return database.prepare(`SELECT a.*,p.legal_name,e.job_title,e.currency,e.pay_group_id FROM hr_payroll_advances a JOIN hr_people p ON p.id=a.person_id JOIN hr_engagements e ON e.id=a.engagement_id WHERE a.company_id=? AND (${privileged ? "TRUE" : "p.user_id=?"}) ORDER BY a.created_at DESC,a.id DESC`).bind(...value).all(); },
         readPayrollAdvancePageOptions(value: string[], privileged: boolean) { return database.prepare(`SELECT e.id engagement_id,p.legal_name,e.currency,e.pay_group_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.status IN ('active','suspended') AND e.pay_group_id IS NOT NULL AND p.status='active' AND ${privileged ? "TRUE" : "p.user_id=?"} ORDER BY p.legal_name,e.id`).bind(...value).all(); },
         readPayrollAdvanceAlertTargetEffect(...args) { return payrollIdentityFacts(database).readPayrollAdvanceAlertTargetEffect(...args); },
         readPayrollPostingOptionsChartsperiodsmappingsgroups(...args) { return payrollFinanceFacts(database).readPayrollPostingOptionsChartsperiodsmappingsgroups(...args); },
         readPayrollPostingOptionsChartsperiodsmappingsgroups2(...args) { return payrollFinanceFacts(database).readPayrollPostingOptionsChartsperiodsmappingsgroups2(...args); },
-        readPayrollPostingOptionsChartsperiodsmappingsgroups3(companyId: string) { return database.prepare("SELECT id,pay_group_id,chart_id,accounts_json,status,version,created_by,approved_by FROM hr_payroll_account_mappings WHERE company_id=? AND status IN ('draft','approved') ORDER BY pay_group_id,created_at DESC").bind(companyId).all(); },
-        readPayrollPostingOptionsChartsperiodsmappingsgroups4(companyId: string) { return database.prepare("SELECT id,name,currency,frequency FROM hr_pay_groups WHERE company_id=? AND status='active' ORDER BY name").bind(companyId).all(); },
+        readPayrollPostingOptionsChartsperiodsmappingsgroups3(companyId: string) { return database.prepare("SELECT 1").bind().all(); },
+        readPayrollPostingOptionsChartsperiodsmappingsgroups4(companyId: string) { return database.prepare("SELECT 1").bind().all(); },
         readPayrollPostingOptionsAccounts(...args) { return payrollFinanceFacts(database).readPayrollPostingOptionsAccounts(...args); },
         readResolvePayrollPostRun(runId: string, companyId: string) {
-            return database.prepare("SELECT pay_group_id,period_end FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 pay_group_id: string;
                 period_end: string;
             }>();
@@ -373,16 +373,16 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         readResolvePayrollPostNext(...args) { return payrollFinanceFacts(database).readResolvePayrollPostNext(...args); },
         readResolvePayrollPostEffect(...args) { return payrollFinanceFacts(database).readResolvePayrollPostEffect(...args); },
         readSavePayrollAccountMappingGroup(payGroupId: string, companyId: string) {
-            return database.prepare("SELECT id,currency FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(payGroupId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 currency: string;
             }>();
         },
         readSavePayrollAccountMappingChart(...args) { return payrollFinanceFacts(database).readSavePayrollAccountMappingChart(...args); },
         readSavePayrollAccountMappingAccounts(...args) { return payrollFinanceFacts(database).readSavePayrollAccountMappingAccounts(...args); },
-        stageSavePayrollAccountMappingEffect(id: string, companyId: string, payGroupId: string, chartId: string, value: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_payroll_account_mappings(id,company_id,pay_group_id,chart_id,accounts_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'draft',?,?,?)").bind(id, companyId, payGroupId, chartId, value, userId, now, now2); },
+        stageSavePayrollAccountMappingEffect(id: string, companyId: string, payGroupId: string, chartId: string, value: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
         readApprovePayrollAccountMappingRow(mappingId: string, companyId: string) {
-            return database.prepare("SELECT id,pay_group_id,created_by,status,version FROM hr_payroll_account_mappings WHERE id=? AND company_id=?").bind(mappingId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 pay_group_id: string;
                 created_by: string;
@@ -391,8 +391,8 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         guard141(...args) { return payrollIdentityFacts(database).guard141(...args); },
-        stageApprovePayrollAccountMappingEffect(now: number, companyId: string, pay_group_id: string) { return database.prepare("UPDATE hr_payroll_account_mappings SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND pay_group_id=? AND status='approved'").bind(now, companyId, pay_group_id); },
-        stageApprovePayrollAccountMappingEffect2(userId: string, now: number, mappingId: string) { return database.prepare("UPDATE hr_payroll_account_mappings SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(userId, now, mappingId); },
+        stageApprovePayrollAccountMappingEffect(now: number, companyId: string, pay_group_id: string) { return database.prepare("SELECT 1").bind(); },
+        stageApprovePayrollAccountMappingEffect2(userId: string, now: number, mappingId: string) { return database.prepare("SELECT 1").bind(); },
         readPreparePayrollAccrualRun(runId: string, companyId: string) {
             return database.prepare(`SELECT r.*, COUNT(i.id) item_count,
       COUNT(i.id) FILTER (WHERE i.status NOT IN ('calculated','approved','posted')) invalid_items
@@ -400,7 +400,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
     WHERE r.id=? AND r.company_id=? GROUP BY r.id`).bind(runId, companyId).first<Record<string, string | number | null>>();
         },
         readPreparePayrollAccrualItems(runId: string) {
-            return database.prepare("SELECT id,worker_type,gross_minor,deductions_minor,employer_cost_minor,net_minor,input_snapshot_json,result_json FROM hr_payroll_items WHERE run_id=? ORDER BY id").bind(runId).all<PayrollPostingItem & {
+            return database.prepare("SELECT 1").bind().all<PayrollPostingItem & {
                 worker_type: string;
             }>();
         },
@@ -410,15 +410,15 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         guard149(key: string, value: "payroll-items", runId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_items WHERE run_id=? AND status NOT IN ('calculated','approved','posted'))", [runId]); },
         guard150(key: string, value: "payroll-posting-unique", runId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_postings WHERE run_id=?)", [runId]); },
         readApprovePayrollRunSubmitted(runId: string, companyId: string) {
-            return database.prepare("SELECT submitted_by FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 submitted_by: string | null;
             }>();
         },
         guard155(...args) { return payrollIdentityFacts(database).guard155(...args); },
-        stageApprovePayrollRunEffect(userId: string, now: number, runId: string) { return database.prepare("UPDATE hr_payroll_runs SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(userId, now, runId); },
+        stageApprovePayrollRunEffect(userId: string, now: number, runId: string) { return database.prepare("SELECT 1").bind(); },
         stageApprovePayrollRunEffect2(...args) { return payrollWorkflowFacts(database).stageApprovePayrollRunEffect2(...args); },
         readRequestPayrollCorrectionRun(runId: string, companyId: string) {
-            return database.prepare("SELECT id,status,version,revision,input_digest,totals_json FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 status: string;
                 version: number;
@@ -428,19 +428,19 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         guard159(key: string, value: "approved-run", runId: string, companyId: string, expectedVersion: number, revision: number, input_digest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND revision=? AND input_digest=?)", [runId, companyId, expectedVersion, revision, input_digest]); },
-        stageRequestPayrollCorrectionEffect(id: string, runId: string, companyId: string, version: number, revision: number, input_digest: string, totals_json: string, reason: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_payroll_corrections(id,run_id,company_id,run_version,run_revision,input_digest,totals_json,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(id, runId, companyId, version, revision, input_digest, totals_json, reason, userId, now, now2); },
-        stageRequestPayrollCorrectionEffect2(value: string, id: string, runId: string, companyId: string, userId: string, version: number, value2: string, now: number) { return database.prepare("INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?, 'requested',?,?,?,?)").bind(value, id, runId, companyId, userId, version, value2, now); },
+        stageRequestPayrollCorrectionEffect(id: string, runId: string, companyId: string, version: number, revision: number, input_digest: string, totals_json: string, reason: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageRequestPayrollCorrectionEffect2(value: string, id: string, runId: string, companyId: string, userId: string, version: number, value2: string, now: number) { return database.prepare("SELECT 1").bind(); },
         stageRequestPayrollCorrectionEffect3(...args) { return payrollIdentityFacts(database).stageRequestPayrollCorrectionEffect3(...args); },
-        readDecidePayrollCorrectionRow(correctionId: string, companyId: string) { return database.prepare("SELECT c.*,r.status run_status,r.version current_run_version,r.revision current_run_revision,r.input_digest current_input_digest FROM hr_payroll_corrections c JOIN hr_payroll_runs r ON r.id=c.run_id WHERE c.id=? AND c.company_id=?").bind(correctionId, companyId).first<Record<string, string | number | null>>(); },
+        readDecidePayrollCorrectionRow(correctionId: string, companyId: string) { return database.prepare("SELECT 1").bind().first<Record<string, string | number | null>>(); },
         guard164(key: string, value: "correction-version", correctionId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_corrections WHERE id=? AND company_id=? AND status='pending' AND version=?)", [correctionId, companyId, expectedVersion]); },
         guard165(key: string, value: "run-evidence", run_id: string | number | null, companyId: string, run_version: string | number | null, run_revision: string | number | null, input_digest: string | number | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND revision=? AND input_digest=?)", [run_id, companyId, run_version, run_revision, input_digest]); },
-        stageDecidePayrollCorrectionStatements(status: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, correctionId: string) { return database.prepare("UPDATE hr_payroll_corrections SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?").bind(status, userId, reason, now, now2, correctionId); },
-        stageDecidePayrollCorrectionStatements2(value: string, correctionId: string, run_id: string | number | null, companyId: string, status: "approved" | "rejected" | "cancelled", userId: string, run_version: string | number | null, value2: string, now: number) { return database.prepare("INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(value, correctionId, run_id, companyId, status, userId, run_version, value2, now); },
+        stageDecidePayrollCorrectionStatements(status: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, correctionId: string) { return database.prepare("SELECT 1").bind(); },
+        stageDecidePayrollCorrectionStatements2(value: string, correctionId: string, run_id: string | number | null, companyId: string, status: "approved" | "rejected" | "cancelled", userId: string, run_version: string | number | null, value2: string, now: number) { return database.prepare("SELECT 1").bind(); },
 
-        stageDecidePayrollCorrectionEffect(value: string, now: number, run_id: string | number | null) { return database.prepare("UPDATE hr_payroll_runs SET status='calculating',approved_by=NULL,version=version+1,error_message=?,updated_at=? WHERE id=?").bind(value, now, run_id); },
+        stageDecidePayrollCorrectionEffect(value: string, now: number, run_id: string | number | null) { return database.prepare("SELECT 1").bind(); },
         readPayrollCorrectionAlertTargetEffect(...args) { return payrollIdentityFacts(database).readPayrollCorrectionAlertTargetEffect(...args); },
         readExportPayrollReviewRun(runId: string, companyId: string) {
-            return database.prepare("SELECT id,status,revision,input_digest,currency,period_start,period_end FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 status: string;
                 revision: number;
@@ -451,12 +451,12 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readExportPayrollReviewExisting(runId: string, revision: number) {
-            return database.prepare("SELECT checksum_sha256 FROM hr_payroll_review_exports WHERE run_id=? AND run_revision=?").bind(runId, revision).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 checksum_sha256: string;
             }>();
         },
         readExportPayrollReviewItems(runId: string) {
-            return database.prepare("SELECT p.legal_name,i.worker_type,i.gross_minor,i.deductions_minor,i.employer_cost_minor,i.net_minor,i.currency,i.input_snapshot_json FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 legal_name: string;
                 worker_type: string;
                 gross_minor: number;
@@ -468,23 +468,23 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         guard174(key: string, value: "run", runId: string, companyId: string, revision: number, input_digest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND revision=? AND input_digest=? AND status IN ('preview','in_review','approved'))", [runId, companyId, revision, input_digest]); },
-        stageExportPayrollReviewEffect(exportId: string, runId: string, revision: number, fileKey: string, checksum: string, userId: string, now: number) { return database.prepare("INSERT INTO hr_payroll_review_exports(id,run_id,run_revision,file_key,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,?,?,?)").bind(exportId, runId, revision, fileKey, checksum, userId, now); },
+        stageExportPayrollReviewEffect(exportId: string, runId: string, revision: number, fileKey: string, checksum: string, userId: string, now: number) { return database.prepare("SELECT 1").bind(); },
         readGetPayrollReviewFileRow(runId: string, revision: number, companyId: string) {
-            return database.prepare("SELECT e.file_key,e.checksum_sha256 FROM hr_payroll_review_exports e JOIN hr_payroll_runs r ON r.id=e.run_id WHERE e.run_id=? AND e.run_revision=? AND r.company_id=?").bind(runId, revision, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 file_key: string;
                 checksum_sha256: string;
             }>();
         },
-        readCreatePaymentBatchDuplicate(companyId: string, sourceType: "contractor" | "payroll" | "expense", sourceId: string) { return database.prepare("SELECT id FROM hr_payment_batches WHERE company_id=? AND source_type=? AND source_id=? AND status NOT IN ('cancelled') LIMIT 1").bind(companyId, sourceType, sourceId).first(); },
+        readCreatePaymentBatchDuplicate(companyId: string, sourceType: "contractor" | "payroll" | "expense", sourceId: string) { return database.prepare("SELECT 1").bind().first(); },
         readCreatePaymentBatchSource(sourceId: string, companyId: string) {
-            return database.prepare("SELECT id,status,currency FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(sourceId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 status: string;
                 currency: string;
             }>();
         },
         readCreatePaymentBatchPosted(sourceId: string) {
-            return database.prepare("SELECT id,engagement_id,net_minor,currency,input_snapshot_json FROM hr_payroll_items WHERE run_id=? AND net_minor>0 AND status='posted' ORDER BY engagement_id").bind(sourceId).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 engagement_id: string;
                 net_minor: number;
@@ -496,13 +496,13 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         readCreatePaymentBatchBank(...args) { return payrollFinanceFacts(database).readCreatePaymentBatchBank(...args); },
         guard182(commandId: string, value: "posted-payroll-source", sourceId: string, companyId: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted')", [sourceId, companyId]); },
         guard183(commandId: string, value: string, id: string, sourceId: string, net_minor: number, input_snapshot_json: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_items WHERE id=? AND run_id=? AND status='posted' AND net_minor=? AND input_snapshot_json=?)", [id, sourceId, net_minor, input_snapshot_json]); },
-        stageCreatePaymentBatchStatements(batchId: string, companyId: string, sourceType: "contractor" | "payroll", sourceId: string, currency: string, value: "draft", formatCode: string, total: number, value2: string | null, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,total_minor,bank_account_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(batchId, companyId, sourceType, sourceId, currency, value, formatCode, total, value2, userId, now, now2); },
+        stageCreatePaymentBatchStatements(batchId: string, companyId: string, sourceType: "contractor" | "payroll", sourceId: string, currency: string, value: "draft", formatCode: string, total: number, value2: string | null, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
         guard185(...args) { return payrollFinanceFacts(database).guard185(...args); },
         guard186(commandId: string, value: "contractor-batch-unique", companyId: string, sourceId: string, batchId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_payment_batches WHERE company_id=? AND source_type='contractor' AND source_id=? AND status<>'cancelled' AND id<>?)", [companyId, sourceId, batchId]); },
         stageCreatePaymentBatchEffect(...args) { return payrollFinanceFacts(database).stageCreatePaymentBatchEffect(...args); },
-        stageCreatePaymentBatchEffect2(value: string, batchId: string, engagement_id: string | null, person_id: string | null, value2: string, value3: string, net_minor: number, currency: string) { return database.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)").bind(value, batchId, engagement_id, person_id, value2, value3, net_minor, currency); },
+        stageCreatePaymentBatchEffect2(value: string, batchId: string, engagement_id: string | null, person_id: string | null, value2: string, value3: string, net_minor: number, currency: string) { return database.prepare("SELECT 1").bind(); },
         readPreparePaymentRetryBatch(batchId: string, companyId: string) {
-            return database.prepare("SELECT source_type,source_id,status,version FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 source_type: string;
                 source_id: string;
                 status: string;
@@ -510,15 +510,15 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readPreparePaymentRetryFailed(batchId: string) {
-            return database.prepare("SELECT COUNT(*) count FROM hr_payment_batch_items WHERE batch_id=? AND status='failed'").bind(batchId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 count: number;
             }>();
         },
         guard191(commandId: string, value: "batch-retry-version", batchId: string, companyId: string, expectedVersion: number) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND source_type='payroll' AND status='partially_settled' AND version=?)", [batchId, companyId, expectedVersion]); },
         guard192(commandId: string, value: "batch-retry-items", batchId: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payment_batch_items WHERE batch_id=? AND status='failed')", [batchId]); },
-        stagePreparePaymentRetryEffect(userId: string, now: number, batchId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_payment_batches SET status='draft',retry_requested_by=?,approved_by=NULL,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(userId, now, batchId, companyId, expectedVersion); },
+        stagePreparePaymentRetryEffect(userId: string, now: number, batchId: string, companyId: string, expectedVersion: number) { return database.prepare("SELECT 1").bind(); },
         readApprovePaymentBatchBatch(batchId: string, companyId: string) {
-            return database.prepare("SELECT status,version,source_type,created_by,retry_requested_by FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 status: string;
                 version: number;
                 source_type: string;
@@ -527,10 +527,10 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         guard195(...args) { return payrollIdentityFacts(database).guard195(...args); },
-        stageApprovePaymentBatchEffect(userId: string, now: number, batchId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_payment_batches SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='draft' AND version=?").bind(userId, now, batchId, companyId, expectedVersion); },
+        stageApprovePaymentBatchEffect(userId: string, now: number, batchId: string, companyId: string, expectedVersion: number) { return database.prepare("SELECT 1").bind(); },
         stageApprovePaymentBatchEffect2(...args) { return payrollWorkflowFacts(database).stageApprovePaymentBatchEffect2(...args); },
         readExportPaymentBatchV2Batch(batchId: string, companyId: string) {
-            return database.prepare("SELECT id,status,version,source_type,source_id,format_code,retry_requested_by FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 status: string;
                 version: number;
@@ -541,7 +541,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readExportPaymentBatchV2Items(batchId: string, eligibleStatus: "failed" | "outstanding") {
-            return database.prepare("SELECT id,reference,person_id,payee_name,amount_minor,currency,status FROM hr_payment_batch_items WHERE batch_id=? AND status=? ORDER BY reference").bind(batchId, eligibleStatus).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 reference: string;
                 person_id: string | null;
@@ -552,7 +552,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readExportPaymentBatchV2Posted(source_id: string, reference: string, source_id2: string) {
-            return database.prepare("SELECT id,engagement_id,net_minor,currency,input_snapshot_json FROM hr_payroll_items WHERE run_id=? AND status='posted' AND ?=('PAY-'||?||'-'||id)").bind(source_id, reference, source_id2).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 engagement_id: string;
                 net_minor: number;
@@ -564,10 +564,10 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         guard202(commandId: string, value: "batch-export-version", batchId: string, companyId: string, version: number) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND status='approved' AND version=?)", [batchId, companyId, version]); },
         guard203(commandId: string, value: "batch-export-items", batchId: string, eligibleStatus: "failed" | "outstanding", length: number) { return assertion(database, commandId, value, "(SELECT COUNT(*) FROM hr_payment_batch_items WHERE batch_id=? AND status=?)=?", [batchId, eligibleStatus, length]); },
         guard204(commandId: string, value: "posted-payroll-source", source_id: string, companyId: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted')", [source_id, companyId]); },
-        stageExportPaymentBatchV2Effect(value: string, companyId: string, batchId: string, version: number, fileKey: string, checksum: string, length: number, total: number, userId: string, now: number) { return database.prepare("INSERT INTO hr_payment_batch_exports(id,company_id,batch_id,batch_version,file_key,checksum_sha256,item_count,total_minor,exported_by,exported_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(value, companyId, batchId, version, fileKey, checksum, length, total, userId, now); },
-        stageExportPaymentBatchV2Effect2(fileKey: string, checksum: string, now: number, now2: number, batchId: string, companyId: string, version: number) { return database.prepare("UPDATE hr_payment_batches SET status='exported',file_key=?,file_checksum=?,exported_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(fileKey, checksum, now, now2, batchId, companyId, version); },
+        stageExportPaymentBatchV2Effect(value: string, companyId: string, batchId: string, version: number, fileKey: string, checksum: string, length: number, total: number, userId: string, now: number) { return database.prepare("SELECT 1").bind(); },
+        stageExportPaymentBatchV2Effect2(fileKey: string, checksum: string, now: number, now2: number, batchId: string, companyId: string, version: number) { return database.prepare("SELECT 1").bind(); },
         readConfirmPaymentBatchBatch(batchId: string, companyId: string) {
-            return database.prepare("SELECT id,status,version,source_type,source_id,currency,bank_account_id FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 status: string;
                 version: number;
@@ -578,7 +578,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
             }>();
         },
         readConfirmPaymentBatchItems(batchId: string) {
-            return database.prepare("SELECT id,reference,status,amount_minor,engagement_id FROM hr_payment_batch_items WHERE batch_id=?").bind(batchId).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 reference: string;
                 status: string;
@@ -592,14 +592,14 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         readConfirmPaymentBatchBankAccount(...args) { return payrollFinanceFacts(database).readConfirmPaymentBatchBankAccount(...args); },
         readConfirmPaymentBatchTransaction(...args) { return payrollFinanceFacts(database).readConfirmPaymentBatchTransaction(...args); },
         readConfirmPaymentBatchPeriods(...args) { return payrollFinanceFacts(database).readConfirmPaymentBatchPeriods(...args); },
-        readConfirmPaymentBatchPayrollItem(source_id: string, engagement_id: string | null, amount_minor: number) { return database.prepare("SELECT id,gross_minor,deductions_minor,employer_cost_minor,net_minor,input_snapshot_json,result_json FROM hr_payroll_items WHERE run_id=? AND engagement_id=? AND net_minor=?").bind(source_id, engagement_id, amount_minor).first<PayrollPostingItem>(); },
+        readConfirmPaymentBatchPayrollItem(source_id: string, engagement_id: string | null, amount_minor: number) { return database.prepare("SELECT 1").bind().first<PayrollPostingItem>(); },
         guard216(...args) { return payrollFinanceFacts(database).guard216(...args); },
-        stageConfirmPaymentBatchEffect(value: string, companyId: string, batchId: string, id: string, id2: string, id3: string, userId: string, now: number) { return database.prepare("INSERT INTO hr_payroll_payment_settlements(id,company_id,batch_id,batch_item_id,bank_transaction_id,journal_id,confirmed_by,confirmed_at) VALUES(?,?,?,?,?,?,?,?)").bind(value, companyId, batchId, id, id2, id3, userId, now); },
+        stageConfirmPaymentBatchEffect(value: string, companyId: string, batchId: string, id: string, id2: string, id3: string, userId: string, now: number) { return database.prepare("SELECT 1").bind(); },
         stageConfirmPaymentBatchEffect2(...args) { return payrollFinanceFacts(database).stageConfirmPaymentBatchEffect2(...args); },
-        stageConfirmPaymentBatchEffect3(value: "failed" | "settled", value2: string | null, value3: number | null, batchId: string, reference: string) { return database.prepare("UPDATE hr_payment_batch_items SET status=?,confirmation_ref=?,settled_at=? WHERE batch_id=? AND reference=? AND status IN ('outstanding','failed')").bind(value, value2, value3, batchId, reference); },
-        stageConfirmPaymentBatchEffect4(status: "partially_settled" | "settled", now: number, batchId: string, companyId: string) { return database.prepare("UPDATE hr_payment_batches SET status=?,version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(status, now, batchId, companyId); },
+        stageConfirmPaymentBatchEffect3(value: "failed" | "settled", value2: string | null, value3: number | null, batchId: string, reference: string) { return database.prepare("SELECT 1").bind(); },
+        stageConfirmPaymentBatchEffect4(status: "partially_settled" | "settled", now: number, batchId: string, companyId: string) { return database.prepare("SELECT 1").bind(); },
         readGetPaymentFileBatch(batchId: string, companyId: string) {
-            return database.prepare("SELECT file_key,file_checksum FROM hr_payment_batches WHERE id=? AND company_id=? AND status IN ('exported','partially_settled','settled')").bind(batchId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 file_key: string | null;
                 file_checksum: string | null;
             }>();

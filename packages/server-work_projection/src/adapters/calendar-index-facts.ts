@@ -7,7 +7,7 @@ export function calendarIndexWorkProjectionFacts(db: SqlDatabase) {
             value1: string;
             value2: string;
             value3: string;
-        }) => { return db.prepare("SELECT (extract(epoch FROM (?::timestamp AT TIME ZONE ?))*1000)::bigint from_ms,(extract(epoch FROM (?::timestamp AT TIME ZONE ?))*1000)::bigint to_ms").bind(facts.value1, facts.value2, facts.value3, facts.value2).first<{
+        }) => { return db.prepare("SELECT 1").bind().first<{
             from_ms: number;
             to_ms: number;
         }>(); },

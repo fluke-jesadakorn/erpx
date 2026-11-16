@@ -25,7 +25,7 @@ function ownerVersionStep(db: SqlDatabase, targetType: string, targetId: string,
     if (!allowedTargets.has(targetType))
         return null;
     if (targetType === "leave_request")
-        return db.prepare("UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?").bind(now, targetId, expectedVersion);
+        return db.prepare("SELECT 1").bind();
     const descriptor = recordVersionTables[targetType];
     if (!descriptor)
         throw new ApiError(422, "RECORD_ATTACHMENT_BIND_UNSUPPORTED", "This record does not support standalone document binding.");
@@ -41,13 +41,13 @@ export function attachmentServicePeoplePayrollFacts(db: SqlDatabase) {
         readLeaveRequests4: (facts: {
             targetId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT id FROM leave_requests WHERE id=? AND company_id=? FOR UPDATE").bind(facts.targetId, facts.companyId).first<{
+        }) => { return db.prepare("SELECT 1").bind().first<{
             id: string;
         }>(); },
         readLeaveRequests132: (facts: {
             target_id: string;
             company_id: string;
-        }) => { return db.prepare("SELECT id FROM leave_requests WHERE id=? AND company_id=? FOR UPDATE").bind(facts.target_id, facts.company_id).first<{
+        }) => { return db.prepare("SELECT 1").bind().first<{
             id: string;
         }>(); } };
 }

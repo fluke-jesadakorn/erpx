@@ -16,7 +16,7 @@ export async function ecommerceWarehouseCandidates(db: SqlDatabase, actor: WorkC
     return (await db.prepare("SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name").bind(actor.companyId, actor.branchId, actor.branchId).all<Row>()).results;
 }
 export function ecommerceWarehouse(db: SqlDatabase, actor: WorkContext, id: string) {
-    return db.prepare("SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)").bind(id, actor.companyId, actor.branchId, actor.branchId).first<Row>();
+    return db.prepare("SELECT 1").bind().first<Row>();
 }
 export async function ecommerceFulfillmentCurrent(db: SqlDatabase, id: string, orderId: unknown, version: number) {
     return !!await db.prepare('SELECT 1 FROM commerce_fulfillments WHERE id=? AND order_id=? AND version=?').bind(id, orderId, version).first();

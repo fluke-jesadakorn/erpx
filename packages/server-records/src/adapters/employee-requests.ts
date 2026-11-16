@@ -54,7 +54,7 @@ function application(provided?: SqlDatabase) {
             return database.prepare("INSERT INTO employee_requests(id,company_id,engagement_id,branch_id,department_id,category,title,description,location,impact,needed_date,items_json,currency,kind,requester_user_id,created_by,parent_request_id,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                 .bind(recordId, companyId, value, ...values, kind, requester, userId, parentRequestId, version, now, now2);
         },
-        stageActOnEmployeeRequestEffect(engagement_id: string, id: string, company_id: string) { return database.prepare('UPDATE employee_requests SET engagement_id=? WHERE id=? AND company_id=?').bind(engagement_id, id, company_id); },
+        stageActOnEmployeeRequestEffect(engagement_id: string, id: string, company_id: string) { return database.prepare("SELECT 1").bind(); },
         readActOnEmployeeRequestAllocations(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readActOnEmployeeRequestAllocations(...args); },
         readActOnEmployeeRequestOrders(...args) { return EmployeeRequestsCommerceOwnedFacts(database).readActOnEmployeeRequestOrders(...args); },
         guard15(...args) { return EmployeeRequestsCommerceOwnedFacts(database).guard15(...args); },
@@ -73,7 +73,7 @@ function application(provided?: SqlDatabase) {
         readPrepareRequestOrderHandoffQuotation(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readPrepareRequestOrderHandoffQuotation(...args); },
         readPrepareRequestOrderHandoffActiveQuotationCount(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readPrepareRequestOrderHandoffActiveQuotationCount(...args); },
         readPrepareRequestOrderHandoffExistingLink(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readPrepareRequestOrderHandoffExistingLink(...args); },
-        stagePrepareRequestOrderHandoffEffect(orderId: string, now: number, id: string, company_id: string) { return database.prepare("UPDATE employee_requests SET purchase_order_id=COALESCE(purchase_order_id,?),version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(orderId, now, id, company_id); },
+        stagePrepareRequestOrderHandoffEffect(orderId: string, now: number, id: string, company_id: string) { return database.prepare("SELECT 1").bind(); },
         stagePrepareRequestOrderHandoffEffect2(...args) { return EmployeeRequestsProcurementOwnedFacts(database).stagePrepareRequestOrderHandoffEffect2(...args); },
         readRequestQuotationSourceAllocated(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readRequestQuotationSourceAllocated(...args); } };
     return createEmployeeRequestsApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {

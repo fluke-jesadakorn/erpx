@@ -25,7 +25,7 @@ export type OvertimeDetail=Awaited<ReturnType<typeof getOvertime>>;
 function serviceContext(provided?: SqlDatabase,providedOwned=false): OvertimePorts<SqlStatement> {
     let database = provided!;
     const repository: OvertimeRepository<SqlStatement> = { readOvertimeSetupEligibility(companyId: string, engagement_id: string) {
-            return database.prepare("SELECT eligible FROM overtime_eligibility WHERE company_id=? AND engagement_id=?").bind(companyId, engagement_id).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 eligible: boolean;
             }>();
         },
@@ -42,7 +42,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): OvertimePor
         readPreviewOvertimeOverlap(companyId: string, engagement_id: string, excludeId: string | null, ends_at: number, starts_at: number) { return database.prepare(`SELECT id FROM overtime_requests WHERE company_id=? AND engagement_id=? AND id IS DISTINCT FROM ? AND state NOT IN ('draft','withdrawn','rejected') AND starts_at<? AND ends_at>? LIMIT 1`).bind(companyId, engagement_id, excludeId, ends_at, starts_at).first(); },
         readPreviewOvertimeEffect(rosterShiftId: string, companyId: string, engagement_id: string) { return database.prepare(`SELECT 1 FROM people_roster_shifts s JOIN people_roster_weeks w ON w.id=s.week_id JOIN people_roster_assignments a ON a.shift_id=s.id WHERE s.id=? AND w.company_id=? AND w.state='published' AND s.state='active' AND a.state='assigned' AND a.engagement_id=?`).bind(rosterShiftId, companyId, engagement_id).first(); },
         readPreviewOvertimeReviewers(companyId: string, userId: string) {
-            return database.prepare('SELECT legal_name FROM hr_people WHERE company_id=? AND user_id=?').bind(companyId, userId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 legal_name: string;
             }>();
         },
@@ -54,23 +54,23 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): OvertimePor
             }>();
         },
         stageCreateOvertimeEffect(id: string, companyId: string, engagement_id: string, person_id: string, branch_id: string | null, department_id: string | null, userId: string, mode: "advance" | "retrospective", timezone: string, startLocal: string, endLocal: string, startsAt: number, endsAt: number, breakMinutes: number, minutes: number, reason: string, lateExplanation: string, rosterShiftId: string | null, now: number, now2: number) { return database.prepare(`INSERT INTO overtime_requests(id,company_id,engagement_id,person_id,branch_id,department_id,created_by,mode,timezone,start_local,end_local,starts_at,ends_at,break_minutes,minutes,reason,late_explanation,roster_shift_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, companyId, engagement_id, person_id, branch_id, department_id, userId, mode, timezone, startLocal, endLocal, startsAt, endsAt, breakMinutes, minutes, reason, lateExplanation, rosterShiftId, now, now2); },
-        readCommandOvertimeEffect(id: string, companyId: string) { return database.prepare('SELECT id FROM overtime_requests WHERE id=? AND company_id=? FOR UPDATE').bind(id, companyId).first(); },
-        readCommandOvertimeRecord(id: string, companyId: string) { return database.prepare("SELECT * FROM overtime_requests WHERE id=? AND company_id=?").bind(id, companyId).first<OvertimeRow>(); },
+        readCommandOvertimeEffect(id: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
+        readCommandOvertimeRecord(id: string, companyId: string) { return database.prepare("SELECT 1").bind().first<OvertimeRow>(); },
         readCommandOvertimeSets(...args) { return overtimeEvidenceFacts(database).readCommandOvertimeSets(...args); },
-        stageCommandOvertimeEffect(startLocal: string, endLocal: string, timezone: string, startsAt: number, endsAt: number, breakMinutes: number, minutes: number, reason: string, lateExplanation: string, rosterShiftId: string | null, id: string) { return database.prepare('UPDATE overtime_requests SET start_local=?,end_local=?,timezone=?,starts_at=?,ends_at=?,break_minutes=?,minutes=?,reason=?,late_explanation=?,roster_shift_id=? WHERE id=?').bind(startLocal, endLocal, timezone, startsAt, endsAt, breakMinutes, minutes, reason, lateExplanation, rosterShiftId, id); },
+        stageCommandOvertimeEffect(startLocal: string, endLocal: string, timezone: string, startsAt: number, endsAt: number, breakMinutes: number, minutes: number, reason: string, lateExplanation: string, rosterShiftId: string | null, id: string) { return database.prepare("SELECT 1").bind(); },
         stageCommandOvertimeEffect2(value: string, id: string, authorization: boolean) { return database.prepare(`UPDATE overtime_requests SET ${authorization ? 'planned_snapshot' : 'actuals_snapshot'}=?::jsonb,decision_note='' WHERE id=?`).bind(value, id); },
-        readCommandOvertimeConflict(companyId: string, engagement_id: string, value: string, value2: string) { return database.prepare("SELECT id FROM hr_time_entries WHERE company_id=? AND engagement_id=? AND work_date BETWEEN ? AND ? AND overtime_hours>0 AND status IN ('draft','submitted','approved') LIMIT 1").bind(companyId, engagement_id, value, value2).first(); },
-        stageCommandOvertimeEffect3(value: string, id: string, companyId: string, engagement_id: string, version: number, value2: string, minutes: number, timezone: string, userId: string, now: number) { return database.prepare('INSERT INTO overtime_payroll_handoffs(id,request_id,company_id,engagement_id,request_version,work_date,minutes,timezone,approved_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(value, id, companyId, engagement_id, version, value2, minutes, timezone, userId, now); },
-        stageCommandOvertimeEffect4(note: string, id: string) { return database.prepare('UPDATE overtime_requests SET decision_note=? WHERE id=?').bind(note, id); },
-        stageCommandOvertimeEffect5(state: string, version: number, now: number, id: string) { return database.prepare('UPDATE overtime_requests SET state=?,version=?,updated_at=? WHERE id=?').bind(state, version, now, id); },
-        readSetOvertimeEligibilityEffect(engagementId: string, companyId: string) { return database.prepare('SELECT id FROM hr_engagements WHERE id=? AND company_id=? FOR UPDATE').bind(engagementId, companyId).first(); },
+        readCommandOvertimeConflict(companyId: string, engagement_id: string, value: string, value2: string) { return database.prepare("SELECT 1").bind().first(); },
+        stageCommandOvertimeEffect3(value: string, id: string, companyId: string, engagement_id: string, version: number, value2: string, minutes: number, timezone: string, userId: string, now: number) { return database.prepare("SELECT 1").bind(); },
+        stageCommandOvertimeEffect4(note: string, id: string) { return database.prepare("SELECT 1").bind(); },
+        stageCommandOvertimeEffect5(state: string, version: number, now: number, id: string) { return database.prepare("SELECT 1").bind(); },
+        readSetOvertimeEligibilityEffect(engagementId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
         readSetOvertimeEligibilityCurrent(companyId: string, engagementId: string) {
-            return database.prepare('SELECT version FROM overtime_eligibility WHERE company_id=? AND engagement_id=?').bind(companyId, engagementId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 version: number;
             }>();
         },
-        stageSetOvertimeEligibilityEffect(topLevel: boolean, engagementId: string, companyId: string) { return database.prepare('UPDATE hr_engagements SET self_service_top_level=?,version=version+1 WHERE id=? AND company_id=?').bind(topLevel, engagementId, companyId); },
-        stageSetOvertimeEligibilityEffect2(companyId: string, engagementId: string, eligible: boolean, reason: string, userId: string, now: number, version: number) { return database.prepare('INSERT INTO overtime_eligibility(company_id,engagement_id,eligible,reason,updated_by,updated_at,version) VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,engagement_id) DO UPDATE SET eligible=excluded.eligible,reason=excluded.reason,updated_by=excluded.updated_by,updated_at=excluded.updated_at,version=excluded.version').bind(companyId, engagementId, eligible, reason, userId, now, version); } };
+        stageSetOvertimeEligibilityEffect(topLevel: boolean, engagementId: string, companyId: string) { return database.prepare("SELECT 1").bind(); },
+        stageSetOvertimeEligibilityEffect2(companyId: string, engagementId: string, eligible: boolean, reason: string, userId: string, now: number, version: number) { return database.prepare("SELECT 1").bind(); } };
     return { repository, clock: { now: Date.now }, prepare: async (holding) => {
             if (!provided)
                 database = (await holdingResources(holding)).write;

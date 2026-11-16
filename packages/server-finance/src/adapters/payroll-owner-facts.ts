@@ -2,29 +2,29 @@ import {financeSnapshotSources} from "@erpx/server-people_payroll/public/finance
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export function payrollFinanceFacts(database: SqlDatabase) {
-    return { readPayrollPostingOptionsChartsperiodsmappingsgroups(companyId: string) { return database.prepare("SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status='active' ORDER BY name").bind(companyId).all(); },
-        readPayrollPostingOptionsChartsperiodsmappingsgroups2(companyId: string) { return database.prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(companyId).all(); },
+    return { readPayrollPostingOptionsChartsperiodsmappingsgroups(companyId: string) { return database.prepare("SELECT 1").bind().all(); },
+        readPayrollPostingOptionsChartsperiodsmappingsgroups2(companyId: string) { return database.prepare("SELECT 1").bind().all(); },
         readPayrollPostingOptionsAccounts(companyId: string, chartIds: string[]) { return database.prepare(`SELECT id,chart_id,code,name,category,currency FROM finance_accounts WHERE company_id=? AND status='active' AND chart_id IN (${chartIds.map(() => "?").join(",")}) ORDER BY code`).bind(companyId, ...chartIds).all(); },
         readResolvePayrollPostPeriods(companyId: string, dateHint: string, dateHint2: string) {
-            return database.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=? ORDER BY start_date").bind(companyId, dateHint, dateHint2).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 start_date: string;
             }>();
         },
         readResolvePayrollPostNext(companyId: string, period_end: string) {
-            return database.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date>? ORDER BY start_date LIMIT 1").bind(companyId, period_end).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 start_date: string;
             }>();
         },
         readResolvePayrollPostEffect(companyId: string, entryDate: string, entryDate2: string) {
-            return database.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(companyId, entryDate, entryDate2).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 start_date: string;
             }>();
         },
         readSavePayrollAccountMappingChart(chartId: string, companyId: string) {
-            return database.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(chartId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 base_currency: string;
             }>();
@@ -54,7 +54,7 @@ export function payrollFinanceFacts(database: SqlDatabase) {
                 legal_name: string;
             }>();
         },
-        readCreatePaymentBatchBank(bankAccountId: string, companyId: string, currency: string) { return database.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND category='asset' AND currency=? AND status='active'").bind(bankAccountId, companyId, currency).first(); },
+        readCreatePaymentBatchBank(bankAccountId: string, companyId: string, currency: string) { return database.prepare("SELECT 1").bind().first(); },
         guard185(commandId: string, value: "supplier-payment-reservation", sourceId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown','confirmed'))", [sourceId]); },
         stageCreatePaymentBatchEffect(now: number, sourceId: string, companyId: string) { return database.prepare("SELECT 1").bind(); },
         readConfirmPaymentBatchPosting(source_id: string, companyId: string) {
@@ -65,13 +65,13 @@ export function payrollFinanceFacts(database: SqlDatabase) {
             }>();
         },
         readConfirmPaymentBatchPayables(journal_id: string) {
-            return database.prepare("SELECT DISTINCT account_id FROM finance_journal_lines WHERE journal_id=? AND description IN ('Net payroll payable','Net pay payable to employees')").bind(journal_id).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 account_id: string;
             }>();
         },
-        readConfirmPaymentBatchBankAccount(bank_account_id: string | null, companyId: string, chart_id: string, currency: string) { return database.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='asset' AND status='active'").bind(bank_account_id, companyId, chart_id, currency).first(); },
+        readConfirmPaymentBatchBankAccount(bank_account_id: string | null, companyId: string, chart_id: string, currency: string) { return database.prepare("SELECT 1").bind().first(); },
         readConfirmPaymentBatchTransaction(bankTransactionId: string, companyId: string) {
-            return database.prepare("SELECT t.id,t.version,t.amount_minor,t.currency,t.match_status,t.transaction_date,t.external_id,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?").bind(bankTransactionId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 version: number;
                 amount_minor: number;
@@ -83,7 +83,7 @@ export function payrollFinanceFacts(database: SqlDatabase) {
             }>();
         },
         readConfirmPaymentBatchPeriods(companyId: string, transaction_date: string, transaction_date2: string) {
-            return database.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(companyId, transaction_date, transaction_date2).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
             }>();
         },

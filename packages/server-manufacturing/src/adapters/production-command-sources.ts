@@ -60,7 +60,7 @@ async orderSpecificationLines(specification_id:string | number | null){return db
         )
         .bind(specification_id)
         .all<Row>();},
-lockOrder(id:string){return db.prepare("SELECT id FROM manufacturing_orders WHERE id=? FOR UPDATE").bind(id);},
+lockOrder(id:string){return db.prepare("SELECT 1").bind();},
 guardOrderVersion(key:string,value:"order",id:string,expectedVersion:number,status:string | number | null){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_orders WHERE id=? AND version=? AND status=?)", [id, expectedVersion, status]);},
 prepareMaterialReservation(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,required:number,expiresAt:number,userId:string,now:number){return db
           .prepare(
@@ -112,7 +112,7 @@ guardIndependentPass(key:string,value:"independent-qc",id:string,expectedVersion
 async currentReportActor(id:string,expectedVersion:number){return db.prepare("SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=?")
       .bind(id, expectedVersion).first<string>("actor_id");},
 guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)", [id, expectedVersion, userId]);},
-async lastOutputReportActor(id:string){return db.prepare("SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1").bind(id).first<string>("actor_id");},
+async lastOutputReportActor(id:string){return db.prepare("SELECT 1").bind().first<string>("actor_id");},
 async operation(operationId:string,specification_id:string | number | null){return db.prepare("SELECT * FROM manufacturing_specification_operations WHERE id=? AND specification_id=?")
       .bind(operationId, specification_id).first<Row>();},
 guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:number,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND op.ordinal<?

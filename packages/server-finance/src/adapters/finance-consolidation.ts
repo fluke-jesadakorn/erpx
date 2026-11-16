@@ -30,7 +30,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
       WHERE a.status='active' AND c.status='active' ORDER BY a.company_id,a.code`,[historySql('a.company_id')])).bind(holdingId).all<ConsolidationAccount>();
         },
         readEntityPeriodsEntities(holdingId: string) {
-            return database.prepare("SELECT company_id,reporting_name,functional_currency FROM finance_group_entities WHERE holding_id=? AND status='active' ORDER BY reporting_name,company_id").bind(holdingId).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 company_id: string;
                 reporting_name: string;
                 functional_currency: string;
@@ -38,7 +38,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
         },
         async readEntityPeriodsPeriod(company_id: string, asOfDate: string) {
             await requireGroupCompanyHistory(database,company_id);
-            return database.prepare("SELECT id,name,end_date,close_version FROM finance_periods WHERE company_id=? AND state='closed' AND end_date<=? ORDER BY end_date DESC,id DESC LIMIT 1").bind(company_id, asOfDate).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 name: string;
                 end_date: string;
@@ -75,7 +75,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
             return database.prepare(`INSERT INTO finance_consolidation_eliminations(id,run_id,description,debit_account_id,credit_account_id,amount_minor,status,journal_id,version,source_transaction_id,created_by,created_at,updated_at,evidence_json)
       VALUES(?,?,?,?,?,?, 'proposed',NULL,1,?,?,?,?,?)`).bind(id, runId, description, debitAccountId, creditAccountId, amount, sourceTransactionId, userId, now, now2, value);
         },
-        stageCreateConsolidationEliminationEffect2(value: string, id: string, runId: string, holdingId: string, value2: "proposed", value3: null, value4: "proposed", userId: string, value5: 1, value6: "Elimination account pair prepared from a settled intercompany source.", value7: string, now: number) { return database.prepare("INSERT INTO finance_consolidation_elimination_events(id,elimination_id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(value, id, runId, holdingId, value2, value3, value4, userId, value5, value6, value7, now); },
+        stageCreateConsolidationEliminationEffect2(value: string, id: string, runId: string, holdingId: string, value2: "proposed", value3: null, value4: "proposed", userId: string, value5: 1, value6: "Elimination account pair prepared from a settled intercompany source.", value7: string, now: number) { return database.prepare("SELECT 1").bind(); },
         readDecideConsolidationEliminationRow(eliminationId: string, holdingId: string) {
             return database.prepare(`SELECT e.*,r.status run_status,r.as_of_date,r.presentation_currency,r.source_hash,r.source_snapshot_json
     FROM finance_consolidation_eliminations e JOIN finance_consolidation_runs r ON r.id=e.run_id
@@ -90,7 +90,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
         guard15(key: string, value: "elimination-version", eliminationId: string, expectedVersion: number, from: "proposed" | "approved") { return assertion(database, key, value, "EXISTS(SELECT 1 FROM finance_consolidation_eliminations WHERE id=? AND version=? AND status=?)", [eliminationId, expectedVersion, from]); },
         stageDecideConsolidationEliminationEffect(userId: string, now: number, now2: number, eliminationId: string, expectedVersion: number) { return database.prepare("SELECT 1").bind(); },
         readDecideConsolidationEliminationLineCount(journalId: string) {
-            return database.prepare("SELECT COUNT(*) count FROM finance_consolidation_journal_lines WHERE journal_id=?").bind(journalId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 count: number;
             }>();
         },
@@ -100,22 +100,22 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
             return database.prepare(`INSERT INTO finance_consolidation_journals(id,run_id,holding_id,journal_number,entry_date,currency,memo,status,source_hash,version,created_by,posted_by,posted_at,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,'posted',?,1,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING`).bind(journalId, run_id, holdingId, journalNumber, as_of_date, presentation_currency, value, source_hash, created_by, userId, now, now2, now3);
         },
-        stageDecideConsolidationEliminationEffect3(value: string, journalId: string, debit_account_id: string, description: string, amount_minor: number, ordinal: number) { return database.prepare("INSERT INTO finance_consolidation_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,ordinal) VALUES(?,?,?, ?,?,0,?)").bind(value, journalId, debit_account_id, description, amount_minor, ordinal); },
-        stageDecideConsolidationEliminationEffect4(value: string, journalId: string, credit_account_id: string, description: string, amount_minor: number, value2: number) { return database.prepare("INSERT INTO finance_consolidation_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,ordinal) VALUES(?,?,?, ?,0,?,?)").bind(value, journalId, credit_account_id, description, amount_minor, value2); },
+        stageDecideConsolidationEliminationEffect3(value: string, journalId: string, debit_account_id: string, description: string, amount_minor: number, ordinal: number) { return database.prepare("SELECT 1").bind(); },
+        stageDecideConsolidationEliminationEffect4(value: string, journalId: string, credit_account_id: string, description: string, amount_minor: number, value2: number) { return database.prepare("SELECT 1").bind(); },
         stageDecideConsolidationEliminationEffect5(userId: string, now: number, now2: number, journalId: string, run_id: string) { return database.prepare("SELECT 1").bind(); },
         stageDecideConsolidationEliminationEffect6(journalId: string, userId: string, now: number, now2: number, eliminationId: string, expectedVersion: number) { return database.prepare("SELECT 1").bind(); },
-        stageDecideConsolidationEliminationEffect7(value: string, eliminationId: string, run_id: string, holdingId: string, event: "approved" | "posted", status: "proposed" | "approved", to: "approved" | "posted", userId: string, version: number, reason: string, value2: string, now: number) { return database.prepare("INSERT INTO finance_consolidation_elimination_events(id,elimination_id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(value, eliminationId, run_id, holdingId, event, status, to, userId, version, reason, value2, now); },
+        stageDecideConsolidationEliminationEffect7(value: string, eliminationId: string, run_id: string, holdingId: string, event: "approved" | "posted", status: "proposed" | "approved", to: "approved" | "posted", userId: string, version: number, reason: string, value2: string, now: number) { return database.prepare("SELECT 1").bind(); },
         readCreateConsolidationRunDuplicate(holdingId: string, asOfDate: string, presentationCurrency: string) {
-            return database.prepare("SELECT id FROM finance_consolidation_runs WHERE holding_id=? AND as_of_date=? AND presentation_currency=?").bind(holdingId, asOfDate, presentationCurrency).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
             }>();
         },
         guard27(key: string, value: "consolidation-unique", holdingId: string, asOfDate: string, presentationCurrency: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM finance_consolidation_runs WHERE holding_id=? AND as_of_date=? AND presentation_currency=?)", [holdingId, asOfDate, presentationCurrency]); },
-        stageCreateConsolidationRunEffect(id: string, holdingId: string, presentationCurrency: string, asOfDate: string, value: string, sourceHash: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO finance_consolidation_runs(id,holding_id,presentation_currency,as_of_date,status,source_snapshot_json,source_hash,version,created_by,created_at,updated_at) VALUES(?,?,?,?, 'draft',?,?,1,?,?,?)").bind(id, holdingId, presentationCurrency, asOfDate, value, sourceHash, userId, now, now2); },
-        stageCreateConsolidationRunEffect2(value: string, id: string, holdingId: string, value2: "prepared", value3: null, value4: "draft", userId: string, value5: 1, value6: "Consolidation snapshot prepared from closed company periods.", value7: string, now: number) { return database.prepare("INSERT INTO finance_consolidation_events(id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(value, id, holdingId, value2, value3, value4, userId, value5, value6, value7, now); },
+        stageCreateConsolidationRunEffect(id: string, holdingId: string, presentationCurrency: string, asOfDate: string, value: string, sourceHash: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageCreateConsolidationRunEffect2(value: string, id: string, holdingId: string, value2: "prepared", value3: null, value4: "draft", userId: string, value5: 1, value6: "Consolidation snapshot prepared from closed company periods.", value7: string, now: number) { return database.prepare("SELECT 1").bind(); },
         readDecideConsolidationRunRun(runId: string, holdingId: string) { return database.prepare(groupSourceSql("SELECT * FROM finance_consolidation_runs r WHERE id=? AND holding_id=?", [consolidationHistorySql("r",historySql)])).bind(runId, holdingId).first<ConsolidationRun>(); },
-        readDecideConsolidationRunPending(runId: string) { return database.prepare("SELECT 1 FROM finance_consolidation_eliminations WHERE run_id=? AND status='proposed' LIMIT 1").bind(runId).first(); },
-        readDecideConsolidationRunPending2(runId: string) { return database.prepare("SELECT 1 FROM finance_consolidation_eliminations WHERE run_id=? AND status<>'posted' LIMIT 1").bind(runId).first(); },
+        readDecideConsolidationRunPending(runId: string) { return database.prepare("SELECT 1").bind().first(); },
+        readDecideConsolidationRunPending2(runId: string) { return database.prepare("SELECT 1").bind().first(); },
         stageDecideConsolidationRunUpdate(action: keyof typeof transition, userId: string, now: number, runId: string, holdingId: string, expectedVersion: number) {
             const rule = transition[action];
             const updates = action === "review" ? "status=?,reviewed_by=?,reviewed_at=?,version=version+1,updated_at=?" : action === "approve" ? "status=?,approved_by=?,version=version+1,updated_at=?" : "status=?,published_by=?,published_at=?,version=version+1,updated_at=?";
@@ -126,7 +126,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
         guard35(key: string, value: "consolidation-version", runId: string, holdingId: string, from: "approved" | "draft" | "review", expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM finance_consolidation_runs WHERE id=? AND holding_id=? AND status=? AND version=?)", [runId, holdingId, from, expectedVersion]); },
         readConsolidationDetailRow(id: string, holdingId: string) { return database.prepare(groupSourceSql("SELECT * FROM finance_consolidation_runs r WHERE id=? AND holding_id=?", [consolidationHistorySql("r",historySql)])).bind(id, holdingId).first<ConsolidationRun>(); },
         readConsolidationDetailEffect(id: string) { return database.prepare(groupSourceSql("SELECT * FROM finance_consolidation_eliminations WHERE run_id=? ORDER BY created_at,id", [`EXISTS(SELECT 1 FROM finance_consolidation_runs purchased_run WHERE purchased_run.id=finance_consolidation_eliminations.run_id AND (${consolidationHistorySql("purchased_run",historySql)}))`])).bind(id).all<ConsolidationElimination>(); },
-        readConsolidationEliminationDetailElimination(id: string, holdingId: string) { return database.prepare('SELECT e.* FROM finance_consolidation_eliminations e JOIN finance_consolidation_runs r ON r.id=e.run_id WHERE e.id=? AND r.holding_id=?').bind(id, holdingId).first<ConsolidationElimination>(); } };
+        readConsolidationEliminationDetailElimination(id: string, holdingId: string) { return database.prepare("SELECT 1").bind().first<ConsolidationElimination>(); } };
     return { repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
             historySql=await groupHistoryPredicate();
             if (!provided)

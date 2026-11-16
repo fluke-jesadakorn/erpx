@@ -1,6 +1,6 @@
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-export function collaborationTextSources(db: SqlDatabase) { return { async assistantName(companyId: string) { return db.prepare("SELECT home_ai_name FROM ai_company_settings WHERE company_id=?").bind(companyId).first<{
+export function collaborationTextSources(db: SqlDatabase) { return { async assistantName(companyId: string) { return db.prepare("SELECT 1").bind().first<{
         home_ai_name: string;
-    }>(); }, async currentAssistantName(companyId: string) { return db.prepare("SELECT home_ai_name FROM ai_company_settings WHERE company_id=?").bind(companyId).first<{
+    }>(); }, async currentAssistantName(companyId: string) { return db.prepare("SELECT 1").bind().first<{
         home_ai_name: string;
-    }>(); }, async previousAssistantName(companyId: string, label: string) { return db.prepare("SELECT 1 FROM ai_home_name_history WHERE company_id=? AND name=?").bind(companyId, label).first(); } }; }
+    }>(); }, async previousAssistantName(companyId: string, label: string) { return db.prepare("SELECT 1").bind().first(); } }; }

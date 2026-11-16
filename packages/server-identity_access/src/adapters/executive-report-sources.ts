@@ -30,11 +30,11 @@ export function executiveReportSources(database: SqlDatabase) {
       AND iam_principal_active(a.user_id,a.company_id,?) AND (a.scope_kind='holding' OR (n.status='active' AND ((a.scope_kind='branch' AND n.kind='branch') OR (a.scope_kind='department' AND n.kind='department' AND (n.branch_id IS NULL OR n.branch_id=b.id)))))
     ORDER BY a.scope_kind,a.role,a.id`).bind(companyId, recipientId, now, now2, now3, now4).all<PreviewAssignmentRow>();
         }, readRecipientPreviewAssignmentsCurrentRows(companyId: string, recipientId: string, now: number) {
-            return database.prepare("SELECT assignment_id FROM active_work_contexts WHERE company_id=? AND user_id=? AND expires_at>? AND assignment_id IS NOT NULL ORDER BY updated_at DESC").bind(companyId, recipientId, now).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 assignment_id: string;
             }>();
         }, readRecipientPreviewContextActiveContext(companyId: string, recipientId: string, assignmentId: string, now: number) {
-            return database.prepare("SELECT session_id,revision,assignment_version FROM active_work_contexts WHERE company_id=? AND user_id=? AND assignment_id=? AND expires_at>? ORDER BY updated_at DESC LIMIT 1").bind(companyId, recipientId, assignmentId, now).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 session_id: string;
                 revision: number;
                 assignment_version: number;

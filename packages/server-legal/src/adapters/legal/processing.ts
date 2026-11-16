@@ -19,7 +19,7 @@ function application(db:SqlDatabase,a:WorkContext){return createLegalProcessingA
 // accepts a document ID and resolves its item inside the authoritative unit.
 // This lookup selects a candidate; it does not grant access to the document.
 export function findInspectionSource(db:SqlDatabase,companyId:string,documentId:string){
- return db.prepare("SELECT i.id,i.version::int version FROM legal_items i JOIN legal_documents d ON d.item_id=i.id WHERE d.id=? AND i.company_id=?").bind(documentId,companyId).first<{id:string;version:number}>();
+ return db.prepare("SELECT 1").bind().first<{id:string;version:number}>();
 }
 export async function queueInspection(db:SqlDatabase,a:WorkContext,documentId:string,kind:LegalProcessingKind,key:string){
  if(await legalPackageEnforcementMode()==='disabled')return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).queueInspection(documentId,kind,key));

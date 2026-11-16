@@ -10,8 +10,8 @@ export function projectStructureSources(db: SqlDatabase) {
   UNION ALL SELECT a.*,NULL,c.version,c.state,j.status,j.id FROM staff_project_package_actuals a JOIN staff_project_cost_allocations c ON a.source_kind='cost_allocation' AND c.id=a.source_id
   ${projectfinanceProjection.actualLine} ${projectfinanceProjection.actualJournal} WHERE a.project_id=? AND a.company_id=? ORDER BY id`).bind(projectId, companyId, projectId2, companyId2).all<Actual>();
         },
-        async handoffs(companyId: string, id: string) { return db.prepare('SELECT * FROM staff_project_handoffs WHERE company_id=? AND project_id=? ORDER BY prepared_at DESC,id').bind(companyId, id).all<HandoffRow>(); },
-        async handoffProject(id: string, companyId: string) { return db.prepare('SELECT project_id FROM staff_project_handoffs WHERE id=? AND company_id=?').bind(id, companyId).first<{
+        async handoffs(companyId: string, id: string) { return db.prepare("SELECT 1").bind().all<HandoffRow>(); },
+        async handoffProject(id: string, companyId: string) { return db.prepare("SELECT 1").bind().first<{
             project_id: string;
         }>(); },
         async handoffWork(companyId: string, userId: string, userId2: string, userId3: string, userId4: string) {

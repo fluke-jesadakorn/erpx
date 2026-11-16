@@ -9,7 +9,7 @@ export function fieldServiceFinanceSourceReadLocks(database:SqlDatabase) {
   return [database.prepare("LOCK TABLE finance_parties,finance_charts,finance_accounts,finance_periods,finance_book_rules,company_money_settings,company_currency_scales,company_fx_rates IN SHARE MODE")];
 }
 export function fieldServiceCustomerAttachmentSourceLocks(database:SqlDatabase){return database.prepare('LOCK TABLE finance_parties IN SHARE ROW EXCLUSIVE MODE');}
-export function fieldServiceCustomerAttachmentSourceImage(database:SqlDatabase,companyId:string,id:string){return database.prepare('SELECT to_jsonb(source)::text image FROM finance_parties source WHERE source.id=? AND source.company_id=?').bind(id,companyId).first<string>('image');}
+export function fieldServiceCustomerAttachmentSourceImage(database:SqlDatabase,companyId:string,id:string){return database.prepare("SELECT 1").bind().first<string>('image');}
 
 /** Minimal customer/currency foundation for a Service agreement, without Finance management access. */
 export async function fieldServiceCustomers(database: SqlDatabase, companyId: string): Promise<ServiceCustomerReference[]> {

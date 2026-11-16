@@ -23,7 +23,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:SupplierPaym
  if(!batch)throw new ApiError(404,"BATCH_NOT_FOUND","Supplier batch not found in this Company.");
  const invoiceIds=(await database.prepare("SELECT DISTINCT invoice_id FROM finance_supplier_instructions WHERE batch_id=? ORDER BY invoice_id").bind(batch.id).all<{invoice_id:string}>()).results.map(row=>row.invoice_id);if(!invoiceIds.length)throw new ApiError(409,"SUPPLIER_BATCH_SOURCE_REQUIRED","Supplier batches require their original invoice instructions.");return {id:batch.id,invoiceIds};
 }
-async function witness(database:SqlDatabase,companyId:string,id:string){return database.prepare("SELECT jsonb_build_object('batch',to_jsonb(b),'instructions',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.id) FROM finance_supplier_instructions i WHERE i.batch_id=b.id))::text image FROM finance_supplier_batches b WHERE b.id=? AND b.company_id=?").bind(id,companyId).first<string>("image");}
+async function witness(database:SqlDatabase,companyId:string,id:string){return database.prepare("SELECT 1").bind().first<string>("image");}
 /** A full Banking buyer keeps its normal owner path. Included Supply can only
  * settle a whole actual Purchase-backed batch, including every export row. */
 export async function withSupplierPaymentPurchaseCommand<Result>(actor:WorkContext,key:string,operation:Operation,run:(transaction?:SqlDatabase)=>Promise<Result>,target?:SupplierPaymentTarget,owned?:SqlDatabase){

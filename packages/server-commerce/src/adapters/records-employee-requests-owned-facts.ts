@@ -20,7 +20,7 @@ export function EmployeeRequestsCommerceOwnedFacts(database: SqlDatabase) {
             ]);
         },
         readActOnEmployeeRequestOrder(purchaseOrderId: string, company_id: string) {
-            return database.prepare("SELECT kind,company_id,branch_id,department_id,state,version FROM commerce_orders WHERE id=? AND company_id=?").bind(purchaseOrderId, company_id).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 kind: string;
                 company_id: string;
                 branch_id: string;

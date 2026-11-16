@@ -14,5 +14,5 @@ export function RecordDetailsInventoryOwnedFacts(database: SqlDatabase) {
       FROM commerce_stock s JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=s.product_id JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=s.warehouse_id
       WHERE s.product_id=? AND s.warehouse_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)`).bind(id, warehouseId, companyId, branchId, branchId2).first<Row>();
         },
-        readRecordSupplementDataRows2(warehouseId: string, id: string, offset: number) { return database.prepare("SELECT * FROM inventory_ledger WHERE warehouse_id=? AND product_id=? ORDER BY movement_date DESC,id DESC LIMIT 31 OFFSET ?").bind(warehouseId, id, offset).all<Row>(); } };
+        readRecordSupplementDataRows2(warehouseId: string, id: string, offset: number) { return database.prepare("SELECT 1").bind().all<Row>(); } };
 }

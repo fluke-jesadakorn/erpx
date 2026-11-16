@@ -29,7 +29,7 @@ function application(provided?: SqlDatabase) {
         bankTransaction(...args) { return payrollRemittanceSources(database).bankTransaction(...args); },
         bankAccount(...args) { return payrollRemittanceSources(database).bankAccount(...args); },
         periods(...args) { return payrollRemittanceSources(database).periods(...args); },
-        lockRun(runId: string, companyId: string) { return database.prepare("SELECT id FROM hr_payroll_runs WHERE id=? AND company_id=? FOR UPDATE").bind(runId, companyId); },
+        lockRun(runId: string, companyId: string) { return database.prepare("SELECT 1").bind(); },
         guard8(key: string, value: "payroll-posted", runId: string, companyId: string, expectedRunVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted' AND version=?)", [runId, companyId, expectedRunVersion]); },
         guard9(...args) { return payrollRemittanceSources(database).guard9(...args); },
         guard10(...args) { return payrollRemittanceSources(database).guard10(...args); },

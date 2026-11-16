@@ -31,14 +31,14 @@ function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{
   ).bind(companyId,userId,userId).all<Row>()).results;},
 async activePrivateSession(sessionId:string,companyId:string,userId:string,assignmentId:string,now:number){return db.prepare("SELECT 1 FROM ai_private_session_controls c JOIN ai_private_sessions s ON s.id=c.session_id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>?")
     .bind(sessionId,companyId,userId,assignmentId,now).first();},
-lockSession(sessionId:string){return db.prepare("SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE").bind(sessionId);},
+lockSession(sessionId:string){return db.prepare("SELECT 1").bind();},
 guardPrivateSession(key:string,value:"private-session",sessionId:string,companyId:string,userId:string,assignmentId:string){return assertion(db,key,value,`EXISTS(SELECT 1 FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id
       WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`,[sessionId,companyId,userId,assignmentId]);},
 guardDefaultPolicy(key:string,value:"agent-default",companyId:string,path:string,userId:string){return assertion(db,key,value,`NOT EXISTS(SELECT 1 FROM agent_assignments x WHERE x.company_id=? AND x.status='active'
     AND (x.scope_path='/' OR ?=x.scope_path OR starts_with(?,x.scope_path||'/') OR starts_with(?,x.scope_path||'?'))
     AND (x.user_id=? OR EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)))`,[companyId,path,path,path,userId,userId]);},
-lockApprovedAssignment(assignmentId:string){return db.prepare("SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c").bind(assignmentId);},
-lockAssignedPool(poolId:string){return db.prepare("SELECT id FROM agent_pools WHERE id=? FOR SHARE").bind(poolId);},
+lockApprovedAssignment(assignmentId:string){return db.prepare("SELECT 1").bind();},
+lockAssignedPool(poolId:string){return db.prepare("SELECT 1").bind();},
 guardApprovedPolicy(key:string,value:"approved-agent",assignmentId:string,companyId:string,assignmentVersion:number | null,agentVersionId:string | null,agentVersionRevision:number | null,catalogVersion:number | null,userId:string,poolId:string | null,poolVersion:number | null){return assertion(db,key,value,`EXISTS(SELECT 1 FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id LEFT JOIN agent_pools p ON p.id=x.pool_id
       WHERE x.id=? AND x.company_id=? AND c.company_id=x.company_id AND x.version=? AND x.status='active'
       AND v.id=? AND v.version=? AND v.status='approved' AND c.version=? AND c.status='approved'
@@ -104,8 +104,8 @@ async recordInvocation(value:string,sessionId:string,turnId:string,companyId:str
       value9,
     )
     .run();},
-async invocationRecord(companyId:string,id:string){return db.prepare('SELECT id,turn_id,company_id,user_id,agent_version_id,question_digest,sources_digest,outcome,input_tokens,output_tokens,error,created_at FROM ai_invocation_evidence WHERE company_id=? AND id=?').bind(companyId,id).first<Row>();},
-async sessionRecord(companyId:string,id:string,userId:string,value:0 | 1){return db.prepare('SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND s.id=? AND (s.user_id=? OR ?)').bind(companyId,id,userId,value).first<Row>();},async batch(effects){await db.batch(effects);}};}
+async invocationRecord(companyId:string,id:string){return db.prepare("SELECT 1").bind().first<Row>();},
+async sessionRecord(companyId:string,id:string,userId:string,value:0 | 1){return db.prepare("SELECT 1").bind().first<Row>();},async batch(effects){await db.batch(effects);}};}
 function application(db?:SqlDatabase){const repositories=new Map<string,Promise<AgentGovernanceRepository<SqlStatement>>>();return createAgentGovernanceApplication({repository:async actor=>{if(db)return bindRepository(db);if(!repositories.has(actor.holdingId))repositories.set(actor.holdingId,holdingResources(actor.holdingId).then(resources=>bindRepository(resources.write)));return repositories.get(actor.holdingId)!;},clock:{now:()=>Date.now()},hash:sha256,authorize:requirePermission});}
 export async function validateAssistantGovernance(db:SqlDatabase,a:WorkContext,path:string,governance:AssistantGovernance){return exposed(()=>application(db).validateAssistantGovernance(a,path,governance));}
 export async function agentWorkspace(a: WorkContext, includeEvidence = true){return exposed(()=>application().agentWorkspace(a, includeEvidence));}

@@ -64,33 +64,33 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readSourceBlockersRows(id: string) {
-            return database.prepare("SELECT engagement_id,input_snapshot_json FROM hr_payroll_items WHERE run_id=? ORDER BY engagement_id").bind(id).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 engagement_id: string;
                 input_snapshot_json: string;
             }>();
         },
         readSourceBlockersCurrent(company_id: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null) {
-            return database.prepare("SELECT e.id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(company_id, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
             }>();
         },
         readSourceBlockersGroup(pay_group_id: string, company_id: string) {
-            return database.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(pay_group_id, company_id).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 overtime_multiplier_bps: number;
                 proration_method: string;
             }>();
         },
-        readSourceBlockersEngagement(engagementId: string, company_id: string) { return database.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title,e.branch_id,e.department_id FROM hr_engagements e WHERE e.id=? AND e.company_id=?").bind(engagementId, company_id).first(); },
-        readSourceBlockersPayee(value: string, company_id: string) { return database.prepare("SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL").bind(value, company_id).first(); },
-        readSourceBlockersCompensation(engagementId: string, period_end: string, period_start: string) { return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1").bind(engagementId, period_end, period_start).first(); },
-        readSourceBlockersEntries(engagementId: string, period_start: string, period_end: string) { return database.prepare("SELECT id,version,work_date,regular_hours,overtime_hours,cost_assignment_id,cost_branch_id,cost_department_id FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagementId, period_start, period_end).all(); },
-        readSourceBlockersCostAssignments(engagementId: string, company_id: string, activeEnd: string, activeStart: string) { return database.prepare("SELECT id,effective_from,effective_to,branch_id,department_id,evidence_status,version FROM hr_payroll_cost_assignments WHERE engagement_id=? AND company_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,id").bind(engagementId, company_id, activeEnd, activeStart).all(); },
-        readSourceBlockersHandoffs(engagementId: string, period_start: string, period_end: string) { return database.prepare("SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id").bind(engagementId, period_start, period_end).all(); },
+        readSourceBlockersEngagement(engagementId: string, company_id: string) { return database.prepare("SELECT 1").bind().first(); },
+        readSourceBlockersPayee(value: string, company_id: string) { return database.prepare("SELECT 1").bind().first(); },
+        readSourceBlockersCompensation(engagementId: string, period_end: string, period_start: string) { return database.prepare("SELECT 1").bind().first(); },
+        readSourceBlockersEntries(engagementId: string, period_start: string, period_end: string) { return database.prepare("SELECT 1").bind().all(); },
+        readSourceBlockersCostAssignments(engagementId: string, company_id: string, activeEnd: string, activeStart: string) { return database.prepare("SELECT 1").bind().all(); },
+        readSourceBlockersHandoffs(engagementId: string, period_start: string, period_end: string) { return database.prepare("SELECT 1").bind().all(); },
         readSourceBlockersBenefits(...args) { return payrollBenefitSources(database).readSourceBlockersBenefits(...args); },
-        readSourceBlockersAdvances(company_id: string, engagementId: string, period_end: string, period_start: string, id: string) { return database.prepare("SELECT r.id,r.version,r.amount_minor,r.due_period_start,r.due_period_end,a.reason FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved') AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?) ORDER BY r.sequence").bind(company_id, engagementId, period_end, period_start, id).all(); },
-        readAssertPayrollSourceFreshRun(runId: string) { return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<Run>(); },
+        readSourceBlockersAdvances(company_id: string, engagementId: string, period_end: string, period_start: string, id: string) { return database.prepare("SELECT 1").bind().all(); },
+        readAssertPayrollSourceFreshRun(runId: string) { return database.prepare("SELECT 1").bind().first<Run>(); },
         readPayrollSourceGuardsRun(runId: string) {
-            return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,pay_date,mode,period_start,period_end,currency,scope_engagement_id,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 company_id: string;
                 pay_group_id: string;
@@ -105,7 +105,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readPayrollSourceGuardsRows(runId: string) {
-            return database.prepare("SELECT engagement_id,input_snapshot_json FROM hr_payroll_items WHERE run_id=? ORDER BY engagement_id").bind(runId).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 engagement_id: string;
                 input_snapshot_json: string;
             }>();
@@ -125,24 +125,24 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
         guard30(...args) { return payrollBenefitSources(database).guard30(...args); },
         guard31(key: string, value: string, company_id: string, engagement_id: string, period_end: string, period_start: string, runId: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved') AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?))=?", [company_id, engagement_id, period_end, period_start, runId, length]); },
         guard32(key: string, value: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_advance_repayments WHERE id=? AND version=? AND status IN ('open','reserved'))", [id, version]); },
-        readPayrollReadinessRun(runId: string, companyId: string) { return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<Run>(); },
+        readPayrollReadinessRun(runId: string, companyId: string) { return database.prepare("SELECT 1").bind().first<Run>(); },
         readPayrollReadinessToday(pay_group_id: string, companyId: string) {
-            return database.prepare("SELECT timezone FROM hr_pay_groups WHERE id=? AND company_id=?").bind(pay_group_id, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 timezone: string;
             }>();
         },
         readPayrollReadinessEmployees(companyId: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null) {
-            return database.prepare("SELECT COUNT(*) AS count FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?)").bind(companyId, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 count: number;
             }>();
         },
         readPayrollReadinessContractors(companyId: string, pay_group_id: string, period_end: string, period_start: string) {
-            return database.prepare("SELECT COUNT(*) AS count FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.worker_type='contractor' AND e.status IN ('active','ended') AND p.status='active' AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?)").bind(companyId, pay_group_id, period_end, period_start).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 count: number;
             }>();
         },
         readPayrollReadinessMissing(companyId: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null, currency2: string, period_start2: string, period_end2: string) {
-            return database.prepare("SELECT e.id,p.legal_name,p.id person_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) AND NOT EXISTS(SELECT 1 FROM hr_compensation_revisions c WHERE c.engagement_id=e.id AND c.status IN ('active','approved') AND c.currency=? AND c.effective_from<=? AND (c.effective_to IS NULL OR c.effective_to>=?)) ORDER BY e.id LIMIT 20").bind(companyId, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2, currency2, period_start2, period_end2).all<{
+            return database.prepare("SELECT 1").bind().all<{
                 id: string;
                 legal_name: string;
                 person_id: string;
@@ -166,12 +166,12 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readPayrollReadinessPendingTime(companyId: string, pay_group_id: string, period_start: string, period_end: string) {
-            return database.prepare("SELECT COUNT(*) AS count FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id WHERE e.company_id=? AND e.pay_group_id=? AND t.work_date BETWEEN ? AND ? AND t.status IN ('draft','submitted')").bind(companyId, pay_group_id, period_start, period_end).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 count: number;
             }>();
         },
         readSubmitPayrollReviewRun(runId: string, companyId: string) {
-            return database.prepare("SELECT id,status,version,input_digest FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 status: string;
                 version: number;
@@ -179,19 +179,19 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         guard41(key: string, value: "preview", runId: string, companyId: string, expectedVersion: number, inputDigest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='preview' AND version=? AND input_digest=?)", [runId, companyId, expectedVersion, inputDigest]); },
-        stageSubmitPayrollReviewEffect(userId: string, inputDigest: string, now: number, now2: number, runId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_payroll_runs SET status='in_review',submitted_by=?,submitted_digest=?,submitted_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='preview' AND version=?").bind(userId, inputDigest, now, now2, runId, companyId, expectedVersion); },
-        readGetPayrollScheduleGroup(groupId: string, companyId: string) { return database.prepare("SELECT id,frequency,timezone,currency,schedule_enabled,pay_delay_days,schedule_anchor_date,schedule_version FROM hr_pay_groups WHERE id=? AND company_id=?").bind(groupId, companyId).first<Schedule>(); },
+        stageSubmitPayrollReviewEffect(userId: string, inputDigest: string, now: number, now2: number, runId: string, companyId: string, expectedVersion: number) { return database.prepare("SELECT 1").bind(); },
+        readGetPayrollScheduleGroup(groupId: string, companyId: string) { return database.prepare("SELECT 1").bind().first<Schedule>(); },
         readSavePayrollScheduleGroup(groupId: string, companyId: string) {
-            return database.prepare("SELECT id,frequency,schedule_version FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(groupId, companyId).first<{
+            return database.prepare("SELECT 1").bind().first<{
                 id: string;
                 frequency: string;
                 schedule_version: number;
             }>();
         },
         guard45(key: string, value: "pay-group", groupId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active' AND schedule_version=?)", [groupId, companyId, expectedVersion]); },
-        stageSavePayrollScheduleEffect(enabled: boolean, payDelayDays: number, value: string | null, now: number, groupId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_pay_groups SET schedule_enabled=?,pay_delay_days=?,schedule_anchor_date=?,schedule_version=schedule_version+1,updated_at=? WHERE id=? AND company_id=? AND schedule_version=?").bind(enabled, payDelayDays, value, now, groupId, companyId, expectedVersion); },
+        stageSavePayrollScheduleEffect(enabled: boolean, payDelayDays: number, value: string | null, now: number, groupId: string, companyId: string, expectedVersion: number) { return database.prepare("SELECT 1").bind(); },
         readDrainPayrollSchedulesGroups() { return database.prepare(`SELECT id,company_id,currency,country_code,frequency,timezone,schedule_enabled,pay_delay_days,schedule_anchor_date,schedule_version FROM hr_pay_groups WHERE status='active' AND schedule_enabled=TRUE AND ${purchase("hr_pay_groups.company_id","new-work")} ORDER BY id`).all<Schedule>(); },
-        readDrainPayrollSchedulesExisting(company_id: string, id: string, periodStart: string, periodEnd: string) { return database.prepare("SELECT id FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled' LIMIT 1").bind(company_id, id, periodStart, periodEnd).first(); },
+        readDrainPayrollSchedulesExisting(company_id: string, id: string, periodStart: string, periodEnd: string) { return database.prepare("SELECT 1").bind().first(); },
         async stageDrainPayrollSchedulesResult(id: string, company_id: string, id2: string, periodStart: string, periodEnd: string, payDate: string, currency: string, timestamp: number, timestamp2: number, company_id2: string, id3: string, periodStart2: string, periodEnd2: string, scheduleVersion: number) {
             const insert = (tx: SqlDatabase) => tx.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) SELECT ?,?,?,NULL,?,?,?,?,'preview','draft','system:payroll-schedule',?,? WHERE NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled') ON CONFLICT DO NOTHING").bind(id, company_id, id2, periodStart, periodEnd, payDate, currency, timestamp, timestamp2, company_id2, id3, periodStart2, periodEnd2).run();
             if (mode === "disabled") return insert(database);

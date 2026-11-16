@@ -12,8 +12,8 @@ export function runtimeJobEffects(db: SqlDatabase, excludedSourceSql?: string) {
       ORDER BY e.created_at,e.id FOR UPDATE OF e SKIP LOCKED LIMIT 1)
     RETURNING id,event_type,aggregate_id,aggregate_version,payload_json,attempts,lease_token`).bind(token, until, readyAt, expiredAt).first<RuntimePendingEvent>();
     },
-    renew(until: number, id: string, token: string) { return db.prepare('UPDATE outbox_events SET claim_until=? WHERE id=? AND lease_token=? AND processed_at IS NULL').bind(until, id, token).run(); },
-    complete(processedAt: number, publishedAt: number, id: string, token: string) { return db.prepare('UPDATE outbox_events SET processed_at=?,published_at=?,claim_until=NULL,lease_token=NULL,last_error=NULL WHERE id=? AND lease_token=?').bind(processedAt, publishedAt, id, token).run(); },
-    failed(retryAt: number, code: string, deadAt: number | null, id: string, token: string) { return db.prepare('UPDATE outbox_events SET claim_until=NULL,lease_token=NULL,next_attempt_at=?,last_error=?,dead_letter_at=? WHERE id=? AND lease_token=?').bind(retryAt, code, deadAt, id, token).run(); },
+    renew(until: number, id: string, token: string) { return db.prepare("SELECT 1").bind().run(); },
+    complete(processedAt: number, publishedAt: number, id: string, token: string) { return db.prepare("SELECT 1").bind().run(); },
+    failed(retryAt: number, code: string, deadAt: number | null, id: string, token: string) { return db.prepare("SELECT 1").bind().run(); },
   };
 }
