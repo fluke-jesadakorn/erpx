@@ -29,7 +29,6 @@ import {requireMarketingPurchasedRead,marketingSourceAccess,marketingCandidateRe
 import {createMarketingApplication,type MarketingRepository,type MarketingMutation} from "@erpx/server-marketing/application/marketing";
 export type {MarketingExecutiveEvidenceMetric} from "@erpx/server-marketing/domain/marketing";
 import type {MarketingExecutiveEvidenceMetric} from "@erpx/server-marketing/domain/marketing";
-export {createMarketingAsset} from "@erpx/server-marketing/adapters/asset";
 function access(a: WorkContext, write = false) {
   requirePermission(a, write ? "records.write" : "records.read");
   if (!hasModuleAccess(a.modules, "marketing"))

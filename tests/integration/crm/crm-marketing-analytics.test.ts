@@ -14,7 +14,8 @@ import {createCRMLead,changeCRMOpportunity,getCRMLead} from "@erpx/server-crm/pu
 import {changeCRMIdentity,crmContactHistory,crmIdentities} from "@erpx/server-crm/public/crm-identities";
 import {qualifyNativeLead,winNativePmsLead} from "./crm-lead-command-oracle";
 import {changeMarketingCampaign,marketingCostSources} from "@erpx/server-marketing/public/marketing-campaigns";
-import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@erpx/server-marketing/public/marketing";
+import { createMarketingAsset } from "../../support/helpers/marketing-asset-seed";
+import { createMarketingCandidate, changeMarketing } from "@erpx/server-marketing/public/marketing";
 import {crmAnalytics,marketingAnalytics,analyticsOptions} from "@erpx/server-crm/public/crm-marketing-report";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;

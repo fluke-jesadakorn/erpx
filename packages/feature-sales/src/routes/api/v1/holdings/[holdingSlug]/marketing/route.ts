@@ -4,7 +4,6 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
   changeMarketing,
-  createMarketingAsset,
   createMarketingCandidate,
   marketingDetail,
   marketingWorkspace,
@@ -160,6 +159,11 @@ export async function POST(r: Request, c: C) {
         ),
       );
       if (response) return response;
+      throw new ApiError(
+        503,
+        "NATIVE_MARKETING_LEAD_UNAVAILABLE",
+        "The native Marketing lead writer is unavailable.",
+      );
     }
     if (i.entity === "candidate" && typeof i.id !== "string") {
       const response = await attempt(() =>
@@ -187,7 +191,13 @@ export async function POST(r: Request, c: C) {
         : typeof i.id === "string"
         ? await changeMarketing(a, i.entity as "asset" | "candidate", i.id, i, key)
         : i.entity === "asset"
-          ? await createMarketingAsset(a, i, key)
+          ? ((): never => {
+              throw new ApiError(
+                503,
+                "NATIVE_MARKETING_LEAD_UNAVAILABLE",
+                "The native Marketing lead writer is unavailable.",
+              );
+            })()
           : await createMarketingCandidate(a, i, key);
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {

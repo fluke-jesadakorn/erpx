@@ -16,7 +16,8 @@ import {seedProjectFor} from '../../../tests/integration/projects/project-actual
 import {prepareGuidedIntake} from "@erpx/server-operations/public/guided-intake";
 import {guidedIntakeInputSchema} from "@erpx/feature-shared/lib/ai/guided-intake";
 import {refreshRecentUsageProjections} from "@erpx/server-commercial/public/usage-projection";
-import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@erpx/server-marketing/public/marketing";
+import {createMarketingAsset} from "../../../tests/support/helpers/marketing-asset-seed";
+import {createMarketingCandidate,changeMarketing} from "@erpx/server-marketing/public/marketing";
 import {createAuth} from "@erpx/server-identity_access/public/auth";
 import {totp} from "@erpx/server-identity_access/public/iam-mfa";
 import {iamMfaEnrollment} from "../../identity_access/mfa-enrollment";

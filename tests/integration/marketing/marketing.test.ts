@@ -5,9 +5,9 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
+import { createMarketingAsset } from "../../support/helpers/marketing-asset-seed";
 import {
   changeMarketing,
-  createMarketingAsset,
   createMarketingCandidate,
   marketingDetail,
   marketingWorkspace,
