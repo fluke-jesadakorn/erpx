@@ -2,7 +2,7 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { readDailyPlan } from "@erpx/server-work_projection/public/daily-plan";
 import { handoverTaskAccessSql } from "@erpx/server-operations/public/handover-policy";
-import {publishPost,savePostDraft} from '@erpx/server-collaboration/public/social-home';
+import {publishPost,savePostDraft} from '@erpx/server-collaboration/public/native-social-page';
 import {readablePost,sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import { staffPeople } from "@erpx/server-operations/public/staff-policy";
 import {getTask} from '@erpx/server-operations/public/staff-task-read';

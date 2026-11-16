@@ -4,7 +4,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { pmsWorkspace } from "../../../../../packages/server-pms/src/public/pms";
 import { pmsHome, pmsHotelSources } from "@erpx/server-pms/public/pms/home";
-import {postAction,postComments,postView,postDraftSchema,publishPost,savePostDraft} from '@erpx/server-collaboration/public/social-home';
+import {postAction,postComments,postView,postDraftSchema,publishPost,savePostDraft} from '@erpx/server-collaboration/public/native-social-page';
 import { acknowledgeHandover,acknowledgeHandoverVersion, handoverAcknowledgement, publishHandover } from "@erpx/server-operations/public/handover";
 import { textSuggestions, mentionsSchema } from "@erpx/server-collaboration/public/social-text";
 import {readablePost} from '@erpx/server-collaboration/public/social-source';

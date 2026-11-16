@@ -34,7 +34,7 @@ import {financeOverviewCounts} from '@erpx/server-finance/public/finance';
 import {closeWorkspace} from "@erpx/server-finance/public/finance-workspace";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {getWorkPage} from "@erpx/server-work_projection/public/work-summary";
-import {homePosts,postView} from '@erpx/server-collaboration/public/social-home';
+import {homePosts,postView} from '@erpx/server-collaboration/adapters/social-home';
 import {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 
 import type {SqlStatement} from '@erpx/server-runtime/public/runtime/types';

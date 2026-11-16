@@ -79,7 +79,7 @@ export async function requireCRMCurrentAuthority(database:SqlDatabase,actor:Work
   const row=await database.prepare(`SELECT ${assignmentReadSql("crm_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) crm_scope`).bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
   if(!row?.allowed)throw new ApiError(403,"CRM_ACCESS_CHANGED","The original sales assignment is no longer current.");
  }
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key)]);
 }
 export async function crmSourceAccess(database:SqlDatabase,actor:WorkContext,target?:CRMPurchaseTarget):Promise<CRMPurchaseControls|undefined>{
  const mode=await commercePackageEnforcementMode();if(mode==="disabled")return undefined;
@@ -128,7 +128,7 @@ export async function withCRMPurchasedCommand<Result>(actor:WorkContext,command:
    if(opportunity&&(await database.prepare(`SELECT witness::text witness FROM (${crmPurchaseOpportunityRows}) opportunity WHERE id=? AND company_id=?`).bind(command.target.id,actor.companyId).first<{witness:string}>())?.witness!==opportunity.witness)throw new ApiError(409,'CRM_SOURCE_CHANGED','The actual linked opportunity source changed before commit.');
    await requireCRMCurrentAuthority(database,actor,permissions,key,current);
    if(command.eligibleOwner&&!receipt){const valid=command.target.kind==='activity'?await database.prepare(`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=? AND c.company_id=? AND ${salesRecipientEligibility('l','c.owner_id')}`).bind(command.target.id,actor.companyId).first():await database.prepare(`SELECT 1 FROM crm_leads l WHERE l.id=? AND l.company_id=? AND ${salesRecipientEligibility('l','l.owner_id')}`).bind(command.target.id,actor.companyId).first();if(!valid)throw new ApiError(409,'CRM_OWNER_CHANGED','The assigned original salesperson is no longer eligible.');}
-   const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));boundaries[0]?.boundary.observe?.(observed);};
+   const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after]));boundaries[0]?.boundary.observe?.(observed);};
   await check();composition.checks.push(check);return result;
  };
  if(provided){const ownedRuntime=owner as SqlDatabase&{assertActiveTransaction?:(database:SqlDatabase)=>void};if(!ownedRuntime.assertActiveTransaction)throw new ApiError(503,"CRM_TRANSACTION_OWNERSHIP_REQUIRED","CRM requires an active owned Holding transaction.");ownedRuntime.assertActiveTransaction(provided);return execute(provided);}
@@ -159,7 +159,7 @@ export async function crmMarketingCandidateTransaction<Result>(actor:WorkContext
    const final=await database.prepare(`SELECT * FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<Row>(),receipt=await replayCommand<Record<string,unknown>>(database,actor,key,"marketing.candidate.handoff",id,input),childId=`lead-${key}-crm`;
    if(!final||final.status!=="handed_off"||final.crm_lead_id!==childId||final.reviewed_by!==actor.userId||Number(final.version)!==input.expectedVersion+1||!receipt||receipt.crmLeadId!==childId||["form_id","form_version","contact_name","contact_detail","consent_evidence","attribution_json","brief","branch_id","department_id","created_by"].some(field=>final[field]!==candidate[field]))throw new ApiError(409,"CRM_HANDOFF_SOURCE_CHANGED","The original candidate handoff changed before commit.");
    const child=await replayCommand<Record<string,unknown>>(database,actor,`${key}-crm`,"crm.lead.create",childId,leadInput);if(!child||child.id!==childId)throw new ApiError(409,"CRM_HANDOFF_SOURCE_CHANGED","The exact child lead receipt is required.");
-   const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));boundaries[0]?.boundary.observe?.(observed);
+   const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after]));boundaries[0]?.boundary.observe?.(observed);
   });return result;
  });
 }

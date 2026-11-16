@@ -20,7 +20,7 @@ export function handbookPresentationContext(actor:WorkContext){return createHash
 async function current(database:SqlDatabase,actor:WorkContext,command=false){
  const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');
  if(!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${scope.where} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','collaboration')}`).bind(actor.companyId,actor.branchId,actor.departmentId,...scope.args).first())throw new ApiError(403,'WORK_HANDBOOK_AUTHORITY_CHANGED','Choose a current account with access to this Company handbook.');
- if(command){const key=`handbook-current:${randomUUID()}`;await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);}
+ if(command){const key=`handbook-current:${randomUUID()}`;await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key)]);}
 }
 /** Only minimal controls leave the owner. Original Company membership and
  * owner-appointed editor authority remain separate checks in the service. */
@@ -75,7 +75,7 @@ export async function withHandbookPurchasedCommand<Result>(owner:SqlDatabase,act
   await flushFinanceDeferredEffects(database);
   if(mode==='enforced')await current(database,actor,true);await authorize(database);
   if(await image(database,actor.companyId,command.id)!==expected)throw changed();
-  const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);
+  const observed=await database.batch([...boundary.after]);boundary.observe?.(observed);
   return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}
 }
