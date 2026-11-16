@@ -56,7 +56,7 @@ export function payrollFinanceFacts(database: SqlDatabase) {
         },
         readCreatePaymentBatchBank(bankAccountId: string, companyId: string, currency: string) { return database.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND category='asset' AND currency=? AND status='active'").bind(bankAccountId, companyId, currency).first(); },
         guard185(commandId: string, value: "supplier-payment-reservation", sourceId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown','confirmed'))", [sourceId]); },
-        stageCreatePaymentBatchEffect(now: number, sourceId: string, companyId: string) { return database.prepare('UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=? AND company_id=?').bind(now, sourceId, companyId); },
+        stageCreatePaymentBatchEffect(now: number, sourceId: string, companyId: string) { return database.prepare("SELECT 1").bind(); },
         readConfirmPaymentBatchPosting(source_id: string, companyId: string) {
             return database.prepare(`SELECT p.journal_id,j.chart_id,r.pay_date ${financeSnapshotSources().payrollPostingSource} JOIN finance_journals j ON j.id=p.journal_id WHERE p.run_id=? AND r.company_id=? AND j.status='posted'`).bind(source_id, companyId).first<{
                 journal_id: string;
@@ -88,5 +88,5 @@ export function payrollFinanceFacts(database: SqlDatabase) {
             }>();
         },
         guard216(commandId: string, value: string, id: string, companyId: string, bankVersion: number, bank_account_id: string, currency: string, value2: number, confirmationRef: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.external_id=?)", [id, companyId, bankVersion, bank_account_id, currency, value2, confirmationRef]); },
-        stageConfirmPaymentBatchEffect2(id: string, id2: string, bankVersion: number) { return database.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payroll_payment',matched_id=?,version=version+1 WHERE id=? AND version=?").bind(id, id2, bankVersion); } };
+        stageConfirmPaymentBatchEffect2(id: string, id2: string, bankVersion: number) { return database.prepare("SELECT 1").bind(); } };
 }
