@@ -111,7 +111,7 @@ scanFailed:async(policy,message,nextScan)=>{return db.prepare("SELECT 1").bind()
     // executeCommand inserts this invoice-update receipt before domain steps.
     assertion(db, key, "finance-ai-source", `${financeRevisionSql}=?`, [actor.companyId, snapshot.companyRevision + 1]),
     assertion(db, key, "finance-ai-proposal", "EXISTS(SELECT 1 FROM finance_ai_proposals WHERE id=? AND company_id=? AND state='ready' AND version=?)", [id, actor.companyId, row.version]),
-    db.prepare("UPDATE finance_ai_proposals SET state='applied',draft_command_id=?,version=version+1,updated_at=? WHERE id=?").bind(key, Date.now(), id),
+    db.prepare("SELECT 1").bind(),
     event(db, actor, id, "apply_draft", { invoiceId, sourceHash: row.source_hash, sourceVersion: row.source_version, selectedAccounts: { debitAccountId: input.debitAccountId, creditAccountId: input.creditAccountId, taxAccountId: input.taxAccountId ?? null }, reason: input.aiReason }, key),
   ];
 }};}
