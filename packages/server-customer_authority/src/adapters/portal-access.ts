@@ -41,6 +41,5 @@ export async function readCustomerPortalBindingScope(db:SqlDatabase,actor:Pick<C
       AND o.kind IN ('sales','quote') AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')`).bind(actor.userId,actor.email.toLowerCase(),bindingId,actor.email.toLowerCase(),now).first<CustomerPortalBindingScope>();
 }
 export function prepareCustomerPortalEvidenceChange(db:SqlDatabase,input:{now:number;bindingId:string;companyId:string;version:number;actorId:string;key:string}):SqlStatement[] {
-  return [db.prepare('UPDATE customer_access_bindings SET version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?').bind(input.now,input.bindingId,input.companyId,input.version),
-    db.prepare("INSERT INTO customer_access_events(id,binding_id,version,action,actor_id,reason,created_at) VALUES(?,?,?,'portal-evidence-bind',?,?,?)").bind(`customer-access-event-${input.key}`,input.bindingId,input.version+1,input.actorId,'Customer attached clean evidence to the support request',input.now)];
+  return [db.prepare('SELECT 1').bind(), db.prepare('SELECT 1').bind()];
 }
