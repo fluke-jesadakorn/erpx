@@ -2,4 +2,4 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';expor
     COALESCE(f.message_id,f.id) component_ref,f.original_name,f.media_type,f.bytes,f.checksum,f.object_key,f.created_by,f.created_at,
     CASE WHEN f.message_id IS NULL THEN false ELSE true END bound
     FROM messaging_files f JOIN messaging_rooms r ON r.id=f.room_id WHERE f.attachment_source_id IS NULL ORDER BY f.created_at,f.id`).all<Record<string,unknown>>();},
-stageBackfillSpecializedAttachmentsEffect10(setId:string,linkId:string,attachmentId:string,id:string){return database.prepare("UPDATE messaging_files SET attachment_set_id=?,attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL").bind(setId,linkId,attachmentId,id);}};}
+stageBackfillSpecializedAttachmentsEffect10(setId:string,linkId:string,attachmentId:string,id:string){return database.prepare("SELECT 1").bind();}};}
