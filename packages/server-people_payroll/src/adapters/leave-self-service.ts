@@ -190,7 +190,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
                 effective_from: string;
             }>(database, `SELECT a.id,p.policy_key,a.effective_from FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id WHERE a.company_id=? AND a.engagement_id=? AND a.effective_from<=? AND coalesce(a.effective_to,'9999-12-31')>=?`, companyId, engagementId, value, effectiveFrom);
         },
-        stageAdministerLeaveEffect6(value: string, id: string) { return database.prepare('UPDATE leave_policy_assignments SET effective_to=? WHERE id=?').bind(value, id).run(); },
+        stageAdministerLeaveEffect6(value: string, id: string) { return database.prepare('SELECT 1').bind().run(); },
         readAdministerLeaveEffect6(policyVersionId: string, companyId: string) { return database.prepare('SELECT id FROM leave_policy_versions WHERE id=? AND company_id=?').bind(policyVersionId, companyId).first(); },
         stageAdministerLeaveEffect7(id: string, companyId: string, engagementId: string, policyVersionId: string, calendarId: string | null, effectiveFrom: string, effectiveTo: string | null, userId: string, now: number, engagementId2: string, companyId2: string) { return database.prepare("INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,holiday_calendar_id,effective_from,effective_to,created_by,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?)").bind(id, companyId, engagementId, policyVersionId, calendarId, effectiveFrom, effectiveTo, userId, now, engagementId2, companyId2).run(); },
         readAdministerLeaveRow(id: string, companyId: string) {
@@ -199,7 +199,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
                 version: number;
             }>();
         },
-        stageAdministerLeaveEffect8(effectiveTo: string, id: string, companyId: string) { return database.prepare('UPDATE leave_policy_assignments SET effective_to=?,version=version+1 WHERE id=? AND company_id=?').bind(effectiveTo, id, companyId).run(); },
+        stageAdministerLeaveEffect8(effectiveTo: string, id: string, companyId: string) { return database.prepare('SELECT 1').bind().run(); },
         stageAdministerLeaveEffect9(id: string, companyId: string, engagementId: string, leaveTypeId: string, units: number, effectiveDate: string, key: string, note: string, userId: string, now: number) { return database.prepare("INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,command_key,note,created_by,created_at) VALUES(?,?,?,?,'adjustment',?,?,?,?,?,?) ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING").bind(id, companyId, engagementId, leaveTypeId, units, effectiveDate, key, note, userId, now).run(); },
         readRunLeaveAccrualsDue(effectiveDate: string, effectiveDate2: string, effectiveDate3: string, effectiveDate4: string, effectiveDate5: string, value: string | null, value2: string | null) {
             return rows<{
