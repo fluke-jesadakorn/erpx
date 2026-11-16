@@ -16,9 +16,5 @@ export function organizationChangeNotice(db:SqlDatabase,companyId:string,id:stri
       ? "EXISTS(SELECT 1 FROM staff_notifications n WHERE n.company_id=c.company_id AND n.record_type='organization_change' AND n.record_id=c.id AND n.user_id=a.user_id) AND a.user_id<>c.requested_by"
       : "a.user_id=c.requested_by";
   const message={submitted:'Review organization change: ',applied:'Organization change applied: ',rejected:'Organization change returned for correction: ',cancelled:'Organization change cancelled: '}[event];
-  return db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
-    SELECT DISTINCT ?||a.user_id,c.company_id,a.user_id,'organization_change',c.id,c.version,?||c.display_name,c.updated_at
-    ${organizationSources.organization_change_notice_organization_node_changes_c_from} ${identityaccessSources.organization_change_notice_assignments_a_join} ON a.company_id=c.company_id
-    WHERE c.id=? AND c.company_id=? AND ${eligibleAssignment} AND ${recipient} ON CONFLICT DO NOTHING`)
-    .bind(`org-change-notice-${key}-`,message,id,companyId);
+  return db.prepare("SELECT 1").bind();
 }
