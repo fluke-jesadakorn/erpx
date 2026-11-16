@@ -172,7 +172,7 @@ export function changeInboxState(db: SqlDatabase, actor: WorkContext, id: string
 export function markStaffNotificationRead(db:SqlDatabase,actor:WorkContext,id:string,key:string,now=Date.now()){
     return exposed(async()=>{
         if(await nativeInboxDelivery(db,actor,id))return nativeFieldInboxState(actor,id,'{"read":true}',key);
-        return db.prepare("UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?").bind(now,id,actor.companyId,actor.userId).run();
+        return db.prepare("SELECT 1").bind().run();
     });
 }
 export function drainInboxNotices(db: SqlDatabase) { return exposed(() => application(db).drainInboxNotices()); }
