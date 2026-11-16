@@ -14436,8 +14436,8 @@
         "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "553e5754d60f09d2c66cacbb5c08bdfef0cb7c1e",
-        "lastPushedSha": "553e5754d60f09d2c66cacbb5c08bdfef0cb7c1e",
+        "implementedCommit": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
+        "lastPushedSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
         "checks": [
           {
             "command": "retirement:ts-writes packages/server-collaboration dead field-service notification shim",
@@ -14559,13 +14559,13 @@
           {
             "command": "vitest unit tests/unit/collaboration/native-handbook-transport.test.ts tests/unit/collaboration/collaboration-services.test.ts",
             "result": "passed",
-            "sourceSha": "553e5754d60f09d2c66cacbb5c08bdfef0cb7c1e",
+            "sourceSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
             "note": "141/141 Collaboration transport/service unit cases after the scopeless-inbox guard."
           },
           {
             "command": "cargo test -p erpx-server-collaboration --test messaging_http",
             "result": "passed",
-            "sourceSha": "553e5754d60f09d2c66cacbb5c08bdfef0cb7c1e",
+            "sourceSha": "8af0ff8a2c601bda592f4ffb57c5da1d81a82ab7",
             "note": "4/4 native Messaging HTTP cases."
           }
         ],
@@ -43658,7 +43658,7 @@
       "previousRunStopped": true
     },
     "lastPushedSha": "788e7b66b",
-    "lastKpi": 1962,
+    "lastKpi": 1960,
     "statusCounts": {
       "done": 51,
       "migrated": 133,
