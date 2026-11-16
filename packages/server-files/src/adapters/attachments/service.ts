@@ -39,7 +39,7 @@ import {attachmentReadRoute,attachmentPrivateReadSourceLocks,type AttachmentRead
 import {ecommerceAttachmentPurchaseScope,ecommerceAttachmentSourceReadLocks,ecommerceAttachmentFailure,type EcommerceAttachmentPurchase} from "@erpx/server-ecommerce/public/attachment-purchases";
 import {workTaskAttachmentPurchaseScope,workTaskAttachmentSourceReadLocks,workTaskAttachmentFailure,type WorkTaskAttachmentPurchase} from "@erpx/server-operations/public/task-attachment-purchases";
 import {portalAttachmentPurchaseScope,portalAttachmentSourceReadLocks,portalAttachmentFailure,type PortalAttachmentPurchase} from "@erpx/server-customer_authority/public/attachment-purchases";
-import {benefitAttachmentPurchaseScope,benefitAttachmentSourceReadLocks,benefitAttachmentFailure,type BenefitAttachmentPurchase} from "@erpx/server-benefits/adapters/attachment-purchases";
+import {benefitAttachmentPurchaseScope,benefitAttachmentSourceReadLocks,benefitAttachmentFailure,type BenefitAttachmentPurchase} from "@erpx/server-benefits/public/attachment-purchases";
 import {workforceAttachmentPurchaseScope,workforceAttachmentSourceReadLocks,workforceAttachmentFailure,type WorkforceAttachmentPurchase} from "@erpx/server-people_payroll/public/workforce-attachment-purchases";
 import {crmAttachmentPurchaseScope,crmAttachmentSourceReadLocks,crmAttachmentFailure,type CRMAttachmentPurchase} from "@erpx/server-crm/public/attachment-purchases";
 import {marketingAttachmentPurchaseScope,marketingAttachmentSourceReadLocks,marketingAttachmentFailure,type MarketingAttachmentPurchase} from "@erpx/server-marketing/public/attachment-purchases";

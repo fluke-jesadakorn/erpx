@@ -43,16 +43,16 @@ function unit(db: SqlDatabase): PosStripeUnit {
             type: string;
             fact5: string;
             fact6: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING', facts.id, facts.account, facts.livemode, facts.company_id, facts.type, facts.fact5, facts.fact6),
         writePosStripeEvents2: (facts: {
             fact0: number;
             id: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?', facts.fact0, facts.id),
         writePosConnectionHistory1: (facts: {
             companyId: string;
             accountId: string;
             live: boolean;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING', facts.companyId, facts.accountId, facts.live),
         writePosConnections1: (facts: {
             companyId: string;
             accountId: string;
@@ -66,7 +66,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             fact9: string | null;
             thbBankReady: boolean;
             fact11: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,requirements_json,state,payout_interval,thb_bank_ready,last_checked_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET account_id=excluded.account_id,livemode=excluded.livemode,charges_enabled=excluded.charges_enabled,payouts_enabled=excluded.payouts_enabled,card_enabled=excluded.card_enabled,promptpay_enabled=excluded.promptpay_enabled,requirements_json=excluded.requirements_json,state=excluded.state,payout_interval=excluded.payout_interval,thb_bank_ready=excluded.thb_bank_ready,last_checked_at=excluded.last_checked_at,version=pos_connections.version+1', facts.companyId, facts.accountId, facts.live, facts.fact3, facts.fact4, facts.fact5, facts.fact6, facts.fact7, facts.fact8, facts.fact9, facts.thbBankReady, facts.fact11),
         readPosOauthStates1: (facts: {
             stateId: string;
             companyId: string;
@@ -76,11 +76,11 @@ function unit(db: SqlDatabase): PosStripeUnit {
         writePosOauthStates1: (facts: {
             fact0: number;
             stateId: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_oauth_states SET used_at=? WHERE id=?', facts.fact0, facts.stateId),
         writePosPayments1: (facts: {
             fact0: number;
             id: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_payments SET provider_received_at=COALESCE(provider_received_at,?) WHERE id=?', facts.fact0, facts.id),
         readPosPayments1: (facts: {
             id: string | number | boolean | null;
         }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
@@ -94,7 +94,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         writePosPayments3: (facts: {
             fact0: number;
             id: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_payments SET provider_received_at=COALESCE(provider_received_at,?) WHERE id=?', facts.fact0, facts.id),
         readPosPayments3: (facts: {
             id: string | number | boolean | null;
         }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
@@ -128,11 +128,11 @@ function unit(db: SqlDatabase): PosStripeUnit {
         writePosStripeEvents3: (facts: {
             fact0: number;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_stripe_events SET applied_at=? WHERE id=?', facts.fact0, facts.id),
         writePosStripeEvents4: (facts: {
             fact0: number;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_stripe_events SET applied_at=? WHERE id=?', facts.fact0, facts.id),
         readPosRefundPayments1: (facts: {
             rpid: string;
             company_id: string | number | boolean | null;
@@ -145,7 +145,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         writePosStripeEvents5: (facts: {
             fact0: number;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_stripe_events SET applied_at=? WHERE id=?', facts.fact0, facts.id),
         readPosSettlements1: (facts: {
             company_id: string | number | boolean | null;
             account_id: string | number | boolean | null;
@@ -248,7 +248,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         writePosJobs1: (facts: {
             fact0: string;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_jobs SET payload_json=? WHERE id=?', facts.fact0, facts.id),
         readPosPayments8: (facts: {
             record_id: string | number | boolean | null;
             company_id: string | number | boolean | null;
@@ -312,14 +312,14 @@ function unit(db: SqlDatabase): PosStripeUnit {
             fact1: number;
             id: string | number | boolean | null;
             token: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_jobs SET state=?,next_attempt_at=?,attempts=0,lease_until=NULL,lease_token=NULL,last_error=NULL WHERE id=? AND lease_token=?', facts.fact0, facts.fact1, facts.id, facts.token),
         writePosJobs4: (facts: {
             fact0: "pending" | "exception";
             fact1: number;
             code: string;
             id: string | number | boolean | null;
             token: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_jobs SET state=?,next_attempt_at=?,last_error=?,lease_until=NULL,lease_token=NULL WHERE id=? AND lease_token=?', facts.fact0, facts.fact1, facts.code, facts.id, facts.token),
         readContext1: () => one(db, "SELECT to_regclass('pos_jobs') name"),
         enqueue: (arg0: string, arg1: "event" | "complete_sale" | "check_payment", arg2: string) => enqueue(db, arg0, arg1, arg2),
         audit: (arg0: string, arg1: null, arg2: string | "system:stripe", arg3: "connection.connected" | "job.exception", arg4: string, arg5: {
@@ -352,7 +352,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             arg2: string;
             arg3: string;
             arg4: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_stripe_routes VALUES(?,?,?,?,?) ON CONFLICT(account_id,livemode) DO NOTHING', facts.arg0, facts.arg1, facts.arg2, facts.arg3, facts.arg4),
         controlOne3: (facts: {
             arg0: string;
             arg1: boolean;

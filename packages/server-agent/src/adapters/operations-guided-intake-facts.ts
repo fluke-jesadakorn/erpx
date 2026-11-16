@@ -20,12 +20,15 @@ export function GuidedIntakeAgentFacts(database: SqlDatabase) {
         },
         guard3(id: string, value: "assistant-rate", companyId: string, value2: number) { return assertion(database, id, value, "(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>?)<20", [companyId, value2]); },
         stagePrepareGuidedIntakeEffect(id: string, companyId: string, userId: string, assignmentId: string, value: string, value2: string, message: string, value3: string, now: number, now2: number, sessionId: string) {
-            return database.prepare("SELECT 1").bind();
+            return database.prepare("INSERT INTO ai_workspace_turns(id,company_id,user_id,assignment_id,scope_key,conversation_key,question,paths_json,state,created_at,updated_at,private_session_id) VALUES(?,?,?,?,?,?,?,?,'running',?,?,?)")
+                .bind(id, companyId, userId, assignmentId, value, value2, message, value3, now, now2, sessionId);
         },
         stagePrepareGuidedIntakeEffect3(value: string, sourcesJson: string, now: number, id: string) {
-            return database.prepare("SELECT 1").bind();
+            return database.prepare("UPDATE ai_workspace_turns SET state='ready',answer_json=?,sources_json=?,updated_at=? WHERE id=? AND state='running'")
+                .bind(value, sourcesJson, now, id);
         },
         stagePrepareGuidedIntakeEffect4(value: string, now: number, id: string) {
-            return database.prepare("SELECT 1").bind();
+            return database.prepare("UPDATE ai_workspace_turns SET state='failed',error=?,updated_at=? WHERE id=? AND state='running'")
+                .bind(value, now, id);
         } };
 }

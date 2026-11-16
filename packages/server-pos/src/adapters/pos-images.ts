@@ -56,7 +56,8 @@ function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
             attachmentLinkId: string;
             id: string;
             preview_checksum_sha256: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, `INSERT INTO pos_product_images(id,company_id,product_id,object_key,thumbnail_key,sha256,width,height,mime_type,source,metadata_json,created_by,created_at,
+   attachment_source_id,attachment_link_id,attachment_set_id,thumbnail_checksum_sha256) VALUES(?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, facts.imageId, facts.companyId, facts.productId, facts.object_key, facts.preview_object_key, facts.digest, facts.width, facts.height, facts.mime, facts.source, facts.fact10, facts.userId, facts.fact12, facts.sourceId, facts.attachmentLinkId, facts.id, facts.preview_checksum_sha256),
         writeAttachmentEvents1: facts => posImagesFilesFacts(db).writeAttachmentEvents1(facts),
         authorizePosProductImageTarget: (arg0: WorkContext, arg1: string, arg2: "write") => authorizePosProductImageTarget(db, arg0, arg1, arg2),
         createAttachmentSet: (arg0: WorkContext, arg1: {

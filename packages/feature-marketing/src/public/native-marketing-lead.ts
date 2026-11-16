@@ -752,47 +752,6 @@ export function createNativeMarketingLeadClient(
         return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
       return data;
     },
-    async handoff(
-      incoming: Pick<Headers, 'get'>,
-      actor: NativeMarketingLeadPageContext,
-      input: NativeMarketingLeadInput,
-      handoff: Readonly<{
-        expectedVersion: number;
-        reason: string;
-        dueDate: string;
-      }>,
-      key: string,
-      signal?: AbortSignal,
-    ): Promise<NativeMarketingLeadCommandReceipt> {
-      if (
-        !integer(handoff.expectedVersion, 1) ||
-        !text(handoff.reason, 3000) ||
-        handoff.reason.trim().length < 3 ||
-        (handoff.dueDate !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(handoff.dueDate))
-      )
-        return failure('NATIVE_MARKETING_LEAD_REQUEST_INVALID');
-      const data = await send(
-        incoming,
-        actor,
-        input,
-        key,
-        commandPaths.recordEngagement(input.holdingSlug, input.candidateId),
-        JSON.stringify({
-          action: 'handoff',
-          expectedVersion: handoff.expectedVersion,
-          reason: handoff.reason,
-          dueDate: handoff.dueDate || null,
-        }),
-        signal,
-      );
-      if (
-        data.id !== input.candidateId ||
-        data.status !== 'handed_off' ||
-        data.version !== handoff.expectedVersion + 1
-      )
-        return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
-      return data;
-    },
     async createCampaign(
       incoming: Pick<Headers, 'get'>,
       actor: NativeMarketingLeadPageContext,
@@ -1095,35 +1054,6 @@ function commandTarget(
       assignmentVersion: actor.authority?.assignmentVersion ?? 0,
     },
   };
-}
-
-export async function nativeMarketingLeadHandoff(
-  incoming: Pick<Headers, 'get'>,
-  actor: NativeMarketingLeadActor,
-  candidateId: string,
-  handoff: Readonly<{
-    expectedVersion: number;
-    reason: string;
-    dueDate: string;
-  }>,
-  key: string,
-  signal?: AbortSignal,
-): Promise<NativeMarketingLeadCommandReceipt | undefined> {
-  const native = commandClient();
-  if (!native) return undefined;
-  const context = nativeMarketingLeadPageContext(actor);
-  const input: NativeMarketingLeadInput = {
-    holdingSlug: actor.holdingSlug,
-    candidateId,
-    ...scope(context),
-    expected: {
-      companyId: actor.companyId,
-      assignmentId: actor.assignmentId,
-      revision: actor.authority?.revision ?? 0,
-      assignmentVersion: actor.authority?.assignmentVersion ?? 0,
-    },
-  };
-  return native.handoff(incoming, context, input, handoff, key, signal);
 }
 
 export async function nativeMarketingLeadCampaignCreate(

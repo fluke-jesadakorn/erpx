@@ -21,7 +21,7 @@ import type {financeOverviewCounts} from '@erpx/server-finance/public/finance';
 import type {closeWorkspace} from "@erpx/server-finance/public/finance-workspace";
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type {getWorkPage} from "@erpx/server-work_projection/public/work-summary";
-import type {homePosts,postView} from '@erpx/server-collaboration/adapters/social-home';
+import type {homePosts,postView} from '@erpx/server-collaboration/public/social-home';
 import type {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 type WithoutDatabase<F> = F extends (db:unknown,...args:infer Args)=>infer Result ? (...args:Args)=>Result : F extends (...args:infer Args)=>infer Result ? Args extends [unknown,...infer Rest] ? (...args:Rest)=>Result : never : never;
 type AssistantHomePost = Pick<Awaited<ReturnType<typeof homePosts>>[number], 'id'|'version'> & Partial<Pick<Awaited<ReturnType<typeof homePosts>>[number], 'body'|'purpose'|'kind'|'created_at'|'author_name'|'linkedSources'>>;

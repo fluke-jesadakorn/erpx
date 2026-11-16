@@ -58,7 +58,7 @@ function application(provided?: SqlDatabase) {
                 evidence_privacy: "requester_approvers_hr";
             }>();
         },
-        readDecideRow(id: string, companyId: string) { return database.prepare("SELECT 1").bind().first<LeaveRequest>(); },
+        readDecideRow(id: string, companyId: string) { return database.prepare("SELECT * FROM leave_requests WHERE id=? AND company_id=?").bind(id, companyId).first<LeaveRequest>(); },
         guard11(...args) { return leaveReviewEvidenceFacts(database).guard11(...args); },
         guard12(...args) { return leaveReviewEvidenceFacts(database).guard12(...args); },
         guard13(...args) { return leaveReviewEvidenceFacts(database).guard13(...args); },
@@ -75,15 +75,15 @@ function application(provided?: SqlDatabase) {
                 .bind(state, note, userId, value, key, now, id);
         },
         stageDecideEffect3(...args) { return leaveReviewEvidence(database).stageDecideEffect3(...args); },
-        stageTransitionLeaveEffect(value: string, id: string, company_id: string, note: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
-        stageTransitionLeaveEffect2(key: string, now: number, id: string) { return database.prepare("SELECT 1").bind(); },
+        stageTransitionLeaveEffect(value: string, id: string, company_id: string, note: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO leave_cancellation_reviews(id,request_id,company_id,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(value, id, company_id, note, userId, now, now2); },
+        stageTransitionLeaveEffect2(key: string, now: number, id: string) { return database.prepare("UPDATE leave_requests SET cancellation_state='pending_review',version=version+1,last_command_id=?,updated_at=? WHERE id=?").bind(key, now, id); },
         stageTransitionLeaveEffect3(note: string, key: string, now: number, id: string) {
             return database.prepare("UPDATE leave_requests SET state='cancelled',decision_note=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?")
                 .bind(note, key, now, id);
         },
-        readDecideLeaveCancellationRow(id: string, companyId: string) { return database.prepare("SELECT 1").bind().first<LeaveRequest>(); },
-        stageDecideLeaveCancellationEffect(value: "approved" | "cancelled", value2: "approved" | "rejected" | "pending_review", key: string, now: number, id: string) { return database.prepare("SELECT 1").bind(); },
-        stageDecideLeaveCancellationEffect2(value: "pending_approval" | "approved" | "rejected", userId: string, note: string, now: number, id: string) { return database.prepare("SELECT 1").bind(); },
+        readDecideLeaveCancellationRow(id: string, companyId: string) { return database.prepare("SELECT * FROM leave_requests WHERE id=? AND company_id=? AND state='approved' AND cancellation_state='pending_review'").bind(id, companyId).first<LeaveRequest>(); },
+        stageDecideLeaveCancellationEffect(value: "approved" | "cancelled", value2: "approved" | "rejected" | "pending_review", key: string, now: number, id: string) { return database.prepare("UPDATE leave_requests SET state=?,cancellation_state=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?").bind(value, value2, key, now, id); },
+        stageDecideLeaveCancellationEffect2(value: "pending_approval" | "approved" | "rejected", userId: string, note: string, now: number, id: string) { return database.prepare("UPDATE leave_cancellation_reviews SET state=?,decided_by=?,decision_note=?,version=version+1,updated_at=? WHERE request_id=? AND state='pending_approval'").bind(value, userId, note, now, id); },
         stageBalanceTransitionInsert(value: string, kind: string, multiplier: number, key: string, value2: "Approved cancellation" | "Approved leave" | "Released reservation", actor: string, now: number, id: string, company_id: string, action: "use" | "release" | "reverse") {
             const source = action === 'reverse' ? "'usage','usage_reversal'" : "'reservation','reservation_release'";
             return database.prepare(`INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at)

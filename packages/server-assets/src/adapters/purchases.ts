@@ -27,13 +27,13 @@ function sourceQuery(target:Target,file=false){
 const sourceArgs=(actor:WorkContext,target:Target)=>[target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
 export async function assetOwnerSourceImage(database:SqlDatabase,actor:WorkContext,target:Target,file=false){return database.prepare(sourceQuery(target,file)).bind(...sourceArgs(actor,target)).first<string>("image");}
 const source=assetOwnerSourceImage;
-export function assetOwnerSourceGuards(database:SqlDatabase,actor:WorkContext,target:Target,key:string,witness:string,file=false){return [assertion(database,key,file?"asset-file-owner":"assets-owner-source",`(${sourceQuery(target,file)})=?`,[...sourceArgs(actor,target),witness])];}
+export function assetOwnerSourceGuards(database:SqlDatabase,actor:WorkContext,target:Target,key:string,witness:string,file=false){return [assertion(database,key,file?"asset-file-owner":"assets-owner-source",`(${sourceQuery(target,file)})=?`,[...sourceArgs(actor,target),witness]),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)];}
 /** Writer leases serialize before the source snapshot; SHARE followed by the
  * original Asset update can deadlock between unrelated Companies. */
 export function assetOwnerSourceReadLocks(database:SqlDatabase,companyId:string){const locks=companyPurchaseReadLocks(database,companyId);return [locks[0],database.prepare("LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE"),database.prepare("LOCK TABLE finance_assets IN SHARE MODE"),...maintenancePurchaseSourceReadLocks(database),...locks.slice(1)];}
 export async function assetCurrentAuthority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string){
  for(const permission of permissions){const allowed=await database.prepare(`SELECT ${assignmentReadSql("assets_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) assets_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!allowed?.allowed)throw new ApiError(403,"ASSETS_ACCESS_CHANGED","Choose a current authorized Assets or Maintenance work role.");}
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
 }
 const authority=assetCurrentAuthority;
 export async function assetPurchaseControls(actor:WorkContext,capabilities:readonly Capability[]=["assets.register","assets.custody","assets.maintenance","assets.downtime","assets.preventive","assets.parts-costs"]){
@@ -53,7 +53,7 @@ export async function withAssetPurchasedCommand<Result>(actor:WorkContext,comman
   await checkPurchasedCapability(database,mode,purchase);await authority(database,actor,command.permissions,key);
   if(!command.creating&&!await source(database,actor,command.target))throw new ApiError(404,"ASSETS_SOURCE_NOT_FOUND","The actual Assets or Maintenance source was not found in this workspace.");
   const boundary=purchaseCommandBoundary(database,mode,key,purchase)!;await database.batch(boundary.before);const result=await run(database),witness=await source(database,actor,command.target);if(!witness)throw new ApiError(409,"ASSETS_SOURCE_CHANGED","The actual owner source changed.");
-  composition.checks.push(async()=>{await authority(database,actor,command.permissions,key);const observed=await database.batch([assertion(database,key,"assets-owner-source",`(${sourceQuery(command.target)})=?`,[...sourceArgs(actor,command.target),witness]),...boundary.after]);boundary.observe?.(observed);});return result;
+  composition.checks.push(async()=>{await authority(database,actor,command.permissions,key);const observed=await database.batch([assertion(database,key,"assets-owner-source",`(${sourceQuery(command.target)})=?`,[...sourceArgs(actor,command.target),witness]),...boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);boundary.observe?.(observed);});return result;
  };
  try{
   if(provided)return await execute(provided);

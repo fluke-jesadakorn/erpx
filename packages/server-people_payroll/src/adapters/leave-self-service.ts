@@ -138,9 +138,9 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
           AND h.holiday_date BETWEEN ? AND ?
         ORDER BY h.holiday_date,h.name`, companyId, engagement_id, end, start, end2, start2, start3, end3);
         },
-        readSaveSelfServiceLeaveEffect(engagement_id: string) { return database.prepare("SELECT 1").bind().first(); },
+        readSaveSelfServiceLeaveEffect(engagement_id: string) { return database.prepare('SELECT id FROM hr_engagements WHERE id=? FOR UPDATE').bind(engagement_id).first(); },
         readSaveSelfServiceLeaveRow(id: string, companyId: string, userId: string) {
-            return database.prepare("SELECT 1").bind().first<{
+            return database.prepare('SELECT * FROM leave_requests WHERE id=? AND company_id=? AND created_by=? FOR UPDATE').bind(id, companyId, userId).first<{
                 version: number;
                 state: string;
                 engagement_id: string;
@@ -148,41 +148,41 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
         },
         readSaveSelfServiceLeaveEmployee(...args) { return leaveEmployeeFacts(database).readSaveSelfServiceLeaveEmployee(...args); },
         stageSaveSelfServiceLeaveEffect(...args) { return leaveEmployeeFacts(database).stageSaveSelfServiceLeaveEffect(...args); },
-        stageSaveSelfServiceLeaveEffect2(id: string, value: string, employeeId: string, person_id: string, engagement_id: string, companyId: string, value2: string, department_id: string | null, startDate: string, value3: number, handoverNote: string, userId: string, now: number, now2: number) { return database.prepare("SELECT 1").bind(); },
+        stageSaveSelfServiceLeaveEffect2(id: string, value: string, employeeId: string, person_id: string, engagement_id: string, companyId: string, value2: string, department_id: string | null, startDate: string, value3: number, handoverNote: string, userId: string, now: number, now2: number) { return database.prepare('INSERT INTO leave_requests(id,number,employee_id,person_id,engagement_id,company_id,branch_id,department_id,start_date,days,handover_note,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id, value, employeeId, person_id, engagement_id, companyId, value2, department_id, startDate, value3, handoverNote, userId, now, now2); },
         stageSaveSelfServiceLeaveEffect3(startDate: string, value: number, handoverNote: string, leaveTypeId: string, endDate: string, startSegment: "full" | "first_half" | "second_half", endSegment: "full" | "first_half" | "second_half", id: string, units: number, value2: string, value3: string, evidenceDueAt: number | null, state: "draft" | "pending_approval", now: number, state2: "draft" | "pending_approval", version: number, userId: string, key: string, now2: number, id2: string) {
             return database.prepare(`UPDATE leave_requests SET start_date=?,days=?,handover_note=?,leave_type_id=?,end_date=?,start_segment=?,end_segment=?,policy_version_id=?,calculated_units=?,calculation_snapshot=?::jsonb,
     evidence_policy_snapshot=?::jsonb,evidence_due_at=?,submitted_at=CASE WHEN ?='pending_approval' THEN ? ELSE submitted_at END,
     state=?,version=?,prepared_by=?,decided_by=NULL,decision_note=NULL,last_command_id=?,updated_at=? WHERE id=?`).bind(startDate, value, handoverNote, leaveTypeId, endDate, startSegment, endSegment, id, units, value2, value3, evidenceDueAt, state, now, state2, version, userId, key, now2, id2);
         },
-        stageSaveSelfServiceLeaveEffect4(id: string) { return database.prepare("SELECT 1").bind(); },
-        stageSaveSelfServiceLeaveEffect5(value: string, id: string, companyId: string, date: string, segment: "full" | "first_half" | "second_half", units: number, source: "roster" | "workweek") { return database.prepare("SELECT 1").bind(); },
-        stageSaveSelfServiceLeaveEffect6(value: string, companyId: string, engagement_id: string, leaveTypeId: string, id: string, value2: number, value3: string, year: number, value4: string, value5: "Pending leave reservation", userId: string, now: number) { return database.prepare("SELECT 1").bind(); },
+        stageSaveSelfServiceLeaveEffect4(id: string) { return database.prepare('DELETE FROM leave_day_segments WHERE request_id=?').bind(id); },
+        stageSaveSelfServiceLeaveEffect5(value: string, id: string, companyId: string, date: string, segment: "full" | "first_half" | "second_half", units: number, source: "roster" | "workweek") { return database.prepare('INSERT INTO leave_day_segments(id,request_id,company_id,leave_date,segment,units,source) VALUES(?,?,?,?,?,?,?)').bind(value, id, companyId, date, segment, units, source); },
+        stageSaveSelfServiceLeaveEffect6(value: string, companyId: string, engagement_id: string, leaveTypeId: string, id: string, value2: number, value3: string, year: number, value4: string, value5: "Pending leave reservation", userId: string, now: number) { return database.prepare("INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at) VALUES(?,?,?,?,?,'reservation',?,?,?,?,?,?,?)").bind(value, companyId, engagement_id, leaveTypeId, id, value2, value3, year, value4, value5, userId, now); },
         readNormalizeLegacyLeaveExisting(recordId: string, companyId: string, userId: string) {
-            return database.prepare("SELECT 1").bind().first<{
+            return database.prepare('SELECT leave_type_id,end_date,start_segment,end_segment FROM leave_requests WHERE id=? AND company_id=? AND created_by=?').bind(recordId, companyId, userId).first<{
                 leave_type_id: string;
                 end_date: string;
                 start_segment: 'full' | 'first_half' | 'second_half';
                 end_segment: 'full' | 'first_half' | 'second_half';
             }>();
         },
-        readAdministerLeaveEffect(leaveTypeId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
-        readAdministerLeaveEffect2(engagementId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
-        readAdministerLeaveEffect3(leaveTypeId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
-        readAdministerLeaveEffect4(calendarId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
-        readAdministerLeaveEffect5(engagementId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
+        readAdministerLeaveEffect(leaveTypeId: string, companyId: string) { return database.prepare('SELECT 1 FROM leave_types WHERE id=? AND company_id=?').bind(leaveTypeId, companyId).first(); },
+        readAdministerLeaveEffect2(engagementId: string, companyId: string) { return database.prepare('SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?').bind(engagementId, companyId).first(); },
+        readAdministerLeaveEffect3(leaveTypeId: string, companyId: string) { return database.prepare('SELECT 1 FROM leave_types WHERE id=? AND company_id=?').bind(leaveTypeId, companyId).first(); },
+        readAdministerLeaveEffect4(calendarId: string, companyId: string) { return database.prepare('SELECT 1 FROM leave_holiday_calendars WHERE id=? AND company_id=? AND active=true').bind(calendarId, companyId).first(); },
+        readAdministerLeaveEffect5(engagementId: string, companyId: string) { return database.prepare('SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?').bind(engagementId, companyId).first(); },
         stageAdministerLeaveEffect(id: string, companyId: string, code: string, name: string, description: string, tracked: boolean, evidenceAfterUnits: number | null, evidenceNote: string, value: string, userId: string, now: number, now2: number) {
             return database.prepare("INSERT INTO leave_types(id,company_id,code,name,description,tracked,evidence_after_units,evidence_note,effective_from,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
                 .bind(id, companyId, code, name, description, tracked, evidenceAfterUnits, evidenceNote, value, userId, now, now2).run();
         },
-        stageAdministerLeaveEffect2(id: string, companyId: string, name: string, timezone: string, userId: string, now: number) { return database.prepare("SELECT 1").bind().run(); },
-        stageAdministerLeaveEffect3(id: string, companyId: string, policyKey: string, version: number, name: string, effectiveFrom: string, effectiveTo: string | null, timezone: string, value: string, allowNegative: boolean, userId: string, now: number) { return database.prepare("SELECT 1").bind(); },
+        stageAdministerLeaveEffect2(id: string, companyId: string, name: string, timezone: string, userId: string, now: number) { return database.prepare("INSERT INTO leave_holiday_calendars(id,company_id,name,timezone,created_by,created_at) VALUES(?,?,?,?,?,?)").bind(id, companyId, name, timezone, userId, now).run(); },
+        stageAdministerLeaveEffect3(id: string, companyId: string, policyKey: string, version: number, name: string, effectiveFrom: string, effectiveTo: string | null, timezone: string, value: string, allowNegative: boolean, userId: string, now: number) { return database.prepare("INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,effective_to,timezone,workweek_json,allow_negative,created_by,created_at) VALUES(?,?,?,?,?,'active',?,?,?,?::jsonb,?,?,?)").bind(id, companyId, policyKey, version, name, effectiveFrom, effectiveTo, timezone, value, allowNegative, userId, now); },
         stageAdministerLeaveEffect4(id: string, leaveTypeId: string, grantKind: "annual" | "period" | "accrual" | "untracked", grantUnits: number, accrualUnits: number, accrualPeriod: "annual" | "monthly" | "quarterly" | null, carryoverLimit: number | null, employeeEligible: boolean, contractorEligible: boolean, evidenceMinUnits: number | null, evidencePurpose: "medical_certificate" | "leave_supporting_photo" | null, evidenceMinCount: number, evidenceDueStage: "before_submit" | "before_final_approval", evidenceGraceDays: number, evidenceNote: string, leaveTypeId2: string, companyId: string) {
             return database.prepare(`INSERT INTO leave_policy_rules(
       policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,accrual_period,carryover_limit,employee_eligible,contractor_eligible,
       evidence_min_units,evidence_purpose,evidence_min_count,evidence_due_stage,evidence_grace_days,evidence_note,evidence_privacy
     ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'requester_approvers_hr' WHERE EXISTS(SELECT 1 FROM leave_types WHERE id=? AND company_id=?)`).bind(id, leaveTypeId, grantKind, grantUnits, accrualUnits, accrualPeriod, carryoverLimit, employeeEligible, contractorEligible, evidenceMinUnits, evidencePurpose, evidenceMinCount, evidenceDueStage, evidenceGraceDays, evidenceNote, leaveTypeId2, companyId);
         },
-        stageAdministerLeaveEffect5(id: string, calendarId: string, date: string, name: string, calendarId2: string, companyId: string) { return database.prepare("SELECT 1").bind().run(); },
+        stageAdministerLeaveEffect5(id: string, calendarId: string, date: string, name: string, calendarId2: string, companyId: string) { return database.prepare("INSERT INTO leave_holidays(id,calendar_id,holiday_date,name) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM leave_holiday_calendars WHERE id=? AND company_id=?)").bind(id, calendarId, date, name, calendarId2, companyId).run(); },
         readAdministerLeaveOverlaps(companyId: string, engagementId: string, value: string, effectiveFrom: string) {
             return rows<{
                 id: string;
@@ -190,17 +190,17 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
                 effective_from: string;
             }>(database, `SELECT a.id,p.policy_key,a.effective_from FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id WHERE a.company_id=? AND a.engagement_id=? AND a.effective_from<=? AND coalesce(a.effective_to,'9999-12-31')>=?`, companyId, engagementId, value, effectiveFrom);
         },
-        stageAdministerLeaveEffect6(value: string, id: string) { return database.prepare("SELECT 1").bind().run(); },
-        readAdministerLeaveEffect6(policyVersionId: string, companyId: string) { return database.prepare("SELECT 1").bind().first(); },
-        stageAdministerLeaveEffect7(id: string, companyId: string, engagementId: string, policyVersionId: string, calendarId: string | null, effectiveFrom: string, effectiveTo: string | null, userId: string, now: number, engagementId2: string, companyId2: string) { return database.prepare("SELECT 1").bind().run(); },
+        stageAdministerLeaveEffect6(value: string, id: string) { return database.prepare('UPDATE leave_policy_assignments SET effective_to=? WHERE id=?').bind(value, id).run(); },
+        readAdministerLeaveEffect6(policyVersionId: string, companyId: string) { return database.prepare('SELECT id FROM leave_policy_versions WHERE id=? AND company_id=?').bind(policyVersionId, companyId).first(); },
+        stageAdministerLeaveEffect7(id: string, companyId: string, engagementId: string, policyVersionId: string, calendarId: string | null, effectiveFrom: string, effectiveTo: string | null, userId: string, now: number, engagementId2: string, companyId2: string) { return database.prepare("INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,holiday_calendar_id,effective_from,effective_to,created_by,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?)").bind(id, companyId, engagementId, policyVersionId, calendarId, effectiveFrom, effectiveTo, userId, now, engagementId2, companyId2).run(); },
         readAdministerLeaveRow(id: string, companyId: string) {
-            return database.prepare("SELECT 1").bind().first<{
+            return database.prepare('SELECT effective_from,version FROM leave_policy_assignments WHERE id=? AND company_id=? FOR UPDATE').bind(id, companyId).first<{
                 effective_from: string;
                 version: number;
             }>();
         },
-        stageAdministerLeaveEffect8(effectiveTo: string, id: string, companyId: string) { return database.prepare("SELECT 1").bind().run(); },
-        stageAdministerLeaveEffect9(id: string, companyId: string, engagementId: string, leaveTypeId: string, units: number, effectiveDate: string, key: string, note: string, userId: string, now: number) { return database.prepare("SELECT 1").bind().run(); },
+        stageAdministerLeaveEffect8(effectiveTo: string, id: string, companyId: string) { return database.prepare('UPDATE leave_policy_assignments SET effective_to=?,version=version+1 WHERE id=? AND company_id=?').bind(effectiveTo, id, companyId).run(); },
+        stageAdministerLeaveEffect9(id: string, companyId: string, engagementId: string, leaveTypeId: string, units: number, effectiveDate: string, key: string, note: string, userId: string, now: number) { return database.prepare("INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,command_key,note,created_by,created_at) VALUES(?,?,?,?,'adjustment',?,?,?,?,?,?) ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING").bind(id, companyId, engagementId, leaveTypeId, units, effectiveDate, key, note, userId, now).run(); },
         readRunLeaveAccrualsDue(effectiveDate: string, effectiveDate2: string, effectiveDate3: string, effectiveDate4: string, effectiveDate5: string, value: string | null, value2: string | null) {
             return rows<{
                 company_id: string;

@@ -16,9 +16,7 @@ import {seedProjectFor} from '../../../tests/integration/projects/project-actual
 import {prepareGuidedIntake} from "@erpx/server-operations/public/guided-intake";
 import {guidedIntakeInputSchema} from "@erpx/feature-shared/lib/ai/guided-intake";
 import {refreshRecentUsageProjections} from "@erpx/server-commercial/public/usage-projection";
-import {createMarketingAsset} from "../../../tests/support/helpers/marketing-asset-seed";
-import {createMarketingCandidate as seedMarketingCandidate} from "../../../tests/support/helpers/marketing-candidate-seed";
-import {changeMarketing} from "@erpx/server-marketing/public/marketing";
+import {createMarketingAsset,createMarketingCandidate,changeMarketing} from "@erpx/server-marketing/public/marketing";
 import {createAuth} from "@erpx/server-identity_access/public/auth";
 import {totp} from "@erpx/server-identity_access/public/iam-mfa";
 import {iamMfaEnrollment} from "../../identity_access/mfa-enrollment";
@@ -133,7 +131,7 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  await approveAttachmentPublication(input.h001,reviewer,String(media.id),key());await changeMarketing(reviewer,'asset',String(content.id),{action:'activate',expectedVersion:2,reason:'Independent review of declared content, repository image rights and sanitized public derivative'},key());
  const form=await createMarketingAsset(author,{kind:'form',name:'Fictional workplace equipment inquiry',configuration:{consentRequired:true,contentAssetId:String(content.id),contentVersion:3,mediaPublicationId:String(media.id)},preview:{headline:'Tell the fictional Sales team what you need',summary:'Engineering sample only; no real outreach'}},key());
  await changeMarketing(reviewer,'asset',String(form.id),{action:'activate',expectedVersion:1,reason:'Independent review of the fictional consent fields and inquiry preview'},key());
- const candidate=await seedMarketingCandidate(author,{formId:form.id,formVersion:2,branchId:workplace.branch,contactName:'Fictional Bangkok Equipment Team',contactDetail:'equipment-inquiry@simulation.test',consentEvidence:'Declared fictional consent fixture; not a real prospect or outreach authorization',attribution:{campaign:'Engineering equipment demonstration',source:'Declared fictional form fixture'},brief:'Fictional team requests two equipment sets for a reviewable owner handoff'},key());
+ const candidate=await createMarketingCandidate(author,{formId:form.id,formVersion:2,branchId:workplace.branch,contactName:'Fictional Bangkok Equipment Team',contactDetail:'equipment-inquiry@simulation.test',consentEvidence:'Declared fictional consent fixture; not a real prospect or outreach authorization',attribution:{campaign:'Engineering equipment demonstration',source:'Declared fictional form fixture'},brief:'Fictional team requests two equipment sets for a reviewable owner handoff'},key());
  const marketingDraft=await createMarketingAsset(author,{kind:'content',name:'Fictional equipment campaign draft',configuration:{fixture:'Declared engineering content; no connected advertising provider'},preview:{headline:'Fictional workplace equipment demonstration',description:'Draft remains unpublished until a separate reviewer approves'}},key());
  // Sensitive native IAM seeds use a real local credential sign-in and the
  // regular authenticator enrollment/verification service, never fabricated

@@ -24,15 +24,11 @@ use erpx_server_marketing::public::campaign_attribution_http::{
 };
 use erpx_server_marketing::public::lead_candidate::{
     MarketingAssetCreateInput, MarketingAssetReviewInput, MarketingCampaignCreateInput,
-    MarketingCommandReceipt, MarketingCrmHandoffPort, MarketingCrmLeadRequest,
-    MarketingLeadActionInput, MarketingLeadActor, MarketingLeadCandidateInput, PgMarketingLead,
-    asset_profiles, create_asset as create_marketing_asset, create_campaign as create_marketing_campaign,
-    create_candidate as create_marketing_candidate, handoff_candidate as handoff_marketing_candidate,
-    lead_detail, record_engagement as record_marketing_engagement,
-    review_asset as review_marketing_asset,
-};
-use erpx_server_crm::public::leads_native::{
-    LeadActor, LeadCreateInput, PgCrmLeadCommands, create_lead as create_crm_lead,
+    MarketingCommandReceipt, MarketingLeadActionInput, MarketingLeadActor,
+    MarketingLeadCandidateInput, PgMarketingLead, asset_profiles,
+    create_asset as create_marketing_asset, create_campaign as create_marketing_campaign,
+    create_candidate as create_marketing_candidate, lead_detail,
+    record_engagement as record_marketing_engagement, review_asset as review_marketing_asset,
 };
 use erpx_server_marketing::public::lead_candidate_command_http::{
     MarketingAssetReviewHttpRequest, MarketingCommandHttpRequest, MarketingLeadCommandHttpBackend,
@@ -124,61 +120,6 @@ impl MarketingConfiguration {
 
     pub fn company(&self) -> &CompanyId {
         &self.company
-    }
-}
-
-struct MarketingCrmHandoffAdapter<'a> {
-    current: &'a AuthorizedWorkContext,
-    department_id: Option<String>,
-}
-
-impl MarketingCrmHandoffPort for MarketingCrmHandoffAdapter<'_> {
-    fn create_lead<'b>(
-        &'b mut self,
-        c: &'b mut PgConnection,
-        request: &'b MarketingCrmLeadRequest,
-        command_key: &'b str,
-        now: i64,
-    ) -> PgWorkFuture<'b, erpx_server_marketing::public::lead_candidate::MarketingCrmLeadResult, BusinessError>
-    {
-        let current = self.current;
-        let department_id = self.department_id.clone();
-        Box::pin(async move {
-            let workspace = current.selection().workspace();
-            let actor = LeadActor {
-                user_id: current.user_id().as_str().to_owned(),
-                company_id: workspace.company_id.as_str().to_owned(),
-                can_read: current.has_permission("records.read")
-                    || current.has_permission("records.write"),
-                can_sales: current.has_permission("records.write"),
-                can_manage: current.has_permission("records.write"),
-                can_pms: false,
-                can_support: false,
-                same_person_ids: Vec::new(),
-            };
-            let input = LeadCreateInput {
-                branch_id: request.branch_id.clone(),
-                title: request.title.clone(),
-                contact_name: request.contact_name.clone(),
-                contact_detail: request.contact_detail.clone(),
-                source: request.source.clone(),
-                source_evidence: Some(request.source_evidence.clone()),
-                source_kind: Some(request.source_kind.clone()),
-                source_id: Some(request.source_id.clone()),
-                campaign_id: request.campaign_id.clone(),
-                account_id: None,
-                contact_id: None,
-                brief: request.brief.clone(),
-                due_date: request.due_date.clone(),
-            };
-            let mut commands = PgCrmLeadCommands::new(c);
-            let _plan = create_crm_lead(&actor, command_key, &input, department_id.as_deref(), &mut commands, now)
-                .await
-                .map_err(|error| error)?;
-            Ok(erpx_server_marketing::public::lead_candidate::MarketingCrmLeadResult {
-                lead_id: erpx_server_crm::public::leads_native::lead_record_id(command_key),
-            })
-        })
     }
 }
 
@@ -572,125 +513,6 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             &action,
                             key.as_str(),
                             &mut PgMarketingLead,
-                            connection,
-                            now,
-                        )
-                        .await
-                        .map_err(business)?;
-                        let after =
-                            candidate_source_witness(connection, &actor, &candidate_id).await?;
-                        if before != after {
-                            return Err(source_changed().into());
-                        }
-                        PgCompanyPurchaseReader::new(
-                            holding.clone(),
-                            company.clone(),
-                            connection,
-                            &catalogue,
-                        )
-                        .revalidate(&witness, now)
-                        .await
-                        .map_err(business)?
-                        .require_allowed()?;
-                        Ok(receipt)
-                    })
-                },
-            )
-            .await
-    }
-
-    pub async fn handoff_candidate<Input>(
-        &self,
-        host: &str,
-        proof: DeviceProof,
-        input: Input,
-        candidate_id: String,
-        key: CommandKey,
-        action: MarketingLeadActionInput,
-    ) -> Result<MarketingCommandReceipt, Error>
-    where
-        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
-    {
-        let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
-        let clock = self.clock.clone();
-        self.authorizer
-            .execute_with_sources_deferred(
-                host,
-                proof,
-                self.command_input(input),
-                Self::write_access(),
-                MarketingSources,
-                move |connection, current| {
-                    let holding = holding.clone();
-                    let company = company.clone();
-                    let clock = clock.clone();
-                    let candidate_id = candidate_id.clone();
-                    let key = key.clone();
-                    let action = action.clone();
-                    Box::pin(async move {
-                        if current.holding_id() != &holding
-                            || current.selection().workspace().company_id != company
-                        {
-                            return Err(scope().into());
-                        }
-                        current.require_permission("records.write")?;
-                        let actor = marketing_actor(current)?;
-                        let now = clock.now();
-                        let catalogue = current_package_catalogue()?;
-                        let replayed = command_replayed(
-                            connection,
-                            &key,
-                            &actor,
-                            "marketing.candidate.handoff",
-                            &candidate_id,
-                        )
-                        .await?;
-                        let purpose = if replayed {
-                            CapabilityPurpose::History
-                        } else {
-                            CapabilityPurpose::SettleExisting
-                        };
-                        let witness = {
-                            let mut purchases = PgCompanyPurchaseReader::new(
-                                holding.clone(),
-                                company.clone(),
-                                connection,
-                                &catalogue,
-                            );
-                            let inspection = purchases
-                                .inspect(
-                                    &PurchaseRequest {
-                                        capabilities: vec!["sales.marketing".into()],
-                                        purpose,
-                                        mode: PackageEnforcementMode::Enforced,
-                                    },
-                                    now,
-                                )
-                                .await
-                                .map_err(business)?;
-                            let witness = inspection.witness.clone();
-                            inspection.require_allowed()?;
-                            witness
-                        };
-                        let before =
-                            candidate_source_witness(connection, &actor, &candidate_id).await?;
-                        let mut crm = MarketingCrmHandoffAdapter {
-                            current,
-                            department_id: current
-                                .selection()
-                                .workspace()
-                                .department_id
-                                .as_ref()
-                                .map(|value| value.as_str().to_owned()),
-                        };
-                        let receipt = handoff_marketing_candidate(
-                            &actor,
-                            &candidate_id,
-                            &action,
-                            key.as_str(),
-                            &mut PgMarketingLead,
-                            &mut crm,
                             connection,
                             now,
                         )
@@ -1438,36 +1260,6 @@ impl<C: Clock + Send + Sync + 'static> MarketingLeadCommandHttpBackend for Marke
             let receipt = self
                 .service
                 .record_engagement(
-                    request.host,
-                    proof,
-                    move || Ok(selection),
-                    request.candidate_id.to_owned(),
-                    request.key.clone(),
-                    input,
-                )
-                .await
-                .map_err(business)?;
-            receipt_reply(receipt)
-        })
-    }
-
-    fn handoff_candidate<'a>(
-        &'a self,
-        request: MarketingLeadCommandHttpRequest<'a>,
-    ) -> MarketingLeadCommandHttpFuture<'a> {
-        Box::pin(async move {
-            let (proof, selection) = self.command_context(request.headers)?;
-            let input: MarketingLeadActionInput = serde_json::from_value(request.body.clone())
-                .map_err(|_| crate::marketing::command_request_invalid())?;
-            if input.action != "handoff" {
-                return Err(BusinessError::invalid(
-                    "MARKETING_COMMAND_NOT_NATIVE",
-                    "Only the native Marketing handoff command is available.",
-                ));
-            }
-            let receipt = self
-                .service
-                .handoff_candidate(
                     request.host,
                     proof,
                     move || Ok(selection),

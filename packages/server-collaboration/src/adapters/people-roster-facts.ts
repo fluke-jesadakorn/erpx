@@ -18,6 +18,6 @@ export function rosterNotifications(database: SqlDatabase) {
           OR a.scope_kind='department' AND a.scope_node_id IN (SELECT id FROM ancestors))
       ON CONFLICT DO NOTHING`).bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8, fact9, fact10, fact11).run();
         },
-        applyNotice(fact0: string, fact1: string, fact2: string, fact3: "roster_week" | "roster_request", fact4: string, fact5: number, fact6: string, fact7: number) { return database.prepare("SELECT 1").bind().run(); },
-        applyNotifyManagers(fact0: string, fact1: string, fact2: string, fact3: string, fact4: number, fact5: "A roster change needs your review.", fact6: number) { return database.prepare("SELECT 1").bind().run(); } };
+        applyNotice(fact0: string, fact1: string, fact2: string, fact3: "roster_week" | "roster_request", fact4: string, fact5: number, fact6: string, fact7: number) { return database.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7).run(); },
+        applyNotifyManagers(fact0: string, fact1: string, fact2: string, fact3: string, fact4: number, fact5: "A roster change needs your review.", fact6: number) { return database.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'roster_request',?,?,?,?) ON CONFLICT DO NOTHING").bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6).run(); } };
 }

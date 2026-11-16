@@ -51,11 +51,11 @@ function application(provided?: SqlDatabase, projectReadWhere='TRUE',workReadArg
         },
         guard13(...args) { return StaffTasksProjectsFacts(database).guard13(...args); },
         stageSaveTaskEffect(title: string, description: string, assigneeUserId: string, dueAt: number | null, projectId: string | null, value: string, value2: string, nextState: "ready" | "draft", value3: 0 | 1, now: number, recordId: string) {
-            return database.prepare("SELECT 1")
+            return database.prepare("UPDATE staff_tasks SET title=?,description=?,assignee_user_id=?,due_at=?,project_id=?,start_approvers_json=?,completion_approvers_json=?,state=?,completion_note='',blocked_reason=NULL,revision=revision+?,version=version+1,updated_at=? WHERE id=?")
                 .bind(title, description, assigneeUserId, dueAt, projectId, value, value2, nextState, value3, now, recordId);
         },
         stageSaveTaskEffect2(recordId: string, companyId: string, branch_id: string | null, department_id: string | null, title: string, description: string, userId: string, assigneeUserId: string, dueAt: number | null, projectId: string | null, value: string, value2: string, nextState: "ready" | "draft", now: number, now2: number) {
-            return database.prepare("SELECT 1")
+            return database.prepare("INSERT INTO staff_tasks(id,company_id,branch_id,department_id,title,description,creator_user_id,assignee_user_id,due_at,project_id,start_approvers_json,completion_approvers_json,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                 .bind(recordId, companyId, branch_id, department_id, title, description, userId, assigneeUserId, dueAt, projectId, value, value2, nextState, now, now2);
         },
         readTaskDetailAttachments(id: string) {

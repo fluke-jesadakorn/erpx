@@ -184,7 +184,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             recordId: string;
             id3: string;
             date: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO pms_postings(id,property_id,source_key,record_id,journal_id,business_date) VALUES(?,?,?,?,?,?)", facts.id, facts.id2, facts.source, facts.recordId, facts.id3, facts.date),
         deleteCommandAssertions: facts => workflow.deleteCommandAssertions(facts),
         readCommerceWarehouses2: facts => commerce.readCommerceWarehouses2(facts),
         readCommerceStock: facts => commerce.readCommerceStock(facts),
@@ -204,12 +204,12 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             date: string;
             fact7: number;
             description: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO pms_stock_moves(id,property_id,warehouse_id,product_id,quantity_milli,value_minor,movement_date,created_at,source_number) VALUES(?,?,?,?,?,?,?,?,?)", facts.id, facts.id2, facts.warehouseId, facts.productId, facts.fact4, facts.fact5, facts.date, facts.fact7, facts.description),
         insertPmsSources: (facts: {
             id: string;
             key: string;
             id2: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO pms_sources(property_id,source_key,record_id) VALUES(?,?,?)", facts.id, facts.key, facts.id2),
         insertFinanceParties: facts => finance.insertFinanceParties(facts),
         readPmsPostings: (facts: {
             id: string;
@@ -234,7 +234,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             financeId: string | null;
             fact5: string;
             now: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO pms_documents(id,property_id,guest_account_id,kind,finance_id,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?)", facts.id, facts.id2, facts.id3, facts.kind, facts.financeId, facts.fact5, facts.now),
         readPmsImportBalances: (facts: {
             id: string;
             guestAccountId: string;
@@ -268,7 +268,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             fact5: string;
             userId: string;
             fact7: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,config_json,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?)", facts.target, facts.companyId, facts.branchId, facts.name, facts.businessDate, facts.fact5, facts.userId, facts.fact7),
         readPmsChargeCorrections2: (facts: {
             id: string;
         }) => db.prepare("SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'").bind(facts.id).first(),
@@ -408,7 +408,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             toGuestAccountId: string;
             id: string;
             id2: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "UPDATE pms_documents SET guest_account_id=? WHERE property_id=? AND guest_account_id=?", facts.toGuestAccountId, facts.id, facts.id2),
         updatePmsTransferRequests2: (facts: {
             userId: string;
             matchedBankId: string;
@@ -426,7 +426,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             version: number;
             fact5: number;
             id: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "UPDATE pms_properties SET name=?,business_date=?,state=?,config_json=?,version=?,updated_at=? WHERE id=?", facts.name, facts.businessDate, facts.state, facts.fact3, facts.version, facts.fact5, facts.id),
         insertPmsJobs: (facts: {
             nightJob: string;
             id: string;
@@ -438,7 +438,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             fact0: "pending" | "completed";
             fact1: number;
             id: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "UPDATE pms_jobs SET state=?,error_code=NULL,updated_at=? WHERE id=?", facts.fact0, facts.fact1, facts.id),
         readPmsJobs: (facts: {
             fact0: string | null;
             fact1: string | null;
@@ -467,13 +467,13 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             version: number;
             fact1: number;
             id: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "UPDATE pms_properties SET version=?,updated_at=? WHERE id=?", facts.version, facts.fact1, facts.id),
         readContext3: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
         updatePmsProperties5: (facts: {
             version: number;
             fact1: number;
             id: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "UPDATE pms_properties SET version=?,updated_at=? WHERE id=?", facts.version, facts.fact1, facts.id),
         insertPmsRecordsBatch: (facts: Array<{
             id: string;
             id2: string;

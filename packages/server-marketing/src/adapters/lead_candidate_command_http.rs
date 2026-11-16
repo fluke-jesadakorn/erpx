@@ -62,14 +62,6 @@ pub trait MarketingLeadCommandHttpBackend: Send + Sync {
         request: MarketingLeadCommandHttpRequest<'a>,
     ) -> MarketingLeadCommandHttpFuture<'a>;
 
-    fn handoff_candidate<'a>(
-        &'a self,
-        request: MarketingLeadCommandHttpRequest<'a>,
-    ) -> MarketingLeadCommandHttpFuture<'a> {
-        let _ = request;
-        Box::pin(async { Err(command_not_mounted()) })
-    }
-
     fn create_campaign<'a>(
         &'a self,
         request: MarketingCommandHttpRequest<'a>,
@@ -265,13 +257,13 @@ async fn parse_command(
     Ok(ParsedCommand { headers, key, body })
 }
 
-fn parse_candidate_action(body: &serde_json::Value) -> Result<MarketingLeadActionInput, BusinessError> {
+fn parse_engagement(body: &serde_json::Value) -> Result<MarketingLeadActionInput, BusinessError> {
     let input: MarketingLeadActionInput =
         serde_json::from_value(body.clone()).map_err(|_| malformed())?;
-    if input.action != "record-engagement" && input.action != "handoff" {
+    if input.action != "record-engagement" {
         return Err(BusinessError::invalid(
             "MARKETING_COMMAND_NOT_NATIVE",
-            "Only the native Marketing candidate action command is available.",
+            "Only the native Marketing engagement command is available.",
         ));
     }
     Ok(input)
@@ -535,32 +527,18 @@ async fn record_engagement(
         let target = target(&state, request.headers(), &slug)?;
         let parsed = parse_command(request, target, COMMAND_BODY_LIMIT).await?;
         let candidate_id = RecordId::new(candidate_id)?;
-        let action = parse_candidate_action(&parsed.body)?;
-        if action.action == "handoff" {
-            target
-                .backend
-                .handoff_candidate(MarketingLeadCommandHttpRequest {
-                    host: &target.host,
-                    holding_slug: &target.holding_slug,
-                    headers: &parsed.headers,
-                    candidate_id: candidate_id.as_str(),
-                    key: &parsed.key,
-                    body: &parsed.body,
-                })
-                .await
-        } else {
-            target
-                .backend
-                .record_engagement(MarketingLeadCommandHttpRequest {
-                    host: &target.host,
-                    holding_slug: &target.holding_slug,
-                    headers: &parsed.headers,
-                    candidate_id: candidate_id.as_str(),
-                    key: &parsed.key,
-                    body: &parsed.body,
-                })
-                .await
-        }
+        parse_engagement(&parsed.body)?;
+        target
+            .backend
+            .record_engagement(MarketingLeadCommandHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &parsed.headers,
+                candidate_id: candidate_id.as_str(),
+                key: &parsed.key,
+                body: &parsed.body,
+            })
+            .await
     }
     .await;
     match result {

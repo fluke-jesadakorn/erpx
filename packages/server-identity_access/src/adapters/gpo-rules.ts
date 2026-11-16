@@ -68,8 +68,8 @@ prepareTaskDisposition(reason:string,version:number,now:number,companyId:string,
         .bind(reason,version,now,companyId,positionId);},
 async catalogSnapshot(companyId:string){return db.prepare(rulesSnapshotSql).bind(companyId).first<{ snapshot: string }>();},
 targetName(companyId:string,target:GpoRuleTarget){return organizationGpo.gpoTargetName(db,companyId,target);},
-async activeConnection(companyId:string,connectionId:string){return db.prepare("SELECT 1").bind().first<ProviderConnection & { version: number }>();},
-async directoryWriteState(companyId:string,connectionId:string){return db.prepare("SELECT 1").bind().first<{ version: number; tested_version: number | null; write_enabled: boolean }>();},
+async activeConnection(companyId:string,connectionId:string){return db.prepare("SELECT id,provider,config,version FROM iam_connections WHERE company_id=? AND id=? AND status='active'").bind(companyId, connectionId).first<ProviderConnection & { version: number }>();},
+async directoryWriteState(companyId:string,connectionId:string){return db.prepare("SELECT version,tested_version,write_enabled FROM people_directory_state WHERE company_id=? AND connection_id=?").bind(companyId, connectionId).first<{ version: number; tested_version: number | null; write_enabled: boolean }>();},
 activePositions(companyId:string){return organizationGpo.gpoActivePositions(db,companyId);},
 activeHolders(companyId:string){return peopleGpo.gpoActiveHolders(db,companyId);},
 async storePreview(token:string,companyId:string,userId:string,assignmentId:string,token2:string,expiresAt:number){await db.prepare("INSERT INTO organization_gpo_previews(token,company_id,user_id,assignment_id,state_token,expires_at) VALUES(?,?,?,?,?,?)")
@@ -94,8 +94,8 @@ prepareLegacyRemovalPolicy(version:number,revision:number,now:number,companyId:s
 prepareRuleRemoval(version:number,revision:number,userId:string,reason:string,now:number,id:string,companyId:string){return db.prepare("UPDATE organization_gpo_rules SET active=false,version=?,revision=?,last_actor_id=?,last_reason=?,updated_at=? WHERE id=? AND company_id=?")
     .bind(version, revision, userId, reason, now, id, companyId);},
 guardRetryVersion(key:string,companyId:string,id:string,expectedVersion:number){return assertion(db, key, "gpo-rule-version", "EXISTS(SELECT 1 FROM organization_gpo_rules WHERE company_id=? AND id=? AND version=? AND active AND directory_config_status='blocked')", [companyId, id, expectedVersion]);},
-prepareRuleRetry(companyId:string,id:string){return db.prepare("SELECT 1").bind();},
-prepareLegacyRuleRetry(companyId:string,id:string){return db.prepare("SELECT 1").bind();}};return createGpoRulesApplication({repository,clock:{now:()=>Date.now()},identifiers:{next:()=>randomUUID()},hash,commands:{replay:(...args)=>replayCommand(db,...args),commit:(...args)=>executeCommand(db,...args)},requireFreshMfa:input=>external(()=>requireFreshMfa(input)),readInventory:c=>external(()=>readAutomationInventory(c)),organizationGuard:(companyId,key)=>organizationGuard(db,companyId,key)});}
+prepareRuleRetry(companyId:string,id:string){return db.prepare("UPDATE organization_gpo_rules SET directory_config_status='pending',directory_config_error=NULL WHERE company_id=? AND id=?").bind(companyId, id);},
+prepareLegacyRuleRetry(companyId:string,id:string){return db.prepare("UPDATE position_gpo_policies SET directory_config_status='pending',directory_config_error=NULL WHERE company_id=? AND position_id=(SELECT legacy_position_id FROM organization_gpo_rules WHERE company_id=? AND id=?)").bind(companyId, companyId, id);}};return createGpoRulesApplication({repository,clock:{now:()=>Date.now()},identifiers:{next:()=>randomUUID()},hash,commands:{replay:(...args)=>replayCommand(db,...args),commit:(...args)=>executeCommand(db,...args)},requireFreshMfa:input=>external(()=>requireFreshMfa(input)),readInventory:c=>external(()=>readAutomationInventory(c)),organizationGuard:(companyId,key)=>organizationGuard(db,companyId,key)});}
 export {canManageGpoRules,gpoRuleMatchesPosition,gpoRuleSourceId} from '@erpx/server-identity_access/domain/gpo-rules';
 export type {GpoRuleRow,EffectiveRuleRow} from '@erpx/server-identity_access/domain/gpo-rules';
 export const newGpoRuleId=()=>`gpo-rule-${randomUUID()}`;

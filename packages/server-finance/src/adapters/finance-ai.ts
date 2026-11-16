@@ -84,34 +84,34 @@ recordFailure:async(facts)=>{const {actor,id,claimed,provider,stale,message,inpu
     ]);},
 pending:async(now)=>(await db.prepare("SELECT id FROM finance_ai_proposals WHERE attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) ORDER BY created_at,id LIMIT 2").bind(now).all<{ id: string }>()).results,
 exhausted:async(now)=>{return db.batch([
-    db.prepare("SELECT 1").bind(),
-    db.prepare("SELECT 1").bind(),
+    db.prepare("UPDATE finance_ai_proposals SET state='failed',error='Preparation was interrupted. Retry or continue manually.',lease_token=NULL,claim_until=NULL,version=version+1,updated_at=? WHERE state='running' AND claim_until<? AND attempts>=3").bind(now, now),
+    db.prepare("UPDATE finance_ai_usage SET state='failed',lease_until=0 WHERE state='reserved' AND proposal_id IN (SELECT id FROM finance_ai_proposals WHERE state IN ('failed','stale','dismissed'))"),
   ]);},
 proposals:async(actor)=>(await db.prepare("SELECT * FROM finance_ai_proposals WHERE company_id=? ORDER BY updated_at DESC,id LIMIT 30").bind(actor.companyId).all<FinanceAiProposal>()).results,
 events:async(actor)=>(await db.prepare("SELECT proposal_id,action,evidence_json,created_at FROM finance_ai_events WHERE company_id=? AND proposal_id IS NOT NULL ORDER BY created_at DESC LIMIT 120").bind(actor.companyId).all<{proposal_id:string;action:string;evidence_json:string;created_at:number}>()).results,
 proposal:async(actor,id)=>db.prepare("SELECT * FROM finance_ai_proposals WHERE id=? AND company_id=?").bind(id, actor.companyId).first<FinanceAiProposal>(),
 dismiss:async(facts)=>{const {actor,key,input,id,row}=facts;return executeCommand(db, actor, key, "finance.ai.dismiss", input, id, input.expectedVersion + 1, { id, state: "dismissed", version: input.expectedVersion + 1 }, [
     assertion(db, key, "finance-ai-proposal", "EXISTS(SELECT 1 FROM finance_ai_proposals WHERE id=? AND company_id=? AND version=? AND state<>'applied')", [id, actor.companyId, input.expectedVersion]),
-    db.prepare("SELECT 1").bind(),
+    db.prepare("UPDATE finance_ai_proposals SET state='dismissed',version=version+1,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=?").bind(Date.now(), id),
     event(db, actor, id, "dismiss", { reason: input.reason, sourceHash: row.source_hash }, key),
   ]);},
 draftProposal:async(actor,id,invoiceId)=>db.prepare("SELECT * FROM finance_ai_proposals WHERE id=? AND company_id=? AND kind='invoice_review' AND source_id=?").bind(id, actor.companyId, invoiceId).first<FinanceAiProposal>(),
 invoiceProposal:async(actor,id)=>db.prepare("SELECT * FROM finance_ai_proposals WHERE id=? AND company_id=? AND kind='invoice_review'").bind(id, actor.companyId).first<FinanceAiProposal>(),
 scanPolicies:async(now)=>(await db.prepare("SELECT * FROM finance_ai_policies WHERE enabled AND next_scan_at<=? ORDER BY next_scan_at,company_id LIMIT 3").bind(now).all<FinanceAiPolicy>()).results,
-claimPolicy:async(policy,now)=>db.prepare("SELECT 1").bind().first(),
+claimPolicy:async(policy,now)=>db.prepare("UPDATE finance_ai_policies SET next_scan_at=? WHERE company_id=? AND enabled AND version=? AND next_scan_at<=? RETURNING company_id").bind(now + 60000,policy.company_id,policy.version,now).first(),
 scanInvoices:async(actor,kinds,day,policy)=>(await db.prepare("SELECT id,version,kind,status,due_date FROM finance_invoices WHERE company_id=? AND ((status='draft' AND ?::boolean) OR (status IN ('posted','partially_paid') AND outstanding_minor>0 AND ((kind='receivable' AND ?::boolean) OR (kind='payable' AND due_date<=? AND ?::boolean)))) AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_invoices.company_id AND p.source_id=finance_invoices.id AND p.kind=CASE WHEN finance_invoices.status='draft' THEN 'invoice_review' WHEN finance_invoices.kind='receivable' THEN 'collection_draft' ELSE 'payment_preparation' END AND p.policy_version=? AND p.source_version=finance_invoices.version) ORDER BY due_date,id LIMIT 30").bind(actor.companyId,kinds.includes("invoice_review"),kinds.includes("collection_draft"),day,kinds.includes("payment_preparation"),policy.version).all<{id:string;version:number;kind:string;status:string;due_date:string}>()).results,
 scanBank:async(actor,policy)=>(await db.prepare("SELECT id FROM finance_bank_transactions WHERE company_id=? AND match_status<>'matched' AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_bank_transactions.company_id AND p.source_id=finance_bank_transactions.id AND p.kind='bank_match' AND p.policy_version=? AND p.source_version=finance_bank_transactions.version) ORDER BY transaction_date,id LIMIT 20").bind(actor.companyId,policy.version).all<{id:string}>()).results,
 scanPeriods:async(actor,day,kind,policy)=>(await db.prepare("SELECT id FROM finance_periods WHERE company_id=? AND (state='closing' OR (state='open' AND end_date<?)) AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_periods.company_id AND p.source_id=finance_periods.id AND p.kind=? AND p.policy_version=? AND p.source_version=finance_periods.version) ORDER BY end_date,id LIMIT 3").bind(actor.companyId,day,kind,policy.version).all<{id:string}>()).results,
 scanCharts:async(actor,day,policy)=>(await db.prepare("SELECT id FROM finance_charts WHERE company_id=? AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_charts.company_id AND p.source_id=finance_charts.id AND p.kind='report_explanation' AND p.policy_version=? AND p.source_query_json::jsonb->>'endDate'=?) ORDER BY id LIMIT 5").bind(actor.companyId,policy.version,day).all<{id:string}>()).results,
 scanExisting:async(actor,input,policy,snapshot,day)=>db.prepare("SELECT id FROM finance_ai_proposals WHERE company_id=? AND kind=? AND source_id=? AND policy_version=? AND (?::boolean OR source_version=?) AND (?::text IS NULL OR source_query_json::jsonb->>'endDate'=?) LIMIT 1").bind(actor.companyId,input.kind,input.sourceId,policy.version,input.kind==="report_explanation",snapshot.version,input.kind==="report_explanation"?day:null,input.kind==="report_explanation"?day:null).first(),
 dailyExists:async(actor,day,policy)=>db.prepare("SELECT id FROM finance_ai_proposals WHERE company_id=? AND kind='today_brief' AND source_id=? AND policy_version=? LIMIT 1").bind(actor.companyId,day,policy.version).first(),
-scanSucceeded:async(policy)=>{return db.prepare("SELECT 1").bind().run();},
-scanFailed:async(policy,message,nextScan)=>{return db.prepare("SELECT 1").bind().run();}}),draftStatements:(facts:FinanceAiDraftPlan)=>{const {actor,id,invoiceId,input,key,row,policy,snapshot,provider}=facts;  return [
+scanSucceeded:async(policy)=>{return db.prepare("UPDATE finance_ai_policies SET last_error=NULL WHERE company_id=? AND version=?").bind(policy.company_id,policy.version).run();},
+scanFailed:async(policy,message,nextScan)=>{return db.prepare("UPDATE finance_ai_policies SET last_error=?,next_scan_at=? WHERE company_id=? AND version=?").bind(message,nextScan,policy.company_id,policy.version).run();}}),draftStatements:(facts:FinanceAiDraftPlan)=>{const {actor,id,invoiceId,input,key,row,policy,snapshot,provider}=facts;  return [
     policyGuard(db, key, policy), aiSnapshotGuard(db, key, provider),
     // executeCommand inserts this invoice-update receipt before domain steps.
     assertion(db, key, "finance-ai-source", `${financeRevisionSql}=?`, [actor.companyId, snapshot.companyRevision + 1]),
     assertion(db, key, "finance-ai-proposal", "EXISTS(SELECT 1 FROM finance_ai_proposals WHERE id=? AND company_id=? AND state='ready' AND version=?)", [id, actor.companyId, row.version]),
-    db.prepare("SELECT 1").bind(),
+    db.prepare("UPDATE finance_ai_proposals SET state='applied',draft_command_id=?,version=version+1,updated_at=? WHERE id=?").bind(key, Date.now(), id),
     event(db, actor, id, "apply_draft", { invoiceId, sourceHash: row.source_hash, sourceVersion: row.source_version, selectedAccounts: { debitAccountId: input.debitAccountId, creditAccountId: input.creditAccountId, taxAccountId: input.taxAccountId ?? null }, reason: input.aiReason }, key),
   ];
 }};}

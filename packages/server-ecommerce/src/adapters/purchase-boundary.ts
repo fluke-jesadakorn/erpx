@@ -76,7 +76,7 @@ export async function withEcommercePurchasedCommand<Result extends Record<string
    await current(database,bound,command.review);
    const final=await source(database,actor,command.after);
    if(final.image!==after.image)throw new ApiError(409,'ECOMMERCE_SOURCE_CHANGED','The original Ecommerce source changed after its owner effects.');
-   const observed=await database.batch([...boundary.after]);boundary.observe?.(observed);
+   const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);
   });
   return result;
  });

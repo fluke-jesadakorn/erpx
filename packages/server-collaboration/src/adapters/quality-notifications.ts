@@ -21,7 +21,7 @@ const recipient = `m.company_id=h.company_id
  AND (h.status<>'awaiting_release' OR NOT iam_same_person(m.user_id,h.last_inspector,h.company_id))`;
 
 
-export function prepareQualityNotification(db:SqlDatabase,key:string,id:string){return db.prepare("SELECT 1").bind();}
+export function prepareQualityNotification(db:SqlDatabase,key:string,id:string){return db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,h.company_id,a.user_id,'quality_hold',h.id,h.version,'Quality handoff: review the source record',h.updated_at ${qualitySources.quality_notifications_inventory_quality_holds_h_from} ${identityaccessSources.quality_notifications_assignments_a_join} ON ((${eligible} AND h.status NOT IN ('released','cancelled','disposed')) OR (h.status IN ('released','cancelled','disposed') AND a.company_id=h.company_id AND a.user_id=h.created_by AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=h.branch_id)) AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'quality.read'))) WHERE h.id=? ON CONFLICT DO NOTHING`).bind(key,id);}
 export async function routeQualityAlertNotifications(db:SqlDatabase,now:number,scope?:{companyId:string;holdIds:string[]}){await db
     .prepare(
       `INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)

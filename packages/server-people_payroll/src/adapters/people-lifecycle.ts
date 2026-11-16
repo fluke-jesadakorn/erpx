@@ -252,7 +252,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient): PeopleLifecycl
                 revision,
             ]);
         },
-        stageSaveLifecycleEffect9(value: "retirement" | "other", id: string, companyId: string) { return database.prepare("SELECT 1").bind(); },
+        stageSaveLifecycleEffect9(value: "retirement" | "other", id: string, companyId: string) { return database.prepare("UPDATE people_lifecycle_cases SET departure_reason=? WHERE id=? AND company_id=?").bind(value, id, companyId); },
         readSaveLifecycleSettings(companyId: string) {
             return database.prepare("SELECT definition FROM people_lifecycle_settings WHERE company_id=?")
                 .bind(companyId)
@@ -260,11 +260,11 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient): PeopleLifecycl
                 definition: PeopleLifecycleData["settings"];
             }>();
         },
-        readSaveLifecycleManager(engagementId: string, companyId: string) { return database.prepare("SELECT 1").bind().first<{
+        readSaveLifecycleManager(engagementId: string, companyId: string) { return database.prepare("SELECT p.user_id FROM hr_engagements e JOIN hr_people p ON p.id=e.manager_person_id AND p.company_id=e.company_id WHERE e.id=? AND e.company_id=? AND p.status='active' AND p.merged_into_id IS NULL").bind(engagementId, companyId).first<{
             user_id: string | null;
         }>(); },
         guard46(...args) { return peopleLifecycleIdentityAccessFacts(database, client).guard46(...args); },
-        stageSaveLifecycleEffect10(taskId: string, companyId: string, id: string, value: string, owner: string | null, now: number, value2: boolean, lastWorkingDate: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr", kind2: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return database.prepare("SELECT 1").bind(); },
+        stageSaveLifecycleEffect10(taskId: string, companyId: string, id: string, value: string, owner: string | null, now: number, value2: boolean, lastWorkingDate: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr", kind2: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return database.prepare("INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged,due_date,responsibility,clearance_type) VALUES(?,?,?,'lifecycle',?,?,?,?,?,?,?)").bind(taskId, companyId, id, value, owner, now, value2, lastWorkingDate, kind, kind2); },
         ...peopleLifecycleNotificationEffects(database),
         stageSaveLifecycleEffect12(value: string, companyId: string, id: string, title: string, value2: string | null, now: number, privileged: boolean) {
             return database.prepare("INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged) VALUES(?,?,?,'lifecycle',?,?,?,?) ON CONFLICT(id) DO NOTHING")

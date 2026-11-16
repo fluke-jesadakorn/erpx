@@ -127,7 +127,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
             return db
                 .prepare("UPDATE finance_business_contracts SET status=?,reviewed_by=?,version=?,updated_at=? WHERE id=?")
                 .bind(status, userId, version, now, id);
-        }, async postedOwnerCredit(postedCorrectionId: string, companyId: string, userId: string, id: string) { const db = read(); return db.prepare("SELECT 1").bind().first<Row>(); }, async parentBill(parentId: unknown, companyId: string, contractId: string) {
+        }, async postedOwnerCredit(postedCorrectionId: string, companyId: string, userId: string, id: string) { const db = read(); return db.prepare("SELECT * FROM finance_billing_corrections WHERE id=? AND company_id=? AND status='posted' AND reviewed_by=? AND replacement_bill_id=?").bind(postedCorrectionId, companyId, userId, id).first<Row>(); }, async parentBill(parentId: unknown, companyId: string, contractId: string) {
             const db = read();
             return db
                 .prepare("SELECT b.*,i.status original_invoice_status,i.version original_invoice_version,i.journal_id original_journal_id,i.posted_at original_posted_at FROM finance_business_billing_runs b LEFT JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.id=? AND b.company_id=? AND b.contract_id=?")
@@ -188,7 +188,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .prepare("SELECT b.*,COALESCE(b.contract_content_json,c.content_json) content_json FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id WHERE b.id=? AND b.company_id=?")
                 .bind(billingId, companyId)
                 .first<Row>();
-        }, async postedCorrection(id: string | number | null) { const db = read(); return db.prepare("SELECT 1").bind().first(); }, async recognitionInvoice(invoice_id: string | number | null, companyId: string) {
+        }, async postedCorrection(id: string | number | null) { const db = read(); return db.prepare("SELECT 1 FROM finance_billing_corrections WHERE billing_run_id=? AND status='posted'").bind(id).first(); }, async recognitionInvoice(invoice_id: string | number | null, companyId: string) {
             const db = read();
             return db
                 .prepare("SELECT i.id,i.status,i.line_revision,i.subtotal_minor,i.tax_minor,i.currency,i.debit_account_id,i.credit_account_id,j.id journal_id,j.version journal_version,j.status journal_status,j.entry_date posted_date FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.id=? AND i.company_id=?")
@@ -307,7 +307,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC")
                 .bind(companyId)
                 .all<Row>();
-        }, async workspaceCorrections(companyId: string) { const db = read(); return db.prepare("SELECT 1").bind().all<Row>(); }, contractDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).contractDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); }, recognitionDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).recognitionDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); } };
+        }, async workspaceCorrections(companyId: string) { const db = read(); return db.prepare('SELECT * FROM finance_billing_corrections WHERE company_id=? ORDER BY created_at DESC LIMIT 500').bind(companyId).all<Row>(); }, contractDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).contractDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); }, recognitionDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).recognitionDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); } };
     return { repository, prepare, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, requirePermission: (actor, permission) => {
             try {
                 return requirePermission(actor, permission);

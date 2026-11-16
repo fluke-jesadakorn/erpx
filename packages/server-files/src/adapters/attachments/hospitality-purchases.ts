@@ -2,7 +2,7 @@ import {messagingAttachmentCommandBoundary,type MessagingAttachmentPurchase} fro
 import {ecommerceAttachmentCommandBoundary,type EcommerceAttachmentPurchase} from "@erpx/server-ecommerce/public/attachment-purchases";
 import {workTaskAttachmentCommandBoundary,type WorkTaskAttachmentPurchase} from "@erpx/server-operations/public/task-attachment-purchases";
 import {portalAttachmentCommandBoundary,type PortalAttachmentPurchase} from "@erpx/server-customer_authority/public/attachment-purchases";
-import {benefitAttachmentCommandBoundary,type BenefitAttachmentPurchase} from "@erpx/server-benefits/adapters/attachment-purchases";
+import {benefitAttachmentCommandBoundary,type BenefitAttachmentPurchase} from "@erpx/server-benefits/public/attachment-purchases";
 import {workforceAttachmentCommandBoundary,type WorkforceAttachmentPurchase} from "@erpx/server-people_payroll/public/workforce-attachment-purchases";
 import {crmAttachmentCommandBoundary,type CRMAttachmentPurchase} from "@erpx/server-crm/public/attachment-purchases";
 import {marketingAttachmentCommandBoundary,type MarketingAttachmentPurchase} from "@erpx/server-marketing/public/attachment-purchases";
@@ -60,7 +60,8 @@ async function hospitalityBoundary(database: SqlDatabase, scopes: readonly Hospi
     boundaries.push({ key, boundary: purchaseCommandBoundary(database, mode, key, scope)! });
   }
   if (!boundaries.length) return undefined;
-  return { before: boundaries.flatMap(item => item.boundary.before), after: [...boundaries.flatMap(item => item.boundary.after)],
+  return { before: boundaries.flatMap(item => item.boundary.before), after: [...boundaries.flatMap(item => item.boundary.after),
+    ...boundaries.map(item => database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],
     observe: boundaries.some(item => !!item.boundary.observe) ? observePurchaseResults : undefined };
 }
 

@@ -12,4 +12,4 @@ export function betaInvitationSources(db:SqlDatabase){return {prepareAcceptanceA
           id2,
           now,
         );},
-clearAcceptanceAssertions(key:string){return db.prepare("SELECT 1").bind();}};}
+clearAcceptanceAssertions(key:string){return db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key);}};}

@@ -18,7 +18,7 @@ function application() {
         readOperationsWorkspaceCandidatespoliciespeople(value: (string | null)[]) { return database.prepare(`SELECT e.* FROM operations_exceptions e WHERE ${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200`).bind(...value).all<Exception>(); },
         readOperationsWorkspaceCandidatespoliciespeople2(companyId: string) { return database.prepare("SELECT * FROM operations_queue_policies WHERE company_id=? AND NOT (jsonb_typeof(source_kinds_json::jsonb)='array' AND source_kinds_json::jsonb<>'[]'::jsonb AND source_kinds_json::jsonb <@ '[\"field_service_order\"]'::jsonb) ORDER BY area,revision DESC").bind(companyId).all<Row>(); },
         readOperationsWorkspaceCandidatespoliciespeople3(...args) { return OperationsExceptionsIdentityAccessFacts(database).readOperationsWorkspaceCandidatespoliciespeople3(...args); },
-        readOperationsExceptionDetailEffect(recordId: string) { return database.prepare("SELECT 1").bind().all<Row>(); } };
+        readOperationsExceptionDetailEffect(recordId: string) { return database.prepare("SELECT * FROM operations_exception_events WHERE exception_id=? ORDER BY version").bind(recordId).all<Row>(); } };
     return createOperationsExceptionsApplication({ repository, clock: { now: Date.now }, prepare: async (holding) => {
             database = (await nativeHoldingResources(holding)).write;
         }, requirePermission: (actor, permission) => fromNativeSync(() => requirePermission(actor, permission)), visibleSourceRecord: (...args) => fromNative(() => visibleSourceRecord(...args, database)) });

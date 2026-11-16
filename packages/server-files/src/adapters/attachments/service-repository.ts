@@ -14,7 +14,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentSets1: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<SetRow>(); },
+        }) => { return db.prepare("SELECT * FROM attachment_sets WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<SetRow>(); },
         readAttachmentLinks5: (facts: {
             id: string;
             companyId: string;
@@ -73,15 +73,15 @@ export function repository(db: SqlDatabase) {
         },
         lock8: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
         readAttachmentSets9: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<SetRow>(); },
+        }) => { return db.prepare("SELECT * FROM attachment_sets WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<SetRow>(); },
         readAttachmentEvents10: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first(); },
+        }) => { return db.prepare("SELECT 1 FROM attachment_events WHERE set_id=? AND company_id=? AND action='set.created' AND COALESCE((details_json::jsonb->>'compatibilityAdapter')::boolean,false)=true LIMIT 1").bind(facts.id, facts.companyId).first(); },
         readAttachmentSets11: (facts: {
             companyId: string;
             targetType: string;
@@ -133,7 +133,7 @@ export function repository(db: SqlDatabase) {
             arg5: "set.created";
             arg6: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)").bind(facts.arg1, facts.companyId, facts.id, facts.userId, facts.arg5, facts.arg6, facts.now); },
         readAttachmentLinks14: (facts: {
             supersedesLinkId: string;
             companyId: string;
@@ -143,7 +143,7 @@ export function repository(db: SqlDatabase) {
         }) => { return db.prepare(`SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND l.state='bound' AND s.company_id=? AND s.target_type=? AND s.target_id=? AND s.purpose_key=?`).bind(facts.supersedesLinkId, facts.companyId, facts.target_type, facts.target_id, facts.purpose_key).first(); },
         lock15: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
         readUploadIntents16: (facts: {
             token: string;
             companyId: string;
@@ -165,14 +165,14 @@ export function repository(db: SqlDatabase) {
         readAttachmentLinks17: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first("count"); },
+        }) => { return db.prepare("SELECT count(*) AS count FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')").bind(facts.setId, facts.companyId).first("count"); },
         readAttachmentStorageLedger18: (facts: {
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first("coalesce"); },
+        }) => { return db.prepare("SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')").bind(facts.companyId).first("coalesce"); },
         readUploadIntents19: (facts: {
             companyId: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind().first("coalesce"); },
+        }) => { return db.prepare("SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?").bind(facts.companyId, facts.now).first("coalesce"); },
         stepAttachmentLinks21: (facts: {
             linkId: string;
             setId: string;
@@ -181,7 +181,7 @@ export function repository(db: SqlDatabase) {
             userId: string;
             now: number;
             draftExpires: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_links(id,set_id,caption,state,supersedes_link_id,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,?,?,?)").bind(facts.linkId, facts.setId, facts.caption, facts.arg4, facts.userId, facts.now, facts.draftExpires); },
         stepUploadIntents22: (facts: {
             token: string;
             target_type: string;
@@ -206,7 +206,7 @@ export function repository(db: SqlDatabase) {
         stepAttachmentLinks23: (facts: {
             token: string;
             linkId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_links SET upload_intent_id=? WHERE id=?").bind(facts.token, facts.linkId); },
         stepAttachmentEvents24: (facts: {
             arg1: string;
             companyId: string;
@@ -216,7 +216,7 @@ export function repository(db: SqlDatabase) {
             arg6: "file.reserved";
             arg7: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(facts.arg1, facts.companyId, facts.linkId, facts.setId, facts.userId, facts.arg6, facts.arg7, facts.now); },
         readUploadIntents25: (facts: {
             uploadIntentId: string;
             userId: string;
@@ -229,22 +229,22 @@ export function repository(db: SqlDatabase) {
         readAttachments26: (facts: {
             attachmentId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?").bind(facts.attachmentId, facts.companyId).first<{
             checksum_sha256: string;
             source_state: AttachmentSourceState;
         }>(); },
         lock27: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
         readUploadIntents28: (facts: {
             uploadIntentId: string;
             userId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=? FOR UPDATE").bind(facts.uploadIntentId, facts.userId, facts.companyId).first<Record<string, unknown>>(); },
         readAttachments29: (facts: {
             attachmentId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?").bind(facts.attachmentId, facts.companyId).first<{
             checksum_sha256: string;
             source_state: AttachmentSourceState;
         }>(); },
@@ -272,7 +272,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentSets32: (facts: {
             attachment_set_id: unknown;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE").bind(facts.attachment_set_id, facts.companyId).first<{
             state: string;
         }>(); },
         stepAttachments33: (facts: {
@@ -303,7 +303,7 @@ export function repository(db: SqlDatabase) {
             now: number;
             uploadIntentId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE upload_intents SET status='uploaded',actual_bytes=?,checksum_sha256=?,detected_media_type=?,final_key=?,updated_at=? WHERE id=? AND company_id=? AND status='pending'").bind(facts.byteLength, facts.checksum, facts.detected, facts.objectKey, facts.now, facts.uploadIntentId, facts.companyId); },
         stepAttachmentLinks35: (facts: {
             attachmentId: string;
             attachment_link_id: unknown;
@@ -317,7 +317,7 @@ export function repository(db: SqlDatabase) {
             arg1: string;
             attachmentId: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,created_at) VALUES(?,?,1,'pending',?)").bind(facts.arg1, facts.attachmentId, facts.now); },
         stepAttachmentStorageLedger37: (facts: {
             arg1: string;
             companyId: string;
@@ -325,7 +325,7 @@ export function repository(db: SqlDatabase) {
             objectKey: string;
             byteLength: number;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES(?,?,?,'original',?,?,'stored',?)").bind(facts.arg1, facts.companyId, facts.attachmentId, facts.objectKey, facts.byteLength, facts.now); },
         stepAttachmentEvents38: (facts: {
             arg1: string;
             companyId: string;
@@ -336,7 +336,7 @@ export function repository(db: SqlDatabase) {
             arg7: "file.quarantined";
             arg8: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.arg1, facts.companyId, facts.attachmentId, facts.attachment_link_id, facts.attachment_set_id, facts.userId, facts.arg7, facts.arg8, facts.now); },
         readAttachmentLinks39: (facts: {
             linkId: string;
             companyId: string;
@@ -348,7 +348,7 @@ export function repository(db: SqlDatabase) {
         },
         readAttachmentScanAttempts40: (facts: {
             attachment_id: unknown;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT attempt,state,result_code,error_code,scanner_signature,scanner_definition_at,completed_at FROM attachment_scan_attempts WHERE attachment_id=? ORDER BY attempt DESC LIMIT 1").bind(facts.attachment_id).first<Record<string, unknown>>(); },
         writeAttachmentAccessEvents41: (facts: {
             arg1: string;
             companyId: string;
@@ -356,7 +356,7 @@ export function repository(db: SqlDatabase) {
             linkId: string;
             userId: string;
             arg6: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,variant,outcome,created_at) SELECT ?,?,?,?,?, 'status','allowed',? WHERE ?::text IS NOT NULL").bind(facts.arg1, facts.companyId, facts.attachment_id, facts.linkId, facts.userId, facts.arg6, facts.attachment_id).run(); },
         readAttachmentLinks42: (facts: {
             linkId: string;
             companyId: string;
@@ -374,7 +374,7 @@ export function repository(db: SqlDatabase) {
             userId: string;
             variant: "original" | "preview";
             arg7: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,variant,outcome,created_at) VALUES(?,?,?,?,?,?, 'allowed',?)").bind(facts.arg1, facts.companyId, facts.attachment_id, facts.linkId, facts.userId, facts.variant, facts.arg7).run(); },
         writeAttachmentAccessEvents44: (facts: {
             arg1: string;
             companyId: string;
@@ -384,30 +384,30 @@ export function repository(db: SqlDatabase) {
             variant: "original" | "preview";
             arg7: string;
             arg8: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,variant,outcome,reason,created_at) VALUES(?,?,?,?,?,?,'denied',?,?)").bind(facts.arg1, facts.companyId, facts.attachment_id, facts.linkId, facts.userId, facts.variant, facts.arg7, facts.arg8).run(); },
         readAttachmentLinks45: (facts: {
             linkId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?").bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
         readAttachmentLinks46: (facts: {
             linkId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=? FOR UPDATE").bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
         lock49: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
         readAttachmentEvents50: (facts: {
             eventId: string;
             companyId: string;
             userId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT set_id,details_json FROM attachment_events WHERE id=? AND company_id=? AND actor_id=? AND action='sanitization.attested'").bind(facts.eventId, facts.companyId, facts.userId).first<{
             set_id: string | null;
             details_json: string;
         }>(); },
         readAttachmentSets51: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE").bind(facts.setId, facts.companyId).first<{
             state: string;
         }>(); },
         readAttachmentLinks52: (facts: {
@@ -435,12 +435,12 @@ export function repository(db: SqlDatabase) {
             arg5: "sanitization.attested";
             details: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)").bind(facts.eventId, facts.companyId, facts.setId, facts.userId, facts.arg5, facts.details, facts.now); },
         stepAttachmentSets54: (facts: {
             now: number;
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_sets SET updated_at=? WHERE id=? AND company_id=? AND state='draft'").bind(facts.now, facts.setId, facts.companyId); },
         readAttachmentLinks55: (facts: {
             sourceLinkId: string;
             companyId: string;
@@ -450,15 +450,15 @@ export function repository(db: SqlDatabase) {
         },
         lock56: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
         readAttachmentSets57: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<SetRow>(); },
+        }) => { return db.prepare("SELECT * FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE").bind(facts.setId, facts.companyId).first<SetRow>(); },
         readAttachmentLinks58: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT l.set_id,l.attachment_id,l.caption FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?").bind(facts.id, facts.companyId).first<{
             set_id: string;
             attachment_id: string;
             caption: string | null;
@@ -467,13 +467,13 @@ export function repository(db: SqlDatabase) {
             setId: string;
             attachment_id: unknown;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND l.attachment_id=? AND s.company_id=? AND l.state IN ('draft','bound')").bind(facts.setId, facts.attachment_id, facts.companyId).first<{
             id: string;
         }>(); },
         readAttachmentLinks60: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first("count"); },
+        }) => { return db.prepare("SELECT count(*) FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')").bind(facts.setId, facts.companyId).first("count"); },
         stepAttachmentLinks61: (facts: {
             id: string;
             setId: string;
@@ -482,7 +482,7 @@ export function repository(db: SqlDatabase) {
             userId: string;
             now: number;
             arg7: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,caption,state,created_by,created_at,expires_at) VALUES(?,?,?,?,'draft',?,?,?)").bind(facts.id, facts.setId, facts.attachment_id, facts.caption, facts.userId, facts.now, facts.arg7); },
         stepAttachmentEvents62: (facts: {
             arg1: string;
             companyId: string;
@@ -493,7 +493,7 @@ export function repository(db: SqlDatabase) {
             arg7: "link.reused";
             arg8: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.arg1, facts.companyId, facts.attachment_id, facts.id, facts.setId, facts.userId, facts.arg7, facts.arg8, facts.now); },
         readAttachmentSets63: (facts: {
             companyId: string;
             setIds: (string)[];
@@ -532,13 +532,13 @@ export function repository(db: SqlDatabase) {
             bindingId: string;
             link_id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_links l SET state='bound',bound_at=?,binding_type=?,binding_id=? FROM attachment_sets s WHERE l.id=? AND l.set_id=s.id AND s.company_id=? AND l.state='draft'").bind(facts.now, facts.bindingType, facts.bindingId, facts.link_id, facts.companyId); },
         stepAttachmentSets67: (facts: {
             now: number;
             commandId: string;
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_sets SET state='bound',bound_at=?,bound_command_id=?,updated_at=? WHERE id=? AND company_id=? AND state='draft'").bind(facts.now, facts.commandId, facts.now, facts.id, facts.companyId); },
         stepAttachmentEvents68: (facts: {
             arg1: string;
             companyId: string;
@@ -547,7 +547,7 @@ export function repository(db: SqlDatabase) {
             arg5: "set.bound";
             arg6: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)").bind(facts.arg1, facts.companyId, facts.id, facts.userId, facts.arg5, facts.arg6, facts.now); },
         readAttachmentLinks75: (facts: {
             sourceLinkId: string;
             companyId: string;
@@ -560,19 +560,19 @@ export function repository(db: SqlDatabase) {
         readAttachmentPublications76: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
         lock77: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
         readAttachmentPublications78: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
         readAttachmentPublications79: (facts: {
             companyId: string;
             targetType: string;
             targetId: string;
-        }) => { return db.prepare("SELECT 1").bind().first("next_revision"); },
+        }) => { return db.prepare("SELECT COALESCE(max(revision),0)+1 AS next_revision FROM attachment_publications WHERE company_id=? AND target_type=? AND target_id=?").bind(facts.companyId, facts.targetType, facts.targetId).first("next_revision"); },
         stepAttachmentPublications80: (facts: {
             id: string;
             companyId: string;
@@ -598,7 +598,7 @@ export function repository(db: SqlDatabase) {
             targetId: string;
             userId: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_publication_orders(company_id,target_type,target_id,version,updated_by,updated_at) VALUES(?,?,?,1,?,?) ON CONFLICT(company_id,target_type,target_id) DO NOTHING").bind(facts.companyId, facts.targetType, facts.targetId, facts.userId, facts.now); },
         stepAttachmentStorageLedger82: (facts: {
             arg1: string;
             companyId: string;
@@ -606,7 +606,7 @@ export function repository(db: SqlDatabase) {
             key: string;
             byteLength: number;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES(?,?,?,'publication',?,?,'stored',?)").bind(facts.arg1, facts.companyId, facts.attachment_id, facts.key, facts.byteLength, facts.now); },
         stepAttachmentEvents83: (facts: {
             arg1: string;
             companyId: string;
@@ -616,10 +616,10 @@ export function repository(db: SqlDatabase) {
             arg6: "publication.created";
             arg7: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(facts.arg1, facts.companyId, facts.attachment_id, facts.sourceLinkId, facts.userId, facts.arg6, facts.arg7, facts.now); },
         readAttachmentPublications84: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=?").bind(facts.id).first<Record<string, unknown>>(); },
         readAttachmentPublications85: (facts: {
             companyId: string;
             targetType: string;
@@ -634,7 +634,7 @@ export function repository(db: SqlDatabase) {
             companyId: string;
             targetType: string;
             targetId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?").bind(facts.companyId, facts.targetType, facts.targetId).first<{
             version: number;
         }>(); },
         readPublicationRevocation: (facts:{eventId:string;companyId:string;userId:string;publicationId:string;reason:string;}) => db.prepare(`SELECT event.id FROM attachment_events event JOIN attachment_publications publication
@@ -655,14 +655,14 @@ export function repository(db: SqlDatabase) {
         readAttachmentPublications88: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=? AND company_id=? FOR UPDATE").bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
         stepAttachmentPublications89: (facts: {
             userId: string;
             now: number;
             text: string;
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_publications SET state='revoked',revoked_by=?,revoked_at=?,revocation_reason=? WHERE id=? AND company_id=? AND state='approved'").bind(facts.userId, facts.now, facts.text, facts.id, facts.companyId); },
         stepAttachmentEvents90: (facts: {
             arg1: string;
             companyId: string;
@@ -671,36 +671,36 @@ export function repository(db: SqlDatabase) {
             arg5: "publication.revoked";
             arg6: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,link_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING").bind(facts.arg1, facts.companyId, facts.source_link_id, facts.userId, facts.arg5, facts.arg6, facts.now); },
         lock92: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
         readAttachmentEvents93: (facts: {
             eventId: string;
             companyId: string;
             userId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT details_json FROM attachment_events WHERE id=? AND company_id=? AND actor_id=? AND action='publication.reordered'").bind(facts.eventId, facts.companyId, facts.userId).first<{
             details_json: string;
         }>(); },
         readAttachmentPublicationOrders94: (facts: {
             companyId: string;
             targetType: string;
             targetId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=? FOR UPDATE").bind(facts.companyId, facts.targetType, facts.targetId).first<{
             version: number;
         }>(); },
         readAttachmentPublications95: (facts: {
             companyId: string;
             targetType: string;
             targetId: string;
-        }) => { return db.prepare("SELECT 1").bind().all<{
+        }) => { return db.prepare("SELECT id FROM attachment_publications WHERE company_id=? AND target_type=? AND target_id=? AND state<>'revoked' ORDER BY id").bind(facts.companyId, facts.targetType, facts.targetId).all<{
             id: string;
         }>(); },
         stepAttachmentPublications96: (facts: {
             ordinal: number;
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_publications SET ordinal=? WHERE id=? AND company_id=?").bind(facts.ordinal, facts.id, facts.companyId); },
         stepAttachmentPublicationOrders97: (facts: {
             companyId: string;
             targetType: string;
@@ -708,7 +708,7 @@ export function repository(db: SqlDatabase) {
             userId: string;
             now: number;
             expectedVersion: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_publication_orders(company_id,target_type,target_id,version,updated_by,updated_at) VALUES(?,?,?,2,?,?) ON CONFLICT(company_id,target_type,target_id) DO UPDATE SET version=attachment_publication_orders.version+1,updated_by=excluded.updated_by,updated_at=excluded.updated_at WHERE attachment_publication_orders.version=?").bind(facts.companyId, facts.targetType, facts.targetId, facts.userId, facts.now, facts.expectedVersion); },
         stepAttachmentEvents98: (facts: {
             eventId: string;
             companyId: string;
@@ -716,7 +716,7 @@ export function repository(db: SqlDatabase) {
             arg4: "publication.reordered";
             arg5: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?)").bind(facts.eventId, facts.companyId, facts.userId, facts.arg4, facts.arg5, facts.now); },
         readAttachmentPublications99: (facts: {
             id: string;
             companyId: string;
@@ -728,7 +728,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentPublications100: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT state FROM attachment_publications WHERE id=? AND company_id=? FOR UPDATE").bind(facts.id, facts.companyId).first<{
             state: string;
         }>(); },
         stepAttachmentPublications102: (facts: {
@@ -736,7 +736,7 @@ export function repository(db: SqlDatabase) {
             now: number;
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_publications SET state='approved',approved_by=?,approved_at=? WHERE id=? AND company_id=? AND state='draft'").bind(facts.userId, facts.now, facts.id, facts.companyId); },
         stepAttachmentEvents103: (facts: {
             arg1: string;
             companyId: string;
@@ -745,10 +745,10 @@ export function repository(db: SqlDatabase) {
             arg5: "publication.approved";
             arg6: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,link_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING").bind(facts.arg1, facts.companyId, facts.source_link_id, facts.userId, facts.arg5, facts.arg6, facts.now); },
         readAttachmentPublications105: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT derivative_object_key,derivative_media_type,derivative_checksum_sha256,alt_text,revision FROM attachment_publications WHERE id=? AND state='approved'").bind(facts.id).first<{
             derivative_object_key: string;
             derivative_media_type: string;
             derivative_checksum_sha256: string;
@@ -764,11 +764,11 @@ export function repository(db: SqlDatabase) {
             arg4: string | null;
             arg5: string | null;
         }) => {
-            return db.prepare("SELECT 1").bind().first<Record<string, unknown>>();
+            return db.prepare('SELECT * FROM erpx_files_claim_legacy_scan(?,?,?,?)').bind(facts.now, facts.arg2, facts.lease, facts.arg4).first<Record<string, unknown>>();
         },
         readAttachments107: (facts: {
             attachment_id: unknown;
-        }) => { return db.prepare("SELECT 1").bind().first<Record<string, unknown>>(); },
+        }) => { return db.prepare("SELECT * FROM attachments WHERE id=?").bind(facts.attachment_id).first<Record<string, unknown>>(); },
         stepAttachmentScanAttempts109: (facts: {
             engine: string;
             signature: string | null;
@@ -776,13 +776,13 @@ export function repository(db: SqlDatabase) {
             arg4: number;
             id: unknown;
             lease: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_scan_attempts SET state='infected',scanner_engine=?,scanner_signature=?,scanner_definition_at=?,result_code='FOUND',completed_at=?,claim_until=NULL WHERE id=? AND lease_token=?").bind(facts.engine, facts.signature, facts.definitionUpdatedAt, facts.arg4, facts.id, facts.lease); },
         stepAttachments110: (facts: {
             detected: "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/pdf" | "text/csv" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
             arg2: number;
             definitionUpdatedAt: number;
             id: unknown;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachments SET source_state='malware_rejected',detected_media_type=COALESCE(detected_media_type,?),scanned_at=?,scanner_definition_at=? WHERE id=?").bind(facts.detected, facts.arg2, facts.definitionUpdatedAt, facts.id); },
         stepAttachmentEvents111: (facts: {
             arg1: string;
             company_id: unknown;
@@ -791,14 +791,14 @@ export function repository(db: SqlDatabase) {
             arg5: "scan.malware_rejected";
             arg6: string;
             arg7: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)").bind(facts.arg1, facts.company_id, facts.id, facts.arg4, facts.arg5, facts.arg6, facts.arg7); },
         stepAttachmentScanAttempts112: (facts: {
             engine: string;
             definitionUpdatedAt: number;
             completed: number;
             id: unknown;
             lease: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_scan_attempts SET state='clean',scanner_engine=?,scanner_signature=NULL,scanner_definition_at=?,result_code='OK',completed_at=?,claim_until=NULL WHERE id=? AND lease_token=?").bind(facts.engine, facts.definitionUpdatedAt, facts.completed, facts.id, facts.lease); },
         stepAttachments113: (facts: {
             detected: "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/pdf" | "text/csv" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
             completed: number;
@@ -808,15 +808,15 @@ export function repository(db: SqlDatabase) {
             previewChecksum: string | null;
             arg7: number | null;
             id: unknown;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachments SET source_state='available',detected_media_type=COALESCE(detected_media_type,?),scanned_at=?,scanner_definition_at=?,preview_object_key=?,preview_media_type=?,preview_checksum_sha256=?,preview_bytes=? WHERE id=?").bind(facts.detected, facts.completed, facts.definitionUpdatedAt, facts.previewKey, facts.arg5, facts.previewChecksum, facts.arg7, facts.id); },
         stepUploadIntents114: (facts: {
             completed: number;
             upload_id: unknown;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE upload_intents SET status='ready',updated_at=? WHERE id=?").bind(facts.completed, facts.upload_id); },
         stepAttachmentLinks115: (facts: {
             arg1: number;
             upload_id: unknown;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_links SET expires_at=? WHERE upload_intent_id=? AND state='draft'").bind(facts.arg1, facts.upload_id); },
         stepAttachmentEvents116: (facts: {
             arg1: string;
             company_id: unknown;
@@ -825,7 +825,7 @@ export function repository(db: SqlDatabase) {
             arg5: "scan.available";
             arg6: string;
             completed: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)").bind(facts.arg1, facts.company_id, facts.id, facts.arg4, facts.arg5, facts.arg6, facts.completed); },
         stepAttachmentStorageLedger117: (facts: {
             arg1: string;
             company_id: unknown;
@@ -833,16 +833,16 @@ export function repository(db: SqlDatabase) {
             previewKey: string;
             byteLength: number;
             completed: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES(?,?,?,'preview',?,?,'stored',?)").bind(facts.arg1, facts.company_id, facts.id, facts.previewKey, facts.byteLength, facts.completed); },
         stepAttachmentScanAttempts118: (facts: {
             code: string;
             completed: number;
             id: unknown;
             lease: string;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachment_scan_attempts SET state='error',error_code=?,completed_at=?,claim_until=NULL WHERE id=? AND lease_token=?").bind(facts.code, facts.completed, facts.id, facts.lease); },
         stepAttachments119: (facts: {
             id: unknown;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("UPDATE attachments SET source_state='scan_error' WHERE id=?").bind(facts.id); },
         stepAttachmentEvents120: (facts: {
             arg1: string;
             company_id: unknown;
@@ -851,21 +851,21 @@ export function repository(db: SqlDatabase) {
             arg5: "scan.error";
             arg6: string;
             completed: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)").bind(facts.arg1, facts.company_id, facts.id, facts.arg4, facts.arg5, facts.arg6, facts.completed); },
         stepAttachmentScanAttempts121: (facts: {
             arg1: string;
             id: unknown;
             arg3: number;
             arg4: number;
-        }) => { return db.prepare("SELECT 1").bind(); },
+        }) => { return db.prepare("INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,created_at) VALUES(?,?,?,'pending',?)").bind(facts.arg1, facts.id, facts.arg3, facts.arg4); },
         readAttachments122: (facts: {
             attachmentId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT source_state FROM attachments WHERE id=?").bind(facts.attachmentId).first<{
             source_state: AttachmentSourceState;
         }>(); },
         readAttachments123: (facts: {
             attachmentId: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT source_state,legal_hold FROM attachments WHERE id=?").bind(facts.attachmentId).first<{
             source_state: string;
             legal_hold: number;
         }>(); },
@@ -919,7 +919,7 @@ export function repository(db: SqlDatabase) {
             arg6: "link.expired";
             arg7: "{}";
             now: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) SELECT ?,company_id,?,?,?,?,?,?,? FROM attachment_sets WHERE id=?").bind(facts.arg1, facts.attachment_id, facts.id, facts.set_id, facts.arg5, facts.arg6, facts.arg7, facts.now, facts.set_id).run(); },
         writeUploadIntents129: (facts: {
             now: number;
         }) => {
@@ -945,7 +945,7 @@ export function repository(db: SqlDatabase) {
             company_id: string;
             id: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,'system:jobs','set.expired','{}',?)").bind(facts.arg1, facts.company_id, facts.id, facts.now).run(); },
         readAttachmentLinks133: (facts: {
             company_id: string;
             target_id: string;
@@ -967,7 +967,7 @@ export function repository(db: SqlDatabase) {
             id: string;
             set_id: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,'system:jobs','link.expired','{}',?)").bind(facts.arg1, facts.company_id, facts.attachment_id, facts.id, facts.set_id, facts.now).run(); },
         writeUploadIntents135: (facts: {
             now: number;
             company_id: string;
@@ -999,7 +999,7 @@ export function repository(db: SqlDatabase) {
             company_id: string;
             id: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,'system:jobs','set.expired','{}',?)").bind(facts.arg1, facts.company_id, facts.id, facts.now).run(); },
         readAttachments138: (facts: {
             now: number;
         }) => {
@@ -1018,29 +1018,29 @@ export function repository(db: SqlDatabase) {
         },
         lock139: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
-        lock140: () => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        lock140: () => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").bind().run(); },
         readAttachments141: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT id FROM attachments WHERE id=? AND source_state='available' FOR UPDATE").bind(facts.id).first<{
             id: string;
         }>(); },
         readAttachments142: (facts: {
             now: number;
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("UPDATE attachments SET source_state='destroyed',destroyed_at=? WHERE id=? AND source_state='available' AND legal_hold=0 RETURNING company_id").bind(facts.now, facts.id).first<{
             company_id: string;
         }>(); },
         writeAttachmentStorageLedger143: (facts: {
             now: number;
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("UPDATE attachment_storage_ledger SET state='destroyed',destroyed_at=? WHERE attachment_id=? AND state<>'destroyed'").bind(facts.now, facts.id).run(); },
         writeAttachmentEvents144: (facts: {
             arg1: string;
             company_id: string;
             id: string;
             now: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,'system:jobs','source.destroyed','{}',?)").bind(facts.arg1, facts.company_id, facts.id, facts.now).run(); },
         readAttachments145: () => {
             return db.prepare(`SELECT a.id,a.company_id,a.object_key,a.preview_object_key FROM attachments a
     WHERE a.source_state='destroyed' AND a.legal_hold=0 AND NOT erpx_files_field_attachment_owned(a.id)
@@ -1054,7 +1054,7 @@ export function repository(db: SqlDatabase) {
         },
         readAttachments148: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().first<{
+        }) => { return db.prepare("SELECT company_id,object_key,preview_object_key,source_state,legal_hold FROM attachments WHERE id=? FOR UPDATE").bind(facts.id).first<{
             company_id: string;
             object_key: string;
             preview_object_key: string | null;
@@ -1063,10 +1063,10 @@ export function repository(db: SqlDatabase) {
         }>(); },
         readAttachmentEvents149: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().first(); },
+        }) => { return db.prepare("SELECT 1 FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(facts.id).first(); },
         readAttachmentStorageLedger150: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT 1").bind().all<{
+        }) => { return db.prepare("SELECT object_key FROM attachment_storage_ledger WHERE attachment_id=?").bind(facts.id).all<{
             object_key: string;
         }>(); },
         writeAttachmentEvents151: (facts: {
@@ -1074,13 +1074,13 @@ export function repository(db: SqlDatabase) {
             company_id: string;
             id: string;
             arg4: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,'system:jobs','source.bytes_deleted','{}',?) ON CONFLICT(id) DO NOTHING").bind(facts.eventId, facts.company_id, facts.id, facts.arg4).run(); },
         writeAttachmentEvents152: (facts: {
             arg1: string;
             id: string;
             arg3: string;
             arg4: number;
-        }) => { return db.prepare("SELECT 1").bind().run(); },
+        }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) SELECT ?,company_id,?,'system:jobs','source.byte_delete_failed',?,? FROM attachments WHERE id=?").bind(facts.arg1, facts.id, facts.arg3, facts.arg4, facts.id).run(); },
         bindingGuard1: (facts: {
             commandId: string;
             step: string;

@@ -39,7 +39,7 @@ export function assertAttachmentReadRoute(selected:AttachmentReadRoute|null,actu
 }
 export async function requirePrivateAttachmentReaderCurrent(database:SqlDatabase,actor:WorkContext){
  const key=`private-file-byte-read:${randomUUID()}`;
- try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key)]);}
+ try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);}
  catch(error){let cause=error;for(let depth=0;depth<5&&cause&&typeof cause==='object';depth++){const item=cause as {code?:string;cause?:unknown};if(item.code==='23514')throw attachmentReadChanged();cause=item.cause;}throw error;}
 }
 /** Called only after a lazy FileStore object was consumed inside the owned

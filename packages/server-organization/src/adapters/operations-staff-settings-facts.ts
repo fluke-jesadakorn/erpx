@@ -15,7 +15,7 @@ export function StaffSettingsOrganizationFacts(database: SqlDatabase) {
                 version: number;
             }>();
         },
-        readSaveLevelPrevious(id: string, companyId: string) { return database.prepare("SELECT 1").bind().first<{
+        readSaveLevelPrevious(id: string, companyId: string) { return database.prepare("SELECT level_number FROM staff_levels WHERE id=? AND company_id=?").bind(id, companyId).first<{
             level_number: number | null;
         }>(); },
         guard5(key: string, value: "level-version", id: string, companyId: string, expectedVersion: number) {

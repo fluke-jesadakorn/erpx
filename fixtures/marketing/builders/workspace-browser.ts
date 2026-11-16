@@ -3,8 +3,7 @@ import {join} from 'node:path';
 import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
 import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
 import {seedExpenseCompany} from '../../expenses/company';
-import {createMarketingAsset} from '../../../tests/support/helpers/marketing-asset-seed';
-import {changeMarketing} from '@erpx/server-marketing/public/marketing';
+import {createMarketingAsset,changeMarketing} from '@erpx/server-marketing/public/marketing';
 
 /** One independently reviewed consent form; no creative/provider prerequisites. */
 export async function seedWorkspaceForms(input:{run:string;directory:string;db:PostgresDatabase;files:FileStore}){

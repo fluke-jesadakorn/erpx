@@ -12,5 +12,5 @@ export function posImagesCommerceFacts(db: SqlDatabase) {
 /** Establish the native product source before the POS private-read snapshot. */
 export function posImageProductSourceLocks(db:SqlDatabase){return db.prepare('LOCK TABLE commerce_products IN SHARE ROW EXCLUSIVE MODE');}
 export function posImageProductSourceImage(db:SqlDatabase,companyId:string,productId:string){
-    return db.prepare("SELECT 1").bind().first<string>('image');
+    return db.prepare('SELECT to_jsonb(product)::text image FROM commerce_products product WHERE product.id=? AND product.company_id=?').bind(productId,companyId).first<string>('image');
 }

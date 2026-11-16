@@ -10,7 +10,7 @@ export function fieldServiceAssetSourceReadLocks(database:SqlDatabase) {
 }
 /** Private access-audit effects can write a source; lease before its snapshot. */
 export function fieldServiceAssetAttachmentSourceLocks(database:SqlDatabase){return database.prepare('LOCK TABLE operational_assets IN SHARE ROW EXCLUSIVE MODE');}
-export function fieldServiceAssetAttachmentSourceImage(database:SqlDatabase,companyId:string,id:string){return database.prepare("SELECT 1").bind().first<string>('image');}
+export function fieldServiceAssetAttachmentSourceImage(database:SqlDatabase,companyId:string,id:string){return database.prepare('SELECT to_jsonb(source)::text image FROM operational_assets source WHERE source.id=? AND source.company_id=?').bind(id,companyId).first<string>('image');}
 
 /** Current actor scope and asset lifecycle apply to new Service links as well as their picker. */
 export function fieldServiceAssetReferencePredicate(alias: "a" = "a") {

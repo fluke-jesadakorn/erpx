@@ -7,7 +7,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { type PreviewAssignmentRow } from '@erpx/server-runtime/public/executive/report-contract';
 export function executiveReportSources(database: SqlDatabase) {
-    return { readReportAccessEffect(companyId: string, userId: string) { return database.prepare("SELECT 1").bind().first(); }, readReportLibraryAccessSetup(now: number, now2: number, now3: number, companyId: string) {
+    return { readReportAccessEffect(companyId: string, userId: string) { return database.prepare("SELECT 1 FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.user_id=? AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) LIMIT 1").bind(companyId, userId).first(); }, readReportLibraryAccessSetup(now: number, now2: number, now3: number, companyId: string) {
             return database.prepare(`SELECT DISTINCT p.id,p.legal_name name,l.level_number level,
     EXISTS(SELECT 1 ${identityaccessFinalSources.executive_report_sources_assignments_a_from} WHERE a.company_id=p.company_id AND a.user_id=p.user_id AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'executive.access') AND iam_role_allows(a.role,a.company_id,'executive.report.create')) ready
     FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id ${organizationFinalSources.executive_report_sources_staff_levels_l_join} ON l.id=e.level_id AND l.company_id=e.company_id
@@ -37,7 +37,7 @@ export function executiveReportSources(database: SqlDatabase) {
       AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))
       AND iam_principal_active(p.user_id,p.company_id,?) LIMIT 1`).bind(companyId, recipientId, now).first();
         }, readRecipientPreviewContextRecipient(companyId: string, recipientId: string) {
-            return database.prepare("SELECT 1").bind().first<{
+            return database.prepare("SELECT legal_name FROM hr_people WHERE company_id=? AND user_id=? AND status='active' AND merged_into_id IS NULL").bind(companyId, recipientId).first<{
                 legal_name: string;
             }>();
         }, readOwnershipCandidatesRows(companyId: string, userId: string, now: number, now2: number, now3: number, now4: number) {

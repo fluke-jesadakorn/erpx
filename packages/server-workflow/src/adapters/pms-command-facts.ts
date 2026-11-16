@@ -8,6 +8,6 @@ export function pmsWorkflowFacts(db: SqlDatabase) {
     return {
         deleteCommandAssertions: (facts: {
             id: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, "SELECT 1", facts.id)
+        }) => run(db, "DELETE FROM command_assertions WHERE command_id=?", facts.id)
     };
 }

@@ -77,9 +77,11 @@ function application(db: SqlDatabase) {
     JOIN inbox_events e ON e.id=d.event_id WHERE d.id=? AND d.company_id=? AND d.user_id=?`)
                 .bind(id, companyId, userId).first<Candidate>();
         }, async changeDeliveryState(readAt: number | null, archivedAt: number | null, id: string, companyId: string, userId: string) {
-            return db.prepare("SELECT 1").bind().run();
+            return db.prepare("UPDATE inbox_deliveries SET read_at=?,archived_at=? WHERE id=? AND company_id=? AND user_id=?")
+                .bind(readAt, archivedAt, id, companyId, userId).run();
         }, async changeLegacyState(readAt: number | null, id: string, companyId: string, userId: string) {
-            return db.prepare("SELECT 1").bind().run();
+            return db.prepare("UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?")
+                .bind(readAt, id, companyId, userId).run();
         }, async recentNoticeCount(companyId: string, userId: string, value: number) {
             return db.prepare("SELECT count(*)::int n FROM inbox_notices WHERE company_id=? AND sender_user_id=? AND created_at>?")
                 .bind(companyId, userId, value).first<{
@@ -107,7 +109,8 @@ function application(db: SqlDatabase) {
             return db.prepare("INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at) VALUES(?,?,?,?,?) ON CONFLICT(event_id,user_id) DO NOTHING")
                 .bind(value, id, company_id, user_id, now).run();
         }, async completeNoticeTarget(now: number, notice_id: string, user_id: string) {
-            return db.prepare("SELECT 1").bind().run();
+            return db.prepare("UPDATE inbox_notice_targets SET delivered_at=? WHERE notice_id=? AND user_id=? AND delivered_at IS NULL")
+                .bind(now, notice_id, user_id).run();
         }, async pendingMetrics() {
             return db.prepare(`SELECT count(*)::int count,min(n.created_at) oldest
     FROM inbox_notice_targets t JOIN inbox_notices n ON n.id=t.notice_id WHERE t.delivered_at IS NULL`)
@@ -169,7 +172,7 @@ export function changeInboxState(db: SqlDatabase, actor: WorkContext, id: string
 export function markStaffNotificationRead(db:SqlDatabase,actor:WorkContext,id:string,key:string,now=Date.now()){
     return exposed(async()=>{
         if(await nativeInboxDelivery(db,actor,id))return nativeFieldInboxState(actor,id,'{"read":true}',key);
-        return db.prepare("SELECT 1").bind().run();
+        return db.prepare("UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?").bind(now,id,actor.companyId,actor.userId).run();
     });
 }
 export function drainInboxNotices(db: SqlDatabase) { return exposed(() => application(db).drainInboxNotices()); }

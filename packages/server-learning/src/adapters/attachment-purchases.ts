@@ -31,7 +31,7 @@ export async function learningAttachmentPurchaseScope(database:SqlDatabase,actor
 export async function authorizeLearningAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){
  const scope=await learningAttachmentPurchaseScope(database,actor,type,id);if(!scope)return;
  const key=`learning-file-read:${randomUUID()}`;
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
  await checkPurchasedCapability(database,await learningPackageEnforcementMode(),{companyId:scope.companyId,capability:scope.capability,purpose:operation==="read"?"history":scope.purpose});
 }
 export async function learningAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly LearningAttachmentPurchase[]){
@@ -56,8 +56,8 @@ export async function learningAttachmentCommandBoundary(database:SqlDatabase,sco
   const writerArgs=scope.targetType==="learning_course"?[actor.role,actor.companyId]:[actor.role,actor.companyId,actor.userId];
   const recordScope=scope.targetType==="learning_course"?"TRUE":"(?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)";
   const scopeArgs=scope.targetType==="learning_course"?[]:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
-  return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),assertion(database,key,"learning-file-source",`EXISTS(SELECT 1 FROM (${source(scope.targetType,scope.ownedCompletion)}) learning_file_source WHERE image=? AND ${recordScope} AND ${writer})`,[scope.targetId,scope.companyId,scope.witness,...scopeArgs,...writerArgs])];
+  return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),assertion(database,key,"learning-file-source",`EXISTS(SELECT 1 FROM (${source(scope.targetType,scope.ownedCompletion)}) learning_file_source WHERE image=? AND ${recordScope} AND ${writer})`,[scope.targetId,scope.companyId,scope.witness,...scopeArgs,...writerArgs]),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)];
  });
- return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after)],observe:mode==="shadow"?observePurchaseResults:undefined};
+ return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
 }
 export function learningAttachmentFailure(error:unknown){let current=error;for(let depth=0;depth<5&&current&&typeof current==="object";depth++){const item=current as {code?:string;detail?:string;cause?:unknown};if(item.code==="23514"&&item.detail?.includes("learning-file-"))return new ApiError(409,"LEARNING_ATTACHMENT_CHANGED","The Learning file source or current authority changed.");current=item.cause;}return null;}

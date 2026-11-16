@@ -31,7 +31,7 @@ export async function withPmsCounterPurchasedTransaction<Result>(owner: Transact
       await flushFinanceDeferredEffects(transaction);
       if (input.actor) await assertPmsProviderAuthority(transaction, input.actor, input.permission);
       const observed = await transaction.batch([...boundaries.flatMap(boundary => boundary.after),
-        transaction.prepare("SELECT 1")]);
+        transaction.prepare(`DELETE FROM command_assertions WHERE command_id IN (${capabilities.map(() => "?").join(",")})`).bind(...capabilities.map((_, index) => `${key}:${index}`))]);
       boundaries[0]?.observe?.(observed);
       return result;
     });

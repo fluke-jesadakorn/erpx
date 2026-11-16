@@ -167,7 +167,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
         deleteFinanceAllocations: (facts: {
             id: string;
             companyId: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "DELETE FROM finance_allocations WHERE invoice_id=? AND company_id=?", facts.id, facts.companyId),
         updateFinanceInvoices: (facts: {
             outstanding: number;
             outstanding2: number;
@@ -185,7 +185,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             n: number;
             userId: string;
             fact6: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)", facts.fact0, facts.companyId, facts.id, facts.id2, facts.n, facts.userId, facts.fact6),
         readFinanceParties2: (facts: {
             partyId: string;
             companyId: string;

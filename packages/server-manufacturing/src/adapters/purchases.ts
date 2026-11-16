@@ -17,7 +17,7 @@ export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolea
 /** Transient guard rows are keyed by the command that staged them. Every
  * purchase/attachment/posting boundary cleans them in the same before/after
  * batch, so the statement lives in one place instead of being copied. */
-export function clearCommandAssertions(database:SqlDatabase,key:string){return database.prepare("SELECT 1").bind();}
+export function clearCommandAssertions(database:SqlDatabase,key:string){return database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key);}
 export type ManufacturingPurchaseTarget={kind:"specification"|"scenario"|"recommendation"|"order"|"resource"|"accounting";id:string};
 export const manufacturingPurchaseSpecificationRows=`SELECT s.id,s.company_id,NULL::text branch_id,false advanced,
  jsonb_build_object('specification',to_jsonb(s)-'status'-'version'-'updated_at'-'reviewed_by','lines',COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=s.id),'[]'::jsonb),'products',COALESCE((SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${manufacturingProductSources}) product WHERE product.company_id=s.company_id AND (product.id=s.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=s.id))),'[]'::jsonb),'operations',COALESCE((SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=s.id),'[]'::jsonb)) witness

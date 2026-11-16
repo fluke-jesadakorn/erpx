@@ -30,7 +30,7 @@ function financeOperationsAttachmentRecordVersionStep(
 ): SqlStatement | null {
 if(!allowedTargets.has(targetType))return null;
   if (targetType === "organization_node")
-    return db.prepare("SELECT 1").bind();
+    return db.prepare("UPDATE organization_nodes SET hierarchy_revision=hierarchy_revision+1 WHERE id=? AND hierarchy_revision=?").bind(targetId, expectedVersion);
   const item = versionDescriptors[targetType];
   if (!item) return null;
   const column = item.column ?? "version";
@@ -41,5 +41,5 @@ if(!allowedTargets.has(targetType))return null;
 export function FinanceAttachmentOrganizationFacts(db:SqlDatabase){return {
 readOwner7:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare(`SELECT company_id,CASE WHEN kind='branch' THEN id ELSE branch_id END branch_id,NULL::text department_id,hierarchy_revision AS version,kind
       FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('company','headquarters','branch','department')`).bind(facts.targetId,facts.companyId).first<Row>();},
-readOwner8:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare("SELECT 1").bind().first<Row>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readOwner8:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare("SELECT company_id,NULL::text branch_id,NULL::text department_id,version,requested_by,state FROM organization_node_changes WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<Row>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

@@ -29,7 +29,7 @@ function application(database: SqlDatabase) {
                 legal_name: string;
             }>();
         },
-        caseTasks(id: string, companyId: string) { return database.prepare("SELECT 1").bind().all<PreparationTask>(); },
+        caseTasks(id: string, companyId: string) { return database.prepare("SELECT * FROM people_preparation_tasks WHERE case_id=? AND company_id=? ORDER BY id").bind(id, companyId).all<PreparationTask>(); },
         finalPays(companyId: string, id: string) {
             return database.prepare(`SELECT fp.task_id,fp.id preparation_id,fp.run_id,fp.status,fp.version,r.pay_group_id,r.currency,r.period_start,r.period_end,r.pay_date,r.status run_status,r.version run_version
    FROM hr_payroll_final_pay_preparations fp JOIN hr_payroll_runs r ON r.id=fp.run_id
@@ -59,7 +59,7 @@ function application(database: SqlDatabase) {
             }>();
         },
         source: (companyId, id, kind) => clearanceDocumentSource(database, companyId, id, kind),
-        accessEnded(companyId: string, id: string, now: number) { return database.prepare("SELECT 1").bind().first(); },
+        accessEnded(companyId: string, id: string, now: number) { return database.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND case_id=? AND cancelled_at IS NULL AND effective_at<=? AND restored_at IS NULL").bind(companyId, id, now).first(); },
         directoryEvidence(...args) { return retirementClearanceFacts(database).directoryEvidence(...args); },
         countryPacks() {
             return database.prepare("SELECT id,version,effective_from,effective_to FROM hr_country_packs WHERE country_code='TH' AND status='active' AND adapter_id='thai-payroll-v1' ORDER BY effective_from DESC,id").all<{

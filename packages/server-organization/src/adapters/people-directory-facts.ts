@@ -20,10 +20,10 @@ export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
         guard4(id: string, value: "department", departmentId: string | null, departmentId2: string | null, companyId: string, branchId: string) {
             return assertion(database, id, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND kind='department' AND status='active')", [departmentId, departmentId2, companyId, branchId]);
         },
-        readSaveDirectoryPersonPrevious(companyId: string, position_id: string | number) { return database.prepare("SELECT 1").bind().first<{
+        readSaveDirectoryPersonPrevious(companyId: string, position_id: string | number) { return database.prepare("SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?").bind(companyId, position_id).first<{
             roster_required: number;
         }>(); },
-        readSaveDirectoryPersonNext(companyId: string, positionId: string) { return database.prepare("SELECT 1").bind().first<{
+        readSaveDirectoryPersonNext(companyId: string, positionId: string) { return database.prepare("SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?").bind(companyId, positionId).first<{
             roster_required: number;
         }>(); },
         guard27(commandId: string, value: "active-level", personId: string) {

@@ -30,7 +30,7 @@ export function calendarCommandPurpose(input:CalendarCommand):CapabilityPurpose{
 async function current(database:SqlDatabase,actor:WorkContext,key:string,guards=false){
  const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');
  if(!await database.prepare(`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...scope.args).first())throw new ApiError(403,'CALENDAR_AUTHORITY_CHANGED','Choose a current Calendar account, Company and role.');
- if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key)]);
+ if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);
 }
 async function ready(database:SqlDatabase,actor:WorkContext){
  if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Manual Work Calendar is not released for this Company.');
@@ -49,7 +49,7 @@ export function calendarPurchasedItems(items:CalendarItem[],access:CalendarPurch
 }
 function kind(input:Pick<CalendarCommand,'action'>){return input.action.startsWith('appointment.')?'appointment':'announcement';}
 async function image(database:SqlDatabase,companyId:string,type:string,id:string){
- if(type==='announcement')return database.prepare("SELECT 1").bind().first<string>('image');
+ if(type==='announcement')return database.prepare('SELECT to_jsonb(row)::text image FROM calendar_announcements row WHERE id=? AND company_id=?').bind(id,companyId).first<string>('image');
  return database.prepare(`SELECT jsonb_build_object('record',to_jsonb(row),
  'attendees',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM calendar_attendees a WHERE a.appointment_id=row.id AND a.company_id=row.company_id),
  'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.person_id) FROM calendar_appointment_participants p WHERE p.appointment_id=row.id AND p.company_id=row.company_id),
@@ -100,6 +100,6 @@ export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase
   if(await database.prepare(`SELECT version FROM ${kind(input)==='appointment'?'calendar_appointments':'calendar_announcements'} WHERE id=? AND company_id=?`).bind(resultId,actor.companyId).first<number>('version')!==result.version&&!receipt)throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The original Calendar acknowledgement no longer matches its source.');
   await flushFinanceDeferredEffects(database);
   for(let i=0;i<ids.length;i++)if(!completed[i]||await image(database,actor.companyId,kind(input),ids[i])!==completed[i])throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The completed Calendar source changed during deferred effects.');
-  await current(database,actor,guard,true);await ready(database,actor);await recordAuthority(database,actor,input,resultId,true);if(queued)await requireQueuedAccountAuthority(database,queued);const results=await database.batch([...boundary.after]);boundary.observe?.(results);return result;
+  await current(database,actor,guard,true);await ready(database,actor);await recordAuthority(database,actor,input,resultId,true);if(queued)await requireQueuedAccountAuthority(database,queued);const results=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(guard)]);boundary.observe?.(results);return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}
 }

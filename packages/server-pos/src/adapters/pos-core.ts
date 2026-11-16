@@ -40,8 +40,8 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         pendingReversal: saleId => one(db, "SELECT id FROM pos_room_charge_reversal_requests WHERE sale_id=? AND state IN ('requested','pos_approved')", saleId),
         saveReversalRequest: async row => { await run(db, "INSERT INTO pos_room_charge_reversal_requests(id,sale_id,company_id,branch_id,property_id,sale_version,property_version,amount_minor,reason,restock_line_ids_json,state,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?)", row.id,row.sale_id,row.company_id,row.branch_id,row.property_id,row.sale_version,row.property_version,row.amount_minor,row.reason,row.restock_line_ids_json,row.requested_by,row.created_at,row.created_at); },
         reviewReversalRequest: async (id,state,user,reason,now) => { await run(db, "UPDATE pos_room_charge_reversal_requests SET state=?,version=version+1,pos_approved_by=CASE WHEN ?='pos_approved' THEN ? ELSE pos_approved_by END,pms_approved_by=CASE WHEN ?='approved' THEN ? ELSE pms_approved_by END,rejected_by=CASE WHEN ?='rejected' THEN ? ELSE rejected_by END,review_reason=?,updated_at=? WHERE id=?", state,state,user,state,user,state,user,reason,now,id); },
-        prepareAccounting: async (company,accounts,user) => { await run(db, "SELECT 1"); },
-        linkRegister: async (id,propertyId) => { await run(db, "SELECT 1"); },
+        prepareAccounting: async (company,accounts,user) => { await run(db, 'UPDATE pos_settings SET accounts_json=?,accounting_prepared_by=?,accounting_approved_by=NULL WHERE company_id=?', JSON.stringify(accounts),user,company); },
+        linkRegister: async (id,propertyId) => { await run(db, 'UPDATE pos_registers SET property_id=? WHERE id=?',propertyId,id); },
         readPosSales1: (facts: {
             saleId: string;
         }) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.saleId),
@@ -60,7 +60,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             sourceKey: string;
             companyId: string;
             journal: `${string}-${string}-${string}-${string}-${string}`;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_postings VALUES(?,?,?)', facts.sourceKey, facts.companyId, facts.journal),
         writePosAudit1: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             companyId: string;
@@ -70,7 +70,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             recordId: string;
             fact6: string;
             fact7: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_audit VALUES(?,?,?,?,?,?,?,?)', facts.fact0, facts.companyId, facts.branchId, facts.actorId, facts.operation, facts.recordId, facts.fact6, facts.fact7),
         writePosJobs1: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             companyId: string;
@@ -78,7 +78,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             recordId: string;
             fact4: string;
             fact5: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO pos_jobs(id,company_id,kind,record_id,payload_json,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(kind,record_id) DO NOTHING", facts.fact0, facts.companyId, facts.kind, facts.recordId, facts.fact4, facts.fact5),
         readCommerceStock1: facts => posCoreCommerceFacts(db).readCommerceStock1(facts),
         readInventoryActiveReservations1: facts => posCoreInventoryFacts(db).readInventoryActiveReservations1(facts),
         writePosReservations1: (facts: {
@@ -86,15 +86,15 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             warehouse_id: string | number | boolean | null;
             productId: string;
             quantityMilli: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_reservations VALUES(?,?,?,?)', facts.id, facts.warehouse_id, facts.productId, facts.quantityMilli),
         writePosFulfillments1: (facts: {
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_fulfillments SET reserved=true WHERE id=?', facts.id),
         readInventoryLedger1: facts => posCoreInventoryFacts(db).readInventoryLedger1(facts),
         writePosReservations2: (facts: {
             id: string | number | boolean | null;
             productId: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'DELETE FROM pos_reservations WHERE fulfillment_id=? AND product_id=?', facts.id, facts.productId),
         writeCommerceStock1: facts => posCoreCommerceFacts(db).writeCommerceStock1(facts),
         writePosStockMoves1: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
@@ -109,11 +109,11 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact9: number;
             business_date: string | number | boolean | null;
             fact11: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_stock_moves VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', facts.fact0, facts.company_id, facts.warehouse_id, facts.productId, facts.id, facts.id2, facts.fact6, facts.fact7, facts.fact8, facts.fact9, facts.business_date, facts.fact11),
         writePosFulfillments2: (facts: {
             cost: number;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_fulfillments SET reserved=false,cost_minor=? WHERE id=?', facts.cost, facts.id),
         readPosSales2: (facts: {
             sale_id: string | number | boolean | null;
         }) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.sale_id),
@@ -169,7 +169,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             hash: string;
             fact3: string;
             fact4: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_receipts VALUES(?,?,?,?,?)', facts.key, facts.companyId, facts.hash, facts.fact3, facts.fact4),
         readOrganizationNodes1: facts => posCoreOrganizationFacts(db).readOrganizationNodes1(facts),
         readPosSettings2: (facts: {
             company: string;
@@ -203,14 +203,14 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             warehouseId: string;
             registerName: string;
             mode: "retail" | "restaurant";
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES(?,?,?,?,?,?,true)", facts.registerId, facts.company, facts.branchId, facts.warehouseId, facts.registerName, facts.mode),
         writePosOauthStates1: (facts: {
             state: `${string}-${string}-${string}-${string}-${string}`;
             company: string;
             user: string;
             fact3: number;
             livemode: boolean;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_oauth_states(id,company_id,user_id,expires_at,livemode) VALUES(?,?,?,?,?)', facts.state, facts.company, facts.user, facts.fact3, facts.livemode),
         readPosSettings3: (facts: {
             company: string;
         }) => one(db, 'SELECT * FROM pos_settings WHERE company_id=? FOR UPDATE', facts.company),
@@ -224,7 +224,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             timezone: "Asia/Bangkok";
             fact4: string;
             cashierDiscountBps: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_settings(company_id,enabled,currency,timezone,accounts_json,cashier_discount_bps) VALUES(?,?,?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET enabled=excluded.enabled,accounts_json=excluded.accounts_json,cashier_discount_bps=excluded.cashier_discount_bps,version=pos_settings.version+1', facts.company, facts.enabled, facts.currency, facts.timezone, facts.fact4, facts.cashierDiscountBps),
         readCommerceWarehouses3: facts => posCoreCommerceFacts(db).readCommerceWarehouses3(facts),
         readPosRegisters3: (facts: {
             id: string;
@@ -239,7 +239,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             mode: "retail" | "restaurant";
             active: boolean;
             rid: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_registers SET warehouse_id=?,branch_id=?,name=?,mode=?,active=?,version=version+1 WHERE id=?', facts.warehouseId, facts.branch_id, facts.name, facts.mode, facts.active, facts.rid),
         writePosRegisters3: (facts: {
             rid: string;
             company: string;
@@ -248,7 +248,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             name: string;
             mode: "retail" | "restaurant";
             active: boolean;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES(?,?,?,?,?,?,?)', facts.rid, facts.company, facts.branch_id, facts.warehouseId, facts.name, facts.mode, facts.active),
         readPosRegisters4: (facts: {
             registerId: string;
         }) => one(db, 'SELECT * FROM pos_registers WHERE id=? FOR UPDATE', facts.registerId),
@@ -268,7 +268,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         writePosCatalog1: (facts: {
             imageId: string;
             productId: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_catalog SET image_id=?,version=version+1 WHERE product_id=?', facts.imageId, facts.productId),
         readCommerceProducts1: facts => posCoreCommerceFacts(db).readCommerceProducts1(facts),
         readCommerceProducts2: facts => posCoreCommerceFacts(db).readCommerceProducts2(facts),
         readPosCatalog2: (facts: {
@@ -295,19 +295,19 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             taxInclusive: boolean;
             enabled: boolean;
             fact10: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_catalog(product_id,company_id,barcode,category,kind,station,recipe_json,modifiers_json,tax_inclusive,enabled,image_id) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET barcode=excluded.barcode,category=excluded.category,kind=excluded.kind,station=excluded.station,recipe_json=excluded.recipe_json,modifiers_json=excluded.modifiers_json,tax_inclusive=excluded.tax_inclusive,enabled=excluded.enabled,image_id=excluded.image_id,version=pos_catalog.version+1', facts.productId, facts.company, facts.fact2, facts.category, facts.kind, facts.station, facts.fact6, facts.fact7, facts.taxInclusive, facts.enabled, facts.fact10),
         writePosRegisterCatalog1: (facts: {
             productId: string;
             company: string;
             branchId: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'DELETE FROM pos_register_catalog WHERE product_id=? AND register_id IN (SELECT id FROM pos_registers WHERE company_id=? AND branch_id=?)', facts.productId, facts.company, facts.branchId),
         writePosRegisterCatalog2: (facts: {
             productId: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'DELETE FROM pos_register_catalog WHERE product_id=?', facts.productId),
         writePosRegisterCatalog3: (facts: {
             rid: string;
             productId: string;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_register_catalog(register_id,product_id) VALUES(?,?)', facts.rid, facts.productId),
         readPosDayCloses1: (facts: {
             company_id: string | number | boolean | null;
             branch_id: string | number | boolean | null;
@@ -349,7 +349,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             cost: number;
             date: string;
             fact11: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_stock_moves VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', facts.fact0, facts.company, facts.warehouse_id, facts.product_id, facts.fulfillment_id, facts.id, facts.number, facts.fact7, facts.quantity_milli, facts.cost, facts.date, facts.fact11),
         writePosRoomChargeReversals1: (facts: {
             id: string | number | boolean | null;
             company: string;
@@ -362,11 +362,11 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             wasted: number;
             user: string;
             fact10: number;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'INSERT INTO pos_room_charge_reversals(sale_id,company_id,property_id,original_entry_id,reversal_entry_id,reason,restocked_lines_json,restored_cost_minor,wasted_cost_minor,reversed_by,reversed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)', facts.id, facts.company, facts.propertyId, facts.entryId, facts.reversalEntryId, facts.reason, facts.fact6, facts.restored, facts.wasted, facts.user, facts.fact10),
         writePosSales6: (facts: {
             fact0: number;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_sales SET version=version+1,updated_at=? WHERE id=?', facts.fact0, facts.id),
         readPosRegisters9: (facts: {
             register_id: string | number | boolean | null;
         }) => one(db, "SELECT id,property_id FROM pos_registers WHERE id=? AND mode='restaurant'", facts.register_id),
@@ -389,7 +389,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => run(db, "UPDATE pos_sales SET state='completed',table_id=NULL,version=version+1,updated_at=? WHERE id=?", facts.fact0, facts.id),
         writePosReservations4: (facts: {
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'DELETE FROM pos_reservations WHERE fulfillment_id=?', facts.id),
         readPosFulfillments5: (facts: {
             id: string;
         }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.id),
@@ -406,7 +406,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         writePosFulfillments10: (facts: {
             state: string;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_fulfillments SET state=?,reserved=false,version=version+1 WHERE id=?', facts.state, facts.id),
         readFinanceBankTransactions1: facts => posCoreFinanceFacts(db).readFinanceBankTransactions1(facts),
         readPosPayments13: (facts: {
             id: string;
@@ -418,7 +418,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             payerEmail: string;
             fact1: number;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_payments SET payer_email=?,version=version+1,updated_at=? WHERE id=?', facts.payerEmail, facts.fact1, facts.id),
         writePosJobs2: (facts: {
             id: string | number | boolean | null;
         }) => run(db, "UPDATE pos_jobs SET state='pending',attempts=0,next_attempt_at=0,last_error=NULL WHERE record_id=? AND kind IN ('checkout','check_payment') AND state='exception'", facts.id),
@@ -438,7 +438,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             fact0: "paid" | "mapped";
             journalId: string;
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, "UPDATE pos_settlements SET state=?,journal_id=?,version=version+1 WHERE id=?", facts.fact0, facts.journalId, facts.id),
         readPosSettlements3: (facts: {
             id: string;
             company: string;
@@ -449,7 +449,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         writePosSettlements2: (facts: {
             id: string | number | boolean | null;
             id2: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_settlements SET bank_transaction_id=?,version=version+1 WHERE id=?', facts.id, facts.id2),
         readPosJobs2: (facts: {
             id: string;
             company: string;
@@ -473,7 +473,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, "SELECT r.id,r.version,r.state refund_state,rp.state payout_state,rp.provider_id,p.method,p.payer_email FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.id=? AND r.company_id=? AND p.company_id=? FOR UPDATE OF rp,r", facts.record_id, facts.company, facts.company2),
         writePosRefunds1: (facts: {
             id: string | number | boolean | null;
-        }) => run(db, "SELECT 1"),
+        }) => run(db, 'UPDATE pos_refunds SET version=version+1 WHERE id=?', facts.id),
         readPosRefundPayments4: (facts: {
             record_id: string | number | boolean | null;
         }) => one(db, "UPDATE pos_refund_payments SET provider_id=NULL,provider_attempt=provider_attempt+1,state='requested' WHERE id=? AND state='failed' RETURNING id", facts.record_id),

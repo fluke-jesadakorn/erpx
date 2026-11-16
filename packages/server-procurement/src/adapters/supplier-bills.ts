@@ -29,7 +29,7 @@ import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bill
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope="m.company_id=? AND (?::text IS NULL OR m.branch_id=?) AND (?::text IS NULL OR m.department_id=?)";
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
-function event(db:SqlDatabase,actor:WorkContext,id:string,key:string,nextVersion:number,action:string,note:string,now:number){return db.prepare("SELECT 1").bind();}
+function event(db:SqlDatabase,actor:WorkContext,id:string,key:string,nextVersion:number,action:string,note:string,now:number){return db.prepare('INSERT INTO procurement_bill_match_events VALUES(?,?,?,?,?,?,?)').bind(`bill-event-${key}`,id,nextVersion,action,actor.userId,note,now);}
 function application(actor:WorkContext,provided?:SqlDatabase){
  let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(actor.holdingId).then(x=>x.write);
  const ports:BillPorts<SqlStatement>={clock:{now:()=>Date.now()},companyId:actor.companyId,userId:actor.userId,canRead:hasPermission(actor,'finance.read'),canWrite:hasPermission(actor,'finance.write'),canApprove:hasPermission(actor,'finance.approve'),canCommerceRead:hasPermission(actor,'commerce.read'),samePerson:(id)=>samePerson(actor,id),

@@ -69,7 +69,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, async editDraft(id: string, companyId: string) {
             return db.prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=?")
                 .bind(id, companyId).first<PostDraft>();
-        }, async commentDraftExists(id: string) { return db.prepare("SELECT 1").bind().first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1").bind().first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
+        }, async commentDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND comment_parent_post_id IS NOT NULL").bind(id).first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND rich_content_json IS NOT NULL").bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)", [id, userId, expectedVersion]);
         }, updateDraft(body: string, branch: string | null, department: string | null, value: "company" | "branch" | "department" | "participants" | "team" | "project" | null, audienceId: string | null, value2: string, value3: string, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value4: string, value5: string | null, value6: string | null, now: number, id: string) {
             return db
@@ -90,7 +90,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             return db
                 .prepare("INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,body,last_command_id,created_at,updated_at,department_id,audience_kind,audience_id,purpose,mentions_json,content_json,rich_content_json) VALUES(?,'team',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                 .bind(postId, userId, name, companyId, branch_id, body, key, now, now2, department_id, audience_kind, audience_id, purpose, value, content_json, rich_content_json);
-        }, prepareParticipant(postId: string, userId: string) { return db.prepare("SELECT 1").bind(); }, prepareSource(postId: string, ordinal: number, kind: "staff_task" | "staff_project" | "pms_record", id: string) {
+        }, prepareParticipant(postId: string, userId: string) { return db.prepare("INSERT INTO social_post_participants(post_id,user_id) VALUES(?,?)").bind(postId, userId); }, prepareSource(postId: string, ordinal: number, kind: "staff_task" | "staff_project" | "pms_record", id: string) {
             return db.prepare("INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id) VALUES(?,?,?,?)")
                 .bind(postId, ordinal, kind, id);
         }, bindPublishedDraft(postId: string, now: number, id: string) {
@@ -230,10 +230,10 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
                 mentions_json: string;
             }>();
         }, async ownAgentReply(id: string, userId: string, commentId: string) {
-            return db.prepare("SELECT 1").bind().first();
+            return db.prepare("SELECT 1 FROM social_agent_replies WHERE post_id=? AND actor_id=? AND ('reply-' || id)=? AND state='completed'").bind(id, userId, commentId).first();
         }, guardCommentAuthor(key: string, value: "comment-author", commentId: string, id: string, userId: string, version: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND author_id=? AND author_kind='person' AND state='published' AND version=?)", [commentId, id, userId, version]);
-        }, clearCommentMentions(commentId: string) { return db.prepare("SELECT 1").bind(); }, clearCommentTopics(commentId: string) { return db.prepare("SELECT 1").bind(); }, updateComment(body: string, value: string, value2: string, now: number, key: string, commentId: string, id: string, userId: string, version: number) {
+        }, clearCommentMentions(commentId: string) { return db.prepare("DELETE FROM social_mentions WHERE owner_type='comment' AND owner_id=?").bind(commentId); }, clearCommentTopics(commentId: string) { return db.prepare("DELETE FROM social_comment_topics WHERE comment_id=?").bind(commentId); }, updateComment(body: string, value: string, value2: string, now: number, key: string, commentId: string, id: string, userId: string, version: number) {
             return db.prepare("UPDATE social_comments SET body=?,rich_content_json=?,mentions_json=?,version=version+1,updated_at=?,last_command_id=? WHERE id=? AND post_id=? AND author_id=? AND state='published' AND version=?")
                 .bind(body, value, value2, now, key, commentId, id, userId, version);
         }, prepareAgentMention(commentId: string, kind: "record" | "person" | "agent", targetId: string, label: string, userId: string, now: number) {
@@ -254,7 +254,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
                 .bind(now, now2, id, userId, version);
         }, guardEditUpload(key: string, value: "edit-upload-draft", editDraftId: string, userId: string, companyId: string, id: string, version: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND company_id=? AND edit_post_id=? AND edit_post_version=? AND edit_saved_version IS NULL AND cancelled_at IS NULL)", [editDraftId, userId, companyId, id, version]);
-        }, clearPostMentions(id: string) { return db.prepare("SELECT 1").bind(); }, clearPostTopics(id: string) { return db.prepare("SELECT 1").bind(); }, updatePost(body: string, value: string, value2: string | null, value3: string, now: number, now2: number, id: string, userId: string, version: number) {
+        }, clearPostMentions(id: string) { return db.prepare("DELETE FROM social_mentions WHERE owner_type='post' AND owner_id=?").bind(id); }, clearPostTopics(id: string) { return db.prepare("DELETE FROM social_post_topics WHERE post_id=?").bind(id); }, updatePost(body: string, value: string, value2: string | null, value3: string, now: number, now2: number, id: string, userId: string, version: number) {
             return db.prepare("UPDATE social_posts SET body=?,content_json=?,rich_content_json=?,mentions_json=?,edited_at=?,version=version+1,updated_at=? WHERE id=? AND author_id=? AND version=?")
                 .bind(body, value, value2, value3, now, now2, id, userId, version);
         }, bindEditUpload(value: number, now: number, editDraftId: string) {

@@ -43,7 +43,7 @@ async function snapshot(database:SqlDatabase,actor:WorkContext){
  return {configuration,mapping,finance,image:JSON.stringify([mapping,finance.image,documents.image,production.image,stock.image,financialHistory.image])};
 }
 async function receiptImage(database:SqlDatabase,companyId:string,key?:string){return database.prepare(`SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.operation=? AND r.record_id=? AND r.authority_json::jsonb->>'companyId'=? AND (?::text IS NULL OR r.command_id=?) ORDER BY r.created_at,r.command_id LIMIT 1`).bind(operation,companyId,companyId,key??null,key??null).first<string>('image');}
-async function nativeImage(database:SqlDatabase,companyId:string){return database.prepare("SELECT 1").bind().first<string>('image');}
+async function nativeImage(database:SqlDatabase,companyId:string){return database.prepare('SELECT to_jsonb(s)::text image FROM commerce_mfg_existing_posting_confirmations s WHERE company_id=?').bind(companyId).first<string>('image');}
 function contextKey(actor:WorkContext,state:Awaited<ReturnType<typeof snapshot>>,confirmation:string|null){return createHash('sha256').update(JSON.stringify([authorityImage(actor),state.image,confirmation])).digest('hex');}
 const unavailable=(companyId:string,unavailableReason:ManufacturingExistingPostingSetupView['unavailableReason']):ManufacturingExistingPostingSetupView=>({companyId,available:false,schemaAvailable:false,configured:null,confirmed:null,version:null,canConfirm:false,contextKey:null,configuration:null,previewChart:null,previewAccounts:[],effectiveSalesConfiguration:null,expectedSalesDefaults:null,unavailableReason});
 export async function manufacturingExistingPostingSetup(actor:WorkContext):Promise<ManufacturingExistingPostingSetupView>{

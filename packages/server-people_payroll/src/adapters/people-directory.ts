@@ -68,11 +68,11 @@ function application(provided?: SqlDatabase) {
                 .bind(linkedMemberUserId, id);
         },
         stageSaveDirectoryPersonEffect9(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect9(...args); },
-        stageSaveDirectoryPersonEffect10(positionId: string | null, engagement: string) { return database.prepare("SELECT 1").bind(); },
-        stageSaveDirectoryPersonEffect11(value: string, companyId: string, engagement: string, value2: string, value3: string, userId: string, reason: string, commandId: string, now: number) { return database.prepare("SELECT 1").bind(); },
+        stageSaveDirectoryPersonEffect10(positionId: string | null, engagement: string) { return database.prepare("UPDATE hr_engagements SET position_id=? WHERE id=?").bind(positionId, engagement); },
+        stageSaveDirectoryPersonEffect11(value: string, companyId: string, engagement: string, value2: string, value3: string, userId: string, reason: string, commandId: string, now: number) { return database.prepare("INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(value, companyId, engagement, value2, value3, userId, reason, commandId, now); },
         readSaveDirectoryPersonPrevious(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonPrevious(...args); },
         readSaveDirectoryPersonNext(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonNext(...args); },
-        readSetDirectoryStatusEffect(companyId: string, personId: string) { return database.prepare("SELECT 1").bind().first(); },
+        readSetDirectoryStatusEffect(companyId: string, personId: string) { return database.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND person_id=? AND cancelled_at IS NULL AND restored_at IS NULL").bind(companyId, personId).first(); },
         guard25(commandId: string, value: "ended-engagements", companyId: string, personId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended')", [companyId, personId]); },
         guard26(commandId: string, value: "version", personId: string, expectedVersion: number) {
             return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND version=?)", [personId, expectedVersion]);
