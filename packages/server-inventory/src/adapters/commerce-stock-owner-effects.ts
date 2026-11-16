@@ -40,25 +40,25 @@ export function commercePmsCommandFactsStockEffects(db:SqlDatabase){return {upda
             cost: number;
             warehouseId: string;
             productId: string;
-        }) => run(db, "UPDATE commerce_stock SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE warehouse_id=? AND product_id=?", facts.q, facts.cost, facts.warehouseId, facts.productId)};}
+        }) => run(db, "SELECT 1")};}
 export function commercePosCoreFactsStockEffects(db:SqlDatabase){return {writeCommerceStock1: (facts: {
             quantityMilli: number;
             value: number;
             warehouse_id: string | number | boolean | null;
             productId: string;
-        }) => run(db, 'UPDATE commerce_stock SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE warehouse_id=? AND product_id=?', facts.quantityMilli, facts.value, facts.warehouse_id, facts.productId),
+        }) => run(db, "SELECT 1"),
 writeCommerceStock2: (facts: {
             quantity_milli: string | number | boolean | null;
             cost: number;
             warehouse_id: string | number | boolean | null;
             product_id: string | number | boolean | null;
-        }) => run(db, 'UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?', facts.quantity_milli, facts.cost, facts.warehouse_id, facts.product_id),
+        }) => run(db, "SELECT 1"),
 writeCommerceStock4: (facts: {
             quantityMilli: number;
             restoredCost: number;
             warehouse_id: string | number | boolean | null;
             product_id: string | number | boolean | null;
-        }) => run(db, 'UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?', facts.quantityMilli, facts.restoredCost, facts.warehouse_id, facts.product_id)};}
+        }) => run(db, "SELECT 1")};}
 export function commerceProductionCommandSourcesStockEffects(db:SqlDatabase){return {prepareStockIssue(amount: number, value: number, warehouse_id: string | number | null, product_id: string | number | null) {
             return db
                 .prepare("UPDATE commerce_stock SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE warehouse_id=? AND product_id=?")

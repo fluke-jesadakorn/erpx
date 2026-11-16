@@ -35,7 +35,7 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
             branch_id: string | number | boolean | null;
             fact3: string;
             fact4: number;
-        }) => run(db, 'INSERT INTO pos_sale_documents(sale_id,company_id,branch_id,snapshot_json,created_at) VALUES(?,?,?,?::jsonb,?) ON CONFLICT(sale_id) DO NOTHING', facts.saleId, facts.company_id, facts.branch_id, facts.fact3, facts.fact4),
+        }) => run(db, "SELECT 1"),
         readFinanceParties2: facts => PosDayFinanceFacts(db).readFinanceParties2(facts),
         readFinanceParties3: facts => PosDayFinanceFacts(db).readFinanceParties3(facts),
         readPosSettings1: (facts: {
