@@ -9764,7 +9764,7 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "migrated",
+        "status": "blocked",
         "claim": null,
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
         "implementedCommit": "e86bde6c6253fabee7f0982932389323c380f13b",
@@ -9829,8 +9829,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Brand presentation reads are native, mounted and switched (e86bde6c6). Remaining brand packets: identity-read-port, storefront-front-projection.",
+        "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
+        "nextAction": "Create a bounded retirement task with exact owner/feature-route/composition/test paths and close it with a native-seeded KPI delta before restoring migrated status",
         "handoff": {
           "runId": "run-20261112-e",
           "agentId": "lead",
@@ -10304,7 +10304,7 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "status": "migrated",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "44ab017744a96545f6a230bb551d0f3b32365133",
@@ -10347,8 +10347,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Executive read is native and the admin route switches to it; operations projection already native. Pre-existing unrelated failure remains in platform-administration-postgres native_engineering_identity test (owner identity roster fixture), not part of this packet.",
+        "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
+        "nextAction": "Create a bounded retirement task with exact owner/feature-route/composition/test paths and close it with a native-seeded KPI delta before restoring migrated status",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
@@ -13278,7 +13278,7 @@
         "resources": [
           "owner:planning"
         ],
-        "status": "migrated",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "4772441c1906e5691ac934abbcf5b328aa46b0cc",
@@ -13335,8 +13335,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Retained: manufacturing specification/order/accounting entities on TS until their packets; planning TS apps retained only as oracle",
+        "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
+        "nextAction": "Create a bounded retirement task with exact owner/feature-route/composition/test paths and close it with a native-seeded KPI delta before restoring migrated status",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
@@ -17782,8 +17782,8 @@
         "resources": [
           "owner:commercial"
         ],
-        "status": "migrated",
-        "nextAction": "Native PurchaseCommandBoundary available for enforce/shadow owner commands (b2958ea9f; 84/84 commercial tests, registered 2+10 suites, structure check). Integration request: owner composition replaces retained TS before/after arrays with begin/complete; manufacturing specification composition migrates next.",
+        "status": "blocked",
+        "nextAction": "Create a bounded retirement task with exact owner/feature-route/composition/test paths and close it with a native-seeded KPI delta before restoring migrated status",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commercial",
         "plannedPackage": "erpx-server-commercial",
@@ -17830,7 +17830,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
         "handoff": {
           "runId": "run-20261112-b",
           "agentId": "worker-commercial",
