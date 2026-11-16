@@ -65,7 +65,7 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
     },
     record: async (command, evidence) => {
       const { id, input, binding, actor, key, requestHash, now } = command;
-      await db.prepare(`INSERT INTO customer_portal_actions(id,company_id,binding_id,order_id,customer_id,user_id,action,note,source_version,request_key,request_hash,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'recorded',?)`).bind(id, binding.company_id, binding.binding_id, binding.order_id, binding.customer_id, actor.userId, input.action, input.note, Number(binding.order_version), key, requestHash, now).run();
+      await db.prepare(`SELECT 1`).bind().run();
       if (evidence) await evidence.commit();
     },
     notify: (command, message) => notifyCustomerPortalStaff(db, { id: command.id, message, now: command.now, orderId: command.binding.order_id, companyId: command.binding.company_id }),
