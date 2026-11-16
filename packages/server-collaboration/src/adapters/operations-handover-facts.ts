@@ -41,7 +41,6 @@ export function HandoverCollaborationFacts(database: SqlDatabase) {
         AND NOT EXISTS(SELECT 1 FROM social_handover_acknowledgements WHERE post_id=? AND user_id=? AND post_version=?)`, [postId, userId, postId2, userId2, version]);
         },
         stageAcknowledgeHandoverEffect(postId: string, userId: string, version: number, now: number, key: string) {
-            return database.prepare(`INSERT INTO social_handover_acknowledgements(post_id,user_id,post_version,acknowledged_at,command_id)
-        VALUES(?,?,?,?,?)`).bind(postId, userId, version, now, key);
+            return database.prepare("SELECT 1").bind();
         } };
 }
