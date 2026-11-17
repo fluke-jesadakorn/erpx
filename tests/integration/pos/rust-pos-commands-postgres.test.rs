@@ -1612,3 +1612,166 @@ fn settings_accounting_table_and_discount_commands_persist_and_reject_stale_vers
         );
     });
 }
+
+#[test]
+fn day_close_native_repository_persists_unique_snapshot_and_confirms_by_version() {
+    use erpx_server_pos::public::day_close::{NewDayClose, PgPosDayClose};
+    with_database(|pool| Box::pin(async move {
+        setup(&pool).await;
+        let mut connection = pool.raw().acquire().await.unwrap();
+        let mut tx = connection.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let snapshot = serde_json::json!({"sources":{"sales":[]},"digest":"digest"});
+        {
+            let mut repo = PgPosDayClose::new(&mut tx);
+            let close = NewDayClose { id:"native-day-close",company_id:"company",branch_id:"branch",business_date:"2026-11-15",currency:"THB",snapshot:&snapshot,digest:"digest",prepared_by:"preparer",prepared_at:NOW.get() };
+            assert!(repo.prepare(&close).await.unwrap());
+            assert!(!repo.prepare(&close).await.unwrap());
+            assert!(repo.lock_close("other", "native-day-close").await.unwrap().is_none());
+            let locked = repo.lock_close("company", "native-day-close").await.unwrap().unwrap();
+            assert_eq!(locked.version, 1);
+            assert_eq!(locked.prepared_by, "preparer");
+            assert!(!repo.confirm("company", "native-day-close", 2, "reviewer", NOW.get()).await.unwrap());
+            assert!(repo.confirm("company", "native-day-close", 1, "reviewer", NOW.get()).await.unwrap());
+            assert!(!repo.confirm("company", "native-day-close", 2, "reviewer", NOW.get()).await.unwrap());
+        }
+        let row = sqlx::query("SELECT state,version,snapshot_json,source_digest FROM pos_day_closes WHERE id='native-day-close'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(row.get::<String,_>("state"), "confirmed");
+        assert_eq!(row.get::<i64,_>("version"), 2);
+        assert_eq!(row.get::<serde_json::Value,_>("snapshot_json"), snapshot);
+        assert_eq!(row.get::<String,_>("source_digest"), "digest");
+        tx.rollback().await.unwrap();
+    }));
+}
+
+#[test]
+fn day_close_native_repository_rejects_non_serializable_transaction() {
+    use erpx_server_pos::public::day_close::PgPosDayClose;
+    with_database(|pool| Box::pin(async move {
+        let mut connection = pool.raw().acquire().await.unwrap();
+        let mut tx = connection.begin().await.unwrap();
+        let mut repo = PgPosDayClose::new(&mut tx);
+        match repo.lock_close("company", "close").await.unwrap_err() {
+            PgTransactionError::Persistence(error) => assert_eq!(error.code, "POS_DAY_SERIALIZABLE_REQUIRED"),
+            other => panic!("expected serializable guard, got {other:?}"),
+        }
+        tx.rollback().await.unwrap();
+    }));
+}
+
+#[test]
+fn day_report_native_sources_are_scoped_ordered_and_keep_jsonb_as_text() {
+    use erpx_server_pos::public::day_report::PgPosDayReportSources;
+    with_database(|pool| Box::pin(async move {
+        setup(&pool).await;
+        sqlx::raw_sql("UPDATE pos_shifts SET denominations_json='{\"100\": 2}'::jsonb WHERE id='shift'; INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json) VALUES ('sale-b','company','branch','register','shift','บิล ๒','THB','2027-01-15','open','cashier',1,1,'{}'),('sale-a','company','branch','register','shift','บิล ๑','THB','2027-01-15','open','cashier',1,1,'{}'); INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,state,created_by,created_at,updated_at) VALUES ('payment','sale-a','company','cash',100,100,'succeeded','cashier',1,1);").execute(pool.raw()).await.unwrap();
+        let mut conn = pool.raw().acquire().await.unwrap();
+        let mut tx = conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let mut repo = PgPosDayReportSources::new(&mut tx);
+        let source = repo.load("company", "branch", "2027-01-15").await.unwrap();
+        assert_eq!(source.currency.as_deref(), Some("THB"));
+        assert_eq!(source.sales.len(), 2);
+        let sale: serde_json::Value = serde_json::from_str(&source.sales[0].row_json).unwrap();
+        assert_eq!(sale["id"], "sale-a");
+        assert_eq!(sale["number"], "บิล ๑");
+        let shift: serde_json::Value = serde_json::from_str(&source.shifts[0]).unwrap();
+        assert_eq!(shift["denominations_json"], "{\"100\": 2}");
+        assert_eq!(shift["opening_minor"], 100000);
+        let payment: serde_json::Value = serde_json::from_str(&source.payments[0]).unwrap();
+        assert_eq!(payment["sale_number"], "บิล ๑");
+        let other = repo.load("company", "other", "2027-01-15").await.unwrap();
+        assert!(other.sales.is_empty() && other.shifts.is_empty() && other.payments.is_empty());
+        tx.rollback().await.unwrap();
+    }));
+}
+
+#[test]
+fn day_report_retained_sources_reject_own_unit_drift_and_cross_unit_reuse() {
+    use erpx_server_pos::public::day_report::PgPosDayReportSources;
+    with_database(|pool| Box::pin(async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json) VALUES('witness-sale','company','branch','register','shift','original','THB','2027-01-15','open','cashier',1,1,'{}')").execute(pool.raw()).await.unwrap();
+        let mut conn=pool.raw().acquire().await.unwrap();let mut tx=conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let retained=PgPosDayReportSources::new(&mut tx).retain("company","branch","2027-01-15").await.unwrap();
+        assert_eq!(retained.sources().sales.len(),1);retained.require_current(&mut tx).await.unwrap();
+        {
+            let mut save=tx.begin().await.unwrap();
+            sqlx::query("UPDATE pos_sales SET number='changed' WHERE id='witness-sale'").execute(&mut *save).await.unwrap();
+            assert!(matches!(retained.require_current(&mut save).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="POS_DAY_SOURCE_CHANGED"));
+            save.rollback().await.unwrap();
+        }
+        retained.require_current(&mut tx).await.unwrap();
+        {
+            let mut save=tx.begin().await.unwrap();
+            sqlx::query("INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,state,created_by,created_at,updated_at) VALUES('witness-payment','witness-sale','company','cash',1,1,'succeeded','cashier',1,1)").execute(&mut *save).await.unwrap();
+            assert!(matches!(retained.require_current(&mut save).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="POS_DAY_SOURCE_CHANGED"));
+            save.rollback().await.unwrap();
+        }
+        retained.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        assert!(matches!(retained.require_current(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="POS_DAY_SOURCE_UNIT_CHANGED"));
+        tx.rollback().await.unwrap();
+    }));
+}
+
+#[test]
+fn day_close_company_lock_contends_with_the_legacy_writer_key() {
+    use erpx_server_pos::public::day_close::PgPosDayClose;
+    with_database(|pool| Box::pin(async move {
+        let mut first = pool.raw().acquire().await.unwrap();
+        let mut second = pool.raw().acquire().await.unwrap();
+        let mut tx1 = first.begin().await.unwrap();
+        let mut tx2 = second.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx1).await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx2).await.unwrap();
+        PgPosDayClose::new(&mut tx1).lock_company("company").await.unwrap();
+        let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended('pos-daily:' || $1,0))").bind("company").fetch_one(&mut *tx2).await.unwrap();
+        assert!(!acquired, "native and retained writer must use the same lock");
+        let other: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended('pos-daily:' || $1,0))").bind("other-company").fetch_one(&mut *tx2).await.unwrap();
+        assert!(other, "different companies must not share a lock");
+        tx1.rollback().await.unwrap();
+        let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended('pos-daily:' || $1,0))").bind("company").fetch_one(&mut *tx2).await.unwrap();
+        assert!(acquired, "transaction end must release the lock");
+        tx2.rollback().await.unwrap();
+    }));
+}
+
+#[test]
+fn day_close_receipt_sha256_roundtrip_conflict_and_rollback() {
+    use erpx_server_pos::public::day_close::{NewDayClose, PgPosDayClose};
+    use erpx_server_pos::public::day_receipt::PosDayReceiptIdentity;
+    use erpx_server_workflow::public::commands::CommandJson;
+    with_database(|pool| Box::pin(async move {
+        setup(&pool).await;
+        let raw=r###"{"2":"สอง","extra":{"folioId":"f","1":1e21,"z":-0},"branchId":"branch","businessDate":"2026-11-15","x":1.0}"###;
+        let identity=PosDayReceiptIdentity::parse(&actor("reviewer"),"day.prepare","command-key-01",raw).unwrap();
+        assert_eq!(identity.request_hash(),"fd1644a821d899d9f9073c2ee136755d840e067bf9ab7b4a997ee273302d4d2a");
+        let result=CommandJson::parse(r#"{"id":"close","state":"prepared"}"#).unwrap();
+        let snapshot=serde_json::json!({"sales":[]});
+        let mut conn=pool.raw().acquire().await.unwrap();
+        let mut tx=conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        {
+            let mut repo=PgPosDayClose::new(&mut tx);repo.lock_company("company").await.unwrap();
+            assert!(repo.replay_receipt(&identity).await.unwrap().is_none());
+            assert!(repo.prepare(&NewDayClose{id:"close",company_id:"company",branch_id:"branch",business_date:"2026-11-15",currency:"THB",snapshot:&snapshot,digest:"digest",prepared_by:"reviewer",prepared_at:NOW.get()}).await.unwrap());
+            repo.insert_receipt(&identity,&result,NOW.get()).await.unwrap();
+            assert_eq!(repo.replay_receipt(&identity).await.unwrap().unwrap().as_str(),result.as_str());
+        }
+        tx.rollback().await.unwrap();
+        let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM pos_receipts WHERE id='command-key-01'),(SELECT count(*) FROM pos_day_closes WHERE id='close')").fetch_one(&mut *conn).await.unwrap();assert_eq!(counts,(0,0));
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        {let mut repo=PgPosDayClose::new(&mut tx);repo.lock_company("company").await.unwrap();repo.insert_receipt(&identity,&result,NOW.get()).await.unwrap();}
+        tx.commit().await.unwrap();
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let changed=PosDayReceiptIdentity::parse(&actor("reviewer"),"day.prepare","command-key-01",r#"{"branchId":"other"}"#).unwrap();
+        {let mut repo=PgPosDayClose::new(&mut tx);repo.lock_company("company").await.unwrap();assert_eq!(repo.replay_receipt(&identity).await.unwrap().unwrap().as_str(),result.as_str());assert!(matches!(repo.replay_receipt(&changed).await,Err(PgTransactionError::Business(ref e)) if e.code=="IDEMPOTENCY_CONFLICT"));}
+        tx.rollback().await.unwrap();
+        sqlx::query("UPDATE pos_receipts SET request_hash=$1,result_json=$2 WHERE id='command-key-01'").bind("de64346a9b5f349ae8433002ff54dded07cfa6f93f4ef17d7d1f8b5be03fefd2").bind(r#"{"id":"close","folioId":"legacy"}"#).execute(&mut *conn).await.unwrap();
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        {let mut repo=PgPosDayClose::new(&mut tx);repo.lock_company("company").await.unwrap();assert_eq!(repo.replay_receipt(&identity).await.unwrap().unwrap().as_str(),r#"{"id":"close","guestAccountId":"legacy"}"#);}
+        tx.rollback().await.unwrap();
+    }));
+}

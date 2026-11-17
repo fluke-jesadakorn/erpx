@@ -91,6 +91,46 @@ impl CurrentSupplierPromiseHistory {
     }
 }
 
+/// Actual Procurement-owned record selected by the caller's command identity.
+/// This proves no current IAM, Commerce, Files or purchase authority.
+pub struct CurrentSupplierPromiseRecord {
+    history: CurrentSupplierPromiseHistory,
+}
+impl CurrentSupplierPromiseRecord {
+    /// Optional post-effect diagnostic. The caller must preserve the original
+    /// mode-dependent TS final-check timing separately.
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.history.require_current(c).await
+    }
+}
+pub async fn inspect_supplier_promise_record(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    order_id: &str,
+    actor_id: &str,
+    key: &str,
+    order_version: i64,
+) -> Result<CurrentSupplierPromiseRecord, Error> {
+    if order_id.is_empty() || actor_id.is_empty() || key.is_empty() || order_version < 1 {
+        return Err(source_changed().into());
+    }
+    let id = format!("supplier-promise-{key}");
+    let history = inspect_supplier_promise_history(c, company, order_id, &id).await?;
+    let row = history
+        .image()
+        .and_then(|v| v.get("promise"))
+        .ok_or_else(source_changed)?;
+    if row.get("id").and_then(|v| v.as_str()) != Some(id.as_str())
+        || row.get("company_id").and_then(|v| v.as_str()) != Some(company.as_str())
+        || row.get("order_id").and_then(|v| v.as_str()) != Some(order_id)
+        || row.get("recorded_by").and_then(|v| v.as_str()) != Some(actor_id)
+        || row.get("order_version").and_then(|v| v.as_i64()) != Some(order_version)
+    {
+        return Err(source_changed().into());
+    }
+    Ok(CurrentSupplierPromiseRecord { history })
+}
+
 async fn promise_history_unit(c: &mut PgConnection) -> Result<(String, i32, String), Error> {
     require_serializable(c).await?;
     let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('procurement_delivery_promises'::regclass,'procurement_delivery_promise_lines'::regclass)")

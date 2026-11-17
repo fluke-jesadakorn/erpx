@@ -212,8 +212,7 @@ fn decimal(value: &str, scale: usize, code: &'static str) -> Result<i64, Busines
     let fraction: i64 = if fraction.is_empty() {
         0
     } else {
-        fraction.parse::<i64>().map_err(|_| failed())?
-            * 10_i64.pow((scale - fraction.len()) as u32)
+        fraction.parse::<i64>().map_err(|_| failed())? * 10_i64.pow((scale - fraction.len()) as u32)
     };
     safe(whole * 10_i64.pow(scale as u32) + fraction)
 }
@@ -260,23 +259,14 @@ fn plan_lot(
     identities: &mut BTreeSet<String>,
     allocation: &CountAllocationInput,
 ) -> Result<CountSaveLotPlan, BusinessError> {
-    let counted = decimal(
-        &allocation.counted_quantity,
-        3,
-        "INVALID_COUNT_QUANTITY",
-    )?;
+    let counted = decimal(&allocation.counted_quantity, 3, "INVALID_COUNT_QUANTITY")?;
     let source = match allocation.lot_id.as_deref() {
-        Some(id) => Some(
-            current
-                .iter()
-                .find(|lot| lot.id == id)
-                .ok_or_else(|| {
-                    invalid(
-                        "COUNT_LOT_INVALID",
-                        "Choose a current lot or serial from this warehouse.",
-                    )
-                })?,
-        ),
+        Some(id) => Some(current.iter().find(|lot| lot.id == id).ok_or_else(|| {
+            invalid(
+                "COUNT_LOT_INVALID",
+                "Choose a current lot or serial from this warehouse.",
+            )
+        })?),
         None => None,
     };
     if allocation
@@ -350,13 +340,7 @@ fn plan_lot(
         ));
     }
     let (snapshot_quantity, snapshot_value, snapshot_version) = source
-        .map(|lot| {
-            (
-                lot.quantity_milli,
-                lot.value_minor,
-                lot.balance_version,
-            )
-        })
+        .map(|lot| (lot.quantity_milli, lot.value_minor, lot.balance_version))
         .unwrap_or((0, 0, 0));
     let new_unit_cost = allocation
         .unit_cost
@@ -407,16 +391,26 @@ fn plan_lot(
         serial_number,
         manufactured_date: source
             .and_then(|lot| lot.manufactured_date.clone())
-            .or(optional_date(allocation.manufactured_date.as_deref(), "COUNT_DATE_INVALID")?),
+            .or(optional_date(
+                allocation.manufactured_date.as_deref(),
+                "COUNT_DATE_INVALID",
+            )?),
         expiry_date: source
             .and_then(|lot| lot.expiry_date.clone())
-            .or(optional_date(allocation.expiry_date.as_deref(), "COUNT_DATE_INVALID")?),
+            .or(optional_date(
+                allocation.expiry_date.as_deref(),
+                "COUNT_DATE_INVALID",
+            )?),
         snapshot_quantity_milli: snapshot_quantity,
         snapshot_value_minor: snapshot_value,
         snapshot_version,
         counted_quantity_milli: counted,
         counted_value_minor: counted_value,
-        unit_cost_minor: if source.is_none() { new_unit_cost } else { None },
+        unit_cost_minor: if source.is_none() {
+            new_unit_cost
+        } else {
+            None
+        },
     })
 }
 
@@ -450,9 +444,7 @@ pub fn plan_count_save(
     let expected = positive_version(input.expected_version)?;
     let revision = source.current.is_some();
     if let Some(current) = &source.current {
-        if current.version != expected
-            || !matches!(current.status.as_str(), "draft" | "rejected")
-        {
+        if current.version != expected || !matches!(current.status.as_str(), "draft" | "rejected") {
             return Err(conflict(
                 "COUNT_VERSION_CHANGED",
                 "The physical count changed.",
@@ -481,10 +473,7 @@ pub fn plan_count_save(
         .iter()
         .any(|line| !products.insert(line.product_id.as_str()))
     {
-        return Err(invalid(
-            "DUPLICATE_PRODUCT",
-            "Count each product once.",
-        ));
+        return Err(invalid("DUPLICATE_PRODUCT", "Count each product once."));
     }
     let mut lines = Vec::with_capacity(input.lines.len());
     let mut net_value = 0_i64;
@@ -495,11 +484,7 @@ pub fn plan_count_save(
                 "Choose an active stock item in this company.",
             )
         })?;
-        let quantity = decimal(
-            &item.counted_quantity,
-            3,
-            "INVALID_COUNT_QUANTITY",
-        )?;
+        let quantity = decimal(&item.counted_quantity, 3, "INVALID_COUNT_QUANTITY")?;
         let unit_cost = item
             .unit_cost
             .as_deref()
@@ -566,18 +551,18 @@ pub fn plan_count_save(
                         "Count every current lot or serial, including zero when it is missing physically.",
                     ));
                 }
-                let total = lots.iter().try_fold(0_i64, |sum, lot| {
-                    safe(sum + lot.counted_quantity_milli)
-                })?;
+                let total = lots
+                    .iter()
+                    .try_fold(0_i64, |sum, lot| safe(sum + lot.counted_quantity_milli))?;
                 if total != quantity {
                     return Err(invalid(
                         "COUNT_LOT_TOTAL_MISMATCH",
                         "The lot or serial quantities must equal the product count.",
                     ));
                 }
-                let value = lots.iter().try_fold(0_i64, |sum, lot| {
-                    safe(sum + lot.counted_value_minor)
-                })?;
+                let value = lots
+                    .iter()
+                    .try_fold(0_i64, |sum, lot| safe(sum + lot.counted_value_minor))?;
                 (value, lots)
             }
             _ => {
@@ -596,10 +581,7 @@ pub fn plan_count_save(
         let snapshot_quantity = old_quantity;
         let snapshot_value = old_value;
         let snapshot_version = stock.map(|stock| stock.version).unwrap_or(0);
-        net_value = safe(
-            net_value
-                + (value - snapshot_value),
-        )?;
+        net_value = safe(net_value + (value - snapshot_value))?;
         lines.push(CountSaveLinePlan {
             id: format!("{record_id}-{index}"),
             product_id: product.id.clone(),
@@ -690,7 +672,15 @@ pub fn plan_count_transition(
             "The physical count changed.",
         ));
     }
-    let next = transition_count(status, version, expected, action, authority, reason, attachments)?;
+    let next = transition_count(
+        status,
+        version,
+        expected,
+        action,
+        authority,
+        reason,
+        attachments,
+    )?;
     Ok(CountTransitionPlan {
         next,
         posting: action == CountAction::Post,
@@ -795,16 +785,23 @@ pub fn plan_count_transition_effects(
     let mut stocks = Vec::with_capacity(lines.len());
     let mut lots = Vec::new();
     for line in lines {
-        let value = safe(line.counted_value_minor - line.snapshot_value_minor)?;
-        if value > 0 {
-            gains = safe(gains + value)?;
-        } else {
-            losses = safe(losses - value)?;
+        if transition.posting {
+            let value = safe(line.counted_value_minor - line.snapshot_value_minor)?;
+            if value > 0 {
+                gains = safe(gains + value)?;
+            } else {
+                losses = safe(losses - value)?;
+            }
         }
-        if line.tracking_mode != "none" {
-            let total = line.lots.iter().try_fold(0_i64, |sum, lot| {
-                safe(sum + lot.counted_quantity_milli)
-            })?;
+        if !matches!(
+            transition.next,
+            CountStatus::Rejected | CountStatus::Cancelled
+        ) && line.tracking_mode != "none"
+        {
+            let total = line
+                .lots
+                .iter()
+                .try_fold(0_i64, |sum, lot| safe(sum + lot.counted_quantity_milli))?;
             if line.lots.is_empty() || total != line.counted_quantity_milli {
                 return Err(BusinessError::new(
                     FailureKind::Conflict,
@@ -812,7 +809,11 @@ pub fn plan_count_transition_effects(
                     "Saved lot or serial evidence no longer matches the product count.",
                 ));
             }
-        } else if !line.lots.is_empty() {
+        } else if !matches!(
+            transition.next,
+            CountStatus::Rejected | CountStatus::Cancelled
+        ) && !line.lots.is_empty()
+        {
             return Err(invalid(
                 "COUNT_LOT_INVALID",
                 "An untracked product contains unexpected lot evidence.",
@@ -895,20 +896,18 @@ mod tests {
         if tracking != "none" {
             lots.insert(
                 "product".into(),
-                vec![
-                    CountLot {
-                        id: "lot-a".into(),
-                        product_id: "product".into(),
-                        tracking_mode: tracking.into(),
-                        lot_code: (tracking == "lot").then(|| "L-A".into()),
-                        serial_number: (tracking == "serial").then(|| "SN-A".into()),
-                        manufactured_date: None,
-                        expiry_date: None,
-                        quantity_milli: 10_000,
-                        value_minor: 5_000,
-                        balance_version: 2,
-                    },
-                ],
+                vec![CountLot {
+                    id: "lot-a".into(),
+                    product_id: "product".into(),
+                    tracking_mode: tracking.into(),
+                    lot_code: (tracking == "lot").then(|| "L-A".into()),
+                    serial_number: (tracking == "serial").then(|| "SN-A".into()),
+                    manufactured_date: None,
+                    expiry_date: None,
+                    quantity_milli: 10_000,
+                    value_minor: 5_000,
+                    balance_version: 2,
+                }],
             );
         }
         CountSource {
@@ -954,7 +953,8 @@ mod tests {
 
     #[test]
     fn creates_and_revises_a_draft_with_exact_snapshot_values() {
-        let plan = plan_count_save(&source("none"), &input("none"), "count-key", "company").unwrap();
+        let plan =
+            plan_count_save(&source("none"), &input("none"), "count-key", "company").unwrap();
         assert!(!plan.revision);
         assert_eq!(plan.version, 1);
         assert_eq!(plan.number, "COUNT-B039874C0806B8E6");
@@ -991,7 +991,10 @@ mod tests {
     fn tracked_counts_require_every_current_lot_and_exact_quantities() {
         let plan = plan_count_save(&source("lot"), &input("lot"), "count-key", "company").unwrap();
         assert_eq!(plan.lines[0].lots.len(), 1);
-        assert_eq!(plan.lines[0].lots[0].source_lot_id.as_deref(), Some("lot-a"));
+        assert_eq!(
+            plan.lines[0].lots[0].source_lot_id.as_deref(),
+            Some("lot-a")
+        );
         assert_eq!(plan.lines[0].lots[0].snapshot_version, 2);
         assert_eq!(plan.lines[0].lots[0].counted_value_minor, 4_000);
 

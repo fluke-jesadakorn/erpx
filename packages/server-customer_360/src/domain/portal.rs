@@ -19,7 +19,6 @@ pub const MIN_KEY: usize = 8;
 pub const MAX_KEY: usize = 180;
 pub const MAX_ITEMS: usize = 201;
 pub const MAX_IDENTIFIER: usize = 180;
-pub const MAX_EVENT_IDENTIFIER: usize = 200;
 const MAX_EMAIL: usize = 254;
 const MAX_TEXT: usize = 300;
 const MAX_TIMESTAMP: i64 = 9_007_199_254_740_991;
@@ -617,13 +616,6 @@ pub fn valid_key(value: &str) -> bool {
 /// Identifiers are supplied by composition so this owner needs no randomness.
 pub fn valid_identifier(value: &str) -> bool {
     bounded(value, MAX_IDENTIFIER)
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'.' | b'-'))
-}
-
-pub fn valid_event_identifier(value: &str) -> bool {
-    bounded(value, MAX_EVENT_IDENTIFIER)
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'.' | b'-'))

@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3042,
+    "revision": 3044,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261116-retirement-j",
+      "runId": "run-20261117-axum-close",
       "agentId": "lead",
-      "startedAt": "2026-11-17T04:00:17.689Z",
-      "heartbeatAt": "2026-11-17T04:00:17.689Z",
-      "expiresAt": "2026-11-17T04:30:17.691Z",
-      "generation": 120,
-      "tokenHash": "3c6fe70566b3d2c7903070a0f14dcdb71edc71f92c779d473e67662dcb38c9ab"
+      "startedAt": "2026-11-17T04:51:35.559Z",
+      "heartbeatAt": "2026-11-17T04:51:40.020Z",
+      "expiresAt": "2026-11-17T05:21:40.020Z",
+      "generation": 121,
+      "tokenHash": "fe5443e85d2986ff3b8a1692719bd1be4e5ed5696932fe527028040c6042b41e"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -43800,8 +43800,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 120,
-    "updatedAt": "2026-11-17T04:01:09.711Z",
+    "lastCoordinatorGeneration": 121,
+    "updatedAt": "2026-11-17T04:51:40.022Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -43846,10 +43846,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261116-retirement-i",
-      "runId": "run-20261116-retirement-j",
-      "at": "2026-11-17T04:00:17.691Z",
-      "reason": "Previous coordinator lease expired after verified handoff; WIP and processes reconciled, no active task claims",
+      "previousRunId": "run-20261116-retirement-j",
+      "runId": "run-20261117-axum-close",
+      "at": "2026-11-17T04:51:35.559Z",
+      "reason": "Previous run heartbeat stale 21m; no live coordinator process, no lock mutex, HEAD matches remote b970501c1, dirty WIP reviewed for single checkpoint commit",
       "wipReviewed": true,
       "previousRunStopped": true
     },

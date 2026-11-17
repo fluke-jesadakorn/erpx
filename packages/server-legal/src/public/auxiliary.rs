@@ -13,6 +13,7 @@ pub use crate::adapters::legal_http_auxiliary::{
 pub use crate::adapters::postgres_auxiliary_reads::{
     PgLegalAuxiliaryReads, legal_auxiliary_business_error, require_auxiliary_transaction,
 };
+pub use crate::adapters::citation_source::{CurrentLegalCitationSource, LegalCitationDocument, RetainedLegalCitationAudit, inspect_legal_citation_source, lock_legal_citation_sources};
 pub use crate::adapters::legal_http_retention::{
     LegalRetentionActorFuture, LegalRetentionCommandReply, LegalRetentionHttpBackend,
     LegalRetentionHttpCommandRequest, LegalRetentionHttpFuture, LegalRetentionHttpService,
@@ -24,7 +25,7 @@ pub use crate::adapters::postgres_retention::{
 };
 pub use crate::application::auxiliary::{
     LegalAuxiliaryError, LegalAuxiliaryFuture, LegalAuxiliaryReadPorts, parse_auxiliary_path,
-    read_auxiliary,
+    read_auxiliary, validate_citation_ingress,
 };
 pub use crate::application::retention::{
     LegalRetentionPorts, RetentionCommand, RetentionDestructionRow, RetentionError,

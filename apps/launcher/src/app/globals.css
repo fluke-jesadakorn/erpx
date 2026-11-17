@@ -614,6 +614,7 @@
 @source "../../../../packages/feature-workflow/src/components/approval-history.tsx";
 @source "../../../../packages/front/src/components/front-error.tsx";
 @source "../../../../packages/front/src/components/front-language.tsx";
+@source "../../../../packages/native-sdk/src/benefits.ts";
 @source "../../../../packages/native-sdk/src/field-service-files-routes.ts";
 @source "../../../../packages/native-sdk/src/field-service-parts.ts";
 @source "../../../../packages/native-sdk/src/holding-target.ts";
@@ -697,7 +698,6 @@
 @source "../../../../packages/server-benefits/src/adapters/attachment-read.ts";
 @source "../../../../packages/server-benefits/src/adapters/attachments-sensitive-facts.ts";
 @source "../../../../packages/server-benefits/src/adapters/benefits.ts";
-@source "../../../../packages/server-benefits/src/adapters/executive-evidence.ts";
 @source "../../../../packages/server-benefits/src/adapters/executive-metric-projections.ts";
 @source "../../../../packages/server-benefits/src/adapters/payroll-owner-facts.ts";
 @source "../../../../packages/server-benefits/src/adapters/payroll-source-facts.ts";
@@ -706,20 +706,16 @@
 @source "../../../../packages/server-benefits/src/adapters/purchases.ts";
 @source "../../../../packages/server-benefits/src/adapters/record-purchases.ts";
 @source "../../../../packages/server-benefits/src/application/benefits.ts";
-@source "../../../../packages/server-benefits/src/application/executive-evidence.ts";
 @source "../../../../packages/server-benefits/src/domain/benefits.ts";
-@source "../../../../packages/server-benefits/src/domain/executive-evidence.ts";
 @source "../../../../packages/server-benefits/src/public/attachment-purchases.ts";
 @source "../../../../packages/server-benefits/src/public/attachment-read.ts";
 @source "../../../../packages/server-benefits/src/public/attachments-sensitive-facts.ts";
 @source "../../../../packages/server-benefits/src/public/benefits.ts";
-@source "../../../../packages/server-benefits/src/public/executive-evidence.ts";
 @source "../../../../packages/server-benefits/src/public/executive-metric-projections.ts";
 @source "../../../../packages/server-benefits/src/public/payroll-owner-facts.ts";
 @source "../../../../packages/server-benefits/src/public/payroll-source-facts.ts";
 @source "../../../../packages/server-benefits/src/public/people-payroll-final-owner-projections.ts";
 @source "../../../../packages/server-benefits/src/public/record-purchases.ts";
-@source "../../../../packages/server-benefits/src/public/rules/executive-evidence.ts";
 @source "../../../../packages/server-billing/src/adapters/beta-billing.ts";
 @source "../../../../packages/server-billing/src/adapters/beta-management-facts.ts";
 @source "../../../../packages/server-billing/src/adapters/beta-onboarding-effects.ts";

@@ -53,3 +53,5 @@ pub mod staff_facts;
 pub mod roster_position_notifications;
 
 pub mod pms_social_event;
+pub mod customer_portal_notification;
+pub mod rfq_notifications;

@@ -48,3 +48,7 @@ pub(crate) mod counts;
 pub(crate) mod transfers;
 pub(crate) mod landed_costs;
 pub(crate) mod reorder_policies;
+
+pub(crate) mod sales_reservation;
+
+pub(crate) mod portal_commerce_locks;

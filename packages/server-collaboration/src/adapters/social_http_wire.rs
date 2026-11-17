@@ -50,6 +50,20 @@ fn boolean(value: &Value, key: &str) -> Result<bool, BusinessError> {
     value.get(key).and_then(Value::as_bool).ok_or_else(invalid)
 }
 
+fn handover_date(value: &str) -> bool {
+    let b = value.as_bytes();
+    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' ||
+        b.iter().enumerate().any(|(i,c)| i != 4 && i != 7 && !c.is_ascii_digit()) {
+        return false;
+    }
+    let year = value[0..4].parse::<u32>().unwrap_or(0);
+    let month = value[5..7].parse::<usize>().unwrap_or(0);
+    let day = value[8..10].parse::<u32>().unwrap_or(0);
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let lengths = [31, if leap {29} else {28}, 31,30,31,30,31,31,30,31,30,31];
+    (1..=12).contains(&month) && day > 0 && day <= lengths[month - 1]
+}
+
 fn strings(value: &Value, key: &str) -> Result<Vec<String>, BusinessError> {
     match value.get(key) {
         None | Some(Value::Null) => Ok(Vec::new()),
@@ -97,6 +111,28 @@ pub fn decode_social_command(
 ) -> Result<DecodedSocialCommand, BusinessError> {
     if !raw.is_object() {
         return Err(invalid());
+    }
+    // The native comment command does not yet preserve rich documents, mention
+    // ranges or uploaded images. Refuse these inputs until the owner can commit
+    // them together; accepting them here would silently discard user content.
+    if matches!(operation, "social.comment.publish" | "social.comment.edit")
+        && (raw.get("richContent").is_some()
+            || raw.get("commentDraftId").is_some_and(|v| !v.is_null())
+            || raw
+                .get("mentions")
+                .and_then(Value::as_array)
+                .is_some_and(|items| {
+                    items.iter().any(|item| {
+                        ["label", "start", "end"]
+                            .iter()
+                            .any(|key| item.get(key).is_some())
+                    })
+                }))
+    {
+        return Err(BusinessError::invalid(
+            "SOCIAL_COMMENT_RICH_UNAVAILABLE",
+            "Rich comments and uploaded images are not yet available.",
+        ));
     }
     let post = |value: Option<&str>| value.map(str::to_owned).ok_or_else(invalid);
     let change = match operation {
@@ -178,21 +214,44 @@ pub fn decode_social_command(
             edit_upload_id: optional_text(raw, "editDraftId")?.map(str::to_owned),
         },
         "social.handover.publish" => {
+            if raw.as_object().is_none_or(|obj| obj.keys().any(|k| !["date", "body", "sources", "recipientIds"].contains(&k.as_str()))) {
+                return Err(invalid());
+            }
+            let date = text(raw, "date")?;
+            if !handover_date(date) { return Err(invalid()); }
             let recipient_ids = strings(raw, "recipientIds")?;
+            if recipient_ids.is_empty() || recipient_ids.len() > 20 ||
+                recipient_ids.iter().any(|id| id.is_empty() || id.encode_utf16().count() > 160) ||
+                recipient_ids.iter().collect::<std::collections::HashSet<_>>().len() != recipient_ids.len() {
+                return Err(invalid());
+            }
             let sources = match raw.get("sources") {
-                Some(Value::Array(items)) if items.len() <= 5 => items
+                Some(Value::Array(items)) if !items.is_empty() && items.len() <= 5 => items
                     .iter()
                     .map(|item| {
-                        Ok(crate::domain::social::PostSource {
-                            kind: text(item, "kind")?.to_owned(),
+                        let kind = match item.get("kind") {
+                            None => "staff_task",
+                            Some(Value::String(kind)) if matches!(kind.as_str(), "staff_task" | "pms_record") => kind,
+                            _ => return Err(invalid()),
+                        };
+                        let id = text(item, "id")?;
+                        if id.encode_utf16().count() > 160 { return Err(invalid()); }
+                        Ok(crate::domain::social::HandoverSource {
+                            kind: kind.to_owned(),
                             id: text(item, "id")?.to_owned(),
+                            source_version: positive(item, "sourceVersion")?,
                         })
                     })
                     .collect::<Result<Vec<_>, BusinessError>>()?,
                 _ => return Err(invalid()),
             };
+            if sources.iter().map(|s| &s.id).collect::<std::collections::HashSet<_>>().len() != sources.len() { return Err(invalid()); }
+            let body = text(raw, "body")?;
+            let body = crate::domain::collaboration_work::js_trim(body);
+            if body.is_empty() || body.encode_utf16().count() > 3000 { return Err(invalid()); }
             Change::PublishHandoverPost {
-                body: text(raw, "body")?.to_owned(),
+                date: date.to_owned(),
+                body: body.to_owned(),
                 recipient_ids,
                 sources,
             }
@@ -330,6 +389,46 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn handover_wire_retains_date_and_each_selected_version_for_authority_and_replay() {
+        let raw = json!({"date":"2024-02-29","body":"  Handover  ","recipientIds":["u-1"],"sources":[{"id":"task-1","sourceVersion":4},{"kind":"pms_record","id":"room-1","sourceVersion":8}]});
+        let decoded = decode_social_command("social.handover.publish", None, None, &raw).unwrap();
+        match &decoded.change {
+            Change::PublishHandoverPost { date, body, sources, .. } => {
+                assert_eq!(date, "2024-02-29");
+                assert_eq!(body, "Handover");
+                assert_eq!((&sources[0].kind, sources[0].source_version), (&"staff_task".to_string(), 4));
+                assert_eq!((&sources[1].kind, sources[1].source_version), (&"pms_record".to_string(), 8));
+            }
+            other => panic!("unexpected change {other:?}"),
+        }
+        let original = crate::adapters::command_ledger::fingerprint("social.handover.publish", &decoded.change);
+        for (field, value) in [("date", json!("2024-03-01")), ("version", json!(5))] {
+            let mut altered = raw.clone();
+            if field == "date" { altered["date"] = value; } else { altered["sources"][0]["sourceVersion"] = value; }
+            let next = decode_social_command("social.handover.publish", None, None, &altered).unwrap();
+            assert_ne!(original, crate::adapters::command_ledger::fingerprint("social.handover.publish", &next.change));
+        }
+    }
+
+    #[test]
+    fn handover_wire_rejects_missing_or_duplicate_source_authority_inputs() {
+        let valid = json!({"date":"2024-02-29","body":"Handover","recipientIds":["u-1"],"sources":[{"id":"task-1","sourceVersion":4}]});
+        for mutation in 0..7 {
+            let mut raw = valid.clone();
+            match mutation {
+                0 => raw["date"] = json!("2023-02-29"),
+                1 => { raw["sources"][0].as_object_mut().unwrap().remove("sourceVersion"); },
+                2 => raw["sources"][0]["sourceVersion"] = json!(0),
+                3 => raw["sources"].as_array_mut().unwrap().push(json!({"id":"task-1","sourceVersion":4,"kind":"pms_record"})),
+                4 => raw["recipientIds"].as_array_mut().unwrap().push(json!("u-1")),
+                5 => raw["sources"][0]["kind"] = json!("staff_project"),
+                _ => raw["unexpected"] = json!(true),
+            }
+            assert!(decode_social_command("social.handover.publish", None, None, &raw).is_err(), "mutation {mutation}");
+        }
+    }
+
+    #[test]
     fn post_and_comment_payloads_normalize_without_granting_authority() {
         let decoded = decode_social_command(
             "social.post.publish",
@@ -388,14 +487,8 @@ mod tests {
                 "mentions":[]
             }),
         )
-        .unwrap();
-        assert!(matches!(
-            decoded.change,
-            Change::PublishComment {
-                comment_upload_id: Some(id),
-                ..
-            } if id == "comment-upload-1"
-        ));
+        .unwrap_err();
+        assert_eq!(decoded.code, "SOCIAL_COMMENT_RICH_UNAVAILABLE");
         let decoded = decode_social_command(
             "social.post.edit",
             Some("post-1"),
@@ -415,6 +508,26 @@ mod tests {
                 ..
             } if id == "post-edit-upload-1"
         ));
+    }
+
+    #[test]
+    fn rich_comment_inputs_fail_before_content_is_discarded() {
+        for (operation, comment, input) in [
+            (
+                "social.comment.publish",
+                None,
+                json!({"body":"hello","richContent":{"version":1,"blocks":[]}}),
+            ),
+            (
+                "social.comment.edit",
+                Some("comment-1"),
+                json!({"body":"hello","expectedVersion":1,"mentions":[{"kind":"person","targetId":"u","label":"User","start":0,"end":4}]}),
+            ),
+        ] {
+            let error =
+                decode_social_command(operation, Some("post-1"), comment, &input).unwrap_err();
+            assert_eq!(error.code, "SOCIAL_COMMENT_RICH_UNAVAILABLE");
+        }
     }
 
     #[test]

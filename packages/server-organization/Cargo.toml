@@ -24,6 +24,10 @@ tokio.workspace = true
 uuid.workspace = true
 
 [[test]]
+name = "rfq_request_scope_postgres"
+path = "../../tests/integration/organization/rust-rfq-request-scope-postgres.test.rs"
+
+[[test]]
 name = "hierarchy"
 path = "../../tests/unit/organization/rust-hierarchy.test.rs"
 

@@ -16,6 +16,73 @@ fn actor() -> AuthorizedActor {
         can_review: true,
     }
 }
+
+#[tokio::test]
+async fn push_preferences_preserve_enabled_and_roll_back_on_source_drift() {
+    use erpx_server_collaboration::public::web_push::{CurrentPushPreferenceAuthority, lock_push_preference_sources, parse_push_preferences, save_push_preferences};
+    use sqlx::PgConnection;
+    struct SyntheticAuthority;
+    impl CurrentPushPreferenceAuthority for SyntheticAuthority {
+        fn company_id(&self) -> &str { "company" }
+        fn user_id(&self) -> &str { "user" }
+        async fn require_current(&self, _: &mut PgConnection) -> Result<(), PgTransactionError<BusinessError>> { Ok(()) }
+    }
+    fixture::with_database(2, |pool| async move {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations = load_migrations(root, MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        let input = parse_push_preferences(&serde_json::json!({"work":true,"mention":false,"system":true,"calendar":true,"notice":false,"quietStartMinute":1320,"quietEndMinute":420})).unwrap();
+        let input1 = input.clone();
+        PgUnitOfWork::new(pool.clone()).run_once(TransactionOptions::default(), move |c| {
+            let input = input1.clone();
+            Box::pin(async move {
+                lock_push_preference_sources(c).await?;
+                let proof = save_push_preferences(c, &SyntheticAuthority, &input, 100).await?;
+                proof.require_current(c, &SyntheticAuthority).await?;
+                Ok::<_, PgTransactionError<BusinessError>>(())
+            })
+        }).await.unwrap();
+        sqlx::query("UPDATE push_preferences SET enabled=true WHERE company_id='company' AND user_id='user'").execute(pool.raw()).await.unwrap();
+        let input2 = input.clone();
+        let result = PgUnitOfWork::new(pool.clone()).run_once(TransactionOptions::default(), move |c| {
+            let input = input2.clone();
+            Box::pin(async move {
+                lock_push_preference_sources(c).await?;
+                let proof = save_push_preferences(c, &SyntheticAuthority, &input, 101).await?;
+                sqlx::query("UPDATE push_preferences SET work_enabled=false WHERE company_id='company' AND user_id='user'").execute(&mut *c).await?;
+                proof.require_current(c, &SyntheticAuthority).await
+            })
+        }).await;
+        assert!(matches!(result, Err(PgTransactionError::Business(ref e)) if e.code == "PUSH_CONTEXT_CHANGED"));
+        let row: (bool, bool, i64) = sqlx::query_as("SELECT enabled,work_enabled,updated_at FROM push_preferences WHERE company_id='company' AND user_id='user'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(row, (true, true, 100));
+        PgUnitOfWork::new(pool.clone()).run_once(TransactionOptions::default(), move |c| {
+            let mut input = input.clone();
+            input.work = false;
+            Box::pin(async move {
+                lock_push_preference_sources(c).await?;
+                let proof = save_push_preferences(c, &SyntheticAuthority, &input, 102).await?;
+                proof.require_current(c, &SyntheticAuthority).await
+            })
+        }).await.unwrap();
+        let row: (bool, bool, i64) = sqlx::query_as("SELECT enabled,work_enabled,updated_at FROM push_preferences WHERE company_id='company' AND user_id='user'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(row, (true, false, 102));
+        sqlx::raw_sql("CREATE FUNCTION push_preference_tamper() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.notice_enabled:=true; RETURN NEW; END $$; CREATE TRIGGER push_preference_tamper BEFORE UPDATE ON push_preferences FOR EACH ROW EXECUTE FUNCTION push_preference_tamper()")
+            .execute(pool.raw()).await.unwrap();
+        let attempted = parse_push_preferences(&serde_json::json!({"work":true,"mention":false,"system":true,"calendar":true,"notice":false,"quietStartMinute":1320,"quietEndMinute":420})).unwrap();
+        let tampered = PgUnitOfWork::new(pool.clone()).run_once(TransactionOptions::default(), move |c| {
+            let input = attempted.clone();
+            Box::pin(async move {
+                lock_push_preference_sources(c).await?;
+                save_push_preferences(c, &SyntheticAuthority, &input, 103).await?;
+                Ok::<_, PgTransactionError<BusinessError>>(())
+            })
+        }).await;
+        assert!(matches!(tampered, Err(PgTransactionError::Business(ref e)) if e.code == "PUSH_CONTEXT_CHANGED"));
+        let row: (bool, bool, bool, i64) = sqlx::query_as("SELECT enabled,work_enabled,notice_enabled,updated_at FROM push_preferences WHERE company_id='company' AND user_id='user'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(row, (true, false, false, 102));
+    }).await;
+}
 fn plan() -> OwnerPlan {
     OwnerPlan::CreateCard {
         source: SourceRecord {

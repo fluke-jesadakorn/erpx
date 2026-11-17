@@ -237,6 +237,10 @@ pub struct ValidatedSupplierPromise {
 
 impl RecordSupplierPromiseCommand {
     pub fn validate(&self) -> Result<ValidatedSupplierPromise, BusinessError> {
+        self.validate_for_stage(false)
+    }
+
+    pub(crate) fn validate_for_stage(&self, allow_evidence: bool) -> Result<ValidatedSupplierPromise, BusinessError> {
         if !(1..=MAX_SAFE).contains(&self.expected_version) {
             return Err(invalid(
                 "SUPPLIER_PROMISE_INPUT_INVALID",
@@ -286,7 +290,7 @@ impl RecordSupplierPromiseCommand {
                 "Use at most ten distinct supplier promise evidence sets.",
             ));
         }
-        if !self.attachment_set_ids.is_empty() {
+        if !allow_evidence && !self.attachment_set_ids.is_empty() {
             return Err(invalid(
                 "SUPPLIER_PROMISE_EVIDENCE_UNSUPPORTED",
                 "Native supplier confirmations do not bind attachment evidence yet. Remove the attachment set or use the retained path.",

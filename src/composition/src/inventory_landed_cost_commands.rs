@@ -114,6 +114,13 @@ pub struct InventoryLandedCostCommand<C> {
 }
 
 #[derive(Serialize)]
+struct LandedCostCreateResult {
+    id: String,
+    status: String,
+    version: i64,
+}
+
+#[derive(Serialize)]
 struct LandedCostResult {
     id: String,
     status: String,
@@ -504,11 +511,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 self.prepared = Some(Prepared::Create(plan.clone()));
                 Ok(WorkflowOutput {
                     version: 1,
-                    result: CommandJson::from_serializable(&LandedCostResult {
+                    result: CommandJson::from_serializable(&LandedCostCreateResult {
                         id: plan.id,
                         status: "submitted".into(),
                         version: 1,
-                        journal_id: None,
                     })?,
                     event_scope: None,
                 })
@@ -531,6 +537,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                     input,
                     *action,
                     &actor,
+                    self.current.same_person_user_raw(&source.cost.created_by),
                     branch,
                     period,
                 )?;

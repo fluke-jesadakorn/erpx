@@ -9,6 +9,16 @@ use erpx_server_shared::public::{
 };
 use serde::Serialize;
 
+/// Full Payroll history rows and cursor metadata matching the existing list page.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PayrollHistoryPage {
+    pub items: Vec<serde_json::Value>,
+    pub next_cursor: Option<String>,
+    pub previous_cursor: Option<String>,
+    pub has_more: bool,
+}
+
 const SUMMARY_LIMIT: usize = 120;
 const RUN_LIMIT: usize = 2_000;
 

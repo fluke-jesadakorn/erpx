@@ -5,3 +5,5 @@ pub(crate) mod commands_http;
 pub(crate) mod read;
 pub(crate) mod read_http;
 pub(crate) mod record_source;
+pub(crate) mod day_close;
+pub(crate) mod day_report_source;

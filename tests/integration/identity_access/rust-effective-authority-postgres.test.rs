@@ -669,7 +669,7 @@ async fn effective_context_is_scoped_and_owner_effects_roll_back_when_time_or_au
     fixture::with_database(3,|control|async move{fixture::with_database(3,move|holding|async move{
     let(authorizer,clock)=setup(&control,&holding).await;
     let result=authorizer.execute("acme.example.test",proof(),input(),access(),|connection,context|Box::pin(async move{
-        assert_eq!(context.holding_id().as_str(),"h001");assert_eq!(context.selection().workspace().company_id.as_str(),"company");assert!(context.has_permission("finance.write"));assert!(!context.has_permission("finance.pay"));assert!(context.same_person_user(&UserId::new("user").unwrap()));
+        assert_eq!(context.holding_id().as_str(),"h001");assert_eq!(context.selection().workspace().company_id.as_str(),"company");assert!(!context.beta());assert!(context.has_permission("finance.write"));assert!(!context.has_permission("finance.pay"));assert!(context.same_person_user(&UserId::new("user").unwrap()));
         sqlx::query("INSERT INTO native_owner_effects VALUES('committed')").execute(connection).await?;Ok(context.user_id().as_str().to_owned())
     })).await.unwrap();assert_eq!(result,"user");
     let advancing=clock.clone();let expired=authorizer.execute("acme.example.test",proof(),input(),access(),move|connection,_|{let advancing=advancing.clone();Box::pin(async move{sqlx::query("INSERT INTO native_owner_effects VALUES('expired')").execute(connection).await?;advancing.0.store(NOW+3600000,Ordering::SeqCst);Ok(())})}).await;
@@ -689,7 +689,7 @@ async fn published_permissions_module_and_beta_admission_never_fall_back_to_role
     sqlx::raw_sql("INSERT INTO beta_policy(company_id,member_limit,branch_limit,ai_monthly_limit,storage_bytes,created_at) VALUES('company',10,2,100,1000,0)").execute(holding.raw()).await.unwrap();
     code(authorizer.execute("acme.example.test",proof(),input(),access(),|_,_|Box::pin(async{Ok(())})).await,"BETA_CAPABILITY_UNAVAILABLE");
     let mut allowed=access();allowed.destination="requests".into();allowed.module=None;
-    authorizer.execute("acme.example.test",proof(),input(),allowed.clone(),|_,context|Box::pin(async move{assert!(context.modules().is_empty());Ok(())})).await.unwrap();
+    authorizer.execute("acme.example.test",proof(),input(),allowed.clone(),|_,context|Box::pin(async move{assert!(context.beta());assert!(context.modules().is_empty());Ok(())})).await.unwrap();
     sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"finance.read\",\"module.finance.read\"]','[]','[\"holding\"]','fixture',0);UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'").execute(holding.raw()).await.unwrap();
     code(authorizer.execute("acme.example.test",proof(),input(),allowed,|_,_|Box::pin(async{Ok(())})).await,"PERMISSION_REQUIRED");assert_eq!(calls.load(Ordering::SeqCst),0);
  }).await;}).await;

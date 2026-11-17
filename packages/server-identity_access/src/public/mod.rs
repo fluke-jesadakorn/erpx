@@ -139,3 +139,7 @@ pub mod people_grants_http;
 pub mod user_management;
 
 pub mod directory_operation;
+pub mod portal_private_session_lease;
+pub mod messaging_people;
+pub mod rfq_target_authority;
+pub mod rfq_request_membership;

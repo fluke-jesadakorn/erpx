@@ -15,3 +15,6 @@ pub mod record_write;
 pub mod record_registry_http;
 
 pub mod source_record;
+
+pub mod portal_commerce_locks;
+pub mod rfq_request_source;

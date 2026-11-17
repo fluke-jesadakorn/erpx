@@ -75,10 +75,10 @@ pub async fn lock_quality_scrap_count_sources(c: &mut PgConnection) -> Result<()
         return Err(invalid());
     }
     sqlx::query(
-        "LOCK TABLE inventory_counts,inventory_count_lines,inventory_count_lot_lines IN SHARE ROW EXCLUSIVE MODE",
+        "LOCK TABLE inventory_counts,inventory_count_lines,inventory_count_lot_lines IN SHARE ROW EXCLUSIVE MODE NOWAIT",
     )
     .execute(c)
-    .await?;
+    .await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;
     Ok(())
 }
 
@@ -118,8 +118,7 @@ impl PreparedQualityScrapCount {
 
     pub async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
         if unit(c).await? != self.unit
-            || read_count(c, &self.request.company_id, &self.request.count_id).await?
-                != self.before
+            || read_count(c, &self.request.company_id, &self.request.count_id).await? != self.before
         {
             return Err(changed());
         }

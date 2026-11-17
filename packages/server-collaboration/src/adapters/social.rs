@@ -868,7 +868,7 @@ pub async fn apply_plan(
             mentions: mention_rows,
         } => {
             let changed_rows = sqlx::query(
-                "UPDATE social_comments SET body=$1,mentions_json=$2,version=version+1,updated_at=$3,last_command_id=$4 WHERE id=$5 AND post_id=$6 AND author_id=$7 AND state='published' AND version=$8",
+                "UPDATE social_comments SET body=$1,mentions_json=$2,version=version+1,updated_at=$3,last_command_id=$4 WHERE id=$5 AND post_id=$6 AND author_id=$7 AND state='published' AND version=$8 AND rich_content_json IS NULL",
             )
             .bind(body)
             .bind(serde_json::to_string(mention_rows).map_err(|_| changed())?)

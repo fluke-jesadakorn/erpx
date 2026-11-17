@@ -133,7 +133,7 @@ fn authority_matches(saved: &str, current: &SupplierPromiseAuthority) -> bool {
         })
 }
 
-fn replay(
+pub(crate) fn replay(
     stored: Option<StoredSupplierPromiseReceipt>,
     actor: &SupplierPromiseCommandActor,
     record_id: &str,

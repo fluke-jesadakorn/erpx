@@ -55,6 +55,33 @@ impl<W: Send> CurrentQualityPurchaseLineage<W> {
     pub fn root(&self) -> &Value {
         &self.root
     }
+    /// Verify the same lineage after an actual finalized Quality Count effect.
+    /// Composition must instantiate `S` with the concrete Inventory owner
+    /// witness and separately retain purchase, receipt and actor authorities.
+    pub async fn require_after_count<P, S>(
+        &self,
+        c: &mut PgConnection,
+        counts: &mut P,
+        finalized: &crate::adapters::count_disposition::RetainedQualityCountDisposition<S>,
+    ) -> Result<(), Error>
+    where
+        P: QualityLineageCountPort<Witness = W>,
+        S: crate::adapters::count_disposition::QualityCountDispositionSource,
+    {
+        finalized.require_current(c).await?;
+        let f = finalized.disposition_facts();
+        if self.start["id"].as_str() != Some(f.hold_id.as_str())
+            || self.start["company_id"].as_str() != Some(f.company_id.as_str())
+            || self.start["branch_id"].as_str() != Some(f.branch_id.as_str())
+            || self.start["warehouse_id"].as_str() != Some(f.warehouse_id.as_str())
+            || self.start["product_id"].as_str() != Some(f.product_id.as_str())
+            || self.start["lot_id"].as_str() != f.lot_id.as_deref()
+        {
+            return Err(changed());
+        }
+        self.require_current(c, counts).await?;
+        finalized.require_current(c).await
+    }
     pub async fn require_current<P: QualityLineageCountPort<Witness = W>>(
         &self,
         c: &mut PgConnection,

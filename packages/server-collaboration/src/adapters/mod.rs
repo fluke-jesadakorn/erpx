@@ -1,4 +1,5 @@
 pub(crate) mod legal_hold_notifications;
+pub(crate) mod web_push_preferences;
 pub(crate) mod maintenance_notifications;
 
 pub(crate) mod field_service_notifications;
@@ -74,3 +75,5 @@ pub(crate) mod staff_facts;
 pub(crate) mod roster_position_notifications;
 
 pub mod pms_social_event;
+pub(crate) mod customer_portal_notification;
+pub(crate) mod rfq_notifications;

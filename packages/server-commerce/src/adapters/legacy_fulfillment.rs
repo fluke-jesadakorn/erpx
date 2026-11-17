@@ -236,3 +236,48 @@ pub fn normalize_legacy_fulfillment_input(raw: &str) -> Result<String, BusinessE
 pub fn legacy_fulfillment_workflow_input(raw: &str) -> Result<CommandJson, BusinessError> {
     CommandJson::parse(&normalize_legacy_fulfillment_input(raw)?)
 }
+
+/// Normalize the legacy reservation input for Workflow identity only.
+/// This does not authorize or execute a reservation.
+pub fn legacy_reservation_workflow_input(raw: &str) -> Result<CommandJson, BusinessError> {
+    normalize_legacy_reservation(raw).map_err(|_| {
+        BusinessError::invalid(
+            "COMMERCE_RESERVATION_INPUT_INVALID",
+            "Use a valid reservation input.",
+        )
+    })
+}
+
+fn normalize_legacy_reservation(raw: &str) -> Result<CommandJson, BusinessError> {
+    let o = CommandJson::parse(raw).map_err(|_| invalid())?;
+    let positive_integer = |value: &CommandJson| -> Result<i64, BusinessError> {
+        let number = value.as_str().parse::<f64>().map_err(|_| invalid())?;
+        if !number.is_finite()
+            || number.fract() != 0.0
+            || !(1.0..=9_007_199_254_740_991.0).contains(&number)
+        {
+            return Err(invalid());
+        }
+        Ok(number as i64)
+    };
+    let version = positive_integer(&prop(&o, "expectedVersion")?.ok_or_else(invalid)?)?;
+    let action = field(&o, "action", None)?;
+    if !matches!(ascii(&action).as_deref(), Some("reserve" | "release")) {
+        return Err(invalid());
+    }
+    let line = text(&o, "lineId", None, false, 1, usize::MAX)?;
+    let q = field(&o, "quantity", None)?;
+    if !quantity(&q) {
+        return Err(invalid());
+    }
+    let expiry = match prop(&o, "expiresAt")? {
+        Some(value) => format!(",\"expiresAt\":{}", positive_integer(&value)?),
+        None => String::new(),
+    };
+    let reason = text(&o, "reason", None, true, 3, 500)?;
+    CommandJson::parse(&format!(
+        "{{\"expectedVersion\":{version},\"action\":{},\"lineId\":{line},\"quantity\":{}{expiry},\"reason\":{reason}}}",
+        encode(&action)?,
+        encode(&q)?
+    ))
+}

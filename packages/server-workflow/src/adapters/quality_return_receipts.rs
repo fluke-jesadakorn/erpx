@@ -97,15 +97,13 @@ async fn rows(
     c: &mut PgConnection,
     scope: &QualityReturnReceiptScope<'_>,
 ) -> Result<Vec<QualityReturnReceipt>, Error> {
-    bounded(c, scope).await?;
     let rows = sqlx::query(
         "SELECT command_id,record_id,actor_id,\
-         CASE WHEN authority_json IS NULL OR octet_length(authority_json)<=2097152 \
-         THEN authority_json END authority_json \
+         authority_json \
          FROM public.command_receipts \
          WHERE operation='commerce.return.approve' AND record_id=$1 AND actor_id=$2 \
          AND authority_json::jsonb->>'companyId'=$3 \
-         ORDER BY command_id LIMIT 10001",
+         ORDER BY command_id",
     )
     .bind(scope.return_id.as_str())
     .bind(scope.actor.as_str())
@@ -122,31 +120,6 @@ async fn rows(
             })
         })
         .collect()
-}
-
-async fn bounded(c: &mut PgConnection, scope: &QualityReturnReceiptScope<'_>) -> Result<(), Error> {
-    let valid: bool = sqlx::query_scalar(
-        "SELECT count(*)<=10000 AND COALESCE(sum(\
-         octet_length(command_id)::bigint+octet_length(record_id)::bigint+\
-         octet_length(actor_id)::bigint+COALESCE(octet_length(authority_json),0)::bigint),0)<=2097152 \
-         FROM public.command_receipts \
-         WHERE operation='commerce.return.approve' AND record_id=$1 AND actor_id=$2 \
-         AND authority_json::jsonb->>'companyId'=$3",
-    )
-    .bind(scope.return_id.as_str())
-    .bind(scope.actor.as_str())
-    .bind(scope.company.as_str())
-    .fetch_one(c)
-    .await?;
-    if !valid {
-        return Err(BusinessError::new(
-            FailureKind::Unavailable,
-            "QUALITY_RETURN_RECEIPT_LIMIT",
-            "Quality receipt source exceeds the bounded read.",
-        )
-        .into());
-    }
-    Ok(())
 }
 
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
@@ -188,4 +161,115 @@ fn changed() -> Error {
         "Quality receipt source changed.",
     )
     .into()
+}
+
+/// Exact original Quality scrap request receipt, not current authorization.
+/// The supplied tuple must come from a separately retained Inventory/Quality
+/// owner origin; this port proves only the Workflow receipt half of the join.
+#[derive(Clone, Copy)]
+pub struct QualityScrapRequestReceiptScope<'a> {
+    pub command_id: &'a str,
+    pub company: &'a CompanyId,
+    pub hold_id: &'a RecordId,
+    pub count_id: &'a RecordId,
+    pub actor: &'a UserId,
+}
+pub struct CurrentQualityScrapRequestReceipt {
+    unit: Unit,
+    command_id: String,
+    company: CompanyId,
+    hold_id: RecordId,
+    count_id: RecordId,
+    actor: UserId,
+    image: String,
+}
+impl CurrentQualityScrapRequestReceipt {
+    pub fn command_id(&self) -> &str {
+        &self.command_id
+    }
+    pub fn company(&self) -> &CompanyId {
+        &self.company
+    }
+    pub fn hold_id(&self) -> &RecordId {
+        &self.hold_id
+    }
+    pub fn count_id(&self) -> &RecordId {
+        &self.count_id
+    }
+    pub fn actor(&self) -> &UserId {
+        &self.actor
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if scrap_receipt_unit(c).await? != self.unit {
+            return Err(changed());
+        }
+        let scope = QualityScrapRequestReceiptScope {
+            command_id: &self.command_id,
+            company: &self.company,
+            hold_id: &self.hold_id,
+            count_id: &self.count_id,
+            actor: &self.actor,
+        };
+        if scrap_request_receipt_image(c, scope).await?.as_deref() != Some(&self.image) {
+            return Err(changed());
+        }
+        if scrap_receipt_unit(c).await? != self.unit {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+/// Same physical Workflow receipt lock used by Quality return receipts. Must
+/// be acquired alongside all source locks before the first protected snapshot.
+pub async fn lock_quality_scrap_request_receipts(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("QUALITY_RETURN_RECEIPT_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE public.command_receipts IN SHARE ROW EXCLUSIVE MODE NOWAIT")
+        .execute(c)
+        .await
+        .map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+    Ok(())
+}
+async fn scrap_receipt_unit(c: &mut PgConnection) -> Result<Unit, Error> {
+    let identity = unit(&mut *c).await?;
+    let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND granted AND relation='public.command_receipts'::regclass AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(c).await?;
+    if !held {
+        return Err(PersistenceError::new("QUALITY_SCRAP_RECEIPT_WRITE_FENCE_REQUIRED").into());
+    }
+    Ok(identity)
+}
+pub async fn inspect_quality_scrap_request_receipt(
+    c: &mut PgConnection,
+    scope: QualityScrapRequestReceiptScope<'_>,
+) -> Result<Option<CurrentQualityScrapRequestReceipt>, Error> {
+    let identity = scrap_receipt_unit(c).await?;
+    if scope.command_id.is_empty()
+        || scope.count_id.as_str() != format!("quality-scrap-{}", scope.command_id)
+    {
+        return Ok(None);
+    }
+    let image = scrap_request_receipt_image(c, scope).await?;
+    if scrap_receipt_unit(c).await? != identity {
+        return Err(changed());
+    }
+    Ok(image.map(|image| CurrentQualityScrapRequestReceipt {
+        unit: identity,
+        command_id: scope.command_id.to_owned(),
+        company: scope.company.clone(),
+        hold_id: scope.hold_id.clone(),
+        count_id: scope.count_id.clone(),
+        actor: scope.actor.clone(),
+        image,
+    }))
+}
+async fn scrap_request_receipt_image(
+    c: &mut PgConnection,
+    scope: QualityScrapRequestReceiptScope<'_>,
+) -> Result<Option<String>, Error> {
+    // Retain the complete row image and compare it exactly in this unit.
+    // PostgreSQL and the witness both materialize the full image.
+    let image:Option<String>=sqlx::query_scalar("SELECT to_jsonb(r)::text FROM public.command_receipts r WHERE r.command_id=$1 AND r.operation='quality.hold.disposition.scrap' AND r.record_id=$2 AND r.actor_id=$3 AND r.authority_json::jsonb->>'companyId'=$4 AND r.result_json::jsonb->>'countId'=$5")
+        .bind(scope.command_id).bind(scope.hold_id.as_str()).bind(scope.actor.as_str()).bind(scope.company.as_str()).bind(scope.count_id.as_str()).fetch_optional(c).await?;
+    Ok(image)
 }

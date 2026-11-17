@@ -35,3 +35,5 @@ pub(crate) mod task_cancel;
 pub(crate) mod task_decision;
 pub(crate) mod task_reroute;
 pub(crate) mod task_revise;
+pub(crate) mod customer_portal_events;
+pub(crate) mod rfq_command_receipt;

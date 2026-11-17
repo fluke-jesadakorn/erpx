@@ -10,7 +10,6 @@ use crate::{
         LegalAuxiliaryError, LegalAuxiliaryFuture, LegalAuxiliaryReadPorts,
     },
     domain::auxiliary::*,
-    domain::legal_records::sha256_hex,
 };
 use erpx_server_runtime::public::postgres::PersistenceError;
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -80,17 +79,38 @@ fn now_millis() -> i64 {
 
 pub struct PgLegalAuxiliaryReads<'c> {
     connection: &'c mut PgConnection,
+    citation_rows: Vec<(String, String)>,
 }
 
 impl<'c> PgLegalAuxiliaryReads<'c> {
     pub fn new(connection: &'c mut PgConnection) -> Self {
-        Self { connection }
+        Self { connection, citation_rows: Vec::new() }
     }
 
     /// Composition may use this to keep one read and its access audit in the
     /// caller's fresh unit; it never commits or opens a pool checkout.
     pub fn connection(&mut self) -> &mut PgConnection {
         self.connection
+    }
+
+    /// Consume the actual citation INSERT result in the original fenced unit.
+    pub async fn take_citation_audit(&mut self) -> Result<crate::adapters::citation_source::RetainedLegalCitationAudit, LegalAuxiliaryError> {
+        let rows = std::mem::take(&mut self.citation_rows);
+        crate::adapters::citation_source::RetainedLegalCitationAudit::capture(self.connection, rows).await
+    }
+
+    async fn insert_citation_audit(&mut self, actor: &LegalAuxiliaryActor, item_id: &str, document_id: &str, action: &str, now: i64) -> Result<(), LegalAuxiliaryError> {
+        let mut savepoint = self.connection.begin().await?;
+        let result: Result<(String,String), LegalAuxiliaryError> = async {
+            let row = sqlx::query("INSERT INTO legal_access_events(id,item_id,document_id,actor_id,action,created_at) VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5) RETURNING id,item_id,document_id,actor_id,action,created_at,to_jsonb(legal_access_events)::text image")
+                .bind(item_id).bind(document_id).bind(actor.user_id.as_str()).bind(action).bind(now).fetch_optional(&mut *savepoint).await?.ok_or_else(|| BusinessError::new(FailureKind::Conflict,"LEGAL_CITATION_AUDIT_CHANGED","The citation audit was not retained."))?;
+            if row.try_get::<String,_>("item_id")? != item_id || row.try_get::<String,_>("document_id")? != document_id || row.try_get::<String,_>("actor_id")? != actor.user_id.as_str() || row.try_get::<String,_>("action")? != action || row.try_get::<i64,_>("created_at")? != now { return Err(BusinessError::new(FailureKind::Conflict,"LEGAL_CITATION_AUDIT_CHANGED","The citation audit was not retained.").into()); }
+            Ok((row.try_get("id")?,row.try_get("image")?))
+        }.await;
+        match result {
+            Ok(row) => { savepoint.commit().await?; self.citation_rows.push(row); Ok(()) }
+            Err(error) => { savepoint.rollback().await?; Err(error) }
+        }
     }
 
     fn visibility(&self, actor: &LegalAuxiliaryActor) -> String {
@@ -153,9 +173,7 @@ impl<'c> PgLegalAuxiliaryReads<'c> {
             .collect()
     }
 
-    /// Read audit for law/knowledge evidence, matching `legal_access_events`.
-    /// Identifiers are derived from the exact source and operation so a replay
-    /// of the same read in the same millisecond cannot collide silently.
+    /// Every distinct source read receives its own audit identifier.
     async fn record_reads(
         &mut self,
         actor: &LegalAuxiliaryActor,
@@ -174,16 +192,14 @@ impl<'c> PgLegalAuxiliaryReads<'c> {
             let Some(item_id) = source.get("item_id").and_then(Value::as_str) else {
                 continue;
             };
-            let identifier = format!(
-                "legal-access-{}",
-                &sha256_hex(format!("{action}:{document_id}:{}:{now}", actor.user_id.as_str()).as_bytes())
-                    [..40]
-            );
+            if action == "law.citation.read" {
+                self.insert_citation_audit(actor, item_id, document_id, action, now).await?;
+                continue;
+            }
             sqlx::query(
                 "INSERT INTO legal_access_events(id,item_id,document_id,actor_id,action,created_at) \
-                 VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
+                 VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5)",
             )
-            .bind(identifier)
             .bind(item_id)
             .bind(document_id)
             .bind(actor.user_id.as_str())
@@ -215,6 +231,56 @@ async fn require_transaction(connection: &mut PgConnection) -> Result<(), LegalA
 }
 
 impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
+    fn document_citation<'a>(
+        &'a mut self,
+        actor: &'a LegalAuxiliaryActor,
+        source_id: &'a str,
+        now: i64,
+    ) -> LegalAuxiliaryFuture<'a, Value> {
+        Box::pin(async move {
+            self.ready().await?;
+            self.citation_rows.clear();
+            let id = source_id.strip_prefix("document:").unwrap_or(source_id);
+            let chunk = sqlx::query("SELECT c.document_id,CASE WHEN c.page_mapping THEN c.page::bigint ELSE NULL END page,c.page_mapping,c.section,c.text,c.document_checksum FROM legal_source_chunks c JOIN legal_text_reviews r ON r.id=c.text_review_id AND r.state='approved' AND r.company_id=c.company_id AND r.item_id=c.item_id AND r.document_id=c.document_id AND r.document_checksum=c.document_checksum WHERE c.id=$1 AND c.company_id=$2")
+                .bind(id).bind(actor.company_id.as_str()).fetch_optional(&mut *self.connection).await?;
+            let unavailable = |message| BusinessError::new(FailureKind::NotFound, "LEGAL_CITATION_UNAVAILABLE", message);
+            if source_id.starts_with("document:") && chunk.is_none() {
+                return Err(unavailable("The reviewed passage is unavailable.").into());
+            }
+            let document_id: String = match &chunk { Some(row) => row.try_get("document_id")?, None => id.to_owned() };
+            let sql = format!("SELECT d.id,d.item_id,d.version::bigint version,d.name,d.media_type,d.checksum,d.body,d.object_key,i.title,i.kind,EXISTS(SELECT 1 FROM legal_disposals x WHERE x.document_id=d.id) disposed,EXISTS(SELECT 1 FROM legal_destructions x WHERE x.item_id=i.id AND x.state='executing') destroying,({CLEAN_DOCUMENT}) available FROM legal_documents d JOIN legal_items i ON i.id=d.item_id WHERE d.id=$5 AND {}", self.visibility(actor));
+            let document = sqlx::query(AssertSqlSafe(sql))
+                .bind(actor.company_id.as_str()).bind(actor.branch_id.as_ref().map(|v| v.as_str()))
+                .bind(actor.department_id.as_ref().map(|v| v.as_str())).bind(actor.user_id.as_str())
+                .bind(&document_id).fetch_optional(&mut *self.connection).await?.ok_or_else(|| BusinessError::new(FailureKind::NotFound, "LEGAL_NOT_FOUND", "Document unavailable."))?;
+            if document.try_get::<bool, _>("disposed")? {
+                return Err(BusinessError::new(FailureKind::Conflict,"LEGAL_DOCUMENT_DISPOSED","Document content was destroyed under an approved retention policy. Metadata and destruction evidence remain.").into());
+            }
+            if document.try_get::<bool, _>("destroying")? {
+                return Err(BusinessError::new(FailureKind::Conflict,"LEGAL_RETENTION_FROZEN","Document retention is in progress. Review or resume the preserved manifest before reading content.").into());
+            }
+            if !document.try_get::<bool, _>("available")? {
+                return Err(unavailable("The cited original is unavailable or awaiting security review.").into());
+            }
+            let checksum: String = document.try_get("checksum")?;
+            if let Some(row) = &chunk {
+                if row.try_get::<String, _>("document_checksum")? != checksum {
+                    return Err(unavailable("The source version changed.").into());
+                }
+            } else if document.try_get::<String, _>("media_type")? != "text/plain"
+                || document.try_get::<Option<String>, _>("object_key")?.is_some()
+                || document.try_get::<String, _>("kind")? == "rule" {
+                return Err(unavailable("A reviewed source passage is required.").into());
+            }
+            let item_id: String = document.try_get("item_id")?;
+            let (page, mapping, section, text) = match chunk {
+                Some(row) => (row.try_get::<Option<i64>, _>("page")?, row.try_get::<bool, _>("page_mapping")?, row.try_get::<String, _>("section")?, row.try_get::<String, _>("text")?),
+                None => (None, false, String::new(), document.try_get::<String, _>("body")?),
+            };
+            self.insert_citation_audit(actor, &item_id, &document_id, "document.citation.read", now).await?;
+            Ok(json!({"kind":"document","title":document.try_get::<String,_>("title")?,"name":document.try_get::<String,_>("name")?,"item_id":item_id,"document_id":document_id,"version":document.try_get::<i64,_>("version")?,"checksum":checksum,"page":page,"page_mapping":mapping,"section":section,"text":text,"notice":"Read this immutable original and verify that the cited passage supports the conclusion. Legal interpretation requires independent review."}))
+        })
+    }
     fn workspace<'a>(
         &'a mut self,
         actor: &'a LegalAuxiliaryActor,
@@ -675,9 +741,11 @@ impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
         actor: &'a LegalAuxiliaryActor,
         chunk_id: &'a str,
         as_of: &'a str,
+        now: i64,
     ) -> LegalAuxiliaryFuture<'a, Value> {
         Box::pin(async move {
             self.ready().await?;
+            self.citation_rows.clear();
             let visibility = self.visibility(actor);
             let sql = format!(
                 "SELECT to_jsonb(x) x FROM (SELECT jsonb_build_object({LAW_FIELDS}) x \
@@ -710,13 +778,12 @@ impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
                 )
                 .into());
             };
-            let now = now_millis();
             self.record_reads(actor, std::slice::from_ref(&source), "law.citation.read", now)
                 .await?;
             let item_id = source.get("item_id").and_then(Value::as_str).unwrap_or_default();
             let source_url = source.get("source_url").and_then(Value::as_str).unwrap_or_default();
             let page = source.get("page").and_then(Value::as_i64);
-            let href = url::form_urlencoded::byte_serialize(item_id.as_bytes()).collect::<String>();
+            let href = item_id.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect::<String>();
             let original = if let Some(page) = page.filter(|_| source_url.ends_with(".pdf")) {
                 format!("{source_url}#page={page}")
             } else {

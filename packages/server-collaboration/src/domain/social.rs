@@ -152,6 +152,15 @@ pub struct PostSource {
     pub id: String,
 }
 
+/// Exact source version selected by the handover author. These facts must be
+/// rechecked by the Operations/PMS owners inside the command transaction.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HandoverSource {
+    pub kind: String,
+    pub id: String,
+    pub source_version: i64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkedRecordInput {
     pub module: String,
@@ -278,9 +287,10 @@ pub enum Change {
         id: String,
     },
     PublishHandoverPost {
+        date: String,
         body: String,
         recipient_ids: Vec<String>,
-        sources: Vec<PostSource>,
+        sources: Vec<HandoverSource>,
     },
     SavePostDraft {
         id: Option<String>,

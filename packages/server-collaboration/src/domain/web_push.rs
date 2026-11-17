@@ -1,4 +1,44 @@
 //! Delivery policy shared by the native Field notification job partition.
+use erpx_server_shared::public::BusinessError;
+use serde_json::Value;
+
+/// Normalized preference fields from the strict existing web-push form.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PushPreferenceInput {
+    pub work: bool,
+    pub mention: bool,
+    pub system: bool,
+    pub calendar: bool,
+    pub notice: bool,
+    pub quiet_start: Option<i32>,
+    pub quiet_end: Option<i32>,
+}
+
+pub fn parse_push_preferences(value: &Value) -> Result<PushPreferenceInput, BusinessError> {
+    let invalid = || BusinessError::invalid("INVALID_PUSH_PREFERENCES", "Choose valid push preferences and quiet hours.");
+    let v = value.as_object().ok_or_else(invalid)?;
+    let keys = ["work", "mention", "system", "calendar", "notice", "quietStartMinute", "quietEndMinute"];
+    if v.len() != keys.len() || keys.iter().any(|key| !v.contains_key(*key)) {
+        return Err(invalid());
+    }
+    let boolean = |key: &str| v.get(key).and_then(Value::as_bool).ok_or_else(invalid);
+    let minute = |key: &str| -> Result<Option<i32>, BusinessError> {
+        match v.get(key) {
+            Some(Value::Null) => Ok(None),
+            Some(Value::Number(n)) => {
+                let n = n.as_f64().filter(|n| n.is_finite() && n.fract() == 0.0 && (0.0..=1439.0).contains(n)).ok_or_else(invalid)?;
+                Ok(Some(n as i32))
+            }
+            _ => Err(invalid()),
+        }
+    };
+    let quiet_start = minute("quietStartMinute")?;
+    let quiet_end = minute("quietEndMinute")?;
+    if quiet_start.is_some() != quiet_end.is_some() || quiet_start.is_some() && quiet_start == quiet_end {
+        return Err(invalid());
+    }
+    Ok(PushPreferenceInput { work: boolean("work")?, mention: boolean("mention")?, system: boolean("system")?, calendar: boolean("calendar")?, notice: boolean("notice")?, quiet_start, quiet_end })
+}
 #[derive(Clone, Copy)]
 pub struct PushPreferences {
     pub enabled: bool,

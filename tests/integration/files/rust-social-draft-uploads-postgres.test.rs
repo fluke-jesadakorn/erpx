@@ -3,8 +3,10 @@
 //! Files effects apply only to that draft's live attachments and ready uploads.
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
+use erpx_server_collaboration::public::social_upload_files::lock_social_comment_draft;
 use erpx_server_files::public::social_draft_uploads::{
-    SocialDraftUploadRevokeRequest, revoke_social_draft_uploads,
+    SocialCommentFilesRequest, SocialDraftUploadRevokeRequest, retain_social_comment_images,
+    revoke_social_draft_uploads,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
@@ -24,7 +26,9 @@ async fn setup(pool: &DatabasePool) {
         .await
         .unwrap();
     sqlx::raw_sql(
-        "INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,
+        "INSERT INTO social_posts(id,author_id,author_name,company_id,body,created_at,updated_at) VALUES ('post-a','author','Author','company-a','Post',1,1);
+         INSERT INTO social_post_drafts(id,author_id,company_id,body,created_at,updated_at,comment_parent_post_id) VALUES ('draft-a','author','company-a','',1,1,'post-a');
+         INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,
            declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) VALUES
            ('u-ready-a','social_draft','draft-a','post_image','a.png','image/png',1,'staging-u-ready-a','ready','author',1,1,1),
            ('u-pending-a','social_draft','draft-a','post_image','b.png','image/png',1,'staging-u-pending-a','pending','author',1,1,1),
@@ -41,6 +45,135 @@ async fn setup(pool: &DatabasePool) {
     .execute(pool.raw())
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn selected_comment_images_are_retained_and_other_draft_files_revoked_atomically() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) VALUES ('u-extra','social_draft','draft-a','post_image','extra.png','image/png',1,'staging-extra','ready','author',1,1,1); INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES ('a-extra','u-extra','social_draft','draft-a','post_image','object-extra',1,'extra.png','image/png',1,'checksum-extra','author',1)")
+            .execute(pool.raw()).await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let witness = lock_social_comment_draft(&mut tx, "draft-a", "company-a", "author", "post-a").await.unwrap();
+        let selected = vec!["a-live-a".to_owned()];
+        retain_social_comment_images(&mut tx, SocialCommentFilesRequest { draft: &witness, selected_attachment_ids: &selected, now: NOW }).await.unwrap();
+        let rows: (Option<i64>, Option<i64>, Option<i64>) = sqlx::query_as("SELECT (SELECT revoked_at FROM attachments WHERE id='a-live-a'),(SELECT revoked_at FROM attachments WHERE id='a-extra'),(SELECT revoked_at FROM attachments WHERE id='a-live-b')").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(rows, (None, Some(NOW), None));
+        tx.rollback().await.unwrap();
+        let revoked: Option<i64> = sqlx::query_scalar("SELECT revoked_at FROM attachments WHERE id='a-extra'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(revoked, None, "caller rollback also rolls back Files effects");
+    }).await;
+}
+
+#[tokio::test]
+async fn comment_image_validation_rejects_foreign_duplicate_and_revoked_files() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        for selected in [
+            vec!["a-live-b".to_owned()],
+            vec!["a-live-a".to_owned(), "a-live-a".to_owned()],
+            vec!["a-pending-a".to_owned()],
+        ] {
+            let mut tx = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            let witness =
+                lock_social_comment_draft(&mut tx, "draft-a", "company-a", "author", "post-a")
+                    .await
+                    .unwrap();
+            assert!(
+                retain_social_comment_images(
+                    &mut tx,
+                    SocialCommentFilesRequest {
+                        draft: &witness,
+                        selected_attachment_ids: &selected,
+                        now: NOW
+                    }
+                )
+                .await
+                .is_err()
+            );
+            tx.rollback().await.unwrap();
+        }
+        let revoked: Option<i64> =
+            sqlx::query_scalar("SELECT revoked_at FROM attachments WHERE id='a-live-a'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(revoked, None);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn draft_witness_rejects_wrong_actor_and_a_different_transaction() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut owner = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *owner)
+            .await
+            .unwrap();
+        assert!(
+            lock_social_comment_draft(&mut owner, "draft-a", "company-a", "other-author", "post-a")
+                .await
+                .is_err()
+        );
+        assert!(
+            lock_social_comment_draft(&mut owner, "draft-a", "other-company", "author", "post-a")
+                .await
+                .is_err()
+        );
+        assert!(
+            lock_social_comment_draft(&mut owner, "draft-a", "company-a", "author", "other-post")
+                .await
+                .is_err()
+        );
+        let witness =
+            lock_social_comment_draft(&mut owner, "draft-a", "company-a", "author", "post-a")
+                .await
+                .unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *other)
+            .await
+            .unwrap();
+        let ids = vec!["a-live-a".to_owned()];
+        assert!(
+            retain_social_comment_images(
+                &mut other,
+                SocialCommentFilesRequest {
+                    draft: &witness,
+                    selected_attachment_ids: &ids,
+                    now: NOW
+                }
+            )
+            .await
+            .is_err()
+        );
+        other.rollback().await.unwrap();
+        sqlx::query("UPDATE social_post_drafts SET version=version+1 WHERE id='draft-a'")
+            .execute(&mut *owner)
+            .await
+            .unwrap();
+        assert!(
+            retain_social_comment_images(
+                &mut owner,
+                SocialCommentFilesRequest {
+                    draft: &witness,
+                    selected_attachment_ids: &ids,
+                    now: NOW,
+                },
+            )
+            .await
+            .is_err()
+        );
+        owner.rollback().await.unwrap();
+    })
+    .await;
 }
 
 #[tokio::test]

@@ -11,11 +11,12 @@ export async function GET(request: Request, context: RouteContext<"/api/v1/holdi
   try {
     const { holdingSlug } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
-    const requested = new URL(request.url).searchParams.get("filter") ?? "all";
+    const search = new URL(request.url).searchParams;
+    const requested = search.get("filter") ?? "all";
     const filter = feedFilterSchema.safeParse(requested);
     if (!filter.success) throw new ApiError(422, "INVALID_FILTER", "Choose a valid feed filter.");
     if (nativeSocialAvailable()) {
-      const page = (await nativeFeed(request, holdingSlug, filter.data)) as {
+      const page = (await nativeFeed(request, holdingSlug, filter.data, search.get("cursor") ?? undefined)) as {
         items?: unknown;
         nextCursor?: string | null;
         hasMore?: boolean;

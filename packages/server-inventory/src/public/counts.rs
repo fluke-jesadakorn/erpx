@@ -10,7 +10,12 @@ pub use crate::domain::counts::{
 };
 
 pub use crate::adapters::counts::{
-    CountSeedKind, CountSeedPlan, CountSeedSource, apply_count_save, apply_count_transition,
-    insert_count_seed_source, lock_count_sources, plan_count_seed, read_count_save_source,
-    read_count_transition_source,
+    CountSeedKind, CountSeedPlan, CountSeedSource, CurrentCountTransitionGuard,
+    CurrentDirectQualityCountOrigin, CurrentInventoryQualityCount,
+    CurrentQualityCountDecisionProjection, apply_count_save, apply_count_transition,
+    apply_quality_count_decision, apply_quality_count_effects, insert_count_seed_source,
+    inspect_count_transition_guard, inspect_direct_quality_count_origin,
+    inspect_quality_count_decision_projection, lock_count_sources,
+    lock_count_transition_guard_sources, plan_count_seed, prepare_inventory_quality_count,
+    read_count_save_source, read_count_transition_source,
 };

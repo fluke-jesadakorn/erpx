@@ -132,6 +132,10 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(PersistenceError::new("COMMERCE_QUALITY_TRANSACTION_REQUIRED").into());
     }
+    let held:bool=sqlx::query_scalar("SELECT count(*)=7 AND bool_and(c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND to_regclass(c.relname::text)=c.oid AND NOT row_security_active(c.oid) AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.granted AND l.relation=c.oid AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))) FROM pg_class c WHERE c.oid IN ('public.commerce_orders'::regclass,'public.commerce_order_lines'::regclass,'public.commerce_fulfillments'::regclass,'public.commerce_fulfillment_lines'::regclass,'public.commerce_returns'::regclass,'public.commerce_return_lines'::regclass,'public.commerce_return_lot_allocations'::regclass)").fetch_one(&mut *c).await?;
+    if !held {
+        return Err(PersistenceError::new("COMMERCE_QUALITY_SOURCE_FENCE_REQUIRED").into());
+    }
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
 }
 fn changed() -> BusinessError {

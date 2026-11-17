@@ -37,3 +37,7 @@ pub mod task_cancel;
 pub mod task_decision;
 pub mod task_reroute;
 pub mod task_revise;
+pub mod customer_portal_events;
+
+pub mod source_ordered_json;
+pub mod rfq_command_receipt;

@@ -7,7 +7,7 @@ mod fixture;
 
 use erpx_server_people_payroll::public::payroll_summary::{
     PayrollReadActor, PgPayrollRead, payroll_runs, payroll_summary, payroll_work_rows,
-    payroll_work_rows_on,
+    payroll_history, payroll_work_rows_on,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -18,6 +18,149 @@ use erpx_server_shared::public::{
 };
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
+
+fn legacy_history(database: &str, company: &str, cursor: Option<&str>) -> serde_json::Value {
+    let token = database.strip_prefix("erpx_dev_rust_").expect("leased test database");
+    let node = std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_| "node".into());
+    let helper = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/testing/fixtures/payroll-history-legacy-read.ts");
+    let mut child = std::process::Command::new(node).arg("--conditions=react-server").arg("--import=tsx").arg(helper)
+        .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped())
+        .spawn().expect("start source-bound Node oracle");
+    serde_json::to_writer(child.stdin.take().unwrap(), &serde_json::json!({"database":database,"token":token,"company":company,"cursor":cursor})).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success(), "legacy reader failed: {}", String::from_utf8_lossy(&output.stderr));
+    serde_json::from_slice(&output.stdout).expect("legacy reader JSON")
+}
+
+#[tokio::test]
+async fn history_pages_preserve_full_rows_cursor_and_company_authority() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,period_start,period_end,pay_date,currency,mode,status,revision,totals_json,version,created_by,created_at,updated_at) SELECT 'history-'||lpad(n::text,2,'0'),'company','group','2026-12-01','2026-12-31','2026-12-31','THB','preview','draft',n,'{}',1,'user',5,5 FROM generate_series(1,35) n")
+            .execute(pool.raw()).await.unwrap();
+        let database: String = sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+        let current = actor("company", &["payroll.read"]);
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |c| {
+            let current = current.clone();
+            let database = database.clone();
+            Box::pin(async move {
+                let first = payroll_history(c, &current, None, NOW).await?;
+                assert_eq!(serde_json::to_value(&first).unwrap(), legacy_history(&database, "company", None)["page"]);
+                assert_eq!(first.items.len(), 30);
+                assert_eq!(first.items[0], serde_json::json!({
+                    "id":"history-35", "company_id":"company", "pay_group_id":"group",
+                    "country_pack_id":null, "period_start":"2026-12-01", "period_end":"2026-12-31",
+                    "pay_date":"2026-12-31", "currency":"THB", "mode":"preview", "status":"draft",
+                    "revision":35, "totals_json":"{}", "input_digest":null, "error_message":null,
+                    "version":1, "created_by":"user", "approved_by":null, "posted_by":null,
+                    "created_at":5, "updated_at":5, "scope_engagement_id":null,
+                    "submitted_by":null, "submitted_digest":null, "submitted_at":null,
+                    "adjustment_of_run_id":null, "page_key":"2026-12-31:5"
+                }));
+                assert_eq!(first.items[29]["id"], "history-06");
+                assert_eq!(first.items[0]["company_id"], "company");
+                assert_eq!(first.items[0]["page_key"], "2026-12-31:5");
+                assert_eq!(first.items[0]["created_by"], "user");
+                assert!(first.items[0].get("scope_engagement_id").is_some());
+                assert!(first.items[0].get("adjustment_of_run_id").is_some());
+                assert_eq!(first.next_cursor.as_deref(), Some("eyJrZXkiOiIyMDI2LTEyLTMxOjUiLCJpZCI6Imhpc3RvcnktMDYiLCJyZXZlcnNlIjpmYWxzZSwic2NvcGUiOiI2NGJkZGE2Mjc3YzIyYmQxMWJmMTNlYTRkYTYwMmI4MjY4ZGEwMzAwYzg5NGY0OWFjOGZmNjJmOWE5M2ZkNzkyIn0"));
+                assert!(first.previous_cursor.is_none() && first.has_more);
+                let second = payroll_history(c, &current, first.next_cursor.as_deref(), NOW).await?;
+                assert_eq!(serde_json::to_value(&second).unwrap(), legacy_history(&database, "company", first.next_cursor.as_deref())["page"]);
+                assert_eq!(second.items.len(), 8);
+                assert_eq!(second.items[0]["id"], "history-05");
+                let decorated = format!("!{}==", first.next_cursor.as_deref().unwrap());
+                let decoded_like_node = payroll_history(c, &current, Some(&decorated), NOW).await?;
+                assert_eq!(decoded_like_node.items, second.items);
+                assert!(!second.has_more && second.next_cursor.is_none());
+                let back = payroll_history(c, &current, second.previous_cursor.as_deref(), NOW).await?;
+                assert_eq!(serde_json::to_value(&back).unwrap(), legacy_history(&database, "company", second.previous_cursor.as_deref())["page"]);
+                assert_eq!(back.items, first.items);
+                assert_eq!(back.next_cursor, first.next_cursor);
+                assert!(back.previous_cursor.is_none());
+                let foreign = actor("foreign", &["payroll.read"]);
+                assert_eq!(business(payroll_history(c, &foreign, first.next_cursor.as_deref(), NOW).await.unwrap_err()).code, "INVALID_CURSOR");
+                assert_eq!(legacy_history(&database, "foreign", first.next_cursor.as_deref())["error"]["code"], "INVALID_CURSOR");
+                let denied = actor("company", &["payroll.payment.read"]);
+                assert_eq!(business(payroll_history(c, &denied, Some("invalid"), NOW).await.unwrap_err()).code, "PERMISSION_REQUIRED");
+                assert_eq!(business(payroll_history(c, &current, Some("invalid"), NOW).await.unwrap_err()).code, "INVALID_CURSOR");
+                assert_eq!(legacy_history(&database, "company", Some("invalid"))["error"]["code"], "INVALID_CURSOR");
+                Ok(())
+            })
+        }).await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn history_safe_integer_boundaries_match_legacy_reader_acceptance() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let database: String = sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+        for value in [9_007_199_254_740_991_i64, -9_007_199_254_740_991, 9_007_199_254_740_992, -9_007_199_254_740_992] {
+            sqlx::query("UPDATE hr_payroll_runs SET created_at=$1 WHERE id='run-nov-thb'").bind(value).execute(pool.raw()).await.unwrap();
+            let legacy = legacy_history(&database, "company", None);
+            let current = actor("company", &["payroll.read"]);
+            let native = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |c| {
+                let current = current.clone();
+                Box::pin(async move { payroll_history(c, &current, None, NOW).await })
+            }).await;
+            if value.unsigned_abs() <= 9_007_199_254_740_991 {
+                assert_eq!(serde_json::to_value(native.unwrap()).unwrap(), legacy["page"]);
+            } else {
+                assert_eq!(business(native.unwrap_err()).code, "DATABASE_NUMBER_OUT_OF_RANGE");
+                assert_eq!(legacy["error"]["name"], "RangeError");
+                assert_eq!(legacy["error"]["message"], "DATABASE_NUMBER_OUT_OF_RANGE");
+            }
+        }
+    }).await;
+}
+
+#[tokio::test]
+async fn history_page_boundaries_and_unicode_cursors_match_legacy_source() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let database: String = sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+        let company = "บริษัท🧾";
+        let mut inserted = 0_i64;
+        for count in [0_i64, 30, 31, 60, 61] {
+            if count > inserted {
+                sqlx::query("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,period_start,period_end,pay_date,currency,mode,status,revision,totals_json,version,created_by,created_at,updated_at) SELECT 'รายการ-'||lpad(n::text,2,'0'),$1,'group','2026-12-01','2026-12-31','2026-12-31','THB','preview','draft',n,'{}',1,'user',5,5 FROM generate_series($2::bigint,$3::bigint) n")
+                    .bind(company).bind(inserted + 1).bind(count).execute(pool.raw()).await.unwrap();
+                inserted = count;
+            }
+            let database = database.clone();
+            let current = actor(company, &["payroll.read"]);
+            PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |c| {
+                let current = current.clone();
+                let database = database.clone();
+                Box::pin(async move {
+                    let first = payroll_history(c, &current, None, NOW).await?;
+                    assert_eq!(first.items.len(), count.min(30) as usize);
+                    assert_eq!(first.has_more, count > 30);
+                    assert_eq!(serde_json::to_value(&first).unwrap(), legacy_history(&database, company, None)["page"]);
+                    if let Some(next) = &first.next_cursor {
+                        let second = payroll_history(c, &current, Some(next), NOW).await?;
+                        assert_eq!(serde_json::to_value(&second).unwrap(), legacy_history(&database, company, Some(next))["page"]);
+                        let decorated = format!(" \n!{}=ignored", next.replace('-', "+").replace('_', "/"));
+                        let node = legacy_history(&database, company, Some(&decorated));
+                        let rust = payroll_history(c, &current, Some(&decorated), NOW).await?;
+                        assert_eq!(serde_json::to_value(rust).unwrap(), node["page"]);
+                        let previous = second.previous_cursor.as_deref().unwrap();
+                        let back = payroll_history(c, &current, Some(previous), NOW).await?;
+                        assert_eq!(back.items, first.items);
+                        assert_eq!(serde_json::to_value(back).unwrap(), legacy_history(&database, company, Some(previous))["page"]);
+                        if let Some(third_cursor) = &second.next_cursor {
+                            let third = payroll_history(c, &current, Some(third_cursor), NOW).await?;
+                            assert_eq!(serde_json::to_value(third).unwrap(), legacy_history(&database, company, Some(third_cursor))["page"]);
+                        }
+                    }
+                    Ok(())
+                })
+            }).await.unwrap();
+        }
+    }).await;
+}
 
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {

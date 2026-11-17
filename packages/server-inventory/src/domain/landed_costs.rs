@@ -495,12 +495,14 @@ pub fn plan_create(
 }
 
 /// Plan an approve/reject/cancel/post transition. `period` is supplied by the
-/// adapter only for posting; independence is checked from current facts.
+/// adapter only for posting. The caller supplies current IAM same-person
+/// authority for the creator; the direct user ID remains an identity match.
 pub fn plan_transition(
     source: &LandedCostTransitionSource,
     input: &LandedCostActionInput,
     action: LandedCostAction,
     actor: &str,
+    creator_is_same_person: bool,
     actor_branch: Option<&str>,
     period: Option<String>,
 ) -> Result<LandedCostTransitionPlan, BusinessError> {
@@ -512,15 +514,16 @@ pub fn plan_transition(
         ));
     }
     let reason = require_reason(&input.reason, 3, "REASON_REQUIRED")?;
+    let same_creator = cost.created_by == actor || creator_is_same_person;
     if action == LandedCostAction::Cancel {
-        if cost.created_by != actor || cost.status != "submitted" {
+        if !same_creator || cost.status != "submitted" {
             return Err(BusinessError::new(
                 FailureKind::Forbidden,
                 "LANDED_COST_CANCEL_FORBIDDEN",
                 "Only the preparer can cancel a submitted landed cost.",
             ));
         }
-    } else if actor_branch.is_some() || cost.created_by == actor {
+    } else if actor_branch.is_some() || same_creator {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
             "INDEPENDENT_FINANCE_REQUIRED",

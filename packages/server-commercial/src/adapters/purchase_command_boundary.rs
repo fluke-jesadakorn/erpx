@@ -301,6 +301,18 @@ impl PurchaseCommandBoundary {
     }
 }
 
+/// Portal's Holding-wide writer fence, acquired before any source snapshot.
+/// This lock-only operation performs no purchase decision or authority check.
+pub async fn lock_portal_purchase_writer_fence(connection: &mut PgConnection) -> Result<(), Error> {
+    if !connection.is_in_transaction() {
+        return Err(PersistenceError::new("COMMERCIAL_PURCHASE_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE company_package_grants IN SHARE ROW EXCLUSIVE MODE")
+        .execute(connection)
+        .await?;
+    Ok(())
+}
+
 /// Retained Company writer order: package fence, Company advisory, then the
 /// grant rows. Call before any owner/IAM/aggregate lock.
 pub async fn lock_company_purchase_read_sources(

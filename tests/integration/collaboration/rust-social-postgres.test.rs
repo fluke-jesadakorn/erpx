@@ -590,6 +590,68 @@ async fn post_publish_topics_mentions_replay_feed_and_company_isolation() {
 }
 
 #[tokio::test]
+async fn plain_native_edit_cannot_make_existing_rich_comment_inconsistent() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let post = run(
+            &pool,
+            "author",
+            "company",
+            "social-rich-post-01",
+            post_change("Post", Audience::Branch),
+        )
+        .await
+        .unwrap();
+        let comment = run(
+            &pool,
+            "author",
+            "company",
+            "social-rich-comment-01",
+            Change::PublishComment {
+                post_id: post.id.clone(),
+                body: "Original".into(),
+                parent_comment_id: None,
+                comment_upload_id: None,
+                mentions: vec![],
+            },
+        )
+        .await
+        .unwrap();
+        let rich = r#"{"version":1,"blocks":[]}"#;
+        sqlx::query("UPDATE social_comments SET rich_content_json=$1 WHERE id=$2")
+            .bind(rich)
+            .bind(&comment.id)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let result = run(
+            &pool,
+            "author",
+            "company",
+            "social-rich-edit-01",
+            Change::EditComment {
+                post_id: post.id,
+                id: comment.id.clone(),
+                expected_version: 1,
+                body: "Changed".into(),
+                mentions: vec![],
+            },
+        )
+        .await;
+        assert!(result.is_err());
+        let row: (String, Option<String>, i64) = sqlx::query_as(
+            "SELECT body,rich_content_json,version FROM social_comments WHERE id=$1",
+        )
+        .bind(&comment.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, ("Original".into(), Some(rich.into()), 1));
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn comments_edit_tombstone_moderation_cas_and_readback() {
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
@@ -1444,90 +1506,19 @@ async fn moderators_hide_posts_but_other_roles_cannot() {
 }
 
 #[tokio::test]
-async fn handover_publish_creates_the_participant_post_and_sources() {
+async fn handover_without_operations_authority_creates_no_post_or_receipt() {
     fixture::with_database(10, |pool| async move {
         setup(&pool).await;
-        let handover = Change::PublishHandoverPost {
-            body: "Night handover".into(),
-            recipient_ids: vec!["person-1".into()],
-            sources: vec![PostSource {
-                kind: "staff_task".into(),
-                id: "task-1".into(),
-            }],
-        };
-        let published = run(
-            &pool,
-            "author",
-            "company",
-            "social-handover-0901",
-            handover.clone(),
-        )
-        .await
-        .unwrap();
-        assert_eq!(
-            (published.id.as_str(), published.version, published.status),
-            ("post-post-draft-social-handover-0901", 1, "published")
-        );
-        let post: (String, String, String) = sqlx::query_as(
-            "SELECT purpose,audience_kind,body FROM social_posts WHERE id=$1",
-        )
-        .bind(&published.id)
-        .fetch_one(pool.raw())
-        .await
-        .unwrap();
-        assert_eq!(
-            post,
-            ("handover".into(), "participants".into(), "Night handover".into())
-        );
-        let participants: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM social_post_participants WHERE post_id=$1")
-                .bind(&published.id)
-                .fetch_one(pool.raw())
-                .await
-                .unwrap();
-        assert_eq!(participants, 2);
-        let source: (String, String) = sqlx::query_as(
-            "SELECT source_kind,source_id FROM social_post_sources WHERE post_id=$1",
-        )
-        .bind(&published.id)
-        .fetch_one(pool.raw())
-        .await
-        .unwrap();
-        assert_eq!(source, ("staff_task".into(), "task-1".into()));
-        let operational: (String, String, String, String) = sqlx::query_as(
-            "SELECT operation,actor_id,authority_json::jsonb->>'companyId',(result_json::jsonb->'sourceBindings')::text FROM command_receipts WHERE command_id=$1",
-        )
-        .bind("social-handover-0901-operations")
-        .fetch_one(pool.raw())
-        .await
-        .unwrap();
-        assert_eq!(
-            (operational.0.as_str(), operational.1.as_str(), operational.2.as_str()),
-            ("work.handover.publish", "author", "company")
-        );
-        let expected_bindings: String = sqlx::query_scalar(
-            "SELECT jsonb_agg(jsonb_build_object('kind',source_kind,'id',source_id) ORDER BY ordinal)::text FROM social_post_sources WHERE post_id=$1",
-        )
-        .bind(&published.id)
-        .fetch_one(pool.raw())
-        .await
-        .unwrap();
-        assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&operational.3).unwrap(),
-            serde_json::from_str::<serde_json::Value>(&expected_bindings).unwrap()
-        );
-        let replay = run(
-            &pool,
-            "author",
-            "company",
-            "social-handover-0901",
-            handover,
-        )
-        .await
-        .unwrap();
-        assert_eq!(replay, published);
-    })
-    .await;
+        let error = run(&pool, "author", "company", "social-handover-0901", Change::PublishHandoverPost {
+            date: "2026-11-15".into(), body: "Night handover".into(), recipient_ids: vec!["person-1".into()],
+            sources: vec![HandoverSource { kind: "staff_task".into(), id: "task-1".into(), source_version: 3 }],
+        }).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.code == "HANDOVER_AUTHORITY_PORT_UNAVAILABLE"));
+        let counts: (i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM social_posts WHERE id=$1), (SELECT count(*) FROM command_receipts WHERE command_id IN ($2,$3))")
+            .bind("post-post-draft-social-handover-0901").bind("social-handover-0901").bind("social-handover-0901-operations")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(counts, (0, 0));
+    }).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]

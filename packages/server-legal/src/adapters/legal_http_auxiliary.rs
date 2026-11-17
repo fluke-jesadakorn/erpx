@@ -50,6 +50,8 @@ struct LegalAuxiliaryHttpState {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct LegalAuxiliaryQueryWire {
+    #[serde(rename = "sourceId")]
+    pub source_id: Option<String>,
     #[serde(rename = "ruleId")]
     pub rule_id: Option<String>,
     #[serde(rename = "asOf")]
@@ -70,6 +72,7 @@ impl LegalAuxiliaryQueryWire {
     fn pairs(&self) -> Vec<(String, String)> {
         let mut pairs = Vec::new();
         for (key, value) in [
+            ("sourceId", &self.source_id),
             ("ruleId", &self.rule_id),
             ("asOf", &self.as_of),
             ("q", &self.q),
@@ -106,7 +109,7 @@ fn status(kind: FailureKind) -> StatusCode {
 
 fn error_response(error: BusinessError) -> Response {
     (
-        status(error.kind),
+        if error.code == "LEGAL_DOCUMENT_DISPOSED" { StatusCode::GONE } else { status(error.kind) },
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
     )
         .into_response()
@@ -275,10 +278,39 @@ impl LegalAuxiliaryHttpService {
 async fn read(
     State(service): State<Arc<LegalAuxiliaryHttpService>>,
     Path((holding_slug, path)): Path<(String, String)>,
-    Query(wire): Query<LegalAuxiliaryQueryWire>,
     headers: HeaderMap,
     request: Request,
 ) -> Response {
+    // Next exposes repeated search parameters as arrays. A document citation
+    // ignores asOf altogether; a law citation rejects any array, including two
+    // equal values. Keep the normal Axum extractor for every other endpoint.
+    let wire = if path == "citations" || path.starts_with("citations/") {
+        let mut wire = LegalAuxiliaryQueryWire::default();
+        let mut saw_as_of = false;
+        let mut repeated_as_of = false;
+        for (key, value) in url::form_urlencoded::parse(request.uri().query().unwrap_or("").as_bytes()) {
+            match key.as_ref() {
+                "sourceId" => {
+                    if wire.source_id.is_some() {
+                        return error_response(malformed("LEGAL_REQUEST_INVALID", "Use one citation source."));
+                    }
+                    wire.source_id = Some(value.into_owned());
+                }
+                "asOf" => {
+                    if saw_as_of { repeated_as_of = true; }
+                    else { wire.as_of = Some(value.into_owned()); saw_as_of = true; }
+                }
+                _ => {}
+            }
+        }
+        if repeated_as_of { wire.as_of = Some(String::new()); }
+        wire
+    } else {
+        match Query::<LegalAuxiliaryQueryWire>::try_from_uri(request.uri()) {
+            Ok(Query(wire)) => wire,
+            Err(rejection) => return rejection.into_response(),
+        }
+    };
     let host = unique_header(&headers, header::HOST)
         .ok()
         .flatten()
@@ -462,5 +494,13 @@ mod tests {
             ]
         );
         assert!(LegalAuxiliaryQueryWire::default().pairs().is_empty());
+    }
+
+    #[test]
+    fn citation_query_retains_opaque_source_without_path_normalization() {
+        for id in [".", "..", "document:a/b%2Fc", &"ก".repeat(80)] {
+            let wire = LegalAuxiliaryQueryWire { source_id: Some(id.to_owned()), ..Default::default() };
+            assert_eq!(parse_auxiliary_path(&split_path("citations").unwrap(), &wire.pairs()), Some(LegalAuxiliaryRead::Citation { id: id.to_owned(), as_of: None }));
+        }
     }
 }

@@ -43,14 +43,15 @@ async fn participants(
 ) -> Result<Participants, Error> {
     let company = &current.selection().workspace().company_id;
     let staff = current_journal_flow_people(c, company).await?;
-    if staff.len() > 500 {
-        return Err(changed());
-    }
     let members = service_count_flow_active_members(c, company, now).await?;
     let names = read_service_count_member_names(c, company, &members).await?;
+    let active_members: BTreeSet<&str> = members.iter().map(String::as_str).collect();
     let mut known = BTreeMap::new();
     let mut teams = BTreeMap::new();
-    for p in &staff {
+    for p in staff
+        .iter()
+        .filter(|person| active_members.contains(person.user_id.as_str()))
+    {
         let name = journal_flow_team_name(c, company, p.department_id.as_deref()).await?;
         known.insert(
             p.user_id.clone(),

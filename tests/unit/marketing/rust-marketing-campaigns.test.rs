@@ -1013,3 +1013,136 @@ mod asset_review_facts {
         assert!(configuration.validate(&actor("reviewer")).is_err());
     }
 }
+
+#[test]
+fn asset_request_and_legacy_fingerprint_differences_are_explicit() {
+    use erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput;
+    let node = std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let out = std::process::Command::new(node)
+        .current_dir(root)
+        .args([
+            "--conditions=react-server",
+            "--import=tsx",
+            "scripts/testing/fixtures/marketing-asset-legacy-oracle.ts",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "TS oracle failed");
+    let ts: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let input = |kind: &str, name: &str, configuration: String| MarketingAssetCreateInput {
+        kind: kind.into(),
+        name: name.into(),
+        configuration_json: configuration,
+        preview_json: "{}".into(),
+    };
+    assert_eq!(ts["cases"][0]["schema"], true);
+    assert!(
+        input("content", " Draft ", r#"{"z":1,"a":2}"#.into())
+            .validate()
+            .is_ok()
+    );
+    for (index, json) in [
+        (1, r#"{"consentRequired":true,"contentAssetId":"abc"}"#),
+        (2, r#"{"consentRequired":false,"mediaPublicationId":"abc"}"#),
+    ] {
+        assert_eq!(ts["cases"][index]["presentation"], false);
+        let error = input("form", "Form", json.into()).validate().unwrap_err();
+        assert_eq!(error.code, "MARKETING_PRESENTATION_INVALID");
+        assert_eq!(
+            error.message,
+            ts["cases"][index]["message"].as_str().unwrap()
+        );
+    }
+    assert_eq!(ts["cases"][3]["schema"], true);
+    assert_eq!(
+        input(
+            "content",
+            "OK",
+            format!("{{\"body\":\"{}\"}}", "x".repeat(65540))
+        )
+        .validate()
+        .unwrap_err()
+        .code,
+        "MARKETING_ASSET_INPUT_INVALID"
+    );
+    assert_eq!(ts["cases"][4]["schema"], true);
+    assert!(input("content", "A\0B", "{}".into()).validate().is_err());
+    for (index, json) in [
+        (5, r#"{"contentAssetId":1}"#),
+        (6, r#"{"contentAssetId":""}"#),
+        (7, r#"{"contentVersion":0}"#),
+        (8, r#"{"contentVersion":1.2}"#),
+        (9, r#"{"mediaPublicationId":"abc"}"#),
+    ] {
+        let error = input("form", "Form", json.into()).validate().unwrap_err();
+        assert_eq!(error.code, "MARKETING_PRESENTATION_INVALID");
+        assert_eq!(
+            error.message,
+            ts["cases"][index]["message"].as_str().unwrap()
+        );
+    }
+    assert_eq!(ts["cases"][10]["presentation"], true);
+    assert!(
+        input(
+            "form",
+            "Form",
+            r#"{"contentAssetId":"a","contentVersion":1,"consentRequired":true}"#.into()
+        )
+        .validate()
+        .is_ok()
+    );
+    let source = ts["fingerprint"].as_str().unwrap();
+    assert!(source.contains("\"assignment\":\"assignment\""));
+    assert!(source.contains("\"input\":{\"kind\":\"content\""));
+    let native=serde_json::json!({"operation":"marketing.asset.create","actor":"user","company":"company","kind":"content","name":"Draft","configuration":r#"{"z":1,"a":2}"#,"preview":"{}"}).to_string();
+    assert_ne!(source, native);
+}
+
+#[test]
+fn asset_normalization_matches_actual_typescript_source_order() {
+    use erpx_server_marketing::public::asset_normalization::normalize_asset_input;
+    use erpx_server_workflow::public::source_ordered_json::SourceOrderedJson;
+    use std::io::Write;
+    let mut cases=vec![r#"{"preview":{"2":2,"1":1,"z":"\ud800"},"extra":true,"configuration":{"z":1,"a":2},"name":"  Draft  ","kind":"content"}"#.to_owned(),r#"{"kind":"form","name":" OK ","configuration":{"consentRequired":true,"contentAssetId":"x"},"preview":{}}"#.into(),r#"{"kind":"form","name":" OK ","configuration":{"consentRequired":false,"mediaPublicationId":"x"},"preview":{}}"#.into(),r#"{"kind":"content","name":7,"configuration":{},"preview":{}}"#.into(),r#"{"kind":"content","name":"😀","configuration":[],"preview":{}}"#.into(),format!("{{\"kind\":\"content\",\"name\":\"  Big  \",\"configuration\":{{\"data\":\"{}\"}},\"preview\":{{}}}}","x".repeat(2*1024*1024+20))];
+    for name in ["😀a".to_owned(), "😀".repeat(160), "😀".repeat(161), "\u{feff}ab\u{a0}".to_owned()] {
+        cases.push(serde_json::json!({"kind":"content","name":name,"configuration":{},"preview":{}}).to_string());
+    }
+    for content_id in ["😀".repeat(180), "😀".repeat(181)] {
+        cases.push(serde_json::json!({"kind":"form","name":"OK","configuration":{"consentRequired":true,"contentAssetId":content_id,"contentVersion":1},"preview":{}}).to_string());
+    }
+    cases.extend([
+        r#"null"#,
+        r#"{}"#,
+        r#"{"kind":"content","name":"OK","configuration":{},"preview":null}"#,
+        r#"{"kind":"form","name":"OK","configuration":{"consentRequired":true,"contentAssetId":"x","contentVersion":1.5},"preview":{}}"#,
+        r#"{"kind":"form","name":"OK","configuration":{"consentRequired":true,"contentAssetId":"x","contentVersion":9007199254740992},"preview":{}}"#,
+    ].into_iter().map(str::to_owned));
+    let script = r#"const {readFileSync}=require('node:fs');const {assetSchema}=require('./packages/server-marketing/src/domain/asset.ts');const {marketingPresentationReferences}=require('./packages/server-marketing/src/domain/presentation.ts');const cases=JSON.parse(readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(raw=>{try{const x=assetSchema.parse(JSON.parse(raw));if(x.kind==='form'){marketingPresentationReferences(x.configuration);if(x.configuration.consentRequired!==true)return {error:'MARKETING_CONSENT_REQUIRED',message:'Lead capture forms must require consent before they can be saved.'};}return {json:JSON.stringify(x)};}catch(e){return {error:e.code??'VALIDATION_FAILED',message:e.issues?.[0]?.message??e.message}}})));"#;
+    let mut child = std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap())
+        .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .args(["--conditions=react-server", "--import=tsx", "-e", script])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    write!(
+        child.stdin.take().unwrap(),
+        "{}",
+        serde_json::to_string(&cases).unwrap()
+    )
+    .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    let expected: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
+    for (raw, want) in cases.iter().zip(expected) {
+        let parsed = SourceOrderedJson::parse(raw).unwrap();
+        match normalize_asset_input(&parsed) {
+            Ok(json) => assert_eq!(json, want["json"].as_str().unwrap()),
+            Err(error) => {
+                assert_eq!(error.code, want["error"].as_str().unwrap());
+                assert_eq!(error.message, want["message"].as_str().unwrap());
+            }
+        }
+    }
+}

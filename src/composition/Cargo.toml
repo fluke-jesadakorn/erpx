@@ -159,6 +159,51 @@ path = "../../tests/integration/organization/rust-organization-http-postgres.tes
 required-features = ["existing-business"]
 
 [[test]]
+name = "supplier_promise_staged_composition_postgres"
+path = "../../tests/integration/procurement/rust-supplier-promise-staged-composition-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "marketing_work_context_postgres"
+path = "../../tests/integration/marketing/rust-marketing-work-context-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "portal_mode"
+path = "../../tests/integration/customer_360/rust-portal-mode.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "portal_lock_chain_postgres"
+path = "../../tests/integration/customer_360/rust-portal-lock-chain-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "portal_command_owner_composition_postgres"
+path = "../../tests/integration/customer_360/rust-portal-command-owner-composition-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "portal_control_holding_lease_postgres"
+path = "../../tests/integration/customer_360/rust-portal-control-holding-lease-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "portal_notification_owner_composition_postgres"
+path = "../../tests/integration/customer_360/rust-portal-notification-owner-composition-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "payroll_history_http_postgres"
+path = "../../tests/integration/people_payroll/rust-payroll-history-http-postgres.test.rs"
+required-features = ["business-http"]
+
+[[test]]
+name = "inventory_landed_cost_http_postgres"
+path = "../../tests/integration/inventory/rust-inventory-landed-cost-http-postgres.test.rs"
+required-features = ["business-http"]
+
+[[test]]
 name = "inventory_stock_http_postgres"
 path = "../../tests/integration/inventory/rust-inventory-stock-http-postgres.test.rs"
 required-features = ["existing-business"]
@@ -568,7 +613,37 @@ path = "../../tests/integration/pos/rust-pos-command-composed-http-postgres.test
 required-features = ["existing-business"]
 
 [[test]]
+name = "quality_count_origin_postgres"
+path = "../../tests/integration/inventory/rust-quality-count-origin-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "quality_count_purchase_http_postgres"
+path = "../../tests/integration/inventory/rust-quality-count-purchase-http-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
 name = "commerce_selected_http_postgres"
 path = "../../tests/integration/commerce/rust-commerce-selected-http-postgres.test.rs"
 required-features = ["existing-business", "private-field-api"]
+
+[[test]]
+name = "rfq_notice_composed_postgres"
+path = "../../tests/integration/procurement/rust-rfq-notice-composed-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "rfq_receipt_composed_postgres"
+path = "../../tests/integration/procurement/rust-rfq-receipt-composed-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "rfq_target_composed_postgres"
+path = "../../tests/integration/procurement/rust-rfq-target-composed-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "rfq_team_handlers_postgres"
+path = "../../tests/integration/procurement/rust-rfq-team-handlers-postgres.test.rs"
+required-features = ["existing-business"]
 

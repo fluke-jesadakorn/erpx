@@ -12,3 +12,5 @@ pub mod sales_price_lists_http;
 pub mod sales_recipient;
 pub mod sales_notification_execution;
 pub mod sales_notification_reconciliation;
+
+pub mod portal_commerce_locks;

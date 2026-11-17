@@ -160,3 +160,7 @@ pub(crate) mod directory_operation_postgres;
 
 pub(crate) mod user_management_postgres;
 pub mod user_management_http;
+pub(crate) mod portal_private_session_lease;
+pub(crate) mod messaging_people;
+pub(crate) mod rfq_target_authority;
+pub(crate) mod rfq_request_membership;

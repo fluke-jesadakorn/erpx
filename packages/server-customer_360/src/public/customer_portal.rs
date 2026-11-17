@@ -10,7 +10,7 @@
 pub use crate::adapters::portal::PgCustomerPortal;
 pub use crate::application::portal::{
     CustomerPortalEffects, CustomerPortalRepository, CustomerPortalSharedFiles,
-    PortalCommandEvidence, PortalFuture, customer_portal_command, customer_portal_projection,
+    PortalCommandError, PortalCommandEvidence, PortalEventIdentifiers, PortalFuture, customer_portal_command, customer_portal_projection,
 };
 pub use crate::domain::portal::{
     CustomerPortalItem, CustomerPortalProjection, CustomerSharedFile, MAX_ATTACHMENT_SET,

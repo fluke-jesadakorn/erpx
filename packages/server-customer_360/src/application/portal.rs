@@ -13,8 +13,8 @@ use crate::domain::portal::{
     PortalCommandOutcome, PortalCommandPurpose, PortalCustomerActor, PortalPurchaseScope,
     action_already_recorded, attachment_action, binding_changed, binding_expired,
     binding_unavailable, command_key_required, idempotency_conflict, identity_required,
-    projection_invalid, request_invalid, source_invalid, source_unavailable,
-    valid_event_identifier, valid_identifier, valid_key, valid_read_id, valid_request_hash,
+    projection_invalid, request_invalid, source_unavailable,
+    valid_identifier, valid_key, valid_read_id, valid_request_hash,
 };
 use erpx_server_shared::public::BusinessError;
 use std::collections::BTreeMap;
@@ -22,6 +22,17 @@ use std::future::Future;
 use std::pin::Pin;
 
 pub type PortalFuture<'a, T, E> = Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
+
+/// Command transport preserves Files' bounded required count without making
+/// Files depend on this owner or changing the shared BusinessError contract.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PortalCommandError {
+    Business(BusinessError),
+    AttachmentRequired { required: u8 },
+}
+impl From<BusinessError> for PortalCommandError {
+    fn from(error: BusinessError) -> Self { Self::Business(error) }
+}
 
 /// Read and record primitives over the existing customer portal tables. The
 /// caller owns the serializable Holding transaction and the exact request
@@ -123,31 +134,35 @@ pub trait CustomerPortalEffects: Send {
     ) -> PortalFuture<'a, (), Self::Error>;
 }
 
+/// Generate each independent event identifier at its actual write boundary.
+pub trait PortalEventIdentifiers {
+    type Error: From<BusinessError>;
+    fn next_event_id(&mut self) -> Result<String, Self::Error>;
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PortalCommandEvidence {
     pub manifest: Vec<serde_json::Value>,
 }
 
-pub async fn customer_portal_projection<R, F, Err>(
+pub async fn customer_portal_projection<U, Err>(
     actor: &PortalCustomerActor,
     scope: &PortalPurchaseScope,
-    repository: &mut R,
-    files: &mut F,
+    unit: &mut U,
     now: i64,
     read_id: &str,
 ) -> Result<CustomerPortalProjection, Err>
 where
-    R: CustomerPortalRepository<Error = Err>,
-    F: CustomerPortalSharedFiles<Error = Err>,
+    U: CustomerPortalRepository<Error = Err> + CustomerPortalSharedFiles<Error = Err>,
     Err: From<BusinessError>,
 {
     if !valid_read_id(read_id) {
         return Err(projection_invalid().into());
     }
     scope.validate()?;
-    let mut items = repository.projection(actor, scope, now, read_id).await?;
+    let mut items = unit.projection(actor, scope, now, read_id).await?;
     let ids: Vec<String> = items.iter().map(|item| item.binding_id.clone()).collect();
-    let shared = files.shared_files(actor, &ids, now).await?;
+    let shared = unit.shared_files(actor, &ids, now).await?;
     for item in &mut items {
         item.shared_files = shared.get(&item.binding_id).cloned().unwrap_or_default();
     }
@@ -164,19 +179,17 @@ where
 /// unique identifier); the owner revalidates every fact against the current
 /// binding before the first write.
 #[allow(clippy::too_many_arguments)]
-pub async fn customer_portal_command<R, E, Err>(
+pub async fn customer_portal_command<U, Err>(
     actor: &PortalCustomerActor,
     input: &PortalCommandInput,
     key: &str,
     request_hash: &str,
     id: &str,
     now: i64,
-    repository: &mut R,
-    effects: &mut E,
+    unit: &mut U,
 ) -> Result<PortalCommandOutcome, Err>
 where
-    R: CustomerPortalRepository<Error = Err>,
-    E: CustomerPortalEffects<Error = Err>,
+    U: CustomerPortalRepository<Error = Err> + CustomerPortalEffects<Error = Err> + PortalEventIdentifiers<Error = Err>,
     Err: From<BusinessError>,
 {
     if !valid_key(key) {
@@ -187,8 +200,8 @@ where
     }
     input.validate()?;
 
-    let prior = repository.replay(key).await?;
-    let binding = repository
+    let prior = unit.replay(key).await?;
+    let binding = unit
         .binding(&input.binding_id, &actor.email)
         .await?
         .ok_or_else(binding_unavailable)?;
@@ -202,10 +215,10 @@ where
     if !binding.is_actionable() {
         return Err(source_unavailable().into());
     }
-    if !repository.identity(&binding.binding_id, actor).await? {
+    if !unit.identity(&binding.binding_id, actor).await? {
         return Err(identity_required().into());
     }
-    effects
+    unit
         .authorize(
             actor,
             &binding,
@@ -222,7 +235,7 @@ where
         }
         return Ok(PortalCommandOutcome::from_row(&prior));
     }
-    if repository
+    if unit
         .existing(&binding.binding_id, input.action)
         .await?
         .is_some()
@@ -247,9 +260,9 @@ where
     let evidence = if command.input.attachment_set_ids.is_empty() {
         None
     } else {
-        effects.evidence(&command).await?
+        unit.evidence(&command).await?
     };
-    repository.record(&command).await?;
+    unit.record(&command).await?;
     let message = match command.input.action {
         PortalAction::RequestSupport => {
             "Customer requested support on an order; review and contact the customer."
@@ -258,15 +271,15 @@ where
             "Customer acknowledged delivery; review the order and fulfillment record."
         }
     };
-    effects.notify(&command, message).await?;
-    let event_id = event_identifier(&command.id, "audit")?;
-    effects.audit(&command, &event_id).await?;
-    let outbox_id = event_identifier(&command.id, "outbox")?;
+    unit.notify(&command, message).await?;
+    let event_id = unit.next_event_id()?;
+    unit.audit(&command, &event_id).await?;
+    let outbox_id = unit.next_event_id()?;
     let manifest = evidence
         .as_ref()
         .map(|value| value.manifest.as_slice())
         .unwrap_or(&[]);
-    effects.outbox(&command, &outbox_id, manifest).await?;
+    unit.outbox(&command, &outbox_id, manifest).await?;
     Ok(PortalCommandOutcome::new(
         command.id,
         command.binding.binding_id.clone(),
@@ -275,12 +288,4 @@ where
         "recorded".to_owned(),
         command.now,
     ))
-}
-
-fn event_identifier(id: &str, suffix: &str) -> Result<String, BusinessError> {
-    let value = format!("{id}-{suffix}");
-    if !valid_event_identifier(&value) {
-        return Err(source_invalid());
-    }
-    Ok(value)
 }

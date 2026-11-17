@@ -133,6 +133,8 @@ async fn direct_rooms_add_the_actor_and_reuse_the_stable_key() {
         version: 1,
         last_seq: 3,
         members: vec!["person-1".into(), "user".into()],
+        private: false,
+        team_id: None,
         created_at: 1,
     };
     unit.rooms.insert(receipt.id.clone(), existing);
@@ -196,6 +198,8 @@ async fn messages_increment_sequence_and_deny_non_members_before_apply() {
             version: 1,
             last_seq: 4,
             members: vec!["user".into()],
+            private: false,
+            team_id: None,
             created_at: 1,
         },
     );
@@ -260,6 +264,8 @@ async fn read_state_clamps_to_the_current_last_sequence_and_replay_skips_apply()
             version: 1,
             last_seq: 3,
             members: vec!["user".into()],
+            private: false,
+            team_id: None,
             created_at: 1,
         },
     );

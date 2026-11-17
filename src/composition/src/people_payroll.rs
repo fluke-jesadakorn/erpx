@@ -12,7 +12,7 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_people_payroll::public::payroll_summary::{
-    PayrollReadActor, PayrollWorkRow, PgPayrollRead, payroll_runs, payroll_summary,
+    PayrollReadActor, PayrollWorkRow, PgPayrollRead, payroll_history, payroll_runs, payroll_summary,
 };
 use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
 use erpx_server_commercial::public::purchase_command_boundary::{
@@ -344,6 +344,48 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                         let data = serde_json::to_value(rows).map_err(|_| unavailable())?;
                         Ok(PayrollReadHttpResponse {
                             data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn history<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        cursor: Option<String>,
+    ) -> Result<PayrollReadHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host, proof, self.input(input), Self::access(), PeoplePayrollSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let cursor = cursor.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let now = clock.now();
+                        let witness = payroll_read_witness(connection, &holding, &company, now).await?;
+                        let actor = payroll_actor(current)?;
+                        let data = payroll_history(connection, &actor, cursor.as_deref(), now).await?;
+                        revalidate_payroll_witness(connection, &holding, &company, witness, now).await?;
+                        Ok(PayrollReadHttpResponse {
+                            data: serde_json::to_value(data).map_err(|_| unavailable())?,
                             context: context(current),
                         })
                     })
@@ -1025,6 +1067,11 @@ impl<C: Clock + Send + Sync + 'static> PayrollReadHttpBackend for PeoplePayrollB
                 PayrollReadHttpKind::Runs => self
                     .service
                     .runs(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                PayrollReadHttpKind::History { cursor } => self
+                    .service
+                    .history(request.host, proof, move || Ok(selection), cursor)
                     .await
                     .map_err(business),
                 PayrollReadHttpKind::WorkRows => self

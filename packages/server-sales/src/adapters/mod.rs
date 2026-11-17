@@ -16,3 +16,5 @@ pub(crate) mod followups_http;
 pub(crate) mod notification_commands;
 pub(crate) mod notification_commands_http;
 pub(crate) mod sales_notification_execution;
+
+pub(crate) mod portal_commerce_locks;

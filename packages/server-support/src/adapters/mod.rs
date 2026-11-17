@@ -1,5 +1,6 @@
 pub(crate) mod field_service;
 pub(crate) mod records_request_team_sources;
+pub(crate) mod rfq_request_access;
 
 pub(crate) mod field_service_request;
 

@@ -1,5 +1,7 @@
 pub(crate) mod business_evidence;
+pub(crate) mod portal_support_evidence;
 pub(crate) mod legal_import_evidence;
+pub(crate) mod legal_citation_metadata;
 pub(crate) mod count_history_attachment_sources;
 pub mod clamav;
 pub mod local_original_store;
@@ -74,3 +76,6 @@ pub(crate) mod project_attachment_intake;
 pub(crate) mod messaging_files;
 pub(crate) mod social_draft_uploads;
 pub(crate) mod staff_task_attachments;
+
+pub(crate) mod supplier_promise_binding;
+pub(crate) mod rfq_request_attachments;

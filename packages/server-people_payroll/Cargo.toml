@@ -18,6 +18,8 @@ sqlx.workspace = true
 
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
+base64.workspace = true
+sha2.workspace = true
 num-bigint.workspace = true
 num-traits.workspace = true
 icu_collator.workspace = true
@@ -116,3 +118,7 @@ path = "../../tests/unit/people_payroll/rust-expense.test.rs"
 [[test]]
 name = "expense_postgres"
 path = "../../tests/integration/people_payroll/rust-expense-postgres.test.rs"
+
+[[test]]
+name = "rfq_request_people_postgres"
+path = "../../tests/integration/people_payroll/rust-rfq-request-people-postgres.test.rs"

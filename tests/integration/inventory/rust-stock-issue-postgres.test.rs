@@ -9,11 +9,165 @@ mod fence;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_inventory::public::stock_issue::*;
+use erpx_server_commerce::public::sales_reservation_source::{SalesReservationScope, SalesReservationSource, lock_sales_reservation_source};
+use erpx_server_finance::public::commerce_reservation_party::observe_commerce_reservation_party;
+use erpx_server_inventory::public::sales_reservation::{lock_sales_reservation_sources, lock_sales_reservations};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgUnitOfWork, TransactionOptions};
 use erpx_server_shared::public::BusinessError;
 use sqlx::AssertSqlSafe;
 
 type Error = PgTransactionError<BusinessError>;
+
+#[tokio::test]
+async fn native_sales_reservation_party_evidence_is_transaction_bound() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none").await;
+        let mut unfenced = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unfenced).await.unwrap();
+        assert!(observe_commerce_reservation_party(&mut unfenced, "customer").await.is_err());
+        unfenced.rollback().await.unwrap();
+        let mut first = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
+        lock_sales_reservation_sources(&mut first).await.unwrap();
+        let source = reservation_source(&mut first).await.unwrap();
+        assert!(observe_commerce_reservation_party(&mut first, "missing").await.is_err());
+        let party = observe_commerce_reservation_party(&mut first, source.party_id()).await.unwrap();
+        assert_eq!(party.id(), source.party_id());
+        party.require_current(&mut first).await.unwrap();
+        first.commit().await.unwrap();
+        let mut second = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *second).await.unwrap();
+        assert!(party.require_current(&mut second).await.is_err());
+        second.rollback().await.unwrap();
+    }).await;
+}
+
+async fn reservation_source(c: &mut sqlx::PgConnection) -> Result<SalesReservationSource, Error> {
+    lock_sales_reservation_source(c, SalesReservationScope { company_id: "company", branch_id: Some("branch"), department_id: None, order_id: "order-1", line_id: "line-1", expected_version: 4 }).await
+}
+
+#[tokio::test]
+async fn native_sales_reservation_create_checks_line_balance_and_stock_scope() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none").await;
+        let now: i64 = sqlx::query_scalar("SELECT floor(extract(epoch FROM statement_timestamp())*1000)::bigint")
+            .fetch_one(pool.raw()).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_sales_reservation_sources(c).await?;
+            let source = reservation_source(c).await?;
+            lock_sales_reservations(c, &source).await?.reserve(c, &source, "reservation-new", "maker", 1_000, now + 3_600_000, "Customer dispatch", now).await?;
+            Ok(())
+        })).await.unwrap();
+        let created: (String, i64, String) = sqlx::query_as("SELECT order_line_id,quantity_milli,created_by FROM inventory_order_reservations WHERE id='reservation-new'")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(created, ("line-1".into(), 1_000, "maker".into()));
+        let result = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_sales_reservation_sources(c).await?;
+            let source = reservation_source(c).await?;
+            lock_sales_reservations(c, &source).await?.reserve(c, &source, "reservation-too-large", "maker", 1_001, now + 3_600_000, "Customer dispatch", now).await?;
+            Ok(())
+        })).await;
+        assert!(matches!(result, Err(PgTransactionError::Business(e)) if e.code == "RESERVATION_REMAINING_UNAVAILABLE"));
+        let absent: i64 = sqlx::query_scalar("SELECT count(*) FROM inventory_order_reservations WHERE id='reservation-too-large'")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(absent, 0);
+        sqlx::query("UPDATE commerce_products SET status='archived' WHERE id='product'")
+            .execute(pool.raw()).await.unwrap();
+        let inactive = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_sales_reservation_sources(c).await?;
+            let source = reservation_source(c).await?;
+            lock_sales_reservations(c, &source).await?.reserve(c, &source, "reservation-inactive", "maker", 1, now + 3_600_000, "Customer dispatch", now).await?;
+            Ok(())
+        })).await;
+        assert!(inactive.is_err());
+        let absent: i64 = sqlx::query_scalar("SELECT count(*) FROM inventory_order_reservations WHERE id='reservation-inactive'")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(absent, 0);
+    }).await;
+}
+
+#[tokio::test]
+async fn native_sales_reservation_release_is_atomic_and_scoped() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none").await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+                lock_sales_reservation_sources(c).await?;
+                let source = reservation_source(c).await?;
+                let rows = lock_sales_reservations(c, &source).await?;
+                rows.release(c, &source, 1_000, "Customer reduced order").await?;
+                Ok(())
+            })).await.unwrap();
+        let released: i64 = sqlx::query_scalar("SELECT released_milli FROM inventory_order_reservations WHERE id='reservation-1'")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(released, 1_000);
+        let result = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+                lock_sales_reservation_sources(c).await?;
+                let source = reservation_source(c).await?;
+                let rows = lock_sales_reservations(c, &source).await?;
+                rows.release(c, &source, 1_001, "Customer reduced order").await?;
+                Ok(())
+            })).await;
+        assert!(matches!(result, Err(PgTransactionError::Business(e)) if e.code == "OVER_RELEASE"));
+        let unchanged: i64 = sqlx::query_scalar("SELECT released_milli FROM inventory_order_reservations WHERE id='reservation-1'")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(unchanged, released);
+        let rolled_back = PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+                lock_sales_reservation_sources(c).await?;
+                let source = reservation_source(c).await?;
+                lock_sales_reservations(c, &source).await?.release(c, &source, 500, "Customer reduced order").await?;
+                Err(BusinessError::invalid("TEST_ROLLBACK", "Force rollback after the Inventory effect.").into())
+            })).await;
+        assert!(matches!(rolled_back, Err(PgTransactionError::Business(e)) if e.code == "TEST_ROLLBACK"));
+        let after_rollback: i64 = sqlx::query_scalar("SELECT released_milli FROM inventory_order_reservations WHERE id='reservation-1'")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(after_rollback, released);
+
+        // A source handle cannot be obtained without the shared stock fences,
+        // nor used in a later transaction after its locks have been released.
+        let mut unfenced = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unfenced).await.unwrap();
+        let unfenced_source = reservation_source(&mut unfenced).await.unwrap();
+        assert!(lock_sales_reservations(&mut unfenced, &unfenced_source).await.is_err());
+        unfenced.rollback().await.unwrap();
+        let mut first = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
+        lock_sales_reservation_sources(&mut first).await.unwrap();
+        let source = reservation_source(&mut first).await.unwrap();
+        let token = lock_sales_reservations(&mut first, &source).await.unwrap();
+        first.commit().await.unwrap();
+        let mut second = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *second).await.unwrap();
+        assert!(token.release(&mut second, &source, 1, "Customer reduced order").await.is_err());
+        second.rollback().await.unwrap();
+
+        let stale = PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+                lock_sales_reservation_sources(c).await?;
+                let wrong = lock_sales_reservation_source(c, SalesReservationScope { company_id:"other", branch_id:None, department_id:None, order_id:"order-1", line_id:"line-1", expected_version:4 }).await;
+                assert!(wrong.is_err());
+                let wrong_branch = lock_sales_reservation_source(c, SalesReservationScope { company_id:"company", branch_id:Some("other"), department_id:None, order_id:"order-1", line_id:"line-1", expected_version:4 }).await;
+                assert!(wrong_branch.is_err());
+                let source = reservation_source(c).await?;
+                assert_eq!(source.party_id(), "customer");
+                sqlx::query("UPDATE commerce_order_lines SET quantity_milli=quantity_milli+1 WHERE id='line-1'").execute(&mut *c).await?;
+                source.require_current(c).await?;
+                Ok(())
+            })).await;
+        assert!(matches!(stale, Err(PgTransactionError::Business(e)) if e.code == "RESERVATION_SOURCE_CHANGED"));
+        let party_changed = PgUnitOfWork::new(pool.clone())
+            .run::<(), BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+                lock_sales_reservation_sources(c).await?;
+                let source = reservation_source(c).await?;
+                sqlx::query("UPDATE commerce_orders SET party_id='supplier' WHERE id='order-1'").execute(&mut *c).await?;
+                source.require_current(c).await?;
+                Ok(())
+            })).await;
+        assert!(matches!(&party_changed, Err(PgTransactionError::Business(e)) if e.code == "RESERVATION_SOURCE_CHANGED"), "unexpected party-change result: {party_changed:?}");
+    }).await;
+}
 
 fn allocation(lot_id: &str, quantity_milli: i64) -> StockIssueAllocationInput {
     StockIssueAllocationInput {

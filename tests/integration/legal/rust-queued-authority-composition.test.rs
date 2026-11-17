@@ -6,6 +6,9 @@
 mod account_queue;
 #[path = "../../support/rust-effective-authority.rs"]
 mod auth;
+#[allow(dead_code)]
+#[path = "../../support/finance/review-composition.rs"]
+mod citation_review;
 use account_queue::account::database as fixture;
 use auth::*;
 use erpx_server_identity_access::public::effective_authority::{
@@ -63,6 +66,97 @@ fn legal_access() -> WorkAuthorizationRequest {
     request.module = Some("legal".into());
     request.destination = "legal/processing".into();
     request
+}
+
+#[tokio::test]
+async fn citation_http_uses_actual_account_authority_and_retains_legal_sources() {
+    use axum::{body::{Body, to_bytes}, http::{Request, StatusCode}};
+    use erpx_server_legal::public::auxiliary::{LegalAuxiliaryHttpService, LegalAuxiliaryHttpTarget};
+    use erpx_service::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
+    use erpx_service::legal::{LegalBackend, LegalConfiguration, LegalService};
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    citation_review::account::with_system(|system| async move {
+        let p=citation_review::setup(system).await;
+        let db=p.system.holdings[0].raw();
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_finance_review',2,'[\"legal.read\",\"module.legal.read\"]','[]','[\"holding\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_finance_review'; UPDATE assignments SET modules_json='[\"legal\"]' WHERE id IN ('finance-fixture-a','finance-fixture-b'); INSERT INTO legal_settings(company_id,enabled,ai_enabled) VALUES('company',true,true); INSERT INTO legal_items(id,company_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,state,version,created_at,updated_at) VALUES('citation-item','company','matter','Synthetic matter','','internal','TH','TH','en','THB','Asia/Bangkok','normal','fixture-a','fixture-a','open',1,0,0); INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at) VALUES('citation-doc','citation-item',1,'source.txt','text/plain',repeat('a',64),9,'Test text','fixture-a',0)").execute(db).await.unwrap();
+        let backend=Arc::new(LegalBackend::new(Arc::new(citation_review::account::fixture::account::policy()), Arc::new(FinanceJournalReadScopeHeaders), Arc::new(LegalService::new(p.authorizer.clone(), LegalConfiguration::new(HoldingId::new("h001").unwrap(),"acme".into(),CompanyId::new("company").unwrap()),p.system.scenario.clock.clone()))));
+        let router=Arc::new(LegalAuxiliaryHttpService::new(vec![LegalAuxiliaryHttpTarget{host:"acme.example.test".into(),holding_slug:"acme".into(),origin:"https://acme.example.test".into(),backend}]).unwrap()).router();
+        let request=|| Request::builder().uri("/api/v1/holdings/acme/legal/citations/citation-doc").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap();
+        let response=router.clone().oneshot(request()).await.unwrap();
+        assert_eq!(response.status(),StatusCode::OK);
+        let actual:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),1_000_000).await.unwrap()).unwrap();
+        // Independent TypeScript application oracle; its ports are read-only
+        // fixture values and recordRead captures evidence without a TS writer.
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {createLegalCitationQuery}=await import('./packages/server-legal/src/application/citations.ts');const doc={id:'citation-doc',item_id:'citation-item',version:1,name:'source.txt',media_type:'text/plain',checksum:'a'.repeat(64),body:'Test text',object_key:null};const fn=createLegalCitationQuery({law:async()=>{throw Error()},chunk:async()=>null,document:async()=>doc,item:async()=>({id:'citation-item',title:'Synthetic matter',kind:'matter'}),available:async()=>true,recordRead:async()=>{},clock:{now:()=>1},identifiers:{next:()=> 'oracle'},error:(status,code,message)=>Object.assign(Error(message),{status,code})});process.stdout.write(JSON.stringify(await fn('citation-doc')));"#;
+        let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).arg("-e").arg(script).output().unwrap();assert!(oracle.status.success(),"TS application oracle failed");
+        let expected:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();assert_eq!(actual,expected);
+        let audit:i64=sqlx::query_scalar("SELECT count(*) FROM legal_access_events WHERE item_id='citation-item' AND document_id='citation-doc' AND actor_id='fixture-a' AND action='document.citation.read'").fetch_one(db).await.unwrap();assert_eq!(audit,1);
+        // Opaque citation IDs travel in the query, so the HTTP router cannot
+        // reinterpret slash, dot segments, percent escapes or UTF-8 as paths.
+        for (index,id) in [".","..","slash/a%2Fb",&"ก".repeat(80)].into_iter().enumerate() {
+            sqlx::query("INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at) VALUES($1,'citation-item',$2,'opaque.txt','text/plain',repeat('a',64),1,'x','fixture-a',0)").bind(id).bind((index+10) as i32).execute(db).await.unwrap();
+            let query=url::form_urlencoded::Serializer::new(String::new()).append_pair("sourceId",id).finish();
+            let request=Request::builder().uri(format!("/api/v1/holdings/acme/legal/citations?{query}")).header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap();
+            let response=router.clone().oneshot(request).await.unwrap();assert_eq!(response.status(),StatusCode::OK,"opaque ID {id:?}");
+            let payload:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!(payload["document_id"],id);
+        }
+        sqlx::raw_sql("INSERT INTO legal_items(id,company_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,state,version,created_at,updated_at) VALUES('citation-rule','company','rule','Law','','internal','TH','TH','en','THB','Asia/Bangkok','normal','fixture-a','fixture-a','active',1,0,0); INSERT INTO legal_rules(item_id,data) VALUES('citation-rule','{}'); INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at) VALUES('citation-law-doc','citation-rule',1,'law.pdf','application/pdf',repeat('a',64),1,'','fixture-a',0); INSERT INTO legal_law_sources(id,company_id,rule_id,title,source_url,state,version,created_by,created_at) VALUES('citation-law-source','company','citation-rule','Law','https://law.example/law.pdf','active',1,'fixture-a',0); INSERT INTO legal_law_revisions(id,company_id,rule_id,source_id,document_id,document_checksum,revision_label,published_on,effective_from,extraction_method,state,version,created_by,created_at) VALUES('citation-law-revision','company','citation-rule','citation-law-source','citation-law-doc',repeat('a',64),'v1','2020-01-01','2020-01-01','manual','approved',1,'fixture-a',0); INSERT INTO legal_law_applicability(id,company_id,rule_id,revision_id,applies,basis,state,version,created_by,created_at) VALUES('citation-law-app','company','citation-rule','citation-law-revision',true,'fixture','approved',1,'fixture-a',0)").execute(db).await.unwrap();
+        let boundary="x".repeat(196);
+        for (id,text) in [(" x ","Space law"),("x","Plain law"),(boundary.as_str(),"Boundary law")] {
+            sqlx::query("INSERT INTO legal_source_chunks(id,company_id,item_id,document_id,document_checksum,revision_id,text_review_id,page,page_mapping,section,text,text_checksum) VALUES($1,'company','citation-rule','citation-law-doc',repeat('a',64),'citation-law-revision',NULL,1,true,'1',$2,repeat('b',64))").bind(id).bind(text).execute(db).await.unwrap();
+        }
+        let law_request=|id:&str,date:&str| { let query=url::form_urlencoded::Serializer::new(String::new()).append_pair("sourceId",id).append_pair("asOf",date).finish();Request::builder().uri(format!("/api/v1/holdings/acme/legal/citations?{query}")).header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap() };
+        for (id,text) in [("law: x ","Space law"),("law:x","Plain law"),(&format!("law:{boundary}"),"Boundary law")] {
+            let response=router.clone().oneshot(law_request(id,"2024-02-29")).await.unwrap();assert_eq!(response.status(),StatusCode::OK,"law ID {id:?}");
+            let payload:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!(payload["text"],text);
+        }
+        let before:i64=sqlx::query_scalar("SELECT count(*) FROM legal_access_events WHERE document_id='citation-law-doc'").fetch_one(db).await.unwrap();assert_eq!(before,3);
+        for suffix in ["asOf=2024-02-29&asOf=2024-02-29", "asOf=&asOf=2024-02-29", "asOf=2024-02-29&asOf="] {
+            let uri=format!("/api/v1/holdings/acme/legal/citations?sourceId=law%3Ax&{suffix}");
+            let request=Request::builder().uri(uri).header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap();
+            assert_eq!(router.clone().oneshot(request).await.unwrap().status(),StatusCode::UNPROCESSABLE_ENTITY);
+        }
+        let other=Request::builder().uri("/api/v1/holdings/acme/legal/workspace?asOf=one&asOf=two").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap();
+        assert_eq!(router.clone().oneshot(other).await.unwrap().status(),StatusCode::BAD_REQUEST);
+        for suffix in ["asOf=2024-02-29&asOf=2024-02-29", "asOf=&asOf=2024-02-29", "asOf=2024-02-29&asOf="] {
+            let uri=format!("/api/v1/holdings/acme/legal/citations?sourceId=.&{suffix}");
+            let request=Request::builder().uri(uri).header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap();
+            let response=router.clone().oneshot(request).await.unwrap();assert_eq!(response.status(),StatusCode::OK);
+            let payload:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!(payload["document_id"],".");
+        }
+        for (id,date) in [("law:x",""),("law:x"," "),("law:x"," 2024-02-29 "),("law:x","2024-02-30"),(&format!("law:{}", "x".repeat(197)),"2024-02-29"),(&format!("law:{}", "x".repeat(197)),"")] {
+            let response=router.clone().oneshot(law_request(id,date)).await.unwrap();assert_eq!(response.status(),StatusCode::UNPROCESSABLE_ENTITY);
+            let payload:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!(payload["error"]["code"],"LEGAL_CITATION_VALIDATION");
+        }
+        let unauthorized=Request::builder().uri("/api/v1/holdings/acme/legal/citations?sourceId=law%3Ax&asOf=").header("host","acme.example.test").body(Body::empty()).unwrap();
+        let unauthorized=router.clone().oneshot(unauthorized).await.unwrap();assert_ne!(unauthorized.status(),StatusCode::UNPROCESSABLE_ENTITY);
+        let after:i64=sqlx::query_scalar("SELECT count(*) FROM legal_access_events WHERE document_id='citation-law-doc'").fetch_one(db).await.unwrap();assert_eq!(after,before);
+        let denied=Request::builder().uri("/api/v1/holdings/acme/legal/citations/citation-doc").header("host","acme.example.test").body(Body::empty()).unwrap();assert_ne!(router.clone().oneshot(denied).await.unwrap().status(),StatusCode::OK);
+        // A real bound Files link is required when the reviewed document owns
+        // an object. Revocation must deny the next read without another audit.
+        sqlx::raw_sql("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at) VALUES('citation-upload','legal','citation-item','legal_document','source.pdf','application/pdf',10,10,repeat('a',64),'citation-stage','citation-object','ready','fixture-a',9999999999999,0,0); INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) VALUES('citation-file','citation-upload','legal','citation-item','legal_document','citation-object',1,'source.pdf','application/pdf',10,repeat('a',64),'fixture-a',0,'company','application/pdf','available',0,0); INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at,bound_at,bound_command_id) VALUES('citation-set','company','legal_item','citation-item','record','legal_document',1,1,'internal','{}','bound','fixture-a',0,0,0,'citation-binding'); INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at,bound_at,binding_type,binding_id) VALUES('citation-link','citation-set','citation-file','bound','fixture-a',0,9999999999999,0,'legal_document','citation-object-doc'); INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,object_key,created_by,created_at,attachment_link_id,attachment_source_id) VALUES('citation-object-doc','citation-item',2,'source.pdf','application/pdf',repeat('a',64),10,'','citation-object','fixture-a',0,'citation-link','citation-file'); INSERT INTO legal_text_reviews(id,company_id,item_id,document_id,document_checksum,extraction_method,state,version,created_by,created_at) VALUES('citation-review','company','citation-item','citation-object-doc',repeat('a',64),'manual','approved',1,'fixture-a',0); INSERT INTO legal_source_chunks(id,company_id,item_id,document_id,document_checksum,revision_id,text_review_id,page,page_mapping,section,text,text_checksum) VALUES('citation-chunk','company','citation-item','citation-object-doc',repeat('a',64),NULL,'citation-review',1,true,'1','Retained reviewed passage',repeat('b',64))").execute(db).await.unwrap();
+        let file_request=||Request::builder().uri("/api/v1/holdings/acme/legal/citations/document%3Acitation-chunk").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap();
+        let file=router.clone().oneshot(file_request()).await.unwrap();assert_eq!(file.status(),StatusCode::OK);let payload:serde_json::Value=serde_json::from_slice(&to_bytes(file.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!((payload["document_id"].as_str(),payload["text"].as_str()),(Some("citation-object-doc"),Some("Retained reviewed passage")));
+        sqlx::raw_sql("CREATE FUNCTION citation_files_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE attachments SET revoked_at=1 WHERE id='citation-file'; RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER citation_files_drift AFTER INSERT ON legal_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.document_id='citation-object-doc' AND NEW.action='document.citation.read') EXECUTE FUNCTION citation_files_drift()").execute(db).await.unwrap();
+        let drift=router.clone().oneshot(file_request()).await.unwrap();assert_ne!(drift.status(),StatusCode::OK,"deferred Files drift must roll back");
+        let (revoked,events):(Option<i64>,i64)=sqlx::query_as("SELECT revoked_at,(SELECT count(*) FROM legal_access_events WHERE document_id='citation-object-doc' AND action='document.citation.read') FROM attachments WHERE id='citation-file'").fetch_one(db).await.unwrap();assert_eq!((revoked,events),(None,1));
+        sqlx::raw_sql("DROP TRIGGER citation_files_drift ON legal_access_events; DROP FUNCTION citation_files_drift()").execute(db).await.unwrap();
+        sqlx::query("UPDATE attachments SET revoked_at=1 WHERE id='citation-file'").execute(db).await.unwrap();
+        let revoked=router.clone().oneshot(file_request()).await.unwrap();assert_eq!(revoked.status(),StatusCode::NOT_FOUND);let error:serde_json::Value=serde_json::from_slice(&to_bytes(revoked.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!(error["error"]["code"],"LEGAL_CITATION_UNAVAILABLE");
+        let file_audits:i64=sqlx::query_scalar("SELECT count(*) FROM legal_access_events WHERE document_id='citation-object-doc' AND action='document.citation.read'").fetch_one(db).await.unwrap();assert_eq!(file_audits,1);
+        let extra_file_audits:i64=sqlx::query_scalar("SELECT count(*) FROM attachment_access_events WHERE attachment_id='citation-file'").fetch_one(db).await.unwrap();assert_eq!(extra_file_audits,0);
+        // A deferred source mutation must be rejected after the audit, and the
+        // owner transaction must roll back both the mutation and the audit.
+        sqlx::raw_sql("CREATE FUNCTION citation_http_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE legal_items SET title='forged' WHERE id=NEW.item_id;RETURN NEW;END $$; CREATE CONSTRAINT TRIGGER citation_http_drift AFTER INSERT ON legal_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.action='document.citation.read') EXECUTE FUNCTION citation_http_drift()").execute(db).await.unwrap();
+        let response=router.clone().oneshot(request()).await.unwrap();assert_ne!(response.status(),StatusCode::OK,"late source mutation must roll back");
+        let (title,count):(String,i64)=sqlx::query_as("SELECT title,(SELECT count(*) FROM legal_access_events WHERE document_id='citation-doc' AND action='document.citation.read') FROM legal_items WHERE id='citation-item'").fetch_one(db).await.unwrap();assert_eq!((title,count),("Synthetic matter".into(),1));
+        sqlx::raw_sql("INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,reason,manifest,created_at) VALUES('citation-disposal','citation-item','policy',1,'fixture-a','requested','fixture','{}',0); INSERT INTO legal_disposals(document_id,destruction_id,checksum,disposed_at) VALUES('citation-doc','citation-disposal',repeat('a',64),1)").execute(db).await.unwrap();
+        let gone=router.clone().oneshot(request()).await.unwrap();assert_eq!(gone.status(),StatusCode::GONE);let payload:serde_json::Value=serde_json::from_slice(&to_bytes(gone.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!(payload["error"]["code"],"LEGAL_DOCUMENT_DISPOSED");
+        sqlx::raw_sql("INSERT INTO legal_items(id,company_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,state,version,created_at,updated_at) VALUES('citation-frozen-item','company','matter','Frozen','','internal','TH','TH','en','THB','Asia/Bangkok','normal','fixture-a','fixture-a','open',1,0,0); INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at) VALUES('citation-frozen-doc','citation-frozen-item',1,'source.txt','text/plain',repeat('a',64),9,'Test text','fixture-a',0); INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,reason,manifest,created_at) VALUES('citation-frozen','citation-frozen-item','policy',1,'fixture-a','executing','fixture','{}',0)").execute(db).await.unwrap();
+        let frozen=Request::builder().uri("/api/v1/holdings/acme/legal/citations/citation-frozen-doc").header("host","acme.example.test").header("cookie",format!("__Host-erpx-product={}",p.maker_token.expose())).body(Body::empty()).unwrap();let frozen=router.clone().oneshot(frozen).await.unwrap();assert_eq!(frozen.status(),StatusCode::CONFLICT);let payload:serde_json::Value=serde_json::from_slice(&to_bytes(frozen.into_body(),1_000_000).await.unwrap()).unwrap();assert_eq!(payload["error"]["code"],"LEGAL_RETENTION_FROZEN");
+    }).await;
 }
 async fn seed_native_legal_job(authorizer: &HoldingWorkAuthorizer, pool: &DatabasePool) {
     use sha2::{Digest, Sha256};

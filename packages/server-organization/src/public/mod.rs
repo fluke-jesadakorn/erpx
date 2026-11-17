@@ -37,3 +37,4 @@ pub mod staff_department_route;
 pub mod organization_access;
 pub mod position;
 pub mod position_moves;
+pub mod rfq_request_scope;

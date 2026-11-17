@@ -6,3 +6,10 @@ pub(crate) mod supplier_promise_command_http;
 pub(crate) mod commerce_request_link;
 
 pub(crate) mod finance_supplier_bill_match;
+pub(crate) mod portal_commerce_locks;
+
+pub(crate) mod supplier_promise_staged;
+pub(crate) mod rfq_transition_stage;
+pub(crate) mod rfq_notification_source;
+pub(crate) mod rfq_target_source;
+pub(crate) mod rfq_request_allocations;

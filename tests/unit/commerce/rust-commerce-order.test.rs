@@ -190,6 +190,36 @@ fn legacy_fulfillment_workflow_input_fingerprints_match_pinned_node_formatting_o
     }
 }
 
+#[test]
+fn legacy_reservation_input_matches_pinned_zod() {
+    use erpx_server_commerce::public::sales_reservation_source::legacy_reservation_workflow_input;
+    use std::process::Command;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let node = std::env::var_os("ERPX_NODE_BIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
+    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const d=s.slice(s.indexOf('export const stockReservationSchema')).replace('export const stockReservationSchema','const stockReservationSchema');const schema=new Function('z',q+d+';return stockReservationSchema')(z);try{process.stdout.write('ok:'+JSON.stringify(schema.parse(JSON.parse(process.argv[1]))))}catch{process.stdout.write('invalid')}"#;
+    for raw in [
+        r#"{"reason":"  reason ","quantity":"0001.200","lineId":"ไทย","action":"reserve","expectedVersion":3,"extra":true}"#,
+        r#"{"expectedVersion":1,"action":"release","lineId":"\udfff","quantity":"1","expiresAt":12,"reason":"\ufeffabc\u00a0"}"#,
+        r#"{"expectedVersion":1,"action":"reserve","lineId":"x","quantity":"1.0000","reason":"abc"}"#,
+        r#"{"expectedVersion":1,"action":"reserve","lineId":"x","quantity":"1","expiresAt":null,"reason":"abc"}"#,
+        r#"{"expectedVersion":9007199254740992,"action":"reserve","lineId":"x","quantity":"1","reason":"abc"}"#,
+    ] {
+        let output = Command::new(&node)
+            .current_dir(&root)
+            .args(["-e", script, raw])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "Node oracle failed");
+        let expected = String::from_utf8(output.stdout).unwrap();
+        let actual = legacy_reservation_workflow_input(raw)
+            .map(|v| format!("ok:{}", v.as_str()))
+            .unwrap_or_else(|_| "invalid".into());
+        assert_eq!(actual, expected, "input {raw}");
+    }
+}
+
 fn actor() -> CommerceOrderActor {
     CommerceOrderActor {
         user_id: UserId::new("user").unwrap(),

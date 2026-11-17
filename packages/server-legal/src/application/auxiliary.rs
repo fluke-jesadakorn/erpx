@@ -54,6 +54,13 @@ pub trait LegalAuxiliaryReadPorts {
         actor: &'a LegalAuxiliaryActor,
         chunk_id: &'a str,
         as_of: &'a str,
+        now: i64,
+    ) -> LegalAuxiliaryFuture<'a, Value>;
+    fn document_citation<'a>(
+        &'a mut self,
+        actor: &'a LegalAuxiliaryActor,
+        source_id: &'a str,
+        now: i64,
     ) -> LegalAuxiliaryFuture<'a, Value>;
     fn references<'a>(
         &'a mut self,
@@ -105,10 +112,18 @@ pub async fn read_auxiliary<P: LegalAuxiliaryReadPorts>(
             ports.knowledge(actor, &query, &as_of).await
         }
         LegalAuxiliaryRead::LawCitation { id, as_of } => {
-            let id = parse_identifier(id.trim_start_matches("law:"))?;
+            let id = parse_identifier(id.strip_prefix("law:").unwrap_or(&id))?;
             let as_of = parse_as_of(as_of.as_deref())?
                 .unwrap_or_else(|| bangkok_date(clock.now().get()));
-            ports.law_citation(actor, &id, &as_of).await
+            ports.law_citation(actor, &id, &as_of, clock.now().get()).await
+        }
+        LegalAuxiliaryRead::Citation { id, as_of } => {
+            if id.starts_with("law:") {
+                let Some((law, as_of)) = validate_citation_ingress(actor, &id, as_of.as_deref(), clock.now().get())? else { unreachable!() };
+                ports.law_citation(actor, &law, &as_of, clock.now().get()).await
+            } else {
+                ports.document_citation(actor, &id, clock.now().get()).await
+            }
         }
         LegalAuxiliaryRead::References { item_id } => {
             let item_id = parse_identifier(&item_id)?;
@@ -121,6 +136,37 @@ pub async fn read_auxiliary<P: LegalAuxiliaryReadPorts>(
             ports.ai_history(actor, &item_id).await
         }
     }
+}
+
+/// Validate the actual citation before composition inspects owner sources.
+/// Returns the exact law lookup ID and date, or None for document citations.
+pub fn validate_citation_ingress(actor: &LegalAuxiliaryActor, id: &str, as_of: Option<&str>, now: i64) -> Result<Option<(String, String)>, BusinessError> {
+    authorize_read(actor, &LegalAuxiliaryRead::Citation { id: id.to_owned(), as_of: as_of.map(str::to_owned) })?;
+    if !id.starts_with("law:") { return Ok(None); }
+    let date = citation_date(as_of, now)?;
+    Ok(Some((citation_law_id(id)?, date)))
+}
+
+fn citation_date(raw: Option<&str>, now: i64) -> Result<String, BusinessError> {
+    match raw {
+        None => Ok(bangkok_date(now)),
+        Some(value) if !value.is_empty() && value.trim() == value =>
+            parse_as_of(Some(value)).map_err(|_| citation_invalid_date())?.ok_or_else(citation_invalid_date),
+        Some(_) => Err(citation_invalid_date()),
+    }
+}
+
+fn citation_invalid() -> BusinessError {
+    BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "LEGAL_CITATION_VALIDATION", "Use a valid Legal citation request.")
+}
+fn citation_invalid_date() -> BusinessError {
+    BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "LEGAL_CITATION_VALIDATION", "Use a Gregorian date in YYYY-MM-DD form.")
+}
+
+fn citation_law_id(id: &str) -> Result<String, BusinessError> {
+    let length = id.encode_utf16().count();
+    if length == 0 || length > 200 { return Err(citation_invalid()); }
+    Ok(id.strip_prefix("law:").unwrap_or(id).to_owned())
 }
 
 /// Parse the retained GET path into one bounded auxiliary read. Returns `None`
@@ -144,6 +190,7 @@ pub fn parse_auxiliary_path(path: &[String], query: &[(String, String)]) -> Opti
             query: get("q").unwrap_or_default(),
             as_of: get("asOf"),
         },
+        [one] if one == "citations" => LegalAuxiliaryRead::Citation { id: get("sourceId")?, as_of: get("asOf") },
         [one] if one == "retention" => LegalAuxiliaryRead::Retention { id: None },
         [one] if one == "governance" => LegalAuxiliaryRead::Governance { id: None },
         [one, id] if one == "retention" => LegalAuxiliaryRead::Retention { id: Some(id.clone()) },
@@ -152,6 +199,7 @@ pub fn parse_auxiliary_path(path: &[String], query: &[(String, String)]) -> Opti
             id: id.clone(),
             as_of: get("asOf"),
         },
+        [one, id] if one == "citations" => LegalAuxiliaryRead::Citation { id: id.clone(), as_of: get("asOf") },
         [one, id] if one == "references" => LegalAuxiliaryRead::References { item_id: id.clone() },
         [one, id] if one == "ai" => LegalAuxiliaryRead::AiHistory { item_id: id.clone() },
         _ => return None,
@@ -201,10 +249,15 @@ mod tests {
             self.seen.push(format!("{query}|{as_of}"));
             Box::pin(async move { Ok(serde_json::json!({"query": query})) })
         }
-        fn law_citation<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, chunk_id: &'a str, as_of: &'a str) -> LegalAuxiliaryFuture<'a, Value> {
+        fn law_citation<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, chunk_id: &'a str, as_of: &'a str, _: i64) -> LegalAuxiliaryFuture<'a, Value> {
             self.calls.push("law_citation");
             self.seen.push(format!("{chunk_id}|{as_of}"));
             Box::pin(async move { Ok(serde_json::json!({"id": chunk_id})) })
+        }
+        fn document_citation<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, id: &'a str, _: i64) -> LegalAuxiliaryFuture<'a, Value> {
+            self.calls.push("document_citation");
+            self.seen.push(id.to_owned());
+            Box::pin(async move { Ok(serde_json::json!({"id": id})) })
         }
         fn references<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, item_id: &'a str) -> LegalAuxiliaryFuture<'a, Value> {
             self.calls.push("references");
@@ -303,6 +356,29 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(business_kind(&failure), Some(FailureKind::InvalidInput));
+    }
+
+    #[tokio::test]
+    async fn citation_preserves_law_ids_and_requires_exact_date() {
+        let mut ports = ports();
+        let actor = actor(&["legal.read"]);
+        for id in ["law: x ", "law:", "law:law:x", &format!("law:{}", "ก".repeat(60))] {
+            read_auxiliary(&mut ports, &actor, LegalAuxiliaryRead::Citation { id: id.into(), as_of: Some("2024-02-29".into()) }, &Fixed(0)).await.unwrap();
+            assert_eq!(ports.seen.last().unwrap(), &format!("{}|2024-02-29", id.strip_prefix("law:").unwrap()));
+        }
+        for date in ["", " ", " 2024-02-29 ", "2024-02-30"] {
+            assert!(read_auxiliary(&mut ports, &actor, LegalAuxiliaryRead::Citation { id:"law:x".into(), as_of:Some(date.into()) }, &Fixed(0)).await.is_err());
+        }
+        assert!(read_auxiliary(&mut ports, &actor, LegalAuxiliaryRead::Citation { id:format!("law:{}", "x".repeat(197)), as_of:None }, &Fixed(0)).await.is_err());
+        let too_long=format!("law:{}", "x".repeat(197));
+        let bad_date=validate_citation_ingress(&actor, &too_long, Some(""), 0).unwrap_err();
+        let bad_id=validate_citation_ingress(&actor, &too_long, Some("2024-02-29"), 0).unwrap_err();
+        assert_ne!(bad_date.message,bad_id.message);
+        assert_eq!(bad_date.code,"LEGAL_CITATION_VALIDATION");
+        assert_eq!(bad_id.code,"LEGAL_CITATION_VALIDATION");
+        let mut denied_actor=actor.clone();denied_actor.permissions.clear();
+        let denied=validate_citation_ingress(&denied_actor, &too_long, Some(""), 0).unwrap_err();
+        assert_eq!(denied.code,"PERMISSION_REQUIRED");
     }
 
     #[tokio::test]

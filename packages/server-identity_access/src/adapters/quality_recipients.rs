@@ -38,6 +38,7 @@ pub enum QualityInspectionRecipientStatus {
     AwaitingRelease,
 }
 enum RecipientQuery {
+    CountReaders(QualityCountReaderRequest),
     Cancellation(QualityRecipientRequest),
     Inspection(QualityInspectionRecipientRequest),
 }
@@ -96,6 +97,40 @@ impl CurrentQualityRecipients {
         Ok(())
     }
 }
+/// Exact audience used by the legacy partial Count notice. This proves the
+/// Identity recipient set only; a retained Quality Count stage must bind the
+/// company, branch and command time to the actual child before any write.
+#[derive(Clone)]
+pub struct QualityCountReaderRequest {
+    pub company_id: CompanyId,
+    pub branch_id: RecordId,
+    pub now: i64,
+}
+impl CurrentQualityRecipients {
+    pub fn count_reader_scope(&self) -> Option<(&CompanyId, &RecordId, i64)> {
+        match &self.request {
+            RecipientQuery::CountReaders(r) => Some((&r.company_id, &r.branch_id, r.now)),
+            _ => None,
+        }
+    }
+}
+pub async fn inspect_quality_count_readers(
+    c: &mut PgConnection,
+    locks: &QualityRecipientSourceLocks,
+    request: QualityCountReaderRequest,
+) -> Result<CurrentQualityRecipients, Error> {
+    if request.now < 0 || unit(c).await? != locks.unit {
+        return Err(invalid());
+    }
+    let query = RecipientQuery::CountReaders(request);
+    let recipients = read(c, &query).await?;
+    Ok(CurrentQualityRecipients {
+        request: query,
+        recipients,
+        unit: locks.unit.clone(),
+    })
+}
+
 /// A selected actor and current recipient set retained in one actual unit.
 /// The Quality owner must separately retain its real hold and purchase source.
 pub struct SelectedQualityRecipients<'a> {
@@ -226,6 +261,13 @@ pub async fn inspect_quality_inspection_recipients(
 }
 async fn read(c: &mut PgConnection, query: &RecipientQuery) -> Result<Vec<String>, Error> {
     match query {
+        RecipientQuery::CountReaders(r) => {
+            super::postgres_effective_authority::require_effective_authority_sources_held(&mut *c)
+                .await?;
+            super::permission_catalog_lock::require_permission_catalog_lock(&mut *c).await?;
+            Ok(sqlx::query_scalar("SELECT DISTINCT a.user_id FROM assignments a WHERE a.company_id=$1 AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=$2)) AND iam_assignment_active(a.id,$3) AND iam_role_allows(a.role,a.company_id,'quality.read') ORDER BY a.user_id")
+            .bind(r.company_id.as_str()).bind(r.branch_id.as_str()).bind(r.now).fetch_all(c).await?)
+        }
         RecipientQuery::Cancellation(request) => read_cancellation(c, request).await,
         RecipientQuery::Inspection(request) => read_inspection(c, request).await,
     }

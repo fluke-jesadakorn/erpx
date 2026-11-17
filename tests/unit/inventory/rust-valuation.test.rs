@@ -235,6 +235,13 @@ fn ordered_cumulative_allocation_conserves_every_unit_at_rounding_boundaries() {
     }
     assert_eq!(allocate_landed_cost(1, &[1, 1, 1]).unwrap(), vec![0, 1, 0]);
     assert_eq!(allocate_landed_cost(2, &[1, 1, 1]).unwrap(), vec![1, 0, 1]);
+    assert_eq!(allocate_landed_cost(1000, &[1, 1, 1]).unwrap(), vec![333, 334, 333]);
+    assert_eq!(allocate_landed_cost(MAX_SAFE_UNITS, &[1]).unwrap(), vec![MAX_SAFE_UNITS]);
+    for weights in [&[][..], &[0, 0][..]] {
+        let error = allocate_landed_cost(100, weights).unwrap_err();
+        assert_eq!(error.code, "LANDED_COST_ALLOCATION_UNAVAILABLE");
+        assert_eq!(error.kind, FailureKind::InvalidInput);
+    }
 }
 #[test]
 fn unsupported_numeric_domains_and_unvalidated_quantity_text_fail_closed() {

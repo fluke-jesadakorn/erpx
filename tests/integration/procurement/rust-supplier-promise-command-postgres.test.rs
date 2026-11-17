@@ -21,6 +21,37 @@ use erpx_server_shared::public::{
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
 #[tokio::test]
+async fn selected_promise_witness_binds_actual_record_and_transaction() {
+    use erpx_server_procurement::public::supplier_promise_command::inspect_supplier_promise_record;
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        run_command(&pool, actor("company", "branch", "owner"), "order-owned", input(), "record-source").await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        let foreign=CompanyId::new("foreign").unwrap();
+        let mut c=pool.raw().acquire().await.unwrap();
+        let mut tx=c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        sqlx::query("SAVEPOINT before_fence").execute(&mut *tx).await.unwrap();
+        lock_supplier_promise_history_writes(&mut tx).await.unwrap();
+        assert!(inspect_supplier_promise_record(&mut tx,&foreign,"order-owned","owner","record-source",1).await.is_err());
+        assert!(inspect_supplier_promise_record(&mut tx,&company,"wrong-order","owner","record-source",1).await.is_err());
+        assert!(inspect_supplier_promise_record(&mut tx,&company,"order-owned","other","record-source",1).await.is_err());
+        assert!(inspect_supplier_promise_record(&mut tx,&company,"order-owned","owner","wrong-key",1).await.is_err());
+        assert!(inspect_supplier_promise_record(&mut tx,&company,"order-owned","owner","record-source",2).await.is_err());
+        let witness=inspect_supplier_promise_record(&mut tx,&company,"order-owned","owner","record-source",1).await.unwrap();
+        witness.require_current(&mut tx).await.unwrap();
+        sqlx::query("INSERT INTO procurement_delivery_promise_lines(id,promise_id,order_line_id,ordinal,quantity_milli,fulfilled_snapshot_milli,promised_date) VALUES('extra-line','supplier-promise-record-source','order-line-b',1,1000,0,'2026-10-27')").execute(&mut *tx).await.unwrap();
+        assert!(witness.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT before_fence").execute(&mut *tx).await.unwrap();
+        assert!(witness.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx=c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        lock_supplier_promise_history_writes(&mut tx).await.unwrap();
+        assert!(witness.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
 async fn promise_history_witness_is_scoped_and_transaction_bound() {
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;

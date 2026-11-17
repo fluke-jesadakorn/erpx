@@ -19,6 +19,8 @@ pub type PayrollReadHttpFuture<'a, T> =
 pub enum PayrollReadHttpKind {
     Summary { pay_month: Option<String> },
     Runs,
+    /// Full unredacted Company Payroll history with the legacy list cursor.
+    History { cursor: Option<String> },
     /// Bounded Work payload rows for the retained Workflow Work selector.
     WorkRows,
 }
@@ -150,6 +152,33 @@ fn query_pay_month(request: &Request) -> Result<Option<String>, BusinessError> {
     Ok(pay_month)
 }
 
+// URLSearchParams.get('cursor') semantics: form-style plus, tolerant percent
+// escapes, UTF-8 replacement and the first value for duplicate names.
+fn form_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len()
+            && let (Some(high), Some(low)) = (hex(bytes[index + 1]), hex(bytes[index + 2]))
+        {
+            out.push(high * 16 + low);
+            index += 3;
+        } else {
+            out.push(if bytes[index] == b'+' { b' ' } else { bytes[index] });
+            index += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn query_history_cursor(request: &Request) -> Option<String> {
+    request.uri().query()?.split('&').find_map(|pair| {
+        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+        (form_decode(name) == "cursor").then(|| form_decode(value))
+    })
+}
+
 pub fn people_payroll_router(targets: Vec<PayrollReadHttpTarget>) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
     for target in targets {
@@ -174,6 +203,10 @@ pub fn people_payroll_router(targets: Vec<PayrollReadHttpTarget>) -> Result<Rout
         .route(
             "/api/v1/holdings/{holding_slug}/people/payroll/runs",
             get(read_runs),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/payroll/runs-page",
+            get(read_history),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/people/payroll/work-rows",
@@ -298,6 +331,27 @@ async fn read_work_rows(
             .await
     }
     .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_history(
+    State(state): State<Arc<PayrollReadHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let cursor = query_history_cursor(&request);
+        target.backend.read(PayrollReadHttpRequest {
+            host: &target.host,
+            holding_slug: &target.holding_slug,
+            headers: request.headers(),
+            kind: PayrollReadHttpKind::History { cursor },
+        }).await
+    }.await;
     match result {
         Ok(reply) => bounded(reply.value()),
         Err(error) => error_response(error),
@@ -440,6 +494,10 @@ mod tests {
         assert_eq!(body["error"]["code"], "PEOPLE_PAYROLL_REQUEST_INVALID");
         let (status, _) = http(addr, get("/api/v1/holdings/acme/people/payroll/runs")).await;
         assert_eq!(status, 200);
+        let (status, _) = http(addr, get("/api/v1/holdings/acme/people/payroll/runs-page")).await;
+        assert_eq!(status, 200);
+        let (status, _) = http(addr, get("/api/v1/holdings/acme/people/payroll/runs-page?%63ursor=a%2Bb+c%2F%FF%ZZ&cursor=ignored")).await;
+        assert_eq!(status, 200);
         let (status, body) = http(
             addr,
             get("/api/v1/holdings/acme/people/payroll/work-rows"),
@@ -466,6 +524,8 @@ mod tests {
                 .any(|value| value == "read:Summary { pay_month: Some(\"2026-10\") }")
         );
         assert!(seen.iter().any(|value| value == "read:Runs"));
+        assert!(seen.iter().any(|value| value == "read:History { cursor: None }"));
+        assert!(seen.iter().any(|value| value == "read:History { cursor: Some(\"a+b c/�%ZZ\") }"));
         assert!(seen.iter().any(|value| value == "read:WorkRows"));
         server.abort();
     }

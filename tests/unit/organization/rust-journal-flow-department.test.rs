@@ -1,10 +1,10 @@
 use erpx_server_organization::public::journal_flow_department::team_name_from_department;
 
 #[test]
-fn missing_or_blank_department_uses_company() {
+fn only_missing_department_uses_company() {
     assert_eq!(team_name_from_department(None), "Company");
-    assert_eq!(team_name_from_department(Some("")), "Company");
-    assert_eq!(team_name_from_department(Some("   ")), "Company");
+    assert_eq!(team_name_from_department(Some("")), "");
+    assert_eq!(team_name_from_department(Some("   ")), "   ");
 }
 
 #[test]

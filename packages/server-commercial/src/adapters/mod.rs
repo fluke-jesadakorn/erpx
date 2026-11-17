@@ -18,3 +18,5 @@ pub mod postgres_purchase_after;
 pub mod purchase_shadow_read;
 
 pub mod purchase_pre_command;
+
+pub mod portal_purchase;

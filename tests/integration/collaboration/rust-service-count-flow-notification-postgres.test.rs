@@ -527,3 +527,204 @@ async fn notification_planned_image_is_retained_and_existing_unique_conflict_is_
  let rows:(i64,String)=sqlx::query_as("SELECT count(*),min(id) FROM staff_notifications WHERE record_type='stock_count' AND record_id='count'").fetch_one(pool.raw()).await.unwrap();assert_eq!(rows,(1,"notice-a".into()));
 }).await
 }
+
+// Joined only for the owner-level oracle: the production bridge must also
+// retain the actual staged Quality/Inventory Count effects.
+struct CountNoticeOracle {
+    facts: QualityCountNoticeFacts,
+    audience: Option<erpx_server_identity_access::public::quality_recipients::CurrentQualityRecipients>,
+    hold_image: serde_json::Value,
+}
+impl PgQualityCountNoticeSource for CountNoticeOracle {
+    fn facts(&self) -> &QualityCountNoticeFacts { &self.facts }
+    async fn require_current(&self,c:&mut PgConnection)->Result<(),Error> {
+        let actual:Option<serde_json::Value> = sqlx::query_scalar("SELECT to_jsonb(h) FROM inventory_quality_holds h WHERE id=$1 AND company_id=$2")
+            .bind(&self.facts.hold_id).bind(&self.facts.company_id).fetch_optional(&mut *c).await?;
+        if actual.as_ref()!=Some(&self.hold_image) { return Err(BusinessError::invalid("TEST_STALE","Hold changed").into()); }
+        if let Some(audience)=&self.audience {
+            audience.require_current(c).await?;
+            let (company,branch,now)=audience.count_reader_scope().ok_or_else(||BusinessError::invalid("TEST_SCOPE","Wrong audience"))?;
+            if company.as_str()!=self.facts.company_id || self.hold_image["branch_id"]!=branch.as_str() || now!=self.facts.created_at || audience.recipients()!=self.facts.recipients { return Err(BusinessError::invalid("TEST_SCOPE","Audience changed").into()); }
+        }
+        Ok(())
+    }
+}
+
+struct FailNoticeAfterInsert<'a> { source: &'a CountNoticeOracle, calls: std::sync::atomic::AtomicUsize }
+impl PgQualityCountNoticeSource for FailNoticeAfterInsert<'_> {
+    fn facts(&self)->&QualityCountNoticeFacts { &self.source.facts }
+    async fn require_current(&self,c:&mut PgConnection)->Result<(),Error> {
+        self.source.require_current(c).await?;
+        if self.calls.fetch_add(1,std::sync::atomic::Ordering::SeqCst)>0 { return Err(BusinessError::invalid("TEST_POST_INSERT","Injected failure").into()); }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn quality_count_notice_audience_bridge_and_rollback() {
+    use erpx_server_identity_access::public::quality_recipients::*;
+    use erpx_server_shared::public::{CompanyId,RecordId};
+    fixture::with_database(3,|pool|async move {
+        quality_facts::setup(&pool).await; quality_facts::hold(&pool,"count-child").await; quality_facts::hold(&pool,"count-parent").await;
+        sqlx::query("UPDATE inventory_quality_holds SET version=2 WHERE id='count-parent'").execute(pool.raw()).await.unwrap();
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','count_quality_reader','Count quality reader',false,1,'active'),('*','count_quality_none','No quality',false,1,'active');
+          INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','count_quality_reader',1,'[\"quality.read\"]','[]','[\"holding\",\"branch\"]','fixture',0),('*','count_quality_none',1,'[]','[]','[\"holding\",\"branch\"]','fixture',0);
+          INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('company','maker','local:maker','maker-person','active','local'),('company','reader','local:reader','maker-person','active','local'),('company','other','local:other','other','active','local');
+          INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES('reader-one','reader','count_quality_reader','[]','company',0,9007199254740991,1,'branch','branch'),('reader-two','reader','count_quality_reader','[]','company',0,9007199254740991,1,'branch','branch'),('other-branch','other','count_quality_reader','[]','company',0,9007199254740991,1,'branch','branch-other')")
+          .execute(pool.raw()).await.unwrap();
+        {
+            let mut tx = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            sqlx::query("SAVEPOINT before_audience_locks").execute(&mut *tx).await.unwrap();
+            let locks = lock_quality_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+            let audience = inspect_quality_count_readers(&mut tx,&locks,QualityCountReaderRequest { company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),now:100 }).await.unwrap();
+            assert_eq!(audience.recipients(), &["reader"]);
+            sqlx::query("ROLLBACK TO SAVEPOINT before_audience_locks").execute(&mut *tx).await.unwrap();
+            assert!(audience.require_current(&mut tx).await.is_err());
+            tx.rollback().await.unwrap();
+        }
+        PgUnitOfWork::new(pool.clone()).run_once::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            let mut prep=lock_quality_recipient_sources(c).await?; lock_quality_count_notices(prep.connection()).await?; let locks=prep.bind().await?;
+            let audience=inspect_quality_count_readers(c,&locks,QualityCountReaderRequest { company_id:CompanyId::new("company")?,branch_id:RecordId::new("branch")?,now:100 }).await?;
+            let image:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(h) FROM inventory_quality_holds h WHERE id='count-child'").fetch_one(&mut *c).await?;
+            let source=CountNoticeOracle { facts:QualityCountNoticeFacts { kind:QualityCountNoticeKind::RemainingChild,command_key:"cmd".into(),company_id:"company".into(),hold_id:"count-child".into(),version:1,created_at:100,recipients:audience.recipients().to_vec() },audience:Some(audience),hold_image:image };
+            let fail=FailNoticeAfterInsert { source:&source, calls:std::sync::atomic::AtomicUsize::new(0) };
+            assert!(stage_quality_count_notices(c,&fail).await.is_err());
+            Ok(())
+        })).await.unwrap();
+        let abandoned:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM staff_notifications WHERE id='count-child-notice-reader'),(SELECT count(*) FROM inbox_events WHERE id='legacy:count-child-notice-reader'),(SELECT count(*) FROM inbox_deliveries WHERE id='count-child-notice-reader')").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(abandoned,(0,0,0));
+        for rollback in [true,false] {
+            let result=PgUnitOfWork::new(pool.clone()).run_once::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+                let mut prep=lock_quality_recipient_sources(c).await?;
+                lock_quality_count_notices(prep.connection()).await?;
+                let locks=prep.bind().await?;
+                let audience=inspect_quality_count_readers(c,&locks,QualityCountReaderRequest { company_id:CompanyId::new("company")?,branch_id:RecordId::new("branch")?,now:100 }).await?;
+                assert_eq!(audience.recipients(), &["reader"]);
+                let image:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(h) FROM inventory_quality_holds h WHERE id='count-child'").fetch_one(&mut *c).await?;
+                let source=CountNoticeOracle { facts:QualityCountNoticeFacts { kind:QualityCountNoticeKind::RemainingChild,command_key:"cmd".into(),company_id:"company".into(),hold_id:"count-child".into(),version:1,created_at:100,recipients:audience.recipients().to_vec() },audience:Some(audience),hold_image:image };
+                let fail=FailNoticeAfterInsert { source:&source, calls:std::sync::atomic::AtomicUsize::new(0) };
+                assert!(stage_quality_count_notices(c,&fail).await.is_err());
+                let abandoned:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM staff_notifications WHERE id='count-child-notice-reader'),(SELECT count(*) FROM inbox_events WHERE id='legacy:count-child-notice-reader'),(SELECT count(*) FROM inbox_deliveries WHERE id='count-child-notice-reader')").fetch_one(&mut *c).await?;
+                assert_eq!(abandoned,(0,0,0));
+                let retained=stage_quality_count_notices(c,&source).await?; retained.require_current(c,&source).await?;
+                let bridge:(String,String)=sqlx::query_as("SELECT e.preview,d.user_id FROM inbox_events e JOIN inbox_deliveries d ON d.event_id=e.id WHERE d.id='count-child-notice-reader'").fetch_one(&mut *c).await?;
+                assert_eq!(bridge,("Partial scrap posted; remaining returned stock requires a new quality decision".into(),"reader".into()));
+                let parent_image:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(h) FROM inventory_quality_holds h WHERE id='count-parent'").fetch_one(&mut *c).await?;
+                let requester=CountNoticeOracle { facts:QualityCountNoticeFacts { kind:QualityCountNoticeKind::Requester,command_key:"cmd".into(),company_id:"company".into(),hold_id:"count-parent".into(),version:2,created_at:100,recipients:vec!["reader".into()] },audience:None,hold_image:parent_image };
+                let requester_notice=stage_quality_count_notices(c,&requester).await?;
+                requester_notice.require_current(c,&requester).await?;
+                let message:String=sqlx::query_scalar("SELECT message FROM staff_notifications WHERE id='cmd-quality-requester' AND record_id='count-parent' AND record_version=2 AND user_id='reader'").fetch_one(&mut *c).await?;
+                assert_eq!(message,"Quality scrap posted with inventory and accounting evidence");
+                sqlx::query("SAVEPOINT notice_drift").execute(&mut *c).await?;
+                sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES('count-child-notice-oversized','company','other','quality_hold','other-hold',1,'x',100)").execute(&mut *c).await?;
+                sqlx::query("UPDATE inbox_events SET preview=repeat('x',2097153) WHERE id='legacy:count-child-notice-oversized'").execute(&mut *c).await?;
+                assert!(retained.require_current(c,&source).await.is_err());
+                sqlx::query("ROLLBACK TO SAVEPOINT notice_drift").execute(&mut *c).await?;
+                sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'count-child-notice-many-'||g,'company','other','quality_hold','other-hold-'||g,1,'x',100 FROM generate_series(1,10001) g").execute(&mut *c).await?;
+                assert!(retained.require_current(c,&source).await.is_err());
+                sqlx::query("ROLLBACK TO SAVEPOINT notice_drift").execute(&mut *c).await?;
+                sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES('count-child-notice-outsider','company','other','quality_hold','count-child',1,'Partial scrap posted; remaining returned stock requires a new quality decision',100)").execute(&mut *c).await?;
+                assert!(retained.require_current(c,&source).await.is_err());
+                sqlx::query("ROLLBACK TO SAVEPOINT notice_drift").execute(&mut *c).await?;
+                sqlx::query("UPDATE assignments SET revoked_at=1 WHERE id IN ('reader-one','reader-two')").execute(&mut *c).await?;
+                assert!(retained.require_current(c,&source).await.is_err());
+                sqlx::query("ROLLBACK TO SAVEPOINT notice_drift").execute(&mut *c).await?;
+                if rollback { return Err(BusinessError::invalid("TEST_ROLLBACK","Rollback notice").into()); }
+                Ok(())
+            })).await;
+            if !rollback { assert!(result.is_ok(), "unexpected transaction failure: {:?}", result); }
+            assert_eq!(result.is_err(),rollback);
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM staff_notifications WHERE id='count-child-notice-reader'").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(count,if rollback {0} else {1});
+        }
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_count_notice_fence_blocks_concurrent_prefix_writer() {
+    fixture::with_database(3,|pool| async move {
+        quality_facts::setup(&pool).await;
+        let mut owner=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *owner).await.unwrap();
+        lock_quality_count_notices(&mut owner).await.unwrap();
+        let owner_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *owner).await.unwrap();
+        let other_pool=pool.clone(); let (send,receive)=tokio::sync::oneshot::channel();
+        let worker=tokio::spawn(async move {
+            let mut c=other_pool.raw().acquire().await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await.unwrap();
+            send.send(pid).unwrap();
+            sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES('child-notice-concurrent','company','reader','quality_hold','child',1,'x',100)").execute(&mut *c).await.unwrap();
+        });
+        let other_pid=receive.await.unwrap(); let mut blocked=false;
+        for _ in 0..200 { blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(owner_pid).bind(other_pid).fetch_one(pool.raw()).await.unwrap(); if blocked { break; } tokio::time::sleep(std::time::Duration::from_millis(10)).await; }
+        assert!(blocked,"notification writer must block behind pre-snapshot fence");
+        owner.rollback().await.unwrap(); worker.await.unwrap();
+        let written:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM staff_notifications WHERE id='child-notice-concurrent')").fetch_one(pool.raw()).await.unwrap();assert!(written);
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_count_notice_preserves_alternate_delivery_conflict() {
+    fixture::with_database(2,|pool|async move {
+        quality_facts::setup(&pool).await; quality_facts::hold(&pool,"count-parent").await;
+        sqlx::raw_sql("UPDATE inventory_quality_holds SET version=2 WHERE id='count-parent';
+          INSERT INTO inbox_events(id,company_id,event_key,source_type,source_id,source_version,category,preview,created_at) VALUES('legacy:cmd-quality-requester','company','legacy:cmd-quality-requester','quality_hold','count-parent',2,'work','old event',10);
+          INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at) VALUES('existing-alt','legacy:cmd-quality-requester','company','reader',10);
+          INSERT INTO inbox_events(id,company_id,event_key,source_type,source_id,source_version,category,preview,created_at) VALUES('other-event','company','legacy:cmd-two-quality-requester','quality_hold','count-parent',2,'work','old event',10)")
+            .execute(pool.raw()).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run_once::<(),BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move {
+            lock_quality_count_notices(c).await?;
+            let image:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(h) FROM inventory_quality_holds h WHERE id='count-parent'").fetch_one(&mut *c).await?;
+            let source=CountNoticeOracle { facts:QualityCountNoticeFacts { kind:QualityCountNoticeKind::Requester,command_key:"cmd".into(),company_id:"company".into(),hold_id:"count-parent".into(),version:2,created_at:100,recipients:vec!["reader".into()] },audience:None,hold_image:image };
+            let notice=stage_quality_count_notices(c,&source).await?; notice.require_current(c,&source).await?;
+            let ids:Vec<String>=sqlx::query_scalar("SELECT id FROM inbox_deliveries WHERE event_id='legacy:cmd-quality-requester' AND user_id='reader'").fetch_all(&mut *c).await?;
+            assert_eq!(ids,vec!["existing-alt"]);
+            let second=CountNoticeOracle { facts:QualityCountNoticeFacts { kind:QualityCountNoticeKind::Requester,command_key:"cmd-two".into(),company_id:"company".into(),hold_id:"count-parent".into(),version:2,created_at:100,recipients:vec!["reader".into()] },audience:None,hold_image:source.hold_image.clone() };
+            // Existing notification tuple conflicts, so remove only the first
+            // notice before exercising the inbox event-key collision.
+            sqlx::query("DELETE FROM staff_notifications WHERE id='cmd-quality-requester'").execute(&mut *c).await?;
+            let error=match stage_quality_count_notices(c,&second).await { Ok(_) => panic!("expected missing referenced event"), Err(error) => error };
+            assert!(format!("{error:?}").contains("23503"));
+            let absent:bool=sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM staff_notifications WHERE id='cmd-two-quality-requester')").fetch_one(&mut *c).await?;
+            assert!(absent);
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_count_notice_retains_large_existing_prefix_and_detects_late_drift() {
+    fixture::with_database(2, |pool| async move {
+        quality_facts::setup(&pool).await;
+        quality_facts::hold(&pool, "large-child").await;
+        // Native-seeded historical notices and their trigger-created bridges.
+        // Their prefix collides syntactically, but legacy ON CONFLICT never
+        // deletes or rewrites them when issuing the reader's actual notice.
+        sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'large-child-notice-old-'||g,'company','other','quality_hold','old-hold-'||g,1,'old',100 FROM generate_series(1,10001) g")
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query("UPDATE inbox_events SET preview=repeat('x',2097153)||'ไทย🙂' WHERE id='legacy:large-child-notice-old-1'")
+            .execute(pool.raw()).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run_once::<(),BusinessError,_>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_quality_count_notices(c).await?;
+            let image:serde_json::Value=sqlx::query_scalar("SELECT to_jsonb(h) FROM inventory_quality_holds h WHERE id='large-child'").fetch_one(&mut *c).await?;
+            let source=CountNoticeOracle { facts:QualityCountNoticeFacts { kind:QualityCountNoticeKind::RemainingChild,command_key:"cmd".into(),company_id:"company".into(),hold_id:"large-child".into(),version:1,created_at:100,recipients:vec!["reader".into()] },audience:None,hold_image:image };
+            let retained=stage_quality_count_notices(c,&source).await?;
+            retained.require_current(c,&source).await?;
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM staff_notifications WHERE left(id,length('large-child-notice-'))='large-child-notice-'").fetch_one(&mut *c).await?;
+            assert_eq!(count,10002);
+            let bridge:(String,String)=sqlx::query_as("SELECT e.preview,d.user_id FROM inbox_events e JOIN inbox_deliveries d ON d.event_id=e.id WHERE d.id='large-child-notice-reader'").fetch_one(&mut *c).await?;
+            assert_eq!(bridge,("Partial scrap posted; remaining returned stock requires a new quality decision".into(),"reader".into()));
+            sqlx::query("SAVEPOINT large_notice_drift").execute(&mut *c).await?;
+            sqlx::query("UPDATE inbox_events SET preview=left(preview,length(preview)-1)||'X' WHERE id='legacy:large-child-notice-old-1'").execute(&mut *c).await?;
+            assert!(retained.require_current(c,&source).await.is_err());
+            sqlx::query("ROLLBACK TO SAVEPOINT large_notice_drift").execute(&mut *c).await?;
+            retained.require_current(c,&source).await?;
+            sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES('large-child-notice-outsider','company','other','quality_hold','large-child',1,'Partial scrap posted; remaining returned stock requires a new quality decision',100)").execute(&mut *c).await?;
+            assert!(retained.require_current(c,&source).await.is_err());
+            sqlx::query("ROLLBACK TO SAVEPOINT large_notice_drift").execute(&mut *c).await?;
+            retained.require_current(c,&source).await?;
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}

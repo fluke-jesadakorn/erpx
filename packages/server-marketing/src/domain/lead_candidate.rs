@@ -257,6 +257,33 @@ pub struct MarketingAssetCreateInput {
     pub preview_json: String,
 }
 
+fn validate_form_presentation(value: &serde_json::Value) -> Result<(), BusinessError> {
+    fn fail(message: &'static str) -> BusinessError { invalid("MARKETING_PRESENTATION_INVALID", message) }
+    fn expected_string(value: &serde_json::Value) -> BusinessError {
+        fail(match value { serde_json::Value::Null => "Invalid input: expected string, received null", serde_json::Value::Bool(_) => "Invalid input: expected string, received boolean", serde_json::Value::Number(_) => "Invalid input: expected string, received number", serde_json::Value::Array(_) => "Invalid input: expected string, received array", _ => "Invalid input: expected string, received object" })
+    }
+    for key in ["contentAssetId", "mediaPublicationId"] {
+        if let Some(item)=value.get(key) {
+            let text=item.as_str().ok_or_else(||expected_string(item))?;
+            let length=utf16(text);
+            if length<1 { return Err(fail("Too small: expected string to have >=1 characters")); }
+            if length>180 { return Err(fail("Too big: expected string to have <=180 characters")); }
+        }
+        // Zod evaluates contentVersion between the two string fields.
+        if key=="contentAssetId" && let Some(number)=value.get("contentVersion") {
+            let n=number.as_f64().ok_or_else(||fail(match number { serde_json::Value::Null=>"Invalid input: expected number, received null",serde_json::Value::String(_)=>"Invalid input: expected number, received string",serde_json::Value::Bool(_)=>"Invalid input: expected number, received boolean",serde_json::Value::Array(_)=>"Invalid input: expected number, received array",_=>"Invalid input: expected number, received object" }))?;
+            if n.fract()!=0.0 { return Err(fail("Invalid input: expected int, received number")); }
+            if n>9_007_199_254_740_991.0 { return Err(fail("Too big: expected int to be <=9007199254740991")); }
+            if n< -9_007_199_254_740_991.0 { return Err(fail("Too small: expected int to be >=-9007199254740991")); }
+            if n<=0.0 { return Err(fail("Too small: expected number to be >0")); }
+        }
+    }
+    let has_content=value.get("contentAssetId").is_some();let has_version=value.get("contentVersion").is_some();
+    if has_content!=has_version {return Err(fail("Choose an exact content revision."));}
+    if value.get("mediaPublicationId").is_some() && !has_content {return Err(fail("Choose the content owner of the public creative."));}
+    Ok(())
+}
+
 impl MarketingAssetCreateInput {
     pub fn validate(&self) -> Result<(), BusinessError> {
         if !matches!(
@@ -291,6 +318,7 @@ impl MarketingAssetCreateInput {
                 "Review the saved asset presentation.",
             ));
         }
+        if self.kind == "form" { validate_form_presentation(&configuration)?; }
         if self.kind == "form"
             && configuration
                 .get("consentRequired")

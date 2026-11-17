@@ -1,5 +1,5 @@
 //! Workflow-owned original Stock Count review decision evidence.
-use crate::{application::commands::CommandActor, domain::command_json::CommandJson};
+use crate::{application::commands::CommandActor, domain::command_json::OrderedJson};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sha2::{Digest, Sha256};
@@ -45,14 +45,13 @@ pub fn service_count_decision_digest(
     lines: &str,
     lot_lines: &str,
 ) -> Result<String, BusinessError> {
-    let reason = CommandJson::from_serializable(&reason)?;
-    let body = CommandJson::parse(&format!(
+    let reason = serde_json::to_string(reason).map_err(|_| BusinessError::invalid(
+        "SERVICE_COUNT_DECISION_INVALID", "Invalid Count decision reason."))?;
+    let body = OrderedJson::parse_internal_projection(&format!(
         "{{\"reason\":{},\"lines\":{},\"lotLines\":{}}}",
-        reason.as_str(),
-        lines,
-        lot_lines
-    ))?;
-    Ok(hex::encode(Sha256::digest(body.as_str().as_bytes())))
+        reason, lines, lot_lines
+    ))?.encode_internal_projection()?;
+    Ok(hex::encode(Sha256::digest(body.as_bytes())))
 }
 #[derive(Clone, Debug)]
 pub struct ServiceCountDecisionFacts {

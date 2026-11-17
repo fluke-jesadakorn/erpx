@@ -134,6 +134,18 @@ pub async fn execute<P: SocialUnit>(
     change: Change,
 ) -> Result<Receipt, P::Error> {
     let actor = p.authorize(Access::Write).await?;
+    // Handover publication also requires current Operations source versions,
+    // recipient visibility and purchase witnesses. They are not yet available
+    // to this owner unit; refuse both new work and replay before ledger access
+    // rather than issue an Operations receipt without those checks.
+    if matches!(&change, Change::PublishHandoverPost { .. }) {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "HANDOVER_AUTHORITY_PORT_UNAVAILABLE",
+            "Handover publication is temporarily unavailable.",
+        )
+        .into());
+    }
     if matches!(&change, Change::ModeratePost { .. }) && !actor.can_hide_posts {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
@@ -460,29 +472,10 @@ pub async fn execute<P: SocialUnit>(
                     edit_post_version: Some(expected_version),
                 });
             }
-            Change::PublishHandoverPost {
-                body,
-                recipient_ids,
-                sources,
-            } => {
-                let body = text(&body, 1, MAX_DRAFT_BODY)?;
-                let mut recipients = recipient_ids;
-                recipients.sort();
-                recipients.dedup();
-                if recipients.is_empty() || recipients.len() > MAX_DRAFT_PARTICIPANTS || sources.len() > 5 {
-                    return Err(invalid().into());
-                }
-                plan = Some(OwnerPlan::PublishHandoverPost {
-                    post_id: format!("post-post-draft-{}", key.as_str()),
-                    author_id: actor.user_id.clone(),
-                    author_name: actor.display_name.clone(),
-                    company_id: actor.company_id.clone(),
-                    branch_id: actor.branch_id.clone(),
-                    department_id: actor.department_id.clone(),
-                    body,
-                    participants: recipients,
-                    sources,
-                });
+            // The pre-replay gate above keeps this path unreachable until
+            // Operations supplies the same-unit handover authority witness.
+            Change::PublishHandoverPost { .. } => {
+                return Err(BusinessError::new(FailureKind::Unavailable, "HANDOVER_AUTHORITY_PORT_UNAVAILABLE", "Handover publication is temporarily unavailable.").into());
             }
             Change::ModeratePost { id } => {
                 let post = p.post(&id).await?;

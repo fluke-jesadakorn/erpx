@@ -75,6 +75,14 @@ name = "work_context"
 path = "../../tests/unit/identity_access/rust-work-context.test.rs"
 
 [[test]]
+name = "portal_private_session_lease_postgres"
+path = "../../tests/integration/identity_access/rust-portal-private-session-lease-postgres.test.rs"
+
+[[test]]
+name = "portal_notification_recipients_postgres"
+path = "../../tests/integration/identity_access/rust-portal-notification-recipients-postgres.test.rs"
+
+[[test]]
 name = "work_context_postgres"
 path = "../../tests/integration/identity_access/rust-work-context-postgres.test.rs"
 
@@ -301,3 +309,7 @@ path = "../../tests/unit/identity_access/rust-position-gpo-http.test.rs"
 name = "position_gpo_directory"
 path = "../../tests/unit/identity_access/rust-position-gpo-directory.test.rs"
 required-features = ["position-gpo-connector"]
+
+[[test]]
+name = "rfq_request_membership_postgres"
+path = "../../tests/integration/identity_access/rust-rfq-request-membership-postgres.test.rs"

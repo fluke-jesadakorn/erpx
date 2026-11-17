@@ -10,7 +10,7 @@ use crate::application::portal::{CustomerPortalRepository, PortalFuture};
 use crate::domain::portal::{
     CustomerPortalItem, PortalAction, PortalActionFact, PortalActionRow, PortalBinding,
     PortalCommandFacts, PortalCustomerActor, PortalFulfillment, PortalPurchaseEnforcement,
-    PortalPurchaseScope, projection_invalid, source_invalid,
+    PortalPurchaseScope, binding_unavailable, projection_invalid, source_invalid,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -39,6 +39,32 @@ pub struct PgCustomerPortal<'a> {
 impl<'a> PgCustomerPortal<'a> {
     pub fn new(connection: &'a mut PgConnection) -> Self {
         Self { connection }
+    }
+
+    /// Recheck the original source and identity after deferred effects on the
+    /// same transaction. Composition must separately recheck session and
+    /// purchase authority before committing.
+    pub async fn revalidate_source(
+        &mut self,
+        actor: &PortalCustomerActor,
+        original: &PortalBinding,
+        now: i64,
+    ) -> Result<(), Error> {
+        let current = self.binding(&original.binding_id, &actor.email).await?;
+        let unchanged = current.as_ref().is_some_and(|current| {
+            current.company_id == original.company_id
+                && current.order_id == original.order_id
+                && current.customer_id == original.customer_id
+                && current.email == original.email
+                && current.order_version == original.order_version
+                && current.state == original.state
+                && current.status == "approved"
+                && current.expires_at > now
+        });
+        if !unchanged || !self.identity(&original.binding_id, actor).await? {
+            return Err(binding_unavailable().into());
+        }
+        Ok(())
     }
 
     pub async fn projection(

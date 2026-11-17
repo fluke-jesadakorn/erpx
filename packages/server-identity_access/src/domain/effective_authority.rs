@@ -163,6 +163,8 @@ pub struct AuthorizedWorkContext {
     pub(crate) user_id: UserId,
     pub(crate) session_id: RecordId,
     pub(crate) selection: CurrentWorkSelection,
+    /// Company beta policy observed when this sealed context was admitted.
+    pub(crate) beta: bool,
     pub(crate) permissions: BTreeSet<String>,
     pub(crate) grantable_permissions: Vec<String>,
     pub(crate) modules: Vec<String>,
@@ -179,6 +181,11 @@ pub struct AuthorizedWorkContext {
         Option<super::directory_source_review::DirectoryAdministrationProof>,
 }
 impl AuthorizedWorkContext {
+    /// Admission-time beta fact. The owning transaction remains responsible
+    /// for its existing source/revalidation policy; this getter adds no guard.
+    pub fn beta(&self) -> bool {
+        self.beta
+    }
     pub fn command_iam_metadata(&self) -> &CommandIamMetadata {
         &self.command_iam
     }

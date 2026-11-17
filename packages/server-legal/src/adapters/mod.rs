@@ -35,6 +35,7 @@ pub(crate) mod legal_http_auxiliary;
 pub(crate) mod legal_http_retention;
 pub(crate) mod legal_trust_http;
 pub(crate) mod postgres_auxiliary_reads;
+pub(crate) mod citation_source;
 pub(crate) mod postgres_legal_records;
 
 pub(crate) mod postgres_processing_queue;
@@ -42,3 +43,6 @@ pub(crate) mod postgres_processing_queue;
 pub mod legal_records_use_cases;
 pub(crate) mod postgres_processing_status;
 pub(crate) mod postgres_retention;
+
+pub(crate) mod postgres_destruction;
+pub(crate) mod destruction_queued_authority;

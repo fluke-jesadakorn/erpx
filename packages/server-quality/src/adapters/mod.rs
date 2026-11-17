@@ -17,3 +17,7 @@ pub(crate) mod goods_receipt_hold;
 
 pub(crate) mod attachment_hold;
 pub(crate) mod attachment_descriptor;
+
+pub(crate) mod count_disposition;
+
+pub(crate) mod portal_commerce_locks;

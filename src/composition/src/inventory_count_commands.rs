@@ -7,8 +7,16 @@
 //! transition effect port exists; this mount owns draft create/revision only.
 use crate::finance_journal_actor::{command_actor, finance_actor};
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
+    CapabilityPurpose, CommercialCatalogue, PackageDecisionCode, PackageEnforcementMode,
+    PgCompanyPurchaseReader, PurchaseRequest, PurchaseWitness, current_package_catalogue,
+    lock_commercial_authority_sources,
+};
+use erpx_server_files::public::business_evidence::{
+    PgBusinessEvidenceFiles, evidence_context, lock_business_evidence_sources, policy_fact,
+};
+use erpx_server_finance::public::{
+    FinanceActor, FinanceCollation, JournalAuthority, JournalDraft, JournalError, JournalStatus,
+    PgJournalPreparation, PgJournalStore, embedded_currency_rules, prepare_journal,
 };
 use erpx_server_identity_access::public::{
     DeviceProof,
@@ -17,13 +25,6 @@ use erpx_server_identity_access::public::{
         WorkAuthorizationRequest, WorkPermissionRequirement,
     },
     work_context::HoldingWorkspaceRequest,
-};
-use erpx_server_files::public::business_evidence::{
-    PgBusinessEvidenceFiles, evidence_context, lock_business_evidence_sources, policy_fact,
-};
-use erpx_server_finance::public::{
-    FinanceActor, FinanceCollation, JournalAuthority, JournalDraft, JournalError, JournalStatus,
-    PgJournalPreparation, PgJournalStore, embedded_currency_rules, prepare_journal,
 };
 use erpx_server_inventory::public::counts::{
     CountRecord, CountSaveInput, CountSavePlan, CountSeedKind, CountSeedPlan, CountSeedSource,
@@ -91,8 +92,11 @@ pub struct CountSeedInput {
 /// The command receipt keeps the private source marker that the immutable
 /// PostgreSQL triggers require; the HTTP client only sees the public draft.
 fn strip_seed_marker(result: CommandJson) -> Result<CommandJson, Error> {
-    let mut value: serde_json::Value = serde_json::from_str(result.as_str())
-        .map_err(|_| PgTransactionError::Persistence(erpx_server_runtime::public::postgres::PersistenceError::new("COUNT_RESULT_INVALID")))?;
+    let mut value: serde_json::Value = serde_json::from_str(result.as_str()).map_err(|_| {
+        PgTransactionError::Persistence(
+            erpx_server_runtime::public::postgres::PersistenceError::new("COUNT_RESULT_INVALID"),
+        )
+    })?;
     if let Some(object) = value.as_object_mut() {
         object.retain(|key, _| !key.starts_with('_'));
     }
@@ -192,6 +196,7 @@ impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
                             clock: clock.as_ref(),
                             catalogue: current_package_catalogue()?,
                             purchase: None,
+                            transition: false,
                             permission: "inventory.prepare",
                         };
                         let mut effects = Effects {
@@ -447,7 +452,7 @@ impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
                     destination: operation,
                     api: true,
                 },
-                CountSources,
+                CountTransitionSources,
                 move |c, current| {
                     let expected_company = expected_company.clone();
                     let company = company.clone();
@@ -472,6 +477,7 @@ impl<C: Clock + Send + Sync + 'static> InventoryCountCommand<C> {
                             clock: clock.as_ref(),
                             catalogue: current_package_catalogue()?,
                             purchase: None,
+                            transition: true,
                             permission: &permission,
                         };
                         let mut effects = TransitionEffects {
@@ -527,13 +533,48 @@ impl HoldingWorkSourcePreparation for CountSources {
     }
 }
 
+/// Acquire return-source and receipt write fences before the selected work
+/// context takes its first protected snapshot. These fences carry no grant.
+#[derive(Clone)]
+struct CountTransitionSources;
+impl HoldingWorkSourcePreparation for CountTransitionSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(c)
+                .await?;
+            erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(c).await?;
+            lock_count_sources(c).await?;
+            erpx_server_inventory::public::counts::lock_count_transition_guard_sources(c).await?;
+            erpx_server_quality::public::quality_commands::lock_quality_count_disposition_sources(
+                c,
+            )
+            .await?;
+            erpx_server_workflow::public::quality_return_receipts::lock_quality_scrap_request_receipts(c).await?;
+            sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,finance_periods,finance_accounts,finance_charts IN SHARE ROW EXCLUSIVE MODE").execute(&mut *c).await?;
+            lock_business_evidence_sources(c).await?;
+            Ok(())
+        })
+    }
+}
+
+struct CountPurchase {
+    supply: PurchaseWitness,
+    substitute: Option<(
+        PurchaseWitness,
+        crate::quality_count_origin::CurrentQualityCountCustomerReturn,
+    )>,
+    finance: Option<PurchaseWitness>,
+}
+
 struct Authority<'a, C> {
     current: &'a AuthorizedWorkContext,
     request: &'a WorkflowRequest,
     clock: &'a C,
     catalogue: CommercialCatalogue,
-    purchase: Option<PurchaseWitness>,
+    purchase: Option<CountPurchase>,
     permission: &'a str,
+    transition: bool,
 }
 
 impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
@@ -577,38 +618,140 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
             CommandDisposition::Execute
                 if matches!(
                     self.request.operation.as_str(),
-                    "inventory.count.submit"
-                        | "inventory.count.create"
-                        | "inventory.count.update"
+                    "inventory.count.submit" | "inventory.count.create" | "inventory.count.update"
                 ) =>
             {
                 CapabilityPurpose::NewWork
             }
             CommandDisposition::Execute => CapabilityPurpose::SettleExisting,
         };
-        let mut reader = PgCompanyPurchaseReader::new(
-            self.current.holding_id().clone(),
-            actor.company_id.clone(),
-            c,
-            &self.catalogue,
-        );
-        if let Some(witness) = &self.purchase {
-            reader.revalidate(witness, now).await?.require_allowed()?;
+        if let Some(saved) = &self.purchase {
+            {
+                let mut reader = PgCompanyPurchaseReader::new(
+                    self.current.holding_id().clone(),
+                    actor.company_id.clone(),
+                    &mut *c,
+                    &self.catalogue,
+                );
+                let supply = reader.revalidate(&saved.supply, now).await?;
+                if saved.substitute.is_some() {
+                    if supply
+                        .access
+                        .first()
+                        .is_none_or(|a| a.decision.code == PackageDecisionCode::Granted)
+                    {
+                        return Err(changed().into());
+                    }
+                    reader
+                        .revalidate(&saved.substitute.as_ref().expect("checked").0, now)
+                        .await?
+                        .require_allowed()?;
+                } else {
+                    supply.require_allowed()?;
+                }
+                if let Some(finance) = &saved.finance {
+                    reader.revalidate(finance, now).await?.require_allowed()?;
+                }
+            }
+            if let Some((_, source)) = &saved.substitute {
+                source.require_current(c).await?;
+            }
         } else {
-            self.purchase = Some(
-                reader
+            // Legacy checks an existing Quality source before selecting the
+            // purchase branch, including History replay. New work never uses it.
+            let candidate = if self.transition && purpose != CapabilityPurpose::NewWork {
+                let id = RecordId::new(self.request.record_id.as_str())?;
+                let branch = self.current.selection().workspace().branch_id.as_ref();
+                match crate::quality_count_origin::inspect_quality_count_origin(
+                    c,
+                    &actor.company_id,
+                    branch,
+                    &id,
+                )
+                .await?
+                {
+                    Some(direct) => {
+                        crate::quality_count_origin::inspect_quality_count_customer_return(
+                            c,
+                            direct,
+                            &actor.company_id,
+                            branch,
+                        )
+                        .await?
+                    }
+                    None => None,
+                }
+            } else {
+                None
+            };
+            let mut reader = PgCompanyPurchaseReader::new(
+                self.current.holding_id().clone(),
+                actor.company_id.clone(),
+                &mut *c,
+                &self.catalogue,
+            );
+            let supply = reader
+                .inspect(
+                    &PurchaseRequest {
+                        capabilities: vec![COUNT_CAPABILITY.into()],
+                        purpose,
+                        mode: PackageEnforcementMode::Enforced,
+                    },
+                    now,
+                )
+                .await?;
+            let use_substitute = candidate.is_some()
+                && supply
+                    .access
+                    .first()
+                    .is_some_and(|a| a.decision.code != PackageDecisionCode::Granted);
+            let substitute = if use_substitute {
+                let allowed = reader
                     .inspect(
                         &PurchaseRequest {
-                            capabilities: vec![COUNT_CAPABILITY.into()],
+                            capabilities: vec![
+                                "sales.orders".into(),
+                                "inventory.stock-core".into(),
+                            ],
                             purpose,
                             mode: PackageEnforcementMode::Enforced,
                         },
                         now,
                     )
-                    .await?
-                    .require_allowed()?
-                    .clone(),
-            );
+                    .await?;
+                Some((
+                    allowed.require_allowed()?.clone(),
+                    candidate.expect("checked"),
+                ))
+            } else {
+                supply.require_allowed()?;
+                None
+            };
+            let finance = if self.request.operation == "inventory.count.post" {
+                let capability = if substitute.is_some() {
+                    "finance.sales-posting"
+                } else {
+                    "finance.inventory-valuation"
+                };
+                let allowed = reader
+                    .inspect(
+                        &PurchaseRequest {
+                            capabilities: vec![capability.into()],
+                            purpose,
+                            mode: PackageEnforcementMode::Enforced,
+                        },
+                        now,
+                    )
+                    .await?;
+                Some(allowed.require_allowed()?.clone())
+            } else {
+                None
+            };
+            self.purchase = Some(CountPurchase {
+                supply: supply.witness,
+                substitute,
+                finance,
+            });
         }
         Ok(())
     }
@@ -665,8 +808,12 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         let version = plan.version;
         let seed_plan = match (&self.seed, plan.lines.first()) {
             (Some(seed), Some(line)) => {
-                let kind = CountSeedKind::parse(&seed.kind)
-                    .ok_or_else(|| BusinessError::invalid("COUNT_SEED_PROOF_INVALID", "Use a current first-Count source."))?;
+                let kind = CountSeedKind::parse(&seed.kind).ok_or_else(|| {
+                    BusinessError::invalid(
+                        "COUNT_SEED_PROOF_INVALID",
+                        "Use a current first-Count source.",
+                    )
+                })?;
                 Some(plan_count_seed(
                     kind,
                     &seed.proof,
@@ -683,7 +830,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                     "COUNT_SEED_PROOF_INVALID",
                     "Use a current first-Count source.",
                 )
-                .into())
+                .into());
             }
             (None, _) => None,
         };
@@ -695,10 +842,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             })
             .map_err(|_| changed())?;
             if let Some(object) = value.as_object_mut() {
-                object.insert(
-                    seed_plan.kind.marker().to_owned(),
-                    seed_plan.proof.clone(),
-                );
+                object.insert(seed_plan.kind.marker().to_owned(), seed_plan.proof.clone());
             }
             CommandJson::from_serializable(&value)?
         } else {
@@ -818,8 +962,8 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for TransitionEffects<'_, C> {
         }
         let status = count_status(&record.status).ok_or_else(changed)?;
         let authority = CountAuthority {
-            same_as_creator: record.created_by == self.current.user_id().as_str(),
-            same_as_preparer: record.prepared_by == self.current.user_id().as_str(),
+            same_as_creator: self.current.same_person_user_raw(&record.created_by),
+            same_as_preparer: self.current.same_person_user_raw(&record.prepared_by),
             company_scope: workspace.branch_id.is_none(),
             department_scope: workspace.department_id.is_some(),
             can_prepare: self.current.has_permission("inventory.prepare"),
@@ -914,12 +1058,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for TransitionEffects<'_, C> {
                 let rules = embedded_currency_rules().map_err(|_| changed())?;
                 let collation = FinanceCollation::english().map_err(|_| changed())?;
                 let mut ports = PgJournalPreparation::new(
-                    c,
-                    &actor,
-                    &mut bound,
-                    self.clock,
-                    &rules,
-                    &collation,
+                    c, &actor, &mut bound, self.clock, &rules, &collation,
                 )
                 .map_err(journal_error)?;
                 journal = Some(

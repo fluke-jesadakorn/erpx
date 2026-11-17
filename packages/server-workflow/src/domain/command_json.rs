@@ -70,7 +70,15 @@ fn array_index(key: &JsonString) -> Option<u32> {
 }
 impl OrderedJson {
     pub(crate) fn parse(value: &str) -> Result<Self, BusinessError> {
-        if value.len() > LIMIT {
+        Self::parse_internal(value, true)
+    }
+    /// Internal owner projections are not incoming command JSON and may be
+    /// larger than the command codec's security budget.
+    pub(crate) fn parse_internal_projection(value: &str) -> Result<Self, BusinessError> {
+        Self::parse_internal(value, false)
+    }
+    fn parse_internal(value: &str, bounded: bool) -> Result<Self, BusinessError> {
+        if bounded && value.len() > LIMIT {
             return Err(invalid());
         }
         let mut parser = Parser {
@@ -86,10 +94,15 @@ impl OrderedJson {
     }
     pub(crate) fn encode(&self) -> Result<String, BusinessError> {
         let mut out = String::new();
-        self.write(&mut out)?;
+        self.write(&mut out, true)?;
         Ok(out)
     }
-    fn write(&self, out: &mut String) -> Result<(), BusinessError> {
+    pub(crate) fn encode_internal_projection(&self) -> Result<String, BusinessError> {
+        let mut out = String::new();
+        self.write(&mut out, false)?;
+        Ok(out)
+    }
+    fn write(&self, out: &mut String, bounded: bool) -> Result<(), BusinessError> {
         match self {
             Self::Null => out.push_str("null"),
             Self::Bool(v) => out.push_str(if *v { "true" } else { "false" }),
@@ -110,7 +123,7 @@ impl OrderedJson {
                     if i > 0 {
                         out.push(',');
                     }
-                    v.write(out)?;
+                    v.write(out, bounded)?;
                 }
                 out.push(']');
             }
@@ -135,12 +148,12 @@ impl OrderedJson {
                     }
                     values[i].0.write(out)?;
                     out.push(':');
-                    values[i].1.write(out)?;
+                    values[i].1.write(out, bounded)?;
                 }
                 out.push('}');
             }
         }
-        if out.len() > LIMIT {
+        if bounded && out.len() > LIMIT {
             return Err(invalid());
         }
         Ok(())

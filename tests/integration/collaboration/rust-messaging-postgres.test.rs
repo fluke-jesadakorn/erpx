@@ -14,11 +14,30 @@ use sqlx::{PgConnection, Row};
 const NOW: i64 = 1_700_000_000_000;
 type Error = PgTransactionError<BusinessError>;
 
+#[tokio::test]
+async fn messaging_people_identity_sources_match_assignment_and_control_facts() {
+    use erpx_server_identity_access::public::messaging_people::{active_assignment_users, control_account_names};
+    fixture::with_database(2, |pool| async move {
+        let mut c = pool.raw().acquire().await.unwrap();
+        sqlx::raw_sql("CREATE TEMP TABLE assignments(company_id text,user_id text,revoked_at bigint,valid_from bigint,valid_until bigint); CREATE TEMP TABLE \"user\"(id text,name text,email text); INSERT INTO assignments VALUES ('c','u1',NULL,10,21),('c','u1',NULL,0,30),('c','u2',NULL,10,20),('c','u3',10,0,30),('other','u4',NULL,0,30),('c','missing',NULL,0,30),('c','orphan',NULL,0,30); INSERT INTO \"user\" VALUES ('u1','Zulu','z@example.test'),('missing','Alpha','a@example.test'),('u4','Other','o@example.test');")
+            .execute(&mut *c).await.unwrap();
+        let company = CompanyId::new("c").unwrap();
+        let mut ids = active_assignment_users(&mut c, &company, 10, 20).await.unwrap();
+        ids.sort();
+        assert_eq!(ids, ["missing", "orphan", "u1"]);
+        let names = control_account_names(&mut c, &ids).await.unwrap();
+        assert_eq!(names.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(), ["missing", "u1"]);
+        assert_eq!(names[0].email, "a@example.test");
+        assert!(control_account_names(&mut c, &[]).await.unwrap().is_empty());
+    }).await;
+}
+
 fn operation(change: &Change) -> &'static str {
     match change {
         Change::CreateRoom { .. } => "messaging.room.create",
         Change::SendMessage { .. } => "messaging.send",
         Change::MarkRead { .. } => "messaging.read",
+        Change::ManageRoom { .. } => "messaging.manage",
     }
 }
 fn record_id(key: &str, change: &Change) -> String {
@@ -26,6 +45,7 @@ fn record_id(key: &str, change: &Change) -> String {
         Change::CreateRoom { .. } => format!("room-{key}"),
         Change::SendMessage { room_id, .. } => room_id.clone(),
         Change::MarkRead { room_id, .. } => room_id.clone(),
+        Change::ManageRoom { room_id, .. } => room_id.clone(),
     }
 }
 fn fingerprint(change: &Change) -> String {

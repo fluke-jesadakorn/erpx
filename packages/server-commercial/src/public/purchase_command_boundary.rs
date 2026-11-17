@@ -2,6 +2,7 @@
 pub use crate::adapters::purchase_command_boundary::{
     PURCHASE_AFTER_STEP, PURCHASE_BEFORE_STEP, PurchaseCommandBoundary, PurchaseCommandReceipt,
     PurchaseCommandScope, lock_company_purchase_advisory_sources,
+    lock_portal_purchase_writer_fence,
     lock_company_purchase_read_sources, lock_holding_purchase_read_sources,
     purchase_command_failure,
 };

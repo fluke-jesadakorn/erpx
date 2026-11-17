@@ -89,6 +89,26 @@ impl HoldingWorkSourcePreparation for LegalSources {
     }
 }
 
+/// Citation reads retain Legal and Files evidence in the same Holding unit.
+/// Purchase and release authority must be composed separately before cutover.
+#[derive(Clone, Copy)]
+struct LegalAuxiliarySources {
+    citation: bool,
+}
+
+impl HoldingWorkSourcePreparation for LegalAuxiliarySources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            if self.citation {
+                erpx_server_legal::public::auxiliary::lock_legal_citation_sources(c).await?;
+                erpx_server_files::public::legal_citation_metadata::lock_legal_citation_metadata(c)
+                    .await?;
+            }
+            Ok(())
+        })
+    }
+}
+
 #[derive(Clone)]
 pub struct LegalConfiguration {
     holding: HoldingId,
@@ -507,13 +527,14 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
         let clock = self.clock.clone();
+        let citation = matches!(&read, LegalAuxiliaryRead::Citation { .. });
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
                 self.input(input),
                 Self::access(),
-                LegalSources,
+                LegalAuxiliarySources { citation },
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
@@ -540,6 +561,37 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                                 .permissions
                                 .clone(),
                         };
+                        let source = if let LegalAuxiliaryRead::Citation { id, as_of } = &read {
+                            erpx_server_legal::public::auxiliary::validate_citation_ingress(
+                                &actor,
+                                id,
+                                as_of.as_deref(),
+                                clock.now().get(),
+                            )?;
+                            erpx_server_legal::public::auxiliary::inspect_legal_citation_source(
+                                connection, &actor, id,
+                            )
+                            .await?
+                        } else {
+                            None
+                        };
+                        let files = if let Some(source) = &source {
+                            let document = source.document();
+                            Some(
+                                erpx_server_files::public::legal_citation_metadata::inspect_legal_citation_metadata(
+                                    connection,
+                                    erpx_server_files::public::legal_citation_metadata::LegalCitationMetadataRequest {
+                                        company: company.clone(),
+                                        object_key: document.object_key.clone(),
+                                        attachment_link_id: document.attachment_link_id.clone(),
+                                        checksum: document.checksum.clone(),
+                                    },
+                                )
+                                .await?,
+                            )
+                        } else {
+                            None
+                        };
                         let mut ports = PgLegalAuxiliaryReads::new(connection);
                         let data = read_auxiliary(&mut ports, &actor, read, clock.as_ref())
                             .await
@@ -547,6 +599,21 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                                 erpx_server_legal::public::auxiliary::LegalAuxiliaryError::Business(error) => Error::Business(error),
                                 erpx_server_legal::public::auxiliary::LegalAuxiliaryError::Persistence(error) => Error::Persistence(error),
                             })?;
+                        if citation {
+                            let audit = ports.take_citation_audit().await?;
+                            drop(ports);
+                            let source = source.ok_or_else(scope)?;
+                            let files = files.ok_or_else(scope)?;
+                            if !files.available() {
+                                return Err(scope().into());
+                            }
+                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                                .execute(&mut *connection)
+                                .await?;
+                            source.require_current(connection).await?;
+                            files.require_current(connection).await?;
+                            audit.require_current(connection).await?;
+                        }
                         Ok(data)
                     })
                 },

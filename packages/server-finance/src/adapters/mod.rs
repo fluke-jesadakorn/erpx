@@ -110,3 +110,7 @@ pub(crate) mod revenue_recognition;
 pub(crate) mod revenue_recognition_http;
 
 pub(crate) mod supplier_batch;
+
+pub(crate) mod commerce_reservation_party;
+
+pub(crate) mod portal_commerce_locks;

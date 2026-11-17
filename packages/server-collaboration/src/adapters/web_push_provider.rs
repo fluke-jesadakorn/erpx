@@ -50,6 +50,113 @@ pub struct PushSubscription {
     pub endpoint: String,
     pub keys: PushSubscriptionKeys,
 }
+/// Registration follows the legacy Zod/WHATWG URL contract. It deliberately
+/// does not apply the provider's stronger curve/fragment checks: the saved
+/// subscription is revalidated when a delivery is prepared.
+pub fn parse_push_registration(raw: &serde_json::Value) -> Result<PushSubscription, Error> {
+    fn type_error(value: Option<&serde_json::Value>, expected: &str) -> Error {
+        let received = match value {
+            None => "undefined",
+            Some(serde_json::Value::Null) => "null",
+            Some(serde_json::Value::Bool(_)) => "boolean",
+            Some(serde_json::Value::Number(_)) => "number",
+            Some(serde_json::Value::String(_)) => "string",
+            Some(serde_json::Value::Array(_)) => "array",
+            Some(serde_json::Value::Object(_)) => "object",
+        };
+        let message = match (expected, received) {
+            ("object", "undefined") => "Invalid input: expected object, received undefined",
+            ("object", "null") => "Invalid input: expected object, received null",
+            ("object", "boolean") => "Invalid input: expected object, received boolean",
+            ("object", "number") => "Invalid input: expected object, received number",
+            ("object", "string") => "Invalid input: expected object, received string",
+            ("object", "array") => "Invalid input: expected object, received array",
+            ("string", "undefined") => "Invalid input: expected string, received undefined",
+            ("string", "null") => "Invalid input: expected string, received null",
+            ("string", "boolean") => "Invalid input: expected string, received boolean",
+            ("string", "number") => "Invalid input: expected string, received number",
+            ("string", "array") => "Invalid input: expected string, received array",
+            ("string", "object") => "Invalid input: expected string, received object",
+            _ => "Invalid input.",
+        };
+        BusinessError::invalid("VALIDATION_FAILED", message)
+    }
+    fn string(value: Option<&serde_json::Value>) -> Result<&str, Error> {
+        value
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| type_error(value, "string"))
+    }
+    let shape = |message| BusinessError::invalid("VALIDATION_FAILED", message);
+    let object = raw
+        .as_object()
+        .ok_or_else(|| type_error(Some(raw), "object"))?;
+    let endpoint = string(object.get("endpoint"))?;
+    // Zod reports the first issue in schema order, including URL before length.
+    let url = url::Url::parse(endpoint).map_err(|_| shape("Invalid URL"))?;
+    if endpoint.encode_utf16().count() > 2048 {
+        return Err(shape("Too big: expected string to have <=2048 characters"));
+    }
+    let keys_value = object.get("keys");
+    let keys = keys_value
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| type_error(keys_value, "object"))?;
+    let b64 = |v: &str| {
+        !v.is_empty()
+            && v.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    };
+    let validate_key = |value: Option<&serde_json::Value>, max, message| -> Result<(), Error> {
+        let value = string(value)?;
+        if !b64(value) {
+            return Err(shape(
+                "Invalid string: must match pattern /^[A-Za-z0-9_-]+$/",
+            ));
+        }
+        if value.encode_utf16().count() > max {
+            return Err(shape(message));
+        }
+        Ok(())
+    };
+    validate_key(
+        keys.get("p256dh"),
+        160,
+        "Too big: expected string to have <=160 characters",
+    )?;
+    validate_key(
+        keys.get("auth"),
+        80,
+        "Too big: expected string to have <=80 characters",
+    )?;
+    let p256dh = string(keys.get("p256dh"))?;
+    let auth = string(keys.get("auth"))?;
+    let host = url.host_str().unwrap_or_default();
+    let known = matches!(
+        host,
+        "fcm.googleapis.com"
+            | "updates.push.services.mozilla.com"
+            | "web.push.apple.com"
+            | "wns2-pn1p.notify.windows.com"
+    ) || host.ends_with(".notify.windows.com");
+    // For unpadded URL-safe base64 Node's Buffer accepts nonzero trailing
+    // bits. Length alone is enough after the alphabet check above.
+    if url.scheme() != "https"
+        || !known
+        || !url.username().is_empty()
+        || url.password().is_some_and(|p| !p.is_empty())
+        || url.port().is_some()
+        || p256dh.len() * 6 / 8 != 65
+        || auth.len() * 6 / 8 != 16
+    {
+        return Err(invalid());
+    }
+    Ok(PushSubscription {
+        endpoint: endpoint.into(),
+        keys: PushSubscriptionKeys {
+            p256dh: p256dh.into(),
+            auth: auth.into(),
+        },
+    })
+}
 impl PushSubscription {
     pub fn validate(&self) -> Result<url::Url, Error> {
         let u = url::Url::parse(&self.endpoint).map_err(|_| invalid())?;

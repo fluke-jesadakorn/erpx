@@ -1,5 +1,6 @@
 pub mod field_service;
 pub mod records_request_team_sources;
+pub mod rfq_request_access;
 
 pub mod field_service_request;
 

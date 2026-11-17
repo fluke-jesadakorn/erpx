@@ -1139,7 +1139,7 @@ process.stdout.write(matches[0]);
         let source=inspect_quality_return_receipts(&mut tx,scope).await.unwrap();
         let prefix="(SELECT 'return'::text id,'reviewer'::text approved_by,'company'::text company_id) r";
         let original=format!("SELECT receipt.command_id FROM {prefix} JOIN command_receipts receipt ON {predicate} ORDER BY receipt.command_id");
-        let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(original)).fetch_all(&mut *tx).await.unwrap();
+        let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(original.as_str())).fetch_all(&mut *tx).await.unwrap();
         let actual:Vec<String>=source.command_ids().map(str::to_owned).collect();
         assert_eq!(expected,vec!["return-a","return-b"]);assert_eq!(actual,expected);source.require_current(&mut tx).await.unwrap();
         // Unrelated history in the same partitioned receipt table must not consume
@@ -1153,11 +1153,88 @@ process.stdout.write(matches[0]);
         sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-c','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();
         assert!(source.require_current(&mut tx).await.is_err());
         sqlx::query("ROLLBACK TO SAVEPOINT receipt_drift").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
-        // A matching oversized authority row fails the scoped byte budget.
+        // Legacy accepts both an oversized matching authority and arbitrary
+        // qualifying multiplicity; the retained image still rejects drift.
         sqlx::query("SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();
         sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-huge','commerce.return.approve','reviewer','synthetic','return','{}',jsonb_build_object('companyId','company','blob',repeat('x',2097153))::text,0)").execute(&mut *tx).await.unwrap();
-        assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="QUALITY_RETURN_RECEIPT_LIMIT"));
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) SELECT 'matched-'||n,'commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0 FROM generate_series(1,10001) n").execute(&mut *tx).await.unwrap();
+        let large=inspect_quality_return_receipts(&mut tx,scope).await.unwrap();
+        let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(original.as_str())).fetch_all(&mut *tx).await.unwrap();
+        assert_eq!(large.command_ids().map(str::to_owned).collect::<Vec<_>>(),expected);
+        assert_eq!(expected.len(),10004); large.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT large_receipt_drift").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE command_receipts SET authority_json=jsonb_set(authority_json::jsonb,'{blob}',to_jsonb(repeat('x',2097152)||'Y'))::text WHERE command_id='return-huge'").execute(&mut *tx).await.unwrap();
+        assert!(large.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT large_receipt_drift").execute(&mut *tx).await.unwrap();large.require_current(&mut tx).await.unwrap();
         sqlx::query("ROLLBACK TO SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
         sqlx::query("SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();sqlx::query("CREATE TEMP TABLE command_receipts(command_id text)").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_scrap_request_receipt_matches_legacy_join_and_fence() {
+    use erpx_server_shared::public::{CompanyId,RecordId,UserId};
+    use erpx_server_workflow::public::quality_return_receipts::{QualityScrapRequestReceiptScope,inspect_quality_scrap_request_receipt,lock_quality_scrap_request_receipts};
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let script=r#"
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
+const {qualityDisposalCountRows}=await import('./packages/server-inventory/src/adapters/quality-count-purchases.ts');
+const match=qualityDisposalCountRows.match(/JOIN command_receipts receipt ON ([^\n]+)/);
+if(!match)throw Error('QUALITY_SCRAP_TS_JOIN_CHANGED');process.stdout.write(match[1]);
+"#;
+        let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();
+        assert!(out.status.success(),"actual Quality scrap TS join unavailable");let predicate=String::from_utf8(out.stdout).unwrap();
+        sqlx::raw_sql("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES
+          ('good','quality.hold.disposition.scrap','maker','hash','hold','{\"countId\":\"quality-scrap-good\"}','{\"companyId\":\"company\"}',1),
+          ('wrong-op','other','maker','hash','hold','{\"countId\":\"quality-scrap-wrong-op\"}','{\"companyId\":\"company\"}',1),
+          ('wrong-actor','quality.hold.disposition.scrap','other','hash','hold','{\"countId\":\"quality-scrap-wrong-actor\"}','{\"companyId\":\"company\"}',1),
+          ('wrong-hold','quality.hold.disposition.scrap','maker','hash','other','{\"countId\":\"quality-scrap-wrong-hold\"}','{\"companyId\":\"company\"}',1),
+          ('wrong-company','quality.hold.disposition.scrap','maker','hash','hold','{\"countId\":\"quality-scrap-wrong-company\"}','{\"companyId\":\"other\"}',1),
+          ('wrong-count','quality.hold.disposition.scrap','maker','hash','hold','{\"countId\":\"other\"}','{\"companyId\":\"company\"}',1),
+          ('missing-company','quality.hold.disposition.scrap','maker','hash','hold','{\"countId\":\"quality-scrap-missing-company\"}','{}',1),
+          ('missing-result','quality.hold.disposition.scrap','maker','hash','hold','{}','{\"companyId\":\"company\"}',1)").execute(pool.raw()).await.unwrap();
+        let company=CompanyId::new("company").unwrap();let hold=RecordId::new("hold").unwrap();let actor=UserId::new("maker").unwrap();
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        let count=RecordId::new("quality-scrap-good").unwrap();let scope=QualityScrapRequestReceiptScope {command_id:"good",company:&company,hold_id:&hold,count_id:&count,actor:&actor};
+        assert!(inspect_quality_scrap_request_receipt(&mut unlocked,scope).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_quality_scrap_request_receipts(&mut tx).await.unwrap();
+        let legacy=format!("SELECT EXISTS(SELECT 1 FROM (SELECT $1::text id,$2::text company_id,$3::text created_by) c CROSS JOIN (SELECT $4::text id) h CROSS JOIN (SELECT $5::text id) e JOIN public.command_receipts receipt ON {predicate})");
+        for (key,expected) in [("good",true),("wrong-op",false),("wrong-actor",false),("wrong-hold",false),("wrong-company",false),("wrong-count",false),("missing-company",false),("missing-result",false),("absent",false)] {
+            let count=RecordId::new(format!("quality-scrap-{key}")).unwrap();let event=format!("quality-disposition-{key}");
+            let sql_expected:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(legacy.as_str())).bind(count.as_str()).bind(company.as_str()).bind(actor.as_str()).bind(hold.as_str()).bind(event).fetch_one(&mut *tx).await.unwrap();
+            let scope=QualityScrapRequestReceiptScope {command_id:key,company:&company,hold_id:&hold,count_id:&count,actor:&actor};
+            let found=inspect_quality_scrap_request_receipt(&mut tx,scope).await.unwrap();assert_eq!((found.is_some(),sql_expected),(expected,expected),"{key}");
+        }
+        let mismatched=RecordId::new("quality-scrap-other").unwrap();
+        assert!(inspect_quality_scrap_request_receipt(&mut tx,QualityScrapRequestReceiptScope {command_id:"good",company:&company,hold_id:&hold,count_id:&mismatched,actor:&actor}).await.unwrap().is_none());
+        let source=inspect_quality_scrap_request_receipt(&mut tx,scope).await.unwrap().unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT receipt_drift").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE command_receipts SET request_hash='forged' WHERE command_id='good'").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT receipt_drift").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();sqlx::query("CREATE TEMP TABLE command_receipts(command_id text)").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT receipt_bad_json").execute(&mut *tx).await.unwrap();
+        let inserted=sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('malformed','quality.hold.disposition.scrap','maker','hash','hold','{bad','{\"companyId\":\"company\"}',1)").execute(&mut *tx).await;
+        if inserted.is_ok() {let bad_count=RecordId::new("quality-scrap-malformed").unwrap();let bad=QualityScrapRequestReceiptScope {command_id:"malformed",company:&company,hold_id:&hold,count_id:&bad_count,actor:&actor};assert!(inspect_quality_scrap_request_receipt(&mut tx,bad).await.is_err());} else {assert_eq!(inserted.unwrap_err().as_database_error().and_then(|e|e.code()).as_deref(),Some("22P02"));}
+        sqlx::query("ROLLBACK TO SAVEPOINT receipt_bad_json").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT receipt_oversized").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('large','quality.hold.disposition.scrap','maker','hash','hold',jsonb_build_object('countId','quality-scrap-large','blob',repeat('x',2097153))::text,'{\"companyId\":\"company\"}',1)").execute(&mut *tx).await.unwrap();
+        let large_count=RecordId::new("quality-scrap-large").unwrap();let large=QualityScrapRequestReceiptScope {command_id:"large",company:&company,hold_id:&hold,count_id:&large_count,actor:&actor};
+        let large_source=inspect_quality_scrap_request_receipt(&mut tx,large).await.unwrap().expect("large legacy-valid scrap receipt");
+        large_source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT large_scrap_drift").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE command_receipts SET result_json=jsonb_set(result_json::jsonb,'{blob}',to_jsonb(repeat('x',2097152)||'Y'))::text WHERE command_id='large'").execute(&mut *tx).await.unwrap();
+        assert!(large_source.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT large_scrap_drift").execute(&mut *tx).await.unwrap();large_source.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT receipt_oversized").execute(&mut *tx).await.unwrap();
+        tx.rollback().await.unwrap();let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_quality_scrap_request_receipts(&mut other).await.unwrap();assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();lock_quality_scrap_request_receipts(&mut writer).await.unwrap();
+        let mut contender=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *contender).await.unwrap();
+        let conflict=lock_quality_scrap_request_receipts(&mut contender).await;
+        assert!(matches!(conflict,Err(PgTransactionError::Persistence(ref p)) if p.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && p.sql_state()==Some("55P03") && p.retryable()));
+        contender.rollback().await.unwrap();
+        sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('owned-write','quality.hold.disposition.scrap','maker','hash','hold','{}','{\"companyId\":\"company\"}',1)").execute(&mut *writer).await.unwrap();writer.rollback().await.unwrap();
+        let mut saved=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT before_receipt_lock").execute(&mut *saved).await.unwrap();lock_quality_scrap_request_receipts(&mut saved).await.unwrap();let held=inspect_quality_scrap_request_receipt(&mut saved,scope).await.unwrap().unwrap();sqlx::query("ROLLBACK TO SAVEPOINT before_receipt_lock").execute(&mut *saved).await.unwrap();assert!(held.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
     }).await;
 }

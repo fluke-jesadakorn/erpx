@@ -31,3 +31,4 @@ pub mod operations_people;
 pub mod staff_facts;
 
 pub mod workflow_projection_source;
+pub mod rfq_request_people;

@@ -1,15 +1,33 @@
 import 'server-only';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { ApiError } from '@erpx/server-runtime/public/http';
+import { dateSchema } from '@erpx/server-legal/domain/model';
+import { z } from 'zod';
 import {
   createNativeLegalClient,
   nativeLegalConfiguration,
   NativeLegalError,
+  nativeLegalFailure,
   type NativeLegalCommandResult,
+  type NativeLegalCitation,
   type NativeLegalDetail,
   type NativeLegalExport,
   type NativeLegalPageContext,
   type NativeLegalRegister,
 } from '../adapters/server/native-legal';
+
+/** Call only after the native citation request has failed and authorized its actor. */
+export function nativeLegalCitationPageError(error: unknown, id: string, asOf: string | string[] | undefined): unknown {
+  if (error instanceof NativeLegalError && error.status === 422 && error.code === 'LEGAL_CITATION_VALIDATION' && id.startsWith('law:')) {
+    // These are the same schemas and order as the legacy law application.
+    // Parsing only after the owner response preserves authorization precedence.
+    if (asOf !== undefined) dateSchema.parse(asOf);
+    z.string().min(1).max(200).parse(id);
+    return error; // The marker was inconsistent: retain an error boundary.
+  }
+  const failure = nativeLegalFailure(error);
+  return failure ? new ApiError(failure.status, failure.code, failure.message) : error;
+}
 
 type Query = Record<string, string | string[] | undefined>;
 
@@ -46,6 +64,13 @@ function client(actor: WorkContext) {
   if (!actor.authority || !actor.iam)
     throw new NativeLegalError('NATIVE_LEGAL_CONTEXT_CHANGED');
   return createNativeLegalClient(nativeLegalConfiguration(raw));
+}
+
+/** Full native citation payload; absence of the private binding fails closed. */
+export async function nativeLegalCitation(actor: WorkContext, holdingSlug: string, id: string, asOf: string | string[] | undefined, incoming: Pick<Headers, 'get'>): Promise<NativeLegalCitation> {
+  const native = client(actor);
+  if (!native || actor.holdingSlug !== holdingSlug) throw new NativeLegalError('NATIVE_LEGAL_UNAVAILABLE');
+  return native.citation(incoming, context(actor), id, asOf);
 }
 
 /** Selector presence only; unset configuration keeps the explicit retained

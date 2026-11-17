@@ -31,3 +31,10 @@ pub use crate::application::quality_commands::{
     normalize_quality_spec_action, normalize_quality_spec_save, scaled_amount,
 };
 pub use crate::domain::quality::{HoldStatus, InspectionResult, SpecStatus};
+
+pub use crate::adapters::count_disposition::{
+    PreparedQualityCountDisposition, QualityCountChildNoticeProof, QualityCountDispositionAction,
+    QualityCountDispositionFacts, QualityCountDispositionSource, QualityCountRequesterNoticeProof,
+    RetainedQualityCountDisposition, StagedQualityCountDecision, StagedQualityCountDisposition,
+    lock_quality_count_disposition_sources, prepare_quality_count_disposition,
+};

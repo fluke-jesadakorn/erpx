@@ -11,12 +11,12 @@ autotests = false
 verification-roots = ["../../fixtures/collaboration/rust-maintenance-notifications", "../server-maintenance/src/adapters/collaboration-notification-snapshot-sources.ts"]
 
 [features]
-push-provider = ["dep:ring", "dep:base64", "dep:url", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
+push-provider = ["dep:ring", "dep:base64", "dep:reqwest", "dep:rustls", "dep:webpki-roots"]
 
 [dependencies]
 ring = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
-url = { workspace = true, optional = true }
+url.workspace = true
 reqwest = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
@@ -42,8 +42,16 @@ name = "roster_position_notifications"
 path = "../../tests/unit/collaboration/rust-roster-position-notifications.test.rs"
 
 [[test]]
+name = "customer_portal_notification_postgres"
+path = "../../tests/integration/collaboration/rust-customer-portal-notification-postgres.test.rs"
+
+[[test]]
 name = "maintenance_notifications_postgres"
 path = "../../tests/integration/collaboration/rust-maintenance-notifications-postgres.test.rs"
+
+[[test]]
+name = "rfq_notifications_postgres"
+path = "../../tests/integration/collaboration/rust-rfq-notifications-postgres.test.rs"
 
 [lints]
 workspace = true

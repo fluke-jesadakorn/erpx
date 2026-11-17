@@ -122,6 +122,26 @@ pub mod support_files;
 #[cfg(feature = "existing-business")]
 pub mod collaboration;
 #[cfg(feature = "existing-business")]
+mod procurement_rfq_notice;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_request;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_receipt;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_target;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_decision;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_approval;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_access;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_quantity;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_detail;
+mod procurement_rfq_assertions;
+mod procurement_rfq_materialization;
+#[cfg(feature = "existing-business")]
 pub mod agent_governance;
 pub mod agent_ai_gateway;
 pub mod agent_ai_providers;
@@ -404,6 +424,10 @@ pub mod inventory_reservation_alerts;
 pub mod quality_alert_worker;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_count_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod quality_count_notices;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod quality_count_origin;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_count_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]

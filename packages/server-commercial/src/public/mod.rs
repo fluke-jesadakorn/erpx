@@ -14,3 +14,5 @@ pub mod purchase_shadow_read;
 pub mod purchase_pre_command;
 
 pub mod asset_package_mode;
+
+pub mod portal_purchase;

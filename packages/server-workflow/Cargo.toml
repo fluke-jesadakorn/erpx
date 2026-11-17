@@ -25,8 +25,20 @@ tokio.workspace = true
 uuid.workspace = true
 
 [[test]]
+name = "source_ordered_json"
+path = "../../tests/unit/workflow/rust-source-ordered-json.test.rs"
+
+[[test]]
+name = "rfq_command_receipt_postgres"
+path = "../../tests/integration/workflow/rust-rfq-command-receipt-postgres.test.rs"
+
+[[test]]
 name = "command_json"
 path = "../../tests/unit/workflow/rust-command-json.test.rs"
+
+[[test]]
+name = "customer_portal_events_postgres"
+path = "../../tests/integration/workflow/rust-customer-portal-events-postgres.test.rs"
 
 [[test]]
 name = "command_ledger_postgres"

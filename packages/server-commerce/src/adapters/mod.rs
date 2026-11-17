@@ -27,3 +27,11 @@ pub(crate) mod finance_payable_source;
 pub mod receipt_use_cases;
 pub mod legacy_fulfillment;
 pub mod sales_delivery;
+
+pub(crate) mod sales_reservation_source;
+pub(crate) mod portal_notification_source;
+pub(crate) mod portal_commerce_locks;
+
+pub(crate) mod supplier_promise_version;
+
+pub(crate) mod supplier_promise_source;

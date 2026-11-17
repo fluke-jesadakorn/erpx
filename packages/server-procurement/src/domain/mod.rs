@@ -1,6 +1,10 @@
 pub(crate) mod supplier_promise_history;
 
 pub(crate) mod supplier_promise_command;
+pub(crate) mod rfq_award;
+pub(crate) mod rfq_transition;
+pub(crate) mod rfq_request_status;
+pub(crate) mod rfq_transition_normalization;
 
 fn valid_date(value: &str) -> bool {
     let bytes = value.as_bytes();

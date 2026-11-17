@@ -25,3 +25,11 @@ pub mod pos_catalog;
 
 pub mod finance_payable_source;
 pub mod sales_delivery;
+
+pub mod sales_reservation_source;
+pub mod portal_notification_source;
+pub mod portal_commerce_locks;
+
+pub mod supplier_promise_version;
+
+pub mod supplier_promise_source;

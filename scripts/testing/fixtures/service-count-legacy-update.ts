@@ -3,6 +3,7 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
 // Historical-only oracle: exact pre-fence sources, never loaded by runtime.
 const snapshots={
  '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source-sql':['service-initial-physical-stock-count-source-sql.ts.snapshot','packages/server-inventory/src/adapters','5c0052fad851b80fa136ed72d9d844f2b6b426012bbf26a6aeeb3dd84ae6095d'],
@@ -31,11 +32,11 @@ const {PostgresDatabase}=await import('@erpx/server-runtime/adapters/runtime/pos
 const inventoryOracle='legacy-count-oracle:inventory-counts';
 const {inventoryCountApplication,countSchema}=await import(inventoryOracle);
 const flowOracle='legacy-count-oracle:flow-routing';
-const {assignFlowPrimary}=await import(flowOracle);
+const {assignFlowPrimary,resolveFlow}=await import(flowOracle);
 const {z}=await import('zod');
 const flowSchema=z.object({stepKey:z.string().min(1).max(100),userId:z.string().min(1).max(180),expectedVersion:z.number().int().nonnegative(),recordVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(2000),saveDefault:z.boolean().default(false)});
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-const request=JSON.parse(readFileSync(0,'utf8')) as {database:string;actor:WorkContext;id:string;key:string;body:unknown;mode?:"flow"};
+const request=JSON.parse(readFileSync(0,'utf8')) as {database:string;actor:WorkContext;id:string;key:string;body:unknown;mode?:"flow"|"flow-read"};
 // Restore the property order produced by the real WorkContext constructor; JSON
 // transport into this fixture uses a sorted Rust map. Workflow fingerprints retain it.
 if(request.actor.authority){const {sessionId,revision,assignmentVersion}=request.actor.authority;request.actor.authority={sessionId,revision,assignmentVersion};}
@@ -43,6 +44,6 @@ const token=/^erpx_dev_rust_([a-f0-9]{32})$/.exec(request.database)?.[1];if(!tok
 const admin=process.env.ERPX_TEST_ADMIN_URL;if(!admin)throw Error('TEST_ADMIN_REQUIRED');
 const url=new URL(admin);if(url.protocol!=='postgresql:'&&url.protocol!=='postgres:'||url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!=='/postgres')throw Error('LOCAL_TEST_ADMIN_REQUIRED');url.pathname=`/${request.database}`;
 const db=new PostgresDatabase({connectionString:url.href,max:2});
-try {const lease=await db.prepare("SELECT pg_get_userbyid(datdba)::text owner,shobj_description(oid,'pg_database') lease FROM pg_database WHERE datname=?").bind(request.database).first<{owner:string;lease:string|null}>();if(lease?.owner!=='erpx_test_admin'||lease.lease!==`erpx-rust-test:${token}`)throw Error('OWNED_TEST_LEASE_REQUIRED');const value=request.mode==="flow"?await assignFlowPrimary(db,request.actor,"stock_count",request.id,flowSchema.parse(request.body),request.key):await db.transaction(tx=>inventoryCountApplication(tx).saveCount(request.actor,request.id,countSchema.parse(request.body),request.key));process.stdout.write(JSON.stringify(value));}
+try {const lease=await db.prepare("SELECT pg_get_userbyid(datdba)::text owner,shobj_description(oid,'pg_database') lease FROM pg_database WHERE datname=?").bind(request.database).first<{owner:string;lease:string|null}>();if(lease?.owner!=='erpx_test_admin'||lease.lease!==`erpx-rust-test:${token}`)throw Error('OWNED_TEST_LEASE_REQUIRED');const value=request.mode==="flow-read"?await resolveFlow(db,request.actor,"stock_count",request.id):request.mode==="flow"?await assignFlowPrimary(db,request.actor,"stock_count",request.id,flowSchema.parse(request.body),request.key):await db.transaction(tx=>inventoryCountApplication(tx).saveCount(request.actor,request.id,countSchema.parse(request.body),request.key));process.stdout.write(JSON.stringify(value));}
 catch(error){process.stderr.write(`LEGACY_UPDATE_FAILED:${typeof error==='object'&&error!==null&&'code' in error?String(error.code):error instanceof Error&&/^[A-Z_]+$/.test(error.message)?error.message:'UNKNOWN'}\n`);process.exitCode=1;}
 finally{await db.pool.end();}

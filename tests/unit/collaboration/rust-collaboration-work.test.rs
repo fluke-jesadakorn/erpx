@@ -483,6 +483,37 @@ fn native_push_policy_preserves_quiet_hours_categories_and_recovery() {
     assert_eq!(retry(2, Some(429), 100), PushRetry::RetryAt(4100));
     assert_eq!(retry(1, None, 100), PushRetry::RetryAt(2100));
 }
+#[test]
+fn push_preference_input_matches_strict_form_contract() {
+    use erpx_server_collaboration::public::web_push::parse_push_preferences;
+    let valid = serde_json::json!({"work":true,"mention":false,"system":true,"calendar":false,"notice":false,"quietStartMinute":1320,"quietEndMinute":420});
+    let parsed = parse_push_preferences(&valid).unwrap();
+    assert_eq!(
+        (parsed.quiet_start, parsed.quiet_end),
+        (Some(1320), Some(420))
+    );
+    let mut no_quiet = valid.clone();
+    no_quiet["quietStartMinute"] = serde_json::Value::Null;
+    no_quiet["quietEndMinute"] = serde_json::Value::Null;
+    assert!(parse_push_preferences(&no_quiet).is_ok());
+    for (field, value) in [
+        ("quietStartMinute", serde_json::json!(1440)),
+        ("quietStartMinute", serde_json::Value::Null),
+        ("quietEndMinute", serde_json::json!(1320)),
+        ("work", serde_json::json!(1)),
+    ] {
+        let mut bad = valid.clone();
+        bad[field] = value;
+        assert!(parse_push_preferences(&bad).is_err());
+    }
+    let mut extra = valid.clone();
+    extra["unexpected"] = serde_json::json!(true);
+    assert!(parse_push_preferences(&extra).is_err());
+    let mut missing = valid;
+    missing.as_object_mut().unwrap().remove("quietEndMinute");
+    assert!(parse_push_preferences(&missing).is_err());
+}
+
 #[cfg(feature = "push-provider")]
 mod push_provider_conformance {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as B64};
@@ -492,6 +523,89 @@ mod push_provider_conformance {
     const PRIVATE: &str = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw";
     const RECEIVER: &str =
         "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4";
+    #[test]
+    fn registration_preserves_legacy_input_instead_of_provider_restrictions() {
+        // TS Buffer.from(..., 'base64url') accepts non-canonical trailing bits
+        // and validates decoded lengths without validating the EC point.
+        let raw = serde_json::json!({"endpoint":"https://fcm.googleapis.com:443/send#fragment","keys":{"p256dh":"A".repeat(86)+"B","auth":"A".repeat(21)+"B","extra":1},"extra":true});
+        let saved = parse_push_registration(&raw).unwrap();
+        assert_eq!(
+            saved.endpoint,
+            "https://fcm.googleapis.com:443/send#fragment"
+        );
+        let encoded = serde_json::to_value(&saved).unwrap();
+        assert!(encoded.get("extra").is_none());
+        assert!(encoded["keys"].get("extra").is_none());
+        assert!(
+            saved.validate().is_err(),
+            "the provider keeps its separate delivery checks"
+        );
+        for endpoint in [
+            "https://example.com/send",
+            "http://fcm.googleapis.com/send",
+            "https://fcm.googleapis.com:444/send",
+            "https://name@fcm.googleapis.com/send",
+        ] {
+            let mut bad = raw.clone();
+            bad["endpoint"] = serde_json::json!(endpoint);
+            assert!(parse_push_registration(&bad).is_err());
+        }
+        let mut bad = raw.clone();
+        bad["keys"]["auth"] = serde_json::json!("A".repeat(21));
+        assert!(parse_push_registration(&bad).is_err());
+        bad["keys"]["auth"] = serde_json::json!("+".repeat(22));
+        assert!(parse_push_registration(&bad).is_err());
+    }
+    #[test]
+    fn registration_first_error_matches_legacy_zod_fixtures() {
+        // Recorded from subscriptionInput.safeParse, including multi-error cases.
+        let fixtures = [
+            (
+                serde_json::json!(null),
+                "Invalid input: expected object, received null",
+            ),
+            (
+                serde_json::json!({}),
+                "Invalid input: expected string, received undefined",
+            ),
+            (
+                serde_json::json!({"endpoint": 3, "keys": {"p256dh": 2, "auth": null}}),
+                "Invalid input: expected string, received number",
+            ),
+            (
+                serde_json::json!({"endpoint": "x", "keys": {"p256dh": "!", "auth": ""}}),
+                "Invalid URL",
+            ),
+            (
+                serde_json::json!({"endpoint": "x".repeat(2049), "keys": {}}),
+                "Invalid URL",
+            ),
+            (
+                serde_json::json!({"endpoint": "https://fcm.googleapis.com/".to_owned() + &"x".repeat(2049), "keys": {}}),
+                "Too big: expected string to have <=2048 characters",
+            ),
+            (
+                serde_json::json!({"endpoint": "https://fcm.googleapis.com", "keys": null}),
+                "Invalid input: expected object, received null",
+            ),
+            (
+                serde_json::json!({"endpoint": "https://fcm.googleapis.com", "keys": {"p256dh": "!".repeat(161), "auth": null}}),
+                "Invalid string: must match pattern /^[A-Za-z0-9_-]+$/",
+            ),
+            (
+                serde_json::json!({"endpoint": "https://fcm.googleapis.com", "keys": {"p256dh": "A".repeat(161), "auth": null}}),
+                "Too big: expected string to have <=160 characters",
+            ),
+        ];
+        for (input, message) in fixtures {
+            let error = match parse_push_registration(&input) {
+                Ok(_) => panic!("expected validation failure"),
+                Err(error) => error,
+            };
+            assert_eq!(error.code, "VALIDATION_FAILED");
+            assert_eq!(error.message, message);
+        }
+    }
     #[test]
     fn rfc8291_appendix_a_ciphertext_and_header_match() {
         let decode = |s: &str| B64.decode(s).unwrap();

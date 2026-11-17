@@ -352,10 +352,23 @@ describe('native Field Inbox transport',()=>{
 
 });
 
-describe('Native social comment and revision read transport',()=>{
+describe('Native social feed, comment and revision read transport',()=>{
  const configuration=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000});
  const session=()=>new Request('https://acme.jesadakorn.com/posts/post-1',{method:'GET',headers:{cookie:'__Host-erpx-product=session','x-erpx-context-company':'company'}});
  afterEach(()=>{vi.unstubAllGlobals();delete process.env.ERPX_NATIVE_COLLABORATION_CONFIG;});
+
+ test('forwards a native feed cursor with the original filter and session',async()=>{
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;
+  const {nativeFeed}=await import('@erpx/server-collaboration/public/native-social-page');
+  const calls:{url:string;headers:Headers}[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:string,init:RequestInit)=>{calls.push({url,headers:new Headers(init.headers)});return Response.json({data:{items:[{id:'post-2'}],nextCursor:null,hasMore:false}});}));
+  expect(await nativeFeed(session(),'acme','following','1700000000000:post 1')).toEqual({items:[{id:'post-2'}],nextCursor:null,hasMore:false});
+  const url=new URL(calls[0]!.url);
+  expect(url.pathname).toBe('/api/v1/holdings/acme/feed');
+  expect(url.searchParams.get('filter')).toBe('following');
+  expect(url.searchParams.get('cursor')).toBe('1700000000000:post 1');
+  expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+ });
 
  test('reads a bounded comment page through the exact Holding path and opaque cursor',async()=>{
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG=configuration;

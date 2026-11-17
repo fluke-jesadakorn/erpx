@@ -39,6 +39,7 @@ document-provider = ["dep:docx-rs", "dep:zip", "dep:roxmltree", "dep:hex", "dep:
 docx-rs = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 erpx-server-runtime.workspace = true
+erpx-server-identity-access.workspace = true
 sqlx.workspace = true
 url.workspace = true
 base64 = { workspace = true, optional = true }

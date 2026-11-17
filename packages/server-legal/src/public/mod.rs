@@ -104,3 +104,20 @@ pub mod processing_status;
 pub mod auxiliary;
 pub mod legal_records;
 pub mod trust_http;
+
+/// Source validation seam for the retained Legal destruction execution unit.
+pub use crate::application::destruction_sources::{
+    CurrentDestructionSource, DestructionCanonicalSource, DestructionDocument, DestructionLedgerEntry, DestructionUpload,
+    LegalDestructionManifest, LegalDestructionManifestFacts, LegalDestructionSourceFacts, LockedDestructionSource,
+    legal_destruction_manifest, validate_legal_destruction_sources,
+};
+
+pub use crate::adapters::postgres_destruction::{
+    LegalDestructionJournal, PgLegalDestructionBridge, PgLegalDestructionManifestBridge, PreparedLegalDestructionManifest, execute_legal_destruction,
+    journal_legal_destruction, legal_destruction_candidate, legal_destruction_require_review,
+    snapshot_legal_destruction_manifest, prepare_legal_destruction_manifest,
+};
+
+pub use crate::adapters::destruction_queued_authority::{
+    CurrentLegalQueuedAuthority, LegalQueuedIdentity, read_legal_queued_authority,
+};

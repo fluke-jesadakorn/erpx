@@ -17,3 +17,5 @@ pub mod goods_receipt_hold;
 
 pub mod attachment_hold;
 pub mod attachment_descriptor;
+
+pub mod portal_commerce_locks;

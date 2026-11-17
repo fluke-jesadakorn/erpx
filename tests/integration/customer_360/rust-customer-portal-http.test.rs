@@ -2,10 +2,10 @@
 //! sessions, purchases, Files and the owned transaction remain composition
 //! responsibilities.
 use erpx_server_customer_360::public::customer_portal::{
-    CustomerPortalProjection, PortalCommandInput, PortalCommandOutcome,
+    CustomerPortalProjection, PortalCommandError, PortalCommandInput, PortalCommandOutcome,
 };
 use erpx_server_customer_360::public::customer_portal_http::{
-    CustomerPortalHttpBackend, CustomerPortalHttpCommandRequest, CustomerPortalHttpFuture,
+    CustomerPortalHttpBackend, CustomerPortalHttpCommandFuture, CustomerPortalHttpCommandRequest, CustomerPortalHttpFuture,
     CustomerPortalHttpReadRequest, CustomerPortalHttpTarget, customer_portal_http_router,
 };
 use erpx_server_runtime::public::http_support::{serde_json, serve};
@@ -31,13 +31,13 @@ impl CustomerPortalHttpBackend for Noop {
     fn command<'a>(
         &'a self,
         _: CustomerPortalHttpCommandRequest<'a>,
-    ) -> CustomerPortalHttpFuture<'a, PortalCommandOutcome> {
+    ) -> CustomerPortalHttpCommandFuture<'a, PortalCommandOutcome> {
         Box::pin(async {
             Err(BusinessError::new(
                 FailureKind::NotFound,
                 "NOT_FOUND",
                 "Not found.",
-            ))
+            ).into())
         })
     }
 }
@@ -84,7 +84,7 @@ impl CustomerPortalHttpBackend for Probe {
     fn command<'a>(
         &'a self,
         request: CustomerPortalHttpCommandRequest<'a>,
-    ) -> CustomerPortalHttpFuture<'a, PortalCommandOutcome> {
+    ) -> CustomerPortalHttpCommandFuture<'a, PortalCommandOutcome> {
         Box::pin(async move {
             self.seen.lock().unwrap().push(Seen {
                 host: request.host.into(),
@@ -95,7 +95,7 @@ impl CustomerPortalHttpBackend for Probe {
                 attachments: request.input.attachment_set_ids.clone(),
             });
             if let Some(error) = self.fail.clone() {
-                return Err(error);
+                return Err(error.into());
             }
             Ok(PortalCommandOutcome::new(
                 "action".into(),
@@ -413,4 +413,20 @@ fn command_input_denies_unknown_and_unbounded_fields() {
     let input: PortalCommandInput = serde_json::from_str(COMMAND).unwrap();
     assert_eq!(input.attachment_set_ids, vec!["set-1".to_owned()]);
     input.validate().unwrap();
+}
+
+struct RequiredBackend(u8);
+impl CustomerPortalHttpBackend for RequiredBackend {
+ fn projection<'a>(&'a self, _: CustomerPortalHttpReadRequest<'a>) -> CustomerPortalHttpFuture<'a, CustomerPortalProjection> { Box::pin(async { Err(BusinessError::new(FailureKind::NotFound,"NOT_FOUND","Not found.")) }) }
+ fn command<'a>(&'a self, _: CustomerPortalHttpCommandRequest<'a>) -> CustomerPortalHttpCommandFuture<'a, PortalCommandOutcome> { Box::pin(async move { Err(PortalCommandError::AttachmentRequired { required:self.0 }) }) }
+}
+#[tokio::test]
+async fn required_count_is_preserved_in_http_error() {
+ for required in [1,2,100] {
+  let router=customer_portal_http_router(vec![target(Arc::new(RequiredBackend(required)))]).unwrap();
+  let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let addr=listener.local_addr().unwrap();
+  let server=tokio::spawn(async move {let _=serve(listener,router).await;});
+  let (status,body,_)=http(addr,post("/api/v1/holdings/acme/customer-portal","portal.example.test",Some("https://portal.example.test"),Some("command-key-0001"),COMMAND)).await;
+  assert_eq!(status,422);assert_eq!(body,serde_json::json!({"error":{"code":"ATTACHMENT_REQUIRED","message":format!("At least {required} customer_support_evidence file(s) are required.")}}));server.abort();
+ }
 }

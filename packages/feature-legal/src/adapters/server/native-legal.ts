@@ -30,6 +30,11 @@ export type NativeLegalConfiguration = Readonly<{
 }>;
 
 type Row = Record<string, unknown>;
+export type NativeLegalCitation = Row & {
+  kind: 'document' | 'law'; title: string; item_id: string; document_id: string;
+  version: number; checksum: string; page: number | null; page_mapping: boolean;
+  section: string; text: string; notice: string;
+};
 export type NativeLegalKind =
   | 'request'
   | 'matter'
@@ -926,6 +931,23 @@ export function createNativeLegalClient(
 ) {
   const config = configuration(raw);
   return {
+    async citation(incoming: Pick<Headers, 'get'>, actor: NativeLegalPageContext, id: string, asOf?: string | string[]): Promise<NativeLegalCitation> {
+      const query = new URLSearchParams();
+      query.set('sourceId', id);
+      if (id.startsWith('law:') && asOf !== undefined) query.set('asOf', Array.isArray(asOf) ? '' : asOf);
+      const suffix = query.size ? `?${query.toString()}` : '';
+      const value = await call(transport, config, incoming, actor, `/citations${suffix}`, undefined);
+      if (!object(value) || !['document', 'law'].includes(String(value.kind)) ||
+          typeof value.title !== 'string' || typeof value.item_id !== 'string' ||
+          typeof value.document_id !== 'string' || !integer(value.version, 1) ||
+          typeof value.checksum !== 'string' || (value.page !== null && !integer(value.page)) ||
+          typeof value.page_mapping !== 'boolean' || typeof value.section !== 'string' ||
+          typeof value.text !== 'string' || typeof value.notice !== 'string')
+        return fail('NATIVE_LEGAL_RESPONSE_INVALID');
+      if (value.kind === 'document' && typeof value.name !== 'string') return fail('NATIVE_LEGAL_RESPONSE_INVALID');
+      if (value.kind === 'law' && (['id','sourceId','excerpt','revision_id','revision_label','source_url','published_on','effective_from','asOf','href','originalUrl'].some((key) => typeof value[key] !== 'string') || (value.effective_until !== null && typeof value.effective_until !== 'string'))) return fail('NATIVE_LEGAL_RESPONSE_INVALID');
+      return value as NativeLegalCitation;
+    },
     async register(
       incoming: Pick<Headers, 'get'>,
       actor: NativeLegalPageContext,

@@ -63,6 +63,211 @@ fn release() -> LegalReleaseObservation {
         revision: "current-reviewed-release".into(),
     }
 }
+
+#[test]
+fn citation_mode_matches_actual_typescript_switch() {
+    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use std::cell::Cell;
+    // Execute the real switch; only its trusted runtime lookup is mocked.
+    let script = r#"import {mock} from 'bun:test';let environment='local',calls=0;mock.module(process.argv[1],()=>({runtimeEnv:async()=>{calls++;return {ERPX_ENVIRONMENT:environment}}}));const m=await import(process.argv[2]);const cases=[[null,'production'],['disabled','production'],['shadow','local'],['enforced','local'],['shadow','production'],['enforced','staging'],['','local'],['SHADOW','local'],[' enforced','local']];const out=[];for(const [raw,env] of cases){environment=env;calls=0;if(raw===null)delete process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT;else process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT=raw;try{out.push({mode:await m.legalPackageEnforcementMode(),calls})}catch(e){out.push({status:e.status,code:e.code,message:e.message,calls})}}process.stdout.write(JSON.stringify(out));"#;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let runtime = root.join("packages/server-runtime/src/public/runtime.ts");
+    let switch =
+        root.join("packages/server-commercial/src/adapters/development-package-enforcement.ts");
+    let output =
+        std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(root)
+            .args(["--conditions=react-server", "-e", script])
+            .arg(runtime)
+            .arg(switch)
+            .output()
+            .unwrap();
+    assert!(
+        output.status.success(),
+        "actual TypeScript mode oracle unavailable"
+    );
+    let expected: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
+    let cases = [
+        (None, "production"),
+        (Some("disabled"), "production"),
+        (Some("shadow"), "local"),
+        (Some("enforced"), "local"),
+        (Some("shadow"), "production"),
+        (Some("enforced"), "staging"),
+        (Some(""), "local"),
+        (Some("SHADOW"), "local"),
+        (Some(" enforced"), "local"),
+    ];
+    for (index, (raw, environment)) in cases.into_iter().enumerate() {
+        let calls = Cell::new(0);
+        let result = resolve_legal_citation_mode(raw, || {
+            calls.set(calls.get() + 1);
+            Ok(environment)
+        });
+        let actual = match result {
+            Ok(mode) => {
+                serde_json::json!({"mode": match mode { LegalCommercialMode::Disabled => "disabled", LegalCommercialMode::Shadow => "shadow", LegalCommercialMode::Enforced => "enforced" }, "calls":calls.get()})
+            }
+            Err(e) => {
+                serde_json::json!({"status":503,"code":e.code,"message":e.message,"calls":calls.get()})
+            }
+        };
+        assert_eq!(actual, expected[index]);
+    }
+    let err = resolve_legal_citation_mode(Some("shadow"), || {
+        Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "TRUSTED_RUNTIME_UNAVAILABLE",
+            "Unavailable",
+        ))
+    })
+    .unwrap_err();
+    assert_eq!(err.code, "TRUSTED_RUNTIME_UNAVAILABLE");
+}
+
+#[test]
+fn citation_purchase_gates_preserve_ts_modes_and_error_precedence() {
+    let a = actor();
+    let denied = LegalCitationPurchaseObservations {
+        kind_history: false,
+        documents_history: false,
+        scheduled_release: Some(false),
+    };
+    assert_eq!(
+        citation_purchase_plan(LegalCommercialMode::Disabled, "not-a-kind").unwrap(),
+        LegalCitationPurchasePlan::Skip
+    );
+    assert!(
+        citation_document_kind_gate(LegalCommercialMode::Disabled, &a, "contract", None).is_ok()
+    );
+    assert!(citation_document_documents_gate(LegalCommercialMode::Disabled, None).is_ok());
+    assert!(citation_law_gate(LegalCommercialMode::Disabled, &a, "rule", None).is_ok());
+    assert_eq!(
+        citation_document_kind_gate(LegalCommercialMode::Shadow, &a, "contract", None)
+            .unwrap_err()
+            .code,
+        "LEGAL_CITATION_PURCHASE_SOURCE_REQUIRED"
+    );
+    assert!(
+        citation_document_kind_gate(LegalCommercialMode::Shadow, &a, "contract", Some(denied))
+            .is_ok()
+    );
+    assert!(citation_document_documents_gate(LegalCommercialMode::Shadow, Some(denied)).is_ok());
+    assert!(citation_law_gate(LegalCommercialMode::Shadow, &a, "rule", Some(denied)).is_ok());
+    assert!(
+        citation_law_gate(
+            LegalCommercialMode::Shadow,
+            &a,
+            "rule",
+            Some(LegalCitationPurchaseObservations {
+                scheduled_release: None,
+                ..denied
+            })
+        )
+        .is_ok()
+    );
+    assert_eq!(
+        citation_document_kind_gate(LegalCommercialMode::Enforced, &a, "contract", Some(denied))
+            .unwrap_err()
+            .code,
+        "PACKAGE_REQUIRED"
+    );
+    let released_denied = LegalCitationPurchaseObservations {
+        kind_history: true,
+        ..denied
+    };
+    assert_eq!(
+        citation_document_kind_gate(
+            LegalCommercialMode::Enforced,
+            &a,
+            "contract",
+            Some(released_denied)
+        )
+        .unwrap_err()
+        .code,
+        "FEATURE_COMING_SOON"
+    );
+    let docs_denied = LegalCitationPurchaseObservations {
+        scheduled_release: Some(true),
+        ..released_denied
+    };
+    assert!(
+        citation_document_kind_gate(
+            LegalCommercialMode::Enforced,
+            &a,
+            "contract",
+            Some(docs_denied)
+        )
+        .is_ok()
+    );
+    assert_eq!(
+        citation_document_documents_gate(LegalCommercialMode::Enforced, Some(docs_denied))
+            .unwrap_err()
+            .code,
+        "PACKAGE_REQUIRED"
+    );
+    assert_eq!(
+        citation_law_gate(LegalCommercialMode::Enforced, &a, "rule", Some(denied))
+            .unwrap_err()
+            .code,
+        "LEGAL_CITATION_UNAVAILABLE"
+    );
+    let mut manager = a.clone();
+    manager.permissions.insert("legal.manage".into());
+    assert!(
+        citation_document_kind_gate(
+            LegalCommercialMode::Enforced,
+            &manager,
+            "template",
+            Some(released_denied)
+        )
+        .is_ok()
+    );
+    manager.branch_id = Some(id("branch"));
+    assert_eq!(
+        citation_document_kind_gate(
+            LegalCommercialMode::Enforced,
+            &manager,
+            "template",
+            Some(released_denied)
+        )
+        .unwrap_err()
+        .code,
+        "FEATURE_COMING_SOON"
+    );
+}
+
+#[test]
+fn citation_kind_mapping_matches_actual_typescript_policy() {
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {legalKindCapability}=await import('./packages/server-legal/src/domain/purchases.ts');process.stdout.write(JSON.stringify(['contract','template','request','matter','counsel','ip','obligation','compliance','license','corporate','privacy','rule'].map(legalKindCapability)));"#;
+    let output =
+        std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .arg("-e")
+            .arg(script)
+            .output()
+            .unwrap();
+    assert!(output.status.success());
+    let actual: Vec<String> = serde_json::from_slice(&output.stdout).unwrap();
+    let expected: Vec<String> = [
+        "contract",
+        "template",
+        "request",
+        "matter",
+        "counsel",
+        "ip",
+        "obligation",
+        "compliance",
+        "license",
+        "corporate",
+        "privacy",
+        "rule",
+    ]
+    .iter()
+    .map(|kind| legal_kind_capability(kind).unwrap().to_owned())
+    .collect();
+    assert_eq!(actual, expected);
+}
 #[test]
 fn confidentiality_scope_requester_and_editor_are_independent_requirements() {
     let a = actor();

@@ -55,6 +55,14 @@ name = "package_grants_postgres"
 path = "../../tests/integration/commercial/rust-package-grants-postgres.test.rs"
 
 [[test]]
+name = "portal_purchase_postgres"
+path = "../../tests/integration/commercial/rust-portal-purchase-postgres.test.rs"
+
+[[test]]
+name = "portal_purchase_fence_postgres"
+path = "../../tests/integration/commercial/rust-portal-purchase-fence-postgres.test.rs"
+
+[[test]]
 name = "purchase_postgres"
 path = "../../tests/integration/commercial/rust-purchase-postgres.test.rs"
 

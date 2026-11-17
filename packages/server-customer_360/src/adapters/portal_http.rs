@@ -8,6 +8,7 @@
 use crate::domain::portal::{
     CustomerPortalProjection, PortalCommandInput, PortalCommandOutcome, valid_key,
 };
+use crate::application::portal::PortalCommandError;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::get, serde_json,
@@ -20,6 +21,8 @@ const BODY_LIMIT: usize = 64 * 1024;
 
 pub type CustomerPortalHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+pub type CustomerPortalHttpCommandFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, PortalCommandError>> + Send + 'a>>;
 
 pub struct CustomerPortalHttpReadRequest<'a> {
     pub host: &'a str,
@@ -44,7 +47,7 @@ pub trait CustomerPortalHttpBackend: Send + Sync {
     fn command<'a>(
         &'a self,
         request: CustomerPortalHttpCommandRequest<'a>,
-    ) -> CustomerPortalHttpFuture<'a, PortalCommandOutcome>;
+    ) -> CustomerPortalHttpCommandFuture<'a, PortalCommandOutcome>;
 }
 
 pub struct CustomerPortalHttpTarget {
@@ -138,6 +141,16 @@ fn error_response(error: BusinessError) -> Response {
     )
         .into_response()
 }
+fn command_error_response(error: PortalCommandError) -> Response {
+    match error {
+        PortalCommandError::Business(error) => error_response(error),
+        PortalCommandError::AttachmentRequired { required } if (1..=100).contains(&required) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"error":{"code":"ATTACHMENT_REQUIRED","message":format!("At least {required} customer_support_evidence file(s) are required.")}})),
+        ).into_response(),
+        PortalCommandError::AttachmentRequired { .. } => error_response(malformed()),
+    }
+}
 fn bounded(body: serde_json::Value) -> Response {
     let mut response = (StatusCode::OK, Json(body)).into_response();
     for (name, value) in [
@@ -225,12 +238,12 @@ async fn command(
         let key = unique_header(&headers, HeaderName::from_static("idempotency-key"))?
             .ok_or_else(key_required)?;
         if !valid_key(key) {
-            return Err(key_required());
+            return Err(key_required().into());
         }
         if unique_header(&headers, header::CONTENT_TYPE)?
             .is_none_or(|value| !value.starts_with("application/json"))
         {
-            return Err(malformed());
+            return Err(malformed().into());
         }
         let input: PortalCommandInput = serde_json::from_slice(&body).map_err(|_| malformed())?;
         input.validate()?;
@@ -246,7 +259,7 @@ async fn command(
             .await
     }
     .await;
-    respond(result)
+    match result { Ok(data) => bounded(serde_json::json!({"data":data})), Err(error) => command_error_response(error) }
 }
 
 pub fn customer_portal_http_router(

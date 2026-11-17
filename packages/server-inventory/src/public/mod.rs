@@ -58,3 +58,7 @@ pub mod counts;
 pub mod transfers;
 pub mod landed_costs;
 pub mod reorder_policies;
+
+pub mod sales_reservation;
+
+pub mod portal_commerce_locks;

@@ -145,3 +145,7 @@ pub mod pos_journal;
 pub mod revenue_recognition;
 
 pub mod supplier_batch;
+
+pub mod commerce_reservation_party;
+
+pub mod portal_commerce_locks;

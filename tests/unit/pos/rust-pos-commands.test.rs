@@ -1666,3 +1666,275 @@ fn sale_discount_approval_requires_a_different_requester() {
     .unwrap_err();
     assert_eq!(error.code, "POS_INDEPENDENT_REVIEW");
 }
+
+use erpx_server_pos::public::day_close::{
+    DayReportFacts, PreparedDayClose, validate_confirm, validate_prepare,
+};
+
+fn day_close_actor() -> PosActor {
+    PosActor {
+        user_id: UserId::new("reviewer").unwrap(),
+        holding_id: HoldingId::new("holding").unwrap(),
+        company_id: CompanyId::new("company").unwrap(),
+        branch_id: RecordId::new("branch").ok(),
+        department_id: None,
+        assignment_id: AssignmentId::new("assignment").unwrap(),
+        permissions: vec![
+            "pos.approve".into(),
+            "pos.reports".into(),
+            "finance.approve".into(),
+        ],
+        modules: vec!["pos".into()],
+        expires_at: NOW.get() + 1000,
+    }
+}
+fn day_close_report() -> DayReportFacts {
+    DayReportFacts {
+        company_id: "company".into(),
+        branch_id: "branch".into(),
+        business_date: "2026-11-15".into(),
+        digest: "digest".into(),
+        blockers: vec![],
+        shift_count: 1,
+    }
+}
+fn day_close_record() -> PreparedDayClose {
+    PreparedDayClose {
+        company_id: "company".into(),
+        branch_id: "branch".into(),
+        business_date: "2026-11-15".into(),
+        state: "prepared".into(),
+        version: 1,
+        source_digest: "digest".into(),
+        prepared_by: "preparer".into(),
+    }
+}
+#[test]
+fn preparation_requires_scoped_unblocked_existing_shifts_and_non_future_day() {
+    assert_eq!(validate_prepare(&day_close_actor(), NOW, "branch", "2026-02-29", "2026-11-15", false, &day_close_report()).unwrap_err().code, "POS_REQUEST_INVALID");
+    assert!(
+        validate_prepare(
+            &day_close_actor(),
+            NOW,
+            "branch",
+            "2026-11-15",
+            "2026-11-15",
+            false,
+            &day_close_report()
+        )
+        .is_ok()
+    );
+    assert_eq!(
+        validate_prepare(
+            &day_close_actor(),
+            NOW,
+            "branch",
+            "2026-11-15",
+            "2026-11-14",
+            false,
+            &day_close_report()
+        )
+        .unwrap_err()
+        .code,
+        "POS_FUTURE_DATE"
+    );
+    assert_eq!(
+        validate_prepare(
+            &day_close_actor(),
+            NOW,
+            "branch",
+            "2026-11-15",
+            "2026-11-15",
+            true,
+            &day_close_report()
+        )
+        .unwrap_err()
+        .code,
+        "POS_DAY_CLOSED"
+    );
+    let mut r = day_close_report();
+    r.shift_count = 0;
+    assert_eq!(
+        validate_prepare(
+            &day_close_actor(),
+            NOW,
+            "branch",
+            "2026-11-15",
+            "2026-11-15",
+            false,
+            &r
+        )
+        .unwrap_err()
+        .code,
+        "POS_DAY_EMPTY"
+    );
+    r.blockers.push("open sale".into());
+    assert_eq!(
+        validate_prepare(
+            &day_close_actor(),
+            NOW,
+            "branch",
+            "2026-11-15",
+            "2026-11-15",
+            false,
+            &r
+        )
+        .unwrap_err()
+        .code,
+        "POS_DAY_BLOCKED"
+    );
+    r = day_close_report();
+    r.company_id = "other".into();
+    assert_eq!(
+        validate_prepare(
+            &day_close_actor(),
+            NOW,
+            "branch",
+            "2026-11-15",
+            "2026-11-15",
+            false,
+            &r
+        )
+        .unwrap_err()
+        .code,
+        "POS_NOT_FOUND"
+    );
+}
+#[test]
+fn confirmation_requires_independent_person_and_unchanged_sources() {
+    let mut same_user = day_close_record();
+    same_user.prepared_by = "reviewer".into();
+    assert_eq!(validate_confirm(&day_close_actor(), NOW, &same_user, 1, false, &day_close_report()).unwrap_err().code, "POS_INDEPENDENT_REVIEW");
+    assert!(
+        validate_confirm(
+            &day_close_actor(),
+            NOW,
+            &day_close_record(),
+            1,
+            false,
+            &day_close_report()
+        )
+        .is_ok()
+    );
+    assert_eq!(
+        validate_confirm(
+            &day_close_actor(),
+            NOW,
+            &day_close_record(),
+            2,
+            false,
+            &day_close_report()
+        )
+        .unwrap_err()
+        .code,
+        "POS_VERSION_CONFLICT"
+    );
+    assert_eq!(
+        validate_confirm(
+            &day_close_actor(),
+            NOW,
+            &day_close_record(),
+            1,
+            true,
+            &day_close_report()
+        )
+        .unwrap_err()
+        .code,
+        "POS_INDEPENDENT_REVIEW"
+    );
+    let mut r = day_close_report();
+    r.digest = "changed".into();
+    assert_eq!(
+        validate_confirm(&day_close_actor(), NOW, &day_close_record(), 1, false, &r)
+            .unwrap_err()
+            .code,
+        "POS_DAY_CHANGED"
+    );
+    r = day_close_report();
+    r.blockers.push("pending payment".into());
+    assert_eq!(
+        validate_confirm(&day_close_actor(), NOW, &day_close_record(), 1, false, &r)
+            .unwrap_err()
+            .code,
+        "POS_DAY_CHANGED"
+    );
+    r = day_close_report();
+    r.branch_id = "other".into();
+    assert_eq!(
+        validate_confirm(&day_close_actor(), NOW, &day_close_record(), 1, false, &r)
+            .unwrap_err()
+            .code,
+        "POS_SOURCE_INVALID"
+    );
+    let mut a = day_close_actor();
+    a.permissions.retain(|p| p != "finance.approve");
+    assert_eq!(
+        validate_confirm(&a, NOW, &day_close_record(), 1, false, &day_close_report())
+            .unwrap_err()
+            .code,
+        "POS_PERMISSION_REQUIRED"
+    );
+}
+
+#[test]
+fn day_report_preserves_full_totals_blockers_and_legacy_digest_order() {
+    use erpx_server_pos::public::day_report::{DayReportInput, calculate_day_report};
+    let sources = r#"{"sales":[{"id":"s1","number":"1","state":"completed","subtotal_minor":900,"discount_minor":100,"tax_minor":70,"total_minor":970,"invoice_id":"i1"},{"id":"s2","number":"2","state":"open"}],"shifts":[{"id":"shift","state":"reviewed","variance_minor":5}],"payments":[{"id":"p1","method":"cash","state":"succeeded","finance_payment_id":"fp","amount_minor":970}],"refunds":[{"id":"r1","state":"completed","kind":"sale","amount_minor":100,"tax_minor":7}],"refundPayments":[{"id":"rp","method":"cash","state":"succeeded","amount_minor":100}],"stockMoves":[],"journals":[],"kitchen":[],"pendingCash":[]}"#;
+    let result = calculate_day_report(DayReportInput {company_id:"company".into(),branch_id:"branch".into(),business_date:"2026-11-15".into(),currency:"THB".into(),sources_json:sources.into(),cost_minor:400,waste_minor:10,pending_payouts:serde_json::json!([]),stripe_clearing_minor:23}, |_| "sha256-test".into()).unwrap();
+    assert_eq!(result.value["totals"]["grossMinor"], 1000);
+    assert_eq!(result.value["totals"]["refundTaxMinor"], 7);
+    assert_eq!(result.value["totals"]["netTaxMinor"], 63);
+    assert_eq!(result.value["totals"]["netMinor"], 870);
+    assert_eq!(result.value["totals"]["received"]["cash"], 970);
+    assert_eq!(result.value["blockers"][0]["code"], "OPEN_SALE");
+    assert_eq!(result.value["pendingPayouts"], serde_json::json!([]));
+    let totals = r#"{"bills":1,"grossMinor":1000,"discountMinor":100,"salesMinor":900,"taxMinor":70,"refundMinor":100,"netMinor":870,"costMinor":400,"wasteMinor":10,"cashVarianceMinor":5,"roomChargeMinor":0,"received":{"cash":970},"returned":{"cash":100}}"#;
+    assert_eq!(result.digest_input, format!("{{\"sources\":{sources},\"totals\":{totals}}}"));
+}
+
+#[test]
+fn day_report_matches_typescript_golden_with_unicode_and_row_key_order() {
+    use erpx_server_pos::public::day_report::{DayReportInput, calculate_day_report};
+    // Golden generated by createPosDay().posDayReport in the retained TS source.
+    let sources = r###"{"sales":[{"id":"s1","number":"บิล №1","state":"completed","subtotal_minor":900,"discount_minor":100,"tax_minor":70,"total_minor":970,"invoice_id":"i1"},{"id":"s2","number":"สอง","state":"open"}],"shifts":[{"id":"shift","state":"reviewed","variance_minor":5}],"payments":[{"id":"p1","method":"cash","state":"succeeded","finance_payment_id":"fp","amount_minor":970}],"refunds":[{"id":"r1","state":"completed","kind":"sale","amount_minor":100,"tax_minor":7}],"refundPayments":[{"id":"rp","method":"cash","state":"succeeded","amount_minor":100}],"stockMoves":[],"journals":[],"kitchen":[],"pendingCash":[]}"###;
+    let expected_input = r###"{"sources":{"sales":[{"id":"s1","number":"บิล №1","state":"completed","subtotal_minor":900,"discount_minor":100,"tax_minor":70,"total_minor":970,"invoice_id":"i1"},{"id":"s2","number":"สอง","state":"open"}],"shifts":[{"id":"shift","state":"reviewed","variance_minor":5}],"payments":[{"id":"p1","method":"cash","state":"succeeded","finance_payment_id":"fp","amount_minor":970}],"refunds":[{"id":"r1","state":"completed","kind":"sale","amount_minor":100,"tax_minor":7}],"refundPayments":[{"id":"rp","method":"cash","state":"succeeded","amount_minor":100}],"stockMoves":[],"journals":[],"kitchen":[],"pendingCash":[]},"totals":{"bills":1,"grossMinor":1000,"discountMinor":100,"salesMinor":900,"taxMinor":70,"refundMinor":100,"netMinor":870,"costMinor":400,"wasteMinor":10,"cashVarianceMinor":5,"roomChargeMinor":0,"received":{"cash":970},"returned":{"cash":100}}}"###;
+    let expected: serde_json::Value = serde_json::from_str(r###"{"companyId":"company","branchId":"branch","businessDate":"2026-11-15","currency":"THB","totals":{"bills":1,"grossMinor":1000,"discountMinor":100,"salesMinor":900,"taxMinor":70,"refundMinor":100,"refundTaxMinor":7,"netTaxMinor":63,"netMinor":870,"costMinor":400,"wasteMinor":10,"cashVarianceMinor":5,"roomChargeMinor":0,"received":{"cash":970},"returned":{"cash":100}},"blockers":[{"code":"OPEN_SALE","id":"s2","message":"จัดการบิล สอง ให้เสร็จ"}],"sources":{"sales":[{"id":"s1","number":"บิล №1","state":"completed","subtotal_minor":900,"discount_minor":100,"tax_minor":70,"total_minor":970,"invoice_id":"i1"},{"id":"s2","number":"สอง","state":"open"}],"shifts":[{"id":"shift","state":"reviewed","variance_minor":5}],"payments":[{"id":"p1","method":"cash","state":"succeeded","finance_payment_id":"fp","amount_minor":970}],"refunds":[{"id":"r1","state":"completed","kind":"sale","amount_minor":100,"tax_minor":7}],"refundPayments":[{"id":"rp","method":"cash","state":"succeeded","amount_minor":100}],"stockMoves":[],"journals":[],"kitchen":[],"pendingCash":[]},"pendingPayouts":[],"stripeClearingMinor":23,"digest":"53021fe9cfa679a6b0294d789c74f4f2c18ba2dac4676974472dd53b862a73e9"}"###).unwrap();
+    let result = calculate_day_report(DayReportInput {company_id:"company".into(),branch_id:"branch".into(),business_date:"2026-11-15".into(),currency:"THB".into(),sources_json:sources.into(),cost_minor:400,waste_minor:10,pending_payouts:serde_json::json!([]),stripe_clearing_minor:23}, |input| { assert_eq!(input, expected_input); "53021fe9cfa679a6b0294d789c74f4f2c18ba2dac4676974472dd53b862a73e9".into() }).unwrap();
+    assert_eq!(result.value, expected);
+}
+
+#[test]
+fn assembled_day_report_matches_legacy_owner_snapshot_and_rejects_missing_witnesses() {
+ use erpx_server_pos::public::day_report::{assemble_day_report,PosDayForeignFacts,PosDayPmsSaleFact,PosDayOwnedSources,PosDaySaleSource};
+ // Expected output and digest input obtained from retained createPosDay().posDayReport.
+ let owned = || PosDayOwnedSources { sales:vec![PosDaySaleSource{row_json:r###"{"id":"s1","company_id":"company","branch_id":"branch","business_date":"2026-11-15","number":"บิล №1","state":"completed","subtotal_minor":900,"discount_minor":100,"tax_minor":70,"total_minor":970,"invoice_id":"i1"}"###.into(),reversal_entry_id:None},PosDaySaleSource{row_json:r###"{"id":"s2","company_id":"company","branch_id":"branch","business_date":"2026-11-15","number":"สอง","state":"open"}"###.into(),reversal_entry_id:None}],shifts:vec![r###"{"id":"shift","state":"reviewed","variance_minor":5}"###.into()],payments:vec![r###"{"id":"p1","method":"cash","state":"succeeded","finance_payment_id":"fp","amount_minor":970}"###.into()],refunds:vec![r###"{"id":"r1","state":"completed","kind":"sale","amount_minor":100,"tax_minor":7}"###.into()],refund_payments:vec![r###"{"id":"rp","method":"cash","state":"succeeded","amount_minor":100}"###.into()],stock_move_candidates:vec![],kitchen:vec![],pending_cash:vec![],pending_payouts:vec![],currency:Some("THB".into())};
+ let foreign = || PosDayForeignFacts {company_id:"company".into(),branch_id:"branch".into(),business_date:"2026-11-15".into(),branch_exists:true,pms_sales:vec![PosDayPmsSaleFact{sale_id:"s1".into(),room_charge_ids:vec![]},PosDayPmsSaleFact{sale_id:"s2".into(),room_charge_ids:vec![]}],commerce_warehouse_ids:vec![],finance_journals:vec![],cost_minor:400,waste_minor:10,stripe_clearing_minor:23};
+ let expected_input = r###"{"sources":{"sales":[{"id":"s1","company_id":"company","branch_id":"branch","business_date":"2026-11-15","number":"บิล №1","state":"completed","subtotal_minor":900,"discount_minor":100,"tax_minor":70,"total_minor":970,"invoice_id":"i1","room_charge_id":null,"reversal_entry_id":null},{"id":"s2","company_id":"company","branch_id":"branch","business_date":"2026-11-15","number":"สอง","state":"open","room_charge_id":null,"reversal_entry_id":null}],"shifts":[{"id":"shift","state":"reviewed","variance_minor":5}],"payments":[{"id":"p1","method":"cash","state":"succeeded","finance_payment_id":"fp","amount_minor":970}],"refunds":[{"id":"r1","state":"completed","kind":"sale","amount_minor":100,"tax_minor":7}],"refundPayments":[{"id":"rp","method":"cash","state":"succeeded","amount_minor":100}],"stockMoves":[],"journals":[],"kitchen":[],"pendingCash":[]},"totals":{"bills":1,"grossMinor":1000,"discountMinor":100,"salesMinor":900,"taxMinor":70,"refundMinor":100,"netMinor":870,"costMinor":400,"wasteMinor":10,"cashVarianceMinor":5,"roomChargeMinor":0,"received":{"cash":970},"returned":{"cash":100}}}"###;
+ let expected:serde_json::Value = serde_json::from_str(r###"{"companyId":"company","branchId":"branch","businessDate":"2026-11-15","currency":"THB","totals":{"bills":1,"grossMinor":1000,"discountMinor":100,"salesMinor":900,"taxMinor":70,"refundMinor":100,"refundTaxMinor":7,"netTaxMinor":63,"netMinor":870,"costMinor":400,"wasteMinor":10,"cashVarianceMinor":5,"roomChargeMinor":0,"received":{"cash":970},"returned":{"cash":100}},"blockers":[{"code":"OPEN_SALE","id":"s2","message":"จัดการบิล สอง ให้เสร็จ"}],"sources":{"sales":[{"id":"s1","company_id":"company","branch_id":"branch","business_date":"2026-11-15","number":"บิล №1","state":"completed","subtotal_minor":900,"discount_minor":100,"tax_minor":70,"total_minor":970,"invoice_id":"i1","room_charge_id":null,"reversal_entry_id":null},{"id":"s2","company_id":"company","branch_id":"branch","business_date":"2026-11-15","number":"สอง","state":"open","room_charge_id":null,"reversal_entry_id":null}],"shifts":[{"id":"shift","state":"reviewed","variance_minor":5}],"payments":[{"id":"p1","method":"cash","state":"succeeded","finance_payment_id":"fp","amount_minor":970}],"refunds":[{"id":"r1","state":"completed","kind":"sale","amount_minor":100,"tax_minor":7}],"refundPayments":[{"id":"rp","method":"cash","state":"succeeded","amount_minor":100}],"stockMoves":[],"journals":[],"kitchen":[],"pendingCash":[]},"pendingPayouts":[],"stripeClearingMinor":23,"digest":"1055cef28d9879cf5a515eb2c9fca45ccad7b6b426cef75e80efba850e5334e4"}"###).unwrap();
+ let report=assemble_day_report("company","branch","2026-11-15",owned(),foreign(),|input| {assert_eq!(input,expected_input); "1055cef28d9879cf5a515eb2c9fca45ccad7b6b426cef75e80efba850e5334e4".into()}).unwrap();
+ assert_eq!(report.value,expected);
+ let mut missing=foreign(); missing.pms_sales.pop();
+ assert_eq!(assemble_day_report("company","branch","2026-11-15",owned(),missing,|_|"hash".into()).err().unwrap().code,"POS_SOURCE_INVALID");
+ let mut ambiguous=foreign(); ambiguous.pms_sales[0].room_charge_ids=vec!["room-1".into(),"room-2".into()];
+ assert_eq!(assemble_day_report("company","branch","2026-11-15",owned(),ambiguous,|_|"hash".into()).err().unwrap().code,"POS_DAY_SOURCE_AMBIGUOUS");
+ let mut branch=foreign();branch.branch_exists=false;
+ assert_eq!(assemble_day_report("company","branch","2026-11-15",owned(),branch,|_|"hash".into()).err().unwrap().code,"POS_NOT_FOUND");
+}
+
+#[test]
+fn day_receipt_identity_preserves_raw_order_and_legacy_guest_account_replay() {
+ use erpx_server_pos::public::day_receipt::PosDayReceiptIdentity;
+ // Golden captured from the retained JS canonicalGuestAccount and JSON.stringify.
+ let raw=r###"{"2":"สอง","extra":{"folioId":"f","1":1e21,"z":-0},"branchId":"branch","businessDate":"2026-11-15","x":1.0}"###; let canonical=r###"{"user":"reviewer","assignment":"assignment","company":"company","branch":"branch","operation":"day.prepare","input":{"2":"สอง","extra":{"1":1e+21,"guestAccountId":"f","z":0},"branchId":"branch","businessDate":"2026-11-15","x":1}}"###; let legacy=r###"{"user":"reviewer","assignment":"assignment","company":"company","branch":"branch","operation":"day.prepare","input":{"2":"สอง","extra":{"1":1e+21,"folioId":"f","z":0},"branchId":"branch","businessDate":"2026-11-15","x":1}}"###;
+ let hash=|v:&str| if v==canonical {"fd1644a821d899d9f9073c2ee136755d840e067bf9ab7b4a997ee273302d4d2a".to_owned()} else if v==legacy {"de64346a9b5f349ae8433002ff54dded07cfa6f93f4ef17d7d1f8b5be03fefd2".to_owned()} else {"mismatch".to_owned()};
+ let command=PosDayReceiptIdentity::parse(&day_close_actor(),"day.prepare","command-key-01",raw).unwrap();
+ assert_eq!(command.canonical_identity,canonical);
+ assert_eq!(command.legacy_identity().unwrap(),legacy);
+ let stored=r###"{"id":"close","state":"prepared","folioId":"legacy-id","extra":{"2":2,"1":1}}"###;
+ assert_eq!(command.replay("de64346a9b5f349ae8433002ff54dded07cfa6f93f4ef17d7d1f8b5be03fefd2",stored,hash).unwrap().as_str(),r###"{"id":"close","state":"prepared","guestAccountId":"legacy-id","extra":{"1":1,"2":2}}"###);
+ assert_eq!(command.replay("different",stored,hash).err().unwrap().code,"IDEMPOTENCY_CONFLICT");
+ let altered=PosDayReceiptIdentity::parse(&day_close_actor(),"day.prepare","command-key-01",r###"{"branchId":"branch","businessDate":"2026-11-15","2":"สอง","extra":{"folioId":"f","1":1e21,"z":-0},"x":1.0}"###).unwrap();
+ assert_ne!(altered.canonical_identity,canonical);
+ assert_eq!(altered.replay("fd1644a821d899d9f9073c2ee136755d840e067bf9ab7b4a997ee273302d4d2a",stored,hash).err().unwrap().code,"IDEMPOTENCY_CONFLICT");
+ assert!(PosDayReceiptIdentity::parse(&day_close_actor(),"day.prepare","bad",raw).is_err());
+}

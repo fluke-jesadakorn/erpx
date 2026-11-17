@@ -12,6 +12,7 @@ use crate::{
     domain::{auxiliary::LegalAuxiliaryActor, legal_records::sha256_hex},
 };
 use crate::application::retention::execute_retention_command;
+use crate::adapters::postgres_destruction::PreparedLegalDestructionManifest;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PersistenceError, PgUnitOfWork, TransactionOptions,
 };
@@ -22,11 +23,18 @@ use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 pub struct PgLegalRetention<'c> {
     connection: &'c mut PgConnection,
+    prepared_manifest: Option<PreparedLegalDestructionManifest>,
 }
 
 impl<'c> PgLegalRetention<'c> {
     pub fn new(connection: &'c mut PgConnection) -> Self {
-        Self { connection }
+        Self { connection, prepared_manifest: None }
+    }
+
+    /// Composition must first prepare this witness using real Files and current
+    /// authority, in the same transaction, before any owner reads or writes.
+    pub fn with_prepared_manifest(connection: &'c mut PgConnection, prepared_manifest: PreparedLegalDestructionManifest) -> Self {
+        Self { connection, prepared_manifest: Some(prepared_manifest) }
     }
 
     pub fn connection(&mut self) -> &mut PgConnection {
@@ -423,6 +431,10 @@ impl LegalRetentionPorts for PgLegalRetention<'_> {
     ) -> RetentionFuture<'a, Value> {
         Box::pin(async move {
             self.ready().await?;
+            if let Some(prepared) = &self.prepared_manifest {
+                let manifest = prepared.current(&mut *self.connection, company, item).await?;
+                return serde_json::to_value(manifest).map_err(|_| conflict("LEGAL_RETENTION_MANIFEST", "The destruction manifest is unavailable.").into());
+            }
             let text = sqlx::query_scalar::<_, String>(
                 "SELECT jsonb_build_object(\
                  'itemId',$1,'companyId',$2,'generatedAt',$3,\

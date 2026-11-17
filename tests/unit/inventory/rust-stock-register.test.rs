@@ -521,6 +521,7 @@ mod transfer_landed_reorder {
                 &input,
                 LandedCostAction::Approve,
                 "preparer",
+                false,
                 None,
                 None
             )
@@ -534,12 +535,42 @@ mod transfer_landed_reorder {
                 &input,
                 LandedCostAction::Approve,
                 "reviewer",
+                false,
                 Some("branch"),
                 None
             )
             .unwrap_err()
             .code,
             "INDEPENDENT_FINANCE_REQUIRED"
+        );
+        assert_eq!(
+            plan_landed_transition(
+                &source, &input, LandedCostAction::Approve, "linked-account", true, None, None
+            ).unwrap_err().code,
+            "INDEPENDENT_FINANCE_REQUIRED"
+        );
+        assert!(plan_landed_transition(
+            &source, &input, LandedCostAction::Cancel, "linked-account", true, None, None
+        ).is_ok());
+        assert_eq!(
+            plan_landed_transition(
+                &source, &input, LandedCostAction::Cancel, "other-account", false, None, None
+            ).unwrap_err().code,
+            "LANDED_COST_CANCEL_FORBIDDEN"
+        );
+        let stale = LandedCostActionInput { expected_version: 2, ..input.clone() };
+        assert_eq!(
+            plan_landed_transition(
+                &source, &stale, LandedCostAction::Approve, "linked-account", true, None, None
+            ).unwrap_err().code,
+            "LANDED_COST_STATUS_INVALID"
+        );
+        let invalid_reason = LandedCostActionInput { reason: "x".into(), ..input.clone() };
+        assert_eq!(
+            plan_landed_transition(
+                &source, &invalid_reason, LandedCostAction::Approve, "linked-account", true, None, None
+            ).unwrap_err().code,
+            "REASON_REQUIRED"
         );
     }
 

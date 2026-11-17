@@ -107,8 +107,10 @@ async function call(
   return payload?.data;
 }
 
-export function nativeFeed(request: Request, holdingSlug: string, filter: string) {
-  return call(request, holdingSlug, `/feed?filter=${encodeURIComponent(filter)}`);
+export function nativeFeed(request: Request, holdingSlug: string, filter: string, cursor?: string) {
+  const query = new URLSearchParams({ filter });
+  if (cursor) query.set("cursor", cursor);
+  return call(request, holdingSlug, `/feed?${query.toString()}`);
 }
 
 export function nativeCreatePost(

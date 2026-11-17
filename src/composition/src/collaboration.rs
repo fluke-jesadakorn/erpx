@@ -738,17 +738,17 @@ async fn messaging_member_names(
         .acquire()
         .await
         .map_err(|_| unavailable())?;
-    let rows: Vec<(String, String, String)> = sqlx::query_as(
-        "SELECT id,name,email FROM \"user\" WHERE id = ANY($1::text[]) ORDER BY name,id",
+    let rows = erpx_server_identity_access::public::messaging_people::control_account_names(
+        &mut connection,
+        ids,
     )
-    .bind(ids)
-    .fetch_all(&mut *connection)
     .await
     .map_err(|_| unavailable())?;
-    Ok(rows
-        .into_iter()
-        .map(|(id, name, email)| serde_json::json!({"id": id, "name": name, "email": email}))
-        .collect())
+    serde_json::to_value(rows)
+        .map_err(|_| unavailable())?
+        .as_array()
+        .cloned()
+        .ok_or_else(unavailable)
 }
 
 pub struct MessagingService<C> {

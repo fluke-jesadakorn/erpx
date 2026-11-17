@@ -11,10 +11,13 @@ import { createLegalInvitationWorker, type LegalInvitationRepository } from "@er
 import { readBoundedLegalBody } from "@erpx/server-legal/application/body";
 import { createLegalRuntimeApplication } from "@erpx/server-legal/application/runtime-gate";
 import { createLegalKnowledgeApplication, type LegalKnowledgeRepository } from "@erpx/server-legal/application/knowledge";
+import { createLegalCitationQuery } from "@erpx/server-legal/application/citations";
 import { validateLegalAiCitations, type LegalEvidenceSource } from "@erpx/server-legal/domain/knowledge";
 import type { LegalItem } from "@erpx/server-legal/domain/model";
 import { createNativeLegalClient, nativeLegalConfiguration, nativeLegalFailure, NativeLegalError, type NativeLegalPageContext } from "../../../packages/feature-legal/src/adapters/server/native-legal";
-import { nativeLegalCommandSelected } from "../../../packages/feature-legal/src/lib/native-legal";
+import { nativeLegalCitation, nativeLegalCommandSelected, nativeLegalCitationPageError } from "../../../packages/feature-legal/src/lib/native-legal";
+import { ApiError } from '@erpx/server-runtime/public/http';
+import { ZodError } from 'zod';
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => Object.assign(new Error(code), {code});
@@ -283,6 +286,103 @@ function nativeTransport(response: (method: string, url: URL, headers: Headers, 
     return response(method, url, headers, body);
   }};
 }
+
+it('native citation preserves the complete document and law response', async () => {
+  const document = {kind:'document',title:'Matter',name:'document.txt',item_id:'item',document_id:'doc',version:1,checksum:'abc',page:null,page_mapping:false,section:'',text:'Full text',notice:'Review'};
+  const law = {kind:'law',title:'Law',item_id:'rule',document_id:'doc',version:2,checksum:'def',page:1,page_mapping:true,section:'§ 1',text:'Quoted',notice:'Review',asOf:'2026-11-15',href:'/legal?record=rule',originalUrl:'https://example.test/law.pdf#page=1',revision_label:'v2',published_on:'2026-01-01',effective_from:'2026-02-01',effective_until:null,source_url:'https://example.test/law.pdf',sourceId:'law:one',id:'one',excerpt:'Quoted',revision_id:'rev'};
+  const captured = nativeTransport((_method, url) => new Response(JSON.stringify(url.searchParams.get('sourceId')?.startsWith('law:') ? law : document), {status:200,headers:{'content-type':'application/json'}}));
+  const client = createNativeLegalClient(nativeConfig, captured.transport);
+  expect(await client.citation(nativeHeaders,nativeActor,'document:one')).toEqual(document);
+  expect(await client.citation(nativeHeaders,nativeActor,'law:one','2026-11-15')).toEqual(law);
+  expect(captured.calls[1]!.url.pathname).toBe('/api/v1/holdings/acme/legal/citations');
+  expect(captured.calls[1]!.url.searchParams.get('sourceId')).toBe('law:one');
+  expect(captured.calls[1]!.url.searchParams.get('asOf')).toBe('2026-11-15');
+  await client.citation(nativeHeaders,nativeActor,'law:one',['2024-01-01','2024-02-01']);
+  expect(captured.calls[2]!.url.searchParams.get('asOf')).toBe('');
+  const malformed = createNativeLegalClient(nativeConfig,nativeTransport(() => new Response(JSON.stringify({...document,text:42}),{status:200})).transport);
+  await expect(malformed.citation(nativeHeaders,nativeActor,'document:one')).rejects.toMatchObject({code:'NATIVE_LEGAL_RESPONSE_INVALID'});
+  const denied = createNativeLegalClient(nativeConfig,nativeTransport(() => new Response(JSON.stringify({error:{code:'LEGAL_CITATION_UNAVAILABLE',message:'Unavailable'}}),{status:404})).transport);
+  await expect(denied.citation(nativeHeaders,nativeActor,'document:one')).rejects.toMatchObject({code:'LEGAL_CITATION_UNAVAILABLE',status:404});
+});
+
+it('native citation transports opaque document IDs without a synthetic size or asOf bound', async () => {
+  const document = {kind:'document',title:'Matter',name:'document.txt',item_id:'item',document_id:'doc',version:1,checksum:'abc',page:null,page_mapping:false,section:'',text:'Full text',notice:'Review'};
+  const captured = nativeTransport(() => new Response(JSON.stringify(document), {status:200,headers:{'content-type':'application/json'}}));
+  const client = createNativeLegalClient(nativeConfig, captured.transport);
+  for (const id of ['เอกสาร'.repeat(40), '.', '..', 'document:a/b%2Fc']) {
+    await expect(client.citation(nativeHeaders,nativeActor,id,'x'.repeat(300))).resolves.toEqual(document);
+    const url = captured.calls.at(-1)!.url;
+    expect(url.searchParams.get('sourceId')).toBe(id);
+    expect(url.searchParams.has('asOf')).toBe(false);
+  }
+});
+
+it('legacy law citation validates the complete UTF-16 ID after its exact date', async () => {
+  const seen: string[] = [];
+  const app = createLegalKnowledgeApplication({require:()=>{}, access:async()=>{throw Error('unexpected')}, document:async()=>{throw Error('unexpected')}, clock:{now:()=>0}, identifiers:{next:()=> 'event'}, error:(status,code,message)=>Object.assign(new Error(message),{status,code}), repository:repository<LegalKnowledgeRepository>({lawSource:async id=>{seen.push(id); return null;}})});
+  for (const id of ['law: x ', 'law:', 'law:law:x', `law:${'ก'.repeat(60)}`]) {
+    await expect(app.lawCitation(id,'2024-02-29')).rejects.toMatchObject({code:'LEGAL_CITATION_UNAVAILABLE'});
+    expect(seen.at(-1)).toBe(id.slice(4));
+  }
+  const prior=seen.length;
+  for (const date of ['', ' ', ' 2024-02-29 ', '2024-02-30', ['2024-02-29','2024-02-29'], ['', '2024-02-29'], ['2024-02-29','']]) await expect(app.lawCitation('law:x',date)).rejects.toThrow();
+  await expect(app.lawCitation(`law:${'x'.repeat(197)}`,'2024-02-29')).rejects.toThrow();
+  expect(seen).toHaveLength(prior);
+});
+
+it('legacy document citation ignores repeated asOf values', async () => {
+  const doc={id:'doc',item_id:'item',version:1,name:'source.txt',media_type:'text/plain',checksum:'x',body:'body',object_key:null};
+  const query=createLegalCitationQuery({law:async()=>{throw Error('unexpected')},chunk:async()=>null,document:async()=>doc as never,item:async()=>({id:'item',title:'Matter',kind:'matter'}) as never,available:async()=>true,recordRead:async()=>{},clock:{now:()=>0},identifiers:{next:()=> 'event'},error:(_status,_code,message)=>Error(message)});
+  for(const date of [['2024-02-29','2024-02-29'],['','2024-02-29'],['2024-02-29','']]) expect(await query('doc',date)).toMatchObject({document_id:'doc',text:'body'});
+});
+
+it('citation page maps authorized native outcomes through the actual page-error adapter', async () => {
+  const {pageError}=await import('@erpx/server-work_projection/public/page-error');
+  for (const status of [404,410]) {
+    const mapped=nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_UNAVAILABLE',status,'Missing'),'law:x','2024-02-29');
+    expect(mapped).toBeInstanceOf(ApiError);
+    await expect(pageError(mapped,'acme')).rejects.toMatchObject({digest:'NEXT_HTTP_ERROR_FALLBACK;404'});
+  }
+  for (const date of ['', ' 2024-02-29 ', ['2024-02-29','2024-02-29']]) {
+    try { nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_VALIDATION',422,'invalid'),'law:x',date); throw Error('expected ZodError'); }
+    catch (error) { expect(error).toBeInstanceOf(ZodError); await expect(pageError(error,'acme')).rejects.toBe(error); }
+  }
+  const overlong=`law:${'x'.repeat(197)}`;
+  try { nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_VALIDATION',422),overlong,'2024-02-29'); throw Error('expected ZodError'); }
+  catch(error) { expect(error).toBeInstanceOf(ZodError); expect((error as ZodError).issues[0]?.code).toBe('too_big'); }
+  try { nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_VALIDATION',422),overlong,''); throw Error('expected ZodError'); }
+  catch(error) { expect(error).toBeInstanceOf(ZodError); expect((error as ZodError).issues[0]?.code).not.toBe('too_big'); }
+  // A denied native request must not parse the invalid date before IAM.
+  const denied=nativeLegalCitationPageError(new NativeLegalError('PERMISSION_REQUIRED',403,'Denied'),'law:x','');
+  expect(denied).toBeInstanceOf(ApiError); expect(denied).toMatchObject({status:403,code:'PERMISSION_REQUIRED'});
+  const {createPageErrorService}=await import('@erpx/server-work_projection/application/page-error');
+  const navigation=await import('next/navigation');
+  const service=createPageErrorService({headers:async()=>new Headers({'x-erpx-page-path':'/holdings/acme/services/legal/citations/law%3Ax'}),requestedHoldingScope:async()=>{throw Error('unexpected scope read')},forbidden:navigation.forbidden,notFound:navigation.notFound,redirect:navigation.redirect,unstableRethrow:navigation.unstable_rethrow,isApiError:(error):error is ApiError=>error instanceof ApiError});
+  const priorInterrupts=process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
+  try {
+    process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS='true';
+    await expect(service.pageError(denied,'acme')).rejects.toMatchObject({digest:'NEXT_HTTP_ERROR_FALLBACK;403'});
+  } finally {
+    if(priorInterrupts===undefined) delete process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS; else process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS=priorInterrupts;
+  }
+  const conflict=nativeLegalCitationPageError(new NativeLegalError('LEGAL_RETENTION_FROZEN',409,'Frozen'),'document:x',undefined);
+  await expect(service.pageError(conflict,'acme')).rejects.toMatchObject({digest:expect.stringContaining('NEXT_REDIRECT;replace;/access?reason=conflict')});
+  const login=nativeLegalCitationPageError(new NativeLegalError('UNAUTHENTICATED',401,'Sign in'),'law:x','');
+  await expect(service.pageError(login,'acme')).rejects.toMatchObject({digest:expect.stringContaining('NEXT_REDIRECT;replace;/login?')});
+  const unavailable=nativeLegalCitationPageError(new NativeLegalError('NATIVE_LEGAL_UNAVAILABLE',503),'law:x','');
+  await expect(pageError(unavailable,'acme')).rejects.toBe(unavailable);
+});
+
+it('native citation wrapper fails closed without private configuration', async () => {
+  const prior = process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+  delete process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+  try {
+    await expect(nativeLegalCitation({} as Parameters<typeof nativeLegalCitation>[0], 'acme', 'doc', undefined, nativeHeaders)).rejects.toMatchObject({code:'NATIVE_LEGAL_UNAVAILABLE'});
+  } finally {
+    if (prior === undefined) delete process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+    else process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = prior;
+  }
+});
 
 it("native Legal accepts a bounded contributor Holding port and prefers the forwarded host", async () => {
   const contributorConfig = {...nativeConfig, holdings: [{...nativeConfig.holdings[0], origin: "https://acme.example.test:3443"}]};

@@ -1,5 +1,7 @@
 pub mod business_evidence;
+pub mod portal_support_evidence;
 pub mod legal_import_evidence;
+pub mod legal_citation_metadata;
 pub mod count_history_attachment_sources;
 pub mod canonical_original;
 pub mod malware_scanner;
@@ -49,3 +51,6 @@ pub mod project_attachment_intake;
 pub mod messaging_files;
 pub mod social_draft_uploads;
 pub mod staff_task_attachments;
+
+pub mod supplier_promise_binding;
+pub mod rfq_request_attachments;

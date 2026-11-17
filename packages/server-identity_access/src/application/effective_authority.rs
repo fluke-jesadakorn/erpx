@@ -299,6 +299,7 @@ pub(crate) fn authorize_effective_work_tagged(
         hr_appointment_version: evaluated.hr_appointment_version,
         emergency_until: evaluated.emergency_until,
         grantable_permissions: facts.iam.role.grantable_permissions,
+        beta: facts.beta,
         selection: facts.selection,
         permissions,
         modules: effective_modules,
