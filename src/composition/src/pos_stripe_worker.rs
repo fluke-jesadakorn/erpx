@@ -530,6 +530,7 @@ async fn run_once(pool: &DatabasePool, holding: &str) -> Result<String, &'static
                 applied += 1;
             }
             Err(code) => {
+                eprintln!("POS_STRIPE_JOB_ERROR: {job_id} {code}");
                 sqlx::query(
                     "UPDATE pos_jobs SET state='pending',next_attempt_at=$1,last_error=$2, \
                      lease_until=NULL,lease_token=NULL WHERE id=$3 AND lease_token=$4",
