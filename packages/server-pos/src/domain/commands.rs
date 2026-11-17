@@ -57,6 +57,28 @@ pub struct PosActor {
 }
 
 impl PosActor {
+    /// Internal system actor for reviewed durable-job drains (for example the
+    /// Stripe `complete_sale` queue). Never constructed from HTTP headers:
+    /// callers must supply a verified company/holding from the job manifest.
+    /// `expires_at` is unbounded because a job is not a user work context.
+    pub fn system(holding_id: HoldingId, company_id: CompanyId) -> Self {
+        Self {
+            user_id: UserId::new("system:stripe").unwrap_or_else(|_| {
+                panic!("system:stripe is a valid identifier")
+            }),
+            holding_id,
+            company_id,
+            branch_id: None,
+            department_id: None,
+            assignment_id: AssignmentId::new("system:stripe").unwrap_or_else(|_| {
+                panic!("system:stripe is a valid identifier")
+            }),
+            permissions: vec!["pos.sell".to_owned()],
+            modules: vec!["pos".to_owned()],
+            expires_at: i64::MAX,
+        }
+    }
+
     fn has(&self, permission: &str) -> bool {
         self.permissions.iter().any(|value| value == permission)
     }
