@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3079,
+    "revision": 3086,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261117-axum-b",
+      "runId": "run-20261117-axum-c",
       "agentId": "lead",
-      "startedAt": "2026-11-17T05:38:11.697Z",
-      "heartbeatAt": "2026-11-17T05:43:28.399Z",
-      "expiresAt": "2026-11-17T06:13:28.399Z",
-      "generation": 122,
-      "tokenHash": "14b0b3f1a01d890550cdeda4ffaef68f48ea3d5ce67f7ba610af5a6ee961509a"
+      "startedAt": "2026-11-17T06:51:35.746Z",
+      "heartbeatAt": "2026-11-17T06:58:42.730Z",
+      "expiresAt": "2026-11-17T07:28:42.730Z",
+      "generation": 123,
+      "tokenHash": "5a67c983021ec37b5dae727a590b6495e8097f913acbcaf29cd2826e639566d5"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -36698,12 +36698,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261117-axum-b",
+          "runId": "run-20261117-axum-c",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-17T05:38:11.783Z",
-          "heartbeatAt": "2026-11-17T05:43:28.399Z",
-          "expiresAt": "2026-11-17T06:13:28.399Z",
-          "generation": 122
+          "claimedAt": "2026-11-17T06:51:35.840Z",
+          "heartbeatAt": "2026-11-17T06:58:42.730Z",
+          "expiresAt": "2026-11-17T07:28:42.730Z",
+          "generation": 123
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
@@ -36804,11 +36804,11 @@
         "blocker": null,
         "nextAction": "Corrected classification: completeSale is LIVE via Stripe webhook->checkPayment->complete_sale job (application/pos-stripe.ts:985, drained by server-runtime jobs). Worker builds native Stripe-completion writer (owner crate + composition pos.rs mount + feature-pos webhook switch); lead switches server-runtime jobs drain; only after PG parity do the TS completeSale path, exclusive members, sale.complete branch and pos-stripe pieces retire.",
         "handoff": {
-          "runId": "run-20261117-axum-close",
+          "runId": "run-20261117-axum-b",
           "agentId": "worker-a",
-          "at": "2026-11-17T05:38:11.697Z",
+          "at": "2026-11-17T06:51:35.746Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
+          "reason": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
           "nextAction": "Corrected classification: completeSale is LIVE via Stripe webhook->checkPayment->complete_sale job (application/pos-stripe.ts:985, drained by server-runtime jobs). Worker builds native Stripe-completion writer (owner crate + composition pos.rs mount + feature-pos webhook switch); lead switches server-runtime jobs drain; only after PG parity do the TS completeSale path, exclusive members, sale.complete branch and pos-stripe pieces retire."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -41346,28 +41346,21 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261117-axum-b",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-17T05:38:11.866Z",
-          "heartbeatAt": "2026-11-17T05:43:28.399Z",
-          "expiresAt": "2026-11-17T06:13:28.399Z",
-          "generation": 122
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
         "nextAction": "Partial landed+verified by lead (SELECT 397->395, quality-lot/quality-workspace-lots retired after native-consumer switch). Resume classification of the remaining ~395 SELECTs by live consumer; switch families with existing native ports, classify presentation/transport residuals with removalCondition.",
         "handoff": {
-          "runId": "run-20261117-axum-close",
+          "runId": "run-20261117-axum-b",
           "agentId": "worker-c",
-          "at": "2026-11-17T05:38:11.697Z",
+          "at": "2026-11-17T06:51:35.746Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
+          "reason": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
           "nextAction": "Partial landed+verified by lead (SELECT 397->395, quality-lot/quality-workspace-lots retired after native-consumer switch). Resume classification of the remaining ~395 SELECTs by live consumer; switch families with existing native ports, classify presentation/transport residuals with removalCondition."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -41395,29 +41388,22 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261117-axum-b",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-17T05:38:11.825Z",
-          "heartbeatAt": "2026-11-17T05:43:28.399Z",
-          "expiresAt": "2026-11-17T06:13:28.399Z",
-          "generation": 122
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
         "nextAction": "SWITCH RECIPE (discovery done at a8722f1b3): native auxiliary router is mounted (src/composition/src/private_development_api.rs legal_auxiliary_targets -> legal_auxiliary_router, URL /api/v1/holdings/{holding_slug}/legal/{*path}, parse_auxiliary_path covers workspace/reports/trust/views/laws/knowledge/citations/retention/governance/law-citations/references/ai). UNPORTED_READS stays TS: people, runtime-health, release-acceptance, features, rule-impact, processing, export, evidence, hold-preview. Route packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts imports ~14 TS barrels at lines 3-23 and calls them at ~14 GET sites; add client wrappers in packages/feature-legal/src/adapters/server/native-legal.ts (pattern: createNativeLegalClient call(transport,config,incoming,actor,path,body)), switch the ported ops, keep the 9 unported on TS, then delete unreachable barrels + adapter SELECTs (verify zero importers repo-wide), run tests/integration/legal + unit, record SELECT KPI before/after. Active run run-20261117-axum-b.",
         "handoff": {
-          "runId": "run-20261117-axum-close",
+          "runId": "run-20261117-axum-b",
           "agentId": "worker-b",
-          "at": "2026-11-17T05:38:11.697Z",
+          "at": "2026-11-17T06:51:35.746Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
-          "nextAction": "Rank the 307 SELECT statements in packages/server-legal/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition."
+          "reason": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
+          "nextAction": "SWITCH RECIPE (discovery done at a8722f1b3): native auxiliary router is mounted (src/composition/src/private_development_api.rs legal_auxiliary_targets -> legal_auxiliary_router, URL /api/v1/holdings/{holding_slug}/legal/{*path}, parse_auxiliary_path covers workspace/reports/trust/views/laws/knowledge/citations/retention/governance/law-citations/references/ai). UNPORTED_READS stays TS: people, runtime-health, release-acceptance, features, rule-impact, processing, export, evidence, hold-preview. Route packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts imports ~14 TS barrels at lines 3-23 and calls them at ~14 GET sites; add client wrappers in packages/feature-legal/src/adapters/server/native-legal.ts (pattern: createNativeLegalClient call(transport,config,incoming,actor,path,body)), switch the ported ops, keep the 9 unported on TS, then delete unreachable barrels + adapter SELECTs (verify zero importers repo-wide), run tests/integration/legal + unit, record SELECT KPI before/after. Active run run-20261117-axum-b."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -44126,17 +44112,17 @@
       "migratedPackets": 129,
       "statusCounts": {
         "pending": 26,
-        "in_progress": 3,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 129,
-        "blocked": 77,
+        "blocked": 79,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 122,
-    "updatedAt": "2026-11-17T05:43:28.444Z",
+    "lastCoordinatorGeneration": 123,
+    "updatedAt": "2026-11-17T06:58:42.731Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44181,10 +44167,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261117-axum-close",
-      "runId": "run-20261117-axum-b",
-      "at": "2026-11-17T05:38:11.698Z",
-      "reason": "Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
+      "previousRunId": "run-20261117-axum-b",
+      "runId": "run-20261117-axum-c",
+      "at": "2026-11-17T06:51:35.748Z",
+      "reason": "Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
       "wipReviewed": true,
       "previousRunStopped": true
     },
