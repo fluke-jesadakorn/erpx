@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3086,
+    "revision": 3089,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261117-axum-c",
+      "runId": "run-20261117-axum-d",
       "agentId": "lead",
-      "startedAt": "2026-11-17T06:51:35.746Z",
-      "heartbeatAt": "2026-11-17T06:58:42.730Z",
-      "expiresAt": "2026-11-17T07:28:42.730Z",
-      "generation": 123,
-      "tokenHash": "5a67c983021ec37b5dae727a590b6495e8097f913acbcaf29cd2826e639566d5"
+      "startedAt": "2026-11-17T07:40:15.286Z",
+      "heartbeatAt": "2026-11-17T07:40:15.286Z",
+      "expiresAt": "2026-11-17T08:10:15.287Z",
+      "generation": 124,
+      "tokenHash": "0c7ddf57cb91650a15b5efdfeac177324db776e2a85dfe67c65cb33b64acf846"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -36698,12 +36698,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261117-axum-c",
+          "runId": "run-20261117-axum-d",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-17T06:51:35.840Z",
-          "heartbeatAt": "2026-11-17T06:58:42.730Z",
-          "expiresAt": "2026-11-17T07:28:42.730Z",
-          "generation": 123
+          "claimedAt": "2026-11-17T07:40:24.321Z",
+          "heartbeatAt": "2026-11-17T07:40:24.321Z",
+          "expiresAt": "2026-11-17T08:10:24.321Z",
+          "generation": 124
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
@@ -36802,13 +36802,13 @@
           }
         ],
         "blocker": null,
-        "nextAction": "Corrected classification: completeSale is LIVE via Stripe webhook->checkPayment->complete_sale job (application/pos-stripe.ts:985, drained by server-runtime jobs). Worker builds native Stripe-completion writer (owner crate + composition pos.rs mount + feature-pos webhook switch); lead switches server-runtime jobs drain; only after PG parity do the TS completeSale path, exclusive members, sale.complete branch and pos-stripe pieces retire.",
+        "nextAction": "DEEP DISCOVERY (solo): native sale_complete EXISTS (application/commands.rs:2820), sale.complete in NATIVE_POS_COMMANDS; missing path = SYSTEM ACTOR for Stripe jobs (native commands need WorkContext+authority, Stripe has no user session). To retire TS completeSale: native drain subcommand (pattern position_gpo_worker.rs + main.rs:219 + jobs.ts runNativePositionGpoWorker) calling execute_pos_command with scoped system PosActor, verify pos.test.ts parity, then delete TS. ENV BLOCKER: dev jobs runtime dead; erpx_files_claim_legacy_scan missing (migration 1078 not applied in dev DB) -> 3100 degraded. Active run run-20261117-axum-d.",
         "handoff": {
-          "runId": "run-20261117-axum-b",
+          "runId": "run-20261117-axum-c",
           "agentId": "worker-a",
-          "at": "2026-11-17T06:51:35.746Z",
+          "at": "2026-11-17T07:40:15.285Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
+          "reason": "Recovery: Previous run lease expired during solo discovery; WIP reviewed, no worker edits, recording POS system-actor gap and env blocker",
           "nextAction": "Corrected classification: completeSale is LIVE via Stripe webhook->checkPayment->complete_sale job (application/pos-stripe.ts:985, drained by server-runtime jobs). Worker builds native Stripe-completion writer (owner crate + composition pos.rs mount + feature-pos webhook switch); lead switches server-runtime jobs drain; only after PG parity do the TS completeSale path, exclusive members, sale.complete branch and pos-stripe pieces retire."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -44121,8 +44121,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 123,
-    "updatedAt": "2026-11-17T06:58:42.731Z",
+    "lastCoordinatorGeneration": 124,
+    "updatedAt": "2026-11-17T07:40:24.366Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44167,10 +44167,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261117-axum-b",
-      "runId": "run-20261117-axum-c",
-      "at": "2026-11-17T06:51:35.748Z",
-      "reason": "Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
+      "previousRunId": "run-20261117-axum-c",
+      "runId": "run-20261117-axum-d",
+      "at": "2026-11-17T07:40:15.287Z",
+      "reason": "Previous run lease expired during solo discovery; WIP reviewed, no worker edits, recording POS system-actor gap and env blocker",
       "wipReviewed": true,
       "previousRunStopped": true
     },
