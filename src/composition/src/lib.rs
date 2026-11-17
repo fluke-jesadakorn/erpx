@@ -185,6 +185,7 @@ pub mod sales_notification_reconciliation;
 pub mod customer_portal_invitation_worker;
 #[cfg(feature = "existing-business")]
 pub mod position_gpo_worker;
+pub mod pos_stripe_worker;
 pub mod user_management_worker;
 #[cfg(feature = "position-gpo-connector")]
 pub mod directory_operation_worker;

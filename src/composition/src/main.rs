@@ -230,6 +230,21 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             Ok(())
         }
         #[cfg(feature = "existing-business")]
+        [command, once, option, path, holding_flag, holding]
+            if command == "pos-stripe-worker"
+                && once == "--once"
+                && option == "--database-manifest"
+                && holding_flag == "--holding" =>
+        {
+            let outcome = erpx_service::pos_stripe_worker::run_once_file(
+                std::path::Path::new(path),
+                holding,
+            )
+            .await?;
+            println!("{outcome}");
+            Ok(())
+        }
+        #[cfg(feature = "existing-business")]
         [command, once, option, path, company_flag, company]
             if command == "user-management-worker"
                 && once == "--once"

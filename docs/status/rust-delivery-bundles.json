@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3093,
+    "revision": 3097,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261117-axum-d",
       "agentId": "lead",
       "startedAt": "2026-11-17T07:40:15.286Z",
-      "heartbeatAt": "2026-11-17T07:54:30.691Z",
-      "expiresAt": "2026-11-17T08:24:30.691Z",
+      "heartbeatAt": "2026-11-17T08:21:03.806Z",
+      "expiresAt": "2026-11-17T08:51:03.806Z",
       "generation": 124,
       "tokenHash": "0c7ddf57cb91650a15b5efdfeac177324db776e2a85dfe67c65cb33b64acf846"
     },
@@ -36701,8 +36701,8 @@
           "runId": "run-20261117-axum-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-17T07:40:24.321Z",
-          "heartbeatAt": "2026-11-17T07:54:30.691Z",
-          "expiresAt": "2026-11-17T08:24:30.691Z",
+          "heartbeatAt": "2026-11-17T08:21:03.806Z",
+          "expiresAt": "2026-11-17T08:51:03.806Z",
           "generation": 124
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -36802,7 +36802,7 @@
           }
         ],
         "blocker": null,
-        "nextAction": "ENV UPDATE: dev jobs runtime RESTARTED successfully (PID 71567, bundle rebuilt with next-server-navigation plugin + BETTER_AUTH_SECRET); erpx_files_claim_legacy_scan EXISTS in dev H001 DB (old log was stale). 3100 still 503/CLAMAV_DEFINITIONS_STALE: freshclam download fails signature test with both mirrors (likely outdated ClamAV client) — scanner remains the only health blocker. MIGRATION: PosActor::system() landed at 7e6a56e8e; next build pos_stripe_worker.rs using public owner helpers, wire main.rs + jobs.ts:60, PG parity pos.test.ts before TS deletion.",
+        "nextAction": "NATIVE WORKER BUILT: src/composition/src/pos_stripe_worker.rs (complete_sale only, public owner ports, advisory lock, lease claim, finance/inventory writeback) + main.rs subcommand pos-stripe-worker; cargo check -p erpx-service passes; manual run against dev h001 returns applied:0/errors:[]. TS binding REVERTED: pos.test.ts baseline 3 failed/98 passed at HEAD; with TS drain filter + native-port call 15 failed (disposable test DB not in ERPX_DATABASE_MANIFEST, native worker cannot reach test DB). Next: make native executor use the test DB (pass connection from adapter or test manifest) before switching jobs.ts; do not ship dual writers. ENV: jobs runtime PID 92888 alive; 3100 still 503 from stale ClamAV signatures.",
         "handoff": {
           "runId": "run-20261117-axum-c",
           "agentId": "worker-a",
@@ -44122,7 +44122,7 @@
       }
     },
     "lastCoordinatorGeneration": 124,
-    "updatedAt": "2026-11-17T07:54:30.737Z",
+    "updatedAt": "2026-11-17T08:21:13.913Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
