@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3104,
+    "revision": 3107,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261117-axum-d",
+      "runId": "run-20261118-fluke",
       "agentId": "lead",
-      "startedAt": "2026-11-17T07:40:15.286Z",
-      "heartbeatAt": "2026-11-17T08:56:03.169Z",
-      "expiresAt": "2026-11-17T09:26:03.169Z",
-      "generation": 124,
-      "tokenHash": "0c7ddf57cb91650a15b5efdfeac177324db776e2a85dfe67c65cb33b64acf846"
+      "startedAt": "2026-11-17T19:15:10.160Z",
+      "heartbeatAt": "2026-11-17T19:15:10.160Z",
+      "expiresAt": "2026-11-17T19:45:10.161Z",
+      "generation": 125,
+      "tokenHash": "695afaf9fe01218fc601a391be2965decf78e793a8e7685d5fef2082ac6607e3"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -36698,16 +36698,16 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261117-axum-d",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-17T07:40:24.321Z",
-          "heartbeatAt": "2026-11-17T08:56:03.169Z",
-          "expiresAt": "2026-11-17T09:26:03.169Z",
-          "generation": 124
+          "runId": "run-20261118-fluke",
+          "agentId": "lead",
+          "claimedAt": "2026-11-17T19:16:44.622Z",
+          "heartbeatAt": "2026-11-17T19:16:44.622Z",
+          "expiresAt": "2026-11-17T19:46:44.622Z",
+          "generation": 125
         },
-        "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
+        "baseSha": "6ff5c7dca112064d7bd395b7d60cd6152a9c727c",
         "implementedCommit": null,
-        "lastPushedSha": null,
+        "lastPushedSha": "4ec2e1fcc8d3be03ddb56586d81e400db2eaf460",
         "checks": [
           {
             "command": "cargo test -p erpx-server-pos --test pos_commands",
@@ -36802,14 +36802,14 @@
           }
         ],
         "blocker": null,
-        "nextAction": "ROOT CAUSE FOUND AND FIXED: native worker sale read failed with POS_COMMAND_SERIALIZABLE_REQUIRED; added SET TRANSACTION ISOLATION LEVEL SERIALIZABLE in pos_stripe_worker.rs. Verified: single pos.test.ts case passes natively (worker applied 1). Full suite with TS binding: 13 failed/88 passed vs baseline 3 failed/98 passed — residual parity gaps in native sale_complete application (stock quantity 10000 vs 9000, POS command receipt mismatches, refund original money-evidence identity). TS binding REVERTED to baseline; tests currently 3 failed/98 passed. Worker kept (builds, single job verified). Next: fix owner-level sale_complete parity in packages/server-pos/src/application/commands.rs (money evidence + stock consumption + receipt), then re-bind drainPos and delete TS completeSale.",
+        "nextAction": "WIP committed as 4ec2e1fcc and pushed via local checkout (remote VM tree reset to 6ff5c7dca; machine-local devcontainer bind changes left uncommitted there). TS binding at baseline (suite 3 failed/98 passed). Next: fix owner-level sale_complete parity in packages/server-pos/src/application/commands.rs (money evidence identity + stock consumption + receipt), then re-bind drainPos and delete TS completeSale.",
         "handoff": {
-          "runId": "run-20261117-axum-c",
+          "runId": "run-20261117-axum-d",
           "agentId": "worker-a",
-          "at": "2026-11-17T07:40:15.285Z",
+          "at": "2026-11-17T19:15:10.160Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run lease expired during solo discovery; WIP reviewed, no worker edits, recording POS system-actor gap and env blocker",
-          "nextAction": "Corrected classification: completeSale is LIVE via Stripe webhook->checkPayment->complete_sale job (application/pos-stripe.ts:985, drained by server-runtime jobs). Worker builds native Stripe-completion writer (owner crate + composition pos.rs mount + feature-pos webhook switch); lead switches server-runtime jobs drain; only after PG parity do the TS completeSale path, exclusive members, sale.complete branch and pos-stripe pieces retire."
+          "reason": "Recovery: Lead took over from expired run-20261117-axum-d; worker-a WIP reviewed, committed 4ec2e1fcc and pushed via local checkout",
+          "nextAction": "ROOT CAUSE FOUND AND FIXED: native worker sale read failed with POS_COMMAND_SERIALIZABLE_REQUIRED; added SET TRANSACTION ISOLATION LEVEL SERIALIZABLE in pos_stripe_worker.rs. Verified: single pos.test.ts case passes natively (worker applied 1). Full suite with TS binding: 13 failed/88 passed vs baseline 3 failed/98 passed — residual parity gaps in native sale_complete application (stock quantity 10000 vs 9000, POS command receipt mismatches, refund original money-evidence identity). TS binding REVERTED to baseline; tests currently 3 failed/98 passed. Worker kept (builds, single job verified). Next: fix owner-level sale_complete parity in packages/server-pos/src/application/commands.rs (money evidence + stock consumption + receipt), then re-bind drainPos and delete TS completeSale."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -44121,8 +44121,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 124,
-    "updatedAt": "2026-11-17T08:56:03.170Z",
+    "lastCoordinatorGeneration": 125,
+    "updatedAt": "2026-11-17T19:16:44.680Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44167,10 +44167,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261117-axum-c",
-      "runId": "run-20261117-axum-d",
-      "at": "2026-11-17T07:40:15.287Z",
-      "reason": "Previous run lease expired during solo discovery; WIP reviewed, no worker edits, recording POS system-actor gap and env blocker",
+      "previousRunId": "run-20261117-axum-d",
+      "runId": "run-20261118-fluke",
+      "at": "2026-11-17T19:15:10.162Z",
+      "reason": "Lead took over from expired run-20261117-axum-d; worker-a WIP reviewed, committed 4ec2e1fcc and pushed via local checkout",
       "wipReviewed": true,
       "previousRunStopped": true
     },
