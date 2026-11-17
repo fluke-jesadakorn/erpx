@@ -313,141 +313,6 @@ async fn process_one(
     .await
     .map_err(|_| "POS_STRIPE_COMMAND_FAILED")?;
     drop(repository);
-    if !inventory.parts.is_empty() {
-        consume_pos_parts(
-            connection,
-            &inventory
-                .parts
-                .iter()
-                .map(|part| InventoryConsumptionPart {
-                    fulfillment_id: part.fulfillment_id.clone(),
-                    warehouse_id: part.warehouse_id.clone(),
-                    product_id: part.product_id.clone(),
-                    quantity_milli: part.quantity_milli,
-                    expected_value_minor: part.expected_value_minor,
-                })
-                .collect::<Vec<_>>(),
-        )
-        .await
-        .map_err(|_| "POS_STRIPE_CONSUMPTION_FAILED")?;
-    }
-    if !inventory.returns.is_empty() {
-        return Err("POS_STRIPE_RETURNS_UNSUPPORTED");
-    }
-    let finance_actor = FinanceActor {
-        user_id: actor.user_id.clone(),
-        holding_id: actor.holding_id.clone(),
-        company_id: actor.company_id.clone(),
-        assignment_id: actor.assignment_id.clone(),
-    };
-    for request in finance.journals {
-        let posting = PosJournalPosting {
-            journal_id: format!("journal-{}", request.source_key),
-            actor: finance_actor.clone(),
-            chart_id: request.chart_id,
-            currency: request.currency,
-            business_date: request.business_date,
-            memo: format!("POS {}", request.source_key),
-            source_key: request.source_key,
-            source_id: request.source_id,
-            lines: request
-                .lines
-                .into_iter()
-                .map(|line| FinancePosJournalLine {
-                    account_id: line.account_id,
-                    debit_minor: line.debit,
-                    credit_minor: line.credit,
-                })
-                .collect(),
-        };
-        post_pos_journal(connection, &FixedClock(TimestampMillis::new(now_ms)), &posting)
-            .await
-            .map_err(|_| "POS_STRIPE_JOURNAL_FAILED")?;
-    }
-    for receipt in finance.receipts {
-        let pos_payment_id = receipt.pos_payment_id.clone();
-        let finance_payment_id = receipt.finance_payment_id.clone();
-        insert_pos_receipt(
-            connection,
-            &PosReceiptRecord {
-                finance_payment_id: receipt.finance_payment_id,
-                company_id: receipt.company_id.as_str().to_owned(),
-                party_id: receipt.party_id,
-                payment_number: receipt.number,
-                payment_date: receipt.payment_date,
-                currency: receipt.currency,
-                amount_minor: receipt.amount_minor,
-                account_id: receipt.account_id,
-                journal_id: receipt.journal_id,
-                actor_id: receipt.actor_id.as_str().to_owned(),
-                now: receipt.now.get(),
-            },
-        )
-        .await
-        .map_err(|_| "POS_STRIPE_RECEIPT_FAILED")?;
-        PgPosCommandRepository::new(connection)
-            .attach_finance_payment(&pos_payment_id, &finance_payment_id)
-            .await
-            .map_err(|_| "POS_STRIPE_RECEIPT_ATTACH_FAILED")?;
-    }
-    for invoice in finance.invoices {
-        insert_pos_invoice(
-            connection,
-            &PosInvoiceRecord {
-                invoice_id: invoice.invoice_id.clone(),
-                company_id: invoice.company_id.as_str().to_owned(),
-                party_id: invoice.party_id,
-                number: invoice.number,
-                invoice_date: invoice.invoice_date,
-                currency: invoice.currency,
-                subtotal_minor: invoice.subtotal_minor,
-                tax_minor: invoice.tax_minor,
-                total_minor: invoice.total_minor,
-                receivable_account_id: invoice.receivable_account_id,
-                revenue_account_id: invoice.revenue_account_id,
-                tax_account_id: invoice.tax_account_id,
-                journal_id: invoice.journal_id,
-                source_id: invoice.sale_id.clone(),
-                actor_id: invoice.actor_id.as_str().to_owned(),
-                now: invoice.now.get(),
-            },
-        )
-        .await
-        .map_err(|_| "POS_STRIPE_INVOICE_FAILED")?;
-        PgPosCommandRepository::new(connection)
-            .attach_invoice(&invoice.sale_id, &invoice.invoice_id)
-            .await
-            .map_err(|_| "POS_STRIPE_INVOICE_ATTACH_FAILED")?;
-    }
-    for refund in finance.refund_payments {
-        insert_pos_refund_payment(
-            connection,
-            &PosReceiptRecord {
-                finance_payment_id: refund.finance_payment_id,
-                company_id: refund.company_id.as_str().to_owned(),
-                party_id: refund.party_id,
-                payment_number: refund.number,
-                payment_date: refund.payment_date,
-                currency: refund.currency,
-                amount_minor: refund.amount_minor,
-                account_id: refund.account_id,
-                journal_id: refund.journal_id,
-                actor_id: refund.actor_id.as_str().to_owned(),
-                now: refund.now.get(),
-            },
-        )
-        .await
-        .map_err(|_| "POS_STRIPE_REFUND_FAILED")?;
-    }
-    for (bank_transaction_id, finance_payment_id) in finance.bank_matches {
-        erpx_server_finance::public::pos_sources::attach_pos_bank_payment(
-            connection,
-            &bank_transaction_id,
-            &finance_payment_id,
-        )
-        .await
-        .map_err(|_| "POS_STRIPE_BANK_MATCH_FAILED")?;
-    }
     let _ = result;
     let _ = job.payload.as_deref();
     let _ = token;
@@ -490,6 +355,10 @@ async fn run_once(pool: &DatabasePool, holding: &str) -> Result<String, &'static
             .begin()
             .await
             .map_err(|_| "POS_STRIPE_TRANSACTION_UNAVAILABLE")?;
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| "POS_STRIPE_TRANSACTION_ISOLATION_FAILED")?;
         let token = uuid_v4();
         let now_ms = now();
         let claimed: Option<(String, String, String, Option<String>)> = sqlx::query_as(
@@ -505,7 +374,7 @@ async fn run_once(pool: &DatabasePool, holding: &str) -> Result<String, &'static
         .bind(now_ms)
         .fetch_optional(&mut *tx)
         .await
-        .map_err(|e| { eprintln!("POS_STRIPE_JOB_CLAIM_ERROR: {e:?}"); "POS_STRIPE_JOB_CLAIM_FAILED" })?;
+        .map_err(|_| "POS_STRIPE_JOB_CLAIM_FAILED")?;
         let Some((id, company_id, record_id, payload)) = claimed else {
             tx.commit().await.map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
             break;
@@ -530,7 +399,6 @@ async fn run_once(pool: &DatabasePool, holding: &str) -> Result<String, &'static
                 applied += 1;
             }
             Err(code) => {
-                eprintln!("POS_STRIPE_JOB_ERROR: {job_id} {code}");
                 sqlx::query(
                     "UPDATE pos_jobs SET state='pending',next_attempt_at=$1,last_error=$2, \
                      lease_until=NULL,lease_token=NULL WHERE id=$3 AND lease_token=$4",

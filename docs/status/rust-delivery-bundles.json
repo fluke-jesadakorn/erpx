@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3099,
+    "revision": 3101,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261117-axum-d",
       "agentId": "lead",
       "startedAt": "2026-11-17T07:40:15.286Z",
-      "heartbeatAt": "2026-11-17T08:26:18.421Z",
-      "expiresAt": "2026-11-17T08:56:18.421Z",
+      "heartbeatAt": "2026-11-17T08:45:21.532Z",
+      "expiresAt": "2026-11-17T09:15:21.532Z",
       "generation": 124,
       "tokenHash": "0c7ddf57cb91650a15b5efdfeac177324db776e2a85dfe67c65cb33b64acf846"
     },
@@ -36701,8 +36701,8 @@
           "runId": "run-20261117-axum-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-17T07:40:24.321Z",
-          "heartbeatAt": "2026-11-17T08:26:18.421Z",
-          "expiresAt": "2026-11-17T08:56:18.421Z",
+          "heartbeatAt": "2026-11-17T08:45:21.532Z",
+          "expiresAt": "2026-11-17T09:15:21.532Z",
           "generation": 124
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -36802,7 +36802,7 @@
           }
         ],
         "blocker": null,
-        "nextAction": "BINDING BLOCKED (documented): native pos_stripe_worker.rs builds and runs (dev h001 applied:0), but wiring TS drain to it makes pos.test.ts go 3->15 failures because the suite resolves @erpx/server-pos/public/pos-stripe to a copied workspace app (not root source) and the native executor cannot see that disposable test DB. Reverted TS binding; tests back to baseline 3 failed/98 passed. Next: find the test-runner workspace alias/DB manifest the suite actually uses, or add a native test harness invoking pos-stripe-worker with that manifest; only then switch jobs.ts/drainPos and delete TS completeSale. ENV: jobs runtime alive; 3100 still degraded (ClamAV signature refresh fails).",
+        "nextAction": "ROOT CAUSE FOUND AND FIXED: native worker sale read failed with POS_COMMAND_SERIALIZABLE_REQUIRED; added SET TRANSACTION ISOLATION LEVEL SERIALIZABLE in pos_stripe_worker.rs. Verified: single pos.test.ts case passes natively (worker applied 1). Full suite with TS binding: 13 failed/88 passed vs baseline 3 failed/98 passed — residual parity gaps in native sale_complete application (stock quantity 10000 vs 9000, POS command receipt mismatches, refund original money-evidence identity). TS binding REVERTED to baseline; tests currently 3 failed/98 passed. Worker kept (builds, single job verified). Next: fix owner-level sale_complete parity in packages/server-pos/src/application/commands.rs (money evidence + stock consumption + receipt), then re-bind drainPos and delete TS completeSale.",
         "handoff": {
           "runId": "run-20261117-axum-c",
           "agentId": "worker-a",
@@ -44122,7 +44122,7 @@
       }
     },
     "lastCoordinatorGeneration": 124,
-    "updatedAt": "2026-11-17T08:26:18.466Z",
+    "updatedAt": "2026-11-17T08:45:21.587Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
