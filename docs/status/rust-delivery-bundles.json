@@ -43808,7 +43808,7 @@
         "coordination.bootstrap",
         "retire.benefits.executive-evidence"
       ],
-      "verifiedPushedCheckpoint": "6aa4279c74fc45a3926b051e8cba2b153ba5a3f6",
+      "verifiedPushedCheckpoint": "887c82064d631b6ebf6fa576f9f6eef118f5e7f0",
       "remoteVerifiedAt": "2026-11-16T17:21:47Z",
       "summary": "Native Benefits executive evidence is route-authoritative through a new owner read, private HTTP route, native SDK request, Runtime-owned audit and central dispatch; TypeScript evidence adapter/application/domain/public barrels are deleted and the native-seeded PostgreSQL oracle passes. Owner KPI fell 3 -> 2 and the residual two attachment-purchase writers are classified under retire.benefits.attachment-purchase. Four unsupported migrated packets were downgraded, stale SHAs/KPI reconciled, and remote SHA verified. Full migration retirement remains incomplete.",
       "nextGoal": "G3",
@@ -43853,7 +43853,7 @@
       "wipReviewed": true,
       "previousRunStopped": true
     },
-    "lastPushedSha": "6aa4279c74fc45a3926b051e8cba2b153ba5a3f6",
+    "lastPushedSha": "887c82064d631b6ebf6fa576f9f6eef118f5e7f0",
     "lastKpi": 1960,
     "statusCounts": {
       "done": 51,
