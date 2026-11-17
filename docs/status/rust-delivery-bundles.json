@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3044,
+    "revision": 3079,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261117-axum-close",
+      "runId": "run-20261117-axum-b",
       "agentId": "lead",
-      "startedAt": "2026-11-17T04:51:35.559Z",
-      "heartbeatAt": "2026-11-17T04:51:40.020Z",
-      "expiresAt": "2026-11-17T05:21:40.020Z",
-      "generation": 121,
-      "tokenHash": "fe5443e85d2986ff3b8a1692719bd1be4e5ed5696932fe527028040c6042b41e"
+      "startedAt": "2026-11-17T05:38:11.697Z",
+      "heartbeatAt": "2026-11-17T05:43:28.399Z",
+      "expiresAt": "2026-11-17T06:13:28.399Z",
+      "generation": 122,
+      "tokenHash": "14b0b3f1a01d890550cdeda4ffaef68f48ea3d5ce67f7ba610af5a6ee961509a"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -20747,11 +20747,11 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
-        "lastPushedSha": "6c567cf1ba47a8ae635686efb786f2f5f0d2f147",
+        "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
+        "implementedCommit": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
+        "lastPushedSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "checks": [
           {
             "command": "cargo test -p erpx-server-people-payroll --test payroll_run_postgres -- --test-threads=1",
@@ -20856,18 +20856,316 @@
             "before": 2354,
             "after": 2353,
             "note": "Global owner KPI drops by exactly the one deleted payroll-run create writer."
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll",
+            "result": "passed",
+            "sourceSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
+            "note": "Checkpoint base compiles after payroll-run scope verified deleted."
+          },
+          {
+            "command": "bun run test:unit -- --suite=people_payroll.services.unit",
+            "result": "passed",
+            "sourceSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
+            "note": "59/59 at checkpoint a8722f1b3 (suite id renamed from people-services.unit)."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
+            "before": 326,
+            "after": 289,
+            "residual": [
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-payroll.ts",
+                "writes": 44,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle.ts",
+                "writes": 25,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-roster.ts",
+                "writes": 21,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation.ts",
+                "writes": 16,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-self-service.ts",
+                "writes": 15,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/technology-provisioning-facts.ts",
+                "writes": 14,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle-jobs.ts",
+                "writes": 11,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-ai.ts",
+                "writes": 10,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-adjustments.ts",
+                "writes": 10,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-directory.ts",
+                "writes": 10,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave.ts",
+                "writes": 8,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/overtime.ts",
+                "writes": 8,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expenses.ts",
+                "writes": 7,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-recoveries.ts",
+                "writes": 7,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-workflow.ts",
+                "writes": 6,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-readiness.ts",
+                "writes": 6,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation-ai.ts",
+                "writes": 6,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/roster-position-exit.ts",
+                "writes": 6,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-payments.ts",
+                "writes": 4,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-person-link-effects.ts",
+                "writes": 4,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-directory-facts.ts",
+                "writes": 4,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-templates.ts",
+                "writes": 4,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/beta-onboarding-effects.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/final-pay-cancellation.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-lifecycle-worker-effects.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-defaults.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-draft-placement.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-handoffs.ts",
+                "writes": 3,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/calendar-commands-facts.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-drafts.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-leave-legacy-facts.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-department-relocation.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-deductions.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-statutory.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/worker-startup.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/attachments-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/commerce-expense-payment-effects.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/directory-operation-facts.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-payment-cancellation.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-applied-package-effects.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-review-evidence-effects.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-leave-self-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-staff-settings-facts.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-payslips.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.people_payroll.calculate-post-native-observation",
+                "removalCondition": "Native owner port replaces these TypeScript writers; deletion owned by migrate.people_payroll.calculate-post-native-observation."
+              }
+            ],
+            "note": "Payroll-run scope at zero: create/cancel/calculate/post writers, stage effects, readers and route fallbacks verified deleted at a8722f1b3. Owner residual belongs to the listed sibling tasks."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "BLOCKED on oracle migration (removalTaskId: migrate.people_payroll.calculate-post-native-observation). calculatePayrollRun and postPayroll routes are already native-only; their TS application/adapter/stage-effect writers remain because payroll-core, payroll-statutory, self-service and IAM oracles call them directly for statutory math and posting. Removal condition: the native observation helper runs the Rust private-api calculate/post against the suite DBs, the four oracle files are converted, then the TS calculatePayrollRun/postPayroll writers, stage effects and exports are deleted and the People Payroll KPI pair (326 -> 323 target) is recorded. Create/readers are already retired.",
+        "blocker": null,
+        "nextAction": "Closed at a8722f1b3; oracle-observation gap stays with migrate.people_payroll.calculate-post-native-observation",
         "handoff": {
-          "runId": "run-20261113-g",
-          "agentId": "lead",
-          "at": "2026-11-13T03:51:25.196Z",
-          "previousStatus": "in_progress",
+          "runId": "run-20261117-axum-close",
+          "agentId": "worker-b",
+          "at": "2026-11-17T05:02:15.217Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "BLOCKED on oracle migration (removalTaskId: migrate.people_payroll.calculate-post-native-observation). calculatePayrollRun and postPayroll routes are already native-only; their TS application/adapter/stage-effect writers remain because payroll-core, payroll-statutory, self-service and IAM oracles call them directly for statutory math and posting. Removal condition: the native observation helper runs the Rust private-api calculate/post against the suite DBs, the four oracle files are converted, then the TS calculatePayrollRun/postPayroll writers, stage effects and exports are deleted and the People Payroll KPI pair (326 -> 323 target) is recorded. Create/readers are already retired."
+          "nextAction": "Lead records migrated with checkpoint checks"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -24894,7 +25192,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -24917,14 +25215,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "BLOCKED ON A NATIVE OWNER VERTICAL: calendar-commands-facts.ts holds 26 live writes for POST /calendar with no native calendar tables or command module. Required before retirement: native identity calendar access/account/IT-assignee ports, operations eligible-person source, people_payroll roster reschedule + preparation/clearance + purchase witnesses, files calendar attachment binding, collaboration inbox publish, then the native work_projection calendar domain/application/adapter and lead composition mount + workplace route switch. Retained TS 26 writes; owner KPI 41 stays.",
+        "nextAction": "BLOCKED: no native calendar exists anywhere (no .rs references calendar_appointments/series/announcements). Lead: build native work_projection calendar vertical (domain/application/adapter + composition mount + route switch) before this deletion packet can run.",
         "handoff": {
-          "runId": "run-20261113-i",
-          "agentId": "worker-wp-calendar",
-          "at": "2026-11-13T05:25:35.180Z",
+          "runId": "run-20261117-axum-close",
+          "agentId": "worker-c",
+          "at": "2026-11-17T05:03:37.108Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "BLOCKED ON A NATIVE OWNER VERTICAL: calendar-commands-facts.ts holds 26 live writes for POST /calendar with no native calendar tables or command module. Required before retirement: native identity calendar access/account/IT-assignee ports, operations eligible-person source, people_payroll roster reschedule + preparation/clearance + purchase witnesses, files calendar attachment binding, collaboration inbox publish, then the native work_projection calendar domain/application/adapter and lead composition mount + workplace route switch. Retained TS 26 writes; owner KPI 41 stays."
+          "nextAction": "BLOCKED: no native calendar exists anywhere (no .rs references calendar_appointments/series/announcements). Lead: build native work_projection calendar vertical (domain/application/adapter + composition mount + route switch) before this deletion packet can run."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -24960,20 +25258,20 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead: dispatch the cross-owner approval callers to native commands; this packet then deletes approval-planning.ts (18) and its exports.",
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED: native port incomplete (only task branch in staff_approval.rs); live TS callers remain in operations/legal/records/people_payroll. Lead: dispatch cross-owner caller switches + build native approval-planning vertical for expense/leave/overtime/legal kinds before re-claim.",
         "handoff": {
-          "runId": "run-20261113-c",
-          "agentId": "worker-workflow-retire",
-          "at": "2026-11-12T22:24:12.005Z",
+          "runId": "run-20261117-axum-close",
+          "agentId": "worker-c",
+          "at": "2026-11-17T05:03:37.022Z",
           "previousStatus": "blocked",
-          "reason": "handoff",
-          "nextAction": "Lead: dispatch the cross-owner approval callers to native commands; this packet then deletes approval-planning.ts (18) and its exports."
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED: native port incomplete (only task branch in staff_approval.rs); live TS callers remain in operations/legal/records/people_payroll. Lead: dispatch cross-owner caller switches + build native approval-planning vertical for expense/leave/overtime/legal kinds before re-claim."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -36386,7 +36684,8 @@
           "src/composition/src/pos.rs",
           "src/composition/src/private_development_api.rs",
           "src/composition/Cargo.toml",
-          "tests/catalogue/suite-manifest.json"
+          "tests/catalogue/suite-manifest.json",
+          "tests/support/helpers/pos-native-seed.ts"
         ],
         "resources": [
           "owner:pos",
@@ -36397,9 +36696,16 @@
           "owner:commerce",
           "resource:composition"
         ],
-        "status": "blocked",
-        "claim": null,
-        "baseSha": "4b1723460963f08f7c236e7fb223b3c1d56d269f",
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261117-axum-b",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-17T05:38:11.783Z",
+          "heartbeatAt": "2026-11-17T05:43:28.399Z",
+          "expiresAt": "2026-11-17T06:13:28.399Z",
+          "generation": 122
+        },
+        "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -36495,17 +36801,18 @@
             "removalCondition": "Complete same-transaction Organization, PMS, Commerce, Finance and IAM witnesses; prove report, digest and errors parity, mount native authority, migrate fixtures and tests, then delete TS paths and exports and verify KPI decrease."
           }
         ],
-        "blocker": "handoff",
-        "nextAction": "Source 4b1723460963f08f7c236e7fb223b3c1d56d269f; preserve uncommitted SHA-256 receipt and retained report-source witness. Locked compile and leased native-seeded PG replay, conflict, rollback, same-unit drift, phantom and cross-unit witness tests pass. Design pre-snapshot NOWAIT lock ordering across existing POS source locks and foreign owner writers; current witness cannot see concurrent commits and Commerce warehouse candidates are too broad. Bind real IAM, PMS, Finance, Commerce, Organization authority and actual warehouse scope, prove full route/client parity, migrate fixtures and remove TS pos-daily plus exports under removalTaskId retire.pos.residual. HEAD POS KPI 83, total 1962; no native route cutover.",
+        "blocker": null,
+        "nextAction": "Corrected classification: completeSale is LIVE via Stripe webhook->checkPayment->complete_sale job (application/pos-stripe.ts:985, drained by server-runtime jobs). Worker builds native Stripe-completion writer (owner crate + composition pos.rs mount + feature-pos webhook switch); lead switches server-runtime jobs drain; only after PG parity do the TS completeSale path, exclusive members, sale.complete branch and pos-stripe pieces retire.",
         "handoff": {
-          "runId": "run-20261115-quality-n",
-          "agentId": "worker-pos",
-          "at": "2026-11-15T08:04:46.817Z",
+          "runId": "run-20261117-axum-close",
+          "agentId": "worker-a",
+          "at": "2026-11-17T05:38:11.697Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Source 4b1723460963f08f7c236e7fb223b3c1d56d269f; preserve uncommitted SHA-256 receipt and retained report-source witness. Locked compile and leased native-seeded PG replay, conflict, rollback, same-unit drift, phantom and cross-unit witness tests pass. Design pre-snapshot NOWAIT lock ordering across existing POS source locks and foreign owner writers; current witness cannot see concurrent commits and Commerce warehouse candidates are too broad. Bind real IAM, PMS, Finance, Commerce, Organization authority and actual warehouse scope, prove full route/client parity, migrate fixtures and remove TS pos-daily plus exports under removalTaskId retire.pos.residual. HEAD POS KPI 83, total 1962; no native route cutover."
+          "reason": "Recovery: Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
+          "nextAction": "Corrected classification: completeSale is LIVE via Stripe webhook->checkPayment->complete_sale job (application/pos-stripe.ts:985, drained by server-runtime jobs). Worker builds native Stripe-completion writer (owner crate + composition pos.rs mount + feature-pos webhook switch); lead switches server-runtime jobs drain; only after PG parity do the TS completeSale path, exclusive members, sale.complete branch and pos-stripe pieces retire."
         },
-        "procedureRef": "executionPlan.sliceProcedure"
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       },
       {
         "id": "migrate.finance.supplier-batches",
@@ -41039,16 +41346,30 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "pending",
-        "claim": null,
-        "baseSha": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261117-axum-b",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-17T05:38:11.866Z",
+          "heartbeatAt": "2026-11-17T05:43:28.399Z",
+          "expiresAt": "2026-11-17T06:13:28.399Z",
+          "generation": 122
+        },
+        "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Rank the 397 SELECT statements in packages/server-inventory/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "nextAction": "Partial landed+verified by lead (SELECT 397->395, quality-lot/quality-workspace-lots retired after native-consumer switch). Resume classification of the remaining ~395 SELECTs by live consumer; switch families with existing native ports, classify presentation/transport residuals with removalCondition.",
+        "handoff": {
+          "runId": "run-20261117-axum-close",
+          "agentId": "worker-c",
+          "at": "2026-11-17T05:38:11.697Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
+          "nextAction": "Partial landed+verified by lead (SELECT 397->395, quality-lot/quality-workspace-lots retired after native-consumer switch). Resume classification of the remaining ~395 SELECTs by live consumer; switch families with existing native ports, classify presentation/transport residuals with removalCondition."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -41074,16 +41395,30 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261117-axum-b",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-17T05:38:11.825Z",
+          "heartbeatAt": "2026-11-17T05:43:28.399Z",
+          "expiresAt": "2026-11-17T06:13:28.399Z",
+          "generation": 122
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Rank the 307 SELECT statements in packages/server-legal/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "nextAction": "SWITCH RECIPE (discovery done at a8722f1b3): native auxiliary router is mounted (src/composition/src/private_development_api.rs legal_auxiliary_targets -> legal_auxiliary_router, URL /api/v1/holdings/{holding_slug}/legal/{*path}, parse_auxiliary_path covers workspace/reports/trust/views/laws/knowledge/citations/retention/governance/law-citations/references/ai). UNPORTED_READS stays TS: people, runtime-health, release-acceptance, features, rule-impact, processing, export, evidence, hold-preview. Route packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts imports ~14 TS barrels at lines 3-23 and calls them at ~14 GET sites; add client wrappers in packages/feature-legal/src/adapters/server/native-legal.ts (pattern: createNativeLegalClient call(transport,config,incoming,actor,path,body)), switch the ported ops, keep the 9 unported on TS, then delete unreachable barrels + adapter SELECTs (verify zero importers repo-wide), run tests/integration/legal + unit, record SELECT KPI before/after. Active run run-20261117-axum-b.",
+        "handoff": {
+          "runId": "run-20261117-axum-close",
+          "agentId": "worker-b",
+          "at": "2026-11-17T05:38:11.697Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
+          "nextAction": "Rank the 307 SELECT statements in packages/server-legal/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -43788,20 +44123,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 235,
-      "migratedPackets": 128,
+      "migratedPackets": 129,
       "statusCounts": {
-        "pending": 28,
-        "in_progress": 0,
+        "pending": 26,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 128,
-        "blocked": 79,
+        "migrated": 129,
+        "blocked": 77,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 121,
-    "updatedAt": "2026-11-17T04:51:40.022Z",
+    "lastCoordinatorGeneration": 122,
+    "updatedAt": "2026-11-17T05:43:28.444Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -43846,10 +44181,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261116-retirement-j",
-      "runId": "run-20261117-axum-close",
-      "at": "2026-11-17T04:51:35.559Z",
-      "reason": "Previous run heartbeat stale 21m; no live coordinator process, no lock mutex, HEAD matches remote b970501c1, dirty WIP reviewed for single checkpoint commit",
+      "previousRunId": "run-20261117-axum-close",
+      "runId": "run-20261117-axum-b",
+      "at": "2026-11-17T05:38:11.698Z",
+      "reason": "Previous run lease expired (detached heartbeat loop killed by harness); WIP reviewed: inventory partial committed 0f5c6e2, POS Stripe slice in flight under worker-a, claims re-taken",
       "wipReviewed": true,
       "previousRunStopped": true
     },
