@@ -4,10 +4,11 @@ use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
     PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
     PosBankTransaction, PosConsumptionPart, PosFulfillmentReturnFacts, PosFulfillmentSplitFacts,
-    PosFulfillmentStock, PosInventoryPort, PosInvoiceRequest, PosLineDetail, PosLineDiscountRow,
-    PosLineInsert, PosLineSplitRow, PosOperation, PosOrganizationPort, PosPayment, PosPaymentInsert,
-    PosPaymentRefundRow, PosReceipt, PosReceiptRequest, PosRefund, PosRefundDetail, PosRefundLineRow,
-    PosRefundPaymentRequest, PosReturnPart, PosStockRow,
+    PosFulfillmentStock, PosInventoryPort, PosInvoiceAllocationRequest, PosInvoiceRequest,
+    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation,
+    PosOrganizationPort, PosPayment, PosPaymentInsert, PosPaymentRefundRow, PosReceipt,
+    PosReceiptRequest, PosRefund, PosRefundDetail, PosRefundLineRow, PosRefundPaymentRequest,
+    PosReturnPart, PosSaleMoneyRequest, PosSettledPayment, PosStockRow,
     PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
@@ -519,6 +520,9 @@ impl PosCommandRepository for Probe {
     fn sale_succeeded_payments<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Vec<PosPaymentRefundRow>> {
         Box::pin(async { Ok(Vec::new()) })
     }
+    fn sale_settled_payments<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Vec<PosSettledPayment>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
     fn refund_line<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, Option<PosRefundLineRow>> {
         Box::pin(async { Ok(None) })
     }
@@ -740,6 +744,21 @@ impl PosFinancePort for Finance {
     }
     fn record_refund_payment<'a>(&'a mut self, request: &'a PosRefundPaymentRequest) -> PosFuture<'a, ()> {
         self.calls.push(format!("refund-payment:{}", request.amount_minor));
+        Box::pin(async { Ok(()) })
+    }
+    fn capture_sale_money<'a>(&'a mut self, request: &'a PosSaleMoneyRequest) -> PosFuture<'a, ()> {
+        self.calls.push(format!("sale-money:{}:{}", request.source_id, request.amount_units));
+        Box::pin(async { Ok(()) })
+    }
+    fn allocate_invoice<'a>(
+        &'a mut self,
+        request: &'a PosInvoiceAllocationRequest,
+    ) -> PosFuture<'a, ()> {
+        self.calls.push(format!(
+            "allocate:{}:{}",
+            request.invoice_id,
+            request.allocations.len()
+        ));
         Box::pin(async { Ok(()) })
     }
 }

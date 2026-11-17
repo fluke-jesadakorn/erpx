@@ -549,6 +549,45 @@ pub struct PosStockRow {
     pub reserved_milli: i64,
     pub value_minor: i64,
 }
+/// Exact immutable money evidence the POS owner requires for a completed
+/// sale. Finance owns the snapshot row; POS only states which sale, kind and
+/// amount the evidence must describe.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosSaleMoneyRequest {
+    pub company_id: CompanyId,
+    pub source_type: String,
+    pub source_id: String,
+    pub amount_kind: String,
+    pub transaction_date: String,
+    pub currency: String,
+    pub currency_scale: i64,
+    pub amount_units: i64,
+    pub now: TimestampMillis,
+}
+/// One settled POS payment allocated to the completed sale invoice.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosInvoiceAllocation {
+    pub finance_payment_id: String,
+    pub amount_minor: i64,
+}
+/// Exact Finance allocation facts for the completed POS sale invoice.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosInvoiceAllocationRequest {
+    pub company_id: CompanyId,
+    pub invoice_id: String,
+    pub party_id: Option<String>,
+    pub allocations: Vec<PosInvoiceAllocation>,
+    pub actor_id: UserId,
+    pub now: TimestampMillis,
+}
+/// One settled POS payment with the Finance receipt it must allocate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosSettledPayment {
+    pub id: String,
+    pub finance_payment_id: Option<String>,
+    pub amount_minor: i64,
+    pub refunded_minor: i64,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosPayment {
     pub id: String,

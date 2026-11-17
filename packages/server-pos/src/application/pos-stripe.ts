@@ -399,6 +399,7 @@ export type PosStripeUnit = {
         emergencyUntil?: number | null;
         freshUntil: number | null;
     }>;
+    drainNativeCompleteSales(arg0: string): Promise<void>;
     completeSale(arg0: PosRow, arg1: "system:stripe", arg2: string | undefined): Promise<{
         id: string | number | boolean | null;
         state: string;
@@ -1058,6 +1059,7 @@ export function createPosStripe(ports: {
                 ports.leases.cancel(renew);
             }
         }
+        await db.drainNativeCompleteSales(holdingId);
     }
     async function drainAllPos() {
         const env = await ports.resources();

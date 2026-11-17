@@ -9,10 +9,11 @@ use crate::domain::commands::{
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosFulfillmentSplitFacts,
     PosFulfillmentStock, PosJournalLine, PosJournalRequest, PosLine, PosLineDetail,
     PaymentCancelTransferInput, PaymentVerifyTransferInput, PosBankTransaction, PosConsumptionPart,
-    PosFulfillmentReturnFacts, PosInvoiceRequest, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
-    PosOperation, PosPayment, PosPaymentInsert, PosPaymentRefundRow, PosReceipt, PosReceiptRequest,
-    PosRefund, PosRefundDetail, PosRefundLineRow, PosRefundPaymentRequest, PosRegister, PosResult,
-    PosReturnPart, PosSale, PosSettings, PosShift, PosStockRow,
+    PosFulfillmentReturnFacts, PosInvoiceAllocation, PosInvoiceAllocationRequest, PosInvoiceRequest,
+    PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation, PosPayment, PosPaymentInsert,
+    PosPaymentRefundRow, PosReceipt, PosReceiptRequest, PosRefund, PosRefundDetail,
+    PosRefundLineRow, PosRefundPaymentRequest, PosRegister, PosResult, PosReturnPart, PosSale,
+    PosSaleMoneyRequest, PosSettledPayment, PosSettings, PosShift, PosStockRow,
     RefundApproveInput, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput,
     SaleCustomerInput,
     SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
@@ -441,6 +442,12 @@ pub trait PosCommandRepository: Send {
         &'a mut self,
         sale_id: &'a str,
     ) -> PosFuture<'a, Vec<PosPaymentRefundRow>, Self::Error>;
+    /// Read the settled payments of the sale together with the Finance receipt
+    /// each one must allocate to the completed invoice.
+    fn sale_settled_payments<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> PosFuture<'a, Vec<PosSettledPayment>, Self::Error>;
     fn refund_line<'a>(
         &'a mut self,
         sale_id: &'a str,
@@ -565,6 +572,20 @@ pub trait PosFinancePort: Send {
     fn record_refund_payment<'a>(
         &'a mut self,
         request: &'a PosRefundPaymentRequest,
+    ) -> PosFuture<'a, ()>;
+    /// Capture the immutable money evidence for the completed sale. The
+    /// snapshot row belongs to Finance; a sale without its evidence cannot be
+    /// refunded later, so the completion must state the exact source.
+    fn capture_sale_money<'a>(
+        &'a mut self,
+        request: &'a PosSaleMoneyRequest,
+    ) -> PosFuture<'a, ()>;
+    /// Allocate the settled POS payments to the completed sale invoice. The
+    /// allocation rows belong to Finance and must reference the exact payment
+    /// and invoice identities the POS owner already recorded.
+    fn allocate_invoice<'a>(
+        &'a mut self,
+        request: &'a PosInvoiceAllocationRequest,
     ) -> PosFuture<'a, ()>;
 }
 pub trait PosInventoryPort: Send {
@@ -3079,7 +3100,7 @@ where
     }
     finance
         .record_invoice(&PosInvoiceRequest {
-            invoice_id,
+            invoice_id: invoice_id.clone(),
             company_id: actor.company_id.clone(),
             party_id: sale.party_id.clone(),
             number: sale.number.clone(),
@@ -3094,6 +3115,47 @@ where
             journal_id,
             sale_id: sale.id.clone(),
             actor_id: actor.user_id.clone(),
+            now,
+        })
+        .await
+        .map_err(R::Error::from)?;
+    // The settled payments allocate to the invoice they paid, and the sale
+    // keeps the immutable money evidence a later refund must reverse.
+    let settled = repository.sale_settled_payments(&sale.id).await?;
+    let allocations = settled
+        .into_iter()
+        .filter_map(|payment| {
+            payment
+                .finance_payment_id
+                .map(|finance_payment_id| PosInvoiceAllocation {
+                    finance_payment_id,
+                    amount_minor: payment.amount_minor - payment.refunded_minor,
+                })
+        })
+        .collect::<Vec<_>>();
+    if !allocations.is_empty() {
+        finance
+            .allocate_invoice(&PosInvoiceAllocationRequest {
+                company_id: actor.company_id.clone(),
+                invoice_id: invoice_id.clone(),
+                party_id: sale.party_id.clone(),
+                allocations,
+                actor_id: actor.user_id.clone(),
+                now,
+            })
+            .await
+            .map_err(R::Error::from)?;
+    }
+    finance
+        .capture_sale_money(&PosSaleMoneyRequest {
+            company_id: actor.company_id.clone(),
+            source_type: "pos_sale".to_owned(),
+            source_id: sale.id.clone(),
+            amount_kind: "total".to_owned(),
+            transaction_date: sale.business_date.clone(),
+            currency: sale.currency.clone(),
+            currency_scale: 2,
+            amount_units: sale.total_minor,
             now,
         })
         .await

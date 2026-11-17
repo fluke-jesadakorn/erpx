@@ -160,6 +160,7 @@ pub mod platform_iam;
 pub mod pms;
 pub mod routine_commands;
 pub mod pos;
+pub mod pos_effects;
 pub mod procurement;
 #[cfg(feature = "existing-business")]
 pub mod projects;

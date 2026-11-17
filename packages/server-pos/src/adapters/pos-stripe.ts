@@ -3,6 +3,9 @@ import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-bind
 import 'server-only';
 import {holdingRoutingEnabled,holdingOrigin,holdingUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const nativeExec = promisify(execFile);
 import { type PosAccounts } from "@erpx/server-pos/public/rules/pos";
 import { resourceSlots } from "@erpx/feature-runtime/lib/holding-registry";
 import { runtimeEnv, holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
@@ -301,7 +304,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             now2: number;
             companyId: string | null;
             companyId2: string | null;
-        }) => one(db, "UPDATE pos_jobs SET state='running',lease_token=?,lease_until=?,attempts=attempts+1 WHERE id=(SELECT id FROM pos_jobs WHERE (state='pending' OR state='running' AND lease_until<?) AND next_attempt_at<=? AND (?::text IS NULL OR company_id=?) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *", facts.token, facts.fact1, facts.now, facts.now2, facts.companyId, facts.companyId2),
+        }) => one(db, "UPDATE pos_jobs SET state='running',lease_token=?,lease_until=?,attempts=attempts+1 WHERE id=(SELECT id FROM pos_jobs WHERE kind<>'complete_sale' AND (state='pending' OR state='running' AND lease_until<?) AND next_attempt_at<=? AND (?::text IS NULL OR company_id=?) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *", facts.token, facts.fact1, facts.now, facts.now2, facts.companyId, facts.companyId2),
         writePosJobs2: (facts: {
             fact0: number;
             id: string | number | boolean | null;
@@ -337,6 +340,12 @@ function unit(db: SqlDatabase): PosStripeUnit {
             credit: number;
         }[]) => posting(db, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8),
         loadIamAuthority: (arg0: string, arg1: string, arg2: string) => loadIamAuthority(db, arg0, arg1, arg2),
+        drainNativeCompleteSales: async (holdingId: string) => {
+            const binary=process.env.ERPX_NATIVE_SERVER_BIN,manifest=process.env.ERPX_DATABASE_MANIFEST;
+            if(!binary||!manifest)throw Object.assign(new Error('The native POS Stripe worker is not configured.'),{code:'NATIVE_POS_STRIPE_WORKER_REQUIRED'});
+            try{const result=await nativeExec(binary,['pos-stripe-worker','--once','--database-manifest',manifest,'--holding',holdingId],{timeout:120_000,maxBuffer:2*1024*1024,env:process.env,windowsHide:true});console.error('NATIVE_WORKER_OUT',result.stdout,result.stderr);}
+            catch(error){console.error('NATIVE_WORKER_ERR',error);throw Object.assign(new Error('The native POS Stripe worker did not complete.'),{code:'NATIVE_POS_STRIPE_WORKER_FAILED'});}
+        },
         completeSale: (arg0: PosRow, arg1: "system:stripe", arg2: string | undefined) => completeSale(db, arg0, arg1, arg2),
         controlOne1: (facts: {
             arg0: string;

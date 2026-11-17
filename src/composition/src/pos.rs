@@ -2,15 +2,12 @@
 //! remains with the selected coordinator; owner ports supply the POS cash
 //! movement command facts.
 use crate::business_http::BusinessScopeSlugs;
+use crate::pos_effects::{PosEffectFlush, flush_pos_effects};
 use erpx_server_commerce::public::pos_catalog::{lock_pos_catalog, read_pos_catalog_product};
 use erpx_server_finance::public::FinanceActor;
-use erpx_server_finance::public::pos_journal::{
-    PosInvoiceRecord, PosJournalLine as FinancePosJournalLine, PosJournalPosting, PosReceiptRecord,
-    insert_pos_invoice, insert_pos_receipt, insert_pos_refund_payment, post_pos_journal,
-};
 use erpx_server_finance::public::pos_sources::{
-    PosBankTransaction as PosBankSnapshot, attach_pos_bank_payment, finance_party_exists,
-    lock_pos_finance_sources, read_open_period_for_date, read_pos_bank_transaction,
+    PosBankTransaction as PosBankSnapshot, finance_party_exists, lock_pos_finance_sources,
+    read_open_period_for_date, read_pos_bank_transaction,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -23,9 +20,6 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_inventory::public::availability_read::{
     lock_availability_sources, read_availability,
-};
-use erpx_server_inventory::public::pos_consumption::{
-    PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts, return_pos_parts,
 };
 use erpx_server_organization::public::pos_issuer::{
     lock_pos_issuer_source, read_company_display_name,
@@ -53,9 +47,9 @@ use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosBankTransaction as PosDomainBankTransaction,
     PosCatalogProduct as PosCatalogSnapshotProduct, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosCommandRepository, PosConsumptionPart, PosFinancePort, PosFuture,
-    PosHospitalityPort, PosInventoryPort, PosInvoiceRequest, PosJournalRequest,
-    PosOrganizationPort, PosReceiptRequest, PosRefundPaymentRequest, PosResult, PosReturnPart,
-    PosStockRow, execute_pos_command,
+    PosHospitalityPort, PosInventoryPort, PosInvoiceAllocationRequest, PosInvoiceRequest,
+    PosJournalRequest, PosOrganizationPort, PosReceiptRequest, PosRefundPaymentRequest, PosResult,
+    PosReturnPart, PosSaleMoneyRequest, PosStockRow, execute_pos_command,
 };
 use erpx_server_pos::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
@@ -132,6 +126,8 @@ struct PosFinanceQueue {
     receipts: Vec<PosReceiptRequest>,
     invoices: Vec<PosInvoiceRequest>,
     refund_payments: Vec<PosRefundPaymentRequest>,
+    sale_money: Vec<PosSaleMoneyRequest>,
+    invoice_allocations: Vec<PosInvoiceAllocationRequest>,
     bank: Option<PosBankSnapshot>,
     bank_matches: Vec<(String, String)>,
 }
@@ -250,6 +246,26 @@ impl PosFinancePort for PosFinanceQueue {
     ) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.refund_payments.push(request.clone());
+            Ok(())
+        })
+    }
+
+    fn capture_sale_money<'a>(
+        &'a mut self,
+        request: &'a PosSaleMoneyRequest,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.sale_money.push(request.clone());
+            Ok(())
+        })
+    }
+
+    fn allocate_invoice<'a>(
+        &'a mut self,
+        request: &'a PosInvoiceAllocationRequest,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.invoice_allocations.push(request.clone());
             Ok(())
         })
     }
@@ -705,6 +721,8 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             receipts: Vec::new(),
                             invoices: Vec::new(),
                             refund_payments: Vec::new(),
+                            sale_money: Vec::new(),
+                            invoice_allocations: Vec::new(),
                             bank,
                             bank_matches: Vec::new(),
                         };
@@ -725,156 +743,30 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                         )
                         .await?;
                         drop(repository);
-                        if !inventory.parts.is_empty() {
-                            consume_pos_parts(
-                                connection,
-                                &inventory
-                                    .parts
-                                    .iter()
-                                    .map(|part| InventoryConsumptionPart {
-                                        fulfillment_id: part.fulfillment_id.clone(),
-                                        warehouse_id: part.warehouse_id.clone(),
-                                        product_id: part.product_id.clone(),
-                                        quantity_milli: part.quantity_milli,
-                                        expected_value_minor: part.expected_value_minor,
-                                    })
-                                    .collect::<Vec<_>>(),
-                            )
-                            .await
-                            .map_err(business)?;
-                        }
-                        if !inventory.returns.is_empty() {
-                            return_pos_parts(
-                                connection,
-                                &inventory
-                                    .returns
-                                    .iter()
-                                    .map(|part| InventoryConsumptionPart {
-                                        fulfillment_id: part.fulfillment_id.clone(),
-                                        warehouse_id: part.warehouse_id.clone(),
-                                        product_id: part.product_id.clone(),
-                                        quantity_milli: part.quantity_milli,
-                                        expected_value_minor: part.expected_value_minor,
-                                    })
-                                    .collect::<Vec<_>>(),
-                            )
-                            .await
-                            .map_err(business)?;
-                        }
                         let finance_actor = FinanceActor {
                             user_id: actor.user_id.clone(),
                             holding_id: actor.holding_id.clone(),
                             company_id: actor.company_id.clone(),
                             assignment_id: actor.assignment_id.clone(),
                         };
-                        for request in finance.journals {
-                            let posting = PosJournalPosting {
-                                journal_id: format!("journal-{}", request.source_key),
-                                actor: finance_actor.clone(),
-                                chart_id: request.chart_id,
-                                currency: request.currency,
-                                business_date: request.business_date,
-                                memo: format!("POS {}", request.source_key),
-                                source_key: request.source_key,
-                                source_id: request.source_id,
-                                lines: request
-                                    .lines
-                                    .into_iter()
-                                    .map(|line| FinancePosJournalLine {
-                                        account_id: line.account_id,
-                                        debit_minor: line.debit,
-                                        credit_minor: line.credit,
-                                    })
-                                    .collect(),
-                            };
-                            post_pos_journal(connection, clock.as_ref(), &posting)
-                                .await
-                                .map_err(business)?;
-                        }
-                        for receipt in finance.receipts {
-                            let pos_payment_id = receipt.pos_payment_id.clone();
-                            let finance_payment_id = receipt.finance_payment_id.clone();
-                            insert_pos_receipt(
-                                connection,
-                                &PosReceiptRecord {
-                                    finance_payment_id: receipt.finance_payment_id,
-                                    company_id: receipt.company_id.as_str().to_owned(),
-                                    party_id: receipt.party_id,
-                                    payment_number: receipt.number,
-                                    payment_date: receipt.payment_date,
-                                    currency: receipt.currency,
-                                    amount_minor: receipt.amount_minor,
-                                    account_id: receipt.account_id,
-                                    journal_id: receipt.journal_id,
-                                    actor_id: receipt.actor_id.as_str().to_owned(),
-                                    now: receipt.now.get(),
-                                },
-                            )
-                            .await
-                            .map_err(business)?;
-                            PgPosCommandRepository::new(connection)
-                                .attach_finance_payment(&pos_payment_id, &finance_payment_id)
-                                .await
-                                .map_err(business)?;
-                        }
-                        for invoice in finance.invoices {
-                            insert_pos_invoice(
-                                connection,
-                                &PosInvoiceRecord {
-                                    invoice_id: invoice.invoice_id.clone(),
-                                    company_id: invoice.company_id.as_str().to_owned(),
-                                    party_id: invoice.party_id,
-                                    number: invoice.number,
-                                    invoice_date: invoice.invoice_date,
-                                    currency: invoice.currency,
-                                    subtotal_minor: invoice.subtotal_minor,
-                                    tax_minor: invoice.tax_minor,
-                                    total_minor: invoice.total_minor,
-                                    receivable_account_id: invoice.receivable_account_id,
-                                    revenue_account_id: invoice.revenue_account_id,
-                                    tax_account_id: invoice.tax_account_id,
-                                    journal_id: invoice.journal_id,
-                                    source_id: invoice.sale_id.clone(),
-                                    actor_id: invoice.actor_id.as_str().to_owned(),
-                                    now: invoice.now.get(),
-                                },
-                            )
-                            .await
-                            .map_err(business)?;
-                            PgPosCommandRepository::new(connection)
-                                .attach_invoice(&invoice.sale_id, &invoice.invoice_id)
-                                .await
-                                .map_err(business)?;
-                        }
-                        for refund_payment in finance.refund_payments {
-                            insert_pos_refund_payment(
-                                connection,
-                                &PosReceiptRecord {
-                                    finance_payment_id: refund_payment.finance_payment_id,
-                                    company_id: refund_payment.company_id.as_str().to_owned(),
-                                    party_id: refund_payment.party_id,
-                                    payment_number: refund_payment.number,
-                                    payment_date: refund_payment.payment_date,
-                                    currency: refund_payment.currency,
-                                    amount_minor: refund_payment.amount_minor,
-                                    account_id: refund_payment.account_id,
-                                    journal_id: refund_payment.journal_id,
-                                    actor_id: refund_payment.actor_id.as_str().to_owned(),
-                                    now: refund_payment.now.get(),
-                                },
-                            )
-                            .await
-                            .map_err(business)?;
-                        }
-                        for (bank_transaction_id, finance_payment_id) in finance.bank_matches {
-                            attach_pos_bank_payment(
-                                connection,
-                                &bank_transaction_id,
-                                &finance_payment_id,
-                            )
-                            .await
-                            .map_err(business)?;
-                        }
+                        flush_pos_effects(
+                            connection,
+                            clock.as_ref(),
+                            &finance_actor,
+                            PosEffectFlush {
+                                journals: &finance.journals,
+                                receipts: &finance.receipts,
+                                invoices: &finance.invoices,
+                                refund_payments: &finance.refund_payments,
+                                sale_money: &finance.sale_money,
+                                invoice_allocations: &finance.invoice_allocations,
+                                bank_matches: &finance.bank_matches,
+                                consumption: &inventory.parts,
+                                returns: &inventory.returns,
+                            },
+                        )
+                        .await
+                        .map_err(business)?;
                         Ok(PosCommandHttpResponse {
                             data: result.to_wire(),
                             context: context(current),

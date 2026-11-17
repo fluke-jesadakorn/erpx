@@ -4,8 +4,9 @@
 use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosBankTransaction, PosCatalogProduct, PosCatalogSnapshot,
     PosCommand, PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort,
-    PosInvoiceRequest, PosJournalRequest, PosOperation, PosOrganizationPort, PosRefundPaymentRequest,
-    PosReceiptRequest, PosResult, PosReturnPart, PosStockRow, execute_pos_command,
+    PosInvoiceAllocationRequest, PosInvoiceRequest, PosJournalRequest, PosOperation,
+    PosOrganizationPort, PosRefundPaymentRequest, PosReceiptRequest, PosResult, PosReturnPart,
+    PosSaleMoneyRequest, PosStockRow, execute_pos_command,
 };
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
@@ -67,6 +68,15 @@ impl PosFinancePort for Finance {
         Box::pin(async { Ok(()) })
     }
     fn record_refund_payment<'a>(&'a mut self, _: &'a PosRefundPaymentRequest) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn capture_sale_money<'a>(&'a mut self, _: &'a PosSaleMoneyRequest) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn allocate_invoice<'a>(
+        &'a mut self,
+        _: &'a PosInvoiceAllocationRequest,
+    ) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
 }

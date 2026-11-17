@@ -6,11 +6,9 @@
 //! and commits the exact queued Finance/Inventory effects on the same
 //! serializable Holding unit. The retained TypeScript `drainPos` must invoke
 //! this worker and fails closed without it; there is no TS completion fallback.
+use crate::pos_effects::{PosEffectFlush, flush_pos_effects};
 use erpx_server_finance::public::FinanceActor;
-use erpx_server_finance::public::pos_journal::{
-    PosInvoiceRecord, PosJournalLine as FinancePosJournalLine, PosJournalPosting, PosReceiptRecord,
-    insert_pos_invoice, insert_pos_receipt, insert_pos_refund_payment, post_pos_journal,
-};
+use erpx_server_finance::public::FinanceActor;
 use erpx_server_finance::public::pos_sources::{read_open_period_for_date, PosBankTransaction as PosBankSnapshot};
 use erpx_server_inventory::public::availability_read::read_availability;
 use erpx_server_inventory::public::pos_consumption::{PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts};
@@ -18,9 +16,10 @@ use erpx_server_organization::public::pos_issuer::read_company_display_name;
 use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosBankTransaction as PosDomainBankTransaction,
     PosCommand, PosCommandInput, PosCommandRepository, PosConsumptionPart, PosFinancePort,
-    PosFuture, PosHospitalityPort, PosInventoryPort, PosInvoiceRequest, PosJournalRequest,
-    PosOperation, PosOrganizationPort, PosReceiptRequest, PosRefundPaymentRequest, PosResult,
-    PosReturnPart, PosStockRow, execute_pos_command,
+    PosFuture, PosHospitalityPort, PosInventoryPort, PosInvoiceAllocationRequest,
+    PosInvoiceRequest, PosJournalRequest, PosOperation, PosOrganizationPort, PosReceiptRequest,
+    PosRefundPaymentRequest, PosResult, PosReturnPart, PosSaleMoneyRequest, PosStockRow,
+    execute_pos_command,
 };
 use erpx_server_runtime::public::postgres::{DatabaseConfig, DatabasePool, PoolLimits, connect_pool};
 use erpx_server_shared::public::{
@@ -96,6 +95,8 @@ struct DrainFinance {
     receipts: Vec<PosReceiptRequest>,
     invoices: Vec<PosInvoiceRequest>,
     refund_payments: Vec<PosRefundPaymentRequest>,
+    sale_money: Vec<PosSaleMoneyRequest>,
+    invoice_allocations: Vec<PosInvoiceAllocationRequest>,
     bank: Option<PosBankSnapshot>,
     bank_matches: Vec<(String, String)>,
 }
@@ -189,6 +190,21 @@ impl PosFinancePort for DrainFinance {
     fn record_refund_payment<'a>(&'a mut self, request: &'a PosRefundPaymentRequest) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.refund_payments.push(request.clone());
+            Ok(())
+        })
+    }
+    fn capture_sale_money<'a>(&'a mut self, request: &'a PosSaleMoneyRequest) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.sale_money.push(request.clone());
+            Ok(())
+        })
+    }
+    fn allocate_invoice<'a>(
+        &'a mut self,
+        request: &'a PosInvoiceAllocationRequest,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.invoice_allocations.push(request.clone());
             Ok(())
         })
     }
@@ -292,6 +308,8 @@ async fn process_one(
         receipts: Vec::new(),
         invoices: Vec::new(),
         refund_payments: Vec::new(),
+        sale_money: Vec::new(),
+        invoice_allocations: Vec::new(),
         bank: None,
         bank_matches: Vec::new(),
     };
@@ -313,6 +331,35 @@ async fn process_one(
     .await
     .map_err(|_| "POS_STRIPE_COMMAND_FAILED")?;
     drop(repository);
+    // The native command decided the exact owner effects on this unit. Write
+    // them with the owning Rust owners before the job is marked complete.
+    let finance_actor = FinanceActor {
+        user_id: actor.user_id.clone(),
+        holding_id: actor.holding_id.clone(),
+        company_id: actor.company_id.clone(),
+        assignment_id: actor.assignment_id.clone(),
+    };
+    flush_pos_effects(
+        connection,
+        &FixedClock(TimestampMillis::new(now_ms)),
+        &finance_actor,
+        PosEffectFlush {
+            journals: &finance.journals,
+            receipts: &finance.receipts,
+            invoices: &finance.invoices,
+            refund_payments: &finance.refund_payments,
+            sale_money: &finance.sale_money,
+            invoice_allocations: &finance.invoice_allocations,
+            bank_matches: &finance.bank_matches,
+            consumption: &inventory.parts,
+            returns: &inventory.returns,
+        },
+    )
+    .await
+    .map_err(|error| {
+        eprintln!("POS_STRIPE_FLUSH_ERROR: {error:?}");
+        "POS_STRIPE_EFFECTS_FAILED"
+    })?;
     let _ = result;
     let _ = job.payload.as_deref();
     let _ = token;
@@ -399,18 +446,30 @@ async fn run_once(pool: &DatabasePool, holding: &str) -> Result<String, &'static
                 applied += 1;
             }
             Err(code) => {
+                // The unit failed. Roll it back so no partial owner effect is
+                // retained, then record the retryable job state on its own
+                // unit so the failure is visible and recoverable.
+                tx.rollback()
+                    .await
+                    .map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
+                let mut retry_tx = connection
+                    .begin()
+                    .await
+                    .map_err(|_| "POS_STRIPE_TRANSACTION_UNAVAILABLE")?;
                 sqlx::query(
                     "UPDATE pos_jobs SET state='pending',next_attempt_at=$1,last_error=$2, \
-                     lease_until=NULL,lease_token=NULL WHERE id=$3 AND lease_token=$4",
+                     lease_until=NULL,lease_token=NULL WHERE id=$3",
                 )
                 .bind(now_ms + 60_000)
                 .bind(code)
                 .bind(&job_id)
-                .bind(&token)
-                .execute(&mut *tx)
+                .execute(&mut *retry_tx)
                 .await
                 .map_err(|_| "POS_STRIPE_JOB_RETRY_FAILED")?;
-                tx.commit().await.map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
+                retry_tx
+                    .commit()
+                    .await
+                    .map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
                 errors.push(format!("{job_id}:{code}"));
                 break;
             }

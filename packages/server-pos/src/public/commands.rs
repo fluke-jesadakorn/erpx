@@ -9,6 +9,7 @@ pub use crate::domain::commands::{
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
     PaymentCancelTransferInput, PaymentVerifyTransferInput, PosBankTransaction, PosConsumptionPart,
     PosFulfillmentReturnFacts, PosFulfillmentSplitFacts, PosFulfillmentStock, PosInvoiceRequest,
+    PosInvoiceAllocation, PosInvoiceAllocationRequest, PosSaleMoneyRequest, PosSettledPayment,
     PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosPayment,
     PosPaymentRefundRow, PosRefundDetail, PosRefundLineRow, PosRefundPaymentRequest, PosReturnPart,
     PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale,

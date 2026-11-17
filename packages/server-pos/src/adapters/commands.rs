@@ -8,6 +8,7 @@ use crate::domain::commands::{
     PosFulfillmentReturnFacts, PosFulfillmentStock, PosLineSplitRow, PosPayment, PosPaymentInsert,
     PosPaymentRefundRow, PosReceipt, PosRefund, PosRefundDetail, PosRefundLineRow, PosRegister,
     PosSale, PosSettings,
+    PosSettledPayment,
     PosShift, RefundRequestInput, SaleCreateInput,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -1581,6 +1582,29 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                     Ok(PosPaymentRefundRow {
                         id: row.try_get("id")?,
                         method: row.try_get("method")?,
+                        amount_minor: row.try_get("amount_minor")?,
+                        refunded_minor: row.try_get("refunded_minor")?,
+                    })
+                })
+                .collect()
+        })
+    }
+    fn sale_settled_payments<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, Vec<PosSettledPayment>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query(
+                "SELECT id,finance_payment_id,amount_minor,refunded_minor FROM pos_payments \
+                 WHERE sale_id=$1 AND state='succeeded' AND amount_minor>refunded_minor \
+                 ORDER BY created_at DESC,id FOR UPDATE",
+            )
+            .bind(sale_id)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            rows.into_iter()
+                .map(|row| {
+                    Ok(PosSettledPayment {
+                        id: row.try_get("id")?,
+                        finance_payment_id: row.try_get("finance_payment_id")?,
                         amount_minor: row.try_get("amount_minor")?,
                         refunded_minor: row.try_get("refunded_minor")?,
                     })
