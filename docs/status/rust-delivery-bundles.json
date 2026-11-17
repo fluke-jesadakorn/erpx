@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3037,
+    "revision": 3042,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261116-retirement-i",
+      "runId": "run-20261116-retirement-j",
       "agentId": "lead",
-      "startedAt": "2026-11-16T16:44:46.605Z",
-      "heartbeatAt": "2026-11-16T16:44:46.605Z",
-      "expiresAt": "2026-11-16T17:14:46.605Z",
-      "generation": 119,
-      "tokenHash": "25a27a78272bb66ba290a8e1c57c22604fd30a2f93e38c220cc696db4da9fed9"
+      "startedAt": "2026-11-17T04:00:17.689Z",
+      "heartbeatAt": "2026-11-17T04:00:17.689Z",
+      "expiresAt": "2026-11-17T04:30:17.691Z",
+      "generation": 120,
+      "tokenHash": "3c6fe70566b3d2c7903070a0f14dcdb71edc71f92c779d473e67662dcb38c9ab"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -9830,6 +9830,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
+        "retireTaskId": "retire.brand.attachment-facts",
         "nextAction": "Create a bounded retirement task with exact owner/feature-route/composition/test paths and close it with a native-seeded KPI delta before restoring migrated status",
         "handoff": {
           "runId": "run-20261112-e",
@@ -10348,6 +10349,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
+        "retireTaskId": "retire.platform_administration.operations-writers",
         "nextAction": "Create a bounded retirement task with exact owner/feature-route/composition/test paths and close it with a native-seeded KPI delta before restoring migrated status",
         "handoff": {
           "runId": "run-20261110-g1",
@@ -13336,6 +13338,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
+        "retireTaskId": "retire.planning.production-command-sources",
         "nextAction": "Create a bounded retirement task with exact owner/feature-route/composition/test paths and close it with a native-seeded KPI delta before restoring migrated status",
         "handoff": {
           "runId": "run-20261110-g1",
@@ -17831,6 +17834,7 @@
         ],
         "retainedLegacy": [],
         "blocker": "Downgraded: migrated transition lacked a retirement check and covering retire task",
+        "retireTaskId": "retire.commercial.purchase-boundary",
         "handoff": {
           "runId": "run-20261112-b",
           "agentId": "worker-commercial",
@@ -43585,6 +43589,196 @@
           "Native-seeded attachment oracle preserving source/IAM/package guards and assertion cleanup",
           "Retirement check reducing Benefits writes from 2 to 0"
         ]
+      },
+      {
+        "id": "retire.brand.attachment-facts",
+        "goalId": "G3",
+        "owner": "brand",
+        "workflowIds": [],
+        "workstream": "S03",
+        "kind": "migration",
+        "title": "Retire Brand attachment publication TypeScript writers",
+        "scope": "Replace the four TypeScript organization_brand_profiles/storefront_app_brands publication writes in attachments-service-facts.ts with native owner authority inside the Files attachment transaction. Include exact native client/route parity, Files consumer switch, public barrel removal, native-seeded oracle and KPI 4 -> 0. Do not delete the TS facts until native route authority is proven.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "files.attachment-read",
+          "runtime.unit-of-work",
+          "brand.owner-source"
+        ],
+        "allowedPaths": [
+          "packages/server-brand/src/adapters/attachments-service-facts.ts",
+          "packages/server-brand/src/adapters/attachment-read-sources.ts",
+          "packages/server-brand/src/public/attachments-service-facts.ts",
+          "packages/server-brand/src/public/attachment-read.ts",
+          "packages/server-brand/package.json",
+          "packages/server-files/src/adapters/attachments/service.ts",
+          "packages/server-files/src/adapters/attachments/policy.ts",
+          "packages/server-files/src/application/attachments/service.ts",
+          "packages/feature-brand/src/**",
+          "src/composition/src/branding.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/integration/brand/**",
+          "tests/integration/files/**",
+          "tests/unit/brand/**"
+        ],
+        "resources": [
+          "owner:brand",
+          "owner:files",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Freeze the native Brand publication-source contract and Files transaction seam, then claim exact paths and implement native authority before deleting the four TS writers.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.operations-writers",
+        "goalId": "G3",
+        "owner": "platform_administration",
+        "workflowIds": [],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Retire Platform Administration TypeScript operations writers",
+        "scope": "Bounded retirement of the remaining 21 TypeScript writes in server-platform-administration adapters (release acceptance, engineering verification, operations/provisioning and attachment version steps). Each family must gain native owner authority, parity client/route bind, deleted TS writers, native-seeded oracle and a KPI delta before closure.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "runtime.unit-of-work",
+          "iam.current-authority",
+          "files.attachment-read"
+        ],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/adapters/attachments-finance-facts.ts",
+          "packages/server-platform_administration/src/adapters/engineering-verification.ts",
+          "packages/server-platform_administration/src/adapters/operations.ts",
+          "packages/server-platform_administration/src/adapters/release-acceptance.ts",
+          "packages/server-platform_administration/src/public/**",
+          "packages/server-platform_administration/package.json",
+          "packages/feature-platform_administration/src/**",
+          "packages/server-files/src/adapters/attachments/service.ts",
+          "src/composition/src/platform_administration.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Split this packet further by writer family if one worker cannot own the exact paths; begin with release acceptance or engineering verification and record a native-seeded KPI delta.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.planning.production-command-sources",
+        "goalId": "G3",
+        "owner": "planning",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire Planning production command TypeScript writers",
+        "scope": "Retire the 14 TypeScript writers in server-planning production-command-sources/resources by moving scenario/recommendation/capacity/release commands and their command_assertions lifecycle to the native Planning owner and Manufacturing consumers. Include native route/client parity, deleted TS writers, native-seeded oracle and KPI 14 -> 0.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "workflow.command-ledger",
+          "runtime.unit-of-work",
+          "manufacturing.order-actions"
+        ],
+        "allowedPaths": [
+          "packages/server-planning/src/adapters/production-command-sources.ts",
+          "packages/server-planning/src/adapters/resources.ts",
+          "packages/server-planning/src/public/**",
+          "packages/server-planning/package.json",
+          "packages/server-manufacturing/src/**",
+          "packages/feature-manufacturing/src/**",
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/manufacturing/**",
+          "src/composition/src/manufacturing.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/planning/**",
+          "tests/integration/planning/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:planning",
+          "owner:manufacturing",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Freeze the native Planning command contract, switch Manufacturing consumers, move the production oracle to native seeding, then delete the TS command sources.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commercial.purchase-boundary",
+        "goalId": "G3",
+        "owner": "commercial",
+        "workflowIds": [],
+        "workstream": "S03",
+        "kind": "migration",
+        "title": "Retire Commercial TypeScript purchase boundary writers",
+        "scope": "Replace the 12 remaining TypeScript writes in server-commercial package lifecycle, grants, projection and purchase-command-boundary adapters with native owner authority, switching all enforce-mode consumers and mapping the existing package/grant/projection test oracles to native seeding. Record KPI 12 -> 0.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "workflow.command-ledger",
+          "runtime.unit-of-work",
+          "commercial.package-entitlement"
+        ],
+        "allowedPaths": [
+          "packages/server-commercial/src/adapters/company-package-lifecycle.ts",
+          "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+          "packages/server-commercial/src/adapters/package-grants.ts",
+          "packages/server-commercial/src/adapters/projection.ts",
+          "packages/server-commercial/src/adapters/purchase-command-boundary.ts",
+          "packages/server-commercial/src/public/**",
+          "packages/server-commercial/package.json",
+          "packages/server-files/src/adapters/attachments/service.ts",
+          "packages/feature-commercial/src/**",
+          "src/composition/src/commercial.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/commercial/**",
+          "tests/integration/commercial/**"
+        ],
+        "resources": [
+          "owner:commercial",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Split by package grant, projection and purchase-command families as needed; bind native routes for each consumer before deleting the corresponding TS writers.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -43593,21 +43787,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 231,
-      "migratedPackets": 132,
+      "totalPackets": 235,
+      "migratedPackets": 128,
       "statusCounts": {
-        "pending": 24,
+        "pending": 28,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 132,
-        "blocked": 75,
+        "migrated": 128,
+        "blocked": 79,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 119,
-    "updatedAt": "2026-11-16T17:13:04.199Z",
+    "lastCoordinatorGeneration": 120,
+    "updatedAt": "2026-11-17T04:01:09.711Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -43652,10 +43846,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261116-retirement-h",
-      "runId": "run-20261116-retirement-i",
-      "at": "2026-11-16T16:44:46.605Z",
-      "reason": "Previous coordinator lease expired during ledger reconciliation; WIP and processes reconciled, no active task claims",
+      "previousRunId": "run-20261116-retirement-i",
+      "runId": "run-20261116-retirement-j",
+      "at": "2026-11-17T04:00:17.691Z",
+      "reason": "Previous coordinator lease expired after verified handoff; WIP and processes reconciled, no active task claims",
       "wipReviewed": true,
       "previousRunStopped": true
     },
