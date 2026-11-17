@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3089,
+    "revision": 3093,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261117-axum-d",
       "agentId": "lead",
       "startedAt": "2026-11-17T07:40:15.286Z",
-      "heartbeatAt": "2026-11-17T07:40:15.286Z",
-      "expiresAt": "2026-11-17T08:10:15.287Z",
+      "heartbeatAt": "2026-11-17T07:54:30.691Z",
+      "expiresAt": "2026-11-17T08:24:30.691Z",
       "generation": 124,
       "tokenHash": "0c7ddf57cb91650a15b5efdfeac177324db776e2a85dfe67c65cb33b64acf846"
     },
@@ -36701,8 +36701,8 @@
           "runId": "run-20261117-axum-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-17T07:40:24.321Z",
-          "heartbeatAt": "2026-11-17T07:40:24.321Z",
-          "expiresAt": "2026-11-17T08:10:24.321Z",
+          "heartbeatAt": "2026-11-17T07:54:30.691Z",
+          "expiresAt": "2026-11-17T08:24:30.691Z",
           "generation": 124
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -36802,7 +36802,7 @@
           }
         ],
         "blocker": null,
-        "nextAction": "DEEP DISCOVERY (solo): native sale_complete EXISTS (application/commands.rs:2820), sale.complete in NATIVE_POS_COMMANDS; missing path = SYSTEM ACTOR for Stripe jobs (native commands need WorkContext+authority, Stripe has no user session). To retire TS completeSale: native drain subcommand (pattern position_gpo_worker.rs + main.rs:219 + jobs.ts runNativePositionGpoWorker) calling execute_pos_command with scoped system PosActor, verify pos.test.ts parity, then delete TS. ENV BLOCKER: dev jobs runtime dead; erpx_files_claim_legacy_scan missing (migration 1078 not applied in dev DB) -> 3100 degraded. Active run run-20261117-axum-d.",
+        "nextAction": "ENV UPDATE: dev jobs runtime RESTARTED successfully (PID 71567, bundle rebuilt with next-server-navigation plugin + BETTER_AUTH_SECRET); erpx_files_claim_legacy_scan EXISTS in dev H001 DB (old log was stale). 3100 still 503/CLAMAV_DEFINITIONS_STALE: freshclam download fails signature test with both mirrors (likely outdated ClamAV client) — scanner remains the only health blocker. MIGRATION: PosActor::system() landed at 7e6a56e8e; next build pos_stripe_worker.rs using public owner helpers, wire main.rs + jobs.ts:60, PG parity pos.test.ts before TS deletion.",
         "handoff": {
           "runId": "run-20261117-axum-c",
           "agentId": "worker-a",
@@ -44122,7 +44122,7 @@
       }
     },
     "lastCoordinatorGeneration": 124,
-    "updatedAt": "2026-11-17T07:40:24.366Z",
+    "updatedAt": "2026-11-17T07:54:30.737Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
