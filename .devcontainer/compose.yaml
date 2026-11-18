@@ -9,7 +9,7 @@ services:
       - "127.0.0.1:3443:3443"
     volumes:
       - native-files:/workspace/erpx-native-files
-      - source:/workspace/erpx
+      - /Users/Shared/dev/erpx:/workspace/erpx
       - node-modules:/workspace/erpx/node_modules
       - cargo-target:/workspace/erpx/target
       - cargo-registry:/usr/local/cargo/registry
@@ -34,8 +34,6 @@ volumes:
     name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-local-ca
   native-files:
     name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-native-files
-  source:
-    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-source
   node-modules:
     name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-node26.11.1-bun1.4.3-modules
   cargo-target:

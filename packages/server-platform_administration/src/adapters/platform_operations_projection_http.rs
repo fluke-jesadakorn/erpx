@@ -92,11 +92,19 @@ impl PlatformOperationsProjectionHttpService {
     ) -> Result<Self, BusinessError> {
         let mut configured = BTreeMap::new();
         for target in targets {
-            if target.host.is_empty()
-                || target
-                    .host
+            // A developer-contributor Host carries an explicit loopback port
+            // (for example acme.erpx.localhost:3443); production registry Hosts
+            // do not. The port is accepted only as a pure decimal suffix so a
+            // slash, query, fragment, userinfo or second colon still fails.
+            let (name, port) = match target.host.rsplit_once(':') {
+                Some((name, port)) => (name, Some(port)),
+                None => (target.host.as_str(), None),
+            };
+            if name.is_empty()
+                || name
                     .bytes()
                     .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+                || port.map_or(false, |port| port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit()))
                 || configured.insert(target.host.clone(), target).is_some()
             {
                 return Err(BusinessError::invalid(

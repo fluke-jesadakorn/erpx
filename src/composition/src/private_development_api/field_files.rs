@@ -69,9 +69,10 @@ pub(super) async fn assemble(
     if pools.len() != config.holdings.len() + 1 {
         return Err("FIELD_FILES_DATABASES_INVALID");
     }
-    let bytes = serde_json::to_vec(raw).map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?;
+    eprintln!("FFA_72_BEFORE");
+    let bytes = serde_json::to_vec(raw).map_err(|e| {{ eprintln!("FFA_72_SERDE {{e}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
     let targets = parse_field_files_runtime_configuration(&bytes, &config.holdings_registry)
-        .map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?;
+        .map_err(|e| {{ eprintln!("FFA_74_PARSE {{e:?}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
     let reviewed = config
         .holdings
         .iter()
@@ -81,22 +82,24 @@ pub(super) async fn assemble(
         BTreeMap::new();
     let mut scan_targets = Vec::new();
     let mut project_scan_targets = Vec::new();
+    eprintln!("FFA_LOOP_START");
     for t in targets {
         let h = config
             .holdings
             .iter()
             .find(|h| h.registration.holding_id == t.holding_id)
-            .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
+            .ok_or_else(|| {{ eprintln!("FFA_89_HOLDING"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
         let root = t
             .providers
             .files_roots
             .get(&h.registration.files_binding)
-            .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?
+            .ok_or_else(|| {{ eprintln!("FFA_94_ROOT"); "FIELD_FILES_CONFIGURATION_INVALID" }})?
             .clone();
         let entry = grouped
             .entry(t.holding_id.clone())
             .or_insert_with(|| (BTreeSet::new(), root.clone(), Vec::new()));
         if entry.1 != root || !entry.0.insert(t.company_id.clone()) {
+            eprintln!("FFA_100_GROUP");
             return Err("FIELD_FILES_CONFIGURATION_INVALID");
         }
         entry.2.push(scan_targets.len());
@@ -109,7 +112,7 @@ pub(super) async fn assemble(
                 company_id: t.company_id,
             },
         )
-        .map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?;
+        .map_err(|e| {{ eprintln!("FFA_112_SCANCFG {{e:?}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
         scan_targets.push(FieldFilesScanTarget {
             databases: databases.clone(),
             providers: t.providers.clone(),
@@ -138,7 +141,7 @@ pub(super) async fn assemble(
     }
     let result = (|| {
         let catalogue =
-            Arc::new(current_package_catalogue().map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?);
+            Arc::new(current_package_catalogue().map_err(|e| {{ eprintln!("FFA_141_CATALOGUE {{e:?}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?);
         let mut intake = Vec::new();
         let mut uploads = Vec::new();
         #[cfg(feature = "finance-field-write")]
@@ -157,7 +160,7 @@ pub(super) async fn assemble(
                 .iter()
                 .enumerate()
                 .find(|(_, h)| h.registration.holding_id == holding_id)
-                .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
+                .ok_or_else(|| {{ eprintln!("FFA_160_HOLDING2"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
             let authorizer = Arc::new(
                 HoldingWorkAuthorizer::new(
                     pools[0].clone(),
@@ -301,10 +304,10 @@ pub(super) async fn assemble(
                 .map_err(|_| "FIELD_FILES_ROUTER_INVALID")?,
             )
         };
-        Ok((router, mounted))
+        Ok((router, mounted, writers))
     })();
     match result {
-        Ok((router, mounted)) => Ok((router, workers, mounted, writers)),
+        Ok((router, mounted, writers)) => Ok((router, workers, mounted, writers)),
         Err(error) => {
             for w in workers {
                 w.close().await;
@@ -340,18 +343,20 @@ pub(super) async fn run_workers(
     }
     let result = assemble(&config, &pools, Arc::new(SystemAccountClock)).await;
     match result {
-        Ok((_router, workers, _)) => {
+        Ok((_router, workers, _mounted, _writers)) => {
             let cleanup_result = (|| {
                 let raw = config
                     .field_files_providers
                     .as_ref()
                     .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
                 let targets = parse_field_files_runtime_configuration(
-                    &serde_json::to_vec(raw).map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?,
+                    &serde_json::to_vec(raw).map_err(|e| { eprintln!("FFU_P1"); "FIELD_FILES_CONFIGURATION_INVALID" })?,
                     &config.holdings_registry,
                 )
-                .map_err(|_| "FIELD_FILES_CONFIGURATION_INVALID")?;
+                .map_err(|e| { eprintln!("FFU_P2 {e:?}"); "FIELD_FILES_CONFIGURATION_INVALID" })?;
+                eprintln!("FFU_COUNTS targets={{targets.len()}} workers={{workers.len()}}");
                 if targets.len() != workers.len() {
+                    eprintln!("FFU_LEN_MISMATCH");
                     return Err("FIELD_FILES_CONFIGURATION_INVALID");
                 }
                 targets

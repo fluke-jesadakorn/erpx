@@ -41,7 +41,7 @@ BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
 };
 use erpx_server_support::public::support_attachment::{
     SUPPORT_EVIDENCE_CAPABILITY, SupportAttachmentActor as SupportActor,
-    authorize_support_attachment,
+    SupportAttachmentStage as SupportStage, authorize_support_attachment,
 };
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -154,8 +154,8 @@ impl<C: Clock + Send + Sync> SupportAttachmentAuthority for SupportAuthority<'_,
         Box::pin(async move {
             let actor = support_actor(self.current, self.clock.now())?;
             let stage = match target.stage {
-                SupportAttachmentStage::Read => SupportAttachmentStage::Read,
-                SupportAttachmentStage::Write => SupportAttachmentStage::Write,
+                SupportAttachmentStage::Read => SupportStage::Read,
+                SupportAttachmentStage::Write => SupportStage::Write,
             };
             let ticket = authorize_support_attachment(
                 c,
@@ -540,7 +540,7 @@ impl<C: Clock + Send + Sync + 'static> SupportFilesService<C> {
             .authorizer
             .execute_with_sources_deferred(
                 host,
-                proof,
+                proof.clone(),
                 self.read_input(input),
                 Self::read_access(),
                 SupportFilesSources,
@@ -577,7 +577,7 @@ impl<C: Clock + Send + Sync + 'static> SupportFilesService<C> {
                             &ticket,
                             &purpose,
                             Some(expected),
-                            SupportAttachmentStage::Read,
+                            SupportStage::Read,
                         )
                         .await?;
                         Ok((source, context(current)))

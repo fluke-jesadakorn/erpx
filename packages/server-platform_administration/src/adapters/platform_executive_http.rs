@@ -135,11 +135,15 @@ impl PlatformExecutiveHttpService {
     pub fn new(targets: Vec<PlatformExecutiveHttpTarget>) -> Result<Self, BusinessError> {
         let mut configured = BTreeMap::new();
         for target in targets {
-            if target.host.is_empty()
-                || target
-                    .host
+            let (name, port) = match target.host.rsplit_once(':') {
+                Some((name, port)) => (name, Some(port)),
+                None => (target.host.as_str(), None),
+            };
+            if name.is_empty()
+                || name
                     .bytes()
                     .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+                || port.map_or(false, |port| port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit()))
                 || configured.insert(target.host.clone(), target).is_some()
             {
                 return Err(BusinessError::invalid(

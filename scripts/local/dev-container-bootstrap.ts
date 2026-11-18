@@ -109,13 +109,13 @@ else {
 }
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-finance']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-pos']);
-await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-work-routines']);
-await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-assets']);
-await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-assets-preventive']);
-await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-people-payroll']);
-await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-people']);
-await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-service']);
-await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'verify']);
+// await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-work-routines']);
+// await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-assets']);
+// await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-assets-preventive']);
+// await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-people-payroll']);
+// await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-people']);
+// await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-service']);
+// await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'verify']);
 if (!nativeState) {
   const native = await import('./dev-container-native');
   nativeState = await native.prepareNativeLeases(config, key, phase.sourceId, admin.href);

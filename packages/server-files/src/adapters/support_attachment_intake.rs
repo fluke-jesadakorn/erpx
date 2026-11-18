@@ -278,7 +278,7 @@ pub struct SupportAttachmentSetRead {
     pub links: Vec<SupportAttachmentLinkRead>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct SupportAttachmentReservation {
     pub upload_intent_id: String,
     pub attachment_link_id: String,

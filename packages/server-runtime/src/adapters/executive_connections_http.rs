@@ -124,11 +124,20 @@ impl Service {
     fn new(targets: Vec<ExecutiveConnectionsHttpTarget>) -> Result<Self, BusinessError> {
         let mut configured = BTreeMap::new();
         for target in targets {
-            if target.host.is_empty()
-                || target
-                    .host
+            // A developer-contributor host carries an explicit loopback port
+            // (for example acme.erpx.localhost:3443); production registry hosts
+            // do not. The port is accepted only as a pure decimal suffix so a
+            // slash, query, fragment, userinfo or second colon still fails the
+            // exact distinct target check below.
+            let (name, port) = match target.host.rsplit_once(':') {
+                Some((name, port)) => (name, Some(port)),
+                None => (target.host.as_str(), None),
+            };
+            if name.is_empty()
+                || name
                     .bytes()
                     .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+                || port.map_or(false, |port| port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit()))
                 || target.holding_slug.is_empty()
                 || relative_path(&target.holding_slug)
                 || configured
