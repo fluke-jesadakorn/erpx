@@ -5869,7 +5869,6 @@
 @source "../../../../packages/server-platform_administration/src/adapters/company-release-attachment-read.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/engineering-verification.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/executive-generation-source-lock.ts";
-@source "../../../../packages/server-platform_administration/src/adapters/operations.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/platform-executive.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/pms-rollout-guards.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/presentation-queries.ts";
@@ -5879,12 +5878,10 @@
 @source "../../../../packages/server-platform_administration/src/adapters/release-source-locks.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/system-evidence.ts";
 @source "../../../../packages/server-platform_administration/src/application/engineering-verification.ts";
-@source "../../../../packages/server-platform_administration/src/application/operations-summary.ts";
 @source "../../../../packages/server-platform_administration/src/application/platform-executive.ts";
 @source "../../../../packages/server-platform_administration/src/application/release-acceptance.ts";
 @source "../../../../packages/server-platform_administration/src/application/system-evidence.ts";
 @source "../../../../packages/server-platform_administration/src/domain/engineering-verification.ts";
-@source "../../../../packages/server-platform_administration/src/domain/operations-summary.ts";
 @source "../../../../packages/server-platform_administration/src/domain/platform-executive.ts";
 @source "../../../../packages/server-platform_administration/src/domain/release-acceptance.ts";
 @source "../../../../packages/server-platform_administration/src/domain/system-evidence.ts";

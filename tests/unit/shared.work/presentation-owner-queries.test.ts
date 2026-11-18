@@ -20,7 +20,6 @@ vi.mock("@erpx/server-work_projection/public/staff-page", () => ({ staffPage: st
 vi.mock("@erpx/server-operations/public/staff-tasks", () => ({ getProject: state.project, listTasks: vi.fn(), taskDetail: vi.fn() }));
 vi.mock("@erpx/server-legal/public/legal/portal", () => ({ portalContext: state.portal, portalList: state.portalList }));
 vi.mock("@erpx/server-pms/public/pms-booking", () => ({ bookingDatabase: state.booking, bookingCatalog: state.catalog }));
-vi.mock("@erpx/server-platform_administration/public/platform-operations", () => ({ platformProvisioningSnapshot: state.provisioning, summarizePlatformOperations: state.operations }));
 vi.mock("@erpx/server-work_projection/public/workspace-preferences", () => ({ readWorkspacePreference: state.workspace }));
 vi.mock("@erpx/server-manage_erpx/public/people-app-entrypoint-facts", () => ({ ownerOnboardingSlot: state.slot }));
 vi.mock("@erpx/server-brand/public/branding", async (importOriginal) => ({
@@ -33,7 +32,6 @@ import { iamPresentationQueries } from "@erpx/server-identity_access/public/pres
 import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
 import { legalPortalPresentationQueries } from "@erpx/server-legal/public/presentation-context-queries";
 import { bookingPresentationQueries } from "@erpx/server-pms/public/presentation-context-queries";
-import { platformOperationsForPresentation } from "@erpx/server-platform_administration/public/presentation-queries";
 import { workProjectionPresentationQueries } from "@erpx/server-work_projection/public/presentation-queries";
 import { operationsPresentationQueries } from "@erpx/server-operations/public/presentation-queries";
 import { publicBetaEnabled } from "@erpx/server-runtime/public/presentation-configuration";
@@ -110,18 +108,6 @@ describe("Owner presentation query composition", () => {
     const failure = Error("catalogue unavailable"); state.catalog.mockRejectedValueOnce(failure);
     await expect(query.bookingCatalog()).rejects.toBe(failure);
     expect(state.catalog).toHaveBeenCalledExactlyOnceWith(state.db);
-  });
-  it("preserves platform provisioning then Holding preparation then summary order without exposing resources", async () => {
-    const events: string[] = [];
-    state.provisioning.mockImplementation(async () => { events.push("provisioning"); return { version: 2 }; });
-    state.bindings.mockImplementation(async () => { events.push("bindings"); return [{ id: "h003" }, { id: "h001", slug: "acme", displayName: "Acme" }]; });
-    state.holding.mockImplementation(async () => { events.push("holding"); return { write: state.db }; });
-    state.operations.mockImplementation(async () => { events.push("summary"); return { generatedAt: 100 }; });
-    const platformActor = { userId: "admin", role: "platform_admin" } as Parameters<typeof platformOperationsForPresentation>[0];
-    expect(await platformOperationsForPresentation(platformActor)).toEqual({ provisioning: { version: 2 }, operations: { generatedAt: 100 } });
-    expect(events).toEqual(["provisioning", "bindings", "holding", "summary"]);
-    expect(state.holding).toHaveBeenCalledExactlyOnceWith("h001");
-    expect(state.operations).toHaveBeenCalledExactlyOnceWith(platformActor, state.db, [{ id: "h001", slug: "acme", displayName: "Acme", db: state.db }]);
   });
   it("projects public registration and onboarding scalars without exposing the runtime environment", async () => {
     expect(await publicBetaEnabled()).toBe(true);

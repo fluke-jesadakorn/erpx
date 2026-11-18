@@ -2,14 +2,8 @@ import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/desti
 import {z} from "zod";
 import {requireManageErpxContext} from "@erpx/server-identity_access/public/authorization";
 import {errorResponse,ApiError} from "@erpx/server-runtime/public/http";
-import {resourceSlots} from "@erpx/feature-runtime/lib/holding-registry";
-import {holdingResources,runtimeEnv} from "../../../../../../../../../packages/server-runtime/src/public/runtime";
-import {platformProvisioningSnapshot,provisionHolding} from "@erpx/server-platform_administration/public/platform-operations";
-import {nativePlatformAdminFailure,nativePlatformAdministrationOrRetained,nativePlatformOperationsForPresentation,nativePlatformProvision} from "@erpx/feature-platform_administration/lib/native-platform-administration";
-import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
+import {nativePlatformAdminFailure,nativePlatformOperationsForPresentation,nativePlatformProvision} from "@erpx/feature-platform_administration/lib/native-platform-administration";
 import {headers} from "next/headers";
-
-type ManageErpxPlatform = Awaited<ReturnType<typeof requireManageErpxContext>>["platform"];
 
 const provisioningCommand = z.object({
   holdingId: z.string().regex(/^[a-z0-9]{3,24}$/),
@@ -24,12 +18,7 @@ function failure(error: unknown): never {
   throw error;
 }
 
-async function retainedProvisioningSnapshot() {
-  const env = await runtimeEnv();
-  return platformProvisioningSnapshot(env.CONTROL_DB, resourceSlots(env));
-}
-
-async function retainedProvision(actor: ManageErpxPlatform, body: unknown, key: string) {
+function parseCommand(body: unknown) {
   const parsed = provisioningCommand.safeParse(body);
   if (!parsed.success)
     throw new ApiError(
@@ -37,35 +26,7 @@ async function retainedProvision(actor: ManageErpxPlatform, body: unknown, key: 
       "VALIDATION_FAILED",
       parsed.error.issues[0]?.message ?? "Invalid provisioning request.",
     );
-  const env = await runtimeEnv();
-  const slot = resourceSlots(env).find((candidate) => candidate.id === parsed.data.holdingId);
-  if (!slot)
-    throw new ApiError(
-      404,
-      "RESOURCE_SLOT_NOT_FOUND",
-      "This Holding resource slot is not configured in the operator registry.",
-    );
-  try {
-    await holdingResources(slot.id);
-  } catch {
-    throw new ApiError(
-      503,
-      "RESOURCE_UNAVAILABLE",
-      "The selected Holding database or private file namespace is unavailable.",
-    );
-  }
-  return provisionHolding(
-    actor,
-    env.CONTROL_DB as PostgresDatabase,
-    slot,
-    {
-      ...parsed.data,
-      writeBinding: slot.write,
-      readBinding: slot.read,
-      filesBinding: slot.files,
-    },
-    key,
-  );
+  return parsed.data;
 }
 
 export async function POST(request: Request) {
@@ -80,9 +41,13 @@ export async function POST(request: Request) {
     }
     if (!body || typeof body !== "object" || Array.isArray(body))
       throw new ApiError(422, "COMMAND_REQUIRED", "Provide a provisioning command.");
-    const data = await nativePlatformAdministrationOrRetained(
-      async () => nativePlatformProvision(work, platform, await headers(), body, key),
-      () => retainedProvision(platform, body, key),
+    const command = parseCommand(body);
+    const data = await nativePlatformProvision(
+      work,
+      platform,
+      await headers(),
+      command,
+      key,
     ).catch(failure);
     return Response.json(canonicalDestinationLinks({ data }), {
       headers: { "Cache-Control": "private, no-store" },
@@ -95,11 +60,12 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const { platform, work } = await requireManageErpxContext();
-    const data = await nativePlatformAdministrationOrRetained(
-      async () => (await nativePlatformOperationsForPresentation(work, platform, await headers()))?.provisioning,
-      retainedProvisioningSnapshot,
+    const { provisioning } = await nativePlatformOperationsForPresentation(
+      work,
+      platform,
+      await headers(),
     ).catch(failure);
-    return Response.json(canonicalDestinationLinks({ data }), {
+    return Response.json(canonicalDestinationLinks({ data: provisioning }), {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {

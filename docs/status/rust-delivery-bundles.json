@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3107,
+    "revision": 3127,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261118-fluke",
+      "runId": "run-20261118-b",
       "agentId": "lead",
-      "startedAt": "2026-11-17T19:15:10.160Z",
-      "heartbeatAt": "2026-11-17T19:15:10.160Z",
-      "expiresAt": "2026-11-17T19:45:10.161Z",
-      "generation": 125,
-      "tokenHash": "695afaf9fe01218fc601a391be2965decf78e793a8e7685d5fef2082ac6607e3"
+      "startedAt": "2026-11-18T01:15:45.617Z",
+      "heartbeatAt": "2026-11-18T01:28:15.077Z",
+      "expiresAt": "2026-11-18T01:58:15.077Z",
+      "generation": 126,
+      "tokenHash": "9146a6fcc836a5644a31aced072eb2237edc6aab875b83f994b11037ca8f1bbb"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -36696,15 +36696,8 @@
           "owner:commerce",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261118-fluke",
-          "agentId": "lead",
-          "claimedAt": "2026-11-17T19:16:44.622Z",
-          "heartbeatAt": "2026-11-17T19:16:44.622Z",
-          "expiresAt": "2026-11-17T19:46:44.622Z",
-          "generation": 125
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "6ff5c7dca112064d7bd395b7d60cd6152a9c727c",
         "implementedCommit": null,
         "lastPushedSha": "4ec2e1fcc8d3be03ddb56586d81e400db2eaf460",
@@ -36801,15 +36794,15 @@
             "removalCondition": "Complete same-transaction Organization, PMS, Commerce, Finance and IAM witnesses; prove report, digest and errors parity, mount native authority, migrate fixtures and tests, then delete TS paths and exports and verify KPI decrease."
           }
         ],
-        "blocker": null,
+        "blocker": "Recovery: Previous lead run-20261118-fluke lease expired; WIP reviewed (untracked src/composition/src/pos_events.rs preserved, no live conflicting process)",
         "nextAction": "WIP committed as 4ec2e1fcc and pushed via local checkout (remote VM tree reset to 6ff5c7dca; machine-local devcontainer bind changes left uncommitted there). TS binding at baseline (suite 3 failed/98 passed). Next: fix owner-level sale_complete parity in packages/server-pos/src/application/commands.rs (money evidence identity + stock consumption + receipt), then re-bind drainPos and delete TS completeSale.",
         "handoff": {
-          "runId": "run-20261117-axum-d",
-          "agentId": "worker-a",
-          "at": "2026-11-17T19:15:10.160Z",
+          "runId": "run-20261118-fluke",
+          "agentId": "lead",
+          "at": "2026-11-18T01:15:45.616Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lead took over from expired run-20261117-axum-d; worker-a WIP reviewed, committed 4ec2e1fcc and pushed via local checkout",
-          "nextAction": "ROOT CAUSE FOUND AND FIXED: native worker sale read failed with POS_COMMAND_SERIALIZABLE_REQUIRED; added SET TRANSACTION ISOLATION LEVEL SERIALIZABLE in pos_stripe_worker.rs. Verified: single pos.test.ts case passes natively (worker applied 1). Full suite with TS binding: 13 failed/88 passed vs baseline 3 failed/98 passed — residual parity gaps in native sale_complete application (stock quantity 10000 vs 9000, POS command receipt mismatches, refund original money-evidence identity). TS binding REVERTED to baseline; tests currently 3 failed/98 passed. Worker kept (builds, single job verified). Next: fix owner-level sale_complete parity in packages/server-pos/src/application/commands.rs (money evidence + stock consumption + receipt), then re-bind drainPos and delete TS completeSale."
+          "reason": "Recovery: Previous lead run-20261118-fluke lease expired; WIP reviewed (untracked src/composition/src/pos_events.rs preserved, no live conflicting process)",
+          "nextAction": "WIP committed as 4ec2e1fcc and pushed via local checkout (remote VM tree reset to 6ff5c7dca; machine-local devcontainer bind changes left uncommitted there). TS binding at baseline (suite 3 failed/98 passed). Next: fix owner-level sale_complete parity in packages/server-pos/src/application/commands.rs (money evidence identity + stock consumption + receipt), then re-bind drainPos and delete TS completeSale."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -43968,7 +43961,7 @@
         "workstream": "S02",
         "kind": "migration",
         "title": "Retire Platform Administration TypeScript operations writers",
-        "scope": "Bounded retirement of the remaining 21 TypeScript writes in server-platform-administration adapters (release acceptance, engineering verification, operations/provisioning and attachment version steps). Each family must gain native owner authority, parity client/route bind, deleted TS writers, native-seeded oracle and a KPI delta before closure.",
+        "scope": "Bounded retirement of the 10 TypeScript writes in server-platform-administration adapters/operations.ts (holding provisioning, provisioning events, migration runs, failed-provisioning cleanup). Native authority already exists as the Rust platform_operations application + platform router (GET /api/v1/platform/operations, POST /provision, /recover, /migrate) mounted in composition. This slice switches the four feature-admin platform operation routes to native-only (fail closed), switches the workplace presenter to native-only, deletes the TS operations adapter/application/domain implementations and the platform-operations barrel, moves the operations oracle to the existing native PostgreSQL test, and records the platform_administration KPI delta. Other residual writer families (release acceptance, engineering verification, attachment facts) stay out of this slice.",
         "dependsOn": [],
         "requiredPorts": [
           "runtime.unit-of-work",
@@ -43976,33 +43969,60 @@
           "files.attachment-read"
         ],
         "allowedPaths": [
-          "packages/server-platform_administration/src/adapters/attachments-finance-facts.ts",
-          "packages/server-platform_administration/src/adapters/engineering-verification.ts",
-          "packages/server-platform_administration/src/adapters/operations.ts",
-          "packages/server-platform_administration/src/adapters/release-acceptance.ts",
-          "packages/server-platform_administration/src/public/**",
-          "packages/server-platform_administration/package.json",
+          "packages/server-platform_administration/src/**",
           "packages/feature-platform_administration/src/**",
-          "packages/server-files/src/adapters/attachments/service.ts",
+          "packages/feature-admin/src/routes/api/v1/platform/**",
+          "packages/feature-records/src/components/platform-operation-detail.tsx",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manage-erpx/**",
+          "packages/catalogue/src/capability-delivery.ts",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**",
+          "tests/unit/shared.work/presentation-owner-queries.test.ts",
+          "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
           "src/composition/src/platform_administration.rs",
           "src/composition/src/private_development_api.rs",
-          "tests/unit/platform_administration/**",
-          "tests/integration/platform_administration/**"
+          "tests/unit/shared.architecture/first-wave-applications.test.ts",
+          "tests/catalogue/**",
+          "packages/contracts/src/ownership.json",
+          "packages/catalogue/src/**",
+          "docs/contracts/next/catalogue.md",
+          "docs/status/business-acceptance-manifest.json",
+          "docs/status/capability-delivery-matrix.md",
+          "docs/status/product-migration-acceptance.json",
+          "docs/testing/cross-department-implementation-progress.md",
+          "docs/testing/repository-file-relocations.json",
+          "apps/admin/src/app/globals.css",
+          "apps/compat/src/app/globals.css"
         ],
         "resources": [
           "owner:platform_administration",
+          "owner:runtime",
           "resource:composition"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261118-b",
+          "agentId": "lead",
+          "claimedAt": "2026-11-18T01:24:30.782Z",
+          "heartbeatAt": "2026-11-18T01:28:15.077Z",
+          "expiresAt": "2026-11-18T01:58:15.077Z",
+          "generation": 126
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Split this packet further by writer family if one worker cannot own the exact paths; begin with release acceptance or engineering verification and record a native-seeded KPI delta.",
-        "handoff": null,
+        "nextAction": "Scope refinement: include generated Tailwind source lists that cite the retired TS modules.",
+        "handoff": {
+          "runId": "run-20261118-b",
+          "agentId": "lead",
+          "at": "2026-11-18T01:24:30.704Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "Scope refinement: include generated Tailwind source lists that cite the retired TS modules."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -44111,18 +44131,18 @@
       "totalPackets": 235,
       "migratedPackets": 129,
       "statusCounts": {
-        "pending": 26,
+        "pending": 25,
         "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 129,
-        "blocked": 79,
+        "blocked": 80,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 125,
-    "updatedAt": "2026-11-17T19:16:44.680Z",
+    "lastCoordinatorGeneration": 126,
+    "updatedAt": "2026-11-18T01:28:15.079Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44167,10 +44187,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261117-axum-d",
-      "runId": "run-20261118-fluke",
-      "at": "2026-11-17T19:15:10.162Z",
-      "reason": "Lead took over from expired run-20261117-axum-d; worker-a WIP reviewed, committed 4ec2e1fcc and pushed via local checkout",
+      "previousRunId": "run-20261118-fluke",
+      "runId": "run-20261118-b",
+      "at": "2026-11-18T01:15:45.618Z",
+      "reason": "Previous lead run-20261118-fluke lease expired; WIP reviewed (untracked src/composition/src/pos_events.rs preserved, no live conflicting process)",
       "wipReviewed": true,
       "previousRunStopped": true
     },

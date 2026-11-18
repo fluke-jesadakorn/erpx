@@ -129,7 +129,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "api": "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
     "service": "packages/server-platform_administration/src/public/platform-operations.ts",
     "schema": "migrations/postgres/control/0016_platform_holding_provisioning.sql",
-    "test": "tests/integration/platform_administration/platform-operations.test.ts",
+    "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs",
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Validate approved Holding slot and provision; Replay activation and inspect durable history. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "feature-holdings": {
@@ -150,7 +150,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "api": "ops/macos/erpxctl.py",
         "service": "ops/macos/erpxctl.py",
         "schema": "migrations/postgres/control",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/integration/shared.evidence/engineering-recovery.test.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/integration/shared.evidence/engineering-recovery.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read control and Holding health/queue state; Inspect unavailable Holding and preserve actionable failure. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-backup-recovery": {
@@ -165,7 +165,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "ui": "packages/feature-admin/src/routes/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect durable event projections and dead letters; Review/retry current failed event once. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-migration-runs": {
@@ -173,7 +173,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-operations.ts; packages/server-runtime/src/adapters/runtime/migrations.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/holding-write/0275_migration_receipts.sql; migrations/postgres/holding-read/0002_migration_receipts.sql",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Run reviewed additive Holding migrations; Reload durable migration receipt and replay. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-temporary-access": {
@@ -188,7 +188,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "ui": "packages/feature-admin/src/routes/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
-        "test": "tests/integration/identity_access/iam.test.ts; tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/identity_access/iam.test.ts; tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Search durable scope-specific audit history; Review command recovery audit and original receipt. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       }
     }
@@ -1090,7 +1090,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "api": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
     "service": "packages/server-platform_administration/src/public/platform-operations.ts",
     "schema": "migrations/postgres/control",
-    "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+    "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Read source-backed Platform and Holding runtime overview. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "billing": {

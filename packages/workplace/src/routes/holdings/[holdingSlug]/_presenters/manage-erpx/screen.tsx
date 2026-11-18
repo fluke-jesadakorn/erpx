@@ -1,5 +1,4 @@
-import { nativePlatformAdminFailure, nativePlatformAdministrationOrRetained, nativePlatformOperationsForPresentation } from "@erpx/feature-platform_administration/lib/native-platform-administration";
-import { platformOperationsForPresentation } from "@erpx/server-platform_administration/public/presentation-queries";
+import { nativePlatformAdminFailure, nativePlatformOperationsForPresentation } from "@erpx/feature-platform_administration/lib/native-platform-administration";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { headers } from "next/headers";
 import {PlatformOperationDetail,CollectionRecordLink} from "@erpx/feature-records/components/platform-operation-detail";
@@ -55,9 +54,10 @@ export default async function ManageErpxPage({
   if (!content) notFound();
   if (destination === "home") {
     const { platform: actor, work } = await requireManageErpxContext();
-    const { provisioning, operations } = await nativePlatformAdministrationOrRetained(
-      async () => nativePlatformOperationsForPresentation(work, actor, await headers()),
-      () => platformOperationsForPresentation(actor),
+    const { provisioning, operations } = await nativePlatformOperationsForPresentation(
+      work,
+      actor,
+      await headers(),
     ).catch((error) => {
       const failure = nativePlatformAdminFailure(error);
       if (failure) throw new ApiError(failure.status, failure.code, failure.message);

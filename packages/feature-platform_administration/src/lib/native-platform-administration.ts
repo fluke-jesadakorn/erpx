@@ -86,42 +86,20 @@ function nativeClient() {
   return createNativePlatformAdminClient(nativePlatformAdminConfiguration(raw));
 }
 
-/**
- * Keep the explicit retained implementation only while the native transport is
- * unset. `native` throws for a configured but unavailable service, so this
- * selector can never replace a configured failure with retained data.
- */
-export async function nativePlatformAdministrationOrRetained<T>(
-  native: () => Promise<T | undefined>,
-  retained: () => Promise<T>,
-): Promise<T> {
-  const result = await native();
-  return result ?? (await retained());
+/** Native control-plane authority. Unset configuration is a hard failure, not a
+ * reason to read the retired TypeScript projection. */
+function requiredNativeClient() {
+  const native = nativeClient();
+  if (!native) throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID');
+  return native;
 }
 
-/** Native control-plane snapshot. Unset configuration returns undefined so the
- * caller keeps the retained reader; a configured failure is surfaced. */
 export async function nativePlatformOperationsForPresentation(
   work: PlatformAdminWorkInput,
   platform: PlatformAdminPlatformInput,
   incoming: Pick<Headers, 'get'>,
-): Promise<NativePlatformOperationsSnapshot | undefined> {
-  const native = nativeClient();
-  if (!native) return undefined;
-  return native.operations(incoming, platformAdminActor(work, platform));
-}
-
-/** Explicit operations projection read used by the admin operations route. A
- * configured native failure is surfaced; only absent configuration returns
- * undefined so the caller may keep the retained implementation. */
-export async function nativePlatformOperationsProjectionForPresentation(
-  work: PlatformAdminWorkInput,
-  platform: PlatformAdminPlatformInput,
-  incoming: Pick<Headers, 'get'>,
-): Promise<NativePlatformOperationsSummary | undefined> {
-  const native = nativeClient();
-  if (!native) return undefined;
-  return native.operationsProjection(incoming, platformAdminActor(work, platform));
+): Promise<NativePlatformOperationsSnapshot> {
+  return requiredNativeClient().operations(incoming, platformAdminActor(work, platform));
 }
 
 export async function nativePlatformExecutiveForPresentation(
@@ -153,10 +131,8 @@ export async function nativePlatformProvision(
   incoming: Pick<Headers, 'get'>,
   body: unknown,
   idempotencyKey: string,
-): Promise<NativePlatformProvisioningResult | undefined> {
-  const native = nativeClient();
-  if (!native) return undefined;
-  return native.provision(incoming, platformAdminActor(work, platform), body, idempotencyKey);
+): Promise<NativePlatformProvisioningResult> {
+  return requiredNativeClient().provision(incoming, platformAdminActor(work, platform), body, idempotencyKey);
 }
 
 export async function nativePlatformRecover(
@@ -165,10 +141,8 @@ export async function nativePlatformRecover(
   incoming: Pick<Headers, 'get'>,
   body: unknown,
   idempotencyKey: string,
-): Promise<NativePlatformRecoveryResult | undefined> {
-  const native = nativeClient();
-  if (!native) return undefined;
-  return native.recover(incoming, platformAdminActor(work, platform), body, idempotencyKey);
+): Promise<NativePlatformRecoveryResult> {
+  return requiredNativeClient().recover(incoming, platformAdminActor(work, platform), body, idempotencyKey);
 }
 
 export async function nativePlatformMigrate(
@@ -177,10 +151,8 @@ export async function nativePlatformMigrate(
   incoming: Pick<Headers, 'get'>,
   body: unknown,
   idempotencyKey: string,
-): Promise<NativePlatformMigrationResult | undefined> {
-  const native = nativeClient();
-  if (!native) return undefined;
-  return native.migrate(incoming, platformAdminActor(work, platform), body, idempotencyKey);
+): Promise<NativePlatformMigrationResult> {
+  return requiredNativeClient().migrate(incoming, platformAdminActor(work, platform), body, idempotencyKey);
 }
 
 export { nativePlatformAdminFailure } from '../adapters/server/native-platform-administration';

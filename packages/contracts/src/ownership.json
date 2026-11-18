@@ -919,13 +919,14 @@
           "id": "operations-summary",
           "migration": "clean",
           "source": [
-            "packages/server-platform_administration/src/domain/operations-summary.ts",
-            "packages/server-platform_administration/src/application/operations-summary.ts",
-            "packages/server-platform_administration/src/adapters/operations.ts"
+            "packages/server-platform_administration/src/domain/platform_operations.rs",
+            "packages/server-platform_administration/src/application/platform_operations.rs",
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs",
+            "packages/server-platform_administration/src/adapters/platform_http.rs",
+            "packages/server-platform_administration/src/public/platform-operations.ts"
           ],
           "regression": [
-            "tests/integration/platform_administration/platform-operations.test.ts",
-            "tests/unit/shared.architecture/first-wave-applications.test.ts"
+            "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs"
           ]
         },
         {
@@ -934,23 +935,23 @@
           "source": [
             "packages/server-platform_administration/src/domain/platform-executive.ts",
             "packages/server-platform_administration/src/domain/system-evidence.ts",
-            "packages/server-platform_administration/src/domain/operations-summary.ts",
             "packages/server-platform_administration/src/domain/release-acceptance.ts",
             "packages/server-platform_administration/src/domain/engineering-verification.ts",
             "packages/server-platform_administration/src/application/platform-executive.ts",
             "packages/server-platform_administration/src/application/system-evidence.ts",
-            "packages/server-platform_administration/src/application/operations-summary.ts",
             "packages/server-platform_administration/src/application/release-acceptance.ts",
             "packages/server-platform_administration/src/application/engineering-verification.ts",
             "packages/server-platform_administration/src/adapters/platform-executive.ts",
-            "packages/server-platform_administration/src/adapters/operations.ts",
             "packages/server-platform_administration/src/adapters/system-evidence.ts",
             "packages/server-platform_administration/src/adapters/release-acceptance.ts",
-            "packages/server-platform_administration/src/adapters/engineering-verification.ts"
+            "packages/server-platform_administration/src/adapters/engineering-verification.ts",
+            "packages/server-platform_administration/src/domain/platform_operations.rs",
+            "packages/server-platform_administration/src/application/platform_operations.rs",
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs",
+            "packages/server-platform_administration/src/adapters/platform_http.rs"
           ],
           "regression": [
             "tests/integration/shared.evidence/engineering-verification.test.ts",
-            "tests/integration/platform_administration/platform-operations.test.ts",
             "tests/integration/shared.evidence/release-acceptance.test.ts",
             "tests/integration/legal/legal-release-gates.test.ts",
             "tests/integration/shared.workplace-journeys/engineering-workplace-platform-attachments.test.ts",

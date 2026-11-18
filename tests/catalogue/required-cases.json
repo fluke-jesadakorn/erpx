@@ -632,11 +632,6 @@
     {
       "runner": "vitest",
       "file": "tests/unit/shared.work/presentation-owner-queries.test.ts",
-      "title": "Owner presentation query composition preserves platform provisioning then Holding preparation then summary order without exposing resources"
-    },
-    {
-      "runner": "vitest",
-      "file": "tests/unit/shared.work/presentation-owner-queries.test.ts",
       "title": "Owner presentation query composition projects public registration and onboarding scalars without exposing the runtime environment"
     },
     {

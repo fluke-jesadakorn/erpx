@@ -637,20 +637,7 @@
         "Only eligible healthy slots activate once with visible failure/history."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "provisions a healthy resource slot with a durable activation history",
-          "proof": "Healthy isolated slot activates binding, retains started/validated/activated events and exact idempotent replay; used slot is no longer available."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "does not allow auditors or a different slug to activate a slot",
-          "proof": "Auditor mutation and mismatched Holding slug both refuse activation."
-        }
-      ],
+      "cases": [],
       "moduleId": "platform_administration",
       "capabilityId": "provisioning"
     },
@@ -664,20 +651,7 @@
         "Holding bindings and overview counts agree with control and owner databases."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "provisions a healthy resource slot with a durable activation history",
-          "proof": "Healthy isolated slot activates binding, retains started/validated/activated events and exact idempotent replay; used slot is no longer available."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "summarizes real control and Holding queue state without mixing scopes",
-          "proof": "Summary contains actual control jobs heartbeat and per-Holding pending/dead/claimed event counts, exact totals and oldest source timestamp."
-        }
-      ],
+      "cases": [],
       "moduleId": "platform_administration",
       "capabilityId": "feature-holdings"
     },
@@ -718,18 +692,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "summarizes real control and Holding queue state without mixing scopes",
-          "proof": "Summary contains actual control jobs heartbeat and per-Holding pending/dead/claimed event counts, exact totals and oldest source timestamp."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "contains an unavailable Holding as an actionable operational state",
-          "proof": "Unavailable Holding stays in the overview with explicit error status rather than being omitted or summarized as healthy."
-        },
         {
           "runner": "vitest",
           "file": "tests/integration/shared.evidence/engineering-recovery.test.ts",
@@ -777,26 +739,7 @@
         "Recovery retains audit and rejects stale or unauthorized retries."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "summarizes real control and Holding queue state without mixing scopes",
-          "proof": "Summary contains actual control jobs heartbeat and per-Holding pending/dead/claimed event counts, exact totals and oldest source timestamp."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "recovers a dead-letter job with a reviewed, idempotent command",
-          "proof": "Reviewed recovery clears dead-letter/error/attempt count once and preserves exact replay/audit; no extra business event is emitted."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "does not allow auditors or stale failed-job snapshots to recover work",
-          "proof": "Auditor and stale job version cannot recover the job."
-        }
-      ],
+      "cases": [],
       "moduleId": "platform_administration",
       "capabilityId": "feature-projections-events"
     },
@@ -810,14 +753,7 @@
         "Applied revision list, source migration checksum and receipt agree."
       ],
       "review": "reviewed",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "runs Holding migrations with a durable receipt and idempotent replay",
-          "proof": "Additive migration leaves no pending schema revisions; control run stores reason/applied counts/status; exact replay returns one run and changed request key conflicts."
-        }
-      ],
+      "cases": [],
       "moduleId": "platform_administration",
       "capabilityId": "feature-migration-runs"
     },
@@ -871,12 +807,6 @@
           "file": "tests/integration/identity_access/iam.test.ts",
           "title": "searches audit history beyond the first page without crossing company scope",
           "proof": "Audit search finds older matching source events beyond the first page and excludes another company."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "recovers a dead-letter job with a reviewed, idempotent command",
-          "proof": "Platform recovery stores actor, review reason and command receipt once."
         }
       ],
       "moduleId": "platform_administration",
@@ -940,8 +870,7 @@
         "Hidden customers expose no profile data"
       ],
       "review": "reviewed",
-      "cases": [
-      ],
+      "cases": [],
       "moduleId": "customer_360",
       "capabilityId": "feature-customer-profile"
     },
@@ -1085,8 +1014,7 @@
         "The immutable request and decision retain previous and new values"
       ],
       "review": "reviewed",
-      "cases": [
-      ],
+      "cases": [],
       "moduleId": "customer_authority",
       "capabilityId": "feature-identity-changes"
     },
@@ -2095,8 +2023,7 @@
         "Unauthorized excess discount cannot become approved"
       ],
       "review": "reviewed",
-      "cases": [
-      ],
+      "cases": [],
       "moduleId": "sales",
       "capabilityId": "quotes"
     },
@@ -6444,12 +6371,6 @@
       "review": "reviewed",
       "cases": [
         {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "summarizes real control and Holding queue state without mixing scopes",
-          "proof": "Summary contains actual control jobs heartbeat and per-Holding pending/dead/claimed event counts, exact totals and oldest source timestamp."
-        },
-        {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
           "title": "isolated ERPX Realm grants temporary Platform access by independent MFA review and revokes it without hiding retained recovery evidence",
@@ -6587,12 +6508,6 @@
       ],
       "review": "reviewed",
       "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/platform_administration/platform-operations.test.ts",
-          "title": "keeps Platform Executive aggregates in control-plane sources and checks its dedicated permission",
-          "proof": "Exact control provisioning failure/health aggregates are counted; no private Holding name or detailed source errors appear; unrelated permission rejected."
-        },
         {
           "runner": "playwright",
           "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
