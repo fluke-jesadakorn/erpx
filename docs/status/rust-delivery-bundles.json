@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3142,
+    "revision": 3146,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261118-g",
+      "runId": "run-20261118-h",
       "agentId": "lead",
-      "startedAt": "2026-11-18T17:10:33.299Z",
-      "heartbeatAt": "2026-11-18T17:11:11.941Z",
-      "expiresAt": "2026-11-18T17:41:11.941Z",
-      "generation": 128,
-      "tokenHash": "7b753c22dfba88794fe1677884118aec50f92c60cea223121d0f43d73643ae5d"
+      "startedAt": "2026-11-18T18:49:30.876Z",
+      "heartbeatAt": "2026-11-18T18:49:31.009Z",
+      "expiresAt": "2026-11-18T19:19:31.009Z",
+      "generation": 129,
+      "tokenHash": "cd3d7fc47d9c43344eb99d88844e08d960852425757ed42d154167814dfcbc38"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -41644,12 +41644,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261118-g",
+          "runId": "run-20261118-h",
           "agentId": "lead",
-          "claimedAt": "2026-11-18T17:10:48.750Z",
-          "heartbeatAt": "2026-11-18T17:11:11.941Z",
-          "expiresAt": "2026-11-18T17:41:11.941Z",
-          "generation": 128
+          "claimedAt": "2026-11-18T18:49:30.965Z",
+          "heartbeatAt": "2026-11-18T18:49:31.009Z",
+          "expiresAt": "2026-11-18T19:19:31.009Z",
+          "generation": 129
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -41659,11 +41659,11 @@
         "blocker": null,
         "nextAction": "Rank the 357 SELECT statements in packages/server-pos/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
         "handoff": {
-          "runId": "run-20261118-f",
-          "agentId": "worker-c",
-          "at": "2026-11-18T17:10:33.296Z",
+          "runId": "run-20261118-g",
+          "agentId": "lead",
+          "at": "2026-11-18T18:49:30.874Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: pi-session-resume-lease-expired",
+          "reason": "Recovery: pi-session-continued-env-recovery",
           "nextAction": "Rank the 357 SELECT statements in packages/server-pos/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -43084,12 +43084,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261118-g",
+          "runId": "run-20261118-h",
           "agentId": "lead",
-          "claimedAt": "2026-11-18T17:11:11.898Z",
-          "heartbeatAt": "2026-11-18T17:11:11.941Z",
-          "expiresAt": "2026-11-18T17:41:11.941Z",
-          "generation": 128
+          "claimedAt": "2026-11-18T18:49:30.922Z",
+          "heartbeatAt": "2026-11-18T18:49:31.009Z",
+          "expiresAt": "2026-11-18T19:19:31.009Z",
+          "generation": 129
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -43100,10 +43100,10 @@
         "handoff": {
           "runId": "run-20261118-g",
           "agentId": "lead",
-          "at": "2026-11-18T17:11:11.810Z",
+          "at": "2026-11-18T18:49:30.874Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Port remaining Files writers to native; switch consumers; delete TS writes; record KPI."
+          "reason": "Recovery: pi-session-continued-env-recovery",
+          "nextAction": "Write census: service-repository 55 (separate task retire.files.service-repository); attachments/migration.ts 24 (backfill+reconcile; consumers = dev-only local scripts preserve-orphan-files/reconcile-attachments/audit-file-provenance/retire-attachment-fixture-blockers, local+erpx_dev_ guards); legal-portal-repository 10; legal-portal-binding 3; legal-destruction-source-facts 3; expense-native-effects 3; collaboration-home-sources 3; one write each: support-ticket-portal-files, private-attachment-reads, pos-images-facts, document-derivatives, customer-portal-files, beta-resource-cleanup, orphan-preservation. No native rust backfill/reconcile equivalent exists. Decide per module: port to native owner port vs archive idempotent-completed ops scripts. Requires dev PG available before parity tests."
         },
         "nextAction": "Write census: service-repository 55 (separate task retire.files.service-repository); attachments/migration.ts 24 (backfill+reconcile; consumers = dev-only local scripts preserve-orphan-files/reconcile-attachments/audit-file-provenance/retire-attachment-fixture-blockers, local+erpx_dev_ guards); legal-portal-repository 10; legal-portal-binding 3; legal-destruction-source-facts 3; expense-native-effects 3; collaboration-home-sources 3; one write each: support-ticket-portal-files, private-attachment-reads, pos-images-facts, document-derivatives, customer-portal-files, beta-resource-cleanup, orphan-preservation. No native rust backfill/reconcile equivalent exists. Decide per module: port to native owner port vs archive idempotent-completed ops scripts. Requires dev PG available before parity tests."
       },
@@ -44249,8 +44249,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 128,
-    "updatedAt": "2026-11-18T17:11:11.942Z",
+    "lastCoordinatorGeneration": 129,
+    "updatedAt": "2026-11-18T18:49:31.010Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44295,10 +44295,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261118-f",
-      "runId": "run-20261118-g",
-      "at": "2026-11-18T17:10:33.306Z",
-      "reason": "pi-session-resume-lease-expired",
+      "previousRunId": "run-20261118-g",
+      "runId": "run-20261118-h",
+      "at": "2026-11-18T18:49:30.876Z",
+      "reason": "pi-session-continued-env-recovery",
       "wipReviewed": true,
       "previousRunStopped": true
     },
