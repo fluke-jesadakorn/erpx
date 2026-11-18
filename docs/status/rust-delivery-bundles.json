@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3131,
+    "revision": 3142,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261118-b",
+      "runId": "run-20261118-g",
       "agentId": "lead",
-      "startedAt": "2026-11-18T01:15:45.617Z",
-      "heartbeatAt": "2026-11-18T01:36:05.127Z",
-      "expiresAt": "2026-11-18T02:06:05.127Z",
-      "generation": 126,
-      "tokenHash": "9146a6fcc836a5644a31aced072eb2237edc6aab875b83f994b11037ca8f1bbb"
+      "startedAt": "2026-11-18T17:10:33.299Z",
+      "heartbeatAt": "2026-11-18T17:11:11.941Z",
+      "expiresAt": "2026-11-18T17:41:11.941Z",
+      "generation": 128,
+      "tokenHash": "7b753c22dfba88794fe1677884118aec50f92c60cea223121d0f43d73643ae5d"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -41642,8 +41642,15 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261118-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-18T17:10:48.750Z",
+          "heartbeatAt": "2026-11-18T17:11:11.941Z",
+          "expiresAt": "2026-11-18T17:41:11.941Z",
+          "generation": 128
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -41651,7 +41658,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Rank the 357 SELECT statements in packages/server-pos/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261118-f",
+          "agentId": "worker-c",
+          "at": "2026-11-18T17:10:33.296Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: pi-session-resume-lease-expired",
+          "nextAction": "Rank the 357 SELECT statements in packages/server-pos/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -43068,16 +43082,30 @@
           "owner:files",
           "resource:composition"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261118-g",
+          "agentId": "lead",
+          "claimedAt": "2026-11-18T17:11:11.898Z",
+          "heartbeatAt": "2026-11-18T17:11:11.941Z",
+          "expiresAt": "2026-11-18T17:41:11.941Z",
+          "generation": 128
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "handoff": null,
-        "nextAction": "Port remaining Files writers to native; switch consumers; delete TS writes; record KPI."
+        "handoff": {
+          "runId": "run-20261118-g",
+          "agentId": "lead",
+          "at": "2026-11-18T17:11:11.810Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Port remaining Files writers to native; switch consumers; delete TS writes; record KPI."
+        },
+        "nextAction": "Write census: service-repository 55 (separate task retire.files.service-repository); attachments/migration.ts 24 (backfill+reconcile; consumers = dev-only local scripts preserve-orphan-files/reconcile-attachments/audit-file-provenance/retire-attachment-fixture-blockers, local+erpx_dev_ guards); legal-portal-repository 10; legal-portal-binding 3; legal-destruction-source-facts 3; expense-native-effects 3; collaboration-home-sources 3; one write each: support-ticket-portal-files, private-attachment-reads, pos-images-facts, document-derivatives, customer-portal-files, beta-resource-cleanup, orphan-preservation. No native rust backfill/reconcile equivalent exists. Decide per module: port to native owner port vs archive idempotent-completed ops scripts. Requires dev PG available before parity tests."
       },
       {
         "id": "retire.benefits.residual-writers",
@@ -44211,8 +44239,8 @@
       "totalPackets": 235,
       "migratedPackets": 130,
       "statusCounts": {
-        "pending": 25,
-        "in_progress": 0,
+        "pending": 23,
+        "in_progress": 2,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 130,
@@ -44221,8 +44249,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 126,
-    "updatedAt": "2026-11-18T01:38:19.821Z",
+    "lastCoordinatorGeneration": 128,
+    "updatedAt": "2026-11-18T17:11:11.942Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44267,10 +44295,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261118-fluke",
-      "runId": "run-20261118-b",
-      "at": "2026-11-18T01:15:45.618Z",
-      "reason": "Previous lead run-20261118-fluke lease expired; WIP reviewed (untracked src/composition/src/pos_events.rs preserved, no live conflicting process)",
+      "previousRunId": "run-20261118-f",
+      "runId": "run-20261118-g",
+      "at": "2026-11-18T17:10:33.306Z",
+      "reason": "pi-session-resume-lease-expired",
       "wipReviewed": true,
       "previousRunStopped": true
     },
