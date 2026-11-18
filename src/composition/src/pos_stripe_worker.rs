@@ -8,7 +8,6 @@
 //! this worker and fails closed without it; there is no TS completion fallback.
 use crate::pos_effects::{PosEffectFlush, flush_pos_effects};
 use erpx_server_finance::public::FinanceActor;
-use erpx_server_finance::public::FinanceActor;
 use erpx_server_finance::public::pos_sources::{read_open_period_for_date, PosBankTransaction as PosBankSnapshot};
 use erpx_server_inventory::public::availability_read::read_availability;
 use erpx_server_inventory::public::pos_consumption::{PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts};
