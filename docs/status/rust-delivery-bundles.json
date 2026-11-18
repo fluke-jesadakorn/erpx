@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3127,
+    "revision": 3131,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261118-b",
       "agentId": "lead",
       "startedAt": "2026-11-18T01:15:45.617Z",
-      "heartbeatAt": "2026-11-18T01:28:15.077Z",
-      "expiresAt": "2026-11-18T01:58:15.077Z",
+      "heartbeatAt": "2026-11-18T01:36:05.127Z",
+      "expiresAt": "2026-11-18T02:06:05.127Z",
       "generation": 126,
       "tokenHash": "9146a6fcc836a5644a31aced072eb2237edc6aab875b83f994b11037ca8f1bbb"
     },
@@ -43999,22 +43999,97 @@
           "owner:runtime",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261118-b",
-          "agentId": "lead",
-          "claimedAt": "2026-11-18T01:24:30.782Z",
-          "heartbeatAt": "2026-11-18T01:28:15.077Z",
-          "expiresAt": "2026-11-18T01:58:15.077Z",
-          "generation": 126
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": "c429adfbc8c55354fefbf6df5dfd9b5b23191340",
+        "implementedCommit": "e32d467bf50d68989185ea88da87d1c33a69b9dd",
+        "lastPushedSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-platform-administration",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "cargo test -p erpx-server-platform-administration --test platform_administration_postgres operations_summary_reads_real_queues_and_recovery_is_reviewed_idempotent_and_rollback_safe -- --exact",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "cargo test -p erpx-server-platform-administration --test platform_administration_postgres provisioning_activates_once_retains_history_and_rolls_back_a_failed_binding -- --exact",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "cargo test -p erpx-server-platform-administration --test platform_administration_postgres actual_router_reads_and_provisions_over_postgres_with_target_and_key_negatives -- --exact",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "cargo test -p erpx-server-platform-administration --test platform_administration_postgres holding_migrations_run_once_with_control_receipt_and_holdings_isolation -- --exact",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/platform_administration/native-platform-administration-transport.test.ts tests/unit/shared.work/presentation-owner-queries.test.ts tests/unit/shared.architecture/first-wave-applications.test.ts",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd",
+            "before": 1960,
+            "after": 1950,
+            "owner": "platform_administration"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e32d467bf50d68989185ea88da87d1c33a69b9dd",
+            "before": 21,
+            "after": 11,
+            "owner": "platform_administration",
+            "residual": [
+              {
+                "path": "packages/server-platform_administration/src/adapters/release-acceptance.ts",
+                "writes": 9,
+                "removalTaskId": "migrate.platform_administration",
+                "removalCondition": "Retire after the native Rust release-acceptance application and adapters own the Control/Holding release lifecycle and the admin release routes switch to native authority."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/engineering-verification.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.platform_administration",
+                "removalCondition": "Retire after native engineering-verification enrollment and identity authority replace the TS enrollment adapter and the verification routes switch to native."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.platform_administration",
+                "removalCondition": "Retire inside the native Files attachment transaction once attachment Finance facts are written by the Rust files owner."
+              }
+            ]
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Scope refinement: include generated Tailwind source lists that cite the retired TS modules.",
+        "nextAction": "Handoff: platform operations writers retired. Next ready work is retire.pos.residual (needs native POS sale_complete parity) or retire.quality.residual-writers.",
         "handoff": {
           "runId": "run-20261118-b",
           "agentId": "lead",
@@ -44024,7 +44099,12 @@
           "nextAction": "Scope refinement: include generated Tailwind source lists that cite the retired TS modules."
         },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "retire.planning.production-command-sources",
@@ -44129,20 +44209,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 235,
-      "migratedPackets": 129,
+      "migratedPackets": 130,
       "statusCounts": {
         "pending": 25,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 129,
+        "migrated": 130,
         "blocked": 80,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 126,
-    "updatedAt": "2026-11-18T01:28:15.079Z",
+    "updatedAt": "2026-11-18T01:38:19.821Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
