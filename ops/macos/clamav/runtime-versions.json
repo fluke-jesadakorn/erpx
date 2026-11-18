@@ -8,12 +8,12 @@
   },
   "libheif": {
     "formula": "libheif",
-    "version": "1.23.5",
+    "version": "1.23.7",
     "heifConvert": "/opt/homebrew/opt/libheif/bin/heif-convert"
   },
   "poppler": {
     "formula": "poppler",
-    "version": "26.09.0",
+    "version": "26.11.0",
     "pdftoppm": "/opt/homebrew/bin/pdftoppm"
   }
 }
