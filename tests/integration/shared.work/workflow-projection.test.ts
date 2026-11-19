@@ -1,6 +1,6 @@
 import { env } from "../../support/runtime-env";
 import { beforeEach,describe,expect,it,vi } from "vitest";
-import { project,type EventMessage } from "../../../src/workers/jobs";
+import { project,type EventMessage } from "@erpx/server-workflow/public/job-projector";
 describe("Workflow event projection",()=>{
   beforeEach(async()=>{
     await env.H001_READ_DB.exec(`
