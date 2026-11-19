@@ -42,7 +42,6 @@
     "./public/marketing-public-form": "./src/public/marketing-public-form.ts",
     "./public/record-purchases": "./src/public/record-purchases.ts",
     "./public/analytics-sources": "./src/public/analytics-sources.ts",
-    "./public/purchases": "./src/public/purchases.ts",
     "./public/last-audit-owner-projection-sources": "./src/public/last-audit-owner-projection-sources.ts",
     "./public/attachments-policy-facts": "./src/public/attachments-policy-facts.ts",
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",

@@ -37,7 +37,6 @@
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/executive-main-evidence-sources": "./src/adapters/executive-main-evidence-sources.ts",
     "./adapters/collaboration-notification-snapshot-sources": "./src/adapters/collaboration-notification-snapshot-sources.ts",
-    "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",
     "./public/commerce-bill-contracts": "./src/public/commerce-bill-contracts.ts",
     "./public/supplier-payment-contract": "./src/public/supplier-payment-contract.ts",
     "./public/supplier-bill-matching": "./src/public/supplier-bill-matching.ts",

@@ -18,7 +18,6 @@
     "./adapters/records-ai-usage-projection": "./src/adapters/records-ai-usage-projection.ts",
     "./adapters/attachments-finance-facts": "./src/adapters/attachments-finance-facts.ts",
     "./adapters/engineering-verification": "./src/adapters/engineering-verification.ts",
-    "./public/company-release-attachment-read-sources": "./src/public/company-release-attachment-read-sources.ts",
     "./public/release-source-locks": "./src/public/release-source-locks.ts",
     "./public/platform-executive": "./src/public/platform-executive.ts",
     "./public/company-release-attachment-read": "./src/public/company-release-attachment-read.ts",

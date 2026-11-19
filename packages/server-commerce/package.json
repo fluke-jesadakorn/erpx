@@ -122,7 +122,6 @@
     "./adapters/manufacturing-existing-posting-setup": "./src/adapters/manufacturing-existing-posting-setup.ts",
     "./adapters/ecommerce-sources": "./src/adapters/ecommerce-sources.ts",
     "./public/initial-physical-stock-count-sources": "./src/public/initial-physical-stock-count-sources.ts",
-    "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",
     "./public/posting-setup": "./src/public/posting-setup.ts",
     "./public/finance-tax-source-version": "./src/public/finance-tax-source-version.ts",
     "./public/quality-purchase-sources": "./src/public/quality-purchase-sources.ts",

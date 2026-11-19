@@ -89,7 +89,6 @@
     "./public/identity-snapshot-sources": "./src/public/identity-snapshot-sources.ts",
     "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
-    "./public/runtime-minio-preservation-authority": "./src/public/runtime-minio-preservation-authority.ts",
     "./public/attachment-purchases": "./src/public/attachment-purchases.ts",
     "./public/evidence-attachment-read": "./src/public/evidence-attachment-read.ts",
     "./public/hospitality-owner-projection-sources": "./src/public/hospitality-owner-projection-sources.ts",

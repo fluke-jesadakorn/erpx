@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3153,
+    "revision": 3158,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261119-a",
+      "runId": "run-20261119-c",
       "agentId": "lead",
-      "startedAt": "2026-11-19T01:35:37.005Z",
-      "heartbeatAt": "2026-11-19T01:35:37.005Z",
-      "expiresAt": "2026-11-19T02:05:37.006Z",
-      "generation": 131,
-      "tokenHash": "4259493f91e4371bb4ddea65ef5d456b793c0471138b544f2b394a76d93a9f9c"
+      "startedAt": "2026-11-19T04:30:33.634Z",
+      "heartbeatAt": "2026-11-19T04:30:33.634Z",
+      "expiresAt": "2026-11-19T05:00:33.636Z",
+      "generation": 133,
+      "tokenHash": "8eceb159558563617dab462cbd3bc197d111b4981ddbc88c79e43a721832bf49"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -18722,15 +18722,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Correct stale 16-write claim: all 81 TS files in allowedPaths have zero KPI matches at HEAD. Existing reachability.mjs omits worker, script and test roots; concrete consumers include runtime-job-health-effects via runtime jobs and commercial capability-decision via tests. Rebuild root-complete import graph, preserve register/style references and native-seed test oracles, then define a separately claimed KPI-decreasing slice; do not delete on prior graph evidence.",
+        "blocker": "Recovery: lease lapsed during dead-set reconciliation; resuming bounded 81-file scope",
+        "nextAction": "Rebuild root-complete import graph (routes+workers+scripts+tests), verify all 81 files unreachable, delete with package.json/@source cleanup",
         "handoff": {
-          "runId": "run-20261115-retirement-f",
+          "runId": "run-20261119-b",
           "agentId": "lead",
-          "at": "2026-11-15T03:12:13.186Z",
+          "at": "2026-11-19T04:30:33.633Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Correct stale 16-write claim: all 81 TS files in allowedPaths have zero KPI matches at HEAD. Existing reachability.mjs omits worker, script and test roots; concrete consumers include runtime-job-health-effects via runtime jobs and commercial capability-decision via tests. Rebuild root-complete import graph, preserve register/style references and native-seed test oracles, then define a separately claimed KPI-decreasing slice; do not delete on prior graph evidence."
+          "reason": "Recovery: lease lapsed during dead-set reconciliation; resuming bounded 81-file scope",
+          "nextAction": "Rebuild root-complete import graph (routes+workers+scripts+tests), verify all 81 files unreachable, delete with package.json/@source cleanup"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -44235,8 +44235,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 131,
-    "updatedAt": "2026-11-19T01:35:37.009Z",
+    "lastCoordinatorGeneration": 133,
+    "updatedAt": "2026-11-19T04:30:33.639Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44281,10 +44281,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261118-i",
-      "runId": "run-20261119-a",
-      "at": "2026-11-19T01:35:37.007Z",
-      "reason": "Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
+      "previousRunId": "run-20261119-b",
+      "runId": "run-20261119-c",
+      "at": "2026-11-19T04:30:33.637Z",
+      "reason": "lease lapsed during dead-set reconciliation; resuming bounded 81-file scope",
       "wipReviewed": true,
       "previousRunStopped": true
     },

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "compaction": {
+    "auto": true,
+    "keep": {
+      "tokens": 12000
+    },
+    "buffer": "40%"
+  },
+  "provider": {
+    "mtplx": {
+      "models": {
+        "mtplx-qwen36-35b-a3b-optimized-speed": {
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          }
+        },
+        "mtplx-qwen36-35b-a3b-optimized-balance": {
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          }
+        }
+      }
+    }
+  }
+}

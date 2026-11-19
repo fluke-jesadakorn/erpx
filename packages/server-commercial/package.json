@@ -29,7 +29,6 @@
     "./public/package-settlement-sources": "./src/public/package-settlement-sources.ts",
     "./public/package-grants": "./src/public/package-grants.ts",
     "./public/owner-package-obligations": "./src/public/owner-package-obligations.ts",
-    "./public/company-package-lifecycle": "./src/public/company-package-lifecycle.ts",
     "./public/seat-meter": "./src/public/seat-meter.ts",
     "./public/purchased-capability-sql": "./src/public/purchased-capability-sql.ts",
     "./public/usage-contract": "./src/public/usage-contract.ts",

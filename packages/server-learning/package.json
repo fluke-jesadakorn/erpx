@@ -31,7 +31,6 @@
     "./public/record-purchases": "./src/public/record-purchases.ts",
     "./public/people-evaluation-facts": "./src/public/people-evaluation-facts.ts",
     "./public/purchases": "./src/public/purchases.ts",
-    "./public/metric-purchases": "./src/public/metric-purchases.ts",
     "./public/evaluation-source-policy": "./src/public/evaluation-source-policy.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/attachments-sensitive-facts": "./src/public/attachments-sensitive-facts.ts",

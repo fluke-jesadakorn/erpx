@@ -3460,7 +3460,6 @@
 @source "../../../../packages/server-platform_administration/src/public/company-release-attachment-read.ts";
 @source "../../../../packages/server-platform_administration/src/public/engineering-verification.ts";
 @source "../../../../packages/server-platform_administration/src/public/platform-executive.ts";
-@source "../../../../packages/server-platform_administration/src/public/platform-operations.ts";
 @source "../../../../packages/server-platform_administration/src/public/pms-rollout-guards.ts";
 @source "../../../../packages/server-platform_administration/src/public/presentation-queries.ts";
 @source "../../../../packages/server-platform_administration/src/public/records-ai-usage-projection.ts";
@@ -3877,13 +3876,11 @@
 @source "../../../../packages/server-runtime/src/adapters/runtime/filesystem.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/https.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/maintenance.ts";
-@source "../../../../packages/server-runtime/src/adapters/runtime/migrations.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/minio.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/postgres.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/read-metrics.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/read-request.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/redis-cache.ts";
-@source "../../../../packages/server-runtime/src/adapters/runtime/resources.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/sql.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/types.ts";
 @source "../../../../packages/server-runtime/src/adapters/simulation-only-adapters.ts";
@@ -3922,7 +3919,6 @@
 @source "../../../../packages/server-runtime/src/public/runtime/filesystem.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/https.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/maintenance.ts";
-@source "../../../../packages/server-runtime/src/public/runtime/migrations.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/minio.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/postgres.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/read-metrics.ts";
@@ -4273,7 +4269,6 @@
 @source "../../../../packages/server-workflow/src/adapters/people-lifecycle-audit-effects.ts";
 @source "../../../../packages/server-workflow/src/adapters/people-lifecycle-facts.ts";
 @source "../../../../packages/server-workflow/src/adapters/people-payroll-final-owner-projections.ts";
-@source "../../../../packages/server-workflow/src/adapters/platform-job-recovery.ts";
 @source "../../../../packages/server-workflow/src/adapters/pms-command-facts.ts";
 @source "../../../../packages/server-workflow/src/adapters/project-worker-startup-evidence.ts";
 @source "../../../../packages/server-workflow/src/adapters/records-record-details-owned-facts.ts";
@@ -4345,7 +4340,6 @@
 @source "../../../../packages/server-workflow/src/public/people-lifecycle-audit-effects.ts";
 @source "../../../../packages/server-workflow/src/public/people-lifecycle-facts.ts";
 @source "../../../../packages/server-workflow/src/public/people-payroll-final-owner-projections.ts";
-@source "../../../../packages/server-workflow/src/public/platform-job-recovery.ts";
 @source "../../../../packages/server-workflow/src/public/pms-command-facts.ts";
 @source "../../../../packages/server-workflow/src/public/project-worker-startup-evidence.ts";
 @source "../../../../packages/server-workflow/src/public/records-record-details-owned-facts.ts";

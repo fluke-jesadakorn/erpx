@@ -44,7 +44,6 @@
     "./public/legal-portal-storage-allowance": "./src/public/legal-portal-storage-allowance.ts",
     "./public/document-page-storage-limit": "./src/public/document-page-storage-limit.ts",
     "./public/cloudflare": "./src/public/cloudflare.ts",
-    "./public/company-provisioning-attachment-read-sources": "./src/public/company-provisioning-attachment-read-sources.ts",
     "./public/beta-team": "./src/public/beta-team.ts",
     "./public/beta-config": "./src/public/beta-config.ts",
     "./public/ai-gateway-sources": "./src/public/ai-gateway-sources.ts",

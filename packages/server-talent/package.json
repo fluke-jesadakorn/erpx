@@ -19,7 +19,6 @@
     "./adapters/people-hire-handoff-facts": "./src/adapters/people-hire-handoff-facts.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/attachments-sensitive-facts": "./src/adapters/attachments-sensitive-facts.ts",
-    "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",
     "./public/product-entry": "./src/public/product-entry.ts",
     "./public/executive-evidence-sources": "./src/public/executive-evidence-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
