@@ -40,7 +40,7 @@ Deletion-first waves, biggest-keystone-first inside each. Every slice: implement
 
 ### Wave 0 — quick wins (immediate visible delta, minimal Rust)
 
-- [ ] `retire.unreachable-ts-cleanup`: rebuild the root-complete reachability audit (current `reachability.mjs` omits worker/script/test roots — the recorded correction), then delete the **81 dead TS modules** and their `package.json` export keys. KPI 0 → 0, but −81 files in one pushed milestone.
+- [x] `retire.unreachable-ts-cleanup` (closed 2026-11-19, b8faed727): fixed `scripts/testing/ts-reachability.mjs` to scan multi-line import statements, then deleted the dead modules of the original 81: **66 deleted** in the pushed milestone, **8 already removed** before the WIP base, **7 retained** (imported by 5 test files via export specifiers — verified against WIP package.json export keys). Global KPI flat **1950 → 1950** (zero SQL write statements in the deleted files); closed `blocked` under the strict-decrease retirement gate with the flat check recorded. 243 root-complete dead modules remain under `packages/server-*/src` (recomputed with the fixed tool; list in `.scratch/dev/rust-migration/dead-modules-20261119.txt`) — scope a follow-up bounded wave.
 - [ ] `commercial.purchase-command-boundary` retirement: create the bounded retirement task (exact owner/feature-route/composition/test paths), run the native-seeded KPI delta, close, restore `migrated`.
 - [ ] Ledger hygiene: convert the two "downgraded" packets (commercial, platform_administration — latter out of scope now, record as skipped-residual) to consistent states so counts are honest.
 

@@ -64,7 +64,10 @@ function resolveSpec(spec, fromFile) {
   return out;
 }
 
-const importRe = /(?:import\s+(?:type\s+)?(?:[^'"\n]*?\sfrom\s+)?|export\s+(?:type\s+)?[^'"\n]*?\sfrom\s+|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g;
+// [^'"] (not [^'"\n"]) lets the lazy scan span multi-line import statements
+// (e.g. "import {\n  a,\n} from './x'"); the quote barrier still keeps each
+// match inside its own statement.
+const importRe = /(?:import\s+(?:type\s+)?(?:[^'"]*?\sfrom\s+)?|export\s+(?:type\s+)?[^'"]*?\sfrom\s+|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g;
 
 const entries = [];
 function walk(dir, match, acc) {
