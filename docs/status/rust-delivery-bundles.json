@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3151,
+    "revision": 3153,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261118-i",
+      "runId": "run-20261119-a",
       "agentId": "lead",
-      "startedAt": "2026-11-19T00:00:10.649Z",
-      "heartbeatAt": "2026-11-19T00:00:28.653Z",
-      "expiresAt": "2026-11-19T00:30:28.653Z",
-      "generation": 130,
-      "tokenHash": "ed2c13346df0747fea5728e49fff15e0ce4058b9a84826794a9e582431f1bf1b"
+      "startedAt": "2026-11-19T01:35:37.005Z",
+      "heartbeatAt": "2026-11-19T01:35:37.005Z",
+      "expiresAt": "2026-11-19T02:05:37.006Z",
+      "generation": 131,
+      "tokenHash": "4259493f91e4371bb4ddea65ef5d456b793c0471138b544f2b394a76d93a9f9c"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -41642,28 +41642,21 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261118-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-19T00:00:28.610Z",
-          "heartbeatAt": "2026-11-19T00:00:28.653Z",
-          "expiresAt": "2026-11-19T00:30:28.653Z",
-          "generation": 130
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
         "nextAction": "Rank the 357 SELECT statements in packages/server-pos/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
         "handoff": {
-          "runId": "run-20261118-h",
+          "runId": "run-20261118-i",
           "agentId": "lead",
-          "at": "2026-11-19T00:00:10.648Z",
+          "at": "2026-11-19T01:35:37.004Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: pi-session-resume-after-lease-lapse",
+          "reason": "Recovery: Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
           "nextAction": "Rank the 357 SELECT statements in packages/server-pos/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -43082,27 +43075,20 @@
           "owner:files",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261118-i",
-          "agentId": "lead",
-          "claimedAt": "2026-11-19T00:00:28.562Z",
-          "heartbeatAt": "2026-11-19T00:00:28.653Z",
-          "expiresAt": "2026-11-19T00:30:28.653Z",
-          "generation": 130
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
         "handoff": {
-          "runId": "run-20261118-h",
+          "runId": "run-20261118-i",
           "agentId": "lead",
-          "at": "2026-11-19T00:00:10.648Z",
+          "at": "2026-11-19T01:35:37.004Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: pi-session-resume-after-lease-lapse",
+          "reason": "Recovery: Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
           "nextAction": "Write census: service-repository 55 (separate task retire.files.service-repository); attachments/migration.ts 24 (backfill+reconcile; consumers = dev-only local scripts preserve-orphan-files/reconcile-attachments/audit-file-provenance/retire-attachment-fixture-blockers, local+erpx_dev_ guards); legal-portal-repository 10; legal-portal-binding 3; legal-destruction-source-facts 3; expense-native-effects 3; collaboration-home-sources 3; one write each: support-ticket-portal-files, private-attachment-reads, pos-images-facts, document-derivatives, customer-portal-files, beta-resource-cleanup, orphan-preservation. No native rust backfill/reconcile equivalent exists. Decide per module: port to native owner port vs archive idempotent-completed ops scripts. Requires dev PG available before parity tests."
         },
         "nextAction": "Write census: service-repository 55 (separate task retire.files.service-repository); attachments/migration.ts 24 (backfill+reconcile; consumers = dev-only local scripts preserve-orphan-files/reconcile-attachments/audit-file-provenance/retire-attachment-fixture-blockers, local+erpx_dev_ guards); legal-portal-repository 10; legal-portal-binding 3; legal-destruction-source-facts 3; expense-native-effects 3; collaboration-home-sources 3; one write each: support-ticket-portal-files, private-attachment-reads, pos-images-facts, document-derivatives, customer-portal-files, beta-resource-cleanup, orphan-preservation. No native rust backfill/reconcile equivalent exists. Decide per module: port to native owner port vs archive idempotent-completed ops scripts. Requires dev PG available before parity tests."
@@ -44240,17 +44226,17 @@
       "migratedPackets": 130,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 2,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 130,
-        "blocked": 80,
+        "blocked": 82,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 130,
-    "updatedAt": "2026-11-19T00:00:28.654Z",
+    "lastCoordinatorGeneration": 131,
+    "updatedAt": "2026-11-19T01:35:37.009Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44295,10 +44281,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261118-h",
-      "runId": "run-20261118-i",
-      "at": "2026-11-19T00:00:10.651Z",
-      "reason": "pi-session-resume-after-lease-lapse",
+      "previousRunId": "run-20261118-i",
+      "runId": "run-20261119-a",
+      "at": "2026-11-19T01:35:37.007Z",
+      "reason": "Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
       "wipReviewed": true,
       "previousRunStopped": true
     },
