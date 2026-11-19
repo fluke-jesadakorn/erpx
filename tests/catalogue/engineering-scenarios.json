@@ -1100,6 +1100,38 @@
       "capabilityId": "sla-watch"
     },
     {
+      "id": "support/incidents",
+      "workflow": [
+        "Open incidents, add timeline events and broadcast status"
+      ],
+      "expectedResults": [
+        "Persisted incident lifecycle, timeline events and status broadcasts remain correct after reload."
+      ],
+      "review": "reviewed",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/support/package-obligations.test.ts",
+          "title": "retains a mitigated incident until its independent close even after the source ticket is cancelled",
+          "proof": "Seeds an open incident against a purchased Support package, applies a mitigation, then verifies the incident is retained and independently closed after the source ticket is cancelled."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/support/package-surfaces.test.ts",
+          "title": "filters unpurchased Support Calendar sources while retaining draining owner work",
+          "proof": "Seeds an incident plus draining owner work, removes the purchase, and verifies Calendar drops the unpurchased incident source while draining work remains readable."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/support/package-surfaces.test.ts",
+          "title": "applies each Support metric capability and the incident record gate",
+          "proof": "Applies each Support metric capability and verifies the incident record gate admits the incident reader only for the entitled package."
+        }
+      ],
+      "moduleId": "support",
+      "capabilityId": "incidents"
+    },
+    {
       "id": "support/feature-support-sessions",
       "workflow": [
         "Request, approve and revoke customer sessions"

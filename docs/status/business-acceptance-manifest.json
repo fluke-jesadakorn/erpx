@@ -1009,7 +1009,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-operations.ts",
         "schema": "migrations/postgres/control/0016_platform_holding_provisioning.sql",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Validate approved Holding slot and provision; Replay activation and inspect durable history. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -1065,7 +1065,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-operations.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Provision available Holding resource slot; Inspect current binding and runtime operational state. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -1174,7 +1174,7 @@
         "api": "ops/macos/erpxctl.py",
         "service": "ops/macos/erpxctl.py",
         "schema": "migrations/postgres/control",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/integration/shared.evidence/engineering-recovery.test.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/integration/shared.evidence/engineering-recovery.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read control and Holding health/queue state; Inspect unavailable Holding and preserve actionable failure. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -1288,7 +1288,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-operations.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect durable event projections and dead letters; Review/retry current failed event once. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -1343,7 +1343,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-operations.ts; packages/server-runtime/src/adapters/runtime/migrations.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/holding-write/0275_migration_receipts.sql; migrations/postgres/holding-read/0002_migration_receipts.sql",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Run reviewed additive Holding migrations; Reload durable migration receipt and replay. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -1397,7 +1397,7 @@
         "status": "flow_accepted",
         "ui": "packages/feature-account/src/routes/security/page.tsx; packages/workplace/src/routes/security/security-form.tsx",
         "api": "packages/feature-account/src/routes/api/v1/account/iam/[[...path]]/route.ts",
-        "service": "packages/server-identity_access/src/public/iam-recovery.ts",
+        "service": "packages/server-identity_access/src/adapters/native-recovery.ts",
         "schema": "migrations/postgres/control/0006_iam.sql; migrations/postgres/holding-write/0020_iam.sql",
         "test": "tests/integration/shared.evidence/engineering-platform-access.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Request, approve and revoke audited access. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
@@ -1454,7 +1454,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-operations.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
-        "test": "tests/integration/identity_access/iam.test.ts; tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/identity_access/iam.test.ts; tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Search durable scope-specific audit history; Review command recovery audit and original receipt. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -8657,7 +8657,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
         "service": "packages/server-agent/src/public/agent-governance.ts",
         "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
-        "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Register, suspend and retire agent definitions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -8709,7 +8709,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
         "service": "packages/server-agent/src/public/agent-governance.ts",
         "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
-        "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Add and approve agent versions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -8761,7 +8761,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
         "service": "packages/server-agent/src/public/agent-governance.ts",
         "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
-        "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Start, delegate, retry or cancel assignments. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -8813,7 +8813,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
         "service": "packages/server-agent/src/public/agent-governance.ts",
         "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
-        "test": "tests/integration/agent/agent-governance.test.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Register pools, replace members and inspect routing. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -8865,7 +8865,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
         "service": "packages/server-agent/src/public/agent-governance.ts",
         "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
-        "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Run private, held or expiring sessions. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -8968,7 +8968,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/agents/route.ts",
         "service": "packages/server-agent/src/public/agent-governance.ts",
         "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
-        "test": "tests/integration/agent/agent-governance.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
+        "test": "tests/integration/agent/workspace-assistant.test.ts; tests/integration/agent/rust-agent-governance-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/shared.requests/guided-intake.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect attributable agent activity. Human review and source access remain mandatory; provider operation and autonomous execution are not implied. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -10085,7 +10085,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts; packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read source-backed Platform and Holding runtime overview. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {
@@ -10247,7 +10247,7 @@
         "api": "packages/feature-admin/src/routes/api/v1/platform/executive/route.ts",
         "service": "packages/server-platform_administration/src/public/platform-executive.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+        "test": "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read executive operational aggregates from control-plane projections. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "gates": {

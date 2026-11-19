@@ -67,7 +67,18 @@ function resolveSpec(spec, fromFile) {
 // [^'"] (not [^'"\n"]) lets the lazy scan span multi-line import statements
 // (e.g. "import {\n  a,\n} from './x'"); the quote barrier still keeps each
 // match inside its own statement.
-const importRe = /(?:import\s+(?:type\s+)?(?:[^'"]*?\sfrom\s+)?|export\s+(?:type\s+)?[^'"]*?\sfrom\s+|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g;
+//
+// Keyword boundaries: the whitespace after `import`/`export` is optional
+// (`\s*` + negative lookahead) because minified/compact code writes
+// "import{x}from'y'" with no spaces at all; a mandatory `\s+` silently
+// dropped those statements. The lookahead (?![A-Za-z0-9_$]) keeps the match
+// on the real keyword and not on the prefix of a longer identifier
+// ("importData", "exportX"), and (?<![\w$]) keeps it off method/property
+// names ending in the keyword ("obj.import", "this.require").
+//
+// Whitespace around `from` is likewise optional: compact re-exports such as
+// "export {x}from './y'" omit the space before `from`.
+const importRe = /(?<![\w$])(?:import(?![A-Za-z0-9_$])\s*(?:type\s+)?(?:[^'"]*?\s*from\s*)?|export(?![A-Za-z0-9_$])\s*(?:type\s+)?[^'"]*?\s*from\s*|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g;
 
 const entries = [];
 function walk(dir, match, acc) {

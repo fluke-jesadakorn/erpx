@@ -179,7 +179,7 @@ const delivery: Record<string, ModuleDelivery> = {
       "feature-temporary-access": {
         "ui": "packages/feature-account/src/routes/security/page.tsx; packages/workplace/src/routes/security/security-form.tsx",
         "api": "packages/feature-account/src/routes/api/v1/account/iam/[[...path]]/route.ts",
-        "service": "packages/server-identity_access/src/public/iam-recovery.ts",
+        "service": "packages/server-identity_access/src/adapters/native-recovery.ts",
         "schema": "migrations/postgres/control/0006_iam.sql; migrations/postgres/holding-write/0020_iam.sql",
         "test": "tests/integration/shared.evidence/engineering-platform-access.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Request, approve and revoke audited access. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
