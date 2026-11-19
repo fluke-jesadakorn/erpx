@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3158,
+    "revision": 3167,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261119-c",
+      "runId": "run-20261119-e",
       "agentId": "lead",
-      "startedAt": "2026-11-19T04:30:33.634Z",
-      "heartbeatAt": "2026-11-19T04:30:33.634Z",
-      "expiresAt": "2026-11-19T05:00:33.636Z",
-      "generation": 133,
-      "tokenHash": "8eceb159558563617dab462cbd3bc197d111b4981ddbc88c79e43a721832bf49"
+      "startedAt": "2026-11-19T06:44:34.356Z",
+      "heartbeatAt": "2026-11-19T06:44:34.356Z",
+      "expiresAt": "2026-11-19T07:14:34.357Z",
+      "generation": 135,
+      "tokenHash": "28973b33faa5e7c90b75d72101e91ac98d104700d3a0235be06d2ac10c3cc4f8"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -18600,31 +18600,25 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Delete runtime-unreachable TypeScript modules and their package exports",
-        "scope": "Remove the 81 packages/server-*/src modules that no runtime root reaches and no test imports by export specifier, and drop their package.json export keys. Excludes claimed owners (pms, maintenance, manufacturing, quality), index.ts compatibility entries and files listed in contracts/src/ownership.json. No Rust change is expected.",
+        "scope": "Delete the 74 packages/server-*/src modules confirmed unreachable by the corrected root-complete audit (scripts/testing/ts-reachability.mjs: routes + workers + scripts + tests + fixtures) and drop their package.json export keys. The recorded 81-file list was stale: 7 files (server-commercial capability-decision adapter+public, package-obligations, rules/legacy-packages; server-manage_erpx onboarding-presentation-query adapter+public; server-pos product-image-read) are imported by tests via export specifiers and are retained with their export keys intact. Excludes claimed owners (pms, maintenance, manufacturing, quality) and index.ts barrels. 211 additional dead modules found by the corrected audit are out of scope and recorded for future bounded retire task scoping. No Rust change is expected; retirement KPI stays flat 1950 -> 1950 (zero SQL statements in the deleted files). Also commits the wave plan doc, the two globals.css WIP edits and the ts-reachability.mjs tool itself.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
+          ".gitignore",
+          "apps/admin/src/app/globals.css",
+          "apps/compat/src/app/globals.css",
           "packages/server-assets/package.json",
-          "packages/server-assets/src/public/maintenance-transaction.ts",
           "packages/server-collaboration/package.json",
-          "packages/server-collaboration/src/public/field-service-notifications.ts",
           "packages/server-collaboration/src/public/home-contract.ts",
-          "packages/server-collaboration/src/public/maintenance-notifications.ts",
           "packages/server-collaboration/src/public/messaging-purchases.ts",
           "packages/server-commerce/package.json",
           "packages/server-commerce/src/public/attachment-read-sources.ts",
-          "packages/server-commerce/src/public/inventory-service-reservations.ts",
           "packages/server-commercial/package.json",
-          "packages/server-commercial/src/adapters/capability-decision.ts",
-          "packages/server-commercial/src/public/capability-decision.ts",
           "packages/server-commercial/src/public/company-package-lifecycle.ts",
-          "packages/server-commercial/src/public/package-obligations.ts",
-          "packages/server-commercial/src/public/rules/legacy-packages.ts",
           "packages/server-ecommerce/package.json",
           "packages/server-ecommerce/src/adapters/platform-owner-projection-sources.ts",
           "packages/server-ecommerce/src/public/platform-owner-projection-sources.ts",
           "packages/server-files/package.json",
-          "packages/server-files/src/public/brand-media.ts",
           "packages/server-files/src/public/contracts/attachments-sensitive.ts",
           "packages/server-files/src/public/employee-evidence-read.ts",
           "packages/server-files/src/public/hospitality-attachment-read.ts",
@@ -18632,7 +18626,6 @@
           "packages/server-finance/src/adapters/service-initial-physical-stock-master-sources.ts",
           "packages/server-finance/src/public/service-initial-physical-stock-master-sources.ts",
           "packages/server-identity_access/package.json",
-          "packages/server-identity_access/src/adapters/account-session-security.ts",
           "packages/server-identity_access/src/adapters/field-service-authority.ts",
           "packages/server-identity_access/src/public/attachment-read-sources.ts",
           "packages/server-identity_access/src/public/field-service-authority.ts",
@@ -18643,17 +18636,13 @@
           "packages/server-inventory/src/public/attachment-read-sources.ts",
           "packages/server-inventory/src/public/consumption-contract.ts",
           "packages/server-inventory/src/public/field-service-purchase-sources.ts",
-          "packages/server-inventory/src/public/field-service-reservations.ts",
-          "packages/server-inventory/src/public/quality-lot.ts",
           "packages/server-inventory/src/public/reorder-policy-contract.ts",
           "packages/server-learning/package.json",
           "packages/server-learning/src/public/metric-purchases.ts",
           "packages/server-legal/package.json",
           "packages/server-legal/src/public/runtime-minio-preservation-authority.ts",
           "packages/server-manage_erpx/package.json",
-          "packages/server-manage_erpx/src/adapters/onboarding-presentation-query.ts",
           "packages/server-manage_erpx/src/public/company-provisioning-attachment-read-sources.ts",
-          "packages/server-manage_erpx/src/public/onboarding-presentation-query.ts",
           "packages/server-marketing/package.json",
           "packages/server-marketing/src/public/purchases.ts",
           "packages/server-operations/package.json",
@@ -18675,8 +18664,6 @@
           "packages/server-people_payroll/src/public/performance-purchases.ts",
           "packages/server-platform_administration/package.json",
           "packages/server-platform_administration/src/public/company-release-attachment-read-sources.ts",
-          "packages/server-pos/package.json",
-          "packages/server-pos/src/public/product-image-read.ts",
           "packages/server-procurement/package.json",
           "packages/server-procurement/src/public/attachment-read-sources.ts",
           "packages/server-projects/package.json",
@@ -18710,7 +18697,9 @@
           "packages/server-workflow/src/public/flow-work-contract.ts",
           "packages/server-workflow/src/public/invoice-command-routing-access.ts",
           "packages/server-workflow/src/public/invoice-command-routing-witness.ts",
-          "packages/server-workflow/src/public/routing-attention-contract.ts"
+          "packages/server-workflow/src/public/routing-attention-contract.ts",
+          "plans/central-core-rust-wave.md",
+          "scripts/testing/ts-reachability.mjs"
         ],
         "resources": [
           "owner:shared"
@@ -18718,19 +18707,43 @@
         "status": "blocked",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
+        "implementedCommit": "214eb50d3f24c3febc981b1d56bd5afff25c1189",
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "before": 1950,
+            "after": 1950,
+            "sourceSha": "214eb50d3f24c3febc981b1d56bd5afff25c1189",
+            "sourceKind": "committed",
+            "note": "Flat by construction: slice deleted 74 unreachable TS modules (66 in b8faed727, 8 already removed before the WIP base; 7 retained as test-reachable) containing zero SQL write statements, plus the ts-reachability.mjs multi-line import fix. Strict-decrease gate keeps this slice non-terminal; the 243 remaining dead modules form the follow-up bounded wave."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "214eb50d3f24c3febc981b1d56bd5afff25c1189",
+            "sourceKind": "committed",
+            "note": "Root + tests tsconfig pass on the final slice tree."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "214eb50d3f24c3febc981b1d56bd5afff25c1189",
+            "sourceKind": "committed",
+            "note": "Repository layout check passes on the final slice tree."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: lease lapsed during dead-set reconciliation; resuming bounded 81-file scope",
-        "nextAction": "Rebuild root-complete import graph (routes+workers+scripts+tests), verify all 81 files unreachable, delete with package.json/@source cleanup",
+        "blocker": "handoff",
+        "nextAction": "Slice closed non-terminal (blocked, audit recorded): 74 of the original 81 unreachable modules deleted (66 in b8faed727, 8 already removed before the WIP base), 7 retained as test-reachable via export specifiers; flat KPI 1950->1950 (zero SQL writes in deleted files); typecheck + structure:check green at 214eb50d. Next: scope a bounded wave-0 follow-up task deleting the 243 remaining root-complete dead modules under packages/server-*/src (list: .scratch/dev/rust-migration/dead-modules-20261119.txt; top owners workflow 24, identity_access 20, people_payroll 19, commerce 16, organization 15) with per-owner retirement:ts-writes deltas; then wave 1 (manage_erpx 7, customer_authority 5, records 27). PR #1 remains open, unmerged per owner instruction.",
         "handoff": {
-          "runId": "run-20261119-b",
+          "runId": "run-20261119-e",
           "agentId": "lead",
-          "at": "2026-11-19T04:30:33.633Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: lease lapsed during dead-set reconciliation; resuming bounded 81-file scope",
-          "nextAction": "Rebuild root-complete import graph (routes+workers+scripts+tests), verify all 81 files unreachable, delete with package.json/@source cleanup"
+          "at": "2026-11-19T06:47:13.194Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Slice closed non-terminal (blocked, audit recorded): 74 of the original 81 unreachable modules deleted (66 in b8faed727, 8 already removed before the WIP base), 7 retained as test-reachable via export specifiers; flat KPI 1950->1950 (zero SQL writes in deleted files); typecheck + structure:check green at 214eb50d. Next: scope a bounded wave-0 follow-up task deleting the 243 remaining root-complete dead modules under packages/server-*/src (list: .scratch/dev/rust-migration/dead-modules-20261119.txt; top owners workflow 24, identity_access 20, people_payroll 19, commerce 16, organization 15) with per-owner retirement:ts-writes deltas; then wave 1 (manage_erpx 7, customer_authority 5, records 27). PR #1 remains open, unmerged per owner instruction."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -44235,8 +44248,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 133,
-    "updatedAt": "2026-11-19T04:30:33.639Z",
+    "lastCoordinatorGeneration": 135,
+    "updatedAt": "2026-11-19T06:47:58.107Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44281,10 +44294,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261119-b",
-      "runId": "run-20261119-c",
-      "at": "2026-11-19T04:30:33.637Z",
-      "reason": "lease lapsed during dead-set reconciliation; resuming bounded 81-file scope",
+      "previousRunId": "run-20261119-d",
+      "runId": "run-20261119-e",
+      "at": "2026-11-19T06:44:34.357Z",
+      "reason": "run-20261119-d lease expired 05:47:32Z during WIP-commit review; owner committed WIP as b8faed727; slice closeout committed 214eb50d (typecheck + structure:check green); closing task with flat KPI check",
       "wipReviewed": true,
       "previousRunStopped": true
     },
