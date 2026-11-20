@@ -73,6 +73,8 @@ pub struct NotificationStatementInput {
     pub target_kind: Option<String>,
     #[serde(default)]
     pub target_id: Option<String>,
+    #[serde(default)]
+    pub values_json: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -140,7 +142,7 @@ mod tests {
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
             approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
             post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None, node_id: None, scope_node_id: None, runtime_predicate: None, table_name: None, cte_prefix: None,
-            source_access_sql: None, target_kind: None, target_id: None,
+            source_access_sql: None, target_kind: None, target_id: None, values_json: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -1697,5 +1699,73 @@ pub async fn customer_receipt_statement(
             value(input.source_hash.as_deref().unwrap_or("")), value(&input.user_id),
             serde_json::Value::Number(input.now.into()),
         ],
+    })
+}
+
+
+fn values_from_json(input: &NotificationStatementInput) -> Result<Vec<serde_json::Value>, Error> {
+    match &input.values_json {
+        Some(raw) => serde_json::from_str::<Vec<serde_json::Value>>(raw).map_err(|_| invalid().into()),
+        None => Err(invalid().into()),
+    }
+}
+
+/// Legal portal staging: create the draft attachment set (values supplied by caller-owned facts).
+pub async fn legal_draft_set_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,\
+ component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,\
+ audience_json,retention_policy_key,required_count,max_files,state,created_by,created_at,updated_at) \
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal portal staging: create the draft attachment link.
+pub async fn legal_draft_link_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES(?,?,'draft',?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal portal staging: create the uploaded upload intent.
+pub async fn legal_uploaded_intent_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,\
+ declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,\
+ created_at,updated_at,owner_version,attachment_set_id,attachment_link_id,company_id,\
+ detected_media_type,quarantine_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,'uploaded',?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal portal staging: create the quarantined attachment source.
+pub async fn legal_quarantined_source_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,\
+ original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,\
+ detected_media_type,source_state) VALUES(?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,'quarantined')".to_owned(),
+        values: values_from_json(input)?,
     })
 }

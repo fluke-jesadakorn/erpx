@@ -39,6 +39,7 @@ export async function nativeSystemNotificationStatement(
     order_id?: string;
     source_hash?: string;
     event?: string;
+    values_json?: string;
   },
   key: string,
   now: number,

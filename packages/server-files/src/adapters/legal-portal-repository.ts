@@ -27,21 +27,10 @@ usedStorage:(facts:{companyId:string;})=>db.prepare("SELECT COALESCE(sum(bytes),
 pendingStorage:(facts:{companyId:string;now:number;})=>db.prepare("SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?").bind(facts.companyId,facts.now).first<number>("coalesce"),
 storageAllowance:facts=>legalPortalStorageAllowance(db,facts.companyId),
 raced:stagedSource,
-draftSet:(facts:{setId:string;companyId:string;branchId:string | null;departmentId:string | null;fact4:"legal_item";itemId:string;fact6:"action";commandId:string;PORTAL_PURPOSE:"legal_portal_submission";itemVersion:number;version:number;classification:"public"|"internal"|"confidential"|"restricted";fact12:string;retentionPolicyKey:string | null;requiredCount:number;maxFiles:number;actorId:string;now:number;now2:number;})=>stage(db.prepare(`INSERT INTO attachment_sets(
-              id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,
-              expected_target_version,policy_version,classification,audience_json,retention_policy_key,
-              required_count,max_files,state,created_by,created_at,updated_at
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)`).bind(facts.setId,facts.companyId,facts.branchId,facts.departmentId,facts.fact4,facts.itemId,facts.fact6,facts.commandId,facts.PORTAL_PURPOSE,facts.itemVersion,facts.version,facts.classification,facts.fact12,facts.retentionPolicyKey,facts.requiredCount,facts.maxFiles,facts.actorId,facts.now,facts.now2)),
-draftLink:(facts:{linkId:string;setId:string;actorId:string;now:number;fact4:number;})=>stage(db.prepare("INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES(?,?,'draft',?,?,?)").bind(facts.linkId,facts.setId,facts.actorId,facts.now,facts.fact4)),
-uploadedIntent:(facts:{uploadId:string;fact1:"legal_item";itemId:string;PORTAL_PURPOSE:"legal_portal_submission";name:string;mediaType:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";byteLength:number;byteLength2:number;checksum:string;objectKey:string;objectKey2:string;actorId:string;fact12:number;now:number;now2:number;itemVersion:number;setId:string;linkId:string;companyId:string;mediaType2:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";objectKey3:string;})=>stage(db.prepare(`INSERT INTO upload_intents(
-              id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,
-              staging_key,final_key,status,created_by,expires_at,created_at,updated_at,owner_version,
-              attachment_set_id,attachment_link_id,company_id,detected_media_type,quarantine_key
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,'uploaded',?,?,?,?,?,?,?,?,?,?)`).bind(facts.uploadId,facts.fact1,facts.itemId,facts.PORTAL_PURPOSE,facts.name,facts.mediaType,facts.byteLength,facts.byteLength2,facts.checksum,facts.objectKey,facts.objectKey2,facts.actorId,facts.fact12,facts.now,facts.now2,facts.itemVersion,facts.setId,facts.linkId,facts.companyId,facts.mediaType2,facts.objectKey3)),
-quarantinedSource:(facts:{sourceId:string;uploadId:string;fact2:"legal_item";itemId:string;PORTAL_PURPOSE:"legal_portal_submission";objectKey:string;name:string;mediaType:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";byteLength:number;checksum:string;actorId:string;now:number;companyId:string;mediaType2:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";})=>stage(db.prepare(`INSERT INTO attachments(
-              id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,
-              checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state
-            ) VALUES(?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,'quarantined')`).bind(facts.sourceId,facts.uploadId,facts.fact2,facts.itemId,facts.PORTAL_PURPOSE,facts.objectKey,facts.name,facts.mediaType,facts.byteLength,facts.checksum,facts.actorId,facts.now,facts.companyId,facts.mediaType2)),
+async draftSet(facts){return stage(await nativeStaged.draftSet(facts));},
+async draftLink(facts){return stage(await nativeStaged.draftLink(facts));},
+async uploadedIntent(facts){return stage(await nativeStaged.uploadedIntent(facts));},
+async quarantinedSource(facts){return stage(await nativeStaged.quarantinedSource(facts));},
 async linkUpload(facts){return stage(await nativeStaged.linkUpload(facts));},
 async pendingScan(facts){return stage(await nativeStaged.pendingScan(facts));},
 async storedOriginal(facts){return stage(await nativeStaged.storedOriginal(facts));},
