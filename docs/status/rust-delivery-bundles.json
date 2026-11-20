@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3196,
+    "revision": 3204,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T09:43:24.715Z",
-      "expiresAt": "2026-11-20T10:13:24.715Z",
+      "heartbeatAt": "2026-11-20T09:56:32.416Z",
+      "expiresAt": "2026-11-20T10:26:32.416Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -46670,17 +46670,94 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
+        "checks": [
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "before": 1941,
+            "after": 1928,
+            "note": "Global KPI falls 13: 11 production-command-sources writes + 3 resources writes retired, offset by the earlier +1 capacity-release deletion accounting."
+          },
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-planning/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "before": 13,
+            "after": 0,
+            "note": "Planning owner KPI reaches 0; retained read-source modules contain only SELECT/guards and throw stubs."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "note": "Composition still compiles with native Planning/Manufacturing routes as the only authority."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "note": "Root + tests tsconfig pass with the fixture oracle under tests/support/planning."
+          },
+          {
+            "command": "bunx vitest run tests/unit/planning --exclude '.scratch/**'",
+            "result": "passed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "note": "3 files / 166 tests pass; TS application oracles now imported from the fixture-only copy."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=manufacturing.production.integration",
+            "result": "failed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "note": "39/40 pass. The single failure is pre-existing environment drift: tests/integration/manufacturing/production.test.ts:1191 expects pg_dump '18.6' but installed binary is '18.7 (Homebrew)'. All scenario/resource/capacity cases pass."
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "passed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "note": "Documentation and generated inventories check passes after regeneration."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+            "sourceKind": "committed",
+            "note": "Repository layout passes."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "tests/support/planning/legacy/**",
+            "removalTaskId": "retire.planning.fixture-oracle",
+            "removalCondition": "Replace the copied TypeScript Planning SQL oracle with native-seeded PostgreSQL fixtures and delete the legacy directory once the native Planning service is configured in the authorized dev environment and the full manufacturing.production.integration suite passes without the fixture."
+          },
+          {
+            "path": "packages/server-planning/src/adapters/production-command-sources-read.ts",
+            "removalTaskId": "retire.planning.read-sources",
+            "removalCondition": "Switch the remaining native-backed read/guard consumers to native owner read ports (no TS SQL against Planning-owned tables) and delete the read-source module and its package.json export."
+          },
+          {
+            "path": "packages/server-planning/src/adapters/resources-read.ts",
+            "removalTaskId": "retire.planning.read-sources",
+            "removalCondition": "Switch planningContextGuards and resource read consumers to native owner ports and delete the read-source module and its package.json export."
+          }
+        ],
         "blocker": "handoff",
-        "nextAction": "prepareCapacityRelease is retired (native cancel/scrap own it, KPI 1942->1941, planning 14->13). Remaining 13 planning writes need: native scenario/resource command consumers switched in fixtures/tests, production-services oracle moved to native-seeded harness, and barrels/exports deleted. Scope paths refreshed to include application/{scenarios,resources}.ts, adapters/scenarios.ts, tests/support/** and fixtures/**.",
+        "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: all 13 Planning TS SQL writers deleted at 918c15726 (global 1941->1928, planning 13->0), native route authority/client parity retained, dead TS branches and public barrels/exports removed, fixture-only oracle relocated to tests/support/planning with removalTaskId retire.planning.fixture-oracle, read sources classified under retire.planning.read-sources. Blocker is environment-only: tests/integration/manufacturing/production.test.ts:1191 asserts pg_dump 18.6 but installed 18.7, so the registered suite reports 39/40; all changed behavior cases pass and cargo/typecheck/166 unit/docs/structure pass. No native Planning config or native server in authorized dev, so no authenticated browser smoke. Next: resolve pg_dump pin or get operator authorization to relax the assertion, then re-run the suite and mark migrated with cutover flags.",
         "handoff": {
           "runId": "run-20261120-k",
           "agentId": "lead",
-          "at": "2026-11-20T09:12:38.229Z",
+          "at": "2026-11-20T09:56:25.027Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "BLOCKED (not ready). Native Planning router/client parity is complete and the live production route at packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts already sends scenario/recommendation/resource/resource-calendar to native, but closure is blocked by: (1) packages/server-planning/src/adapters/production-command-sources.ts:132 prepareCapacityRelease is still the sole source for Manufacturing order cancel/other release paths; native only releases on PassQc (src/composition/src/manufacturing_order_commands.rs:132-145,1556-1566), so deleting it regresses capacity release. removalTaskId=migrate.manufacturing.order-actions (extend native order cancel/release, then delete the writer); removalCondition=native cancel/other order paths release planning capacity in one owner transaction with receipt/audit/outbox and no TS writer. (2) tests/integration/manufacturing/production.test.ts mixes planning writers with TS Manufacturing/Finance/attachment assertions; removalTaskId=migrate.manufacturing.production-oracles, removalCondition=full native-seeded PostgreSQL oracle covers the mixed journey. (3) allowedPaths omit application/scenarios.ts, application/resources.ts, adapters/scenarios.ts, tests/support/**, fixtures/** and generated inventories; lead must refine before a future claim. KPI unchanged 1942; no files edited in this claim."
+          "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: all 13 Planning TS SQL writers deleted at 918c15726 (global 1941->1928, planning 13->0), native route authority/client parity retained, dead TS branches and public barrels/exports removed, fixture-only oracle relocated to tests/support/planning with removalTaskId retire.planning.fixture-oracle, read sources classified under retire.planning.read-sources. Blocker is environment-only: tests/integration/manufacturing/production.test.ts:1191 asserts pg_dump 18.6 but installed 18.7, so the registered suite reports 39/40; all changed behavior cases pass and cargo/typecheck/166 unit/docs/structure pass. No native Planning config or native server in authorized dev, so no authenticated browser smoke. Next: resolve pg_dump pin or get operator authorization to relax the assertion, then re-run the suite and mark migrated with cutover flags."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -46905,6 +46982,78 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.planning.fixture-oracle",
+        "goalId": "G4",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "planning",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Replace fixture-only Planning SQL oracle with native seeding",
+        "scope": "Delete tests/support/planning/legacy after the native Planning service is configured in authorized dev and the full manufacturing.production.integration suite passes with native-seeded fixtures.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-planning/src/**",
+          "packages/server-planning/package.json",
+          "tests/support/planning/**",
+          "tests/integration/manufacturing/**",
+          "tests/unit/planning/**",
+          "fixtures/shared/**"
+        ],
+        "resources": [
+          "owner:planning"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete tests/support/planning/legacy after the native Planning service is configured in authorized dev and the full manufacturing.production.integration suite passes with native-seeded fixtures.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.planning.read-sources",
+        "goalId": "G4",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "planning",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire Planning TS read/guard sources",
+        "scope": "Switch productionWorkspace, planningExecutiveEvidenceRow, planningContextGuards and remaining read consumers to native owner read ports, then delete production-command-sources-read.ts/resources-read.ts and their package.json exports.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-planning/src/**",
+          "packages/server-planning/package.json",
+          "tests/support/planning/**",
+          "tests/integration/manufacturing/**",
+          "tests/unit/planning/**",
+          "fixtures/shared/**"
+        ],
+        "resources": [
+          "owner:planning"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch productionWorkspace, planningExecutiveEvidenceRow, planningContextGuards and remaining read consumers to native owner read ports, then delete production-command-sources-read.ts/resources-read.ts and their package.json exports.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -46913,10 +47062,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 237,
+      "totalPackets": 239,
       "migratedPackets": 131,
       "statusCounts": {
-        "pending": 21,
+        "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -46927,7 +47076,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T09:43:24.717Z",
+    "updatedAt": "2026-11-20T09:56:32.417Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
