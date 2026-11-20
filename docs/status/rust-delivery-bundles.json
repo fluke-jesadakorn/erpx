@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3559,
+    "revision": 3565,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T17:48:49.311Z",
-      "expiresAt": "2026-11-20T18:18:49.311Z",
+      "heartbeatAt": "2026-11-20T17:50:52.991Z",
+      "expiresAt": "2026-11-20T18:20:52.991Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -58069,6 +58069,84 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.release-events",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire release acceptance lifecycle event TS writers (3 writes)",
+        "scope": "Delete 3 company_release_events INSERTs in release-acceptance.ts; native release_event_submitted/reviewed/revoked statements own them.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "91e18de749587be0f7f95bbf06afe1e4acb2837d",
+        "lastPushedSha": "91e18de749587be0f7f95bbf06afe1e4acb2837d",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "91e18de749587be0f7f95bbf06afe1e4acb2837d",
+            "sourceKind": "committed",
+            "before": 11,
+            "after": 8,
+            "note": "Retired 3 TS release event writers; platform_administration KPI 11->8, global 1836->1833.",
+            "residual": [
+              {
+                "path": "packages/server-platform_administration/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.platform_administration.release-acceptance",
+                "removalCondition": "Delete remaining release acceptance writers only after the owner-native platform administration port is mounted."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/engineering-verification.ts",
+                "writes": 1,
+                "removalTaskId": "retire.platform_administration.release-acceptance",
+                "removalCondition": "Delete remaining release acceptance writers only after the owner-native platform administration port is mounted."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/release-acceptance.ts",
+                "writes": 6,
+                "removalTaskId": "retire.platform_administration.release-acceptance",
+                "removalCondition": "Delete remaining release acceptance writers only after the owner-native platform administration port is mounted."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "91e18de749587be0f7f95bbf06afe1e4acb2837d",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "91e18de749587be0f7f95bbf06afe1e4acb2837d",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests. No unit suite (e2e only)."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native release events; platform_administration KPI 11->8, global 1836->1833.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -58077,21 +58155,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 293,
-      "migratedPackets": 180,
+      "totalPackets": 294,
+      "migratedPackets": 181,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 180,
+        "migrated": 181,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T17:48:49.313Z",
+    "updatedAt": "2026-11-20T17:50:52.993Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "e6a77f2b980a6e13d83deb481a050d2dbbc44a7a",
