@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3299,
+    "revision": 3303,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T12:14:00.473Z",
-      "expiresAt": "2026-11-20T12:44:00.473Z",
+      "heartbeatAt": "2026-11-20T12:22:18.881Z",
+      "expiresAt": "2026-11-20T12:52:18.881Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -24012,7 +24012,7 @@
           "owner:organization"
         ],
         "status": "blocked",
-        "nextAction": "EXPLORATION 2026-11-20: inventory-count-effects (5 writes) retired at 965260b68. Remaining classified Quality writers: receiptQualityHoldSteps (quality.ts:30, caller server-commerce/application/commerce.ts — needs native commerce→quality hold-receipt switch), purchases boundary (3, live pms-stripe), alerts/acknowledge (3), attachment-purchases (2), product-entry (1). All have live production TS callers; owner scan found no dead/fixture-only writers. Do not re-scan; implement native route wiring per caller.",
+        "nextAction": "BLOCKED 2026-11-20 (parallel explorer verified): receiptQualityHoldSteps (server-quality/application/quality.ts:16 → adapters/quality.ts:30) emits 3 statements (spec assertion, inventory_quality_holds INSERT, quality_hold staff_notifications INSERT via collaboration/quality-notifications.ts:24). Only production callers: server-commerce/application/commerce.ts:1620,1623 inside approveCommerceReturn, wired via adapters/commerce.ts:651-685. Native port goods_receipt_hold.rs::prepare_goods_receipt_hold + inventory/quality_receipt_hold.rs exist and are PG-tested, but there is NO TS↔Rust FFI: the only bridge is HTTP, and native quality.hold (composition/quality.rs:591) opens its own SERIALIZABLE transaction (cannot nest in the TS commerce command unit). Removing the TS writer without a native commerce-return-approval command would break atomicity. removalTaskId=migrate.commerce.return-approval-native, removalCondition=native commerce return-approval command owns hold+notification effects in the same unit and the workplace return route is switched with full payload parity. Other Quality residuals (purchases boundary 3, alerts/acknowledge 3, attachment-purchases 2, product-entry 1) likewise have live TS callers.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -24529,10 +24529,10 @@
         "handoff": {
           "runId": "run-20261120-k",
           "agentId": "lead",
-          "at": "2026-11-20T12:13:38.363Z",
+          "at": "2026-11-20T12:22:03.261Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "EXPLORATION 2026-11-20: inventory-count-effects (5 writes) retired at 965260b68. Remaining classified Quality writers: receiptQualityHoldSteps (quality.ts:30, caller server-commerce/application/commerce.ts — needs native commerce→quality hold-receipt switch), purchases boundary (3, live pms-stripe), alerts/acknowledge (3), attachment-purchases (2), product-entry (1). All have live production TS callers; owner scan found no dead/fixture-only writers. Do not re-scan; implement native route wiring per caller."
+          "nextAction": "BLOCKED 2026-11-20 (parallel explorer verified): receiptQualityHoldSteps (server-quality/application/quality.ts:16 → adapters/quality.ts:30) emits 3 statements (spec assertion, inventory_quality_holds INSERT, quality_hold staff_notifications INSERT via collaboration/quality-notifications.ts:24). Only production callers: server-commerce/application/commerce.ts:1620,1623 inside approveCommerceReturn, wired via adapters/commerce.ts:651-685. Native port goods_receipt_hold.rs::prepare_goods_receipt_hold + inventory/quality_receipt_hold.rs exist and are PG-tested, but there is NO TS↔Rust FFI: the only bridge is HTTP, and native quality.hold (composition/quality.rs:591) opens its own SERIALIZABLE transaction (cannot nest in the TS commerce command unit). Removing the TS writer without a native commerce-return-approval command would break atomicity. removalTaskId=migrate.commerce.return-approval-native, removalCondition=native commerce return-approval command owns hold+notification effects in the same unit and the workplace return route is switched with full payload parity. Other Quality residuals (purchases boundary 3, alerts/acknowledge 3, attachment-purchases 2, product-entry 1) likewise have live TS callers."
         }
       },
       {
@@ -48641,6 +48641,49 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.commerce.return-approval-native",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "commerce",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native commerce return-approval command with quality hold receipt",
+        "scope": "Implement the native approveCommerceReturn command in Rust so the customer_return quality hold and its verification notification are staged in the same serializable unit, switch the workplace/sales return route with full payload parity, then delete TS receiptQualityHoldSteps and its public barrel.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "packages/server-quality/src/**",
+          "packages/server-collaboration/src/**",
+          "packages/feature-sales/**",
+          "packages/feature-commerce/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
+          "src/composition/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**",
+          "tests/support/helpers/**"
+        ],
+        "resources": [
+          "owner:commerce",
+          "owner:quality",
+          "owner:collaboration",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Needed before retire.quality.residual-writers can delete receiptQualityHoldSteps.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -48649,10 +48692,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 251,
+      "totalPackets": 252,
       "migratedPackets": 137,
       "statusCounts": {
-        "pending": 23,
+        "pending": 24,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -48663,7 +48706,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T12:14:00.475Z",
+    "updatedAt": "2026-11-20T12:22:18.882Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
