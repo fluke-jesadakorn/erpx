@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3499,
+    "revision": 3505,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T17:10:06.191Z",
-      "expiresAt": "2026-11-20T17:40:06.191Z",
+      "heartbeatAt": "2026-11-20T17:14:12.898Z",
+      "expiresAt": "2026-11-20T17:44:12.898Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -56952,6 +56952,144 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.support-ticket-access-event",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire support-ticket portal access event TS writer",
+        "scope": "Delete the INSERT in support-ticket-portal-files.ts; reuse native attachment_access_event_statement via the existing native adapter.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-support/src/**",
+          "packages/server-collaboration/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "d878c384da57a88fee60451bfef632299468aa9a",
+        "lastPushedSha": "d878c384da57a88fee60451bfef632299468aa9a",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d878c384da57a88fee60451bfef632299468aa9a",
+            "sourceKind": "committed",
+            "before": 112,
+            "after": 111,
+            "note": "Retired TS support-ticket access event writer; files KPI 112->111, global 1858->1857.",
+            "residual": [
+              {
+                "path": "packages/server-files/src/adapters/attachments/hospitality-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/migration.ts",
+                "writes": 24,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/orphan-preservation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/service-repository.ts",
+                "writes": 55,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/beta-resource-cleanup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/document-derivatives.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/expense-native-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-destruction-source-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-portal-binding.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-portal-repository.ts",
+                "writes": 10,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/pos-images-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/private-attachment-reads.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "d878c384da57a88fee60451bfef632299468aa9a",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "d878c384da57a88fee60451bfef632299468aa9a",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native support-ticket access event; files KPI 112->111, global 1858->1857.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -56960,21 +57098,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 283,
-      "migratedPackets": 170,
+      "totalPackets": 284,
+      "migratedPackets": 171,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 170,
+        "migrated": 171,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T17:10:06.192Z",
+    "updatedAt": "2026-11-20T17:14:12.900Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "682cd0a52a44a146bceeb607c317a893e60c2373",
