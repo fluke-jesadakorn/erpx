@@ -274,7 +274,8 @@
     "./adapters/native-legal-law-corpus": "./src/adapters/native-legal-law-corpus.ts",
     "./adapters/native-legal-service": "./src/adapters/native-legal-service.ts",
     "./adapters/native-legal-destruction-worker": "./src/adapters/native-legal-destruction-worker.ts",
-    "./adapters/native-legal-portal-writes": "./src/adapters/native-legal-portal-writes.ts"
+    "./adapters/native-legal-portal-writes": "./src/adapters/native-legal-portal-writes.ts",
+    "./adapters/native-finance-book-adjustments": "./src/adapters/native-finance-book-adjustments.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

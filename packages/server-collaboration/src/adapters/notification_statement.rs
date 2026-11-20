@@ -2957,3 +2957,43 @@ pub async fn legal_envelope_expire_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: create a book adjustment draft.
+pub async fn finance_book_adjustment_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_book_adjustments(id,company_id,chart_id,primary_journal_id,source_version,content_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: decide on a book adjustment.
+pub async fn finance_book_adjustment_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_book_adjustments SET status=?,version=?,reviewed_by=?,journal_id=?,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: reverse a posted book adjustment.
+pub async fn finance_book_adjustment_reverse_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_book_adjustments SET status='reversed',version=version+1,reversal_journal_id=?,reason=?,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
