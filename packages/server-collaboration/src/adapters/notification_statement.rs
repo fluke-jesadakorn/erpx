@@ -33,6 +33,8 @@ pub struct NotificationStatementInput {
     pub approver_user_id: Option<String>,
     #[serde(default)]
     pub item_id: Option<String>,
+    #[serde(default)]
+    pub bill_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -98,7 +100,7 @@ mod tests {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None,
+            approver_user_id: None, item_id: None, bill_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -198,4 +200,57 @@ mod legal_tests {
         assert!(sql.contains("Legal approval needs your decision"));
         assert_eq!(sql.matches('?').count(), 6);
     }
+}
+
+
+/// Supplier-bill notification statement. The Finance/Identity source clauses are
+/// owned here; the caller supplies only the bill id and command key.
+pub async fn supplier_bill_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    bill_id: &str,
+    command_key: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if bill_id.is_empty() || command_key.is_empty() {
+        return Err(invalid().into());
+    }
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM procurement_bill_matches WHERE id=$1 AND company_id=$2",
+    )
+    .bind(bill_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    if exists.is_none() {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,m.company_id,a.user_id,\
+ 'supplier_bill',m.id,m.version,CASE m.status WHEN 'returned' THEN 'Supplier invoice returned: obtain corrected evidence and resubmit from the receipt' \
+ WHEN 'approved' THEN 'Supplier invoice matched: assigned PO owner can prepare AP' \
+ WHEN 'invoiced' THEN 'Matched AP draft needs independent Finance posting' \
+ WHEN 'posted' THEN 'Matched supplier invoice posted to GL' \
+ ELSE 'Supplier invoice needs independent quantity and price review' END,m.updated_at \
+ FROM (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"order_id\",\"fulfillment_id\",\
+ \"supplier_id\",\"currency\",\"chart_id\",\"clearing_account_id\",\"payable_account_id\",\
+ \"tax_account_id\",\"reference\",\"invoice_date\",\"due_date\",\"evidence\",\
+ \"expected_subtotal_minor\",\"subtotal_minor\",\"tax_minor\",\"quantity_matches\",\
+ \"variance_account_id\",\"reviewed_by\",\"review_reason\",\"invoice_id\",\"status\",\"version\",\
+ \"created_by\",\"created_at\",\"updated_at\" FROM procurement_bill_matches) m \
+ JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) a ON a.company_id=m.company_id \
+ AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+ AND iam_role_allows(a.role,a.company_id,'finance.write') \
+ AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=m.branch_id) \
+ OR (a.scope_kind='department' AND a.scope_node_id=m.department_id)) \
+ WHERE m.id=? ON CONFLICT DO NOTHING";
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            serde_json::Value::String(command_key.to_owned()),
+            serde_json::Value::String(bill_id.to_owned()),
+        ],
+    })
 }
