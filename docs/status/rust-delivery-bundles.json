@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3177,
+    "revision": 3183,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261120-j",
+      "runId": "run-20261120-k",
       "agentId": "lead",
-      "startedAt": "2026-11-20T02:18:12.204Z",
-      "heartbeatAt": "2026-11-20T02:18:12.204Z",
-      "expiresAt": "2026-11-20T02:48:12.204Z",
-      "generation": 138,
-      "tokenHash": "684178b9ff95559227220962b894c8e15c7cb4a08fa827fe85dbeae1c3218bb7"
+      "startedAt": "2026-11-20T08:58:20.101Z",
+      "heartbeatAt": "2026-11-20T09:13:02.864Z",
+      "expiresAt": "2026-11-20T09:43:02.864Z",
+      "generation": 139,
+      "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -46662,16 +46662,23 @@
           "owner:manufacturing",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Freeze the native Planning command contract, switch Manufacturing consumers, move the production oracle to native seeding, then delete the TS command sources.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "BLOCKED (not ready). Native Planning router/client parity is complete and the live production route at packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts already sends scenario/recommendation/resource/resource-calendar to native, but closure is blocked by: (1) packages/server-planning/src/adapters/production-command-sources.ts:132 prepareCapacityRelease is still the sole source for Manufacturing order cancel/other release paths; native only releases on PassQc (src/composition/src/manufacturing_order_commands.rs:132-145,1556-1566), so deleting it regresses capacity release. removalTaskId=migrate.manufacturing.order-actions (extend native order cancel/release, then delete the writer); removalCondition=native cancel/other order paths release planning capacity in one owner transaction with receipt/audit/outbox and no TS writer. (2) tests/integration/manufacturing/production.test.ts mixes planning writers with TS Manufacturing/Finance/attachment assertions; removalTaskId=migrate.manufacturing.production-oracles, removalCondition=full native-seeded PostgreSQL oracle covers the mixed journey. (3) allowedPaths omit application/scenarios.ts, application/resources.ts, adapters/scenarios.ts, tests/support/**, fixtures/** and generated inventories; lead must refine before a future claim. KPI unchanged 1942; no files edited in this claim.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T09:12:38.229Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "BLOCKED (not ready). Native Planning router/client parity is complete and the live production route at packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts already sends scenario/recommendation/resource/resource-calendar to native, but closure is blocked by: (1) packages/server-planning/src/adapters/production-command-sources.ts:132 prepareCapacityRelease is still the sole source for Manufacturing order cancel/other release paths; native only releases on PassQc (src/composition/src/manufacturing_order_commands.rs:132-145,1556-1566), so deleting it regresses capacity release. removalTaskId=migrate.manufacturing.order-actions (extend native order cancel/release, then delete the writer); removalCondition=native cancel/other order paths release planning capacity in one owner transaction with receipt/audit/outbox and no TS writer. (2) tests/integration/manufacturing/production.test.ts mixes planning writers with TS Manufacturing/Finance/attachment assertions; removalTaskId=migrate.manufacturing.production-oracles, removalCondition=full native-seeded PostgreSQL oracle covers the mixed journey. (3) allowedPaths omit application/scenarios.ts, application/resources.ts, adapters/scenarios.ts, tests/support/**, fixtures/** and generated inventories; lead must refine before a future claim. KPI unchanged 1942; no files edited in this claim."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -46732,36 +46739,35 @@
       "totalPackets": 235,
       "migratedPackets": 131,
       "statusCounts": {
-        "pending": 23,
+        "pending": 22,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 131,
-        "blocked": 81,
+        "blocked": 82,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 138,
-    "updatedAt": "2026-11-20T02:19:30.048Z",
+    "lastCoordinatorGeneration": 139,
+    "updatedAt": "2026-11-20T09:13:02.866Z",
     "handoff": {
-      "fromRun": "run-20261116-retirement-i",
+      "fromRun": "run-20261120-k",
       "completedTaskIds": [
-        "coordination.bootstrap",
-        "retire.benefits.executive-evidence"
+        "retire.unreachable-ts-cleanup"
       ],
-      "verifiedPushedCheckpoint": "887c82064d631b6ebf6fa576f9f6eef118f5e7f0",
-      "remoteVerifiedAt": "2026-11-16T17:21:47Z",
-      "summary": "Native Benefits executive evidence is route-authoritative through a new owner read, private HTTP route, native SDK request, Runtime-owned audit and central dispatch; TypeScript evidence adapter/application/domain/public barrels are deleted and the native-seeded PostgreSQL oracle passes. Owner KPI fell 3 -> 2 and the residual two attachment-purchase writers are classified under retire.benefits.attachment-purchase. Four unsupported migrated packets were downgraded, stale SHAs/KPI reconciled, and remote SHA verified. Full migration retirement remains incomplete.",
+      "verifiedPushedCheckpoint": "b14495f3201d47f709608357b1990b8b366a9d4e",
+      "remoteVerifiedAt": "2026-11-20T09:16:00Z",
+      "summary": "Recovered the central coordinator after run-20261120-j lapsed (clean tree, HEAD == remote b14495f32, no active claims); re-measured the authoritative KPI at 1942 (baseline 2894, target 0; ledger lastKpi 1960 was stale). Investigated and blocked retire.planning.production-command-sources: native Planning routes/client already have full parity and production/route.ts already sends scenario/resource commands to native, but planning production-command-sources.ts:132 prepareCapacityRelease is still the sole source for Manufacturing cancel/other releases (native releases only on PassQc in manufacturing_order_commands.rs) and tests/integration/manufacturing/production.test.ts mixes TS Manufacturing/Finance/attachment assertions; removalTaskId=migrate.manufacturing.order-actions plus migrate.manufacturing.production-oracles. Commercial investigation: only the single company-package-lifecycle.ts write is separable, but ERPX_NATIVE_COMMERCIAL_CONFIG is absent in the authorized dev environment and native obligations/finance-deferred ports are not wired, so route-only TS deletion would fail closed; package-grants.ts (4 writes) is coupled to ~70 TS tests/seeds and direct-PG readers. No source files were changed in this run; full migration retirement remains incomplete.",
       "nextGoal": "G3",
       "nextCommands": [
-        "bun scripts/testing/rust-migration-work.ts status --json",
-        "bun scripts/testing/rust-migration-work.ts validate",
-        "Recover or heartbeat the central run before further mutations.",
-        "Create and claim a bounded native Files attachment transaction slice, then retire retire.benefits.attachment-purchase (KPI 2 -> 0).",
-        "Create bounded retire tasks for the downgraded Brand, Platform Administration, Planning and Commercial packets."
+        "bun scripts/testing/rust-migration-work.ts status --json && bun scripts/testing/rust-migration-work.ts validate",
+        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l  (currently 1942)",
+        "Before any planning-writer deletion, implement native capacity release for Manufacturing cancel/fail-qc paths (migrate.manufacturing.order-actions) and a native-seeded replacement for production.test.ts (migrate.manufacturing.production-oracles), then refine retire.planning.production-command-sources allowedPaths to include application/{scenarios,resources}.ts, adapters/scenarios.ts, tests/support/**, fixtures/**.",
+        "For commercial, configure ERPX_NATIVE_COMMERCIAL_CONFIG and wire native obligation/finance-deferred ports before deleting company-package-lifecycle.ts; do not make the admin route fail closed without that configuration.",
+        "Heartbeat run-20261120-k before further mutations; keep A1 deferred and do not touch staging or production."
       ],
-      "externalWip": "Unrelated dirty paths remain preserved; only the explicit claimed and ledger paths were committed. No stash, reset or revert was used.",
+      "externalWip": "No dirty source work; only tracked ledger changes from the recovery/claim/handoff. No stash, reset, force-push or branch switch was used. HEAD and origin/codex/rust-backend-migration both b14495f3201d47f709608357b1990b8b366a9d4e.",
       "environment": [
         {
           "url": "http://127.0.0.1:3100/api/health",
@@ -46769,34 +46775,34 @@
         },
         {
           "url": "https://console-dev-erpx.jesadakorn.com/api/health",
-          "status": 503
+          "status": 530
         },
         {
           "url": "http://127.0.0.1:3101/api/health",
-          "status": 200
+          "status": 0
         },
         {
           "url": "https://console-dev-erpx.jesadakorn.com/",
-          "status": 404
+          "status": 530
         },
         {
           "url": "https://acme.jesadakorn.com/",
-          "status": 500
+          "status": 530
         }
       ],
-      "browserLimit": "Development health remains degraded because the local ClamAV socket/definitions are unavailable (CLAMAV_DEFINITIONS_STALE); the Holding page returns 500. Authenticated UI verification was not possible.",
+      "browserLimit": "Development health 503 is caused by pre-existing CLAMAV_DEFINITIONS_STALE and jobs not ready; public dev hosts return Cloudflare 530 and private production 3101 is not listening (curl 000). No authenticated UI verification was possible; no environment was started, restarted or changed in this run.",
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261119-i",
-      "runId": "run-20261120-j",
-      "at": "2026-11-20T02:18:12.205Z",
-      "reason": "run-20261119-i lease lapsed while running post-slice vitest suites and scanners between ledger operations; slice committed and pushed at 9ac707c5c, tree contains only the ledger file",
+      "previousRunId": "run-20261120-j",
+      "runId": "run-20261120-k",
+      "at": "2026-11-20T08:58:20.104Z",
+      "reason": "run-20261120-j lease lapsed after the retire.unreachable-ts-cleanup closeout; tree clean at b14495f32, remote matches, no active claims or coordinator processes; WIP reviewed",
       "wipReviewed": true,
       "previousRunStopped": true
     },
-    "lastPushedSha": "887c82064d631b6ebf6fa576f9f6eef118f5e7f0",
-    "lastKpi": 1960,
+    "lastPushedSha": "b14495f3201d47f709608357b1990b8b366a9d4e",
+    "lastKpi": 1942,
     "statusCounts": {
       "done": 51,
       "migrated": 135,
