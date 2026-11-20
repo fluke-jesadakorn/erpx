@@ -24,3 +24,22 @@ export function recordCustomerPortalFileAccess(
 
 /** Support-ticket portal variant (same owner event shape). */
 export const supportTicketPortalFileAccess = recordCustomerPortalFileAccess;
+
+/** Native-owned POS attachment content-read audit event. */
+export function writeAttachmentEvents1(
+  db: import('@erpx/server-runtime/public/runtime/types').SqlDatabase,
+  facts: {
+    fact0: string; companyId: string; attachment_source_id: string;
+    attachment_link_id: string; attachment_set_id: string; userId: string;
+    fact6: string; fact7: number;
+  },
+): Promise<import('@erpx/server-runtime/public/runtime/types').SqlStatement> {
+  return nativeSystemNotificationStatement(db, facts.companyId,
+    {
+      userId: facts.userId, recordType: 'attachment_content_read', recordId: facts.attachment_link_id,
+      recordVersion: 1, message: facts.fact6, kind: 'attachment_event',
+      identifier: facts.attachment_source_id, item_id: facts.attachment_set_id,
+    },
+    facts.fact0, facts.fact7,
+  );
+}

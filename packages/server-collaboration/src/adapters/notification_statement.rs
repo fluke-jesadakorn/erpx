@@ -1245,3 +1245,29 @@ pub async fn attachment_access_event_statement(
         ],
     })
 }
+
+
+/// Attachment content-read audit event (POS image source).
+pub async fn attachment_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str() || input.record_id.is_empty() || input.now <= 0 {
+        return Err(invalid().into());
+    }
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,\
+ action,details_json,created_at) VALUES(?,?,?,?,?,?,'content.read',?::jsonb,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(&input.company_id),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id),
+            value(input.item_id.as_deref().unwrap_or("")),
+            value(&input.user_id), value(&input.message),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}

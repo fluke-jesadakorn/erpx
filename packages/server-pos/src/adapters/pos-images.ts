@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { posImagesCommerceFacts } from "@erpx/server-commerce/public/pos-images-facts";
 import { posImagesFilesFacts } from "@erpx/server-files/public/pos-images-facts";
 import {withPosProductImageRead} from '@erpx/server-pos/adapters/product-image-read';
+import { writeAttachmentEvents1 as nativeWriteAttachmentEvents1 } from '@erpx/server-collaboration/adapters/native-attachment-access-event';
 function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
     return {
         readPosCatalog1: (facts: {
@@ -58,7 +59,7 @@ function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
             preview_checksum_sha256: string | number | boolean | null;
         }) => run(db, `INSERT INTO pos_product_images(id,company_id,product_id,object_key,thumbnail_key,sha256,width,height,mime_type,source,metadata_json,created_by,created_at,
    attachment_source_id,attachment_link_id,attachment_set_id,thumbnail_checksum_sha256) VALUES(?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, facts.imageId, facts.companyId, facts.productId, facts.object_key, facts.preview_object_key, facts.digest, facts.width, facts.height, facts.mime, facts.source, facts.fact10, facts.userId, facts.fact12, facts.sourceId, facts.attachmentLinkId, facts.id, facts.preview_checksum_sha256),
-        writeAttachmentEvents1: facts => posImagesFilesFacts(db).writeAttachmentEvents1(facts),
+        writeAttachmentEvents1: async facts => { const stmt = await nativeWriteAttachmentEvents1(db, facts); await stmt.run(); return { results: [] }; },
         authorizePosProductImageTarget: (arg0: WorkContext, arg1: string, arg2: "write") => authorizePosProductImageTarget(db, arg0, arg1, arg2),
         createAttachmentSet: (arg0: WorkContext, arg1: {
             targetType: string;
