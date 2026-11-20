@@ -23,7 +23,7 @@ import {executeCommand,replayCommand} from "@erpx/server-workflow/public/command
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {BusinessRuleError} from "@erpx/server-shared/index";
-import {prepareCrmLeadNotification as notify} from "@erpx/server-collaboration/public/crm-notifications";
+import {nativeCrmLeadNotification as notify} from "./native-crm-notification";
 import {prepareCrmSourceTouch} from "@erpx/server-marketing/public/crm-touches";
 import {createCRMApplication,type CRMRepository,type CRMMutation} from "@erpx/server-crm/application/leads";
 import {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema} from "@erpx/server-crm/domain/leads";
@@ -66,11 +66,11 @@ case "create":{const input=m.input,accountId=m.accountId,contactId=m.contactId;r
  ...(input.campaignId?[assertion(write,key,'campaign',`EXISTS(SELECT 1 FROM (${marketingProjectionSources.marketing_campaigns}) marketing_campaigns WHERE id=? AND company_id=?)`,[input.campaignId,a.companyId])]:[]),
  write.prepare('INSERT INTO crm_leads(id,company_id,branch_id,department_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,created_by,created_at,updated_at,account_id,contact_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,a.companyId,input.branchId,a.departmentId,input.title,input.contactName,input.contactDetail,input.source,input.brief,a.userId,input.dueDate,a.userId,now,now,accountId,contactId),
  prepareCrmSourceTouch(write,a,{...input,id,key,now}),
- ownerGuard(write,a,id,key,1),event(write,a,id,null,key,1,'create',input.brief,input),notify(write,id,key)
+ ownerGuard(write,a,id,key,1),event(write,a,id,null,key,1,'create',input.brief,input),await notify(write,a,id,key)
  ],{companyId:a.companyId,branchId:input.branchId,departmentId:a.departmentId});}
 case "lead":{const input=m.input,r=m.record;const steps=[assertion(write,key,'version',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.status=? AND ${scope})`,[id,input.expectedVersion,r.status,...args(a)])];if(!['reassign','reopen'].includes(input.action))steps.push(ownerGuard(write,a,id,key,input.expectedVersion));
  if(input.action==='reassign'){steps.push(write.prepare('UPDATE crm_leads SET owner_id=?,due_date=?,version=version+1,updated_at=? WHERE id=?').bind(input.ownerId,input.dueDate,now,id),assertion(write,key,'recipient',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND ${eligible})`,[id]));}
- else steps.push(write.prepare('UPDATE crm_leads SET status=?,version=version+1,updated_at=? WHERE id=?').bind(input.action==='reopen'?'open':'disqualified',now,id));steps.push(event(write,a,id,null,key,input.expectedVersion+1,input.action,input.reason,input),notify(write,id,key));return executeCommand(write,a,key,operation,input,id,input.expectedVersion+1,result,steps,{companyId:a.companyId,branchId:String(r.branch_id),departmentId:r.department_id?String(r.department_id):null});}
+ else steps.push(write.prepare('UPDATE crm_leads SET status=?,version=version+1,updated_at=? WHERE id=?').bind(input.action==='reopen'?'open':'disqualified',now,id));steps.push(event(write,a,id,null,key,input.expectedVersion+1,input.action,input.reason,input),await notify(write,a,id,key));return executeCommand(write,a,key,operation,input,id,input.expectedVersion+1,result,steps,{companyId:a.companyId,branchId:String(r.branch_id),departmentId:r.department_id?String(r.department_id):null});}
 case "opportunity":{const input=m.input,r=m.record,opportunityId=m.opportunityId,stage=m.stage;const steps=[assertion(write,key,'lead',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.status='qualified' AND ${scope} AND ${eligible})`,[id,input.leadVersion,...args(a)]),assertion(write,key,'opportunity',"EXISTS(SELECT 1 FROM crm_opportunities WHERE id=? AND lead_id=? AND version=? AND stage=?)",[opportunityId,id,input.expectedVersion,r.stage])];if(input.action!=='reopen')steps.push(ownerGuard(write,a,id,key,input.leadVersion));
 
  if(input.action==='link-quote'){
@@ -82,7 +82,7 @@ case "opportunity":{const input=m.input,r=m.record,opportunityId=m.opportunityId
   if(input.action==='negotiate'){steps.push(assertion(write,key,'quote-current',`EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=? AND state='confirmed' AND version=?)`,[r.quote_id,r.quote_version]));}
   steps.push(write.prepare('UPDATE crm_opportunities SET stage=?,quote_id=CASE WHEN ? THEN NULL ELSE quote_id END,quote_version=CASE WHEN ? THEN NULL ELSE quote_version END,version=version+1,updated_at=? WHERE id=?').bind(stage,input.action==='reopen',input.action==='reopen',now,opportunityId));
  }
- steps.push(write.prepare('UPDATE crm_leads SET version=version+1,updated_at=? WHERE id=?').bind(now,id),event(write,a,id,null,key,input.leadVersion+1,`opportunity-${input.action}`,input.reason,input),event(write,a,id,opportunityId,key,input.expectedVersion+1,input.action,input.reason,{...input,stage}),notify(write,id,key));
+ steps.push(write.prepare('UPDATE crm_leads SET version=version+1,updated_at=? WHERE id=?').bind(now,id),event(write,a,id,null,key,input.leadVersion+1,`opportunity-${input.action}`,input.reason,input),event(write,a,id,opportunityId,key,input.expectedVersion+1,input.action,input.reason,{...input,stage}),await notify(write,a,id,key));
  return executeCommand(write,a,key,operation,input,id,input.leadVersion+1,result,steps,{companyId:a.companyId,branchId:String(r.branch_id),departmentId:r.department_id?String(r.department_id):null});
 }
 }}

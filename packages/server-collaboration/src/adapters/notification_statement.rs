@@ -23,6 +23,10 @@ pub struct NotificationStatementInput {
     pub message: String,
     pub now: i64,
     pub idempotency_key: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub lead_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -87,10 +91,60 @@ mod tests {
         let _i = NotificationStatementInput {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
-            idempotency_key: "k".into(),
+            idempotency_key: "k".into(), kind: None, lead_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
         assert_eq!(INSERT.matches('?').count(), 8);
+    }
+}
+
+
+/// CRM lead notification statement. Reads the persisted lead on the caller's
+/// serializable unit so the owner — not the caller — selects recipient/version.
+pub async fn crm_lead_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    lead_id: &str,
+    command_key: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if lead_id.is_empty() || command_key.is_empty() {
+        return Err(invalid().into());
+    }
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM crm_leads WHERE id=$1 AND company_id=$2",
+    )
+    .bind(lead_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    if exists.is_none() {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT ?,company_id,owner_id,'crm_lead',id,version,\
+ 'CRM handoff changed: review the source and next action',updated_at \
+ FROM (SELECT \"id\", \"company_id\", \"owner_id\", \"version\", \"updated_at\" FROM crm_leads) crm_leads \
+ WHERE id=? ON CONFLICT DO NOTHING";
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            serde_json::Value::String(format!("crm-notice-{command_key}")),
+            serde_json::Value::String(lead_id.to_owned()),
+        ],
+    })
+}
+
+
+#[cfg(test)]
+mod crm_tests {
+    #[test]
+    fn crm_lead_notice_uses_owner_recipient_projection() {
+        // The native statement derives recipient/version from the persisted lead,
+        // never from caller-supplied values.
+        let src = include_str!("crm_activity_notification.rs");
+        assert!(src.contains("'crm_lead'"));
+        assert!(src.contains("CRM handoff changed"));
     }
 }

@@ -34,6 +34,8 @@ export async function nativeNotificationStatement(
     recordId: string;
     recordVersion: number;
     message: string;
+    kind?: string;
+    leadId?: string;
   },
   key: string,
   now: number,
