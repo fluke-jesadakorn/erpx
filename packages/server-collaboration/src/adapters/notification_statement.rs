@@ -1221,3 +1221,27 @@ pub async fn social_topic_binding_statement(
         values: vec![value(&input.record_id), value(&input.message)],
     })
 }
+
+
+/// Customer portal attachment preview access audit event.
+pub async fn attachment_access_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str() || input.record_id.is_empty() || input.now <= 0 {
+        return Err(invalid().into());
+    }
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
+ variant,outcome,created_at) VALUES(?,?,?,?,?,'preview','allowed',?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(&input.company_id),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(input.record_id.as_str()),
+            value(&input.user_id), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}

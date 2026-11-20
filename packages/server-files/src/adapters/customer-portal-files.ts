@@ -6,6 +6,7 @@ import {createHash} from 'node:crypto';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {CustomerPortalSessionActor} from "@erpx/server-customer_360/public/portal-contract";
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/public/portal-read-purchases';
+import { recordCustomerPortalFileAccess as nativeRecordCustomerPortalFileAccess } from '@erpx/server-collaboration/adapters/native-attachment-access-event';
 /** Preview reads never upgrade these source leases to attachment writes. The
  * verified binding owner takes them before its first document/file snapshot. */
 export function customerPortalFileSourceReadLocks(db:SqlDatabase){return [db.prepare('LOCK TABLE attachment_sets,attachment_links,attachments IN SHARE MODE')];}
@@ -51,7 +52,8 @@ export async function customerPortalPreviewRow(db:SqlDatabase,actor:Pick<Custome
     WHERE l.id=? AND l.state='bound' AND ${purchase}`).bind(actor.email.toLowerCase(),now,actor.userId,actor.email.toLowerCase(),linkId).first<{company_id:string;link_id:string;attachment_id:string;preview_object_key:string;preview_media_type:string}>();
 }
 export async function recordCustomerPortalFileAccess(db:SqlDatabase,event:{id:string;companyId:string;attachmentId:string;linkId:string;userId:string;now:number}) {
-  await db.prepare(`INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,variant,outcome,created_at) VALUES(?,?,?,?,?,'preview','allowed',?)`).bind(event.id,event.companyId,event.attachmentId,event.linkId,event.userId,event.now).run();
+  const statement = await nativeRecordCustomerPortalFileAccess(db, event);
+  await statement.run();
 }
 /** Private, unfiltered native relation witness. Authorization stays in the
  * original preview row: this image also observes later revocation/withdrawal. */

@@ -33,6 +33,7 @@ export async function nativeSystemNotificationStatement(
     source_access_sql?: string;
     target_kind?: string;
     target_id?: string;
+    identifier?: string;
   },
   key: string,
   now: number,
