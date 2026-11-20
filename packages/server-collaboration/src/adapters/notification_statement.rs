@@ -1769,3 +1769,23 @@ pub async fn legal_quarantined_source_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal: preserve an attachment as evidence for an item.
+pub async fn legal_file_preservation_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_file_preservations(item_id,source_type,source_id,object_key,\
+ checksum,created_by,created_at) VALUES(?,'attachment',?,?,?,?,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: vec![
+            value(&input.record_id), value(input.identifier.as_deref().unwrap_or("")),
+            value(input.item_id.as_deref().unwrap_or("")), value(&input.message),
+            value(&input.user_id), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
