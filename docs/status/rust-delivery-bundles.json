@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3553,
+    "revision": 3559,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T17:46:37.137Z",
-      "expiresAt": "2026-11-20T18:16:37.137Z",
+      "heartbeatAt": "2026-11-20T17:48:49.311Z",
+      "expiresAt": "2026-11-20T18:18:49.311Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -58003,6 +58003,72 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_360.portal-action",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire customer portal action TS writer",
+        "scope": "Delete INSERT INTO customer_portal_actions in server-customer_360/portal.ts; native customer_portal_action statement owns it.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "14922267f9dd1e12552ba7c175448eeb62c927b2",
+        "lastPushedSha": "14922267f9dd1e12552ba7c175448eeb62c927b2",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-customer_360/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "14922267f9dd1e12552ba7c175448eeb62c927b2",
+            "sourceKind": "committed",
+            "before": 2,
+            "after": 1,
+            "note": "Retired TS customer portal action writer; customer_360 KPI 2->1, global 1837->1836.",
+            "residual": [
+              {
+                "path": "packages/server-customer_360/src/adapters/portal.ts",
+                "writes": 1,
+                "removalTaskId": "retire.customer_360.portal-cleanup",
+                "removalCondition": "Delete framework command_assertions cleanup only after the owner-native command framework is mounted."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "14922267f9dd1e12552ba7c175448eeb62c927b2",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "14922267f9dd1e12552ba7c175448eeb62c927b2",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests. No unit suite for this owner (e2e only)."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native customer portal action; customer_360 KPI 2->1, global 1837->1836.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -58011,21 +58077,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 292,
-      "migratedPackets": 179,
+      "totalPackets": 293,
+      "migratedPackets": 180,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 179,
+        "migrated": 180,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T17:46:37.138Z",
+    "updatedAt": "2026-11-20T17:48:49.313Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "54920cc1961d36bd7f83b7613f1549a8b9ab52a7",
