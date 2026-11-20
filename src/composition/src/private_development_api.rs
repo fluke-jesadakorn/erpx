@@ -3246,6 +3246,7 @@ async fn assemble_checked(
         let mut collaboration_work_targets = Vec::new();
         let mut notification_statement_targets = Vec::new();
         let mut notification_statement_companies = Vec::new();
+        let mut notification_statement_holdings = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3871,6 +3872,7 @@ async fn assemble_checked(
                         },
                     );
                     notification_statement_companies.push(company.clone());
+                    notification_statement_holdings.push(holding.registration.holding_id.clone());
                     collaboration_work_targets.push(
                         erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpTarget {
                             host: holding.host.clone(),
@@ -6274,13 +6276,26 @@ async fn assemble_checked(
             let pairs = notification_statement_companies
                 .into_iter()
                 .map(|company| company.as_str().to_owned())
-                .zip(notification_statement_targets.into_iter())
+                .zip(notification_statement_targets.clone().into_iter())
                 .collect::<Vec<_>>();
             router = router.merge(
                 erpx_server_collaboration::public::notification_statement_http::system_notification_statement_router(
                     pairs,
                 )
                 .map_err(|_| "PRIVATE_API_SYSTEM_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !notification_statement_holdings.is_empty() {
+            let pairs = notification_statement_holdings
+                .into_iter()
+                .map(|holding| holding.as_str().to_owned())
+                .zip(notification_statement_targets.into_iter())
+                .collect::<Vec<_>>();
+            router = router.merge(
+                erpx_server_collaboration::public::notification_statement_http::holding_notification_statement_router(
+                    pairs,
+                )
+                .map_err(|_| "PRIVATE_API_HOLDING_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

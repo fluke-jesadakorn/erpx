@@ -187,7 +187,7 @@ export async function legalWork(env: JobEnv) {
     }
     const { write, files } = resources;
     const tasks: [string, () => Promise<unknown>][] = [
-      ['reminders', async () => (await import("@erpx/server-legal/public/legal/jobs")).legalReminders(write)],
+      ['reminders', async () => (await import("@erpx/server-legal/public/legal/jobs")).legalReminders(write, slot.id)],
       ['invitations', async () => (await import("@erpx/server-legal/public/legal/invitations")).drainLegalInvitations(write,env)],
       ['documents', async () => runNativeLegalWorker(slot.id)],
       ['ai', async () => (await import("@erpx/server-legal/public/legal/jobs")).drainLegalAi(write,env)],

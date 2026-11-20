@@ -61,6 +61,12 @@ pub struct NotificationStatementInput {
     pub node_id: Option<String>,
     #[serde(default)]
     pub scope_node_id: Option<String>,
+    #[serde(default)]
+    pub runtime_predicate: Option<String>,
+    #[serde(default)]
+    pub table_name: Option<String>,
+    #[serde(default)]
+    pub cte_prefix: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -127,7 +133,7 @@ mod tests {
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
             approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
-            post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None, node_id: None, scope_node_id: None,
+            post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None, node_id: None, scope_node_id: None, runtime_predicate: None, table_name: None, cte_prefix: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -1051,6 +1057,65 @@ pub async fn roster_coverage_notification_statement(
             now.clone(),
             now,
             input.scope_node_id.as_deref().map(value).unwrap_or(serde_json::Value::Null),
+        ],
+    })
+}
+
+/// Legal workflow deadline notice. The document table and runtime predicate are supplied by the native Legal reminders composition.
+pub async fn legal_feature_notice_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: format!(r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
+ SELECT 'legal-task-'||md5(f.id||f.due_date||d.days::text||f.owner_id),i.company_id,f.owner_id,'legal',i.id,i.version,'Legal workflow deadline requires attention',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM {} f JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i ON i.id=f.item_id JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled CROSS JOIN LATERAL(SELECT min(t.days) days FROM (SELECT value::int days FROM jsonb_array_elements_text(s.reminder_days) UNION SELECT 0 UNION SELECT -1)t WHERE f.due_date::date-(clock_timestamp() AT TIME ZONE i.timezone)::date<=t.days)d WHERE {} AND f.due_date IS NOT NULL AND d.days IS NOT NULL AND f.state NOT IN ('completed','closed','cancelled','acknowledged','waived','accepted','billed') AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=f.owner_id) ON CONFLICT DO NOTHING"#, input.table_name.as_deref().unwrap_or(""), input.runtime_predicate.as_deref().unwrap_or("")),
+        values: vec![
+        ],
+    })
+}
+
+/// Legal request SLA breach notice.
+pub async fn legal_sla_notice_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: format!(r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'legal-sla-'||md5(i.id||i.sla_due_at::text||recipient.user_id),i.company_id,recipient.user_id,'legal',i.id,i.version,'Legal request SLA breached; review or escalate',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled CROSS JOIN LATERAL(SELECT i.owner_id user_id UNION SELECT i.escalation_owner)recipient WHERE {} AND i.sla_due_at<? AND i.state NOT IN ('closed','completed','cancelled','archived') AND recipient.user_id IS NOT NULL AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=recipient.user_id) ON CONFLICT DO NOTHING"#, input.runtime_predicate.as_deref().unwrap_or("")),
+        values: vec![            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Overdue legal commitment escalation notice.
+pub async fn legal_escalation_notice_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: format!(r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'legal-escalation-'||md5(i.id||i.due_date||recipient.user_id),i.company_id,recipient.user_id,'legal',i.id,i.version,'Overdue legal commitment escalated to you',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled LEFT JOIN (SELECT "item_id", "data" FROM legal_obligations) o ON o.item_id=i.id CROSS JOIN LATERAL(SELECT coalesce(i.escalation_owner,o.data->>'escalationOwner') user_id)recipient WHERE {} AND i.due_date::date<(clock_timestamp() AT TIME ZONE i.timezone)::date AND i.state NOT IN ('closed','completed','cancelled','archived','terminated','expired') AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=recipient.user_id) ON CONFLICT DO NOTHING"#, input.runtime_predicate.as_deref().unwrap_or("")),
+        values: vec![
+        ],
+    })
+}
+
+/// Legal deadline notice appended to the native reminders CTE.
+pub async fn legal_deadline_notice_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: format!(r#"{}
+INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
+ SELECT 'legal-'||md5(a.item_id||a.due_date||a.days::text||a.user_id),i.company_id,a.user_id,'legal',i.id,i.version,'Legal deadline requires attention',a.created_at FROM added a JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i ON i.id=a.item_id ON CONFLICT DO NOTHING"#, input.cte_prefix.as_deref().unwrap_or("")),
+        values: vec![
         ],
     })
 }

@@ -400,8 +400,8 @@ it("catches up deadline reminders once without flooding old thresholds", async (
     day: "2-digit",
   }).format(new Date());
   const r = await create({ dueDate: today });
-  await legalReminders(db);
-  await legalReminders(db);
+  await legalReminders(db, "h001");
+  await legalReminders(db, "h001");
   const reminders = (
     await db
       .prepare("SELECT days FROM legal_reminders WHERE item_id=?")

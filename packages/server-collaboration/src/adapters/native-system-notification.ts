@@ -27,6 +27,9 @@ export async function nativeSystemNotificationStatement(
     kind?: string;
     node_id?: string;
     scope_node_id?: string;
+    runtime_predicate?: string;
+    table_name?: string;
+    cte_prefix?: string;
   },
   key: string,
   now: number,
@@ -49,5 +52,31 @@ export async function nativeSystemNotificationStatement(
   const body = (await response.json().catch(() => null)) as { data?: Statement; error?: { code?: string; message?: string } } | null;
   if (!response.ok || !body?.data)
     throw new ApiError(response.status, body?.error?.code ?? 'NATIVE_COLLABORATION_FAILED', body?.error?.message ?? 'The native Collaboration request failed.');
+  return db.prepare(body.data.sql).bind(...body.data.values);
+}
+
+
+/** Holding-keyed variant for system workers with a Holding id but no Company id. */
+export async function nativeHoldingNotificationStatement(
+  db: SqlDatabase,
+  holdingId: string,
+  input: {
+    userId: string; recordType: string; recordId: string; recordVersion: number;
+    message: string; kind?: string; runtime_predicate?: string; table_name?: string; cte_prefix?: string;
+  },
+  key: string,
+  now: number,
+): Promise<SqlStatement> {
+  const config = configuration();
+  const headers = new Headers({ 'content-type': 'application/json', 'idempotency-key': key, 'x-erpx-context-holding': holdingId });
+  let response: Response;
+  try {
+    response = await fetch(
+      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingId)}/collaboration/notification-statement-by-holding`,
+      { method: 'POST', headers, body: JSON.stringify({ ...input, now, idempotencyKey: key }), cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+    );
+  } catch { throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.'); }
+  const body = (await response.json().catch(() => null)) as { data?: Statement; error?: { code?: string; message?: string } } | null;
+  if (!response.ok || !body?.data) throw new ApiError(response.status, body?.error?.code ?? 'NATIVE_COLLABORATION_FAILED', body?.error?.message ?? 'The native Collaboration request failed.');
   return db.prepare(body.data.sql).bind(...body.data.values);
 }
