@@ -9,6 +9,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type { LegalItem, LegalKind } from "@erpx/server-legal/public/rules/model";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
+import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-event';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -122,9 +123,5 @@ export function event(
   note: string,
   version: number,
 ) {
-  return db
-    .prepare(
-      "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)",
-    )
-    .bind(crypto.randomUUID(), id, action, a.userId, note, version, Date.now());
+  return legalEvent(db, a.companyId, a.userId).record(id, action, note, version, crypto.randomUUID(), Date.now());
 }
