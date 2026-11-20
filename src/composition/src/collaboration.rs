@@ -7,7 +7,8 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::notification_statement::{
     crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
-    supplier_bill_notification_statement, NotificationStatement, NotificationStatementInput,
+    rfq_notification_statement, supplier_bill_notification_statement, NotificationStatement,
+    NotificationStatementInput,
 };
 use erpx_server_collaboration::public::notification_statement_http::{
     StatementBackend, StatementFuture, StatementRequest,
@@ -2140,7 +2141,16 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("supplier_bill") {
+                        if input.kind.as_deref() == Some("procurement_rfq") {
+                            rfq_notification_statement(
+                                connection,
+                                &company_id,
+                                input.rfq_id.as_deref().unwrap_or_default(),
+                                &input.idempotency_key,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("supplier_bill") {
                             supplier_bill_notification_statement(
                                 connection,
                                 &company_id,
@@ -2191,7 +2201,8 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
     > {
         use erpx_server_collaboration::public::notification_statement::{
     crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
-    supplier_bill_notification_statement, NotificationStatement, NotificationStatementInput,
+    rfq_notification_statement, supplier_bill_notification_statement, NotificationStatement,
+    NotificationStatementInput,
 };
 use erpx_server_collaboration::public::notification_statement_http::{
     StatementBackend, StatementFuture, StatementRequest,

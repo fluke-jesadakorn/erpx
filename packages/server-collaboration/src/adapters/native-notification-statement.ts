@@ -40,6 +40,7 @@ export async function nativeNotificationStatement(
     approver_user_id?: string;
     item_id?: string;
     bill_id?: string;
+    rfq_id?: string;
   },
   key: string,
   now: number,

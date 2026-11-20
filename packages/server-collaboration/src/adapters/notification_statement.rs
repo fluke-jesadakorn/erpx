@@ -35,6 +35,8 @@ pub struct NotificationStatementInput {
     pub item_id: Option<String>,
     #[serde(default)]
     pub bill_id: Option<String>,
+    #[serde(default)]
+    pub rfq_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -100,7 +102,7 @@ mod tests {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None, bill_id: None,
+            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -251,6 +253,53 @@ pub async fn supplier_bill_notification_statement(
         values: vec![
             serde_json::Value::String(command_key.to_owned()),
             serde_json::Value::String(bill_id.to_owned()),
+        ],
+    })
+}
+
+
+/// Procurement RFQ notification statement. Procurement/Identity source clauses
+/// are owned here; the caller supplies only the RFQ id and command key.
+pub async fn rfq_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    rfq_id: &str,
+    command_key: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if rfq_id.is_empty() || command_key.is_empty() {
+        return Err(invalid().into());
+    }
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM procurement_rfqs WHERE id=$1 AND company_id=$2",
+    )
+    .bind(rfq_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    if exists.is_none() {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,r.company_id,a.user_id,\
+ 'procurement_rfq',r.id,r.version,'Supplier quotation review changed: review the next action',r.updated_at \
+ FROM (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"warehouse_id\",\"currency\",\
+ \"title\",\"demand_evidence\",\"needed_date\",\"status\",\"selected_offer_id\",\"selection_reason\",\
+ \"submitted_by\",\"approved_by\",\"order_id\",\"created_by\",\"version\",\"created_at\",\"updated_at\",\
+ \"request_id\",\"request_version\",\"request_evidence_version\",\"request_items_json\" FROM procurement_rfqs) r \
+ JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) a ON a.company_id=r.company_id \
+ AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+ AND iam_role_allows(a.role,a.company_id,'commerce.purchase') \
+ AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=r.branch_id) \
+ OR (a.scope_kind='department' AND a.scope_node_id=r.department_id)) \
+ WHERE r.id=? ON CONFLICT DO NOTHING";
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            serde_json::Value::String(command_key.to_owned()),
+            serde_json::Value::String(rfq_id.to_owned()),
         ],
     })
 }

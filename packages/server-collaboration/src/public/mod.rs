@@ -74,7 +74,7 @@ pub mod social_source_policy {
 pub mod notification_statement {
     pub use crate::adapters::notification_statement::{
         crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
-        supplier_bill_notification_statement,
+        rfq_notification_statement, supplier_bill_notification_statement,
         NotificationStatement,
         NotificationStatementInput,
     };
