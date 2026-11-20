@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3481,
+    "revision": 3482,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -56440,6 +56440,42 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.legal-reminder-notifications",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire legal reminder notification TS writers (4 writes)",
+        "scope": "Delete people-roster-facts.ts + barrel (3 writers); native roster coverage CTE + explicit statements via company-keyed system transport.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-people_payroll/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/server-organization/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "nextAction": "BLOCKED bounded slice: 4 legal-reminder writes depend on TS-only legalRuntimePredicate / legalQueuedPurchasePredicate; legalDeadlineNotificationInsert is a CTE fragment in legal/reminders.ts. Requires native Legal reminders worker with native release/purchase predicates + tagged oracle. removalTaskId=retire.legal.residual; removalCondition=delete when native worker owns full CTE + 3 notices. No KPI delta until all 4 writes leave the file - do not attempt partial retirement.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false,
+        "blocker": null
       }
     ],
     "migrationProgress": {
@@ -56448,10 +56484,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 280,
+      "totalPackets": 281,
       "migratedPackets": 167,
       "statusCounts": {
-        "pending": 23,
+        "pending": 24,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -56462,7 +56498,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T16:38:23.626Z",
+    "updatedAt": "2026-11-20T16:44:23.790Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "fb42f53917da953852706eca40cdb41ae7f8c5c5",
