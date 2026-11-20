@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3207,
+    "revision": 3208,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:00:01.904Z",
-      "expiresAt": "2026-11-20T10:30:01.904Z",
+      "heartbeatAt": "2026-11-20T10:02:57.484Z",
+      "expiresAt": "2026-11-20T10:32:57.484Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47083,7 +47083,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:00:01.905Z",
+    "updatedAt": "2026-11-20T10:02:57.487Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
