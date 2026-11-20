@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3252,
+    "revision": 3258,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:51:17.328Z",
-      "expiresAt": "2026-11-20T11:21:17.328Z",
+      "heartbeatAt": "2026-11-20T10:56:12.466Z",
+      "expiresAt": "2026-11-20T11:26:12.466Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -26525,15 +26525,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "BLOCKED ON TWO CROSS-OWNER CALLERS. Residual 9 writes: work-task-purchases 2, task-attachment-purchases 2, staff-tasks 2, workflow-approval-effects 1, work-task-alert-purchases 1, task-attachment-read 1. Required split: (a) migrate.operations.save-task-beta-source — switch packages/server-manage_erpx/src/adapters/beta-api.ts saveTask to the native staff-task command, then delete staff-tasks.ts and its purchase guards; (b) migrate.operations.task-alert-escalation — switch packages/server-workflow/src/adapters/approval-planning.ts stageTaskApprovalRevision to a native operations effect, then delete workflow-approval-effects.ts. After both, delete the remaining purchase/guard files and the projects purchase helpers (projects KPI 4->0).",
+        "blocker": "handoff",
+        "nextAction": "BLOCKED: the 2 staff-tasks writes are the beta social-post saveTask path (packages/server-manage_erpx/src/adapters/beta-api.ts:75 -> application/api.ts:132) whose source witness `task-post-{postId}` and collaboration task-source statements have no native equivalent in SaveTaskCommand (packages/server-operations/src/domain/staff_tasks.rs:327-344). The 3rd write is stageTaskApprovalRevision in workflow reroute (packages/server-workflow/src/adapters/approval-planning.ts:180). removalTaskId=migrate.operations.native-task-source, removalCondition=native staff-work create accepts the post source witness and writes the same collaboration source rows in the caller transaction, then beta-api saveTask switches to native. removalTaskId=migrate.operations.native-approval-revision, removalCondition=native operations effect for task approval revision with the same version/update semantics, then workflow reroute switches. KPI unchanged 1922; no files edited in this claim.",
         "handoff": {
-          "runId": "run-20261113-i",
+          "runId": "run-20261120-k",
           "agentId": "lead",
-          "at": "2026-11-13T05:26:42.813Z",
-          "previousStatus": "blocked",
-          "reason": "released with work preserved",
-          "nextAction": "BLOCKED ON TWO CROSS-OWNER CALLERS. Residual 9 writes: work-task-purchases 2, task-attachment-purchases 2, staff-tasks 2, workflow-approval-effects 1, work-task-alert-purchases 1, task-attachment-read 1. Required split: (a) migrate.operations.save-task-beta-source — switch packages/server-manage_erpx/src/adapters/beta-api.ts saveTask to the native staff-task command, then delete staff-tasks.ts and its purchase guards; (b) migrate.operations.task-alert-escalation — switch packages/server-workflow/src/adapters/approval-planning.ts stageTaskApprovalRevision to a native operations effect, then delete workflow-approval-effects.ts. After both, delete the remaining purchase/guard files and the projects purchase helpers (projects KPI 4->0)."
+          "at": "2026-11-20T10:56:12.290Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "BLOCKED: the 2 staff-tasks writes are the beta social-post saveTask path (packages/server-manage_erpx/src/adapters/beta-api.ts:75 -> application/api.ts:132) whose source witness `task-post-{postId}` and collaboration task-source statements have no native equivalent in SaveTaskCommand (packages/server-operations/src/domain/staff_tasks.rs:327-344). The 3rd write is stageTaskApprovalRevision in workflow reroute (packages/server-workflow/src/adapters/approval-planning.ts:180). removalTaskId=migrate.operations.native-task-source, removalCondition=native staff-work create accepts the post source witness and writes the same collaboration source rows in the caller transaction, then beta-api saveTask switches to native. removalTaskId=migrate.operations.native-approval-revision, removalCondition=native operations effect for task approval revision with the same version/update semantics, then workflow reroute switches. KPI unchanged 1922; no files edited in this claim."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -47568,6 +47568,82 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.operations.native-task-source",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "operations",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native staff-task source witness for beta posts",
+        "scope": "Extend the native staff-work create command with the post source witness and collaboration task-source effects, switch beta-api saveTask, then delete staff-tasks.ts writes.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "packages/server-manage_erpx/src/**",
+          "packages/server-workflow/src/**",
+          "packages/feature-operations/**",
+          "src/composition/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Extend the native staff-work create command with the post source witness and collaboration task-source effects, switch beta-api saveTask, then delete staff-tasks.ts writes.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.operations.native-approval-revision",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "operations",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native task approval revision effect",
+        "scope": "Implement the operations approval revision effect natively and switch workflow reroute, then delete workflow-approval-effects.ts.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "packages/server-manage_erpx/src/**",
+          "packages/server-workflow/src/**",
+          "packages/feature-operations/**",
+          "src/composition/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement the operations approval revision effect natively and switch workflow reroute, then delete workflow-approval-effects.ts.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -47576,10 +47652,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 245,
+      "totalPackets": 247,
       "migratedPackets": 132,
       "statusCounts": {
-        "pending": 23,
+        "pending": 25,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -47590,7 +47666,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:51:17.330Z",
+    "updatedAt": "2026-11-20T10:56:12.467Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
