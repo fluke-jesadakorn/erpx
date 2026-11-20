@@ -1,3 +1,14 @@
+/**
+ * FIXTURE-ONLY ORACLE — retained pre-cutover roster Position-change notices.
+ *
+ * Production notices are owned by the native Collaboration adapter
+ * `packages/server-collaboration/src/adapters/roster_position_notifications.rs`
+ * (written inside the People Position-exit serializable transaction). This copy
+ * exists only so the roster-exit fixture can seed equivalent notification rows.
+ *
+ * Tracked for removal by `retire.collaboration.roster-position-notifications`:
+ * delete once the roster-exit fixture seeds notices through the native owner.
+ */
 import {collaborationNotificationSnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/collaboration-notification-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';

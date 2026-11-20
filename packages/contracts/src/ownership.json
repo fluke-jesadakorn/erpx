@@ -3743,7 +3743,6 @@
             "packages/server-collaboration/src/adapters/organization-node-channels.ts",
             "packages/server-collaboration/src/adapters/overtime-notification.ts",
             "packages/server-collaboration/src/adapters/people-roster-facts.ts",
-            "packages/server-collaboration/src/adapters/people-roster-position-notifications.ts",
             "packages/server-collaboration/src/adapters/pms-home-read-facts.ts",
             "packages/server-collaboration/src/adapters/pms-source-authorization.ts",
             "packages/server-collaboration/src/adapters/profile-posts.ts",

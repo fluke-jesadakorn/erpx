@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3284,
+    "revision": 3286,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -48196,6 +48196,47 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.roster-position-notifications",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire superseded roster-position notification writers",
+        "scope": "Delete packages/server-collaboration/src/adapters/people-roster-position-notifications.ts (2 staff_notifications writers) and its public barrel. Native Collaboration adapter roster_position_notifications.rs owns both roster_week and roster_request notices inside the People Position-exit transaction. Move the fixture-only oracle to test support with a removalTaskId.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/contracts/src/ownership.json",
+          "tests/support/people_payroll/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "claimedAt": "2026-11-20T11:50:38.733Z",
+          "heartbeatAt": "2026-11-20T11:50:38.733Z",
+          "expiresAt": "2026-11-20T12:20:38.733Z",
+          "generation": 139
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the superseded TS notification writer and barrel; keep the fixture oracle in test support with a removalTaskId.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -48204,11 +48245,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 249,
+      "totalPackets": 250,
       "migratedPackets": 135,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 135,
@@ -48218,7 +48259,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T11:46:09.349Z",
+    "updatedAt": "2026-11-20T11:50:38.734Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
