@@ -8,6 +8,7 @@
 use crate::domain::staff_tasks::{
     ActiveDelegation, ApprovalView, AttachmentRow, DecisionFact, DelegateTaskCommand,
     DelegationHistoryRow, MAX_ALERTS, MAX_LIST, RevokeTaskDelegationCommand, SaveTaskCommand,
+    TaskSourceWitness,
     StaffTaskActor, StaffTaskAlertResult, StoredTaskReceipt, TaskAccessFacts, TaskAction,
     TaskDetail, TaskReceipt, TaskRow, TaskScope, TransitionPlan, TransitionTaskCommand, can_attach,
     can_configure, delegation_record_id, delegation_required, fingerprint_json,
@@ -303,6 +304,16 @@ pub trait StaffTaskSources: Send {
         actor: &'a StaffTaskActor,
         post_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, Self::Error>;
+    /// Collaboration: bind the reviewed post source to the saved task inside
+    /// the caller's retained transaction.
+    fn bind_task_source<'a>(
+        &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
+        actor: &'a StaffTaskActor,
+        task_id: &'a str,
+        key: &'a str,
+        witness: &'a TaskSourceWitness,
+    ) -> StaffTaskFuture<'a, (), Self::Error>;
     #[allow(clippy::too_many_arguments)]
     fn task_route<'a>(
         &'a mut self,
@@ -931,6 +942,7 @@ where
         .as_ref()
         .and_then(|row| row.department_id.clone())
         .or_else(|| staff.department_id.clone());
+    let source_key = key.as_str().to_owned();
     let receipt = repository
         .save(SaveTaskPlan {
             key,
@@ -963,6 +975,11 @@ where
             write_ledger: true,
         })
         .await?;
+    if let Some(witness) = input.source.as_ref() {
+        sources
+            .bind_task_source(repository.connection(), actor, &record_id, &source_key, witness)
+            .await?;
+    }
     check_receipt(receipt, &record_id, state, version).map_err(Into::into)
 }
 

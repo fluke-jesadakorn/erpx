@@ -324,6 +324,18 @@ impl TaskAction {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TaskSourceWitness {
+    pub post_id: String,
+    pub source_version: i64,
+    pub source_hash: String,
+    #[serde(default)]
+    pub comment_ids: Vec<String>,
+    #[serde(default)]
+    pub ai_draft_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SaveTaskCommand {
     pub title: String,
     #[serde(default)]
@@ -341,6 +353,8 @@ pub struct SaveTaskCommand {
     pub expected_version: i64,
     #[serde(default)]
     pub reason: String,
+    #[serde(default)]
+    pub source: Option<TaskSourceWitness>,
 }
 impl SaveTaskCommand {
     pub fn validate(&self) -> Result<i64, BusinessError> {

@@ -60,7 +60,8 @@
     "./domain/email": "./src/domain/email.ts",
     "./domain/team": "./src/domain/team.ts",
     "./domain/onboarding": "./src/domain/onboarding.ts",
-    "./domain/config": "./src/domain/config.ts"
+    "./domain/config": "./src/domain/config.ts",
+    "./adapters/native-beta-task": "./src/adapters/native-beta-task.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

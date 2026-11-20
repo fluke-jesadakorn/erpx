@@ -19,7 +19,8 @@ import {postView,postComments,homePosts,savePostDraft,publishPost,postAction,pos
 import {socialUploadOwner} from '@erpx/server-collaboration/public/social-home-read';
 import {sourceSnapshot,readablePost} from '@erpx/server-collaboration/public/social-source';
 import { createAiDraft, aiResultSchema, callAi } from "@erpx/server-collaboration/public/social-ai";
-import {saveTask,taskSchema,taskDetail} from '@erpx/server-operations/public/staff-tasks';
+import {taskSchema,taskDetail} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask} from '../../support/operations/staff-tasks-fixture';
 import { betaDestinationAllowed } from "@erpx/server-identity_access/public/beta-access";
 import {
   addBetaBranch,

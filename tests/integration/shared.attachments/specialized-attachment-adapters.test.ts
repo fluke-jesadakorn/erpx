@@ -7,6 +7,7 @@ import {
   it,
   vi,
 } from "vitest";
+import {saveTask} from '../../support/operations/staff-tasks-fixture';
 import { Document, Packer, Paragraph } from "docx";
 import { applyMigrations, env } from "../../support/runtime-env";
 const attachmentRuntime = vi.hoisted(() => ({
@@ -301,7 +302,7 @@ describe("specialized canonical attachment adapters", () => {
     }
   });
   it.each(['disabled','enforced'] as const)('preserves actual clean Task bytes through the complete Legal owner transaction with Work enforcement %s',async mode=>{
-    const {createHash}=await import('node:crypto'),{saveTask,taskSchema}=await import('@erpx/server-operations/public/staff-tasks'),{preserveAttachment}=await import('@erpx/server-legal/public/legal/sources'),{createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow}=await import('@erpx/server-files/public/attachments/service'),{packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');
+    const {createHash}=await import('node:crypto'),{taskSchema}=await import('@erpx/server-operations/public/staff-tasks'),{preserveAttachment}=await import('@erpx/server-legal/public/legal/sources'),{createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow}=await import('@erpx/server-files/public/attachments/service'),{packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');
     const manager=await fixture.member(`legal-task-reader-${key()}`,'legal_manager');
     await legalCommand(db,manager,{action:'settings',enabled:true},key());
     const legal=await legalCommand(db,manager,{action:'create',item:{kind:'contract',title:'Original Task evidence preservation',ownerId:manager.userId,data:{contractType:'Evidence',parties:'Original Company'}}},key());

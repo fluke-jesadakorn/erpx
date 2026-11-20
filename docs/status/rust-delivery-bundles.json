@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3267,
+    "revision": 3268,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -47594,8 +47594,15 @@
           "owner:operations",
           "resource:composition"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "claimedAt": "2026-11-20T11:18:31.931Z",
+          "heartbeatAt": "2026-11-20T11:18:31.931Z",
+          "expiresAt": "2026-11-20T11:48:31.931Z",
+          "generation": 139
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -47616,7 +47623,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "PARTIAL: native social_task_origins binding + version/hash guard implemented and tested. BLOCKED for TS writer deletion: sourceAccessSql policy spans IAM assignments, Projects audience, PMS source and Operations handover (packages/server-collaboration/src/adapters/social-source-policy.ts); native sourceSnapshot/sha256 parity and ai-draft guard are not exposed. removalTaskId=ports.collaboration-social-source-policy, removalCondition=Collaboration exposes a native sourceSnapshot/sourceGuard port with exact audience policy and the save-task application consumes it inside the caller transaction.",
         "handoff": {
           "runId": "run-20261120-k",
@@ -47743,17 +47750,17 @@
       "migratedPackets": 132,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 132,
-        "blocked": 92,
+        "blocked": 91,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T11:02:05.472Z",
+    "updatedAt": "2026-11-20T11:18:31.933Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [

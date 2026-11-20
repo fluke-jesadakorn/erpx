@@ -30725,7 +30725,7 @@
         "@erpx/ui"
       ],
       "postgres": {
-        "mode": "template",
+        "mode": "raw",
         "slots": [
           "CONTROL_DB",
           "H001_DB",
@@ -30733,11 +30733,7 @@
           "H002_DB",
           "H002_READ_DB"
         ],
-        "migratedSlots": [
-          "CONTROL_DB",
-          "H001_DB",
-          "H002_DB"
-        ]
+        "migratedSlots": []
       }
     },
     {

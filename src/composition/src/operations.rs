@@ -1,6 +1,12 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_assets::public::record_source as asset_source;
 use erpx_server_collaboration::public::staff_facts::readable_post;
+use erpx_server_collaboration::public::social_source_policy::{
+    into_business as social_source_error, read_published_post, source_hash, source_guard, SourceItem,
+};
+use erpx_server_collaboration::public::task_source_origin::{
+    bind_task_origin, into_business as task_origin_error, TaskOriginBinding,
+};
 use erpx_server_field_service::public::source_record::read_source_record;
 use erpx_server_files::public::staff_task_attachments::task_attachments;
 use erpx_server_identity_access::public::{
@@ -1642,6 +1648,81 @@ impl StaffTaskFactDelegates for StaffWorkFactDelegates {
                 ));
             };
             identity_same_person(connection, &actor.company_id, &actor.user_id, user_id).await
+        })
+    }
+
+    fn bind_task_source<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        actor: &'a StaffTaskActor,
+        task_id: &'a str,
+        key: &'a str,
+        witness: &'a erpx_server_operations::public::staff_tasks::TaskSourceWitness,
+    ) -> StaffTaskFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            let Some(connection) = unit else {
+                return Err(staff_source_required(
+                    "TASK_SOURCE_BINDING_REQUIRED",
+                    "Staff Work requires the Collaboration task-source binding port, which composition has not mounted.",
+                ));
+            };
+            let post = read_published_post(
+                connection,
+                &actor.company_id,
+                &actor.user_id,
+                actor.branch_id.as_deref(),
+                actor.department_id.as_deref(),
+                &witness.post_id,
+                self.now,
+            )
+            .await
+            .map_err(social_source_error)?;
+            if post.version != witness.source_version {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "SOURCE_CHANGED",
+                    "The conversation changed. Review it and prepare the task again.",
+                ));
+            }
+            let item = SourceItem {
+                id: &post.id,
+                body: &post.body,
+                author: &post.author_name,
+                version: post.version,
+            };
+            if source_hash(&item, &[]) != witness.source_hash {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "SOURCE_CHANGED",
+                    "The conversation changed. Review it and prepare the task again.",
+                ));
+            }
+            source_guard(
+                connection,
+                key,
+                "source-participant-0",
+                &post.id,
+                &actor.company_id,
+                post.version,
+                &actor.user_id,
+                self.now,
+            )
+            .await
+            .map_err(social_source_error)?;
+            bind_task_origin(
+                connection,
+                &TaskOriginBinding {
+                    post_id: &witness.post_id,
+                    task_id,
+                    source_version: post.version,
+                    source_hash: &witness.source_hash,
+                    ai_draft_id: witness.ai_draft_id.as_deref(),
+                    actor_id: &actor.user_id,
+                    now: self.now,
+                },
+            )
+            .await
+            .map_err(task_origin_error)
         })
     }
 

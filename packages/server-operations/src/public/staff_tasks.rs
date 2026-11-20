@@ -18,6 +18,7 @@ pub use crate::domain::staff_tasks::{
     ActiveDelegation, AlertTask, ApprovalView, AttachmentRow, DecisionFact, DelegateTaskCommand,
     DelegationHistoryRow, MAX_ALERTS, MAX_APPROVERS, MAX_DESCRIPTION, MAX_LIST, MAX_TITLE,
     RevokeTaskDelegationCommand, SaveTaskCommand, StaffTaskActor, StaffTaskAlertResult,
+    TaskSourceWitness,
     StoredTaskReceipt, TaskAccessFacts, TaskAction, TaskDetail, TaskReceipt, TaskRow, TaskScope,
     TransitionPlan, TransitionTaskCommand, can_attach, can_configure, delegation_record_id,
     fingerprint_json, is_assigned, permitted_actions, plan_transition, require_scope,

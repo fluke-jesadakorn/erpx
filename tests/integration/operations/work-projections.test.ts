@@ -1,7 +1,8 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from '../../support/runtime-env';
 import {expenseDb as db,expenseFixture,key} from '../../support/helpers/expense-fixture';
-import {projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask} from '../../support/operations/staff-tasks-fixture';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {seedRoutineFor,seedRoutineRunTask,seedRoutineTemplate} from './routine-fixtures';
 import {recordsPage,getRecord,searchReferences} from '@erpx/server-records/public/records';

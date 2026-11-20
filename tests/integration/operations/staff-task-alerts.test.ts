@@ -117,7 +117,8 @@ it("escalates overdue work to the creator and project owner without flooding ret
 
 import {expenseFixture} from "../../support/helpers/expense-fixture";
 import {projectSchema} from "@erpx/server-projects/public/staff-projects";
-import {saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask} from '../../support/operations/staff-tasks-fixture';
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 async function taskProjectFixture(){const f=await expenseFixture();for(const actor of [f.owner,f.claimant])actor.modules=['projects'];const project=await seedProjectFor(db,f.owner,null,projectSchema.parse({title:'Queued purchased Project owner',memberUserIds:[f.claimant.userId]}),key()),now=Date.now(),task=await saveTask(db,f.owner,null,taskSchema.parse({title:'Actual queued Project delivery',projectId:project.id,assigneeUserId:f.claimant.userId,dueAt:new Date(now+60_000).toISOString()}),key());return {f,project,task,now};}

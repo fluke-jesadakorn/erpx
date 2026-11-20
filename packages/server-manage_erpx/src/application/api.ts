@@ -9,7 +9,7 @@ import type {sourceSnapshot,readablePost} from '@erpx/server-collaboration/publi
 import type {aiRequestSchema} from "@erpx/server-collaboration/public/social-ai";
 import type {taskSourceSchema} from "@erpx/server-collaboration/public/social-task";
 import type {getTask} from '@erpx/server-operations/public/staff-task-read';
-import type {saveTask,taskSchema,listTasks} from '@erpx/server-operations/public/staff-tasks';
+import type {taskSchema,listTasks} from '@erpx/server-operations/public/staff-tasks';
 import type {staffPeople} from "@erpx/server-operations/public/staff-policy";
 import type {addBetaBranch,inviteMember} from "@erpx/server-manage_erpx/public/beta-team";
 type WithoutDatabase<F> = F extends (...args:infer Args)=>infer Result ? Args extends [unknown,...infer Rest] ? (...args:Rest)=>Result : never : never;
@@ -38,7 +38,7 @@ readablePost:WithoutDatabase<typeof readablePost>;
 textSuggestions:WithoutDatabase<typeof textSuggestions>;
 retryAgentReply:WithoutDatabase<typeof retryAgentReply>;
 getTask:WithoutDatabase<typeof getTask>;
-saveTask:WithoutDatabase<typeof saveTask>;
+saveTask:(actor:WorkContext,task:z.infer<typeof taskSchema>,key:string,source:z.infer<typeof taskSourceSchema>)=>Promise<unknown>;
 listTasks:WithoutDatabase<typeof listTasks>;
 staffPeople:WithoutDatabase<typeof staffPeople>;
 addBetaBranch:WithoutDatabase<typeof addBetaBranch>;
@@ -129,13 +129,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
               }),
               taskInput = ports.schemas.taskSchema.parse(input.task);
             try {
-              data = await ports.services.saveTask(actor,
-                null,
-                taskInput,
-                key,
-                false,
-                source,
-              );
+              data = await ports.services.saveTask(actor, taskInput, key, source);
             } catch (e) {
               const other = await r.recoverPostTask(id);
               if (!other) throw e;

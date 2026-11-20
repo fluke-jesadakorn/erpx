@@ -1155,6 +1155,7 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
                     ),
                     expected_version: 1,
                     reason: String::new(),
+                    source: None,
                 };
                 let fingerprint = fingerprint_json(
                     "routine.occurrence",

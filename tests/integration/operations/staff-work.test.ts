@@ -13,7 +13,8 @@ import {
 } from "@erpx/server-operations/public/staff-settings";
 import {approvalView,prepareDecision,openApproval} from '@erpx/server-workflow/public/approval-planning';
 import {rerouteApproval} from '@erpx/server-workflow/public/approvals';
-import {projectSchema,saveTask,taskSchema,taskDetail,listTasks} from '@erpx/server-operations/public/staff-tasks';
+import {projectSchema,taskSchema,taskDetail,listTasks} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask} from '../../support/operations/staff-tasks-fixture';
 import {taskWorkState} from '@erpx/server-operations/public/staff-task-read';
 import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import { templateSchema } from "@erpx/server-operations/public/routines";

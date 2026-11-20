@@ -6,7 +6,8 @@ import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-
 import {serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 import {seedServiceTeam} from "./service-team-seed";
 import {createLeave,submitLeave,approveLeave,newLeaveSchema,leaveDraftSchema} from '@erpx/server-people_payroll/public/leave';
-import {saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask} from '../../support/operations/staff-tasks-fixture';
 import {executeCommand} from '@erpx/server-workflow/public/commands';
 import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
 import {getExpense} from '@erpx/server-people_payroll/public/expense-read';

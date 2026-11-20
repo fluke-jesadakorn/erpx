@@ -50,14 +50,8 @@ function application(provided?: SqlDatabase, projectReadWhere='TRUE',workReadArg
             return assertion(database, key, value, `EXISTS(SELECT 1 FROM staff_tasks WHERE id=? AND version=? AND state IN (${states.map(() => "?").join(",")}))`, [id, version, ...states]);
         },
         guard13(...args) { return StaffTasksProjectsFacts(database).guard13(...args); },
-        stageSaveTaskEffect(title: string, description: string, assigneeUserId: string, dueAt: number | null, projectId: string | null, value: string, value2: string, nextState: "ready" | "draft", value3: 0 | 1, now: number, recordId: string) {
-            return database.prepare("UPDATE staff_tasks SET title=?,description=?,assignee_user_id=?,due_at=?,project_id=?,start_approvers_json=?,completion_approvers_json=?,state=?,completion_note='',blocked_reason=NULL,revision=revision+?,version=version+1,updated_at=? WHERE id=?")
-                .bind(title, description, assigneeUserId, dueAt, projectId, value, value2, nextState, value3, now, recordId);
-        },
-        stageSaveTaskEffect2(recordId: string, companyId: string, branch_id: string | null, department_id: string | null, title: string, description: string, userId: string, assigneeUserId: string, dueAt: number | null, projectId: string | null, value: string, value2: string, nextState: "ready" | "draft", now: number, now2: number) {
-            return database.prepare("INSERT INTO staff_tasks(id,company_id,branch_id,department_id,title,description,creator_user_id,assignee_user_id,due_at,project_id,start_approvers_json,completion_approvers_json,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-                .bind(recordId, companyId, branch_id, department_id, title, description, userId, assigneeUserId, dueAt, projectId, value, value2, nextState, now, now2);
-        },
+        stageSaveTaskEffect() { throw new Error("NATIVE_STAFF_WORK_REQUIRED"); },
+        stageSaveTaskEffect2() { throw new Error("NATIVE_STAFF_WORK_REQUIRED"); },
         readTaskDetailAttachments(id: string) {
             return database.prepare(`SELECT id,original_name,bytes,media_type FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='staff_task' AND owner_id=? AND revoked_at IS NULL ORDER BY created_at`)
                 .bind(id)
@@ -106,7 +100,6 @@ export function canConfigureTask(actor: StaffActor, task: TaskRow) { return invo
 export function taskVersionGuard(db: SqlDatabase, key: string, id: string, version: number, states: string[]) { return invokeSync(() => application(db).taskVersionGuard(key, id, version, states)); }
 export async function validateTaskConfiguration(db: SqlDatabase, actor: StaffActor, input: z.infer<typeof taskFieldsSchema>, creator = actor.userId, serviceTask = false) { return invoke(() => application(db).validateTaskConfiguration(actor, input, creator, serviceTask)); }
 export function configGuards(db: SqlDatabase, key: string, actor: StaffActor, input: z.infer<typeof taskFieldsSchema>) { return invokeSync(() => application(db).configGuards(key, actor, input)); }
-export async function saveTask(db: SqlDatabase, actor: StaffActor, id: string | null, input: z.infer<typeof taskSchema>, key: string, revision = false, source?: TaskSource) { return withWorkTaskPurchasedCommand(db,actor,{key,operations:[revision?'task.revise':id?'task.update':'task.create'],id:id??(source?`task-post-${source.postId}`:`task-${key}`),purpose:'new-work',configure:true,projectId:input.projectId,assigneeUserId:input.assigneeUserId,sourcePostId:source?.postId},tx=>invoke(() => application(tx).saveTask(actor, id, input, key, revision, source))); }
 
 export async function taskDetail(db: SqlDatabase, actor: StaffActor, id: string): Promise<TaskDetail> { await projectTaskPurchaseAccess(db,actor,id);await workTaskPurchaseAccess(db,actor,id);const project=await projectTaskReadScope(db,actor),work=await workTaskReadScope(db,actor),detail=await invoke(() => application(db,`(${project.where}) AND (${work.where})`,work.args).taskDetail(actor, id));return {...detail,...await workTaskWorkState(db,actor,id,await projectTaskWorkState(db,actor,id,detail))}; }
 

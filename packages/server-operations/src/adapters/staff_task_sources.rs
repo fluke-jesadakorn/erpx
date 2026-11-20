@@ -20,7 +20,7 @@ use crate::application::staff_tasks::{
     PostFact, ProjectFact, RouteFact, StaffFact, StaffTaskFuture, StaffTaskSources,
 };
 use crate::domain::staff_tasks::{
-    ApprovalView, AttachmentRow, DecisionFact, StaffTaskActor, TaskRow, TaskScope,
+    ApprovalView, AttachmentRow, DecisionFact, StaffTaskActor, TaskRow, TaskScope, TaskSourceWitness,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::PgConnection;
@@ -105,6 +105,23 @@ pub trait StaffTaskFactDelegates: Send {
     }
 
     /// Collaboration: the post is readable by the actor.
+    fn bind_task_source<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        actor: &'a StaffTaskActor,
+        task_id: &'a str,
+        key: &'a str,
+        witness: &'a TaskSourceWitness,
+    ) -> StaffTaskFuture<'a, (), BusinessError> {
+        let _ = (unit, actor, task_id, key, witness);
+        Box::pin(async {
+            Err(source_required(
+                "TASK_SOURCE_BINDING_REQUIRED",
+                "Staff Work requires the Collaboration task-source binding port, which composition has not mounted.",
+            ))
+        })
+    }
+
     fn readable_post<'a>(
         &'a mut self,
         unit: Option<&'a mut PgConnection>,
@@ -355,6 +372,18 @@ impl<D: StaffTaskFactDelegates> StaffTaskSources for PgStaffTaskSources<D> {
     ) -> StaffTaskFuture<'a, bool, Self::Error> {
         self.delegates
             .same_person_between(unit, company_id, user_a, user_b)
+    }
+
+    fn bind_task_source<'a>(
+        &'a mut self,
+        unit: Option<&'a mut PgConnection>,
+        actor: &'a StaffTaskActor,
+        task_id: &'a str,
+        key: &'a str,
+        witness: &'a TaskSourceWitness,
+    ) -> StaffTaskFuture<'a, (), Self::Error> {
+        self.delegates
+            .bind_task_source(unit, actor, task_id, key, witness)
     }
 
     fn readable_post<'a>(

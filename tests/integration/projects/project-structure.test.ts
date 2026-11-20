@@ -1,7 +1,8 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {getProject,projectSchema,saveTask,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {getProject,projectSchema,taskSchema} from '@erpx/server-operations/public/staff-tasks';
+import {saveTask} from '../../support/operations/staff-tasks-fixture';
 import {projectGraph,projectHandoffs,projectHandoffWork} from "@erpx/server-projects/public/project-structure";
 import {listProjectCostAllocations} from "@erpx/server-projects/public/project-actuals";
 import {approveCostAllocation,seedCostAllocation,seedMilestone,seedProjectFor,seedWorkLog} from "./project-actual-fixtures";
