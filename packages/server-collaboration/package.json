@@ -281,7 +281,8 @@
     "./adapters/native-finance-tax-identities": "./src/adapters/native-finance-tax-identities.ts",
     "./adapters/native-finance-due-drafts": "./src/adapters/native-finance-due-drafts.ts",
     "./adapters/native-finance-intercompany-pairs": "./src/adapters/native-finance-intercompany-pairs.ts",
-    "./adapters/native-payroll-deductions": "./src/adapters/native-payroll-deductions.ts"
+    "./adapters/native-payroll-deductions": "./src/adapters/native-payroll-deductions.ts",
+    "./adapters/native-payroll-final-pay-cancellation": "./src/adapters/native-payroll-final-pay-cancellation.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

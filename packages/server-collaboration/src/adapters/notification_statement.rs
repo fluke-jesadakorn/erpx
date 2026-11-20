@@ -3244,3 +3244,43 @@ pub async fn payroll_advances_close_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// People/payroll: record a final-pay cancellation event.
+pub async fn payroll_final_pay_cancel_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO hr_payroll_final_pay_events(id,preparation_id,task_id,run_id,company_id,action,actor_id,task_version,evidence_json,created_at) VALUES(?,?,?,?,?,'cancelled',?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People/payroll: cancel a payroll run.
+pub async fn payroll_run_cancel_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE hr_payroll_runs SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People/payroll: cancel a final-pay preparation.
+pub async fn payroll_final_pay_prep_cancel_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE hr_payroll_final_pay_preparations SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
