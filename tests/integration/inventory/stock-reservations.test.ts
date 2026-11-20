@@ -7,7 +7,7 @@ import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
 import {changeOrderReservation,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";
+import { seedInventoryReservationAlertNotices as escalateInventoryReservations } from "../../support/inventory/reservation-alert-notice-fixture";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());

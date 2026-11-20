@@ -18,7 +18,7 @@ import {
 } from "../../support/planning";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type {FileStore,SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import { escalateInventoryReservations } from "@erpx/server-inventory/public/inventory-reservation-alerts";
+import { seedInventoryReservationAlertNotices as escalateInventoryReservations } from "../../support/inventory/reservation-alert-notice-fixture";
 import { queryMetric } from "@erpx/server-runtime/public/executive/metrics";
 import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/server-runtime/public/executive/evidence";
 import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet, withdrawSeededAttachment } from "../../support/helpers/attachment-v2";

@@ -461,7 +461,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "overrides": {
       "reservations": {
         "ui": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx",
-        "service": "packages/server-inventory/src/public/inventory-reservation-alerts.ts",
+        "service": "src/composition/src/inventory_reservation_alerts.rs",
         "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
         "test": "tests/integration/inventory/stock-reservations.test.ts; tests/integration/manufacturing/business-scheduled-production.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Reserve approved Sales demand; Deliver part of the order from its own reservation; Deliver the remainder and reload quantity/value. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."

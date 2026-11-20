@@ -71,7 +71,8 @@ export async function scheduledWork(env: JobEnv) {
     }
     if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-roster")).escalateRosterCoverage(write);
     await (await import("@erpx/server-people_payroll/public/leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
-    await (await import("@erpx/server-inventory/public/inventory-reservation-alerts")).escalateInventoryReservations(write);
+    // Inventory Sales/Manufacturing reservation alert notices are owned by the
+    // native inventory_reservation_alerts worker; no TS writer remains.
     // Quality due-soon/overdue escalation and notice routing are owned by the
     // native quality_alert_worker; no TS writer remains in this sweep.
     await (await import("@erpx/server-identity_access/public/iam-access-review-alerts")).escalateAccessReviews(write);

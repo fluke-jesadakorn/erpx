@@ -10,7 +10,7 @@ import {applyMigrations,env} from "../../support/runtime-env";
 import {qualityWork} from "@erpx/server-quality/public/quality";
 import {qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
 const qualityAlertCounts=async()=>({dueSoon:Number(await db.prepare("SELECT count(*)::int n FROM inventory_quality_alerts WHERE phase='due_soon'").first('n')),overdue:Number(await db.prepare("SELECT count(*)::int n FROM inventory_quality_alerts WHERE phase='overdue'").first('n'))});
-import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";
+import { seedInventoryReservationAlertNotices as escalateInventoryReservations } from "../../support/inventory/reservation-alert-notice-fixture";
 import {enrollEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
 import {filterWork} from "@erpx/feature-work_projection/lib/work-item";
 import {mergeWorkItems} from "@erpx/server-work_projection/public/work-items";
