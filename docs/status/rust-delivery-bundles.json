@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3216,
+    "revision": 3220,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:10:21.345Z",
-      "expiresAt": "2026-11-20T10:40:21.345Z",
+      "heartbeatAt": "2026-11-20T10:13:34.987Z",
+      "expiresAt": "2026-11-20T10:43:34.987Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -9345,7 +9345,7 @@
         "id": "G2",
         "title": "Freeze producer public ports",
         "planRef": "docs/production-plan.md#rust-migration-current",
-        "status": "pending",
+        "status": "in_progress",
         "successCriteria": "Bounded public authority/effect/transaction seams unlock consumer implementation without waiting for whole owners.",
         "acceptance": false,
         "category": "migration"
@@ -47177,16 +47177,23 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement PersonAccountLinkPort verify/revoke in composition against Identity-owned member/account tables in the caller transaction.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "BLOCKED on cross-database authority. The retained TS guard reads the user account from CONTROL_DB (packages/server-identity_access/src/adapters/people-directory-facts.ts: readSaveDirectoryPersonAccount uses env.CONTROL_DB.prepare(... FROM \"user\") and guard7 checks assignments + iam_assignment_active/iam_principal_active in the Holding DB). A native PersonAccountLinkPort::verify must therefore receive both the Control DB pool and the Holding transaction, and revoke_company_access must update assignments in the Holding DB. No such dual-pool port exists; `src/composition/**` has no StaffPlacementPort/PersonAccountLinkPort implementation. removalTaskId=ports.identity-account-link-control-pool, removalCondition=Identity owner exposes a public port taking ControlDbPool + HoldingConnection and implementing verify/revoke with the same \"user\"/assignments predicates; then PgWorkforceCommand can compose it. No source changed; KPI unchanged 1928.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T10:13:18.724Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "BLOCKED on cross-database authority. The retained TS guard reads the user account from CONTROL_DB (packages/server-identity_access/src/adapters/people-directory-facts.ts: readSaveDirectoryPersonAccount uses env.CONTROL_DB.prepare(... FROM \"user\") and guard7 checks assignments + iam_assignment_active/iam_principal_active in the Holding DB). A native PersonAccountLinkPort::verify must therefore receive both the Control DB pool and the Holding transaction, and revoke_company_access must update assignments in the Holding DB. No such dual-pool port exists; `src/composition/**` has no StaffPlacementPort/PersonAccountLinkPort implementation. removalTaskId=ports.identity-account-link-control-pool, removalCondition=Identity owner exposes a public port taking ControlDbPool + HoldingConnection and implementing verify/revoke with the same \"user\"/assignments predicates; then PgWorkforceCommand can compose it. No source changed; KPI unchanged 1928."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -47228,6 +47235,41 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "ports.identity-account-link-control-pool",
+        "goalId": "G2",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Identity account-link port with Control DB pool",
+        "scope": "Expose a public Identity port that verifies a person account link using the Control DB \"user\" row plus Holding assignments/iam_* predicates, and revokes Company access in the Holding transaction.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "src/composition/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Needed before native People workforce directory save can be authoritative.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -47236,7 +47278,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 243,
+      "totalPackets": 244,
       "migratedPackets": 131,
       "statusCounts": {
         "pending": 25,
@@ -47244,13 +47286,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 131,
-        "blocked": 87,
+        "blocked": 88,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:10:21.346Z",
+    "updatedAt": "2026-11-20T10:13:34.989Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
