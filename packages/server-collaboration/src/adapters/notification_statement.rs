@@ -2024,3 +2024,44 @@ pub async fn legal_executed_copy_state_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal signing: record a signer's envelope view.
+pub async fn legal_signer_view_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_signers SET viewed_at=? WHERE envelope_id=? AND user_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal signing: advance item version with a new state.
+pub async fn legal_item_state_advance_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_items SET version=version+1,state=?,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal references: add a native reference with next-ordinal subquery.
+pub async fn legal_native_reference_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_native_references(item_id,target_module,target_id,ordinal,\
+ created_by,created_at) VALUES(?,?,?,(SELECT coalesce(max(ordinal),-1)+1 FROM legal_native_references WHERE item_id=?),?,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

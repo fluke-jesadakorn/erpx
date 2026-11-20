@@ -262,7 +262,8 @@
     "./adapters/native-finance-bank-ignore": "./src/adapters/native-finance-bank-ignore.ts",
     "./adapters/native-legal-features": "./src/adapters/native-legal-features.ts",
     "./adapters/native-legal-approval": "./src/adapters/native-legal-approval.ts",
-    "./adapters/native-legal-executed-copies": "./src/adapters/native-legal-executed-copies.ts"
+    "./adapters/native-legal-executed-copies": "./src/adapters/native-legal-executed-copies.ts",
+    "./adapters/native-legal-signing-references": "./src/adapters/native-legal-signing-references.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
