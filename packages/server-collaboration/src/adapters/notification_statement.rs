@@ -1812,3 +1812,24 @@ pub async fn legal_retention_authorization_statement(
         ],
     })
 }
+
+
+/// Finance: create a hotel PMS chart-of-account mapping.
+pub async fn finance_hotel_account_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,\
+ is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',?,?,?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(input.identifier.as_deref().unwrap_or("")),
+            value(company.as_str()), value(&input.record_id), value(&input.message), value(&input.record_type),
+            serde_json::Value::Number(input.record_version.into()), value(input.item_id.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
