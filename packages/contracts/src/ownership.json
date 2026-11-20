@@ -1201,7 +1201,6 @@
         "packages/server-finance/src/public/hospitality-tax-documents.ts",
         "packages/server-finance/src/public/invoice-payment-evidence.ts",
         "packages/server-finance/src/public/ledger.ts",
-        "packages/server-finance/src/public/refund-notifications.ts",
         "packages/server-finance/src/public/refunds.ts",
         "packages/server-finance/src/public/rules/finance-calculations.ts",
         "packages/server-finance/src/public/rules/finance-instrument-policy.ts",
@@ -1412,8 +1411,7 @@
           "source": [
             "packages/server-finance/src/domain/refunds.ts",
             "packages/server-finance/src/application/refunds.ts",
-            "packages/server-finance/src/adapters/refunds.ts",
-            "packages/server-finance/src/adapters/refund-notifications.ts"
+            "packages/server-finance/src/adapters/refunds.ts"
           ],
           "regression": [
             "tests/unit/finance/finance-refund-services.test.ts",
@@ -1894,7 +1892,6 @@
             "packages/server-finance/src/adapters/records-ai-usage-projection.ts",
             "packages/server-finance/src/adapters/records-record-details-owned-facts.ts",
             "packages/server-finance/src/adapters/refund-notification-source.ts",
-            "packages/server-finance/src/adapters/refund-notifications.ts",
             "packages/server-finance/src/adapters/refunds.ts",
             "packages/server-finance/src/adapters/sales-customer-sources.ts",
             "packages/server-finance/src/adapters/supplier-bill-draft-void.ts",
@@ -4351,7 +4348,6 @@
             "packages/server-workflow/src/application/flow-access.ts",
             "packages/server-workflow/src/application/job-projector.ts",
             "packages/server-workflow/src/application/flow-work.ts",
-            "packages/server-workflow/src/adapters/finance-refund-notifications.ts",
             "packages/server-workflow/src/adapters/routing-attention.ts",
             "packages/server-workflow/src/adapters/pms-command-facts.ts",
             "packages/server-workflow/src/adapters/leave-review-facts.ts",

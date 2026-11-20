@@ -37,6 +37,8 @@ pub struct NotificationStatementInput {
     pub bill_id: Option<String>,
     #[serde(default)]
     pub rfq_id: Option<String>,
+    #[serde(default)]
+    pub audience: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -102,7 +104,7 @@ mod tests {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None,
+            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -300,6 +302,72 @@ pub async fn rfq_notification_statement(
         values: vec![
             serde_json::Value::String(command_key.to_owned()),
             serde_json::Value::String(rfq_id.to_owned()),
+        ],
+    })
+}
+
+
+/// Finance refund notification statement. The Commerce/IAM source clauses and
+/// the four audience eligibility predicates are owned here; the caller supplies
+/// only audience, refund id, message, actor id and command key.
+pub async fn finance_refund_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    refund_id: &str,
+    command_key: &str,
+    message: &str,
+    actor_user_id: &str,
+    audience: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if refund_id.is_empty() || command_key.is_empty() || message.is_empty() || actor_user_id.is_empty() {
+        return Err(invalid().into());
+    }
+    let eligibility = match audience {
+        "treasury" => "a.role IN ('holding_owner','finance_approver','treasury') AND a.scope_kind='holding' AND a.user_id<>o.created_by AND a.user_id<>o.approved_by",
+        "approval" => "a.role IN ('holding_owner','finance_approver') AND a.user_id<>o.created_by AND a.user_id<>COALESCE(r.requested_by,c.prepared_by)",
+        "review" => "a.role IN ('holding_owner','finance_approver')",
+        "completed" => "a.role IN ('holding_owner','finance_approver','finance_preparer','treasury') AND a.user_id IN (o.created_by,o.approved_by,COALESCE(r.requested_by,c.prepared_by))",
+        _ => return Err(invalid().into()),
+    };
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM finance_refund_obligations WHERE id=$1 AND company_id=$2",
+    )
+    .bind(refund_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    if exists.is_none() {
+        return Err(invalid().into());
+    }
+    let sql = format!(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,o.company_id,a.user_id,\
+ 'refund',o.id,o.version,?,floor(extract(epoch FROM clock_timestamp())*1000)::bigint \
+ FROM finance_refund_obligations o \
+ JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"order_id\",\"fulfillment_id\",\"invoice_id\",\
+ \"kind\",\"number\",\"return_date\",\"reason\",\"status\",\"subtotal_minor\",\"tax_minor\",\
+ \"total_minor\",\"stock_journal_id\",\"credit_journal_id\",\"version\",\"requested_by\",\
+ \"approved_by\",\"created_at\",\"updated_at\",\"credited_minor\",\"refund_minor\",\
+ \"base_credit_minor\",\"base_credited_minor\",\"base_refund_minor\",\"fx_journal_id\",\
+ \"goods_fx_journal_id\" FROM commerce_returns) r ON r.id=o.return_id \
+ LEFT JOIN finance_billing_corrections c ON c.id=o.billing_correction_id AND c.company_id=o.company_id \
+ JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) a ON a.company_id=o.company_id \
+ WHERE o.id=? AND a.user_id<>? AND {eligibility} AND a.revoked_at IS NULL \
+ AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint \
+ AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint \
+ AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=o.branch_id \
+ OR a.scope_kind='department' AND a.scope_node_id=o.department_id)"
+    );
+    Ok(NotificationStatement {
+        sql,
+        values: vec![
+            serde_json::Value::String(command_key.to_owned()),
+            serde_json::Value::String(message.to_owned()),
+            serde_json::Value::String(refund_id.to_owned()),
+            serde_json::Value::String(actor_user_id.to_owned()),
         ],
     })
 }

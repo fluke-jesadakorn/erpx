@@ -12,7 +12,7 @@ import { createRefunds } from '@erpx/server-finance/application/refunds';
 import { refundApprovalSchema, refundInstructionSchema, refundExportSchema, refundConfirmationSchema, refundExceptionSchema, type Row } from '@erpx/server-finance/domain/refunds';
 import { refundProofSets } from '@erpx/server-files/public/finance-refund-proof-sources';
 import 'server-only';
-import { refundNotifications } from "@erpx/server-finance/public/refund-notifications";
+import { nativeRefundNotification } from "./native-refund-notification";
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -59,7 +59,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
             return executeCommand(write, actor, key, 'finance.refund.approve', input, id, input.expectedVersion + 1, { id, status: 'approved', version: input.expectedVersion + 1 }, [
                 assertion(write, key, 'obligation', "EXISTS(SELECT 1 FROM finance_refund_obligations WHERE id=? AND company_id=? AND status='pending' AND version=?)", [id, actor.companyId, input.expectedVersion]),
                 write.prepare("UPDATE finance_refund_obligations SET status='approved',beneficiary_name=?,beneficiary_account=?,approval_reason=?,approved_by=?,approved_at=?,version=version+1,updated_at=? WHERE id=?").bind(input.beneficiaryName, input.beneficiaryAccount, input.reason, actor.userId, now, now, id),
-                refundNotifications(write, key, id, 'treasury', 'Refund approved: prepare and verify bank instructions', actor.userId),
+                await nativeRefundNotification(write, actor, key, id, 'treasury', 'Refund approved: prepare and verify bank instructions', actor.userId),
             ]);
         }, commitPrepareRefundInstruction: async (facts) => {
             const { actor, key, commandInput, instructionId, id, input, amount, row, now } = facts;
@@ -87,7 +87,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
                 assertion(write, key, 'instruction', 'EXISTS(SELECT 1 FROM finance_refund_instructions WHERE id=? AND company_id=? AND version=? AND status=?)', [id, actor.companyId, input.expectedVersion, row.status]),
                 write.prepare('UPDATE finance_refund_instructions SET status=?,evidence=?,resolved_by=?,version=version+1,updated_at=? WHERE id=?').bind(input.outcome, input.evidence, actor.userId, now, id),
                 write.prepare('UPDATE finance_refund_obligations SET version=version+1,updated_at=? WHERE id=?').bind(now, owner.id),
-                refundNotifications(write, key, String(owner.id), input.outcome === 'unknown' ? 'review' : 'treasury', 'Refund bank exception updated: review source evidence before retrying', actor.userId),
+                await nativeRefundNotification(write, actor, key, String(owner.id), input.outcome === 'unknown' ? 'review' : 'treasury', 'Refund bank exception updated: review source evidence before retrying', actor.userId),
             ]);
         }, bank: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare('SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?').bind(input.bankTransactionId, actor.companyId).first<Row>(); }, proofSets: async (facts) => { const { actor, input } = facts; const write = await db(actor); return refundProofSets(write, actor, input.attachmentSetIds); }, commitConfirmRefundInstruction: async (facts) => {
             const { actor, key, input, id, paymentId, journal: journalPlan, fxJournal: fxJournalPlan, carrying, cashBase, gain, loss, owner, amount, foreignSource, sourceBase, outgoing, row, bank, now } = facts;
@@ -108,7 +108,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
                 write.prepare("UPDATE finance_refund_instructions SET status='confirmed',bank_reference=?,evidence=?,payment_id=?,bank_transaction_id=?,resolved_by=?,base_carrying_minor=?,cash_base_minor=?,fx_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(input.bankReference, input.evidence, paymentId, input.bankTransactionId, actor.userId, carrying, cashBase, fxJournal?.result.id ?? null, now, id),
                 write.prepare("UPDATE finance_refund_obligations SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=COALESCE(base_outstanding_minor,?)-?,status=CASE WHEN outstanding_minor=? THEN 'settled' ELSE 'approved' END,version=version+1,updated_at=? WHERE id=?").bind(amount, sourceBase, carrying, amount, now, owner.id),
                 ...(attachmentBinding?.steps ?? []),
-                refundNotifications(write, key, String(owner.id), 'completed', 'Refund bank evidence matched: review the remaining obligation', actor.userId),
+                await nativeRefundNotification(write, actor, key, String(owner.id), 'completed', 'Refund bank evidence matched: review the remaining obligation', actor.userId),
             ]);
         }, exportReceipt: async (facts) => { const { row, actor } = facts; const write = await db(actor); return financeCommandReceipts(write).refundExport(row.export_command_id); } });
 }

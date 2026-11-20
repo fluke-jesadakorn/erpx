@@ -6,9 +6,9 @@
 //! need the Files and Work-projection ports.
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::notification_statement::{
-    crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
-    rfq_notification_statement, supplier_bill_notification_statement, NotificationStatement,
-    NotificationStatementInput,
+    crm_lead_notification_statement, finance_refund_notification_statement,
+    legal_approval_notification_statement, notification_statement, rfq_notification_statement,
+    supplier_bill_notification_statement, NotificationStatement, NotificationStatementInput,
 };
 use erpx_server_collaboration::public::notification_statement_http::{
     StatementBackend, StatementFuture, StatementRequest,
@@ -2141,7 +2141,19 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("procurement_rfq") {
+                        if input.kind.as_deref() == Some("finance_refund") {
+                            finance_refund_notification_statement(
+                                connection,
+                                &company_id,
+                                input.record_id.as_str(),
+                                &input.idempotency_key,
+                                &input.message,
+                                &input.user_id,
+                                input.audience.as_deref().unwrap_or("approval"),
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("procurement_rfq") {
                             rfq_notification_statement(
                                 connection,
                                 &company_id,
@@ -2200,9 +2212,9 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
         Error,
     > {
         use erpx_server_collaboration::public::notification_statement::{
-    crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
-    rfq_notification_statement, supplier_bill_notification_statement, NotificationStatement,
-    NotificationStatementInput,
+    crm_lead_notification_statement, finance_refund_notification_statement,
+    legal_approval_notification_statement, notification_statement, rfq_notification_statement,
+    supplier_bill_notification_statement, NotificationStatement, NotificationStatementInput,
 };
 use erpx_server_collaboration::public::notification_statement_http::{
     StatementBackend, StatementFuture, StatementRequest,

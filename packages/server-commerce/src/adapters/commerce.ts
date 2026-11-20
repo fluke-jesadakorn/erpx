@@ -16,7 +16,7 @@ import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce
 
 import { commerceFinanceJoinedFacts } from "@erpx/server-finance/public/commerce-joined-facts";
 import { commerceInventoryJoinedFacts } from "@erpx/server-inventory/public/commerce-joined-facts";
-import { refundNotifications } from "@erpx/server-finance/public/refund-notifications";
+import { nativeRefundNotification } from "@erpx/server-finance/adapters/native-refund-notification";
 
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -713,7 +713,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
                 credit: string;
             }[];
         }, arg2: string, arg3: "posted" | "draft") => prepareJournal(db, arg0, arg1, arg2, arg3),
-        refundNotifications: (arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string) => refundNotifications(db, arg0, arg1, arg2, arg3, arg4),
+        refundNotifications: (arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string) => nativeRefundNotification(db, actor!, arg0, arg1, arg2, arg3, arg4),
         getEmployeeRequest: (arg0: WorkContext, arg1: string) => getEmployeeRequest(db, arg0, arg1),
         prepareRequestOrderHandoff: (arg0: WorkContext, arg1: string, arg2: string, arg3: string, arg4: number | undefined, arg5: boolean, arg6: string | undefined) => prepareRequestOrderHandoff(db, arg0, arg1, arg2, arg3, arg4, arg5, arg6),
         resolveSalesPricing: (arg0: WorkContext, arg1: {

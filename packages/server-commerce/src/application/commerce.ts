@@ -1208,7 +1208,7 @@ export type CommerceUnit<Effect> = {
             baseCurrency: string;
         };
     }>;
-    refundNotifications(arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string): Effect;
+    refundNotifications(arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string): Promise<Effect>;
     getEmployeeRequest(arg0: WorkContext, arg1: string): Promise<EmployeeRequest>;
     prepareRequestOrderHandoff(arg0: WorkContext, arg1: string, arg2: string, arg3: string, arg4: number | undefined, arg5: boolean, arg6: string | undefined): Promise<{
         row: EmployeeRequest;
@@ -1668,7 +1668,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         if (refundId)
             steps.push(write.prepareFinanceRefundObligations1({ refundId: refundId, companyId: actor.companyId, branch_id: row.branch_id, department_id: row.department_id, returnId: returnId, invoice_id: row.invoice_id, party_id: row.party_id, fact7: row.kind === "customer_return" ? "outgoing" : "incoming", currency: row.currency, chart_id: row.chart_id, fact10: row.kind === "customer_return" ? row.debit_account_id : row.credit_account_id, refund: refund, refund2: refund, baseRefundMinor: values.baseRefundMinor, baseRefundMinor2: values.baseRefundMinor, credit_journal_id: row.credit_journal_id, userId: actor.userId, now: now, now2: now }));
         if (refundId)
-            steps.push(write.refundNotifications(key, refundId, 'approval', 'Posted return requires independent refund approval', actor.userId));
+            steps.push(await write.refundNotifications(key, refundId, 'approval', 'Posted return requires independent refund approval', actor.userId));
         return write.executeCommand(actor, key, "commerce.return.complete", input, returnId, input.expectedVersion + 1, { id: returnId, orderId: String(row.order_id), status: "posted", version: input.expectedVersion + 1, creditedMinor: credited, refundMinor: refund, refundId }, steps);
     }
     async function saveOrder(actor: WorkContext, id: string | null, input: z.infer<typeof orderSchema>, key: string, ownerWrite?: CommerceUnit<Effect>) {
