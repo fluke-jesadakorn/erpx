@@ -55,3 +55,10 @@ pub mod roster_position_notifications;
 pub mod pms_social_event;
 pub mod customer_portal_notification;
 pub mod rfq_notifications;
+
+/// Collaboration-owned task-origin binding for native Staff Work commands.
+pub mod task_source_origin {
+    pub use crate::adapters::task_source_origin::{
+        bind_task_origin, into_business, TaskOriginBinding,
+    };
+}

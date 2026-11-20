@@ -1,3 +1,4 @@
+pub(crate) mod task_source_origin;
 pub(crate) mod legal_hold_notifications;
 pub(crate) mod web_push_preferences;
 pub(crate) mod maintenance_notifications;
