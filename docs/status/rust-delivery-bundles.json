@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3259,
+    "revision": 3263,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:56:12.466Z",
-      "expiresAt": "2026-11-20T11:26:12.466Z",
+      "heartbeatAt": "2026-11-20T11:00:13.734Z",
+      "expiresAt": "2026-11-20T11:30:13.734Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47594,23 +47594,38 @@
           "owner:operations",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261120-k",
-          "agentId": "lead",
-          "claimedAt": "2026-11-20T10:59:57.109Z",
-          "heartbeatAt": "2026-11-20T10:59:57.109Z",
-          "expiresAt": "2026-11-20T11:29:57.109Z",
-          "generation": 139
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "f5d7d858797b17ca64583b6c80f5ba3482a5d126",
+            "sourceKind": "committed",
+            "note": "Native Collaboration task-origin binding adapter compiles and is publicly exported."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib task_source_origin",
+            "result": "passed",
+            "sourceSha": "f5d7d858797b17ca64583b6c80f5ba3482a5d126",
+            "sourceKind": "committed",
+            "note": "1/1 stale-source guard test passes."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Extend the native staff-work create command with the post source witness and collaboration task-source effects, switch beta-api saveTask, then delete staff-tasks.ts writes.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "PARTIAL: native social_task_origins binding + version/hash guard implemented and tested. BLOCKED for TS writer deletion: sourceAccessSql policy spans IAM assignments, Projects audience, PMS source and Operations handover (packages/server-collaboration/src/adapters/social-source-policy.ts); native sourceSnapshot/sha256 parity and ai-draft guard are not exposed. removalTaskId=ports.collaboration-social-source-policy, removalCondition=Collaboration exposes a native sourceSnapshot/sourceGuard port with exact audience policy and the save-task application consumes it inside the caller transaction.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T11:00:13.587Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "PARTIAL: native social_task_origins binding + version/hash guard implemented and tested. BLOCKED for TS writer deletion: sourceAccessSql policy spans IAM assignments, Projects audience, PMS source and Operations handover (packages/server-collaboration/src/adapters/social-source-policy.ts); native sourceSnapshot/sha256 parity and ai-draft guard are not exposed. removalTaskId=ports.collaboration-social-source-policy, removalCondition=Collaboration exposes a native sourceSnapshot/sourceGuard port with exact audience policy and the save-task application consumes it inside the caller transaction."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -47651,6 +47666,49 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "ports.collaboration-social-source-policy",
+        "goalId": "G2",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native Collaboration social source policy port",
+        "scope": "Expose sourceSnapshot/sourceGuard with the exact sourceAccessSql audience policy (IAM, Projects, PMS, handover) for native Staff Work post-source commands.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-identity_access/src/**",
+          "packages/server-projects/src/**",
+          "packages/server-pms/src/**",
+          "packages/server-operations/src/**",
+          "src/composition/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "owner:identity_access",
+          "owner:projects",
+          "owner:pms",
+          "owner:operations",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Needed before native saveTask can accept a reviewed post source witness.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -47659,21 +47717,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 247,
+      "totalPackets": 248,
       "migratedPackets": 132,
       "statusCounts": {
-        "pending": 24,
-        "in_progress": 1,
+        "pending": 25,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 132,
-        "blocked": 90,
+        "blocked": 91,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:59:57.111Z",
+    "updatedAt": "2026-11-20T11:00:13.736Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
