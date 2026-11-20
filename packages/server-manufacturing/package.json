@@ -34,7 +34,6 @@
     "./public/production": "./src/public/production.ts",
     "./public/production-read-projections": "./src/public/production-read-projections.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
-    "./public/production-resources": "./src/public/production-resources.ts",
     "./public/existing-posting-sources": "./src/public/existing-posting-sources.ts",
     "./public/production-accounting": "./src/public/production-accounting.ts",
     "./public/posting-profiles": "./src/public/posting-profiles.ts",

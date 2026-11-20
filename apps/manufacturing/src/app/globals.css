@@ -2112,7 +2112,6 @@
 @source "../../../../packages/server-manufacturing/src/public/production-accounting.ts";
 @source "../../../../packages/server-manufacturing/src/public/production-command-sources.ts";
 @source "../../../../packages/server-manufacturing/src/public/production-read-projections.ts";
-@source "../../../../packages/server-manufacturing/src/public/production-resources.ts";
 @source "../../../../packages/server-manufacturing/src/public/production.ts";
 @source "../../../../packages/server-manufacturing/src/public/purchases.ts";
 @source "../../../../packages/server-manufacturing/src/public/record-purchases.ts";

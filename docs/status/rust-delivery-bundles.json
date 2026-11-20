@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3204,
+    "revision": 3207,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T09:56:32.416Z",
-      "expiresAt": "2026-11-20T10:26:32.416Z",
+      "heartbeatAt": "2026-11-20T10:00:01.904Z",
+      "expiresAt": "2026-11-20T10:30:01.904Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47042,16 +47042,23 @@
         "resources": [
           "owner:planning"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch productionWorkspace, planningExecutiveEvidenceRow, planningContextGuards and remaining read consumers to native owner read ports, then delete production-command-sources-read.ts/resources-read.ts and their package.json exports.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Removed the now-unreachable packages/server-manufacturing/src/public/production-resources.ts barrel and its package.json export; regenerated the 3 derived app inventories. Typecheck/docs/structure pass. KPI unchanged 1928 (dead barrel held no SQL). Remaining read-source modules production-command-sources-read.ts and resources-read.ts still have live consumers; removalTaskId for their eventual retirement is retire.planning.read-sources itself, removalCondition=native owner read ports for productionWorkspace/planningExecutiveEvidenceRow/planningContextGuards.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T10:00:01.853Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Removed the now-unreachable packages/server-manufacturing/src/public/production-resources.ts barrel and its package.json export; regenerated the 3 derived app inventories. Typecheck/docs/structure pass. KPI unchanged 1928 (dead barrel held no SQL). Remaining read-source modules production-command-sources-read.ts and resources-read.ts still have live consumers; removalTaskId for their eventual retirement is retire.planning.read-sources itself, removalCondition=native owner read ports for productionWorkspace/planningExecutiveEvidenceRow/planningContextGuards."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -47065,18 +47072,18 @@
       "totalPackets": 239,
       "migratedPackets": 131,
       "statusCounts": {
-        "pending": 23,
+        "pending": 22,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 131,
-        "blocked": 85,
+        "blocked": 86,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T09:56:32.417Z",
+    "updatedAt": "2026-11-20T10:00:01.905Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
