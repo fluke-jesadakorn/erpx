@@ -129,5 +129,4 @@ prepareScenarioRelease(now:number,scenario_id:string | number | null){return db
         .bind(now, scenario_id);},
 prepareReleaseEvent(value:string,userId:string,reason:string,now:number,scenario_id:string | number | null){return db.prepare("INSERT INTO planning_scenario_events(id,scenario_id,version,action,actor_id,reason,created_at) SELECT ?,id,version,'release',?,?,? FROM planning_scenarios WHERE id=?")
         .bind(value, userId, reason, now, scenario_id);},
-prepareCapacityRelease(now:number,id:string){return db.prepare(`UPDATE planning_resource_allocations SET released_at=? WHERE scenario_id=
-    (SELECT r.scenario_id FROM planning_recommendations r ${productionmanufacturingProjection.resourceReleaseOrder} WHERE o.id=?) AND released_at IS NULL`).bind(now, id);}};}
+};}

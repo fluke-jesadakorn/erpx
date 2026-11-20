@@ -21,7 +21,7 @@ export function changeManufacturingOrderForTest(
   key: string,
 ) {
   const action = (raw as {action?: string} | null)?.action;
-  return action === "issue" || action === "pass-qc"
+  return action === "issue" || action === "pass-qc" || action === "cancel" || action === "scrap"
     ? legacy(actor, id, raw, key)
     : retained(actor, id, raw, key);
 }

@@ -25,7 +25,6 @@ operation(operationId:string,specification_id:string | number | null):Promise<Ro
 guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:number,id:string):Effect;
 prepareOperationEvent(value:string,id:string,operationId:string,next:number,laborMinutes:number,machineMinutes:number,reason:string,userId:string,now:number):Effect;
 prepareReservationRelease(id:string):Effect;
-prepareCapacityRelease(now:number,id:string):Effect;
 attachmentSets(companyId:string,attachmentSetIds:string[]):Promise<{results:{id:string;purpose_key:string;component_kind:string;component_ref:string|null}[]}>;
 prepareOrderTransition(status:string,now:number,id:string):Effect;
 prepareOrderEvent(value:string,id:string,next:number,action:"cancel" | "reserve" | "issue" | "report" | "pass-qc" | "fail-qc" | "rework" | "scrap" | "complete-operation",userId:string,reason:string,status:string,value2:string,now:number):Effect;
@@ -100,11 +99,11 @@ async function changeManufacturingOrder(
         r.prepareMaterialReservation(`mfg-reservation-${key}-${n}`,id,row.warehouse_id,line.product_id,required,i.expiresAt,a.userId,now),
       );
     }
-  } else if (i.action === "issue" || i.action === "pass-qc") {
-    // Material issue and independent QC acceptance own their lot posting in
-    // the native Manufacturing order command. The route dispatches both
-    // actions there; reaching this retained application is a configuration
-    // failure rather than a silent lot-less write.
+  } else if (["issue", "pass-qc", "scrap", "cancel"].includes(i.action)) {
+    // Material issue, QC acceptance, scrap and unissued cancellation are owned
+    // by the native Manufacturing order command. The route dispatches all four
+    // there; reaching this retained application is a configuration failure
+    // rather than a silent write with a stale capacity release.
     throw new BusinessRuleError(
       503,
       "NATIVE_MANUFACTURING_REQUIRED",
@@ -139,15 +138,6 @@ async function changeManufacturingOrder(
     const reporter = await r.currentReportActor(id,i.expectedVersion);
     if (!reporter || reporter === a.userId) throw new BusinessRuleError(409, "CONFLICT", "QC must be independent from output reporting.");
     steps.push(r.guardIndependentFail(key,"independent-qc",id,i.expectedVersion,a.userId));
-  } else if (i.action === "scrap") {
-    ports.requirePermission(a, "records.review");
-    if (row.status !== "qc_failed") throw new BusinessRuleError(409, "INVALID_MANUFACTURING_TRANSITION", "Only independently failed output can be written off.");
-    const reporter = await r.lastOutputReportActor(id);
-    if (!reporter || reporter === a.userId) throw new BusinessRuleError(409, "CONFLICT", "The reporter cannot approve failed output disposal.");
-    status = "cancelled";
-    const total = Number(row.material_cost_minor) + Number(row.labor_cost_minor) + Number(row.overhead_cost_minor),
-      posting = await ports.preparePosting( a, { key, orderId: id, orderVersion: next, phase: "scrap", entryDate, output: total });
-    steps.push(...posting.steps); journalId = posting.journalId;
   } else if (i.action === "complete-operation") {
     if (row.status !== "in_progress") throw new BusinessRuleError(409, "INVALID_MANUFACTURING_TRANSITION", "Routing operations belong to an in-progress run.");
     const operation = await r.operation(i.operationId,row.specification_id);
@@ -163,19 +153,7 @@ async function changeManufacturingOrder(
         "Only failed output can re-enter work.",
       );
     status = "in_progress";
-  } else {
-    if (!["planned", "reserved"].includes(String(row.status)))
-      throw new BusinessRuleError(
-        409,
-        "INVALID_MANUFACTURING_TRANSITION",
-        "Only unissued orders can be cancelled.",
-      );
-    status = "cancelled";
-    steps.push(
-      r.prepareReservationRelease(id),
-    );
   }
-  if (["completed", "cancelled"].includes(status)) steps.push(r.prepareCapacityRelease(now,id));
   const attachmentPurpose = i.action === "report"
     ? "run_report_evidence"
     : ["pass-qc", "fail-qc"].includes(i.action)

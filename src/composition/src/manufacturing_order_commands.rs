@@ -73,6 +73,12 @@ const CANCEL_CAPABILITIES: &[&str] = &[
     "manufacturing.materials",
     "inventory.stock-core",
 ];
+const SCRAP_CAPABILITIES: &[&str] = &[
+    "manufacturing.execution",
+    "quality.production",
+    "manufacturing.costs",
+    "finance.production-costing",
+];
 
 fn conflict(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Conflict, code, message)
@@ -139,6 +145,7 @@ pub enum ManufacturingOrderAction {
     Issue,
     PassQc,
     Cancel,
+    Scrap,
 }
 
 impl ManufacturingOrderAction {
@@ -147,6 +154,7 @@ impl ManufacturingOrderAction {
             "issue" => Some(Self::Issue),
             "pass-qc" => Some(Self::PassQc),
             "cancel" => Some(Self::Cancel),
+            "scrap" => Some(Self::Scrap),
             _ => None,
         }
     }
@@ -156,6 +164,7 @@ impl ManufacturingOrderAction {
             Self::Issue => "issue",
             Self::PassQc => "pass-qc",
             Self::Cancel => "cancel",
+            Self::Scrap => "scrap",
         }
     }
 
@@ -164,6 +173,7 @@ impl ManufacturingOrderAction {
             Self::Issue => "in_progress",
             Self::PassQc => "completed",
             Self::Cancel => "cancelled",
+            Self::Scrap => "cancelled",
         }
     }
 
@@ -172,6 +182,7 @@ impl ManufacturingOrderAction {
             Self::Issue => "records.write",
             Self::PassQc => "records.review",
             Self::Cancel => "records.write",
+            Self::Scrap => "records.review",
         }
     }
 
@@ -180,6 +191,7 @@ impl ManufacturingOrderAction {
             Self::Issue => ISSUE_CAPABILITIES,
             Self::PassQc => PASS_QC_CAPABILITIES,
             Self::Cancel => CANCEL_CAPABILITIES,
+            Self::Scrap => SCRAP_CAPABILITIES,
         }
     }
 }
@@ -267,10 +279,13 @@ impl ManufacturingOrderInput {
         if action == ManufacturingOrderAction::Cancel
             && (!self.material_lot_allocations.is_empty()
                 || !self.output_lot_allocations.is_empty())
+            || (action == ManufacturingOrderAction::Scrap
+                && (!self.material_lot_allocations.is_empty()
+                    || !self.output_lot_allocations.is_empty()))
         {
             return Err(invalid(
                 "MANUFACTURING_ORDER_INVALID",
-                "Cancelling an order does not post material or output lots.",
+                "Cancellation and scrap do not post material or output lots.",
             ));
         }
         Ok(())
@@ -564,6 +579,7 @@ struct ApprovedProfile {
     chart_id: String,
     inventory_account_id: String,
     wip_account_id: String,
+    scrap_account_id: String,
     version: i64,
     currency: String,
     account_snapshot: String,
@@ -590,6 +606,7 @@ async fn read_approved_profile(
             chart_id: row.try_get("chart_id")?,
             inventory_account_id: row.try_get("inventory_account_id")?,
             wip_account_id: row.try_get("wip_account_id")?,
+            scrap_account_id: row.try_get("scrap_account_id")?,
             version: row.try_get("version")?,
             currency: row.try_get("currency")?,
             account_snapshot: row.try_get("account_snapshot")?,
@@ -757,6 +774,24 @@ fn journal_lines(
         }
         // Cancellation releases reservations and capacity only; it posts no
         // accounting journal, matching the retained TS transition.
+        ManufacturingOrderAction::Scrap => {
+            add(
+                &mut lines,
+                &profile.scrap_account_id,
+                total,
+                0,
+                "Failed output written off",
+            );
+            add(
+                &mut lines,
+                &profile.wip_account_id,
+                0,
+                total,
+                "WIP relieved at independent disposition",
+            );
+        }
+        // Cancellation releases reservations and capacity only; it posts no
+        // accounting journal, matching the retained TS transition.
         ManufacturingOrderAction::Cancel => {}
     }
     lines
@@ -835,6 +870,97 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
         let entry_date = self.input.entry_date(now);
         let mut journal = None;
         match self.action {
+            ManufacturingOrderAction::Scrap => {
+                if order.status != "qc_failed" {
+                    return Err(conflict(
+                        "INVALID_MANUFACTURING_TRANSITION",
+                        "Only independently failed output can be written off.",
+                    )
+                    .into());
+                }
+                let reporter: Option<String> = sqlx::query_scalar(
+                    "SELECT actor_id FROM manufacturing_order_events \
+                     WHERE order_id=$1 AND action='report' ORDER BY version DESC LIMIT 1",
+                )
+                .bind(self.id)
+                .fetch_optional(&mut *c)
+                .await?;
+                if reporter.is_none() || reporter.as_deref() == Some(self.current.user_id().as_str()) {
+                    return Err(conflict(
+                        "CONFLICT",
+                        "The reporter cannot approve failed output disposal.",
+                    )
+                    .into());
+                }
+                let total = order
+                    .material_cost_minor
+                    .checked_add(order.labor_cost_minor)
+                    .and_then(|value| value.checked_add(order.overhead_cost_minor))
+                    .ok_or_else(|| {
+                        invalid("MONEY_OVERFLOW", "Production costs exceed ledger precision.")
+                    })?;
+                let profile = read_approved_profile(c, self.company.as_str()).await?;
+                functional_currency_guard(
+                    c,
+                    self.company.as_str(),
+                    &profile.chart_id,
+                    &profile.inventory_account_id,
+                )
+                .await?;
+                let period = read_period(c, self.company.as_str(), &entry_date).await?;
+                if total > 0 {
+                    let lines = journal_lines(&profile, ManufacturingOrderAction::Scrap, 0, total);
+                    journal = Some(
+                        prepare_order_journal(
+                            c,
+                            self.current,
+                            self.clock,
+                            self.request,
+                            &entry_date,
+                            &period,
+                            &profile,
+                            "scrap",
+                            next,
+                            lines,
+                        )
+                        .await?,
+                    );
+                    self.money.push(
+                        prepare_money_snapshot(
+                            c,
+                            self.company,
+                            MoneySnapshotInput {
+                                source_type: "manufacturing_cost_movement".into(),
+                                source_id: format!("mfg-movement-{}-0", self.request.key),
+                                amount_kind: "abnormal_scrap".into(),
+                                transaction_date: entry_date.clone(),
+                                currency: profile.currency.clone(),
+                                currency_scale: Some(2),
+                                amount_units: total,
+                            },
+                            self.clock,
+                        )
+                        .await?,
+                    );
+                }
+                let result = ManufacturingOrderResult {
+                    id: order.id.clone(),
+                    status: self.action.status().into(),
+                    version: next,
+                    journal_id: journal.as_ref().map(|plan| plan.journal_id().to_owned()),
+                };
+                self.order = Some(order);
+                self.lines = lines;
+                self.profile = Some(profile);
+                self.entry_date = entry_date;
+                self.journal = journal;
+                let result = CommandJson::from_serializable(&result)?;
+                return Ok(WorkflowOutput {
+                    version: next,
+                    result,
+                    event_scope: None,
+                });
+            }
             ManufacturingOrderAction::Cancel => {
                 if !["planned", "reserved"].contains(&order.status.as_str()) {
                     return Err(conflict(
@@ -1225,6 +1351,9 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
         let next = self.input.expected_version + 1;
         let status = self.action.status();
         match self.action {
+            // Scrap writes off already-issued material; the reservation was
+            // consumed by Issue. It only releases Planning capacity below.
+            ManufacturingOrderAction::Scrap => {}
             ManufacturingOrderAction::Cancel => {
                 let released = sqlx::query(
                     "UPDATE manufacturing_material_reservations \
@@ -1516,6 +1645,14 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
         }
         let (phase, amount, quantity) = match self.action {
             ManufacturingOrderAction::Cancel => ("cancel", 0_i64, 0_i64),
+            ManufacturingOrderAction::Scrap => (
+                "scrap",
+                order
+                    .material_cost_minor
+                    .saturating_add(order.labor_cost_minor)
+                    .saturating_add(order.overhead_cost_minor),
+                0_i64,
+            ),
             ManufacturingOrderAction::Issue => {
                 let material = self
                     .issue_plan
@@ -1622,7 +1759,9 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
         }
         if matches!(
             self.action,
-            ManufacturingOrderAction::PassQc | ManufacturingOrderAction::Cancel
+            ManufacturingOrderAction::PassQc
+                | ManufacturingOrderAction::Cancel
+                | ManufacturingOrderAction::Scrap
         ) {
             sqlx::query(
                 "UPDATE planning_resource_allocations SET released_at=$1 WHERE scenario_id=\
@@ -1753,7 +1892,11 @@ mod tests {
         assert_eq!(action.permission(), "records.write");
         assert!(action.capabilities().contains(&"manufacturing.execution"));
         assert!(action.capabilities().contains(&"inventory.stock-core"));
-        assert!(ManufacturingOrderAction::parse("scrap").is_none());
+        let scrap = ManufacturingOrderAction::parse("scrap").expect("scrap is native");
+        assert_eq!(scrap.as_str(), "scrap");
+        assert_eq!(scrap.status(), "cancelled");
+        assert_eq!(scrap.permission(), "records.review");
+        assert!(scrap.capabilities().contains(&"finance.production-costing"));
     }
 
     #[test]

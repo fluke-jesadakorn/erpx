@@ -105,7 +105,7 @@ export async function POST(r: Request, c: C) {
         throw new ApiError(503, "NATIVE_MANUFACTURING_UNAVAILABLE", "The native Manufacturing service is unavailable.");
       return Response.json(canonicalDestinationLinks({ data: result }), { headers });
     }
-    if (i.action === "issue" || i.action === "pass-qc" || i.action === "cancel") {
+    if (i.action === "issue" || i.action === "pass-qc" || i.action === "cancel" || i.action === "scrap") {
       const result = await nativePlanningCommand(
         r.headers,
         (await import("@erpx/feature-manufacturing/public/native-planning-workspace-page")).nativePlanningPageContext(a),
