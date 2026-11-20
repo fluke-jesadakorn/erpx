@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3517,
+    "revision": 3523,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T17:21:48.830Z",
-      "expiresAt": "2026-11-20T17:51:48.830Z",
+      "heartbeatAt": "2026-11-20T17:26:44.995Z",
+      "expiresAt": "2026-11-20T17:56:44.995Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -57349,6 +57349,127 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.legal-portal-binding",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire legal portal attachment binding TS writers (3 writes)",
+        "scope": "Delete legal-portal-binding.ts + barrel; native legal_bind_link/set/event statements own the binding effects.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-legal/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "39489381e21693a81a5c7bda1309f88264fe6f94",
+        "lastPushedSha": "39489381e21693a81a5c7bda1309f88264fe6f94",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "39489381e21693a81a5c7bda1309f88264fe6f94",
+            "sourceKind": "committed",
+            "before": 107,
+            "after": 104,
+            "note": "Retired 3 TS legal portal binding writers; files KPI 107->104, global 1853->1850.",
+            "residual": [
+              {
+                "path": "packages/server-files/src/adapters/attachments/hospitality-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/migration.ts",
+                "writes": 24,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/orphan-preservation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/service-repository.ts",
+                "writes": 55,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/beta-resource-cleanup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/document-derivatives.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/expense-native-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-portal-repository.ts",
+                "writes": 10,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/private-attachment-reads.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "39489381e21693a81a5c7bda1309f88264fe6f94",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "39489381e21693a81a5c7bda1309f88264fe6f94",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + 61/61 legal unit."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native legal portal binding; files KPI 107->104, global 1853->1850.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -57357,21 +57478,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 286,
-      "migratedPackets": 173,
+      "totalPackets": 287,
+      "migratedPackets": 174,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 173,
+        "migrated": 174,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T17:21:48.831Z",
+    "updatedAt": "2026-11-20T17:26:44.996Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "35d5c58a0f5b16777302cf02f6ed9b2e5ebef912",
