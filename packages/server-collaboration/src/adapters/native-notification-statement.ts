@@ -42,6 +42,7 @@ export async function nativeNotificationStatement(
     bill_id?: string;
     rfq_id?: string;
     audience?: string;
+    event?: string;
   },
   key: string,
   now: number,

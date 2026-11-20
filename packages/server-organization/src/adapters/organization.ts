@@ -22,7 +22,8 @@ import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/se
 import {attachmentPurposeFacts} from '@erpx/server-files/public/attachment-purpose-facts';
 import type { OrganizationPerson, OrganizationNode, OrganizationNodeChange } from "@erpx/feature-organization/lib/organization";
 import {BusinessRuleError} from '@erpx/server-shared/index';
-import {canReadOrganizationChanges,organizationChangeNotice} from '@erpx/server-organization/adapters/organization-work';
+import {canReadOrganizationChanges} from '@erpx/server-organization/adapters/organization-work';
+import {nativeOrganizationChangeNotice} from './native-organization-change-notice';
 import {organizationMemberSql} from '@erpx/server-organization/adapters/organization-channels';
 import {canSeeDefaultPay,defaultCatalog} from '@erpx/server-organization/adapters/staff-defaults';
 import {createOrganizationApplication,type OrganizationPorts,type RelocationAuthority} from '@erpx/server-organization/application/organization';
@@ -111,7 +112,7 @@ commitReview:async(actor,id,input,key,_change,state,version,appliedNodeId,stages
     db.prepare("UPDATE organization_node_changes SET state=?,version=?,reviewed_by=?,review_reason=?,reviewed_at=?,applied_at=?,updated_at=? WHERE id=? AND company_id=?").bind(state,version,actor.userId,input.reason,now,input.decision==="approve"?now:null,now,id,actor.companyId),
     db.prepare("INSERT INTO organization_node_change_events(id,change_id,company_id,action,actor_id,version,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`org-change-event-${key}`,id,actor.companyId,input.decision==="approve"?"applied":"rejected",actor.userId,version,JSON.stringify({decision:input.decision,reason:input.reason,appliedNodeId}),now),
     ...bindingSteps,
-    organizationChangeNotice(db,actor.companyId,id,key,state),
+    await nativeOrganizationChangeNotice(db,actor,id,key,state),
   );
   return executeCommand(db,actor,key,operation,input,id,version,{id,version,state,nodeId:appliedNodeId},stages);
 },saveChange:async(actor,id,input,key,submit,sourceBranchId,slug,now)=>{const recordId=id??`org-change-${key}`,operation=`organization.node-change.${submit?'submit':'save'}`,version=input.expectedVersion+1,state=submit?'submitted':'draft',result={id:recordId,version,state};
@@ -120,14 +121,14 @@ commitReview:async(actor,id,input,key,_change,state,version,appliedNodeId,stages
     db.prepare(`INSERT INTO organization_node_changes(id,company_id,target_node_id,action,node_kind,slug,display_name,branch_id,source_branch_id,expected_node_version,state,version,requested_by,reason,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET target_node_id=excluded.target_node_id,action=excluded.action,node_kind=excluded.node_kind,slug=excluded.slug,display_name=excluded.display_name,branch_id=excluded.branch_id,source_branch_id=excluded.source_branch_id,expected_node_version=excluded.expected_node_version,state=excluded.state,version=excluded.version,reason=excluded.reason,reviewed_by=NULL,review_reason=NULL,reviewed_at=NULL,updated_at=excluded.updated_at`).bind(recordId,actor.companyId,input.targetNodeId,input.action,input.kind,slug,input.displayName,input.branchId,sourceBranchId,input.expectedNodeVersion,state,version,actor.userId,input.reason,now,now),
     db.prepare("INSERT INTO organization_node_change_events(id,change_id,company_id,action,actor_id,version,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`org-change-event-${key}`,recordId,actor.companyId,submit?"submitted":"drafted",actor.userId,version,JSON.stringify({...input,state}),now),
-    ...(submit?[organizationChangeNotice(db,actor.companyId,recordId,key,"submitted")]:[]),
+    ...(submit?[await nativeOrganizationChangeNotice(db,actor,recordId,key,"submitted")]:[]),
   ]);
 },cancelChange:async(actor,id,expectedVersion,key,now)=>{const operation='organization.node-change.cancel',input={expectedVersion};
   const version=expectedVersion+1;return executeCommand(db,actor,key,operation,input,id,version,{id,version,state:"cancelled"},[
     assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state IN ('draft','submitted','rejected'))",[id,actor.companyId,expectedVersion]),
     db.prepare("UPDATE organization_node_changes SET state='cancelled',version=?,updated_at=? WHERE id=? AND company_id=?").bind(version,now,id,actor.companyId),
     db.prepare("INSERT INTO organization_node_change_events(id,change_id,company_id,action,actor_id,version,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`org-change-event-${key}`,id,actor.companyId,"cancelled",actor.userId,version,JSON.stringify(input),now),
-    organizationChangeNotice(db,actor.companyId,id,key,"cancelled"),
+    await nativeOrganizationChangeNotice(db,actor,id,key,"cancelled"),
   ]);
 },
 level:(companyId,id)=>db.prepare('SELECT level_number FROM staff_levels WHERE company_id=? AND id=? AND active=1').bind(companyId,id).first<{level_number:number|null}>()};}

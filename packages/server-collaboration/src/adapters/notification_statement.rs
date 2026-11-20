@@ -39,6 +39,8 @@ pub struct NotificationStatementInput {
     pub rfq_id: Option<String>,
     #[serde(default)]
     pub audience: Option<String>,
+    #[serde(default)]
+    pub event: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -104,7 +106,7 @@ mod tests {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None,
+            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -368,6 +370,66 @@ pub async fn finance_refund_notification_statement(
             serde_json::Value::String(message.to_owned()),
             serde_json::Value::String(refund_id.to_owned()),
             serde_json::Value::String(actor_user_id.to_owned()),
+        ],
+    })
+}
+
+
+/// Organization-change notification statement. Four event variants owned here;
+/// caller supplies only change id, command key and event kind.
+pub async fn organization_change_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    change_id: &str,
+    command_key: &str,
+    event: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if change_id.is_empty() || command_key.is_empty() {
+        return Err(invalid().into());
+    }
+    let (recipient, message) = match event {
+        "submitted" => ("NOT iam_same_person(a.user_id,c.requested_by,c.company_id)", "Review organization change: "),
+        "cancelled" => ("EXISTS(SELECT 1 FROM staff_notifications n WHERE n.company_id=c.company_id AND n.record_type='organization_change' AND n.record_id=c.id AND n.user_id=a.user_id) AND a.user_id<>c.requested_by", "Organization change cancelled: "),
+        "applied" => ("a.user_id=c.requested_by", "Organization change applied: "),
+        "rejected" => ("a.user_id=c.requested_by", "Organization change returned for correction: "),
+        _ => return Err(invalid().into()),
+    };
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM organization_node_changes WHERE id=$1 AND company_id=$2",
+    )
+    .bind(change_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    if exists.is_none() {
+        return Err(invalid().into());
+    }
+    let sql = format!(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT DISTINCT ?||a.user_id,c.company_id,a.user_id,\
+ 'organization_change',c.id,c.version,?||c.display_name,c.updated_at \
+ FROM (SELECT \"id\",\"company_id\",\"target_node_id\",\"action\",\"node_kind\",\"slug\",\
+ \"display_name\",\"branch_id\",\"expected_node_version\",\"state\",\"version\",\"requested_by\",\
+ \"reviewed_by\",\"reason\",\"review_reason\",\"created_at\",\"updated_at\",\"reviewed_at\",\
+ \"applied_at\",\"source_branch_id\" FROM organization_node_changes) c \
+ JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) a ON a.company_id=c.company_id \
+ WHERE c.id=? AND c.company_id=? \
+ AND a.scope_kind='holding' AND a.revoked_at IS NULL \
+ AND iam_role_allows(a.role,a.company_id,'organization.manage') \
+ AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+ AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+ AND {recipient} ON CONFLICT DO NOTHING"
+    );
+    Ok(NotificationStatement {
+        sql,
+        values: vec![
+            serde_json::Value::String(format!("org-change-notice-{command_key}-")),
+            serde_json::Value::String(message.to_owned()),
+            serde_json::Value::String(change_id.to_owned()),
+            serde_json::Value::String(company.as_str().to_owned()),
         ],
     })
 }

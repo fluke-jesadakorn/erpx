@@ -7,6 +7,7 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::notification_statement::{
     crm_lead_notification_statement, finance_refund_notification_statement,
+    organization_change_notification_statement,
     legal_approval_notification_statement, notification_statement, rfq_notification_statement,
     supplier_bill_notification_statement, NotificationStatement, NotificationStatementInput,
 };
@@ -2141,7 +2142,17 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("finance_refund") {
+                        if input.kind.as_deref() == Some("organization_change") {
+                            organization_change_notification_statement(
+                                connection,
+                                &company_id,
+                                input.record_id.as_str(),
+                                &input.idempotency_key,
+                                input.event.as_deref().unwrap_or("submitted"),
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_refund") {
                             finance_refund_notification_statement(
                                 connection,
                                 &company_id,
@@ -2213,6 +2224,7 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
     > {
         use erpx_server_collaboration::public::notification_statement::{
     crm_lead_notification_statement, finance_refund_notification_statement,
+    organization_change_notification_statement,
     legal_approval_notification_statement, notification_statement, rfq_notification_statement,
     supplier_bill_notification_statement, NotificationStatement, NotificationStatementInput,
 };
