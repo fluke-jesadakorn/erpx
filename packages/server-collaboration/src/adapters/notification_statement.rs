@@ -1995,3 +1995,32 @@ pub async fn legal_approval_event_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal executed copy: record the independent review.
+pub async fn legal_executed_review_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_executed_reviews(id,executed_copy_id,item_version,decision,checks,\
+ reason,reviewer_id,created_at) VALUES(?,?,?,?,?::jsonb,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal executed copy: update the copy review state.
+pub async fn legal_executed_copy_state_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_executed_copies SET state=?,reviewed_by=?,reviewed_at=?,\
+ version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
