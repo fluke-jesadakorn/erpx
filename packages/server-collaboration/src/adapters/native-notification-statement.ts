@@ -44,6 +44,7 @@ export async function nativeNotificationStatement(
     audience?: string;
     event?: string;
     order_id?: string;
+    change?: string;
   },
   key: string,
   now: number,

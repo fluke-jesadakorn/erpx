@@ -1,5 +1,5 @@
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
-import {learningAssignmentNotice} from "@erpx/server-collaboration/public/learning-notification-effects";
+import {nativeLearningAssignmentNotice} from "./native-learning-notification";
 import {learningTalentSnapshotSources as identityaccessSnapshotSources} from '@erpx/server-identity_access/public/learning-talent-snapshot-sources';
 import {learningTalentSnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/learning-talent-snapshot-sources';
 import {learningWorkerChoices,learningWorkerReferenceWitness} from '@erpx/server-people_payroll/public/learning-worker-references';
@@ -161,7 +161,7 @@ function learningAssignmentChanges(source: DatabaseSource) {
         .bind(`learning-certificate-${key}`,certificateFrom,certificateEnd,status,input.action==="complete"?input.evidence:input.reason,a.userId,now,id),
     );
 steps.push(
-    learningAssignmentNotice(write,"changed",`learning-assignment-notice-${key}`,id),
+    await nativeLearningAssignmentNotice(write,a,"changed",`learning-assignment-notice-${key}`,id),
   );
  return {native:steps};
  },

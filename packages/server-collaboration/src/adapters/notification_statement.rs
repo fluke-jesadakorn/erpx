@@ -43,6 +43,8 @@ pub struct NotificationStatementInput {
     pub event: Option<String>,
     #[serde(default)]
     pub order_id: Option<String>,
+    #[serde(default)]
+    pub change: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -108,7 +110,7 @@ mod tests {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None,
+            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -480,6 +482,47 @@ pub async fn supplier_promise_notification_statement(
         values: vec![
             serde_json::Value::String(command_key.to_owned()),
             serde_json::Value::String(order_id.to_owned()),
+        ],
+    })
+}
+
+
+/// Learning assignment notice statement. The recipient and version are read from
+/// the persisted assignment; caller supplies notice id, assignment id and change.
+pub async fn learning_assignment_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    notice_id: &str,
+    assignment_id: &str,
+    change: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if notice_id.is_empty() || assignment_id.is_empty() {
+        return Err(invalid().into());
+    }
+    let message = match change {
+        "assigned" => "New learning assignment: review course and due date",
+        "changed" => "Learning assignment updated: review current status",
+        _ => return Err(invalid().into()),
+    };
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM learning_assignments WHERE id=$1 AND company_id=$2",
+    )
+    .bind(assignment_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    if exists.is_none() {
+        return Err(invalid().into());
+    }
+    Ok(NotificationStatement {
+        sql: "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT ?,company_id,learner_id,'learning_assignment',id,\
+ version,?,updated_at FROM learning_assignments WHERE id=?".to_owned(),
+        values: vec![
+            serde_json::Value::String(notice_id.to_owned()),
+            serde_json::Value::String(message.to_owned()),
+            serde_json::Value::String(assignment_id.to_owned()),
         ],
     })
 }

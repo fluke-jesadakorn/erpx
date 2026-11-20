@@ -7,6 +7,7 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::notification_statement::{
     crm_lead_notification_statement, finance_refund_notification_statement,
+    learning_assignment_notification_statement,
     organization_change_notification_statement,
     legal_approval_notification_statement, notification_statement, rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
@@ -2143,7 +2144,17 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("supplier_promise") {
+                        if input.kind.as_deref() == Some("learning_assignment") {
+                            learning_assignment_notification_statement(
+                                connection,
+                                &company_id,
+                                &input.idempotency_key,
+                                input.record_id.as_str(),
+                                input.change.as_deref().unwrap_or("changed"),
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("supplier_promise") {
                             supplier_promise_notification_statement(
                                 connection,
                                 &company_id,
@@ -2234,6 +2245,7 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
     > {
         use erpx_server_collaboration::public::notification_statement::{
     crm_lead_notification_statement, finance_refund_notification_statement,
+    learning_assignment_notification_statement,
     organization_change_notification_statement,
     legal_approval_notification_statement, notification_statement, rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
