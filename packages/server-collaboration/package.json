@@ -254,7 +254,8 @@
     "./adapters/native-legal-access-events": "./src/adapters/native-legal-access-events.ts",
     "./adapters/native-legal-portal-staged": "./src/adapters/native-legal-portal-staged.ts",
     "./adapters/native-customer-portal-actions": "./src/adapters/native-customer-portal-actions.ts",
-    "./adapters/native-release-events": "./src/adapters/native-release-events.ts"
+    "./adapters/native-release-events": "./src/adapters/native-release-events.ts",
+    "./adapters/native-customer-receipt": "./src/adapters/native-customer-receipt.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

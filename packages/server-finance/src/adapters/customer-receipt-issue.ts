@@ -9,6 +9,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 import { financeSalesCompanyName } from "@erpx/server-organization/public/finance-sales-company";
+import { customerReceipt } from '@erpx/server-collaboration/adapters/native-customer-receipt';
 
 export async function ensureCustomerReceipt(tx: SqlDatabase, actor: WorkContext, paymentId: string) {
   const existing = await tx.prepare("SELECT id FROM finance_customer_receipts WHERE payment_id=? AND company_id=?").bind(paymentId, actor.companyId).first<{ id: string }>(); if (existing) return existing;
@@ -20,6 +21,6 @@ export async function ensureCustomerReceipt(tx: SqlDatabase, actor: WorkContext,
   const number = await tx.prepare("SELECT erpx_sales_document_number(?,'RC',?) number").bind(actor.companyId, payment.payment_date).first<string>("number");
   const snapshot: ReceiptSnapshot = { schema: "finance.customer-receipt.v1", documentNumber: number!, companyName: await financeSalesCompanyName(tx, actor.companyId), customerName: String(payment.customer_name), customerCode: String(payment.customer_code), date: String(payment.payment_date), currency: String(payment.currency), amountMinor: String(payment.amount_minor), paymentId, paymentVersion: Number(payment.version), bankReference: String(payment.payment_number), journalId: String(payment.journal_id), allocations: allocations.map(row => ({ invoiceId: String(row.invoice_id), invoiceNumber: String(row.invoice_number), amountMinor: String(row.amount_minor) })) };
   const html = renderCustomerReceipt(snapshot), id = `customer-receipt-${paymentId}`, hash = createHash("sha256").update(html).digest("hex");
-  await tx.prepare("INSERT INTO finance_customer_receipts(id,company_id,payment_id,document_number,receipt_date,currency,amount_minor,snapshot_json,export_html,export_sha256,issued_by,issued_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, paymentId, number, payment.payment_date, payment.currency, payment.amount_minor, JSON.stringify(snapshot), html, hash, actor.userId, Date.now()).run();
+  await customerReceipt(tx).issue({ id, companyId: actor.companyId, paymentId, number: number ?? "", paymentDate: String(payment.payment_date), currency: String(payment.currency), amountMinor: String(payment.amount_minor), snapshot: JSON.stringify(snapshot), html, hash, userId: actor.userId, now: Date.now() });
   return { id };
 }

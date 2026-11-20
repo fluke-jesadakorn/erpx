@@ -1675,3 +1675,27 @@ pub async fn release_event_revoked_statement(
         values: vec![value(&input.idempotency_key), value(company.as_str()), value(&input.record_id), serde_json::Value::Number(input.record_version.into()), value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into())],
     })
 }
+
+
+/// Finance: issue a customer receipt for a settled payment.
+pub async fn customer_receipt_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_customer_receipts(id,company_id,payment_id,document_number,\
+ receipt_date,currency,amount_minor,snapshot_json,export_html,export_sha256,issued_by,issued_at) \
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()), value(&input.record_id),
+            value(input.identifier.as_deref().unwrap_or("")), value(input.item_id.as_deref().unwrap_or("")),
+            value(input.target_kind.as_deref().unwrap_or("")), value(input.target_id.as_deref().unwrap_or("")),
+            value(&input.message), value(input.event.as_deref().unwrap_or("")),
+            value(input.source_hash.as_deref().unwrap_or("")), value(&input.user_id),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
