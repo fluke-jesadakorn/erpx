@@ -2604,3 +2604,199 @@ pub async fn legal_subtype_update_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal destruction worker: destruction block.
+pub async fn legal_destruction_block_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_destructions SET state='blocked',error='HOLD_OR_RETENTION_POLICY_CHANGED' WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: destruction start.
+pub async fn legal_destruction_start_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_destructions SET state='executing',started_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: retention started event.
+pub async fn legal_retention_started_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT ?,id,'retention.started','system:legal',?,version,? FROM legal_items WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: destruction count attempt.
+pub async fn legal_destruction_count_attempt_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_destructions SET attempts=attempts+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: destruction retain executing.
+pub async fn legal_destruction_retain_executing_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_destructions SET state='executing' WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: disposal retain.
+pub async fn legal_disposal_retain_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_disposals VALUES(?,?,?,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: document erase.
+pub async fn legal_document_erase_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_documents SET body='',object_key=NULL WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: processing retire.
+pub async fn legal_processing_retire_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_processing_jobs SET state='failed',result_json=NULL,error='CONTENT_DESTROYED',lease_token=NULL,lease_until=NULL WHERE item_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: inspections erase.
+pub async fn legal_inspections_erase_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "DELETE FROM legal_document_inspections WHERE document_id IN (SELECT id FROM legal_documents WHERE item_id=?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: ai retire.
+pub async fn legal_ai_retire_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_ai_proposals SET proposal=NULL,question='[disposed under retention policy]',state='disposed' WHERE item_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: shares revoke.
+pub async fn legal_shares_revoke_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_shares SET revoked_at=? WHERE item_id=? AND revoked_at IS NULL".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: destruction complete.
+pub async fn legal_destruction_complete_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_destructions SET state='completed',completed_at=?,error=NULL,version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: retention destroyed event.
+pub async fn legal_retention_destroyed_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,'retention.destroyed','system:legal',?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal destruction worker: destruction require review.
+pub async fn legal_destruction_require_review_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_destructions SET state=CASE WHEN started_at IS NULL THEN 'failed' ELSE 'executing' END,error='DESTRUCTION_REQUIRES_REVIEW',attempts=attempts+1 WHERE id=? AND state!='completed'".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
