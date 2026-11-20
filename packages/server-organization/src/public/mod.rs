@@ -38,3 +38,10 @@ pub mod organization_access;
 pub mod position;
 pub mod position_moves;
 pub mod rfq_request_scope;
+
+/// Organization-owned placement port composed into native People commands.
+pub mod people_staff_placement {
+    pub use crate::adapters::people_staff_placement::{
+        apply_staff_placement, into_business, StaffPlacementRequest,
+    };
+}

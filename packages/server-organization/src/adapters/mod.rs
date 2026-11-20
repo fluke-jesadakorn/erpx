@@ -1,3 +1,4 @@
+pub(crate) mod people_staff_placement;
 pub(crate) mod business_acceptance;
 pub(crate) mod records_request_department_head;
 pub(crate) mod staff_department_route;

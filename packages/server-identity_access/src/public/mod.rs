@@ -130,6 +130,14 @@ pub mod position_gpo_http {
 }
 
 pub mod people_access;
+
+/// Native Identity port for People account linking (Control DB `user` plus
+/// Holding assignments), composed into the People workforce command.
+pub mod people_account_link {
+    pub use crate::adapters::people_account_link::{
+        into_business, revoke_company_access, verify_person_account_link,
+    };
+}
 pub mod recovery;
 pub mod recovery_http;
 pub mod people_access_http;

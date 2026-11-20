@@ -155,6 +155,7 @@ pub mod organization_nodes_http;
 pub mod organization_setup;
 pub mod organization_position;
 pub mod people_payroll;
+pub mod people_workforce_ports;
 pub mod platform_administration;
 pub mod platform_iam;
 pub mod pms;

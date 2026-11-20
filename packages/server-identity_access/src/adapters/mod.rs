@@ -153,6 +153,7 @@ pub(crate) mod position_gpo_http;
 pub(crate) mod people_access_postgres;
 pub(crate) mod people_access_http;
 pub(crate) mod people_grants_postgres;
+pub(crate) mod people_account_link;
 pub(crate) mod people_grants_http;
 
 pub(crate) mod directory_operation_http;
