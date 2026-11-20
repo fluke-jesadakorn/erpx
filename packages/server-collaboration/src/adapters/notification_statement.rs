@@ -1370,3 +1370,52 @@ pub async fn legal_bind_event_statement(
         ],
     })
 }
+
+
+/// Expense: withdraw a draft attachment link.
+pub async fn expense_withdraw_link_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE attachment_links SET state='withdrawn',withdrawn_at=?,\
+ withdrawn_by=?,withdrawal_reason=? WHERE id=? AND state='draft'".to_owned(),
+        values: vec![serde_json::Value::Number(input.now.into()), value(&input.user_id), value(&input.message), value(&input.record_id)],
+    })
+}
+
+/// Expense: link-withdrawn audit event.
+pub async fn expense_withdraw_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,\
+ action,details_json,created_at) VALUES(?,?,?,?,?,?, 'link.withdrawn',?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()), value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id), value(input.item_id.as_deref().unwrap_or("")), value(&input.user_id),
+            value(&input.message), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Expense: revoke the attachment source.
+pub async fn expense_revoke_attachment_statement(
+    connection: &mut PgConnection,
+    _company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, _company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE attachments SET revoked_at=? WHERE id=?".to_owned(),
+        values: vec![serde_json::Value::Number(input.now.into()), value(&input.record_id)],
+    })
+}

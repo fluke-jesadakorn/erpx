@@ -11,7 +11,7 @@ import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@er
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/hospitality-owner-projection-sources";
-import { expenseNativeEffects as filesExpenseEffects } from "@erpx/server-files/public/expense-native-effects";
+import {expenseNativeEffects as filesExpenseEffects} from '@erpx/server-collaboration/adapters/native-expense-effects';
 import { expenseNativeEffects as financeExpenseEffects } from "@erpx/server-finance/public/expense-native-effects";
 import { createExpenseDetail, createExpenseOptions } from "@erpx/server-people_payroll/application/expense-projections";
 import { authorizeExpenseReversal, createTransitionExpense, createPrepareExpensePosting, createReverseExpense } from "@erpx/server-people_payroll/application/expense-lifecycle";
@@ -373,11 +373,11 @@ function originalNativeExpenseReceiptRemoval(write: SqlDatabase) {
               `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachment_links}) attachment_links WHERE id=? AND state='draft')`,
               [canonical.id],
             ),
-            filesExpenseEffects(write).withdrawLink({at:now,actorId:actor.userId,reason:"Removed from expense preparation",linkId:canonical.id}),
-            filesExpenseEffects(write).withdrawEvent({id:`attachment-event-${crypto.randomUUID()}`,companyId:actor.companyId,attachmentId:attachmentId,linkId:canonical.id,setId:canonical.set_id,actorId:actor.userId,details:JSON.stringify({ reason: "Removed from expense preparation" }),at:now}),
+            await filesExpenseEffects(write).withdrawLink({at:now,actorId:actor.userId,reason:"Removed from expense preparation",linkId:canonical.id,companyId:actor.companyId}),
+            await filesExpenseEffects(write).withdrawEvent({id:`attachment-event-${crypto.randomUUID()}`,companyId:actor.companyId,attachmentId:attachmentId,linkId:canonical.id,setId:canonical.set_id,actorId:actor.userId,details:JSON.stringify({ reason: "Removed from expense preparation" }),at:now}),
           ]
         : []),
-      filesExpenseEffects(write).revokeAttachment({at:now,attachmentId:attachmentId}),
+      await filesExpenseEffects(write).revokeAttachment({at:now,attachmentId:attachmentId,companyId:actor.companyId}),
       write
         .prepare(
           "UPDATE finance_expenses SET version=version+1,updated_at=? WHERE id=?",

@@ -57495,10 +57495,10 @@
     "updatedAt": "2026-11-20T17:26:44.996Z",
     "handoff": {
       "fromRun": "run-20261120-k",
-      "verifiedPushedCheckpoint": "35d5c58a0f5b16777302cf02f6ed9b2e5ebef912",
+      "verifiedPushedCheckpoint": "1d119bf6b2d43a17624bce00e965c8c68b78518f",
       "remoteVerifiedAt": "2026-11-20T23:10:00Z",
-      "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1850 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, and the 3 legal portal attachment binding writers. Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA.",
-      "lastKpi": 1850,
+      "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1847 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, and the 3 expense attachment withdrawal/revocation writers. Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA.",
+      "lastKpi": 1847,
       "statusCounts": {
         "done": 51,
         "migrated": 135,
@@ -57510,7 +57510,7 @@
       "nextGoal": "G3",
       "nextCommands": [
         "bun scripts/testing/rust-migration-work.ts status --json && bun scripts/testing/rust-migration-work.ts validate",
-        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l  (currently 1850)",
+        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l  (currently 1847)",
         "Continue bounded native-authority slices with strictly decreasing KPI and full 6-point evidence.",
         "Remaining seams require larger per-owner packets (finance/pos/people-payroll ~49 writes each) and native ports for Files/Workflow/Organization-owned facts.",
         "Health endpoints are pre-existing 503/530/000; do not attribute to migration code.",
