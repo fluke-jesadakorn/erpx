@@ -1929,3 +1929,69 @@ pub async fn legal_feature_event_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal approval: lock the source document.
+pub async fn legal_approval_lock_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE legal_documents SET locked=true WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Legal approval: retain the approval route with upsert.
+pub async fn legal_approval_retain_route_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_approval_routes(item_id,instance_id,document_id,document_hash,signers,\
+ source_version,created_by,source_hash) VALUES(?,?,?,?,?::jsonb,?,?,?) ON CONFLICT(item_id) DO UPDATE \
+ SET instance_id=excluded.instance_id,document_id=excluded.document_id,document_hash=excluded.document_hash,\
+ signers=excluded.signers,source_version=excluded.source_version,created_by=excluded.created_by,source_hash=excluded.source_hash".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal approval: record the approval decision.
+pub async fn legal_approval_record_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_approvals VALUES(?,?,?,?,?::jsonb,?,'approved',?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal approval: advance the parent contract state/version.
+pub async fn legal_approval_advance_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_items SET state=?,version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal approval: parent lifecycle event.
+pub async fn legal_approval_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
