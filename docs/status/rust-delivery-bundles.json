@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3320,
+    "revision": 3322,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -49404,6 +49404,47 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.crm-activity-notification",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire dead CRM activity notification writer",
+        "scope": "Delete the unused prepareCrmActivityNotification INSERT from collaboration/adapters/crm-notifications.ts and its public barrel; native activities_native.rs owns the CRM activity notice.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-crm/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "claimedAt": "2026-11-20T13:09:02.887Z",
+          "heartbeatAt": "2026-11-20T13:09:02.887Z",
+          "expiresAt": "2026-11-20T13:39:02.887Z",
+          "generation": 139
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete dead TS writer + barrel.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -49412,11 +49453,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 254,
+      "totalPackets": 255,
       "migratedPackets": 140,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 140,
@@ -49426,7 +49467,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T13:05:56.703Z",
+    "updatedAt": "2026-11-20T13:09:02.888Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
