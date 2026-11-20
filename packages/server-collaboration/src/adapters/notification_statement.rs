@@ -2065,3 +2065,45 @@ pub async fn legal_native_reference_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal trust: add proposed trust material.
+pub async fn legal_trust_addition_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_trust_material(id,company_id,kind,name,source,content,checksum,\
+ state,created_by,created_at) VALUES(?,?,?,?,?,?,?,'proposed',?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal trust: decide on trust material.
+pub async fn legal_trust_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_trust_material SET state=?,approved_by=?,version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal processing: queue a document processing job.
+pub async fn legal_processing_job_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,\
+ state,actor_json,created_by,created_at) VALUES(?,?,?,?,?,?,'queued',?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

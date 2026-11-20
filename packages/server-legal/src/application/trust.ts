@@ -6,8 +6,8 @@ export type LegalTrustAddition = { kind: "root" | "intermediate" | "crl" | "ocsp
 export type LegalTrustRepository = {
   view(): Promise<Record<string, unknown>[]>; replay(key: string, operation: string, raw: unknown): Promise<Record<string, unknown> | null>;
   lock(): LegalWrite; material(id: string | undefined): Promise<LegalTrustMaterial | null>;
-  addition(key: string, input: LegalTrustAddition, base64: string, checksum: string, now: number): LegalWrite[];
-  decision(key: string, row: LegalTrustMaterial, state: "approved" | "retired"): LegalWrite[];
+  addition(key: string, input: LegalTrustAddition, base64: string, checksum: string, now: number): Promise<LegalWrite[]>;
+  decision(key: string, row: LegalTrustMaterial, state: "approved" | "retired"): Promise<LegalWrite[]>;
   commit(key: string, operation: string, raw: unknown, writes: LegalWrite[]): Promise<{ id: string; version: number }>;
 };
 export function createLegalTrustApplication(ports: { companyScope: boolean; repository: LegalTrustRepository; require(): void; samePerson(userId: string): boolean; certificate(content: string): { ca: boolean; validTo: string; raw: Uint8Array }; decodeBase64(content: string): Uint8Array; encodeBase64(bytes: Uint8Array): string; hash(bytes: Uint8Array): string; clock: Clock; error(status: number, code: string, message: string): Error }) {
@@ -26,11 +26,11 @@ export function createLegalTrustApplication(ports: { companyScope: boolean; repo
         if (Date.parse(certificate.validTo) < ports.clock.now()) fail("This CA certificate is expired.");
         bytes = certificate.raw;
       } else { if (!/^[A-Za-z0-9+/=\r\n]+$/.test(addition.content)) fail("Upload base64 DER revocation material."); bytes = ports.decodeBase64(addition.content); }
-      writes.push(...ports.repository.addition(key, addition, ports.encodeBase64(bytes), ports.hash(bytes), ports.clock.now()));
+      writes.push(...await ports.repository.addition(key, addition, ports.encodeBase64(bytes), ports.hash(bytes), ports.clock.now()));
     } else {
       const row = await ports.repository.material(input.materialId); if (!row || row.version !== input.materialVersion) return fail("Trust material changed. Refresh.");
       if (input.action === "trust.approve" && (row.state !== "proposed" || ports.samePerson(row.created_by))) fail("A different manager must verify the source and fingerprint.", "LEGAL_INDEPENDENT_REVIEW", 403);
-      writes.push(...ports.repository.decision(key, row, input.action === "trust.approve" ? "approved" : "retired"));
+      writes.push(...await ports.repository.decision(key, row, input.action === "trust.approve" ? "approved" : "retired"));
     }
     return ports.repository.commit(key, input.action, raw, writes);
   }
