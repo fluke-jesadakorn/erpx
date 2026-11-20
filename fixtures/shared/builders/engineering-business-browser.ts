@@ -16,7 +16,7 @@ import {saveProductionResource,saveProductionResourceCalendar} from "../../../te
 import {createManufacturingAccountingProfile,reviewManufacturingAccountingProfile} from "@erpx/server-manufacturing/public/production-accounting";
 import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
-import {prepareCustomerAccessNotice1} from "@erpx/server-collaboration/public/customer-authority-notifications";
+import {prepareCustomerAccessNotice1} from "../../../tests/support/collaboration/customer-authority-notifications-fixture";
 
 type Fixture=Awaited<ReturnType<typeof seedExpenseCompany>>;
 type Input={run:string;db:SqlDatabase;f:Fixture};

@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3273,
+    "revision": 3275,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -47787,6 +47787,47 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.customer-authority-notifications",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire superseded customer-authority notification writers",
+        "scope": "Delete packages/server-collaboration/src/adapters/customer-authority-notifications.ts (7 staff_notifications writers) and its public barrel. Native Customer Authority adapters (duplicates.rs, identity_postgres.rs) and Collaboration inbox_targets.rs own these notifications. Move the fixture-only oracle to tests/support with a removalTaskId.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/contracts/src/ownership.json",
+          "fixtures/shared/builders/**",
+          "tests/support/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "claimedAt": "2026-11-20T11:28:30.097Z",
+          "heartbeatAt": "2026-11-20T11:28:30.097Z",
+          "expiresAt": "2026-11-20T11:58:30.097Z",
+          "generation": 139
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the superseded TS notification writer and its barrel; keep the fixture oracle in test support with a removalTaskId.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -47795,11 +47836,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 248,
+      "totalPackets": 249,
       "migratedPackets": 133,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 133,
@@ -47809,7 +47850,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T11:19:30.401Z",
+    "updatedAt": "2026-11-20T11:28:30.098Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [

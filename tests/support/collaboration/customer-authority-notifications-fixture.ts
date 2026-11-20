@@ -1,3 +1,15 @@
+/**
+ * FIXTURE-ONLY ORACLE — retained pre-cutover Customer Authority notice writers.
+ *
+ * Production notifications are owned by the native Customer Authority adapters
+ * (`duplicates.rs`, `identity_postgres.rs`) and the native Collaboration inbox
+ * target (`inbox_targets.rs`, `customer_access`). This copy exists only so the
+ * local browser-simulation fixture can seed equivalent notification rows.
+ *
+ * Tracked for removal by `retire.collaboration.customer-authority-notifications`:
+ * delete once the browser simulation seeds notifications through the native
+ * Customer Authority / Collaboration inbox owner directly.
+ */
 import {collaborationNotificationSnapshotSources as customerauthoritySnapshotSources} from '@erpx/server-customer_authority/public/collaboration-notification-snapshot-sources';
 import {collaborationNotificationSnapshotSources as commerceSnapshotSources} from '@erpx/server-commerce/public/collaboration-notification-snapshot-sources';
 import {collaborationNotificationSnapshotSources as identityaccessSnapshotSources} from '@erpx/server-identity_access/public/collaboration-notification-snapshot-sources';
