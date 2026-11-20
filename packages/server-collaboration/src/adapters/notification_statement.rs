@@ -1531,3 +1531,78 @@ pub async fn legal_access_denied_statement(
         ],
     })
 }
+
+
+/// Legal portal staging: link an upload intent to its attachment source.
+pub async fn legal_link_upload_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE attachment_links SET upload_intent_id=?,attachment_id=? WHERE id=?".to_owned(),
+        values: vec![
+            value(input.identifier.as_deref().unwrap_or("")), value(input.item_id.as_deref().unwrap_or("")),
+            value(&input.record_id),
+        ],
+    })
+}
+
+/// Legal portal staging: create a pending attachment scan attempt.
+pub async fn legal_pending_scan_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,created_at) VALUES(?,?,1,'pending',?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(input.identifier.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Legal portal staging: store the original attachment in the ledger.
+pub async fn legal_stored_original_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,\
+ object_key,bytes,state,created_at) VALUES(?,?,?,'original',?,?,'stored',?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")), value(input.item_id.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.timestamp.unwrap_or_default().into()),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Legal portal staging: quarantine audit event.
+pub async fn legal_quarantine_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,\
+ actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")), value(&input.record_id),
+            value(input.item_id.as_deref().unwrap_or("")), value(&input.user_id),
+            value(&input.record_type), value(&input.message), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}

@@ -4,7 +4,8 @@ import {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import {legalPortalStorageAllowance} from "@erpx/server-manage_erpx/public/legal-portal-storage-allowance";
 import type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository,PortalAttachmentStageScope,PortalAttachmentRecoverySource} from "@erpx/server-legal/public/portal-attachment-contracts";
 import { legalAccessEvents } from '@erpx/server-collaboration/adapters/native-legal-access-events';
-function unit(db:SqlDatabase):PortalAttachmentUnit{const nativeAccess=legalAccessEvents(db);const writes=new WeakMap<PortalAttachmentWrite,SqlStatement>();function stage(statement:SqlStatement):PortalAttachmentWrite{const write:PortalAttachmentWrite={owner:"files"};writes.set(write,statement);return write;}
+import { legalPortalStagedStatements } from '@erpx/server-collaboration/adapters/native-legal-portal-staged';
+function unit(db:SqlDatabase):PortalAttachmentUnit{const nativeAccess=legalAccessEvents(db),nativeStaged=legalPortalStagedStatements(db);const writes=new WeakMap<PortalAttachmentWrite,SqlStatement>();function stage(statement:SqlStatement):PortalAttachmentWrite{const write:PortalAttachmentWrite={owner:"files"};writes.set(write,statement);return write;}
 function stagedSource(facts:PortalAttachmentStageScope){return db.prepare(`SELECT a.object_key,a.checksum_sha256,a.media_type,a.bytes,s.expected_target_version,
  CASE WHEN s.state='draft' AND l.state='draft' AND i.status='ready' AND a.source_state='available' AND a.revoked_at IS NULL THEN 1 ELSE 0 END recovery_draft,
  jsonb_build_object('source',to_jsonb(a),'upload',to_jsonb(i),'link',to_jsonb(l),'set',to_jsonb(s))::text image,
@@ -41,10 +42,10 @@ quarantinedSource:(facts:{sourceId:string;uploadId:string;fact2:"legal_item";ite
               id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,
               checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state
             ) VALUES(?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,'quarantined')`).bind(facts.sourceId,facts.uploadId,facts.fact2,facts.itemId,facts.PORTAL_PURPOSE,facts.objectKey,facts.name,facts.mediaType,facts.byteLength,facts.checksum,facts.actorId,facts.now,facts.companyId,facts.mediaType2)),
-linkUpload:(facts:{uploadId:string;sourceId:string;linkId:string;})=>stage(db.prepare("UPDATE attachment_links SET upload_intent_id=?,attachment_id=? WHERE id=?").bind(facts.uploadId,facts.sourceId,facts.linkId)),
-pendingScan:(facts:{fact0:string;sourceId:string;now:number;})=>stage(db.prepare("INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,created_at) VALUES(?,?,1,'pending',?)").bind(facts.fact0,facts.sourceId,facts.now)),
-storedOriginal:(facts:{fact0:string;companyId:string;sourceId:string;objectKey:string;byteLength:number;now:number;})=>stage(db.prepare("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES(?,?,?,'original',?,?,'stored',?)").bind(facts.fact0,facts.companyId,facts.sourceId,facts.objectKey,facts.byteLength,facts.now)),
-quarantineEvent:(facts:{fact0:string;companyId:string;sourceId:string;linkId:string;setId:string;actorId:string;fact6:"file.quarantined";fact7:string;now:number;})=>stage(db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.fact0,facts.companyId,facts.sourceId,facts.linkId,facts.setId,facts.actorId,facts.fact6,facts.fact7,facts.now)),
+async linkUpload(facts){return stage(await nativeStaged.linkUpload(facts));},
+async pendingScan(facts){return stage(await nativeStaged.pendingScan(facts));},
+async storedOriginal(facts){return stage(await nativeStaged.storedOriginal(facts));},
+async quarantineEvent(facts){return stage(await nativeStaged.quarantineEvent(facts));},
 readableSource:(facts:{linkId:string;companyId:string;itemId:string;purposeKey:"legal_document";})=>db.prepare(`SELECT l.id AS link_id,l.attachment_id,a.object_key,a.media_type,a.original_name,a.checksum_sha256,a.source_state
        FROM attachment_links l
        JOIN attachment_sets s ON s.id=l.set_id

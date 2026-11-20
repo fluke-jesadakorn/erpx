@@ -17,10 +17,10 @@ draftSet(facts:{setId:string;companyId:string;branchId:string | null;departmentI
 draftLink(facts:{linkId:string;setId:string;actorId:string;now:number;fact4:number;}):PortalAttachmentWrite;
 uploadedIntent(facts:{uploadId:string;fact1:"legal_item";itemId:string;PORTAL_PURPOSE:"legal_portal_submission";name:string;mediaType:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";byteLength:number;byteLength2:number;checksum:string;objectKey:string;objectKey2:string;actorId:string;fact12:number;now:number;now2:number;itemVersion:number;setId:string;linkId:string;companyId:string;mediaType2:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";objectKey3:string;}):PortalAttachmentWrite;
 quarantinedSource(facts:{sourceId:string;uploadId:string;fact2:"legal_item";itemId:string;PORTAL_PURPOSE:"legal_portal_submission";objectKey:string;name:string;mediaType:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";byteLength:number;checksum:string;actorId:string;now:number;companyId:string;mediaType2:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";}):PortalAttachmentWrite;
-linkUpload(facts:{uploadId:string;sourceId:string;linkId:string;}):PortalAttachmentWrite;
-pendingScan(facts:{fact0:string;sourceId:string;now:number;}):PortalAttachmentWrite;
-storedOriginal(facts:{fact0:string;companyId:string;sourceId:string;objectKey:string;byteLength:number;now:number;}):PortalAttachmentWrite;
-quarantineEvent(facts:{fact0:string;companyId:string;sourceId:string;linkId:string;setId:string;actorId:string;fact6:"file.quarantined";fact7:string;now:number;}):PortalAttachmentWrite;
+linkUpload(facts:{uploadId:string;sourceId:string;linkId:string;companyId:string;}):Promise<PortalAttachmentWrite>;
+pendingScan(facts:{fact0:string;sourceId:string;now:number;companyId:string;}):Promise<PortalAttachmentWrite>;
+storedOriginal(facts:{fact0:string;companyId:string;sourceId:string;objectKey:string;byteLength:number;now:number;}):Promise<PortalAttachmentWrite>;
+quarantineEvent(facts:{fact0:string;companyId:string;sourceId:string;linkId:string;setId:string;actorId:string;fact6:"file.quarantined";fact7:string;now:number;}):Promise<PortalAttachmentWrite>;
 readableSource(facts:{linkId:string;companyId:string;itemId:string;purposeKey:"legal_document";}):Promise<{ link_id: string; attachment_id: string; object_key: string; media_type: string; original_name: string; checksum_sha256: string; source_state: string; } | null>;
 allowedRead(facts:{fact0:string;companyId:string;attachment_id:string;link_id:string;actorId:string;now:number;}):Promise<PortalAttachmentRows<Record<string, unknown>>>;
 deniedRead(facts:{fact0:string;companyId:string;attachment_id:string;link_id:string;actorId:string;fact5:string;now:number;}):Promise<PortalAttachmentRows<Record<string, unknown>>>;
@@ -112,18 +112,18 @@ async function stagePortalAttachment(
         return stagedVersion(raced);
       }
       await tx.batch([
-        tx.draftSet({setId:setId,companyId:scope.companyId,branchId:scope.branchId,departmentId:scope.departmentId,fact4:"legal_item",itemId:scope.itemId,fact6:"action",commandId:commandId,PORTAL_PURPOSE:PORTAL_PURPOSE,itemVersion:scope.itemVersion,version:policy.version,classification:policy.classification,fact12:JSON.stringify({
+        await tx.draftSet({setId:setId,companyId:scope.companyId,branchId:scope.branchId,departmentId:scope.departmentId,fact4:"legal_item",itemId:scope.itemId,fact6:"action",commandId:commandId,PORTAL_PURPOSE:PORTAL_PURPOSE,itemVersion:scope.itemVersion,version:policy.version,classification:policy.classification,fact12:JSON.stringify({
               classification: policy.classification,
               portalShareId: scope.shareId,
               policyVersion: policy.version,
             }),retentionPolicyKey:policy.retentionPolicyKey,requiredCount:policy.requiredCount,maxFiles:policy.maxFiles,actorId:actorId,now:now,now2:now}),
-        tx.draftLink({linkId:linkId,setId:setId,actorId:actorId,now:now,fact4:now + ports.reservationMs}),
-        tx.uploadedIntent({uploadId:uploadId,fact1:"legal_item",itemId:scope.itemId,PORTAL_PURPOSE:PORTAL_PURPOSE,name:name,mediaType:mediaType,byteLength:bytes.byteLength,byteLength2:bytes.byteLength,checksum:checksum,objectKey:objectKey,objectKey2:objectKey,actorId:actorId,fact12:now + ports.reservationMs,now:now,now2:now,itemVersion:scope.itemVersion,setId:setId,linkId:linkId,companyId:scope.companyId,mediaType2:mediaType,objectKey3:objectKey}),
-        tx.quarantinedSource({sourceId:sourceId,uploadId:uploadId,fact2:"legal_item",itemId:scope.itemId,PORTAL_PURPOSE:PORTAL_PURPOSE,objectKey:objectKey,name:name,mediaType:mediaType,byteLength:bytes.byteLength,checksum:checksum,actorId:actorId,now:now,companyId:scope.companyId,mediaType2:mediaType}),
-        tx.linkUpload({uploadId:uploadId,sourceId:sourceId,linkId:linkId}),
-        tx.pendingScan({fact0:`attachment-scan-${ports.identifiers.next()}`,sourceId:sourceId,now:now}),
-        tx.storedOriginal({fact0:`attachment-storage-${ports.identifiers.next()}`,companyId:scope.companyId,sourceId:sourceId,objectKey:objectKey,byteLength:bytes.byteLength,now:now}),
-        tx.quarantineEvent({fact0:`attachment-event-${ports.identifiers.next()}`,companyId:scope.companyId,sourceId:sourceId,linkId:linkId,setId:setId,actorId:actorId,fact6:"file.quarantined",fact7:JSON.stringify({
+        await tx.draftLink({linkId:linkId,setId:setId,actorId:actorId,now:now,fact4:now + ports.reservationMs}),
+        await tx.uploadedIntent({uploadId:uploadId,fact1:"legal_item",itemId:scope.itemId,PORTAL_PURPOSE:PORTAL_PURPOSE,name:name,mediaType:mediaType,byteLength:bytes.byteLength,byteLength2:bytes.byteLength,checksum:checksum,objectKey:objectKey,objectKey2:objectKey,actorId:actorId,fact12:now + ports.reservationMs,now:now,now2:now,itemVersion:scope.itemVersion,setId:setId,linkId:linkId,companyId:scope.companyId,mediaType2:mediaType,objectKey3:objectKey}),
+        await tx.quarantinedSource({sourceId:sourceId,uploadId:uploadId,fact2:"legal_item",itemId:scope.itemId,PORTAL_PURPOSE:PORTAL_PURPOSE,objectKey:objectKey,name:name,mediaType:mediaType,byteLength:bytes.byteLength,checksum:checksum,actorId:actorId,now:now,companyId:scope.companyId,mediaType2:mediaType}),
+        await tx.linkUpload({uploadId:uploadId,sourceId:sourceId,linkId:linkId,companyId:scope.companyId}),
+        await tx.pendingScan({fact0:`attachment-scan-${ports.identifiers.next()}`,sourceId:sourceId,now:now,companyId:scope.companyId}),
+        await tx.storedOriginal({fact0:`attachment-storage-${ports.identifiers.next()}`,companyId:scope.companyId,sourceId:sourceId,objectKey:objectKey,byteLength:bytes.byteLength,now:now}),
+        await tx.quarantineEvent({fact0:`attachment-event-${ports.identifiers.next()}`,companyId:scope.companyId,sourceId:sourceId,linkId:linkId,setId:setId,actorId:actorId,fact6:"file.quarantined",fact7:JSON.stringify({
               checksum,
               bytes: bytes.byteLength,
               detectedMediaType: mediaType,
