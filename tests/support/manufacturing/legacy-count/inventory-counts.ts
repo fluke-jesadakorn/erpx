@@ -33,7 +33,7 @@ import {BusinessRuleError} from '@erpx/server-shared/index';import {createInvent
 import {inventoryCountSources as owner0} from '@erpx/server-workflow/public/inventory-counts-sources';
 import {inventoryCountSources as owner1} from '@erpx/server-commerce/public/inventory-counts-sources';
 import {inventoryCountSources as owner2} from '@erpx/server-finance/public/inventory-counts-sources';
-import {inventoryCountSources as owner3} from '@erpx/server-collaboration/public/inventory-counts-sources';
+import {inventoryCountSources as owner3} from './collaboration-count-notices';
 import {requireCountPurchasedRead,withCountPurchasedCommand} from '@erpx/server-inventory/adapters/count-purchases';
 import {serviceCountPersistedMarker} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source';
 async function assertLegacyCountWriter(db:SqlDatabase,actor:WorkContext,id:string){
