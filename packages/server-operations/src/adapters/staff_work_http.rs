@@ -6,7 +6,8 @@
 //! Collaboration/Files/Workflow ports and the serializable owner unit remain
 //! composition responsibilities behind [`StaffWorkHttpBackend`].
 use crate::domain::staff_tasks::{
-    DelegateTaskCommand, RevokeTaskDelegationCommand, SaveTaskCommand, TransitionTaskCommand,
+    DelegateTaskCommand, RevokeTaskDelegationCommand, SaveTaskCommand, TaskRerouteCommand,
+    TransitionTaskCommand,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -57,6 +58,12 @@ pub enum StaffWorkHttpCommand {
         id: String,
         delegation_id: String,
         command: RevokeTaskDelegationCommand,
+    },
+    /// Administrative reroute of the current pending approval step. `id` is
+    /// the approval-instance id, matching the Workplace `approvals/{id}/reroute` route.
+    Reroute {
+        id: String,
+        command: TaskRerouteCommand,
     },
 }
 
@@ -270,6 +277,10 @@ pub fn staff_work_router(targets: Vec<StaffWorkHttpTarget>) -> Result<Router, Bu
             "/api/v1/holdings/{holding_slug}/staff-tasks/{id}/delegate/revoke/{delegation_id}",
             post(command_revoke),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/staff-tasks/approval/{id}/reroute",
+            post(command_reroute),
+        )
         .with_state(Arc::new(StaffWorkHttpState {
             targets: configured,
         })))
@@ -357,6 +368,10 @@ fn decode_command(
             command: decode(value)?,
         }),
         Some("delegate") => Ok(StaffWorkHttpCommand::Delegate {
+            id: id.ok_or_else(malformed)?,
+            command: decode(value)?,
+        }),
+        Some("reroute") => Ok(StaffWorkHttpCommand::Reroute {
             id: id.ok_or_else(malformed)?,
             command: decode(value)?,
         }),
@@ -580,4 +595,12 @@ async fn read_detail(
         Ok(reply) => bounded(reply.value()),
         Err(error) => error_response(error),
     }
+}
+
+async fn command_reroute(
+    State(state): State<Arc<StaffWorkHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    run_command(state, slug, request, Some(id), Some("reroute"), None).await
 }

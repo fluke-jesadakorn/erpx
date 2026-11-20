@@ -322,6 +322,18 @@ impl TaskAction {
     }
 }
 
+/// Native Workflow task-approval reroute input, carried by the Staff Work HTTP
+/// transport. The Workflow owner command re-validates every field inside the
+/// serializable transaction; this type only bounds the wire shape.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TaskRerouteCommand {
+    pub approver_user_id: String,
+    pub reason: String,
+    pub expected_version: i64,
+    pub instance_version: i64,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TaskSourceWitness {

@@ -9,6 +9,9 @@ use erpx_server_collaboration::public::task_source_origin::{
 };
 use erpx_server_field_service::public::source_record::read_source_record;
 use erpx_server_files::public::staff_task_attachments::task_attachments;
+use erpx_server_identity_access::public::command_metadata::project_command_iam;
+use erpx_server_identity_access::public::routine_owner::company_owner;
+use erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::{parse_inbound_account_request, unique_request_header},
@@ -61,6 +64,13 @@ use erpx_server_workflow::public::staff_approval::{
     OpenStaffApproval, StaffApprovalStep, close_staff_approvals, open_staff_approval,
     prepare_staff_decision, staff_approval_view,
 };
+use erpx_server_workflow::public::commands::{
+    CommandDisposition, CommandField, CommandJson as WorkflowCommandJson,
+    CommandActor as WorkflowCommandActor, PgCommandAuthority, WorkflowRequest, WorkAuthority,
+};
+use erpx_server_workflow::public::task_reroute::{
+    TaskRerouteEligibility, TaskRerouteTaskRow, execute_task_reroute,
+};
 use erpx_server_pos::public::record_source as pos_source;
 use erpx_server_projects::public::staff_facts::staff_project;
 use erpx_server_runtime::public::http_support::HeaderMap;
@@ -70,6 +80,7 @@ use erpx_server_shared::public::record_source_contract::{
 };
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+    IdentifierSource, RecordId,
 };
 use serde_json::Value;
 use sqlx::{Connection, PgConnection};
@@ -2075,6 +2086,140 @@ impl StaffWorkConfiguration {
     }
 }
 
+/// Native `task.approval.reroute` command authority on the selected work context.
+struct RerouteAuthority<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    clock: &'a C,
+    expected: &'a WorkflowRequest,
+}
+
+fn reroute_changed() -> PgTransactionError<BusinessError> {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "TASK_VERSION_CHANGED",
+        "The task or approval changed; reload before rerouting.",
+    )
+    .into()
+}
+
+fn reroute_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<WorkflowCommandActor, PgTransactionError<BusinessError>> {
+    let selection = current.selection();
+    let assignment = selection.assignment();
+    let workspace = selection.workspace();
+    let field = |value: Option<&str>| {
+        value
+            .map(|v| CommandField::Value(v.into()))
+            .unwrap_or(CommandField::Null)
+    };
+    Ok(WorkflowCommandActor {
+        user_id: current.user_id().clone(),
+        assignment_id: assignment.id.clone(),
+        role: assignment.role.clone(),
+        company_id: workspace.company_id.clone(),
+        branch_id: field(workspace.branch_id.as_ref().map(|v| v.as_str())),
+        department_id: field(workspace.department_id.as_ref().map(|v| v.as_str())),
+        authority: CommandField::Value(WorkAuthority {
+            session_id: current.session_id().as_str().into(),
+            revision: selection.revision(),
+            assignment_version: assignment.version,
+        }),
+        iam: CommandField::Value(WorkflowCommandJson::from_serializable(&project_command_iam(
+            current,
+        )?)?),
+        assignment_scope_kind: match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .into(),
+        assignment_scope_node_id: assignment.scope_node_id.as_ref().map(|v| v.as_str().into()),
+    })
+}
+
+impl<C: Clock + Sync> PgCommandAuthority for RerouteAuthority<'_, C> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        if !connection.is_in_transaction() {
+            return Err(PersistenceError::new("TASK_REROUTE_TRANSACTION_REQUIRED").into());
+        }
+        Ok(())
+    }
+
+    async fn authorize(
+        &mut self,
+        connection: &mut PgConnection,
+        request: &WorkflowRequest,
+    ) -> Result<WorkflowCommandActor, PgTransactionError<BusinessError>> {
+        if request.key != self.expected.key
+            || request.operation != self.expected.operation
+            || request.record_id != self.expected.record_id
+            || request.input != self.expected.input
+        {
+            return Err(reroute_changed());
+        }
+        require_selected_actor_current(connection, self.current, self.clock.now().get()).await?;
+        reroute_actor(self.current)
+    }
+
+    async fn verify_command(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowCommandActor,
+        request: &WorkflowRequest,
+        _: CommandDisposition,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        self.authorize(connection, request).await.map(|_| ())
+    }
+}
+
+/// Eligibility mirrors the retained reroute guards: the actor holds current
+/// Company authority and the replacement is a current staff member. The native
+/// command still rejects the requester/assignee and stale-route cases itself.
+struct RerouteEligibility;
+
+impl TaskRerouteEligibility for RerouteEligibility {
+    async fn can_reroute(
+        &mut self,
+        connection: &mut PgConnection,
+        actor: &WorkflowCommandActor,
+        _: &TaskRerouteTaskRow,
+    ) -> Result<bool, PgTransactionError<BusinessError>> {
+        company_owner(connection, actor.company_id.as_str(), actor.user_id.as_str())
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn approver_eligible(
+        &mut self,
+        connection: &mut PgConnection,
+        actor: &WorkflowCommandActor,
+        approver_user_id: &str,
+    ) -> Result<bool, PgTransactionError<BusinessError>> {
+        if approver_user_id == actor.user_id.as_str() {
+            return Ok(false);
+        }
+        Ok(people_staff_facts::active_staff(
+            connection,
+            actor.company_id.as_str(),
+            approver_user_id,
+        )
+        .await?
+        .is_some())
+    }
+}
+
+struct RerouteIds;
+impl IdentifierSource for RerouteIds {
+    fn next(&mut self) -> RecordId {
+        RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
+    }
+}
+
 pub struct StaffWorkService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: StaffWorkConfiguration,
@@ -2258,13 +2403,13 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                             actor_assignment_id: actor.assignment_id.clone(),
                             actor_company_id: actor.company_id.clone(),
                         });
-                        let receipt = match command {
+                        let receipt: serde_json::Value = match command {
                             StaffWorkHttpCommand::Save {
                                 id,
                                 revision,
                                 command,
                             } => {
-                                save_task(
+                                let value = save_task(
                                     &actor,
                                     &mut repository,
                                     &mut sources,
@@ -2274,10 +2419,11 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                                     revision,
                                     now,
                                 )
-                                .await?
+                                .await?;
+                                serde_json::to_value(value).map_err(|_| unavailable())?
                             }
                             StaffWorkHttpCommand::Transition { id, command } => {
-                                transition_task(
+                                let value = transition_task(
                                     &actor,
                                     &mut repository,
                                     &mut sources,
@@ -2286,10 +2432,11 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                                     key.as_str(),
                                     now,
                                 )
-                                .await?
+                                .await?;
+                                serde_json::to_value(value).map_err(|_| unavailable())?
                             }
                             StaffWorkHttpCommand::Delegate { id, command } => {
-                                delegate_task(
+                                let value = delegate_task(
                                     &actor,
                                     &mut repository,
                                     &mut sources,
@@ -2298,10 +2445,11 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                                     key.as_str(),
                                     now,
                                 )
-                                .await?
+                                .await?;
+                                serde_json::to_value(value).map_err(|_| unavailable())?
                             }
                             StaffWorkHttpCommand::Revoke { id, command, .. } => {
-                                revoke_task_delegation(
+                                let value = revoke_task_delegation(
                                     &actor,
                                     &mut repository,
                                     &mut sources,
@@ -2310,13 +2458,42 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                                     key.as_str(),
                                     now,
                                 )
-                                .await?
+                                .await?;
+                                serde_json::to_value(value).map_err(|_| unavailable())?
+                            }
+                            StaffWorkHttpCommand::Reroute { id, command } => {
+                                let request = WorkflowRequest {
+                                    key: key.as_str().to_owned(),
+                                    operation: "task.approval.reroute".to_owned(),
+                                    record_id: id,
+                                    input: WorkflowCommandJson::from_serializable(&command)?,
+                                };
+                                let mut authority = RerouteAuthority {
+                                    current,
+                                    clock: clock.as_ref(),
+                                    expected: &request,
+                                };
+                                let mut eligibility = RerouteEligibility;
+                                let mut ids = RerouteIds;
+                                let outcome = execute_task_reroute(
+                                    company.clone(),
+                                    connection,
+                                    &mut authority,
+                                    clock.as_ref(),
+                                    &mut ids,
+                                    &mut eligibility,
+                                    &request,
+                                )
+                                .await?;
+                                serde_json::from_str::<serde_json::Value>(outcome.result.as_str())
+                                    .map_err(|_| unavailable())?
                             }
                         };
                         Ok(StaffWorkHttpResponse {
-                            data: serde_json::to_value(receipt).map_err(|_| unavailable())?,
+                            data: receipt,
                             context: context_value(current),
                         })
+
                     })
                 },
             )
