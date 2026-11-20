@@ -893,3 +893,48 @@ pub async fn social_task_origin_statement(
         ],
     })
 }
+
+/// Workflow goods-movement invoicing notice. The posted journal and its
+/// fulfillment/order are resolved on the caller's serializable unit.
+pub async fn workflow_invoicing_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.record_id.is_empty()
+        || input.idempotency_key.is_empty()
+        || input.now <= 0
+    {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT ?,o.company_id,r.steps_json::jsonb -> 'invoicing' ->> 'primaryUserId','order',o.id,o.version,\
+ 'Goods movement GL posted: prepare the invoice',? \
+ FROM (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\
+ \"party_id\",\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\
+ \"subtotal_minor\",\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\
+ \"created_at\",\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",\
+ \"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders) o \
+ JOIN (SELECT \"id\",\"order_id\",\"number\",\"fulfillment_date\",\"created_by\",\"created_at\",\
+ \"journal_id\",\"invoice_id\",\"version\",\"evidence_note\" FROM commerce_fulfillments) f ON f.order_id=o.id \
+ JOIN (SELECT \"company_id\",\"kind\",\"record_id\",\"version\",\"defaults_revision\",\"steps_json\",\
+ \"created_at\" FROM flow_routes) r ON r.company_id=o.company_id AND r.kind='order' AND r.record_id=o.id \
+ JOIN (SELECT \"id\",\"company_id\",\"chart_id\",\"period_id\",\"journal_number\",\"entry_date\",\
+ \"currency\",\"fx_rate_micros\",\"source_type\",\"source_id\",\"memo\",\"status\",\"is_opening\",\
+ \"version\",\"created_by\",\"posted_by\",\"posted_at\",\"reversed_by\",\"reversed_at\",\
+ \"created_at\",\"updated_at\" FROM finance_journals) j ON j.id=f.journal_id \
+ WHERE j.id=? AND j.status='posted' AND f.invoice_id IS NULL \
+ AND (r.steps_json::jsonb -> 'invoicing' ->> 'primaryUserId') IS NOT NULL ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            serde_json::Value::Number(input.now.into()),
+            value(&input.record_id),
+        ],
+    })
+}

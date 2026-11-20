@@ -165,7 +165,7 @@ export interface FlowRoutingPorts<Effect> {
     batch(effects: Effect[]): Promise<unknown>;
     policyRead<Result>(key: string, read: () => Promise<Result>): Promise<Result>;
     policyNow(): number;
-    flowAfterEffects(actor: StaffActor, key: string, kind: FlowKind, id: string): Effect[];
+    flowAfterEffects(actor: StaffActor, key: string, kind: FlowKind, id: string): Promise<Effect[]>;
     approvalView(...args: Tail<Parameters<typeof approvalView>>): PortResult<ReturnType<typeof approvalView>, Effect>;
     canOverrideEmployeeRequest(...args: Tail<Parameters<typeof canOverrideEmployeeRequest>>): PortResult<ReturnType<typeof canOverrideEmployeeRequest>, Effect>;
     readRequestForOverride(...args: Tail<Parameters<typeof readRequestForOverride>>): PortResult<ReturnType<typeof readRequestForOverride>, Effect>;
@@ -581,7 +581,7 @@ export function createFlowPlanningApplication<Effect>(ports: FlowPlanningPorts<E
                 steps.push(...await routeStatements(actor, key, await resolveFlow(actor, "order", parent.order_id)));
         }
         // The owner update is committed between the guards and this durable notification.
-        const after = ports.flowAfterEffects(actor, key, kind, id);
+        const after = await ports.flowAfterEffects(actor, key, kind, id);
         return { before: steps, after, view };
     }
     return { flowRecord, flowRoleAllowed, resolveFlow, prepareFlowCommand, flowCommandTarget, routeStatements };
