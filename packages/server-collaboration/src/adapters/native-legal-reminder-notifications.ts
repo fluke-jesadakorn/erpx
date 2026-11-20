@@ -24,3 +24,15 @@ export async function legalDeadlineNotice(db: SqlDatabase, holdingId: string, ct
     { userId: '', recordType: 'legal', recordId: '', recordVersion: 1, message: '', kind: 'legal_deadline', cte_prefix: ctePrefix }, '', Date.now());
   await stmt.run();
 }
+
+
+/** Native-owned legal envelope expiry with caller-supplied fixed CTE prefix. */
+export async function legalEnvelopeExpire(
+  db: SqlDatabase, holdingId: string, ctePrefix: string,
+  expires: number, updated: number, event: number,
+): Promise<void> {
+  const stmt = await nativeHoldingNotificationStatement(db, holdingId,
+    { userId: '', recordType: 'legal', recordId: '', recordVersion: 1, message: '', kind: 'legal_envelope_expire',
+      cte_prefix: ctePrefix, values_json: JSON.stringify([expires, updated, event]) }, '', event);
+  await stmt.run();
+}

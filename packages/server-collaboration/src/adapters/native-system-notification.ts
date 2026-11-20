@@ -72,7 +72,7 @@ export async function nativeHoldingNotificationStatement(
   holdingId: string,
   input: {
     userId: string; recordType: string; recordId: string; recordVersion: number;
-    message: string; kind?: string; runtime_predicate?: string; table_name?: string; cte_prefix?: string; timestamp?: number;
+    message: string; kind?: string; runtime_predicate?: string; table_name?: string; cte_prefix?: string; timestamp?: number; values_json?: string;
   },
   key: string,
   now: number,

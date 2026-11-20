@@ -2940,3 +2940,20 @@ pub async fn legal_portal_upload_event_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal reminders: expire signed envelopes and emit lifecycle events.
+pub async fn legal_envelope_expire_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let prefix = input.cte_prefix.as_deref().unwrap_or("");
+    if prefix.is_empty() { return Err(invalid().into()); }
+    Ok(NotificationStatement {
+        sql: format!(r#"{prefix}
+ INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT 'expiry-'||e.id,c.id,'signing.expired','system:legal','Expired envelope; a new approval is required',c.version,? FROM changed c JOIN expired e ON e.item_id=c.id"#),
+        values: values_from_json(input)?,
+    })
+}
