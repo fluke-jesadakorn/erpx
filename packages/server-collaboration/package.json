@@ -243,7 +243,8 @@
     "./adapters/native-workflow-notification": "./src/adapters/native-workflow-notification.ts",
     "./adapters/native-system-notification": "./src/adapters/native-system-notification.ts",
     "./adapters/native-roster-notifications": "./src/adapters/native-roster-notifications.ts",
-    "./adapters/native-legal-reminder-notifications": "./src/adapters/native-legal-reminder-notifications.ts"
+    "./adapters/native-legal-reminder-notifications": "./src/adapters/native-legal-reminder-notifications.ts",
+    "./adapters/native-social-text": "./src/adapters/native-social-text.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

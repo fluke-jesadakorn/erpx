@@ -21,11 +21,11 @@ export interface SocialTextRepository<Effect> {
         home_ai_name: string;
     } | null>;
     previousAssistantName(companyId: string, label: string): Promise<Record<string, unknown> | null>;
-    prepareMention(ownerType: "post" | "comment", ownerId: string, kind: "record" | "person" | "agent", targetId: string, label: string, userId: string, now: number): Effect;
-    prepareMentionNotice(value: string, targetId: string, now: number, postId: string, targetId2: string, now2: number, now3: number): Effect;
-    prepareAssistantReply(value: string, postId: string, ownerType: "post" | "comment", ownerId: string, companyId: string, userId: string, value2: string, name: string, now: number, now2: number): Effect;
-    prepareTopic(tag: string, userId: string, now: number): Effect;
-    prepareTopicBinding(ownerId: string, tag: string, ownerType: string): Effect;
+    prepareMention(ownerType: "post" | "comment", ownerId: string, kind: "record" | "person" | "agent", targetId: string, label: string, userId: string, now: number): Promise<Effect>;
+    prepareMentionNotice(value: string, targetId: string, now: number, postId: string, targetId2: string, now2: number, now3: number): Promise<Effect>;
+    prepareAssistantReply(value: string, postId: string, ownerType: "post" | "comment", ownerId: string, companyId: string, userId: string, value2: string, name: string, now: number, now2: number): Promise<Effect>;
+    prepareTopic(tag: string, userId: string, now: number): Promise<Effect>;
+    prepareTopicBinding(ownerId: string, tag: string, ownerType: string): Promise<Effect>;
 }
 export interface SocialTextPorts<Effect> {
     repository: SocialTextRepository<Effect>;
@@ -104,15 +104,15 @@ export function createSocialTextApplication<Effect>(ports: SocialTextPorts<Effec
         if (mentions.some(m => m.kind === "agent"))
             actor = await ports.captureJobAuthority(actor);
         for (const m of new Map(mentions.map(m => [`${m.kind}:${m.targetId}`, m])).values()) {
-            steps.push(r.prepareMention(ownerType, ownerId, m.kind, m.targetId, m.label, actor.userId, now));
+            steps.push(await r.prepareMention(ownerType, ownerId, m.kind, m.targetId, m.label, actor.userId, now));
             if (m.kind === "person" && m.targetId !== actor.userId)
-                steps.push(r.prepareMentionNotice(ports.identifiers.next(), m.targetId, now, postId, m.targetId, now, now));
+                steps.push(await r.prepareMentionNotice(ports.identifiers.next(), m.targetId, now, postId, m.targetId, now, now));
             if (m.kind === "agent")
-                steps.push(r.prepareAssistantReply(`agent-${ownerId}`, postId, ownerType, ownerId, actor.companyId, actor.userId, JSON.stringify({ userId: actor.userId, assignmentId: actor.assignmentId, role: actor.role, companyId: actor.companyId, branchId: actor.branchId, departmentId: actor.departmentId, iam: actor.iam, authority: actor.authority }), actor.name, now, now));
+                steps.push(await r.prepareAssistantReply(`agent-${ownerId}`, postId, ownerType, ownerId, actor.companyId, actor.userId, JSON.stringify({ userId: actor.userId, assignmentId: actor.assignmentId, role: actor.role, companyId: actor.companyId, branchId: actor.branchId, departmentId: actor.departmentId, iam: actor.iam, authority: actor.authority }), actor.name, now, now));
         }
         for (const tag of new Set(hashtags(body).filter(t => !mentions.some(m => t.start < m.end && t.end > m.start)).map(t => t.tag))) {
-            steps.push(r.prepareTopic(tag, actor.userId, now));
-            steps.push(r.prepareTopicBinding(ownerId, tag, ownerType));
+            steps.push(await r.prepareTopic(tag, actor.userId, now));
+            steps.push(await r.prepareTopicBinding(ownerId, tag, ownerType));
         }
         return steps;
     }

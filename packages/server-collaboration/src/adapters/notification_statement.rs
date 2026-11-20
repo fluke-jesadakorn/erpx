@@ -67,6 +67,12 @@ pub struct NotificationStatementInput {
     pub table_name: Option<String>,
     #[serde(default)]
     pub cte_prefix: Option<String>,
+    #[serde(default)]
+    pub source_access_sql: Option<String>,
+    #[serde(default)]
+    pub target_kind: Option<String>,
+    #[serde(default)]
+    pub target_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -134,6 +140,7 @@ mod tests {
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
             approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
             post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None, node_id: None, scope_node_id: None, runtime_predicate: None, table_name: None, cte_prefix: None,
+            source_access_sql: None, target_kind: None, target_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -1117,5 +1124,100 @@ INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,reco
  SELECT 'legal-'||md5(a.item_id||a.due_date||a.days::text||a.user_id),i.company_id,a.user_id,'legal',i.id,i.version,'Legal deadline requires attention',a.created_at FROM added a JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i ON i.id=a.item_id ON CONFLICT DO NOTHING"#, input.cte_prefix.as_deref().unwrap_or("")),
         values: vec![
         ],
+    })
+}
+
+
+/// Social mention binding. Full source witness supplied by caller.
+pub async fn social_mention_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO social_mentions(owner_type,owner_id,target_kind,target_id,target_label,created_by,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: vec![
+            value(input.record_type.as_str()), value(input.record_id.as_str()),
+            value(input.target_kind.as_deref().unwrap_or("")), value(input.target_id.as_deref().unwrap_or("")),
+            value(&input.message), value(&input.user_id), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Social mention staff notice. The post visibility fragment is supplied by
+/// the native Social composition; the owner validates Company authority.
+pub async fn social_mention_notice_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str() || input.source_access_sql.is_none() { return Err(invalid().into()); }
+    let sql = format!(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT ?,p.company_id,?,'post',p.id,p.version,\
+ 'You were mentioned in a conversation',? FROM social_posts p WHERE p.id=? AND {}",
+        input.source_access_sql.as_deref().unwrap_or("")
+    );
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql,
+        values: vec![
+            value(&input.idempotency_key), value(&input.user_id), serde_json::Value::Number(input.now.into()),
+            value(&input.record_id), value(input.target_id.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Social agent reply binding.
+pub async fn social_agent_reply_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO social_agent_replies(id,post_id,owner_type,owner_id,company_id,actor_id,\
+ actor_json,requester_name,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(&input.record_id), value(input.record_type.as_str()),
+            value(input.target_id.as_deref().unwrap_or("")), value(company.as_str()), value(&input.user_id),
+            value(&input.message), value(input.identifier.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Social topic upsert.
+pub async fn social_topic_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO social_topics(tag,created_by,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: vec![value(&input.message), value(&input.user_id), serde_json::Value::Number(input.now.into())],
+    })
+}
+
+/// Social topic binding (post or comment table supplied by caller).
+pub async fn social_topic_binding_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    if input.record_type != "post" && input.record_type != "comment" { return Err(invalid().into()); }
+    let table = if input.record_type == "post" { "social_post_topics(post_id" } else { "social_comment_topics(comment_id" };
+    Ok(NotificationStatement {
+        sql: format!("INSERT INTO {},tag) VALUES(?,?) ON CONFLICT DO NOTHING", table),
+        values: vec![value(&input.record_id), value(&input.message)],
     })
 }

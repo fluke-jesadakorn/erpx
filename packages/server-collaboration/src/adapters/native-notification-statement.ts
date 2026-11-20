@@ -56,6 +56,9 @@ export async function nativeNotificationStatement(
     runtime_predicate?: string;
     table_name?: string;
     cte_prefix?: string;
+    source_access_sql?: string;
+    target_kind?: string;
+    target_id?: string;
   },
   key: string,
   now: number,
