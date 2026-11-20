@@ -2800,3 +2800,143 @@ pub async fn legal_destruction_require_review_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal portal: access event.
+pub async fn legal_portal_access_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: accept share.
+pub async fn legal_portal_accept_share_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_shares SET user_id=?,version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: external comment.
+pub async fn legal_portal_external_comment_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_comments(id,item_id,document_id,body,visibility,created_by,created_at) VALUES(?,?,?,?,'external',?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: counsel entry.
+pub async fn legal_portal_counsel_entry_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_counsel_entries(id,item_id,category,title,owner_id,state,version,data,created_by,updated_by,updated_at) VALUES(?,?,'counsel_entry',?,?,'submitted',1,?::jsonb,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: counsel history.
+pub async fn legal_portal_counsel_history_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_feature_history(id,item_id,feature_id,category,version,snapshot,actor_id,reason,created_at) VALUES(?,?,?,'counsel_entry',1,?::jsonb,?,'External counsel submission',?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: interaction event.
+pub async fn legal_portal_interaction_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT ?,id,?,?,?,version,? FROM legal_items WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: receipt.
+pub async fn legal_portal_receipt_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_portal_receipts VALUES(?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: external upload.
+pub async fn legal_portal_external_upload_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_external_uploads(id,share_id,object_key,checksum,name,media_type,bytes,created_by,created_at,attachment_link_id,attachment_source_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: advance upload.
+pub async fn legal_portal_advance_upload_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_items SET version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+
+/// Legal portal: upload event.
+pub async fn legal_portal_upload_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT ?,id,'portal.upload',?,?,version,? FROM legal_items WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
