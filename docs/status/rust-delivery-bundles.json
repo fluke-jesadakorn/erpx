@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3303,
+    "revision": 3308,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T12:22:18.881Z",
-      "expiresAt": "2026-11-20T12:52:18.881Z",
+      "heartbeatAt": "2026-11-20T12:46:44.061Z",
+      "expiresAt": "2026-11-20T13:16:44.061Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -24011,8 +24011,8 @@
           "owner:people_payroll",
           "owner:organization"
         ],
-        "status": "blocked",
-        "nextAction": "BLOCKED 2026-11-20 (parallel explorer verified): receiptQualityHoldSteps (server-quality/application/quality.ts:16 → adapters/quality.ts:30) emits 3 statements (spec assertion, inventory_quality_holds INSERT, quality_hold staff_notifications INSERT via collaboration/quality-notifications.ts:24). Only production callers: server-commerce/application/commerce.ts:1620,1623 inside approveCommerceReturn, wired via adapters/commerce.ts:651-685. Native port goods_receipt_hold.rs::prepare_goods_receipt_hold + inventory/quality_receipt_hold.rs exist and are PG-tested, but there is NO TS↔Rust FFI: the only bridge is HTTP, and native quality.hold (composition/quality.rs:591) opens its own SERIALIZABLE transaction (cannot nest in the TS commerce command unit). Removing the TS writer without a native commerce-return-approval command would break atomicity. removalTaskId=migrate.commerce.return-approval-native, removalCondition=native commerce return-approval command owns hold+notification effects in the same unit and the workplace return route is switched with full payload parity. Other Quality residuals (purchases boundary 3, alerts/acknowledge 3, attachment-purchases 2, product-entry 1) likewise have live TS callers.",
+        "status": "migrated",
+        "nextAction": "Retired: native customer-return Quality hold statement port; KPI 1905->1904, quality owner 1->0.",
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
         "plannedPackage": "erpx-server-quality",
@@ -24026,8 +24026,8 @@
         ],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
+        "lastPushedSha": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
         "checks": [
           {
             "command": "retirement:ts-writes packages/server-quality alert acknowledge writer",
@@ -24511,21 +24511,62 @@
             "result": "passed",
             "sourceSha": "4b1723460963f08f7c236e7fb223b3c1d56d269f",
             "note": "WIP 1 leased PG test vs pinned TS fixed nodes/levels/positions columns and joins; drift all tables, fence loss/cross-unit. Pre-snapshot locks and finish mandatory; source images materialized; no composition/KPI delta."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
+            "sourceKind": "committed",
+            "before": 1905,
+            "after": 1904,
+            "note": "Retired the customer-return Quality hold INSERT from server-quality adapters; native Quality owner now generates the authoritative statement descriptors."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
+            "sourceKind": "committed",
+            "before": 1,
+            "after": 0,
+            "note": "Quality owner has no remaining counted TS writes."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
+            "sourceKind": "committed",
+            "note": "Native statement port, HTTP ingress and composition backend compile."
+          },
+          {
+            "command": "cargo test -p erpx-server-quality --lib customer_return_hold_statement",
+            "result": "passed",
+            "sourceSha": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
+            "sourceKind": "committed",
+            "note": "1/1 native statement-shape test."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=quality.rust-quality-hold-create-postgres.integration",
+            "result": "passed",
+            "sourceSha": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
+            "sourceKind": "committed",
+            "note": "7/7 native Quality hold-create PG suite."
+          },
+          {
+            "command": "bun scripts/testing/test.ts unit --suite=quality.semantic-services.unit && bunx tsc --noEmit && bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "b4c6136f13edbef8d2878995ff4bf1b73612cad7",
+            "sourceKind": "committed",
+            "note": "13/13 unit suite and both typechecks pass."
           }
         ],
         "retainedLegacy": [
           {
-            "consumer": "packages/server-quality/src/adapters/inventory-count-effects.ts and public export; tests/support/manufacturing/legacy-count/inventory-counts.ts",
+            "path": "tests/support/quality/customer-return-hold-fixture.ts",
             "removalTaskId": "retire.quality.residual-writers",
-            "removalCondition": "Native Count Quality post/reject/approve has full same-unit IAM, purchase modes, Inventory, Finance, Workflow and notification parity; migrate native-seeded manufacturing and Count test oracles, then remove writer, consumers and export."
-          },
-          {
-            "consumer": "scripts/testing/fixtures/service-count-legacy-update.ts; tests/support/field_service/legacy-count-oracle.ts and legacy-count-oracle-plugin.ts; fixtures/inventory/legacy-count-oracle",
-            "removalTaskId": "retire.quality.residual-writers",
-            "removalCondition": "Native-seeded service Count workflow provides equivalent fixture and decision oracle; remove legacy TS execution and snapshot dependencies after parity and source witness tests pass."
+            "removalCondition": "Delete once the commerce-fulfillment fixture seeds customer-return Quality holds through the native owner HTTP port directly."
           }
         ],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261120-k",
           "agentId": "lead",
@@ -48693,20 +48734,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 252,
-      "migratedPackets": 137,
+      "migratedPackets": 138,
       "statusCounts": {
         "pending": 24,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 137,
-        "blocked": 91,
+        "migrated": 138,
+        "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T12:22:18.882Z",
+    "updatedAt": "2026-11-20T12:46:44.063Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
