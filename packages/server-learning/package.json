@@ -34,14 +34,12 @@
     "./public/evaluation-source-policy": "./src/public/evaluation-source-policy.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/attachments-sensitive-facts": "./src/public/attachments-sensitive-facts.ts",
-    "./index": "./src/index.ts",
     "./application/eligibility": "./src/application/eligibility.ts",
     "./application/learning": "./src/application/learning.ts",
     "./domain/eligibility": "./src/domain/eligibility.ts",
     "./domain/benefit-continuation": "./src/domain/benefit-continuation.ts",
     "./domain/learning": "./src/domain/learning.ts",
-    "./domain/purchase-controls": "./src/domain/purchase-controls.ts",
-    "./domain/course": "./src/domain/course.ts"
+    "./domain/purchase-controls": "./src/domain/purchase-controls.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -33,7 +33,6 @@
     "./public/metric-purchases": "./src/public/metric-purchases.ts",
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
-    "./index": "./src/index.ts",
     "./domain/assets": "./src/domain/assets.ts"
   },
   "scripts": {

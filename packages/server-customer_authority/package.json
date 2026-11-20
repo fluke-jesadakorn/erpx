@@ -48,7 +48,6 @@
     "./public/executive-main-evidence-sources": "./src/public/executive-main-evidence-sources.ts",
     "./public/collaboration-notification-snapshot-sources": "./src/public/collaboration-notification-snapshot-sources.ts",
     "./public/portal-source-locks": "./src/public/portal-source-locks.ts",
-    "./index": "./src/index.ts",
     "./application/identity": "./src/application/identity.ts",
     "./application/access": "./src/application/access.ts",
     "./application/duplicates": "./src/application/duplicates.ts",

@@ -34,10 +34,8 @@
     "./public/people-hire-handoff-facts": "./src/public/people-hire-handoff-facts.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/attachments-sensitive-facts": "./src/public/attachments-sensitive-facts.ts",
-    "./index": "./src/index.ts",
     "./application/talent": "./src/application/talent.ts",
     "./domain/product-entry": "./src/domain/product-entry.ts",
-    "./domain/requisition": "./src/domain/requisition.ts",
     "./domain/talent": "./src/domain/talent.ts",
     "./public/native-talent-lifecycle-page": "./src/public/native-talent-lifecycle-page.ts"
   },

@@ -21,7 +21,6 @@
     "./public/package-sources": "./src/public/package-sources.ts",
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
-    "./index": "./src/index.ts",
     "./application/channel": "./src/application/channel.ts",
     "./application/commerce": "./src/application/commerce.ts",
     "./domain/channel": "./src/domain/channel.ts",

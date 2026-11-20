@@ -44,7 +44,6 @@
     "./public/rules/packages": "./src/public/rules/packages.ts",
     "./public/provider-commercial": "./src/public/provider-commercial.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
-    "./index": "./src/index.ts",
     "./application/usage": "./src/application/usage.ts",
     "./application/projection": "./src/application/projection.ts",
     "./application/package-grants": "./src/application/package-grants.ts",

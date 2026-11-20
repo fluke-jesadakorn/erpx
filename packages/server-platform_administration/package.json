@@ -33,7 +33,6 @@
     "./public/engineering-verification": "./src/public/engineering-verification.ts",
     "./public/system-evidence-contract": "./src/public/system-evidence-contract.ts",
     "./public/platform-operations": "./src/public/platform-operations.ts",
-    "./index": "./src/index.ts",
     "./application/platform-executive": "./src/application/platform-executive.ts",
     "./application/system-evidence": "./src/application/system-evidence.ts",
     "./application/release-acceptance": "./src/application/release-acceptance.ts",

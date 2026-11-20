@@ -50,7 +50,6 @@
     "./public/ai-providers": "./src/public/ai-providers.ts",
     "./public/ai-gateway": "./src/public/ai-gateway.ts",
     "./public/commercial-usage-facts": "./src/public/commercial-usage-facts.ts",
-    "./index": "./src/index.ts",
     "./application/governance": "./src/application/governance.ts",
     "./application/assistant": "./src/application/assistant.ts",
     "./application/transport": "./src/application/transport.ts",

@@ -95,7 +95,6 @@
     "./public/pos": "./src/public/pos.ts",
     "./public/finance-snapshot-sources": "./src/public/finance-snapshot-sources.ts",
     "./public/pms-package-obligations": "./src/public/pms-package-obligations.ts",
-    "./index": "./src/index.ts",
     "./application/pos-daily": "./src/application/pos-daily.ts",
     "./application/stripe-calls": "./src/application/stripe-calls.ts",
     "./application/pos-images": "./src/application/pos-images.ts",

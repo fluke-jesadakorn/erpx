@@ -32,7 +32,6 @@
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/executive-main-evidence-sources": "./src/public/executive-main-evidence-sources.ts",
     "./public/portal-source-locks": "./src/public/portal-source-locks.ts",
-    "./index": "./src/index.ts",
     "./application/portal-session": "./src/application/portal-session.ts",
     "./application/portal-attachments": "./src/application/portal-attachments.ts",
     "./application/portal": "./src/application/portal.ts",

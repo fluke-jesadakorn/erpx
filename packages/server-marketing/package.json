@@ -51,7 +51,6 @@
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
     "./public/public-submission": "./src/public/public-submission.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
-    "./index": "./src/index.ts",
     "./application/campaigns": "./src/application/campaigns.ts",
     "./application/asset": "./src/application/asset.ts",
     "./application/marketing": "./src/application/marketing.ts",

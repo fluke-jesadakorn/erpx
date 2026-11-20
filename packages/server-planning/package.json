@@ -30,7 +30,6 @@
     "./public/capacity": "./src/public/capacity.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/scenarios": "./src/public/scenarios.ts",
-    "./index": "./src/index.ts",
     "./application/resources": "./src/application/resources.ts",
     "./application/capacity": "./src/application/capacity.ts",
     "./application/scenarios": "./src/application/scenarios.ts",

@@ -140,7 +140,6 @@
     "./public/executive-main-evidence-sources": "./src/public/executive-main-evidence-sources.ts",
     "./public/supply-package-obligations": "./src/public/supply-package-obligations.ts",
     "./public/pms-package-obligations": "./src/public/pms-package-obligations.ts",
-    "./index": "./src/index.ts",
     "./application/counts": "./src/application/counts.ts",
     "./application/consumption": "./src/application/consumption.ts",
     "./application/landed-costs": "./src/application/landed-costs.ts",

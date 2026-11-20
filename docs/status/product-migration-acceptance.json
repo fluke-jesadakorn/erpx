@@ -2338,7 +2338,7 @@
             "packages/feature-account/src/routes/api/v1/account/iam/[[...path]]/route.ts"
           ],
           "services": [
-            "packages/server-identity_access/src/public/iam-recovery.ts"
+            "packages/server-identity_access/src/adapters/native-recovery.ts"
           ],
           "schema": [
             "migrations/postgres/control/0006_iam.sql",

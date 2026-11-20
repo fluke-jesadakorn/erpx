@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
-    "./adapters/eligibility": "./src/adapters/eligibility.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/benefits": "./src/adapters/benefits.ts",
     "./adapters/payroll-owner-facts": "./src/adapters/payroll-owner-facts.ts",
@@ -19,7 +18,6 @@
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/attachments-sensitive-facts": "./src/adapters/attachments-sensitive-facts.ts",
     "./adapters/payroll-source-facts": "./src/adapters/payroll-source-facts.ts",
-    "./public/eligibility": "./src/public/eligibility.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/benefits": "./src/public/benefits.ts",
     "./public/payroll-owner-facts": "./src/public/payroll-owner-facts.ts",
@@ -32,9 +30,7 @@
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/attachments-sensitive-facts": "./src/public/attachments-sensitive-facts.ts",
     "./public/payroll-source-facts": "./src/public/payroll-source-facts.ts",
-    "./index": "./src/index.ts",
     "./application/benefits": "./src/application/benefits.ts",
-    "./domain/eligibility": "./src/domain/eligibility.ts",
     "./domain/benefits": "./src/domain/benefits.ts"
   },
   "scripts": {

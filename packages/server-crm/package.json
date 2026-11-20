@@ -51,7 +51,6 @@
     "./public/collaboration-notification-lead": "./src/public/collaboration-notification-lead.ts",
     "./public/sales-package-obligations": "./src/public/sales-package-obligations.ts",
     "./public/collaboration-notification-snapshot-sources": "./src/public/collaboration-notification-snapshot-sources.ts",
-    "./index": "./src/index.ts",
     "./application/analytics": "./src/application/analytics.ts",
     "./application/leads": "./src/application/leads.ts",
     "./application/identities": "./src/application/identities.ts",

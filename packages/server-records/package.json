@@ -64,7 +64,6 @@
     "./public/mention-display": "./src/public/mention-display.ts",
     "./public/records": "./src/public/records.ts",
     "./public/employee-requests": "./src/public/employee-requests.ts",
-    "./public/record-owner-pages": "./src/public/record-owner-pages.ts",
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",
     "./public/workflow-final-owner-projections": "./src/public/workflow-final-owner-projections.ts",
     "./public/source-record-contract": "./src/public/source-record-contract.ts",
@@ -76,7 +75,6 @@
     "./public/source-record-policy": "./src/public/source-record-policy.ts",
     "./public/request-override-read": "./src/public/request-override-read.ts",
     "./public/request-page": "./src/public/request-page.ts",
-    "./index": "./src/index.ts",
     "./application/record-domain-details": "./src/application/record-domain-details.ts",
     "./application/request-preview": "./src/application/request-preview.ts",
     "./application/self-service": "./src/application/self-service.ts",
@@ -90,15 +88,11 @@
     "./application/request-page": "./src/application/request-page.ts",
     "./domain/record-domain-details": "./src/domain/record-domain-details.ts",
     "./domain/commands": "./src/domain/commands.ts",
-    "./domain/request-preview": "./src/domain/request-preview.ts",
-    "./domain/self-service": "./src/domain/self-service.ts",
     "./domain/request-ai": "./src/domain/request-ai.ts",
-    "./domain/business-evidence": "./src/domain/business-evidence.ts",
     "./domain/records": "./src/domain/records.ts",
     "./domain/employee-requests": "./src/domain/employee-requests.ts",
     "./domain/record-details": "./src/domain/record-details.ts",
-    "./domain/source-record-policy": "./src/domain/source-record-policy.ts",
-    "./domain/request-page": "./src/domain/request-page.ts"
+    "./domain/source-record-policy": "./src/domain/source-record-policy.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
