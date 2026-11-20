@@ -1,3 +1,4 @@
+pub(crate) mod social_source_policy;
 pub(crate) mod task_source_origin;
 pub(crate) mod legal_hold_notifications;
 pub(crate) mod web_push_preferences;

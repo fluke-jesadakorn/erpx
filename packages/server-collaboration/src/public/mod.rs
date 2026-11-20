@@ -62,3 +62,10 @@ pub mod task_source_origin {
         bind_task_origin, into_business, TaskOriginBinding,
     };
 }
+
+/// Native Collaboration published-post source policy port.
+pub mod social_source_policy {
+    pub use crate::adapters::social_source_policy::{
+        into_business, read_published_post, source_guard, source_hash, PublishedPost, SourceItem,
+    };
+}
