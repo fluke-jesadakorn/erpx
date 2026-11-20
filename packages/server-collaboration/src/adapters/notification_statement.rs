@@ -2369,3 +2369,112 @@ pub async fn legal_stored_document_insert_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal corpus: insert a source chunk.
+pub async fn legal_source_chunk_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_source_chunks(id,company_id,item_id,document_id,document_checksum,\
+ revision_id,text_review_id,page,page_mapping,section,text,text_checksum) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal corpus: register a law source.
+pub async fn legal_law_source_register_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_law_sources(id,company_id,rule_id,title,source_url,created_by,created_at) VALUES(?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal corpus: import a law revision.
+pub async fn legal_law_revision_import_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_law_revisions(id,company_id,rule_id,source_id,document_id,document_checksum,\
+ revision_label,published_on,effective_from,effective_until,extraction_method,inspection_id,created_by,created_at) \
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal corpus: bind a candidate revision to a source check.
+pub async fn legal_source_check_bind_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_law_source_checks SET candidate_revision_id=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal corpus: import document text as a text review.
+pub async fn legal_text_review_import_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_text_reviews(id,company_id,item_id,document_id,document_checksum,\
+ extraction_method,inspection_id,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal corpus: propose law applicability.
+pub async fn legal_applicability_propose_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_law_applicability(id,company_id,rule_id,revision_id,applies,basis,created_by,created_at) VALUES(?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal corpus: approve law applicability.
+pub async fn legal_applicability_approve_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_law_applicability SET state='approved',reviewed_by=?,reviewed_at=?,version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal corpus: mark a source check reviewed.
+pub async fn legal_source_check_review_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_law_source_checks SET state='reviewed' WHERE candidate_revision_id=? AND state='pending_review'".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
