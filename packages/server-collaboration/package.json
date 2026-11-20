@@ -230,7 +230,8 @@
     "./public/native-messaging-page": "./src/public/native-messaging-page.ts",
     "./public/native-inbox-page": "./src/public/native-inbox-page.ts",
     "./public/native-collaboration-page": "./src/public/native-collaboration-page.ts",
-    "./adapters/native-notification-statement": "./src/adapters/native-notification-statement.ts"
+    "./adapters/native-notification-statement": "./src/adapters/native-notification-statement.ts",
+    "./adapters/native-legal-approval-notification": "./src/adapters/native-legal-approval-notification.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

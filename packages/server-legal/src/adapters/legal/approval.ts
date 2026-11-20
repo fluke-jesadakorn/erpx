@@ -10,7 +10,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {legalEvidenceSamePerson} from "@erpx/server-identity_access/public/legal-evidence-identity";
 import {legalApprovalFacts} from "@erpx/server-workflow/public/legal-approval-facts";
-import {legalApprovalNotifications} from "@erpx/server-collaboration/public/legal-approval-notifications";
+import {nativeLegalApprovalNotification} from "@erpx/server-collaboration/adapters/native-legal-approval-notification";
 import {openApproval,currentApproval} from '@erpx/server-workflow/public/approval-planning';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
@@ -18,7 +18,7 @@ import {access,guards,eligible,personGuard} from "@erpx/server-legal/adapters/le
 import type {DocumentVersion,LegalItem} from "@erpx/server-legal/domain/model";
 import {createLegalApprovalApplication} from "@erpx/server-legal/application/approval";
 import type {LegalWrite} from "@erpx/server-legal/application/service";
-function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),collaboration=legalApprovalNotifications(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
+function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalApprovalApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),hash:value=>createHash("sha256").update(value).digest("hex"),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 routeSteps:facts=>workflow.routeSteps(facts),
 decisionHistory:facts=>workflow.decisionHistory(facts),
@@ -44,7 +44,7 @@ recordDecision:facts=>stage(workflow.recordDecision(facts)),
 nextReviewer:facts=>workflow.nextReviewer(facts),
 cancelRoute:facts=>stage(workflow.cancelRoute(facts)),
 advanceStep:facts=>stage(workflow.advanceStep(facts)),
-notifyReviewer:facts=>stage(collaboration.notifyReviewer(facts)),
+notifyReviewer:async facts=>stage(await nativeLegalApprovalNotification(db,a,facts)),
 approveRoute:facts=>stage(workflow.approveRoute(facts)),
 recordApproval:(facts:{itemId:string;nextVersion:number;document_id:string;document_hash:string;signerIdsJson:string;actorId:string;now:number;})=>stage(db.prepare("INSERT INTO legal_approvals VALUES(?,?,?,?,?::jsonb,?,'approved',?)").bind(facts.itemId,facts.nextVersion,facts.document_id,facts.document_hash,facts.signerIdsJson,facts.actorId,facts.now)),
 advanceContract:(facts:{state:string;now:number;itemId:string;})=>stage(db.prepare("UPDATE legal_items SET state=?,version=version+1,updated_at=? WHERE id=?").bind(facts.state,facts.now,facts.itemId)),

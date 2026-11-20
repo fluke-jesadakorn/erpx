@@ -27,6 +27,12 @@ pub struct NotificationStatementInput {
     pub kind: Option<String>,
     #[serde(default)]
     pub lead_id: Option<String>,
+    #[serde(default)]
+    pub identifier: Option<String>,
+    #[serde(default)]
+    pub approver_user_id: Option<String>,
+    #[serde(default)]
+    pub item_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -91,7 +97,8 @@ mod tests {
         let _i = NotificationStatementInput {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
-            idempotency_key: "k".into(), kind: None, lead_id: None,
+            idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
+            approver_user_id: None, item_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -146,5 +153,49 @@ mod crm_tests {
         let src = include_str!("crm_activity_notification.rs");
         assert!(src.contains("'crm_lead'"));
         assert!(src.contains("CRM handoff changed"));
+    }
+}
+
+
+/// Legal approval reviewer notice. Exact retained SQL shape, generated natively
+/// from the supplied facts so the Legal adapter carries no second copy.
+pub async fn legal_approval_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    identifier: &str,
+    approver_user_id: &str,
+    item_id: &str,
+    next_version: i64,
+    now: i64,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if identifier.is_empty() || approver_user_id.is_empty() || item_id.is_empty() || next_version < 1 {
+        return Err(invalid().into());
+    }
+    Ok(NotificationStatement {
+        sql: "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) VALUES(?,?,?,'legal',?,?,'Legal approval needs your decision',?)"
+            .to_owned(),
+        values: vec![
+            serde_json::Value::String(identifier.to_owned()),
+            serde_json::Value::String(company.as_str().to_owned()),
+            serde_json::Value::String(approver_user_id.to_owned()),
+            serde_json::Value::String(item_id.to_owned()),
+            serde_json::Value::Number(next_version.into()),
+            serde_json::Value::Number(now.into()),
+        ],
+    })
+}
+
+
+#[cfg(test)]
+mod legal_tests {
+    #[test]
+    fn legal_notice_keeps_retained_shape() {
+        let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) VALUES(?,?,?,'legal',?,?,'Legal approval needs your decision',?)";
+        assert!(sql.contains("'legal'"));
+        assert!(sql.contains("Legal approval needs your decision"));
+        assert_eq!(sql.matches('?').count(), 6);
     }
 }

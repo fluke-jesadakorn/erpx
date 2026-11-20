@@ -6,8 +6,8 @@
 //! need the Files and Work-projection ports.
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_collaboration::public::notification_statement::{
-    crm_lead_notification_statement, notification_statement, NotificationStatement,
-    NotificationStatementInput,
+    crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
+    NotificationStatement, NotificationStatementInput,
 };
 use erpx_server_collaboration::public::notification_statement_http::{
     StatementBackend, StatementFuture, StatementRequest,
@@ -2140,7 +2140,19 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("crm_lead") {
+                        if input.kind.as_deref() == Some("legal_approval") {
+                            legal_approval_notification_statement(
+                                connection,
+                                &company_id,
+                                input.identifier.as_deref().unwrap_or_default(),
+                                input.approver_user_id.as_deref().unwrap_or_default(),
+                                input.item_id.as_deref().unwrap_or_default(),
+                                input.record_version,
+                                input.now,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("crm_lead") {
                             let lead_id = input.lead_id.as_deref().unwrap_or_default();
                             crate::collaboration::crm_lead_notification_statement(
                                 connection, &company_id, lead_id, &input.idempotency_key,
@@ -2169,8 +2181,8 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
         Error,
     > {
         use erpx_server_collaboration::public::notification_statement::{
-    crm_lead_notification_statement, notification_statement, NotificationStatement,
-    NotificationStatementInput,
+    crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
+    NotificationStatement, NotificationStatementInput,
 };
 use erpx_server_collaboration::public::notification_statement_http::{
     StatementBackend, StatementFuture, StatementRequest,

@@ -24,7 +24,7 @@ recordDecision(facts:{key:string;instanceId:string;id:string;decision:"approve" 
 nextReviewer(facts:{instanceId:string;nextStep:number;}):Promise<{ approver_user_id: string; } | null>;
 cancelRoute(facts:{value0:"rejected" | "cancelled";now:number;instanceId:string;}):LegalWrite;
 advanceStep(facts:{now:number;instanceId:string;}):LegalWrite;
-notifyReviewer(facts:{identifier:string;companyId:string;approver_user_id:string;itemId:string;nextVersion:number;now:number;}):LegalWrite;
+notifyReviewer(facts:{identifier:string;companyId:string;approver_user_id:string;itemId:string;nextVersion:number;now:number;}):Promise<LegalWrite>;
 approveRoute(facts:{now:number;instanceId:string;}):LegalWrite;
 recordApproval(facts:{itemId:string;nextVersion:number;document_id:string;document_hash:string;signerIdsJson:string;actorId:string;now:number;}):LegalWrite;
 advanceContract(facts:{state:string;now:number;itemId:string;}):LegalWrite;
@@ -236,7 +236,7 @@ async function legalApprovalCommand(
       } else if (next) {
         steps.push(
           ports.repository.advanceStep({now:ports.clock.now(),instanceId:instance.id}),
-          ports.repository.notifyReviewer({identifier:ports.identifiers.next(),companyId:a.companyId,approver_user_id:next.approver_user_id,itemId:item.id,nextVersion:item.version + 1,now:ports.clock.now()}),
+          await ports.repository.notifyReviewer({identifier:ports.identifiers.next(),companyId:a.companyId,approver_user_id:next.approver_user_id,itemId:item.id,nextVersion:item.version + 1,now:ports.clock.now()}),
         );
       } else {
         state = "approved";

@@ -36,6 +36,9 @@ export async function nativeNotificationStatement(
     message: string;
     kind?: string;
     leadId?: string;
+    identifier?: string;
+    approver_user_id?: string;
+    item_id?: string;
   },
   key: string,
   now: number,

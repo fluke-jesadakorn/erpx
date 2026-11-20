@@ -73,7 +73,8 @@ pub mod social_source_policy {
 /// Native-owned notification statement port.
 pub mod notification_statement {
     pub use crate::adapters::notification_statement::{
-        crm_lead_notification_statement, notification_statement, NotificationStatement,
+        crm_lead_notification_statement, legal_approval_notification_statement, notification_statement,
+        NotificationStatement,
         NotificationStatementInput,
     };
 }
