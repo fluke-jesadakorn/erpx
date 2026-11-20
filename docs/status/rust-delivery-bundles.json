@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3529,
+    "revision": 3535,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T17:30:25.038Z",
-      "expiresAt": "2026-11-20T18:00:25.038Z",
+      "heartbeatAt": "2026-11-20T17:35:57.988Z",
+      "expiresAt": "2026-11-20T18:05:57.988Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -57585,6 +57585,115 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.document-derivatives",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire document derivative TS writers (3 writes)",
+        "scope": "Delete the 3 INSERTs in document-derivatives.ts; native doc_attachment_record/derivative/storage statements own them.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-collaboration/src/**",
+          "packages/workplace/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "3be5ac2857b71310b467b21ae5637df4442eea0c",
+        "lastPushedSha": "3be5ac2857b71310b467b21ae5637df4442eea0c",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3be5ac2857b71310b467b21ae5637df4442eea0c",
+            "sourceKind": "committed",
+            "before": 101,
+            "after": 98,
+            "note": "Retired 3 TS document derivative writers; files KPI 101->98, global 1847->1844.",
+            "residual": [
+              {
+                "path": "packages/server-files/src/adapters/attachments/hospitality-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/migration.ts",
+                "writes": 24,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/orphan-preservation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/service-repository.ts",
+                "writes": 55,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/beta-resource-cleanup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-portal-repository.ts",
+                "writes": 10,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/private-attachment-reads.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "3be5ac2857b71310b467b21ae5637df4442eea0c",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "3be5ac2857b71310b467b21ae5637df4442eea0c",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + 29/29 files storage unit."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native document derivatives; files KPI 101->98, global 1847->1844.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -57593,21 +57702,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 288,
-      "migratedPackets": 175,
+      "totalPackets": 289,
+      "migratedPackets": 176,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 175,
+        "migrated": 176,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T17:30:25.039Z",
+    "updatedAt": "2026-11-20T17:35:57.990Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "4265266bbc571d341b9a3e1efa625b324bc75ce2",
