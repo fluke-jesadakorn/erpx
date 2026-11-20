@@ -1629,3 +1629,49 @@ pub async fn customer_portal_action_statement(
         ],
     })
 }
+
+
+/// Release acceptance: submitted lifecycle event.
+pub async fn release_event_submitted_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,\
+ detail_json,created_at) VALUES(?,?,?,1,'submitted',?,?,?)".to_owned(),
+        values: vec![value(&input.idempotency_key), value(company.as_str()), value(&input.record_id), value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into())],
+    })
+}
+
+/// Release acceptance: reviewed lifecycle event.
+pub async fn release_event_reviewed_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,\
+ detail_json,created_at) VALUES(?,?,?,?,'reviewed',?,?,?)".to_owned(),
+        values: vec![value(&input.idempotency_key), value(company.as_str()), value(&input.record_id), serde_json::Value::Number(input.record_version.into()), value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into())],
+    })
+}
+
+/// Release acceptance: revoked lifecycle event.
+pub async fn release_event_revoked_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,\
+ detail_json,created_at) VALUES(?,?,?,?,'revoked',?,?,?)".to_owned(),
+        values: vec![value(&input.idempotency_key), value(company.as_str()), value(&input.record_id), serde_json::Value::Number(input.record_version.into()), value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into())],
+    })
+}

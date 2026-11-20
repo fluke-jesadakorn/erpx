@@ -15,6 +15,7 @@ import {authorityGuard,companyAuthority} from "@erpx/server-operations/public/st
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {createReleaseAcceptanceApplication,type ReleaseRepository} from "@erpx/server-platform_administration/application/release-acceptance";
 import type {ReleaseRow,ReviewRow} from "@erpx/server-platform_administration/domain/release-acceptance";
+import { nativeReleaseEvents } from '@erpx/server-collaboration/adapters/native-release-events';
 
 
 
@@ -58,8 +59,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
       setup_version,evidence_sha256,evidence_json,requested_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(id, actor.companyId, input.scopeVersion, input.softwareVersion, current.configurationRevision,
         current.setupVersion, digest, evidence, actor.userId, input.reason, now, now),
-    db.prepare("INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,detail_json,created_at) VALUES(?,?,?,1,'submitted',?,?,?)")
-      .bind(`release-event-${key}`, actor.companyId, id, actor.userId, JSON.stringify({ reason: input.reason, evidenceSha256: digest }), now),
+    await nativeReleaseEvents(db).submitted({ key, companyId: actor.companyId, releaseId: id, version: 1, userId: actor.userId, detail: JSON.stringify({ reason: input.reason, evidenceSha256: digest }), now }),
   ]);},
  review:async(command,row,facts)=>{const {key,operation,id,input}=command,{inputs,scope,version,now}=facts,a=workActor(),actor=a,criterion={permission:facts.permission};return executeCommand(db, actor, key, operation, input, id, version, { id, version, criterionId: input.criterionId, state: input.state }, [
     authorityGuard(db, key, actor, criterion.permission),
@@ -73,16 +73,14 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
       assignment_id=excluded.assignment_id,permission=excluded.permission,reason=excluded.reason,reviewed_at=excluded.reviewed_at`)
       .bind(actor.companyId, id, input.criterionId, input.state, actor.userId, actor.assignmentId, criterion.permission, input.reason, now),
     db.prepare('UPDATE company_release_acceptances SET version=?,updated_at=? WHERE company_id=? AND id=?').bind(version, now, actor.companyId, id),
-    db.prepare("INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,detail_json,created_at) VALUES(?,?,?,?,'reviewed',?,?,?)")
-      .bind(`release-event-${key}`, actor.companyId, id, version, actor.userId, JSON.stringify(input), now),
+    await nativeReleaseEvents(db).reviewed({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
  revoke:async(command,facts)=>{const {key,operation,id,input}=command,{version,now}=facts,a=workActor(),actor=a;return executeCommand(db, actor, key, operation, input, id, version, { id, version, state: 'pending' as const }, [
     authorityGuard(db, key, actor, 'organization.manage'),
     db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE').bind(actor.companyId, id),
     assertion(db, key, 'release-version', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)', [actor.companyId, id, input.expectedVersion]),
     db.prepare('UPDATE company_release_acceptances SET revoked_at=?,version=?,updated_at=? WHERE company_id=? AND id=?').bind(now, version, now, actor.companyId, id),
-    db.prepare("INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,detail_json,created_at) VALUES(?,?,?,?,'revoked',?,?,?)")
-      .bind(`release-event-${key}`, actor.companyId, id, version, actor.userId, JSON.stringify(input), now),
+    await nativeReleaseEvents(db).revoked({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
  evidenceRow:id=>db.prepare('SELECT version,revoked_at FROM company_release_acceptances WHERE company_id=? AND id=?').bind(companyId,id).first<{version:number;revoked_at:number|null}>(),
  prepareEvidence:async(command,version)=>{const {key,operation,id,input}=command,a=workActor(),actor=a,prepared=await prepareAttachmentBinding(db,actor,{
