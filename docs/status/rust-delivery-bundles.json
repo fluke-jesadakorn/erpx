@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3227,
+    "revision": 3233,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:20:33.498Z",
-      "expiresAt": "2026-11-20T10:50:33.498Z",
+      "heartbeatAt": "2026-11-20T10:34:59.441Z",
+      "expiresAt": "2026-11-20T11:04:59.441Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47266,16 +47266,90 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add people_payroll workforce HTTP router/target/backend using PgWorkforceCommand with the composed placement/account-link ports, mount in private API.",
-        "handoff": null,
+        "checks": [
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-people_payroll/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "before": 291,
+            "after": 285,
+            "note": "Deleted the 6 TS roster-position-exit SQL writers; native People workforce command with Organization/Identity ports is authoritative."
+          },
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "before": 1928,
+            "after": 1922,
+            "note": "Global retirement KPI drops 6."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "Native workforce HTTP router, composition service and both owner ports compile and the router is mounted in the private API."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "Native Next transport, workplace route switch and fixture oracle typecheck."
+          },
+          {
+            "command": "bunx vitest run tests/unit/people_payroll --exclude '.scratch/**'",
+            "result": "failed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "425 tests passed; 2 pre-existing suites (leave-self-service, organization-consumers) fail at import time on server-only and do not import the changed capability."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=people_payroll.roster.integration",
+            "result": "failed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "Runner startup error in Vite source-map handling (code.charCodeAt is not a function); the 31 roster cases did not execute. Fixture oracle was updated and server-only mocked."
+          },
+          {
+            "command": "bun run docs:check",
+            "result": "passed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "Documentation and generated inventories pass after source-list cleanup."
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "Repository layout passes."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "tests/support/people_payroll/roster-exit-fixture.ts",
+            "removalTaskId": "retire.people_payroll.fixture-oracle",
+            "removalCondition": "Replace the copied TypeScript roster-exit SQL oracle with native-seeded PostgreSQL fixtures and delete the copy once the native workforce integration harness covers the roster suite."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: native route/client authority, TS writer/barrel/export deletion, oracle move and KPI 1928->1922 / 291->285 are recorded at 8ddff0e2d. Blocker is the registered roster integration runner failing at Vite startup (source-map TypeError) and 2 pre-existing unit suites failing on server-only; no KPI regression. Next: resolve the runner fault, re-run people_payroll.roster.integration, then mark migrated with cutover flags.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T10:34:51.307Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: native route/client authority, TS writer/barrel/export deletion, oracle move and KPI 1928->1922 / 291->285 are recorded at 8ddff0e2d. Blocker is the registered roster integration runner failing at Vite startup (source-map TypeError) and 2 pre-existing unit suites failing on server-only; no KPI regression. Next: resolve the runner fault, re-run people_payroll.roster.integration, then mark migrated with cutover flags."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -47356,6 +47430,39 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.fixture-oracle",
+        "goalId": "G4",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Replace fixture-only roster exit oracle with native seeding",
+        "scope": "Delete tests/support/people_payroll/roster-exit-fixture.ts once the native People workforce integration harness seeds roster exit effects directly.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "tests/support/people_payroll/**",
+          "tests/integration/people_payroll/**",
+          "packages/server-people_payroll/src/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Native roster integration harness must seed the same owner rows before the fixture copy is deleted.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -47364,7 +47471,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 244,
+      "totalPackets": 245,
       "migratedPackets": 131,
       "statusCounts": {
         "pending": 23,
@@ -47372,13 +47479,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 131,
-        "blocked": 90,
+        "blocked": 91,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:20:33.500Z",
+    "updatedAt": "2026-11-20T10:34:59.443Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
