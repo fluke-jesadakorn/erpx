@@ -8,21 +8,21 @@ export type LegalRetentionRepository={
 policies(facts:{companyId:string;}):Promise<LegalRows<Record<string, unknown>>>;
 assignment(facts:{id:string;}):Promise<Record<string, unknown> | null>;
 requests(facts:{id:string;}):Promise<LegalRows<{id:string}&Record<string, unknown>>>;
-createPolicy(facts:{key:string;companyId:string;name:string;days:number;reason:string;actorId:string;now:number;}):LegalWrite;
+createPolicy(facts:{key:string;companyId:string;name:string;days:number;reason:string;actorId:string;now:number;}):Promise<LegalWrite>;
 policy(facts:{policyId:string | undefined;companyId:string;}):Promise<{ id: string; created_by: string; state: string; version: number; } | null>;
-decidePolicy(facts:{fact0:"approved" | "retired";actorId:string;id:string;}):LegalWrite;
+decidePolicy(facts:{fact0:"approved" | "retired";actorId:string;id:string;}):Promise<LegalWrite>;
 approvedPolicy(facts:{policyId:string | undefined;companyId:string;}):Promise<{ id: string; days: number; version: number; } | null>;
-assignRetention(facts:{id:string;id2:string;version:number;updated_at:number;timezone:string;days:number;timezone2:string;actorId:string;now:number;}):LegalWrite;
+assignRetention(facts:{id:string;id2:string;version:number;updated_at:number;timezone:string;days:number;timezone2:string;actorId:string;now:number;}):Promise<LegalWrite>;
 eligibleAssignment(facts:{id:string;now:number;}):Promise<{ policy_id: string; policy_version: number; } | null>;
-requestDestruction(facts:{key:string;id:string;policy_id:string;policy_version:number;actorId:string;reason:string;manifestJson:string;now:number;}):LegalWrite;
+requestDestruction(facts:{key:string;id:string;policy_id:string;policy_version:number;actorId:string;reason:string;manifestJson:string;now:number;}):Promise<LegalWrite>;
 destruction(facts:{requestId:string | undefined;id:string;}):Promise<{ id: string; state: string; requested_by: string; approved_by: string | null; } | null>;
-changeDestruction(facts:{state:string;fact1:string | null;fact2:number | null;id:string;}):LegalWrite;
-advanceRecord(facts:{now:number;id:string;}):LegalWrite;
+changeDestruction(facts:{state:string;fact1:string | null;fact2:number | null;id:string;}):Promise<LegalWrite>;
+advanceRecord(facts:{now:number;id:string;}):Promise<LegalWrite>;
 requireRetentionPolicyVersion(key:string,values:(string|number)[]):LegalWrite;
 requireRetentionNoHold(key:string,values:string[]):LegalWrite;
 guardChanges(id:string,version:number,key:string,edit?:boolean,allowFrozen?:boolean):LegalWrite[];
 companyLock():LegalWrite;
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay(key:string,operation:string,id:string,input:unknown):Promise<Record<string,unknown>|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -92,7 +92,7 @@ async function retentionCommand(
         })
         .parse(raw);
       steps.push(
-        ports.repository.createPolicy({key:key,companyId:a.companyId,name:p.name,days:p.days,reason:x.reason,actorId:a.userId,now:ports.clock.now()}),
+        await ports.repository.createPolicy({key:key,companyId:a.companyId,name:p.name,days:p.days,reason:x.reason,actorId:a.userId,now:ports.clock.now()}),
       );
     } else {
       const p = await ports.repository.policy({policyId:x.policyId,companyId:a.companyId});
@@ -108,7 +108,7 @@ async function retentionCommand(
         );
       steps.push(
         ports.repository.requireRetentionPolicyVersion(key,[p.id, p.version]),
-        ports.repository.decidePolicy({fact0:x.action === "retention.approve-policy" ? "approved" : "retired",actorId:a.userId,id:p.id}),
+        await ports.repository.decidePolicy({fact0:x.action === "retention.approve-policy" ? "approved" : "retired",actorId:a.userId,id:p.id}),
       );
     }
     return ports.repository.commit(key,x.action,raw,a.companyId,1,{ id: a.companyId, version: 1 },steps);
@@ -127,7 +127,7 @@ async function retentionCommand(
     const policy = await ports.repository.approvedPolicy({policyId:x.policyId,companyId:a.companyId});
     if (!policy) fail("Select an approved Company policy.");
     steps.push(
-      ports.repository.assignRetention({id:item.id,id2:policy.id,version:policy.version,updated_at:item.updated_at,timezone:item.timezone,days:policy.days,timezone2:item.timezone,actorId:a.userId,now:ports.clock.now()}),
+      await ports.repository.assignRetention({id:item.id,id2:policy.id,version:policy.version,updated_at:item.updated_at,timezone:item.timezone,days:policy.days,timezone2:item.timezone,actorId:a.userId,now:ports.clock.now()}),
     );
   } else if (x.action === "retention.request") {
     const assignment = await ports.repository.eligibleAssignment({id:item.id,now:ports.clock.now()});
@@ -142,7 +142,7 @@ async function retentionCommand(
     steps.push(noHold( item.id, key));
     const manifest = await ports.manifest(item.id,item.company_id);
     steps.push(
-      ports.repository.requestDestruction({key:key,id:item.id,policy_id:assignment.policy_id,policy_version:assignment.policy_version,actorId:a.userId,reason:x.reason,manifestJson:JSON.stringify(manifest),now:ports.clock.now()}),
+      await ports.repository.requestDestruction({key:key,id:item.id,policy_id:assignment.policy_id,policy_version:assignment.policy_version,actorId:a.userId,reason:x.reason,manifestJson:JSON.stringify(manifest),now:ports.clock.now()}),
     );
   } else {
     const r = await ports.repository.destruction({requestId:x.requestId,id:item.id});
@@ -170,12 +170,12 @@ async function retentionCommand(
       state = "cancelled";
     }
     steps.push(
-      ports.repository.changeDestruction({state:state,fact1:state === "approved" ? a.userId : null,fact2:state === "approved" ? ports.clock.now() : null,id:r.id}),
+      await ports.repository.changeDestruction({state:state,fact1:state === "approved" ? a.userId : null,fact2:state === "approved" ? ports.clock.now() : null,id:r.id}),
     );
   }
   steps.push(
-    ports.repository.advanceRecord({now:ports.clock.now(),id:item.id}),
-    ports.repository.event(item.id,x.action,x.reason,item.version + 1,ports.identifiers.next(),ports.clock.now()),
+    await ports.repository.advanceRecord({now:ports.clock.now(),id:item.id}),
+    await ports.repository.event(item.id,x.action,x.reason,item.version + 1,ports.identifiers.next(),ports.clock.now()),
   );
   return ports.repository.commit(key,x.action,raw,item.id,item.version + 1,{ id: item.id, version: item.version + 1 },steps);
 }

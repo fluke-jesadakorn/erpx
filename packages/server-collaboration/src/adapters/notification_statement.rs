@@ -2190,3 +2190,72 @@ pub async fn legal_authority_decide_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal retention: create a retention policy.
+pub async fn legal_retention_policy_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_retention_policies(id,company_id,name,days,basis,state,created_by,created_at) VALUES(?,?,?,?,?,'draft',?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal retention: decide on a policy.
+pub async fn legal_retention_policy_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_retention_policies SET state=?,approved_by=?,version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal retention: assign a policy to an item with eligible-at computation.
+pub async fn legal_retention_assign_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_retention_assignments(item_id,policy_id,policy_version,eligible_at,\
+ assigned_by,created_at) VALUES(?,?,?,(extract(epoch FROM (((to_timestamp(?::double precision/1000) AT TIME ZONE ?)::date + ?::int)::timestamp AT TIME ZONE ?))*1000)::bigint,?,?) ON CONFLICT(item_id) DO UPDATE SET policy_id=excluded.policy_id,policy_version=excluded.policy_version,eligible_at=excluded.eligible_at,assigned_by=excluded.assigned_by".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal retention: request a destruction.
+pub async fn legal_retention_request_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,\
+ reason,manifest,created_at) VALUES(?,?,?,?,?,'requested',?,?::jsonb,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal retention: change destruction state/approval with coalesce.
+pub async fn legal_retention_change_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_destructions SET state=?,approved_by=coalesce(?,approved_by),\
+ approved_at=coalesce(?,approved_at),version=version+1,error=NULL,attempts=0 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
