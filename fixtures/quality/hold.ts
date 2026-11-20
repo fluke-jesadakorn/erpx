@@ -10,7 +10,7 @@
 import {createHash} from 'node:crypto';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {prepareQualityNotification} from '@erpx/server-collaboration/public/quality-notifications';
+import {seedQualityHandoffNotice} from './handoff-notice-oracle';
 
 export type QualityHoldSeed = {
   warehouseId:string;
@@ -124,7 +124,7 @@ export async function seedNativeQualityHold(
     // Downstream Work/Inbox assertions read the declared handoff row. The
     // native hold-create composition stages only the source row today, so the
     // fixture supplies the handoff explicitly rather than implying it.
-    await prepareQualityNotification(tx,key,id).run();
+    await seedQualityHandoffNotice(tx,key,id).run();
     return {id,status:'held' as const,version:1 as const};
   });
 }

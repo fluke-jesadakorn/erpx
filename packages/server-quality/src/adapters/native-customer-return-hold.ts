@@ -13,6 +13,7 @@ export type HoldStatement = Readonly<{ sql: string; values: unknown[] }>;
 export type CustomerReturnHoldStatements = Readonly<{
   specGuard: HoldStatement | null;
   hold: HoldStatement;
+  notification: HoldStatement;
 }>;
 
 function configuration(): Settings {

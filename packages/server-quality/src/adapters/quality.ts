@@ -2,7 +2,6 @@ import {qualitySourceAccess,qualityVisibleHolds,requireQualityPurchasedRead} fro
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
-import {prepareQualityNotification as notify} from '@erpx/server-collaboration/public/quality-notifications';
 import {nativeCustomerReturnHoldStatements} from './native-customer-return-hold';
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import 'server-only';
@@ -32,7 +31,7 @@ function repository(write:SqlDatabase,actor:WorkContext):QualityRepository<SqlSt
    const statements=await nativeCustomerReturnHoldStatements(actor,input,actor.userId,now);
    const steps:SqlStatement[]=[];
    if(statements.specGuard)steps.push(write.prepare(statements.specGuard.sql).bind(...statements.specGuard.values));
-   steps.push(write.prepare(statements.hold.sql).bind(...statements.hold.values),notify(write,input.key,input.id));
+   steps.push(write.prepare(statements.hold.sql).bind(...statements.hold.values),write.prepare(statements.notification.sql).bind(...statements.notification.values));
    return steps;
  }
 };}

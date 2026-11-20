@@ -17,6 +17,11 @@ const HOLD_SQL: &str = "INSERT INTO inventory_quality_holds(id,company_id,branch
  source_type,source_id,spec_id,spec_version,quantity_scope) \
  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'partial')";
 
+/// Quality handoff verification notice for the newly created hold. Owned by the
+/// same native unit as the hold INSERT and executed after it by the caller.
+const NOTIFICATION_SQL: &str = "INSERT INTO staff_notifications(id,company_id,user_id, record_type,record_id,record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id, h.company_id,a.user_id,'quality_hold',h.id,h.version,'Quality handoff: review the source record', h.updated_at  FROM (SELECT \"id\",\"company_id\",\"branch_id\",\"warehouse_id\",\"product_id\",\"reason\", \"due_date\",\"status\",\"created_by\",\"last_inspector\",\"last_result\",\"released_by\", \"release_reason\",\"released_at\",\"version\",\"created_at\",\"updated_at\", \"cancel_requested_by\",\"cancel_reason\",\"cancelled_by\",\"cancelled_at\",\"lot_id\", \"held_quantity_milli\",\"source_type\",\"source_id\",\"disposition_kind\", \"disposition_reason\",\"disposition_requested_by\",\"disposition_count_id\",\"disposed_by\", \"disposed_at\",\"spec_id\",\"spec_version\",\"quantity_scope\",\
+ \"disposition_quantity_milli\" FROM inventory_quality_holds) h  JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\", \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\", \"parent_id\",\"source\",\"source_id\" FROM assignments) a  ON ((a.company_id=h.company_id AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=h.branch_id))  AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)  AND iam_role_allows(a.role,a.company_id,CASE WHEN h.status IN ('awaiting_release','cancel_pending')  THEN 'quality.release' ELSE 'quality.inspect' END)  AND NOT iam_same_person(a.user_id,h.created_by,h.company_id)  AND (h.status<>'cancel_pending' OR NOT iam_same_person(a.user_id,h.cancel_requested_by,h.company_id))  AND (h.status<>'awaiting_release' OR NOT iam_same_person(a.user_id,h.last_inspector,h.company_id))  AND h.status NOT IN ('released','cancelled','disposed'))  OR (h.status IN ('released','cancelled','disposed') AND a.company_id=h.company_id  AND a.user_id=h.created_by  AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=h.branch_id))  AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)  AND iam_role_allows(a.role,a.company_id,'quality.read')))  WHERE h.id=? ON CONFLICT DO NOTHING";
+
 /// Exact wire shape of the legacy `ReceiptQualityHold` input.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -46,6 +51,7 @@ pub struct HoldStatement {
 pub struct CustomerReturnHoldStatements {
     pub spec_guard: Option<HoldStatement>,
     pub hold: HoldStatement,
+    pub notification: HoldStatement,
 }
 
 fn invalid() -> BusinessError {
@@ -134,12 +140,16 @@ pub async fn customer_return_hold_statements(
                 values
             },
         },
+        notification: HoldStatement {
+            sql: NOTIFICATION_SQL.to_owned(),
+            values: vec![value(&input.key), value(&input.id)],
+        },
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CustomerReturnHoldInput, HOLD_SQL};
+    use super::{CustomerReturnHoldInput, HOLD_SQL, NOTIFICATION_SQL};
 
     #[test]
     fn hold_statement_shape_matches_legacy_writer() {
@@ -152,5 +162,8 @@ mod tests {
         assert!(HOLD_SQL.contains("INSERT INTO inventory_quality_holds"));
         assert!(HOLD_SQL.contains("'partial'"));
         assert_eq!(HOLD_SQL.matches('?').count(), 16);
+        assert!(NOTIFICATION_SQL.contains("INSERT INTO staff_notifications"));
+        assert!(NOTIFICATION_SQL.contains("'quality_hold'"));
+        assert_eq!(NOTIFICATION_SQL.matches('?').count(), 2);
     }
 }
