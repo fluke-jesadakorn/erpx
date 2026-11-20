@@ -21,8 +21,9 @@ import {tables,access,enabled,visibility,guards,lock,eligible,personGuard} from 
 import {legalPeople} from "@erpx/server-legal/adapters/legal/assignees";
 import type {LegalItem,LegalDetail,DocumentVersion} from "@erpx/server-legal/domain/model";
 import {createLegalRegisterApplication,type LegalWrite,type LegalListQuery} from "@erpx/server-legal/application/service";
+import { legalService } from '@erpx/server-collaboration/adapters/native-legal-service';
 export const hash=(value:string|Uint8Array)=>createHash("sha256").update(value).digest("hex");
-function application(db:SqlDatabase,a:WorkContext,readScope?:Promise<Awaited<ReturnType<typeof legalReadScope>>>){
+function application(db:SqlDatabase,a:WorkContext,readScope?:Promise<Awaited<ReturnType<typeof legalReadScope>>>){const nativeSvc=legalService(db,a.companyId,a.userId,identity_accessProjectionSources.assignments,tables);
  let readObservation=readScope;const purchasedRead=()=>readObservation??=legalReadScope(db,a);
 const v=visibility(a),linkScope=visibility(a,"t"),holdScope=visibility(a,"source"),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();
 const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
@@ -105,7 +106,7 @@ signers:(envelopeId:string)=>{return db
           )
           .bind(envelopeId)
           .all<LegalDetail["envelopes"][number]["signers"][number]>();},
-recordRead:async (id:string,identifier:string,now:number)=>{await db.prepare("INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)").bind(identifier,id,null,a.userId,"record.read",now).run();},
+recordRead:async(id,identifier,now)=>{await (await nativeSvc.accessEvent({identifier,id,now})).run();},
 shares:(id:string)=>{return db
           .prepare(
             "SELECT id,email,document_id,user_id,expires_at,revoked_at FROM legal_shares WHERE item_id=? ORDER BY created_at DESC LIMIT 100",
@@ -118,15 +119,17 @@ submissions:(id:string)=>{return db
       )
       .bind(id)
       .all<LegalDetail["submissions"][number]>();},
-configure:(facts:{companyId:string;enabled:boolean;aiEnabled:boolean;reminderDaysJson:string | null;reminderDaysJson2:string | null;})=>{return stage(db.prepare("INSERT INTO legal_settings(company_id,enabled,ai_enabled,reminder_days) VALUES(?,?,?,coalesce(?::jsonb,'[90,60,30,7,1]'::jsonb)) ON CONFLICT(company_id) DO UPDATE SET enabled=excluded.enabled,ai_enabled=excluded.ai_enabled,reminder_days=coalesce(?::jsonb,legal_settings.reminder_days),version=legal_settings.version+1").bind(facts.companyId,facts.enabled,facts.aiEnabled,facts.reminderDaysJson,facts.reminderDaysJson2));},
+configure:async facts=>stage(await nativeSvc.configure(facts)),
 managerAvailable:(facts:{companyId:string;branchId:string | null;departmentId:string | null;})=>{return db.prepare(`SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') LIMIT 1`).bind(facts.companyId,facts.branchId,facts.departmentId).first();},
-createRecord:(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;kind:"request" | "matter" | "contract" | "obligation" | "compliance" | "license" | "corporate" | "ip" | "privacy" | "counsel" | "template" | "rule";title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;actorId:string;now:number;now2:number;})=>{return stage(db.prepare("INSERT INTO legal_items(id,company_id,branch_id,department_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,due_date,owner_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.id,facts.companyId,facts.branchId,facts.departmentId,facts.kind,facts.title,facts.description,facts.classification,facts.country,facts.jurisdiction,facts.language,facts.currency,facts.timezone,facts.priority,facts.dueDate,facts.ownerId,facts.actorId,facts.now,facts.now2));},
-createSubtype:(facts:{id:string;dataJson:string;recordKind:LegalItem["kind"];})=>{return stage(db.prepare(`INSERT INTO ${tables[facts.recordKind]} VALUES(?,?::jsonb)`).bind(facts.id,facts.dataJson));},
-addInitialMember:(facts:{id:string;u:string;})=>{return stage(db.prepare("INSERT INTO legal_members VALUES(?,?,'edit')").bind(facts.id,facts.u));},
-routeRequester:(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;})=>{return stage(db.prepare(`INSERT INTO legal_members(item_id,user_id,access) SELECT DISTINCT ?,user_id,'edit' FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') ON CONFLICT DO NOTHING`).bind(facts.id,facts.companyId,facts.branchId,facts.departmentId));},updateRecord:(facts:{title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;id:string;})=>{return stage(db.prepare("UPDATE legal_items SET title=?,description=?,classification=?,country=?,jurisdiction=?,language=?,currency=?,timezone=?,priority=?,due_date=?,owner_id=? WHERE id=?").bind(facts.title,facts.description,facts.classification,facts.country,facts.jurisdiction,facts.language,facts.currency,facts.timezone,facts.priority,facts.dueDate,facts.ownerId,facts.id));},
-updateSubtype:(facts:{dataJson:string;id:string;recordKind:LegalItem["kind"];})=>{return stage(db.prepare(`UPDATE ${tables[facts.recordKind]} SET data=?::jsonb WHERE item_id=?`).bind(facts.dataJson,facts.id));},
-retainOwnerMembership:(facts:{id:string;ownerId:string;})=>{return stage(db.prepare("INSERT INTO legal_members VALUES(?,?,'edit') ON CONFLICT(item_id,user_id) DO UPDATE SET access='edit'").bind(facts.id,facts.ownerId));},
-advanceRecord:(facts:{state:string;timestamp:number;id:string;})=>{return stage(db.prepare("UPDATE legal_items SET state=?,version=version+1,updated_at=? WHERE id=?").bind(facts.state,facts.timestamp,facts.id));},expandHoldTargets:()=>{return stage(db.prepare("WITH RECURSIVE targets(hold_id,item_id) AS (SELECT id,item_id FROM legal_holds WHERE state!='released' UNION SELECT t.hold_id,l.target_id FROM targets t JOIN legal_links l ON l.source_id=t.item_id WHERE l.relation IN ('evidence','derived','amends','obligation')) INSERT INTO legal_hold_targets SELECT * FROM targets ON CONFLICT DO NOTHING"));},
+createRecord:async facts=>stage(await nativeSvc.createRecord(facts)),
+createSubtype:async facts=>stage(await nativeSvc.createSubtype(facts)),
+addInitialMember:async facts=>stage(await nativeSvc.addInitialMember({id:facts.id,u:facts.u})),
+routeRequester:async facts=>stage(await nativeSvc.routeRequester(facts)),
+updateRecord:async facts=>stage(await nativeSvc.updateRecord(facts)),
+updateSubtype:async facts=>stage(await nativeSvc.updateSubtype(facts)),
+retainOwnerMembership:async facts=>stage(await nativeSvc.retainOwnerMembership({id:facts.id,ownerId:facts.ownerId})),
+advanceRecord:async facts=>stage(await nativeSvc.advanceRecord(facts)),
+expandHoldTargets:async ()=>stage(await nativeSvc.expandHoldTargets()),
 notifyHoldTargets:async(facts:{timestamp:number;companyId:string;})=>{return stage(await nativeLegalHoldNotice(db,a,facts.timestamp));},
 requireEnabled:(key:string)=>stage(assertion(
           db,
@@ -151,7 +154,7 @@ requireHoldSourcesPreservable:(key:string,id:string)=>stage(assertion(
         [id, id],
       )),
 enabled:()=>enabled(db,a),companyLock:()=>stage(lock(db,a.companyId)),guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),personGuard:(key,id,scope,permission)=>stage(personGuard(db,a,key,id,scope,permission)),featureGuard:key=>productionFeatureGuard(db,key,a.companyId,"legal").map(stage),
-event:(id,action,note,version,identifier,now)=>stage(db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)").bind(identifier,id,action,a.userId,note,version,now)),
+event:async(id,action,note,version,identifier,now)=>stage(await nativeSvc.event({id,action,note,version,identifier,now})),
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_WRITE_REPOSITORY_MISMATCH");return statement;})),
 }});}

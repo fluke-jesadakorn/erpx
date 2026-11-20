@@ -271,7 +271,8 @@
     "./adapters/native-legal-retention": "./src/adapters/native-legal-retention.ts",
     "./adapters/native-legal-operations": "./src/adapters/native-legal-operations.ts",
     "./adapters/native-legal-documents": "./src/adapters/native-legal-documents.ts",
-    "./adapters/native-legal-law-corpus": "./src/adapters/native-legal-law-corpus.ts"
+    "./adapters/native-legal-law-corpus": "./src/adapters/native-legal-law-corpus.ts",
+    "./adapters/native-legal-service": "./src/adapters/native-legal-service.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

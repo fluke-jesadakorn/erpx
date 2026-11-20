@@ -22,17 +22,17 @@ signers(envelopeId:string):Promise<LegalRows<{ user_id: string; ordinal: number;
 recordRead(id:string,identifier:string,now:number):Promise<void>;
 shares(id:string):Promise<LegalRows<{ id: string; email: string; document_id: string; user_id: string | null; expires_at: number; revoked_at: number | null; }>>;
 submissions(id:string):Promise<LegalRows<{ id: string; name: string; checksum: string; created_by: string; created_at: number; }>>;
-configure(facts:{companyId:string;enabled:boolean;aiEnabled:boolean;reminderDaysJson:string | null;reminderDaysJson2:string | null;}):LegalWrite;
+configure(facts:{companyId:string;enabled:boolean;aiEnabled:boolean;reminderDaysJson:string | null;reminderDaysJson2:string | null;}):Promise<LegalWrite>;
 managerAvailable(facts:{companyId:string;branchId:string | null;departmentId:string | null;}):Promise<Record<string, unknown> | null>;
-createRecord(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;kind:"request" | "matter" | "contract" | "obligation" | "compliance" | "license" | "corporate" | "ip" | "privacy" | "counsel" | "template" | "rule";title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;actorId:string;now:number;now2:number;}):LegalWrite;
-createSubtype(facts:{id:string;dataJson:string;recordKind:LegalItem["kind"];}):LegalWrite;
-addInitialMember(facts:{id:string;u:string;}):LegalWrite;
-routeRequester(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;}):LegalWrite;
-updateRecord(facts:{title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;id:string;}):LegalWrite;
-updateSubtype(facts:{dataJson:string;id:string;recordKind:LegalItem["kind"];}):LegalWrite;
-retainOwnerMembership(facts:{id:string;ownerId:string;}):LegalWrite;
-advanceRecord(facts:{state:string;timestamp:number;id:string;}):LegalWrite;
-expandHoldTargets():LegalWrite;
+createRecord(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;kind:"request" | "matter" | "contract" | "obligation" | "compliance" | "license" | "corporate" | "ip" | "privacy" | "counsel" | "template" | "rule";title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;actorId:string;now:number;now2:number;}):Promise<LegalWrite>;
+createSubtype(facts:{id:string;dataJson:string;recordKind:LegalItem["kind"];}):Promise<LegalWrite>;
+addInitialMember(facts:{id:string;u:string;}):Promise<LegalWrite>;
+routeRequester(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;}):Promise<LegalWrite>;
+updateRecord(facts:{title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;id:string;}):Promise<LegalWrite>;
+updateSubtype(facts:{dataJson:string;id:string;recordKind:LegalItem["kind"];}):Promise<LegalWrite>;
+retainOwnerMembership(facts:{id:string;ownerId:string;}):Promise<LegalWrite>;
+advanceRecord(facts:{state:string;timestamp:number;id:string;}):Promise<LegalWrite>;
+expandHoldTargets():Promise<LegalWrite>;
 notifyHoldTargets(facts:{timestamp:number;companyId:string;}):Promise<LegalWrite>;
 requireEnabled(key:string):LegalWrite;
 requireRequesterRouting(key:string):LegalWrite;
@@ -43,7 +43,7 @@ companyLock():LegalWrite;
 guardChanges(id:string,version:number,key:string,edit?:boolean,allowFrozen?:boolean,preparation?:boolean):LegalWrite[];
 personGuard(key:string,userId:string,scope?:{branch_id:string|null;department_id:string|null},permission?:string|null):LegalWrite;
 featureGuard(key:string):LegalWrite[];
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay<Result extends object=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -171,7 +171,7 @@ async function legalCommand(
       { id: a.companyId, version: 1 },
       [
         ports.repository.companyLock(),
-        ports.repository.configure({companyId:a.companyId,enabled:x.enabled,aiEnabled:x.aiEnabled,reminderDaysJson:x.reminderDays
+        await ports.repository.configure({companyId:a.companyId,enabled:x.enabled,aiEnabled:x.aiEnabled,reminderDaysJson:x.reminderDays
               ? JSON.stringify(
                   [...new Set(x.reminderDays)].sort((a, b) => b - a),
                 )
@@ -214,13 +214,13 @@ async function legalCommand(
         ...(x.kind==="obligation"&&x.data.escalationOwner&&x.data.escalationOwner!==x.ownerId?[ports.repository.personGuard(key,String(x.data.escalationOwner))]:[]),
         ...(["rule","template"].includes(x.kind)&&!a.branchId&&!a.departmentId&&ports.can("legal.manage")?[]:ports.repository.featureGuard(key)),
         ports.repository.requireEnabled(key),
-        ports.repository.createRecord({id:id,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,kind:x.kind,title:x.title,description:x.description,classification:x.classification,country:x.country,jurisdiction:x.jurisdiction,language:x.language,currency:x.currency,timezone:x.timezone,priority:x.priority,dueDate:x.dueDate,ownerId:x.ownerId,actorId:a.userId,now:now,now2:now}),
-        ports.repository.createSubtype({id:id,dataJson:JSON.stringify(x.data),recordKind:x.kind}),
-        ...Array.from(new Set([a.userId, x.ownerId])).map((u) =>
-          ports.repository.addInitialMember({id:id,u:u}),
-        ),
-        ...(a.role==="legal_requester"?[ports.repository.requireRequesterRouting(key),ports.repository.routeRequester({id:id,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId})]:[]),
-        ports.repository.event(id,"created","",1,ports.identifiers.next(),ports.clock.now()),
+        await ports.repository.createRecord({id:id,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,kind:x.kind,title:x.title,description:x.description,classification:x.classification,country:x.country,jurisdiction:x.jurisdiction,language:x.language,currency:x.currency,timezone:x.timezone,priority:x.priority,dueDate:x.dueDate,ownerId:x.ownerId,actorId:a.userId,now:now,now2:now}),
+        await ports.repository.createSubtype({id:id,dataJson:JSON.stringify(x.data),recordKind:x.kind}),
+        ...await Promise.all(Array.from(new Set([a.userId, x.ownerId])).map(async (u) =>
+          await ports.repository.addInitialMember({id:id,u:u}),
+        )),
+        ...(a.role==="legal_requester"?[ports.repository.requireRequesterRouting(key),await ports.repository.routeRequester({id:id,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId})]:[]),
+        await ports.repository.event(id,"created","",1,ports.identifiers.next(),ports.clock.now()),
       ],
     );
   }
@@ -260,18 +260,18 @@ async function legalCommand(
     steps.push(
       ports.repository.personGuard(key,x.ownerId,r),
       ...(x.kind==="obligation"&&x.data.escalationOwner&&x.data.escalationOwner!==x.ownerId?[ports.repository.personGuard(key,String(x.data.escalationOwner),r)]:[]),
-      ports.repository.updateRecord({title:x.title,description:x.description,classification:x.classification,country:x.country,jurisdiction:x.jurisdiction,language:x.language,currency:x.currency,timezone:x.timezone,priority:x.priority,dueDate:x.dueDate,ownerId:x.ownerId,id:id}),
-      ports.repository.updateSubtype({dataJson:JSON.stringify(x.data),id:id,recordKind:r.kind}),
-      ports.repository.retainOwnerMembership({id:id,ownerId:x.ownerId}),
+      await ports.repository.updateRecord({title:x.title,description:x.description,classification:x.classification,country:x.country,jurisdiction:x.jurisdiction,language:x.language,currency:x.currency,timezone:x.timezone,priority:x.priority,dueDate:x.dueDate,ownerId:x.ownerId,id:id}),
+      await ports.repository.updateSubtype({dataJson:JSON.stringify(x.data),id:id,recordKind:r.kind}),
+      await ports.repository.retainOwnerMembership({id:id,ownerId:x.ownerId}),
     );
   } else fail("Unsupported legal action.");
   steps.push(
-    ports.repository.advanceRecord({state:state,timestamp:ports.clock.now(),id:id}),
-    ports.repository.event(id,b.action,note,version + 1,ports.identifiers.next(),ports.clock.now()),
+    await ports.repository.advanceRecord({state:state,timestamp:ports.clock.now(),id:id}),
+    await ports.repository.event(id,b.action,note,version + 1,ports.identifiers.next(),ports.clock.now()),
   );
   // A fixed point with UNION (not UNION ALL) terminates on cycles. Newly linked evidence is protected too.
   steps.push(
-    ports.repository.expandHoldTargets(),
+    await ports.repository.expandHoldTargets(),
   );
   if (["hold.create", "link"].includes(b.action))
     steps.push(

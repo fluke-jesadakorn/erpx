@@ -2478,3 +2478,129 @@ pub async fn legal_source_check_review_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal service: configure company settings.
+pub async fn legal_settings_configure_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_settings(company_id,enabled,ai_enabled,reminder_days) VALUES(?,?,?,coalesce(?::jsonb,'[90,60,30,7,1]'::jsonb)) ON CONFLICT(company_id) DO UPDATE SET enabled=excluded.enabled,ai_enabled=excluded.ai_enabled,reminder_days=coalesce(?::jsonb,legal_settings.reminder_days),version=legal_settings.version+1".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal service: create a legal item.
+pub async fn legal_item_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_items(id,company_id,branch_id,department_id,kind,title,description,\
+ classification,country,jurisdiction,language,currency,timezone,priority,due_date,owner_id,created_by,created_at,updated_at) \
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal service: create a kind-specific subtype row.
+pub async fn legal_subtype_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let table = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("INSERT INTO {table} VALUES(?,?::jsonb)"),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal service: add an initial member with edit access.
+pub async fn legal_member_add_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_members VALUES(?,?,'edit')".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal service: route the requester's manager as a reviewer.
+pub async fn legal_requester_route_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let source = input.source_access_sql.as_deref().unwrap_or("");
+    if source.is_empty() { return Err(invalid().into()); }
+    Ok(NotificationStatement {
+        sql: format!("INSERT INTO legal_members(item_id,user_id,access) SELECT DISTINCT ?,user_id,'edit' FROM ({source}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') ON CONFLICT DO NOTHING"),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal service: retain the owner's membership with edit access.
+pub async fn legal_member_retain_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_members VALUES(?,?,'edit') ON CONFLICT(item_id,user_id) DO UPDATE SET access='edit'".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal service: expand active hold targets transitively.
+pub async fn legal_hold_targets_expand_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "WITH RECURSIVE targets(hold_id,item_id) AS (SELECT id,item_id FROM legal_holds WHERE state!='released' UNION SELECT t.hold_id,l.target_id FROM targets t JOIN legal_links l ON l.source_id=t.item_id WHERE l.relation IN ('evidence','derived','amends','obligation')) INSERT INTO legal_hold_targets SELECT * FROM targets ON CONFLICT DO NOTHING".to_owned(),
+        values: vec![],
+    })
+}
+
+
+/// Legal service: update a legal item's core fields.
+pub async fn legal_item_update_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_items SET title=?,description=?,classification=?,country=?,jurisdiction=?,\
+ language=?,currency=?,timezone=?,priority=?,due_date=?,owner_id=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal service: update a kind-specific subtype row.
+pub async fn legal_subtype_update_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let table = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("UPDATE {table} SET data=?::jsonb WHERE item_id=?"),
+        values: values_from_json(input)?,
+    })
+}
