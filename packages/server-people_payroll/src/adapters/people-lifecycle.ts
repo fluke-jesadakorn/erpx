@@ -4,7 +4,7 @@ import {peoplePackageEnforcementMode} from "@erpx/server-commercial/public/purch
 import {preparePeopleIamCommand} from "@erpx/server-people_payroll/adapters/people-iam-purchases";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {withPeoplePurchasedRead,withPeoplePurchasedCommand,peoplePurchaseControls} from "@erpx/server-people_payroll/adapters/people-purchases";
-import {peopleLifecycleNotificationEffects} from '@erpx/server-collaboration/public/people-lifecycle-notification-effects';
+import {nativeLifecycleNotification} from './native-lifecycle-notification';
 import {peopleLifecycleAuditEffects} from '@erpx/server-workflow/public/people-lifecycle-audit-effects';
 import {peoplePayrollFinalOwnerProjections as identityaccessFinalOwnerProjections} from "@erpx/server-identity_access/public/people-payroll-final-owner-projections";
 const identityaccessFinalSources=identityaccessFinalOwnerProjections();
@@ -59,7 +59,7 @@ function clientDatabase(c: PoolClient): SqlDatabase {
         },
     } as unknown as SqlDatabase;
 }
-function applicationPorts(raw: SqlDatabase, client?: PoolClient): PeopleLifecyclePorts<SqlStatement> {
+function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkContext): PeopleLifecyclePorts<SqlStatement> {
     const database = iamDb(client ? clientDatabase(client) : raw);
     const repository: PeopleLifecycleRepository<SqlStatement> = { readLegacyCaseForPlacementRow(companyId: string, personId: string) {
             return database.prepare(`SELECT c.id,c.version,c.status,c.kind,c.effective_at,e.branch_id,e.department_id
@@ -265,7 +265,10 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient): PeopleLifecycl
         }>(); },
         guard46(...args) { return peopleLifecycleIdentityAccessFacts(database, client).guard46(...args); },
         stageSaveLifecycleEffect10(taskId: string, companyId: string, id: string, value: string, owner: string | null, now: number, value2: boolean, lastWorkingDate: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr", kind2: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return database.prepare("INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged,due_date,responsibility,clearance_type) VALUES(?,?,?,'lifecycle',?,?,?,?,?,?,?)").bind(taskId, companyId, id, value, owner, now, value2, lastWorkingDate, kind, kind2); },
-        ...peopleLifecycleNotificationEffects(database),
+        stageSaveLifecycleEffect11: async (value: string, companyId: string, owner: string, taskId: string, value2: string, now: number) => {
+            if (!actor) throw new Error('LIFECYCLE_NOTIFICATION_ACTOR_REQUIRED');
+            return nativeLifecycleNotification(database, actor, { value, companyId, owner, taskId, value2, now });
+        },
         stageSaveLifecycleEffect12(value: string, companyId: string, id: string, title: string, value2: string | null, now: number, privileged: boolean) {
             return database.prepare("INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged) VALUES(?,?,?,'lifecycle',?,?,?,?) ON CONFLICT(id) DO NOTHING")
                 .bind(value, companyId, id, title, value2, now, privileged);
@@ -422,7 +425,7 @@ export async function previewLifecycle(raw: SqlDatabase, actor: WorkContext, inp
 export async function saveLifecycle(db: SqlDatabase, actor: WorkContext, input: LifecycleInput, key: string, submit: boolean, token?: string, placementOnly = false, supersedeLegacyCase?: {
     id: string;
     expectedVersion: number;
-}) { return withPeoplePurchasedCommand(actor,{key,operation:submit?"people.lifecycle.submit":"people.lifecycle.draft",capability:"people.lifecycle",purpose:["offboarding","suspend"].includes(input.kind)?"settle-existing":"new-work",permission:"people.manage",resultKind:"lifecycle",target:{kind:"engagement",id:input.engagementId}},tx=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).saveLifecycle(actor,input,key,submit,token,placementOnly,supersedeLegacyCase)),db); }
+}) { return withPeoplePurchasedCommand(actor,{key,operation:submit?"people.lifecycle.submit":"people.lifecycle.draft",capability:"people.lifecycle",purpose:["offboarding","suspend"].includes(input.kind)?"settle-existing":"new-work",permission:"people.manage",resultKind:"lifecycle",target:{kind:"engagement",id:input.engagementId}},tx=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx,undefined,actor)).saveLifecycle(actor,input,key,submit,token,placementOnly,supersedeLegacyCase)),db); }
 export async function cancelLifecycle(db: SqlDatabase, actor: WorkContext, id: string, expectedVersion: number, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.lifecycle.cancel",capability:"people.lifecycle",purpose:"settle-existing",permission:"people.manage",target:{kind:"lifecycle",id}},tx=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).cancelLifecycle(actor,id,expectedVersion,key)),db); }
 export async function requestLifecycleAccess(db: PostgresDatabase, actor: WorkContext, id: string, version: number, key: string) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).requestLifecycleAccess(actor, id, version, key)); }
 export async function applyLifecycleReview(c: PoolClient, actor: IamActor, kind: string, p: Record<string, unknown>, decision: "approve" | "reject" = "approve") { if(await peoplePackageEnforcementMode()!=="disabled")assertIamOwnerTransaction(c); return invoke(() => createPeopleLifecycleApplication(applicationPorts(undefined!, c)).applyLifecycleReview(actor, kind, p, decision)); }
@@ -433,5 +436,5 @@ export async function completePreparationTask(db: PostgresDatabase, actor: WorkC
 
 /** Original HR-only placement; the caller cannot select an access recipe. */
 export async function previewProjectWorkerPlacementOwned(database:SqlDatabase,actor:WorkContext,input:LifecycleInput){requireProjectWorkerUnit(database,actor);return invoke(()=>createPeopleLifecycleApplication(applicationPorts(database)).previewLifecycle(actor,input,true));}
-export async function submitProjectWorkerPlacementOwned(database:SqlDatabase,actor:WorkContext,input:LifecycleInput,key:string,token:string){requireProjectWorkerNativeCommand(database,actor,key,'people.lifecycle.submit');return invoke(()=>createPeopleLifecycleApplication(applicationPorts(database)).saveLifecycle(actor,input,key,true,token,true));}
+export async function submitProjectWorkerPlacementOwned(database:SqlDatabase,actor:WorkContext,input:LifecycleInput,key:string,token:string){requireProjectWorkerNativeCommand(database,actor,key,'people.lifecycle.submit');return invoke(()=>createPeopleLifecycleApplication(applicationPorts(database,undefined,actor)).saveLifecycle(actor,input,key,true,token,true));}
 export async function cancelProjectWorkerPlacementOwned(database:SqlDatabase,actor:WorkContext,id:string,expectedVersion:number,key:string){requireProjectWorkerUnit(database,actor);return invoke(()=>createPeopleLifecycleApplication(applicationPorts(database)).cancelLifecycle(actor,id,expectedVersion,key));}

@@ -90,7 +90,7 @@ readSaveLifecycleSettings(companyId:string):Promise<{ definition: PeopleLifecycl
 readSaveLifecycleManager(engagementId:string,companyId:string):Promise<{user_id:string|null}|null>;
 guard46(key:string,value:string,companyId:string,owner:string,value2:string | null,value3:string | null,kind:"equipment" | "directory" | "handover" | "payroll" | "finance" | "hr"):Effect;
 stageSaveLifecycleEffect10(taskId:string,companyId:string,id:string,value:string,owner:string | null,now:number,value2:boolean,lastWorkingDate:string | null,kind:"equipment" | "directory" | "handover" | "payroll" | "finance" | "hr",kind2:"equipment" | "directory" | "handover" | "payroll" | "finance" | "hr"):Effect;
-stageSaveLifecycleEffect11(value:string,companyId:string,owner:string,taskId:string,value2:string,now:number):Effect;
+stageSaveLifecycleEffect11(value:string,companyId:string,owner:string,taskId:string,value2:string,now:number):Promise<Effect>;
 stageSaveLifecycleEffect12(value:string,companyId:string,id:string,title:string,value2:string | null,now:number,privileged:boolean):Effect;
 readCancelLifecycleRow(companyId:string,id:string):Promise<LifecycleCase|null>;
 guard51(key:string,value:"case-version",id:string,companyId:string,expectedVersion:number):Effect;
@@ -702,7 +702,7 @@ async function saveLifecycle(
         if(owner) steps.push(repository.guard46(key,`clearance-owner-${kind}`,actor.companyId,owner,clearancePermissions[kind],clearancePermissions[kind],kind));
         const taskId = `${id}-clearance-${kind}`;
         steps.push(repository.stageSaveLifecycleEffect10(taskId,actor.companyId,id,clearanceLabels[kind],owner,now,kind === "directory",input.lastWorkingDate,kind,kind));
-        if(owner)steps.push(repository.stageSaveLifecycleEffect11(`${taskId}-notification`,actor.companyId,owner,taskId,`${clearanceLabels[kind]} · ${e.legal_name}`,now));
+        if(owner)steps.push(await repository.stageSaveLifecycleEffect11(`${taskId}-notification`,actor.companyId,owner,taskId,`${clearanceLabels[kind]} · ${e.legal_name}`,now));
       }
     } else {
     const tasks: {title:string;privileged:boolean}[] = [
