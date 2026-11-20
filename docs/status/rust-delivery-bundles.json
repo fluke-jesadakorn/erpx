@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3245,
+    "revision": 3252,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:46:55.337Z",
-      "expiresAt": "2026-11-20T11:16:55.337Z",
+      "heartbeatAt": "2026-11-20T10:51:17.328Z",
+      "expiresAt": "2026-11-20T11:21:17.328Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47266,11 +47266,11 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "baseSha": "572c2872e8954636fd51a84e88e0cc10dbe06bf1",
+        "implementedCommit": "1b9b3a8973e085756c19798eec5193bfff053aff",
+        "lastPushedSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
         "checks": [
           {
             "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-people_payroll/src/**/*.ts' | wc -l",
@@ -47359,6 +47359,77 @@
             "sourceSha": "572c2872e8954636fd51a84e88e0cc10dbe06bf1",
             "sourceKind": "committed",
             "note": "Docker daemon unavailable (no socket at ~/.docker/run/docker.sock), so the repo's pinned postgres:18.6-trixie container cannot be started locally. No local PG 18.6 binary exists either; resolving POSTGRES_18_6_REQUIRED requires user-provided environment or explicit authorization to relax the assertion."
+          },
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "before": 1928,
+            "after": 1922,
+            "note": "Roster position exit TS writers deleted; native People workforce command with composed Organization/Identity ports is authoritative."
+          },
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-people_payroll/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "before": 291,
+            "after": 285,
+            "note": "Owner KPI 291 -> 285."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=people_payroll.roster.integration",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "note": "31/31 pass in raw fixture mode on installed PostgreSQL 18.7; registered suite and required cases satisfied."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=people_payroll.rust-roster-position-exit-postgres.integration",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "note": "3/3 native roster-exit owner tests pass."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "note": "Native workforce HTTP router, composition service and owner ports compile and mount."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "note": "Native Next transport and workplace route switch typecheck."
+          },
+          {
+            "command": "bun run test:catalogue",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "note": "TEST_CATALOGUE_VALID: 33 modules, 1271 suites after fixture-mode change."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "before": 1928,
+            "after": 1922,
+            "note": "Global TS write count after native People workforce cutover."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1b9b3a8973e085756c19798eec5193bfff053aff",
+            "sourceKind": "committed",
+            "before": 291,
+            "after": 285,
+            "note": "People payroll owner KPI."
           }
         ],
         "retainedLegacy": [
@@ -47368,8 +47439,8 @@
             "removalCondition": "Replace the copied TypeScript roster-exit SQL oracle with native-seeded PostgreSQL fixtures and delete the copy once the native workforce integration harness covers the roster suite."
           }
         ],
-        "blocker": "handoff",
-        "nextAction": "Awaiting user: provide PG 18.6 environment (binary or Docker daemon) or authorize relaxing POSTGRES_18_6_REQUIRED; KPI 1928->1922 and native PG suite 3/3 already recorded.",
+        "blocker": null,
+        "nextAction": "Migrated: native People workforce authority, KPI 1928->1922 (people_payroll 291->285), roster suite 31/31. Next bounded slice after coordinator handoff.",
         "handoff": {
           "runId": "run-20261120-k",
           "agentId": "lead",
@@ -47379,7 +47450,13 @@
           "nextAction": "Awaiting user: provide PG 18.6 environment (binary or Docker daemon) or authorize relaxing POSTGRES_18_6_REQUIRED; KPI 1928->1922 and native PG suite 3/3 already recorded."
         },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.people_payroll.payroll-run-ts"
       },
       {
         "id": "ports.identity-account-link-control-pool",
@@ -47500,20 +47577,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 245,
-      "migratedPackets": 131,
+      "migratedPackets": 132,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 131,
-        "blocked": 91,
+        "migrated": 132,
+        "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:46:55.339Z",
+    "updatedAt": "2026-11-20T10:51:17.330Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
