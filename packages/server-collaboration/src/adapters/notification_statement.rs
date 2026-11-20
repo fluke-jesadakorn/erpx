@@ -819,3 +819,35 @@ pub async fn legal_law_source_notification_statement(
         ],
     })
 }
+
+/// Inventory transport handoff notice. Eligible readers are resolved from the
+/// persisted transit record on the caller's serializable unit.
+pub async fn inventory_transit_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.record_id.is_empty()
+        || input.idempotency_key.is_empty()
+    {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,\
+ d.company_id,a.user_id,'inventory_transit',d.id,d.version,\
+ 'Transport handoff updated: inspect dispatch, receipt and discrepancy evidence',d.updated_at \
+ FROM inventory_transit d \
+ JOIN assignments a ON a.company_id=d.company_id \
+ AND (a.scope_kind='holding' OR (a.scope_kind='branch' \
+ AND a.scope_node_id IN (d.source_branch_id,d.target_branch_id))) \
+ AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+ AND iam_role_allows(a.role,a.company_id,'inventory.read') \
+ WHERE d.id=? ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![value(&input.idempotency_key), value(&input.record_id)],
+    })
+}

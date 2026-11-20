@@ -16,7 +16,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {prepareBusinessEvidence} from "@erpx/server-records/public/business-evidence";
 import {BusinessRuleError} from '@erpx/server-shared/index';import {createInventoryTransitApplication,type InventoryTransitRepository} from '@erpx/server-inventory/application/transit';import {transitDispatchSchema,transitReceiveSchema,transitLossSchema,transitLossDecisionSchema,transitCancelSchema,transitWorkItem} from '@erpx/server-inventory/domain/transit';export {transitDispatchSchema,transitReceiveSchema,transitLossSchema,transitLossDecisionSchema,transitCancelSchema,transitWorkItem} from '@erpx/server-inventory/domain/transit';
 import {inventoryTransitSources as owner0} from '@erpx/server-finance/public/inventory-transit-sources';
-import {inventoryTransitSources as owner1} from '@erpx/server-collaboration/public/inventory-transit-sources';
+import {inventoryTransitSources as owner1} from './legacy-transit-notice';
 import {inventoryTransitSources as owner2} from '@erpx/server-commerce/public/inventory-transit-sources';
 import {inventoryTransitSources as owner3} from '@erpx/server-files/public/inventory-transit-sources';
 const activeScope="d.company_id=? AND (?::text IS NULL OR d.source_branch_id=? OR d.target_branch_id=?)";

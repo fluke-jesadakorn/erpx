@@ -74,7 +74,7 @@ pub mod social_source_policy {
 pub mod notification_statement {
     pub use crate::adapters::notification_statement::{
         crm_lead_notification_statement, learning_assignment_notification_statement, legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
-        legal_law_source_notification_statement, company_acceptance_reviewer_statement, company_acceptance_result_statement, customer_portal_notification_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
+        inventory_transit_notification_statement, legal_law_source_notification_statement, company_acceptance_reviewer_statement, company_acceptance_result_statement, customer_portal_notification_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
         finance_refund_notification_statement, organization_change_notification_statement,
         rfq_notification_statement, supplier_bill_notification_statement, supplier_promise_notification_statement,
         NotificationStatement,
