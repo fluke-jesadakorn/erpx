@@ -630,3 +630,37 @@ pub async fn payroll_correction_notification_statement(
         ],
     })
 }
+
+/// Explicit-id notification statement: the caller supplies the full 8-value
+/// row (id via idempotency_key, company/user/record/message/version/now).
+pub async fn explicit_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.user_id.is_empty()
+        || input.record_type.is_empty()
+        || input.message.is_empty()
+        || input.idempotency_key.is_empty()
+        || input.record_version <= 0
+        || input.now <= 0
+    {
+        return Err(invalid().into());
+    }
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: INSERT.to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            value(&input.company_id),
+            value(&input.user_id),
+            value(&input.record_type),
+            value(&input.record_id),
+            serde_json::Value::Number(input.record_version.into()),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}

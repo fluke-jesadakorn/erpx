@@ -281,7 +281,7 @@ export interface PeoplePayrollRepository<Effect> {
     guard96(key: string, value: "advance-version", advanceId: string, companyId: string, expectedVersion: number): Effect;
     stageDecidePayrollAdvanceStatements(status: "approved" | "rejected" | "cancelled", status2: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, advanceId: string): Effect;
     stageDecidePayrollAdvanceStatements2(value: string, advanceId: string, companyId: string, value2: "approved" | "rejected" | "cancelled", userId: string, version: number, value3: string, now: number): Effect;
-    stageDecidePayrollAdvanceStatements3(value: string, companyId: string, requested_by: string | number | null, value2: "payroll_advance", advanceId: string, version: number, value3: "Payroll advance approved; deductions will appear in payroll" | "Payroll advance decision recorded", now: number): Effect;
+    stageDecidePayrollAdvanceStatements3(value: string, companyId: string, requested_by: string | number | null, value2: "payroll_advance", advanceId: string, version: number, value3: "Payroll advance approved; deductions will appear in payroll" | "Payroll advance decision recorded", now: number): Promise<Effect>;
     stageDecidePayrollAdvanceEffect(value: string, advanceId: string, companyId: string, value2: number, value3: string, value4: string, value5: number, now: number): Effect;
     readPayrollAdvancePageRows(value: string[], privileged: boolean): Promise<{
         results: (Record<string, unknown>)[];
@@ -417,7 +417,7 @@ export interface PeoplePayrollRepository<Effect> {
     guard165(key: string, value: "run-evidence", run_id: string | number | null, companyId: string, run_version: string | number | null, run_revision: string | number | null, input_digest: string | number | null): Effect;
     stageDecidePayrollCorrectionStatements(status: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, correctionId: string): Effect;
     stageDecidePayrollCorrectionStatements2(value: string, correctionId: string, run_id: string | number | null, companyId: string, status: "approved" | "rejected" | "cancelled", userId: string, run_version: string | number | null, value2: string, now: number): Effect;
-    stageDecidePayrollCorrectionStatements3(value: string, companyId: string, requested_by: string | number | null, value2: "payroll_correction", correctionId: string, version: number, value3: "Payroll correction approved; recalculate the run with current inputs" | "Payroll correction rejected; review the decision reason" | "Payroll correction request cancelled", now: number): Effect;
+    stageDecidePayrollCorrectionStatements3(value: string, companyId: string, requested_by: string | number | null, value2: "payroll_correction", correctionId: string, version: number, value3: "Payroll correction approved; recalculate the run with current inputs" | "Payroll correction rejected; review the decision reason" | "Payroll correction request cancelled", now: number): Promise<Effect>;
     stageDecidePayrollCorrectionEffect(value: string, now: number, run_id: string | number | null): Effect;
     readPayrollCorrectionAlertTargetEffect(userId: string, correctionId: string, companyId: string, now: number): Promise<string | null>;
     readExportPayrollReviewRun(runId: string, companyId: string): Promise<{
@@ -1160,7 +1160,7 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
             repository.guard96(key, "advance-version", advanceId, actor.companyId, input.expectedVersion),
             repository.stageDecidePayrollAdvanceStatements(status, status, actor.userId, input.reason, now, now, advanceId),
             repository.stageDecidePayrollAdvanceStatements2(`payroll-advance-event-${key}`, advanceId, actor.companyId, input.action === "approve" ? "approved" : status, actor.userId, version, JSON.stringify({ reason: input.reason, status }), now),
-            repository.stageDecidePayrollAdvanceStatements3(`payroll-advance-result-${key}`, actor.companyId, row.requested_by, "payroll_advance", advanceId, version, status === "approved" ? "Payroll advance approved; deductions will appear in payroll" : "Payroll advance decision recorded", now),
+            await repository.stageDecidePayrollAdvanceStatements3(`payroll-advance-result-${key}`, actor.companyId, row.requested_by, "payroll_advance", advanceId, version, status === "approved" ? "Payroll advance approved; deductions will appear in payroll" : "Payroll advance decision recorded", now),
         ];
         if (input.action === "approve") {
             const total = Number(row.amount_minor), count = Number(row.installment_count), base = Math.floor(total / count), remainder = total % count;
@@ -1409,7 +1409,7 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
             repository.guard165(key, "run-evidence", row.run_id, actor.companyId, row.run_version, row.run_revision, row.input_digest),
             repository.stageDecidePayrollCorrectionStatements(status, actor.userId, input.reason, now, now, correctionId),
             repository.stageDecidePayrollCorrectionStatements2(`payroll-correction-event-${key}`, correctionId, row.run_id, actor.companyId, status, actor.userId, row.run_version, JSON.stringify({ reason: input.reason, runRevision: row.run_revision, inputDigest: row.input_digest }), now),
-            repository.stageDecidePayrollCorrectionStatements3(`payroll-correction-result-${key}`, actor.companyId, row.requested_by, "payroll_correction", correctionId, version, input.action === "approve" ? "Payroll correction approved; recalculate the run with current inputs" : input.action === "reject" ? "Payroll correction rejected; review the decision reason" : "Payroll correction request cancelled", now),
+            await repository.stageDecidePayrollCorrectionStatements3(`payroll-correction-result-${key}`, actor.companyId, row.requested_by, "payroll_correction", correctionId, version, input.action === "approve" ? "Payroll correction approved; recalculate the run with current inputs" : input.action === "reject" ? "Payroll correction rejected; review the decision reason" : "Payroll correction request cancelled", now),
         ];
         if (input.action === "approve")
             statements.push(repository.stageDecidePayrollCorrectionEffect(`Correction approved: ${input.reason}`, now, row.run_id));
