@@ -777,3 +777,45 @@ pub async fn company_acceptance_result_statement(
         ],
     })
 }
+
+/// Official law-source change notice. The Legal item owner is resolved from the
+/// persisted item on the caller's serializable unit; `unchanged` suppresses the
+/// write when the fetched source has not actually changed.
+pub async fn legal_law_source_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.identifier.as_deref().unwrap_or("").is_empty()
+        || input.item_id.as_deref().unwrap_or("").is_empty()
+        || input.now <= 0
+        || input.event.as_deref() != Some("unchanged")
+            && input.event.as_deref() != Some("changed")
+    {
+        return Err(invalid().into());
+    }
+    let unchanged = input.event.as_deref() == Some("unchanged");
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT ?,i.company_id,i.owner_id,'legal',i.id,i.version,\
+ 'Official law source changed; review original, text, dates and Company applicability before use',? \
+ FROM (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"title\",\
+ \"description\",\"classification\",\"country\",\"jurisdiction\",\"language\",\"currency\",\
+ \"timezone\",\"priority\",\"due_date\",\"owner_id\",\"created_by\",\"state\",\"version\",\
+ \"created_at\",\"updated_at\",\"escalation_owner\",\"sla_started_at\",\"sla_due_at\",\
+ \"intake_form_id\",\"intake_answers\" FROM legal_items) i \
+ WHERE i.id=? AND ?=false AND EXISTS(SELECT 1 FROM (SELECT \"item_id\",\"user_id\",\"access\" \
+ FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=i.owner_id) ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(input.identifier.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()),
+            value(input.item_id.as_deref().unwrap_or("")),
+            serde_json::Value::Bool(unchanged),
+        ],
+    })
+}

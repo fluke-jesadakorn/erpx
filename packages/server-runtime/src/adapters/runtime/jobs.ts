@@ -190,7 +190,17 @@ export async function legalWork(env: JobEnv) {
       ['invitations', async () => (await import("@erpx/server-legal/public/legal/invitations")).drainLegalInvitations(write,env)],
       ['documents', async () => runNativeLegalWorker(slot.id)],
       ['ai', async () => (await import("@erpx/server-legal/public/legal/jobs")).drainLegalAi(write,env)],
-      ['sources', async () => (await import("@erpx/server-legal/public/legal/law-corpus")).drainLegalSourceChecks(write,files)],
+      ['sources', async () => {
+        if (!env.CONTROL_DB) return;
+        const binding = await env.CONTROL_DB.prepare(
+          `SELECT holding_id, slug, display_name FROM holding_bindings WHERE holding_id=? AND status='active'`,
+        ).bind(slot.id).first<{ holding_id: string; slug: string; display_name: string }>();
+        if (!binding) return;
+        return (await import("@erpx/server-legal/public/legal/law-corpus")).drainLegalSourceChecks(
+          write, files,
+          { holdingId: binding.holding_id, holdingSlug: binding.slug, holdingName: binding.display_name },
+        );
+      }],
     ];
     // Destruction is invoked explicitly by isolated rehearsals. The recurring
     // v1 worker retains evidence in every environment.

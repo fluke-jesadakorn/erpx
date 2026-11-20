@@ -10,7 +10,7 @@ use erpx_server_collaboration::public::notification_statement::{
     learning_assignment_notification_statement,
     organization_change_notification_statement,
     legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
-    company_acceptance_reviewer_statement, company_acceptance_result_statement, customer_portal_notification_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
+    company_acceptance_reviewer_statement, company_acceptance_result_statement, legal_law_source_notification_statement, customer_portal_notification_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
     rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
     NotificationStatement, NotificationStatementInput,
@@ -2146,7 +2146,11 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("company_acceptance_reviewer") {
+                        if input.kind.as_deref() == Some("legal_law_source") {
+                            legal_law_source_notification_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("company_acceptance_reviewer") {
                             company_acceptance_reviewer_statement(connection, &company_id, &input)
                                 .await
                                 .map_err(Into::into)
@@ -2294,7 +2298,7 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
     learning_assignment_notification_statement,
     organization_change_notification_statement,
     legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
-    company_acceptance_reviewer_statement, company_acceptance_result_statement, customer_portal_notification_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
+    company_acceptance_reviewer_statement, company_acceptance_result_statement, legal_law_source_notification_statement, customer_portal_notification_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
     rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
     NotificationStatement, NotificationStatementInput,
