@@ -237,7 +237,8 @@
     "./adapters/native-customer-portal-notification": "./src/adapters/native-customer-portal-notification.ts",
     "./adapters/native-company-acceptance-facts": "./src/adapters/native-company-acceptance-facts.ts",
     "./adapters/native-legal-law-source-notification": "./src/adapters/native-legal-law-source-notification.ts",
-    "./adapters/native-inventory-transit-notification": "./src/adapters/native-inventory-transit-notification.ts"
+    "./adapters/native-inventory-transit-notification": "./src/adapters/native-inventory-transit-notification.ts",
+    "./adapters/native-social-task-origin": "./src/adapters/native-social-task-origin.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

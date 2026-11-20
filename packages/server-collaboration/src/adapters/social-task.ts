@@ -2,6 +2,8 @@ import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runt
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {socialTaskOriginStatement} from "./native-social-task-origin";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import { aiSnapshotGuard } from '@erpx/server-agent/public/ai-providers';
 import {readablePost,sourceSnapshot,sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import type { StaffActor } from '@erpx/server-operations/public/staff-policy';
@@ -18,7 +20,7 @@ export async function taskSourceStatements(db: SqlDatabase, actor: StaffActor, k
                 provider_json: string | null;
             }>(),
             guardAiDraft: (key, id, user, post, hash, version, now) => assertion(db, key, 'ai-draft', "EXISTS(SELECT 1 FROM social_ai_drafts WHERE id=? AND actor_id=? AND post_id=? AND source_hash=? AND source_version=? AND state='ready' AND kind='task' AND expires_at>?)", [id, user, post, hash, version, now]),
-            bindTaskOrigin: (post, task, version, hash, draft, user, now) => db.prepare('INSERT INTO social_task_origins(post_id,task_id,source_version,source_hash,ai_draft_id,created_by,created_at) VALUES(?,?,?,?,?,?,?)').bind(post, task, version, hash, draft, user, now)
+            bindTaskOrigin: (post, task, version, hash, draft, user, now) => socialTaskOriginStatement(db, actor as WorkContext, { key, post, task, version, hash, draft, user, now })
         }, sources: { read: (a, id) => readablePost(db, a, id), snapshot: (a, id, c) => sourceSnapshot(db, a, id, c), guard: (...args) => sourceGuard(db, ...args) }, providerGuard: (key, snapshot) => aiSnapshotGuard(db, key, snapshot) });
     try {
         return await app.taskSourceStatements(actor, key, taskId, users, source, projectId);

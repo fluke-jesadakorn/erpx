@@ -13,7 +13,7 @@ export interface SocialTaskPorts<Effect> {
             provider_json: string | null;
         } | null>;
         guardAiDraft(key: string, id: string, user: string, post: string, hash: string, version: number, now: number): Effect;
-        bindTaskOrigin(post: string, task: string, version: number, hash: string, draft: string | null, user: string, now: number): Effect;
+        bindTaskOrigin(post: string, task: string, version: number, hash: string, draft: string | null, user: string, now: number): Promise<Effect>;
     };
     sources: {
         read(actor: Pick<StaffActor, 'userId' | 'companyId'>, id: string): Promise<PostRow>;
@@ -48,7 +48,7 @@ export function createSocialTaskApplication<Effect>(ports: SocialTaskPorts<Effec
             }
             if (source.aiDraftId)
                 statements.push(ports.repository.guardAiDraft(key, source.aiDraftId, actor.userId, post.id, source.sourceHash, post.version, ports.clock.now()));
-            statements.push(ports.repository.bindTaskOrigin(post.id, taskId, post.version, source.sourceHash, source.aiDraftId, actor.userId, ports.clock.now()));
+            statements.push(await ports.repository.bindTaskOrigin(post.id, taskId, post.version, source.sourceHash, source.aiDraftId, actor.userId, ports.clock.now()));
         }
         for (const [i, user] of [...new Set([actor.userId, ...users])].entries()) {
             await ports.sources.read({ userId: user, companyId: actor.companyId }, post.id);

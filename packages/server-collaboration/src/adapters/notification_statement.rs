@@ -47,6 +47,12 @@ pub struct NotificationStatementInput {
     pub change: Option<String>,
     #[serde(default)]
     pub timestamp: Option<i64>,
+    #[serde(default)]
+    pub post_id: Option<String>,
+    #[serde(default)]
+    pub source_hash: Option<String>,
+    #[serde(default)]
+    pub ai_draft_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -113,6 +119,7 @@ mod tests {
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
             approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
+            post_id: None, source_hash: None, ai_draft_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -849,5 +856,40 @@ pub async fn inventory_transit_notification_statement(
     Ok(NotificationStatement {
         sql: sql.to_owned(),
         values: vec![value(&input.idempotency_key), value(&input.record_id)],
+    })
+}
+
+
+/// Social task-origin binding. The full source witness is supplied by the
+/// caller; the native owner validates company authority and owns the INSERT.
+pub async fn social_task_origin_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.post_id.as_deref().unwrap_or("").is_empty()
+        || input.record_id.is_empty()
+        || input.user_id.is_empty()
+        || input.source_hash.as_deref().unwrap_or("").is_empty()
+        || input.now <= 0
+    {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO social_task_origins(post_id,task_id,source_version,\
+ source_hash,ai_draft_id,created_by,created_at) VALUES(?,?,?,?,?,?,?)";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(input.post_id.as_deref().unwrap_or("")),
+            value(&input.record_id),
+            serde_json::Value::Number(input.record_version.into()),
+            value(input.source_hash.as_deref().unwrap_or("")),
+            input.ai_draft_id.as_deref().map(value).unwrap_or(serde_json::Value::Null),
+            value(&input.user_id),
+            serde_json::Value::Number(input.now.into()),
+        ],
     })
 }
