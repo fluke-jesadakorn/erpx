@@ -280,7 +280,8 @@
     "./adapters/native-finance-owned-reversal": "./src/adapters/native-finance-owned-reversal.ts",
     "./adapters/native-finance-tax-identities": "./src/adapters/native-finance-tax-identities.ts",
     "./adapters/native-finance-due-drafts": "./src/adapters/native-finance-due-drafts.ts",
-    "./adapters/native-finance-intercompany-pairs": "./src/adapters/native-finance-intercompany-pairs.ts"
+    "./adapters/native-finance-intercompany-pairs": "./src/adapters/native-finance-intercompany-pairs.ts",
+    "./adapters/native-payroll-deductions": "./src/adapters/native-payroll-deductions.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
