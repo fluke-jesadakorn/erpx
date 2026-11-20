@@ -249,7 +249,8 @@
     "./adapters/native-legal-destruction-events": "./src/adapters/native-legal-destruction-events.ts",
     "./adapters/native-legal-portal-binding": "./src/adapters/native-legal-portal-binding.ts",
     "./adapters/native-expense-effects": "./src/adapters/native-expense-effects.ts",
-    "./adapters/native-document-derivatives": "./src/adapters/native-document-derivatives.ts"
+    "./adapters/native-document-derivatives": "./src/adapters/native-document-derivatives.ts",
+    "./adapters/native-beta-cleanup": "./src/adapters/native-beta-cleanup.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

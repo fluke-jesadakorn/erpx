@@ -1474,3 +1474,21 @@ pub async fn doc_storage_ledger_statement(
         ],
     })
 }
+
+
+/// Beta cleanup: expire an unused upload intent.
+pub async fn beta_expire_upload_statement(
+    connection: &mut PgConnection,
+    _company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, _company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE upload_intents SET status='expired',updated_at=? WHERE id=? AND status IN ('pending','uploaded') AND expires_at<?".to_owned(),
+        values: vec![
+            serde_json::Value::Number(input.now.into()), value(&input.record_id),
+            serde_json::Value::Number(input.timestamp.unwrap_or_default().into()),
+        ],
+    })
+}
