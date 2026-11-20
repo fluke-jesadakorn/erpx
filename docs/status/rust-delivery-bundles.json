@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3685,
+    "revision": 3691,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T18:50:22.018Z",
-      "expiresAt": "2026-11-20T19:20:22.018Z",
+      "heartbeatAt": "2026-11-20T18:56:38.680Z",
+      "expiresAt": "2026-11-20T19:26:38.680Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -62220,6 +62220,138 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.portal-writes",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire legal portal TS writers (14 writes)",
+        "scope": "Delete 14 access/comment/counsel/event/receipt/upload/advance writers in legal/portal.ts; native legal_portal_* + reusable advance/signer views own them via values_json with companyId from share.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "1afc7c765da0a40e2cd9c221ce323adc2a13d9ae",
+        "lastPushedSha": "1afc7c765da0a40e2cd9c221ce323adc2a13d9ae",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1afc7c765da0a40e2cd9c221ce323adc2a13d9ae",
+            "sourceKind": "committed",
+            "before": 47,
+            "after": 33,
+            "note": "Retired 14 TS legal portal writers; legal KPI 47->33, global 1732->1718.",
+            "residual": [
+              {
+                "path": "packages/server-legal/src/adapters/app-enrollment-attempt-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/attachment-migration-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/invitations.ts",
+                "writes": 5,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/jobs.ts",
+                "writes": 5,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/law-corpus.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/law-source-worker.ts",
+                "writes": 6,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/operations.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/reminders.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/runtime-job-health-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "1afc7c765da0a40e2cd9c221ce323adc2a13d9ae",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "1afc7c765da0a40e2cd9c221ce323adc2a13d9ae",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + 61/61 legal unit."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native legal portal; legal KPI 47->33, global 1732->1718.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -62228,21 +62360,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 314,
-      "migratedPackets": 201,
+      "totalPackets": 315,
+      "migratedPackets": 202,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 201,
+        "migrated": 202,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T18:50:22.020Z",
+    "updatedAt": "2026-11-20T18:56:38.682Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "ef0e48dcf2d2f82087dbbd7535859ae4a76d7cd8",
