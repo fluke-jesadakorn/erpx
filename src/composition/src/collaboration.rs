@@ -9,7 +9,8 @@ use erpx_server_collaboration::public::notification_statement::{
     crm_lead_notification_statement, finance_refund_notification_statement,
     learning_assignment_notification_statement,
     organization_change_notification_statement,
-    legal_approval_notification_statement, notification_statement, rfq_notification_statement,
+    legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
+    rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
     NotificationStatement, NotificationStatementInput,
 };
@@ -2144,7 +2145,15 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("learning_assignment") {
+                        if input.kind.as_deref() == Some("legal_hold") {
+                            legal_hold_notification_statement(
+                                connection,
+                                &company_id,
+                                input.timestamp.unwrap_or_default(),
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("learning_assignment") {
                             learning_assignment_notification_statement(
                                 connection,
                                 &company_id,
@@ -2247,7 +2256,8 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
     crm_lead_notification_statement, finance_refund_notification_statement,
     learning_assignment_notification_statement,
     organization_change_notification_statement,
-    legal_approval_notification_statement, notification_statement, rfq_notification_statement,
+    legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
+    rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
     NotificationStatement, NotificationStatementInput,
 };

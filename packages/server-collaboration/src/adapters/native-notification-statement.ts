@@ -45,6 +45,7 @@ export async function nativeNotificationStatement(
     event?: string;
     order_id?: string;
     change?: string;
+    timestamp?: number;
   },
   key: string,
   now: number,

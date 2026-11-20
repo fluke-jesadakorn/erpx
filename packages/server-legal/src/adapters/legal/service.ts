@@ -5,7 +5,7 @@ import {legalReadScope,withLegalPurchasedCommand,inLegalOwnerUnit} from '@erpx/s
 import {parseItem} from '@erpx/server-legal/domain/model';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
-import {legalHoldNotificationInsert} from "@erpx/server-collaboration/public/legal-hold-notifications";
+import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
 import {createHash} from "node:crypto";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
@@ -127,7 +127,7 @@ routeRequester:(facts:{id:string;companyId:string;branchId:string | null;departm
 updateSubtype:(facts:{dataJson:string;id:string;recordKind:LegalItem["kind"];})=>{return stage(db.prepare(`UPDATE ${tables[facts.recordKind]} SET data=?::jsonb WHERE item_id=?`).bind(facts.dataJson,facts.id));},
 retainOwnerMembership:(facts:{id:string;ownerId:string;})=>{return stage(db.prepare("INSERT INTO legal_members VALUES(?,?,'edit') ON CONFLICT(item_id,user_id) DO UPDATE SET access='edit'").bind(facts.id,facts.ownerId));},
 advanceRecord:(facts:{state:string;timestamp:number;id:string;})=>{return stage(db.prepare("UPDATE legal_items SET state=?,version=version+1,updated_at=? WHERE id=?").bind(facts.state,facts.timestamp,facts.id));},expandHoldTargets:()=>{return stage(db.prepare("WITH RECURSIVE targets(hold_id,item_id) AS (SELECT id,item_id FROM legal_holds WHERE state!='released' UNION SELECT t.hold_id,l.target_id FROM targets t JOIN legal_links l ON l.source_id=t.item_id WHERE l.relation IN ('evidence','derived','amends','obligation')) INSERT INTO legal_hold_targets SELECT * FROM targets ON CONFLICT DO NOTHING"));},
-notifyHoldTargets:(facts:{timestamp:number;companyId:string;})=>{return stage(db.prepare(`WITH added AS (INSERT INTO legal_hold_notices(hold_id,item_id,user_id,notified_at) SELECT h.id,t.item_id,m.user_id,? FROM legal_holds h JOIN legal_hold_targets t ON t.hold_id=h.id JOIN legal_members m ON m.item_id=t.item_id WHERE h.state!='released' AND t.item_id IN (SELECT id FROM legal_items WHERE company_id=?) ON CONFLICT DO NOTHING RETURNING *) ${legalHoldNotificationInsert()}`).bind(facts.timestamp,facts.companyId));},
+notifyHoldTargets:async(facts:{timestamp:number;companyId:string;})=>{return stage(await nativeLegalHoldNotice(db,a,facts.timestamp));},
 requireEnabled:(key:string)=>stage(assertion(
           db,
           key,

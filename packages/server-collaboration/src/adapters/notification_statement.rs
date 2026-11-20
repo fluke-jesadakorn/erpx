@@ -45,6 +45,8 @@ pub struct NotificationStatementInput {
     pub order_id: Option<String>,
     #[serde(default)]
     pub change: Option<String>,
+    #[serde(default)]
+    pub timestamp: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -110,7 +112,7 @@ mod tests {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None,
+            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -523,6 +525,39 @@ pub async fn learning_assignment_notification_statement(
             serde_json::Value::String(notice_id.to_owned()),
             serde_json::Value::String(message.to_owned()),
             serde_json::Value::String(assignment_id.to_owned()),
+        ],
+    })
+}
+
+
+/// Legal preservation-hold notification statement. Owns the full CTE (notice
+/// insert plus notification projection) with the Legal owner source clause.
+pub async fn legal_hold_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    timestamp: i64,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if timestamp <= 0 {
+        return Err(invalid().into());
+    }
+    let sql = "WITH added AS (INSERT INTO legal_hold_notices(hold_id,item_id,user_id,notified_at) \
+ SELECT h.id,t.item_id,m.user_id,? FROM legal_holds h JOIN legal_hold_targets t ON t.hold_id=h.id \
+ JOIN legal_members m ON m.item_id=t.item_id WHERE h.state!='released' \
+ AND t.item_id IN (SELECT id FROM legal_items WHERE company_id=?) ON CONFLICT DO NOTHING RETURNING *) \
+ INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) \
+ SELECT 'legal-'||md5(a.item_id||a.due_date||a.days::text||a.user_id),i.company_id,a.user_id,'legal',i.id,i.version,\
+ 'Legal deadline requires attention',a.created_at FROM added a \
+ JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"title\",\"description\",\
+ \"classification\",\"country\",\"jurisdiction\",\"language\",\"currency\",\"timezone\",\"priority\",\
+ \"due_date\",\"owner_id\",\"created_by\",\"state\",\"version\",\"created_at\",\"updated_at\",\
+ \"escalation_owner\",\"sla_started_at\",\"sla_due_at\",\"intake_form_id\",\"intake_answers\" FROM legal_items) i \
+ ON i.id=a.item_id ON CONFLICT DO NOTHING";
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            serde_json::Value::Number(timestamp.into()),
+            serde_json::Value::String(company.as_str().to_owned()),
         ],
     })
 }

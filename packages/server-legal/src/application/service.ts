@@ -33,7 +33,7 @@ updateSubtype(facts:{dataJson:string;id:string;recordKind:LegalItem["kind"];}):L
 retainOwnerMembership(facts:{id:string;ownerId:string;}):LegalWrite;
 advanceRecord(facts:{state:string;timestamp:number;id:string;}):LegalWrite;
 expandHoldTargets():LegalWrite;
-notifyHoldTargets(facts:{timestamp:number;companyId:string;}):LegalWrite;
+notifyHoldTargets(facts:{timestamp:number;companyId:string;}):Promise<LegalWrite>;
 requireEnabled(key:string):LegalWrite;
 requireRequesterRouting(key:string):LegalWrite;
 requireHoldPreservable(key:string,id:string):LegalWrite;
@@ -279,7 +279,7 @@ async function legalCommand(
       ports.repository.requireHoldSourcesPreservable(key,id),
     );
   steps.push(
-    ports.repository.notifyHoldTargets({timestamp:ports.clock.now(),companyId:a.companyId}),
+    await ports.repository.notifyHoldTargets({timestamp:ports.clock.now(),companyId:a.companyId}),
   );
   return ports.repository.commit(key,`legal.${b.action}`,raw,id,version + 1,{ id, version: version + 1, state },steps);
 }
