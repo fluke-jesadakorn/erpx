@@ -58172,26 +58172,27 @@
     "updatedAt": "2026-11-20T17:50:52.993Z",
     "handoff": {
       "fromRun": "run-20261120-k",
-      "verifiedPushedCheckpoint": "e6a77f2b980a6e13d83deb481a050d2dbbc44a7a",
-      "remoteVerifiedAt": "2026-11-20T23:10:00Z",
+      "verifiedPushedCheckpoint": "1c9b825a7dc61c423d50c0372989594a89efba0e",
+      "remoteVerifiedAt": "HEAD==origin==1c9b825a7dc61c423d50c0372989594a89efba0e; tree clean after coordinator close commit",
       "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1833 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, the 3 expense attachment withdrawal/revocation writers, the 3 document derivative writers, the beta upload expiry writer, the 2 legal portal access-event writers, the 4 legal portal attachment staging writers, the customer portal action writer, and the 3 release acceptance event writers. Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA.",
       "lastKpi": 1833,
       "statusCounts": {
-        "done": 51,
-        "migrated": 135,
-        "blocked": 80,
+        "pending": 25,
+        "in_progress": 1,
         "ready_for_integration": 0,
-        "pending": 26,
-        "deferred": 1
+        "integrating": 0,
+        "migrated": 188,
+        "blocked": 91,
+        "deferred": 1,
+        "done": 51
       },
-      "nextGoal": "G3",
+      "nextGoal": "Continue coordinator run-20261120-k: close remaining bounded native-authority slices with strictly decreasing KPI and full 6-point evidence; work toward social-home (31 staff_notifications writes, needs full payload parity + route/client cutover), the large finance/people_payroll/pos writer packets, and the 91 blocked / 25 pending tasks. A1/full acceptance stays deferred; do not touch staging or production.",
       "nextCommands": [
-        "bun scripts/testing/rust-migration-work.ts status --json && bun scripts/testing/rust-migration-work.ts validate",
-        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l  (currently 1833)",
-        "Continue bounded native-authority slices with strictly decreasing KPI and full 6-point evidence.",
-        "Remaining seams require larger per-owner packets (finance/pos/people-payroll ~49 writes each) and native ports for Files/Workflow/Organization-owned facts.",
-        "Health endpoints are pre-existing 503/530/000; do not attribute to migration code.",
-        "Heartbeat run-20261120-k before further mutation; keep A1/full acceptance deferred."
+        "bun scripts/testing/rust-migration-work.ts status --json  # confirm coordinator run-20261120-k, heartbeat fresh",
+        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- \":(glob)packages/server-*/src/**/*.ts\" | wc -l  # currently 1833",
+        "cargo check -p erpx-service --features existing-business,private-development-api && cargo test -p erpx-server-collaboration --lib notification_statement",
+        "bunx tsc --noEmit && bunx tsc --noEmit --project tests/config/tsconfig.json",
+        "bun scripts/testing/rust-migration-work.ts validate  # must be {\"valid\": true}"
       ]
     },
     "lastRecovery": {
