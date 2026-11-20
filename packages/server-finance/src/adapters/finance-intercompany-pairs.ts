@@ -17,6 +17,7 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {createIntercompanyPairService,type IntercompanyPairRepository} from '@erpx/server-finance/application/intercompany-pairs';
 import type {PairFactRow as Row,intercompanyPairSchema,intercompanyPairDecisionSchema} from '@erpx/server-finance/domain/intercompany-pairs';
+import { financeIntercompanyPairs } from '@erpx/server-collaboration/adapters/native-finance-intercompany-pairs';
 export {intercompanyPairSchema,intercompanyPairDecisionSchema} from '@erpx/server-finance/domain/intercompany-pairs';
 function nativePairRepository(db:SqlDatabase,historySql:(company:string)=>string=()=>"TRUE"):IntercompanyPairRepository{return {moneyScale:(companyId,currency)=>requireFinanceMoneyScale(db,companyId,currency),tool:companyId=>requireFinanceTool(db,companyId,'group_reporting'),replay:(actor,key,op,id,input)=>replayCommand(db,actor,key,op,id,input),entity:async(holdingId,companyId)=>db
         .prepare(
@@ -46,37 +47,10 @@ prepareCommit:async(facts)=>{const {actor,key,op,input,id,e,now}=facts;return ex
       1,
       { id, status: "draft", version: 1 },
       [
-        db
-          .prepare(
-            "INSERT INTO finance_intercompany_document_pairs(id,holding_id,company_id,reference,source_company_id,source_journal_id,source_account_id,target_company_id,target_journal_id,target_account_id,currency,amount_minor,source_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            id,
-            actor.holdingId,
-            actor.companyId,
-            input.reference,
-            input.source.companyId,
-            input.source.journalId,
-            input.source.accountId,
-            input.target.companyId,
-            input.target.journalId,
-            input.target.accountId,
-            input.currency,
-            String(decimalToUnits(input.amount)),
-            JSON.stringify({ input, evidence: e.evidence }),
-            e.hash,
-            actor.userId,
-            input.reason,
-            now,
-            now,
-          ),
-        ...[input.source, input.target].map((s) =>
-          db
-            .prepare(
-              "INSERT INTO finance_intercompany_pair_claims(pair_id,journal_id,account_id) VALUES(?,?,?)",
-            )
-            .bind(id, s.journalId, s.accountId),
-        ),
+        await financeIntercompanyPairs(db, actor.companyId).createPair({ id, holdingId: actor.holdingId, companyId: actor.companyId, reference: input.reference, sourceCompanyId: input.source.companyId, sourceJournalId: input.source.journalId, sourceAccountId: input.source.accountId, targetCompanyId: input.target.companyId, targetJournalId: input.target.journalId, targetAccountId: input.target.accountId, currency: input.currency, amountMinor: String(decimalToUnits(input.amount)), sourceJson: JSON.stringify({ input, evidence: e.evidence }), sourceHash: e.hash, userId: actor.userId, reason: input.reason, now }),
+        ...await Promise.all([input.source, input.target].map(async (s) =>
+          await financeIntercompanyPairs(db, actor.companyId).claim({ pairId: id, journalId: s.journalId, accountId: s.accountId }),
+        )),
       ],
     );},
 pair:async(actor,id)=>db
@@ -99,19 +73,11 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,expected,statu
             input.expectedVersion,
           ],
         ),
-        db
-          .prepare(
-            "UPDATE finance_intercompany_document_pairs SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(status, actor.userId, now, id),
+          await financeIntercompanyPairs(db, actor.companyId).decide({ status, userId: actor.userId, now, id }),
       ];
     if (action !== "confirm")
       steps.push(
-        db
-          .prepare(
-            "DELETE FROM finance_intercompany_pair_claims WHERE pair_id=?",
-          )
-          .bind(id),
+          await financeIntercompanyPairs(db, actor.companyId).clearClaims({ pairId: id }),
       );
     return executeCommand(
       db,
