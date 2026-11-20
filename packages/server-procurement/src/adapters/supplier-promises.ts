@@ -9,7 +9,7 @@ import {requirePermission} from "@erpx/server-identity_access/public/iam-permiss
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierPromiseOrderVersion} from "@erpx/server-commerce/public/supplier-promise-version";
-import {stageSupplierPromiseNotifications} from "@erpx/server-collaboration/public/supplier-promise-notifications";
+import {nativeSupplierPromiseNotification} from "./native-supplier-promise-notification";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {attachmentPurposeFacts} from "@erpx/server-files/public/attachment-purpose-facts";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -51,7 +51,7 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:PromiseMutation<
  ...(attachmentBinding?.guards??[]),
  assertion(write,key,'source-order',`EXISTS(SELECT 1 FROM (${commercePlatformSources.commerce_orders}) o WHERE o.id=? AND o.version=? AND o.kind='purchase' AND o.state IN ('confirmed','partially_fulfilled') AND `+scope+')',[id,input.expectedVersion,...scopeArgs(a)]),
  write.prepare('INSERT INTO procurement_delivery_promises(id,order_id,company_id,order_version,supplier_id,currency,required_date,kind,confirmation_date,supplier_reference,evidence,recorded_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(promiseId,id,a.companyId,input.expectedVersion,String(order.party_id),String(order.currency),String(order.due_date),input.kind,input.confirmationDate,input.supplierReference,input.evidence,a.userId,now),...prepared,
- stageSupplierPromiseOrderVersion(write,id,now),...(attachmentBinding?.steps??[]),stageSupplierPromiseNotifications(write,key,id)
+ stageSupplierPromiseOrderVersion(write,id,now),...(attachmentBinding?.steps??[]),await nativeSupplierPromiseNotification(write,a,key,id)
  ],{companyId:a.companyId,branchId:String(order.branch_id),departmentId:order.department_id?String(order.department_id):null});}
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 async function readPurchase(a:WorkContext){return requireProcurementPurchasedRead((await holdingResources(a.holdingId)).write,a);}

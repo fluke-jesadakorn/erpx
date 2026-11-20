@@ -43,6 +43,7 @@ export async function nativeNotificationStatement(
     rfq_id?: string;
     audience?: string;
     event?: string;
+    order_id?: string;
   },
   key: string,
   now: number,

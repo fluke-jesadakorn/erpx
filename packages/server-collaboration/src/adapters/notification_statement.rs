@@ -41,6 +41,8 @@ pub struct NotificationStatementInput {
     pub audience: Option<String>,
     #[serde(default)]
     pub event: Option<String>,
+    #[serde(default)]
+    pub order_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -106,7 +108,7 @@ mod tests {
             company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None,
+            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -430,6 +432,54 @@ pub async fn organization_change_notification_statement(
             serde_json::Value::String(message.to_owned()),
             serde_json::Value::String(change_id.to_owned()),
             serde_json::Value::String(company.as_str().to_owned()),
+        ],
+    })
+}
+
+
+/// Supplier-promise notification statement. Commerce/Identity source clauses
+/// are owned here; caller supplies only order id and command key.
+pub async fn supplier_promise_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    order_id: &str,
+    command_key: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if order_id.is_empty() || command_key.is_empty() {
+        return Err(invalid().into());
+    }
+    let exists: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM commerce_orders WHERE id=$1 AND company_id=$2",
+    )
+    .bind(order_id)
+    .bind(company.as_str())
+    .fetch_optional(&mut *connection)
+    .await?;
+    if exists.is_none() {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,o.company_id,a.user_id,\
+ 'supplier_promise',o.id,o.version,'Supplier delivery confirmation changed: review remaining quantities and dates',o.updated_at \
+ FROM (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\
+ \"party_id\",\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\
+ \"subtotal_minor\",\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\
+ \"created_at\",\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",\
+ \"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders) o \
+ JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) a ON a.company_id=o.company_id \
+ AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+ AND (iam_role_allows(a.role,a.company_id,'commerce.purchase') OR iam_role_allows(a.role,a.company_id,'inventory.prepare')) \
+ AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=o.branch_id) \
+ OR (a.scope_kind='department' AND a.scope_node_id=o.department_id)) \
+ WHERE o.id=? ON CONFLICT DO NOTHING";
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            serde_json::Value::String(command_key.to_owned()),
+            serde_json::Value::String(order_id.to_owned()),
         ],
     })
 }
