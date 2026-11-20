@@ -18,6 +18,7 @@ import { requireFinanceTool } from "@erpx/server-finance/public/finance-company-
 import { requireFinanceMoneyScale } from "@erpx/server-finance/public/finance-money-policy";
 import {createFinancePlanning,type PlanningRepository} from '@erpx/server-finance/application/planning';
 import type {PlanRow,PlanAccount as Account,LedgerLine,budgetEditionSchema,forecastEditionSchema,financialReportSchema} from '@erpx/server-finance/domain/planning';
+import { financePlanning } from '@erpx/server-collaboration/adapters/native-finance-planning';
 export {budgetEditionSchema,forecastEditionSchema,financialReportSchema} from '@erpx/server-finance/domain/planning';
 function nativePlanningRepository(db:SqlDatabase):PlanningRepository{const write=db;return {moneyScale:(companyId,currency)=>requireFinanceMoneyScale(db,companyId,currency),tool:companyId=>requireFinanceTool(db,companyId,'planning'),replay:<T>(actor:WorkContext,key:string,op:string,id:string,input:unknown)=>replayCommand<T>(db,actor,key,op,id,input),book:async(actor,chart)=>db
     .prepare(
@@ -74,24 +75,7 @@ saveCommit:async(facts)=>{const {actor,kind,base,content,key,op,input,edition,id
     1,
     { id, version: 1, status: "draft", edition, contentHash: hash },
     [
-      ...guards,
-      write
-        .prepare(
-          "INSERT INTO finance_plan_editions(id,company_id,chart_id,kind,name,parent_id,edition,content_json,content_hash,prepared_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          id,
-          actor.companyId,
-          base.chartId,
-          kind,
-          base.name,
-          base.parentId ?? null,
-          edition,
-          JSON.stringify(content),
-          hash,
-          actor.userId,
-          now,
-        ),
+      ...guards,          await financePlanning(db, actor.companyId).createEdition({ id, companyId: actor.companyId, chartId: base.chartId, kind, name: base.name, parentId: base.parentId ?? null, edition, contentJson: JSON.stringify(content), hash, userId: actor.userId, now }),
     ],
   );},
 bankAccount:async(actor,id)=>write
@@ -124,18 +108,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,row,now}=facts
         "version",
         "EXISTS(SELECT 1 FROM finance_plan_editions WHERE id=? AND company_id=? AND version=? AND status='draft')",
         [id, actor.companyId, input.expectedVersion],
-      ),
-      write
-        .prepare(
-          "UPDATE finance_plan_editions SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?",
-        )
-        .bind(
-          action === "approve" ? "approved" : "rejected",
-          actor.userId,
-          input.reason,
-          now,
-          id,
-        ),
+      ),await financePlanning(db, actor.companyId).reviewEdition({ status: action === "approve" ? "approved" : "rejected", userId: actor.userId, reason: input.reason, now, id }),
     ],
   );},
 editions:async(actor,chartId)=>(await write
@@ -171,24 +144,7 @@ lockChart:async(chartId)=>db
       .prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")
       .bind(`finance-book-${chartId}`)
       .run(),
-snapshotCommit:async(facts)=>{const {actor,id,input,key,op,row,snapshotId,result,sourceHash,csv,exportHash,now}=facts;return executeCommand(db, actor, key, op, input, id, row.version, result, [
-      db
-        .prepare(
-          "INSERT INTO finance_report_snapshots(id,company_id,definition_id,start_date,end_date,result_json,source_hash,created_by,created_at,export_content,export_sha256) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          snapshotId,
-          actor.companyId,
-          id,
-          input.startDate,
-          input.endDate,
-          JSON.stringify(result),
-          sourceHash,
-          actor.userId,
-          now,
-          csv,
-          exportHash,
-        ),
+snapshotCommit:async(facts)=>{const {actor,id,input,key,op,row,snapshotId,result,sourceHash,csv,exportHash,now}=facts;return executeCommand(db, actor, key, op, input, id, row.version, result, [await financePlanning(db, actor.companyId).createSnapshot({ snapshotId, companyId: actor.companyId, definitionId: id, startDate: input.startDate, endDate: input.endDate, resultJson: JSON.stringify(result), sourceHash, userId: actor.userId, now, csv, exportHash }),
     ]);},
 exportRow:async(actor,id)=>write.prepare("SELECT result_json,export_content,export_sha256 FROM finance_report_snapshots WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{result_json:string;export_content:string|null;export_sha256:string|null}>(),
 recordRow:async(actor,id)=>write.prepare('SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?').bind(id,actor.companyId).first<PlanRow>(),
