@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3264,
+    "revision": 3267,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T11:00:13.734Z",
-      "expiresAt": "2026-11-20T11:30:13.734Z",
+      "heartbeatAt": "2026-11-20T11:02:05.471Z",
+      "expiresAt": "2026-11-20T11:32:05.471Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47697,23 +47697,38 @@
           "owner:operations",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261120-k",
-          "agentId": "lead",
-          "claimedAt": "2026-11-20T11:02:02.755Z",
-          "heartbeatAt": "2026-11-20T11:02:02.755Z",
-          "expiresAt": "2026-11-20T11:32:02.755Z",
-          "generation": 139
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "c3cbdd8402043d644998cc2f393a07da3c080dee",
+            "sourceKind": "committed",
+            "note": "Native published-post source policy, guard and snapshot hash compile and are publicly exported."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib social_source_policy",
+            "result": "passed",
+            "sourceSha": "c3cbdd8402043d644998cc2f393a07da3c080dee",
+            "sourceKind": "committed",
+            "note": "1/1 deterministic source-hash test passes."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Needed before native saveTask can accept a reviewed post source witness.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "PARTIAL: native read_published_post (company/branch/department/participants/team audiences) + source_guard + source_hash implemented and tested. Project/PMS/handover-source audiences remain fail-closed; composing into StaffTaskFactDelegates and extending SaveTaskCommand are the next steps for migrate.operations.native-task-source.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T11:02:05.400Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "PARTIAL: native read_published_post (company/branch/department/participants/team audiences) + source_guard + source_hash implemented and tested. Project/PMS/handover-source audiences remain fail-closed; composing into StaffTaskFactDelegates and extending SaveTaskCommand are the next steps for migrate.operations.native-task-source."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -47728,17 +47743,17 @@
       "migratedPackets": 132,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 132,
-        "blocked": 91,
+        "blocked": 92,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T11:02:02.757Z",
+    "updatedAt": "2026-11-20T11:02:05.472Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
