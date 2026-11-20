@@ -709,3 +709,71 @@ pub async fn customer_portal_notification_statement(
         ],
     })
 }
+
+/// Company-business-acceptance independent reviewer notice. Eligible holders
+/// are resolved from current assignments/principals on the caller's unit.
+pub async fn company_acceptance_reviewer_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.user_id.is_empty()
+        || input.record_version <= 0
+        || input.now <= 0
+    {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT 'company-acceptance-notice-'||?||'-'||a.user_id,?,a.user_id,\
+ 'company_business_acceptance',?,?,'Company setup acceptance is ready for independent review',? \
+ FROM assignments a WHERE a.company_id=? AND a.user_id<>? AND a.scope_kind='holding' \
+ AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?) \
+ AND iam_role_allows(a.role,a.company_id,'organization.manage') ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    let company_value = value(company.as_str());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            company_value.clone(),
+            company_value.clone(),
+            company_value.clone(),
+            serde_json::Value::Number(input.record_version.into()),
+            serde_json::Value::Number(input.now.into()),
+            company_value.clone(),
+            value(&input.user_id),
+            serde_json::Value::Number(input.now.into()),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Company-business-acceptance submitter result notice.
+pub async fn company_acceptance_result_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str() || input.message.is_empty() || input.now <= 0 {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT 'company-acceptance-result-'||?||'-'||requested_by,company_id,requested_by,\
+ 'company_business_acceptance',company_id,version,?,? \
+ FROM company_business_acceptance WHERE company_id=? ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
+            value(company.as_str()),
+        ],
+    })
+}

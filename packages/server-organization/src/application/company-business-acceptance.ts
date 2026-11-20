@@ -16,13 +16,13 @@ submitCurrent(companyId:string):Promise<AcceptanceRow|null>;
 submitVersion(key:string,value:"acceptance-version",companyId:string,version:number):Effect;
 submitAcceptance(companyId:string,recordVersion:number,userId:string,now:number,reason:string,now2:number):Effect;
 submittedEvent(value:string,companyId:string,userId:string,recordVersion:number,reason:string,now:number):Effect;
-reviewerNotifications(key:string,companyId:string,companyId2:string,recordVersion:number,now:number,companyId3:string,userId:string,now2:number,now3:number):Effect;
+reviewerNotifications(key:string,companyId:string,companyId2:string,recordVersion:number,now:number,companyId3:string,userId:string,now2:number,now3:number):Promise<Effect>;
 reviewCurrent(companyId:string):Promise<AcceptanceRow|null>;
 reviewVersion(key:string,value:"acceptance-version",companyId:string,expectedVersion:number):Effect;
 independentReview(key:string,value:"independent-review",userId:string,requested_by:string,companyId:string):Effect;
 reviewAcceptance(status:"rejected" | "accepted",version:number,userId:string,now:number,reason:string,now2:number,companyId:string):Effect;
 reviewEvent(value:string,companyId:string,status:"rejected" | "accepted",userId:string,version:number,reason:string,now:number):Effect;
-resultNotifications(key:string,value:"Company setup acceptance was approved" | "Company setup acceptance was returned for correction",now:number,companyId:string):Effect;
+resultNotifications(key:string,value:"Company setup acceptance was approved" | "Company setup acceptance was returned for correction",now:number,companyId:string):Promise<Effect>;
 revokeCurrent(companyId:string):Promise<AcceptanceRow|null>;
 revokeVersion(key:string,value:"acceptance-version",companyId:string,expectedVersion:number):Effect;
 revokeAcceptance(version:number,now:number,reason:string,now2:number,companyId:string):Effect;
@@ -93,7 +93,7 @@ async function submitCompanyBusinessAcceptance(actor: WorkContext, input: z.infe
     ...(current ? [ports.repository.submitVersion(key,"acceptance-version",actor.companyId,current.version)] : []),
     ports.repository.submitAcceptance(actor.companyId,recordVersion,actor.userId,now,input.reason,now),
     ports.repository.submittedEvent(`company-acceptance-event-${key}`,actor.companyId,actor.userId,recordVersion,input.reason,now),
-    ports.repository.reviewerNotifications(key,actor.companyId,actor.companyId,recordVersion,now,actor.companyId,actor.userId,now,now),
+    await ports.repository.reviewerNotifications(key,actor.companyId,actor.companyId,recordVersion,now,actor.companyId,actor.userId,now,now),
   ]);
 }
 async function decideCompanyBusinessAcceptance(actor: WorkContext, input: z.infer<typeof companyAcceptanceDecisionSchema>, key: string) {
@@ -113,7 +113,7 @@ async function decideCompanyBusinessAcceptance(actor: WorkContext, input: z.infe
     ports.repository.independentReview(key,"independent-review",actor.userId,current.requested_by,actor.companyId),
     ports.repository.reviewAcceptance(status,version,actor.userId,now,input.reason,now,actor.companyId),
     ports.repository.reviewEvent(`company-acceptance-event-${key}`,actor.companyId,status,actor.userId,version,input.reason,now),
-    ports.repository.resultNotifications(key,status === "accepted" ? "Company setup acceptance was approved" : "Company setup acceptance was returned for correction",now,actor.companyId),
+    await ports.repository.resultNotifications(key,status === "accepted" ? "Company setup acceptance was approved" : "Company setup acceptance was returned for correction",now,actor.companyId),
   ]);
 }
 async function revokeCompanyBusinessAcceptance(actor: WorkContext, input: z.infer<typeof companyAcceptanceRevokeSchema>, key: string) {
