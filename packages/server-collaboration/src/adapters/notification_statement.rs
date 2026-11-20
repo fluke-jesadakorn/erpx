@@ -1853,3 +1853,79 @@ pub async fn finance_bank_ignore_statement(
         ],
     })
 }
+
+
+fn safe_table(table: &Option<String>) -> Result<&str, Error> {
+    match table {
+        Some(t) if !t.is_empty() && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') => Ok(t.as_str()),
+        _ => Err(invalid().into()),
+    }
+}
+
+/// Legal feature: create a feature row in its capability table.
+pub async fn legal_feature_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let table = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("INSERT INTO {table}(id,item_id,category,title,owner_id,due_date,state,version,data,created_by,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,1,?::jsonb,?,?,?)"),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal feature: update a feature row in its capability table.
+pub async fn legal_feature_update_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let table = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("UPDATE {table} SET state=?,data=?::jsonb,version=version+1,updated_by=?,updated_at=? WHERE id=? AND version=?"),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal feature: record a feature history snapshot.
+pub async fn legal_feature_history_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_feature_history(id,item_id,feature_id,category,version,snapshot,\
+ actor_id,reason,created_at) VALUES(?,?,?,?,?,?::jsonb,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal feature: advance the parent item version.
+pub async fn legal_advance_record_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_items SET version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal feature: parent item lifecycle event.
+pub async fn legal_feature_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

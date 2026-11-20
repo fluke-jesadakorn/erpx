@@ -10,16 +10,16 @@ features(facts:{id:string;search:string;search2:string;fact3:number;capability:(
 feature(facts:{featureId:string;itemId:string;capability:(typeof featureKinds)[number];}):Promise<FeatureRow | null>;
 ownerMembership(facts:{itemId:string;ownerId:string;}):Promise<Record<string, unknown> | null>;
 attachedDocument(facts:{documentId:string;itemId:string;}):Promise<Record<string, unknown> | null>;
-createFeature(facts:{id:string;itemId:string;category:"case_event" | "compliance_action" | "privacy_case" | "corporate_action" | "ip_action" | "counsel_entry" | "schedule" | "custody" | "policy_ack" | "intake";title:string;owner_id:string;due_date:string | null;state:string;dataJson:string;actorId:string;actorId2:string;updated_at:number;capability:(typeof featureKinds)[number];}):LegalWrite;
+createFeature(facts:{id:string;itemId:string;category:"case_event" | "compliance_action" | "privacy_case" | "corporate_action" | "ip_action" | "counsel_entry" | "schedule" | "custody" | "policy_ack" | "intake";title:string;owner_id:string;due_date:string | null;state:string;dataJson:string;actorId:string;actorId2:string;updated_at:number;capability:(typeof featureKinds)[number];}):Promise<LegalWrite>;
 conflictCleared(facts:{itemId:string;}):Promise<Record<string, unknown> | null>;
 approvedFees(facts:{itemId:string;id:string;}):Promise<{ amount: number; } | null>;
-updateFeature(facts:{state:string;dataJson:string;actorId:string;updated_at:number;id:string;version:number;capability:(typeof featureKinds)[number];}):LegalWrite;
-recordFeatureHistory(facts:{identifier:string;itemId:string;id:string;category:"case_event" | "compliance_action" | "privacy_case" | "corporate_action" | "ip_action" | "counsel_entry" | "schedule" | "custody" | "policy_ack" | "intake";version:number;snapshotJson:string;actorId:string;reason:string;now:number;}):LegalWrite;
-advanceRecord(facts:{now:number;itemId:string;}):LegalWrite;
+updateFeature(facts:{state:string;dataJson:string;actorId:string;updated_at:number;id:string;version:number;capability:(typeof featureKinds)[number];}):Promise<LegalWrite>;
+recordFeatureHistory(facts:{identifier:string;itemId:string;id:string;category:"case_event" | "compliance_action" | "privacy_case" | "corporate_action" | "ip_action" | "counsel_entry" | "schedule" | "custody" | "policy_ack" | "intake";version:number;snapshotJson:string;actorId:string;reason:string;now:number;}):Promise<LegalWrite>;
+advanceRecord(facts:{now:number;itemId:string;}):Promise<LegalWrite>;
 guardChanges(id:string,version:number,key:string,edit?:boolean):LegalWrite[];
 companyLock():LegalWrite;
 personGuard(key:string,userId:string,scope?:LegalItem,permission?:string):LegalWrite;
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay<Result extends object=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -138,7 +138,7 @@ async function featureCommand(
     )
       fail("Choose subject_request, breach or processing.");
     steps.push(
-      ports.repository.createFeature({id:snapshot.id,itemId:item.id,category:x.category,title:snapshot.title,owner_id:snapshot.owner_id,due_date:snapshot.due_date,state:snapshot.state,dataJson:JSON.stringify(snapshot.data),actorId:a.userId,actorId2:a.userId,updated_at:snapshot.updated_at,capability:x.category}),
+      await ports.repository.createFeature({id:snapshot.id,itemId:item.id,category:x.category,title:snapshot.title,owner_id:snapshot.owner_id,due_date:snapshot.due_date,state:snapshot.state,dataJson:JSON.stringify(snapshot.data),actorId:a.userId,actorId2:a.userId,updated_at:snapshot.updated_at,capability:x.category}),
     );
   } else {
     if (!row || row.version !== x.featureVersion)
@@ -246,13 +246,13 @@ async function featureCommand(
       updated_at: ports.clock.now(),
     };
     steps.push(
-      ports.repository.updateFeature({state:state,dataJson:JSON.stringify(data),actorId:a.userId,updated_at:snapshot.updated_at,id:row.id,version:row.version,capability:x.category}),
+      await ports.repository.updateFeature({state:state,dataJson:JSON.stringify(data),actorId:a.userId,updated_at:snapshot.updated_at,id:row.id,version:row.version,capability:x.category}),
     );
   }
   steps.push(
-    ports.repository.recordFeatureHistory({identifier:ports.identifiers.next(),itemId:item.id,id:snapshot.id,category:x.category,version:snapshot.version,snapshotJson:JSON.stringify(snapshot),actorId:a.userId,reason:x.reason,now:ports.clock.now()}),
-    ports.repository.advanceRecord({now:ports.clock.now(),itemId:item.id}),
-    ports.repository.event(item.id,x.action,`${spec.label}: ${snapshot.title} → ${snapshot.state}`,item.version + 1,ports.identifiers.next(),ports.clock.now()),
+    await ports.repository.recordFeatureHistory({identifier:ports.identifiers.next(),itemId:item.id,id:snapshot.id,category:x.category,version:snapshot.version,snapshotJson:JSON.stringify(snapshot),actorId:a.userId,reason:x.reason,now:ports.clock.now()}),
+    await ports.repository.advanceRecord({now:ports.clock.now(),itemId:item.id}),
+    await ports.repository.event(item.id,x.action,`${spec.label}: ${snapshot.title} → ${snapshot.state}`,item.version + 1,ports.identifiers.next(),ports.clock.now()),
   );
   return ports.repository.commit(key,x.action,raw,item.id,item.version + 1,{ id: item.id, version: item.version + 1 },steps);
 }
