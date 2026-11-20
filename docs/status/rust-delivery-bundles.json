@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3745,
+    "revision": 3751,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T19:39:41.763Z",
-      "expiresAt": "2026-11-20T20:09:41.763Z",
+      "heartbeatAt": "2026-11-20T19:41:27.055Z",
+      "expiresAt": "2026-11-20T20:11:27.055Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -64919,6 +64919,318 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.final-pay-cancellation",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire payroll final-pay cancellation TS writers (3 writes)",
+        "scope": "Delete event/run-cancel/prep-cancel INSERT/UPDATEs in final-pay-cancellation.ts; native payroll_final_pay_* statements own them via values_json.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "8fa3b2887f35ae872140dfda637c704d39a9e24f",
+        "lastPushedSha": "8fa3b2887f35ae872140dfda637c704d39a9e24f",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8fa3b2887f35ae872140dfda637c704d39a9e24f",
+            "sourceKind": "committed",
+            "before": 283,
+            "after": 280,
+            "note": "Retired 3 TS payroll final-pay cancellation writers; people_payroll KPI 283->280, global 1694->1691.",
+            "residual": [
+              {
+                "path": "packages/server-people_payroll/src/adapters/attachments-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/beta-onboarding-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/calendar-commands-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/commerce-expense-payment-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-ai.ts",
+                "writes": 10,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-drafts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-payment-cancellation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-payments.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-workflow.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expenses.ts",
+                "writes": 7,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-applied-package-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-person-link-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-review-evidence-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-self-service.ts",
+                "writes": 15,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave.ts",
+                "writes": 8,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-leave-legacy-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-leave-self-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-directory-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-lifecycle-worker-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-staff-settings-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-defaults.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-department-relocation.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-draft-placement.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/overtime.ts",
+                "writes": 8,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-adjustments.ts",
+                "writes": 10,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-payslips.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-readiness.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-recoveries.ts",
+                "writes": 7,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-statutory.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-directory.ts",
+                "writes": 10,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation-ai.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation.ts",
+                "writes": 16,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-handoffs.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle-jobs.ts",
+                "writes": 11,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle.ts",
+                "writes": 25,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-payroll.ts",
+                "writes": 44,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-roster.ts",
+                "writes": 21,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-templates.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/technology-provisioning-facts.ts",
+                "writes": 14,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/worker-startup.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.service-repository",
+                "removalCondition": "Delete only after the owner-native PeoplePayroll port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "8fa3b2887f35ae872140dfda637c704d39a9e24f",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "8fa3b2887f35ae872140dfda637c704d39a9e24f",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + 6/6 payroll accounting unit."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native final-pay cancellation; people_payroll KPI 283->280, global 1694->1691.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -64927,21 +65239,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 324,
-      "migratedPackets": 211,
+      "totalPackets": 325,
+      "migratedPackets": 212,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 211,
+        "migrated": 212,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T19:39:41.764Z",
+    "updatedAt": "2026-11-20T19:41:27.056Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "50feddc6866dacd6fba08d77a05e87fff74446cf",
