@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3571,
+    "revision": 3577,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T17:54:39.374Z",
-      "expiresAt": "2026-11-20T18:24:39.374Z",
+      "heartbeatAt": "2026-11-20T17:58:53.763Z",
+      "expiresAt": "2026-11-20T18:28:53.763Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -58513,6 +58513,103 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.legal-portal-draft-staging",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire legal portal draft/staging TS writers (4 writes)",
+        "scope": "Delete draftSet/draftLink/uploadedIntent/quarantinedSource INSERTs in legal-portal-repository.ts; native draft/staging statements own them via values_json transport. Completes full file retirement.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-legal/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "b8900765c5a3c7dd6d2523eaabe3b467bfa91ffd",
+        "lastPushedSha": "b8900765c5a3c7dd6d2523eaabe3b467bfa91ffd",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b8900765c5a3c7dd6d2523eaabe3b467bfa91ffd",
+            "sourceKind": "committed",
+            "before": 91,
+            "after": 87,
+            "note": "Retired 4 TS legal portal draft/staging writers; files KPI 91->87, global 1832->1828. legal-portal-repository.ts fully retired.",
+            "residual": [
+              {
+                "path": "packages/server-files/src/adapters/attachments/hospitality-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/migration.ts",
+                "writes": 24,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/orphan-preservation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/service-repository.ts",
+                "writes": 55,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/private-attachment-reads.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.service-repository",
+                "removalCondition": "Delete only after the owner-native Files port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "b8900765c5a3c7dd6d2523eaabe3b467bfa91ffd",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "b8900765c5a3c7dd6d2523eaabe3b467bfa91ffd",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + 61/61 legal unit. values_json transport with native-owned SQL."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native legal portal draft/staging; files KPI 91->87, global 1832->1828.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -58521,21 +58618,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 295,
-      "migratedPackets": 182,
+      "totalPackets": 296,
+      "migratedPackets": 183,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 182,
+        "migrated": 183,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T17:54:39.376Z",
+    "updatedAt": "2026-11-20T17:58:53.764Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "839aa6646b1cd23febebd3b35eb76f3a75e92437",
