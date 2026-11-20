@@ -20,3 +20,7 @@ export function recordCustomerPortalFileAccess(
     event.id, event.now,
   );
 }
+
+
+/** Support-ticket portal variant (same owner event shape). */
+export const supportTicketPortalFileAccess = recordCustomerPortalFileAccess;
