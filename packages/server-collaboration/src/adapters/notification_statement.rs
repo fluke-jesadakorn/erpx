@@ -2259,3 +2259,57 @@ pub async fn legal_retention_change_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal operations: save a named query view.
+pub async fn legal_saved_view_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_saved_views VALUES(?,?,?,?::jsonb) ON CONFLICT(company_id,user_id,name) DO UPDATE SET query=excluded.query".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal operations: create a derived item link.
+pub async fn legal_derived_link_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_links VALUES(?,?,'derived') ON CONFLICT DO NOTHING".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal operations: persist a reviewed AI document as text/plain.
+pub async fn legal_ai_document_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,\
+ created_by,created_at) VALUES(?,?,?,?,'text/plain',?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal operations: accept an AI proposal by appending to its proposal JSON.
+pub async fn legal_proposal_accept_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_ai_proposals SET state='accepted',proposal=proposal||?::jsonb WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
