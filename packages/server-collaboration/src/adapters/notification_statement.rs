@@ -53,6 +53,10 @@ pub struct NotificationStatementInput {
     pub source_hash: Option<String>,
     #[serde(default)]
     pub ai_draft_id: Option<String>,
+    #[serde(default)]
+    pub document_table: Option<String>,
+    #[serde(default)]
+    pub recipient_sql: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -119,7 +123,7 @@ mod tests {
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
             approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
-            post_id: None, source_hash: None, ai_draft_id: None,
+            post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -935,6 +939,55 @@ pub async fn workflow_invoicing_notification_statement(
             value(&input.idempotency_key),
             serde_json::Value::Number(input.now.into()),
             value(&input.record_id),
+        ],
+    })
+}
+
+
+/// Workflow next-action notice. The fixed document table and recipient
+/// expression are supplied by the native Workflow composition's planning port;
+/// the owner validates company authority and owns the INSERT assembly.
+pub async fn workflow_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.record_type.is_empty()
+        || input.record_id.is_empty()
+        || input.user_id.is_empty()
+        || input.document_table.as_deref().unwrap_or("").is_empty()
+        || input.recipient_sql.as_deref().unwrap_or("").is_empty()
+        || input.now <= 0
+    {
+        return Err(invalid().into());
+    }
+    let recipient = input.recipient_sql.as_deref().unwrap_or("");
+    let sql = format!(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT ?,d.company_id,{recipient},?,d.id,d.version,?,? \
+ FROM {} d \
+ JOIN (SELECT \"company_id\",\"kind\",\"record_id\",\"version\",\"defaults_revision\",\
+ \"steps_json\",\"created_at\" FROM flow_routes) r \
+ ON r.company_id=d.company_id AND r.kind=? AND r.record_id=d.id \
+ WHERE d.company_id=? AND d.id=? AND ({recipient}) IS NOT NULL AND ({recipient})!=? \
+ ON CONFLICT DO NOTHING",
+        input.document_table.as_deref().unwrap_or("")
+    );
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql,
+        values: vec![
+            value(&input.idempotency_key),
+            value(&input.record_type),
+            value("Workflow updated: review your next action"),
+            serde_json::Value::Number(input.now.into()),
+            value(&input.record_type),
+            value(&input.company_id),
+            value(&input.record_id),
+            value(&input.user_id),
         ],
     })
 }

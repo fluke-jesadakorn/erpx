@@ -55874,10 +55874,10 @@
     "updatedAt": "2026-11-20T16:19:48.784Z",
     "handoff": {
       "fromRun": "run-20261120-k",
-      "verifiedPushedCheckpoint": "da0de4729e87e21711aaa47b244d50e3f9ac0537",
+      "verifiedPushedCheckpoint": "134e8dcb774952373f557cde25cbfd59786c0f9f",
       "remoteVerifiedAt": "2026-11-20T23:10:00Z",
-      "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1873 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, and workflow invoicing notice. Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA.",
-      "lastKpi": 1873,
+      "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1872 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, and the workflow next-action notice. Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA.",
+      "lastKpi": 1872,
       "statusCounts": {
         "done": 51,
         "migrated": 135,
@@ -55889,7 +55889,7 @@
       "nextGoal": "G3",
       "nextCommands": [
         "bun scripts/testing/rust-migration-work.ts status --json && bun scripts/testing/rust-migration-work.ts validate",
-        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l  (currently 1873)",
+        "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l  (currently 1872)",
         "Continue bounded native-authority slices with strictly decreasing KPI and full 6-point evidence.",
         "Remaining seams require larger per-owner packets (finance/pos/people-payroll ~49 writes each) and native ports for Files/Workflow/Organization-owned facts.",
         "Health endpoints are pre-existing 503/530/000; do not attribute to migration code.",

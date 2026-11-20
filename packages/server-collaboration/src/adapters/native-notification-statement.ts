@@ -49,6 +49,8 @@ export async function nativeNotificationStatement(
     post_id?: string;
     source_hash?: string;
     ai_draft_id?: string;
+    document_table?: string;
+    recipient_sql?: string;
   },
   key: string,
   now: number,
