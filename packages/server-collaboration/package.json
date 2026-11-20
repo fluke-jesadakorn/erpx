@@ -269,7 +269,8 @@
     "./adapters/native-legal-access-event": "./src/adapters/native-legal-access-event.ts",
     "./adapters/native-legal-governance": "./src/adapters/native-legal-governance.ts",
     "./adapters/native-legal-retention": "./src/adapters/native-legal-retention.ts",
-    "./adapters/native-legal-operations": "./src/adapters/native-legal-operations.ts"
+    "./adapters/native-legal-operations": "./src/adapters/native-legal-operations.ts",
+    "./adapters/native-legal-documents": "./src/adapters/native-legal-documents.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -2313,3 +2313,59 @@ pub async fn legal_proposal_accept_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal documents: insert an inspection unless a destruction is active.
+pub async fn legal_document_inspection_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_document_inspections SELECT ?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM legal_destructions WHERE item_id=? AND state IN ('executing','completed'))".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal documents: retain an executed copy.
+pub async fn legal_executed_copy_retain_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_executed_copies(id,item_id,document_id,approved_cycle,\
+ approved_document_id,approved_hash,executed_hash,metadata,imported_by,imported_at) VALUES(?,?,?,?,?,?,?,?::jsonb,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal documents: insert a canonical (attachment-backed) document.
+pub async fn legal_canonical_document_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,object_key,\
+ created_by,created_at,attachment_link_id,attachment_source_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal documents: insert a stored (text/bytes) document.
+pub async fn legal_stored_document_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,object_key,\
+ created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

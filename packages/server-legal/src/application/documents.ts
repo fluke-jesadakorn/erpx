@@ -10,21 +10,21 @@ export type DocumentInspectionSession={write(bytes:Uint8Array):Promise<void>;ver
 export type DocumentProvider={docx(body:string):Promise<Uint8Array>;pdf(body:string):Promise<Uint8Array>;prepare():Promise<DocumentInspectionSession>};
 export type LegalDocumentRepository={
 approvedVersion(facts:{id:string;}):Promise<{ cycle: number; document_id: string; document_hash: string; } | null>;
-retainExecutedCopy(facts:{executedCopyId:string;id:string;documentId:string;cycle:number;document_id:string;document_hash:string;checksum:string;metadataJson:string;actorId:string;now:number;}):LegalWrite;
-lockExecutedDocument(facts:{documentId:string;}):LegalWrite;
+retainExecutedCopy(facts:{executedCopyId:string;id:string;documentId:string;cycle:number;document_id:string;document_hash:string;checksum:string;metadataJson:string;actorId:string;now:number;}):Promise<LegalWrite>;
+lockExecutedDocument(facts:{documentId:string;}):Promise<LegalWrite>;
 cleanSource(facts:{sourceId:string;companyId:string;}):Promise<{ object_key: string; checksum_sha256: string; media_type: string; bytes: number; } | null>;
 nextVersion(facts:{id:string;}):Promise<{ n: number; } | null>;
-insertCanonicalDocument(facts:{documentId:string;id:string;next:number;name:string;media_type:string;checksum_sha256:string;fact6:number;object_key:string;actorId:string;now:number;attachmentLinkId:string;sourceId:string;}):LegalWrite;
-advanceCanonicalItem(facts:{now:number;id:string;}):LegalWrite;
+insertCanonicalDocument(facts:{documentId:string;id:string;next:number;name:string;media_type:string;checksum_sha256:string;fact6:number;object_key:string;actorId:string;now:number;attachmentLinkId:string;sourceId:string;}):Promise<LegalWrite>;
+advanceCanonicalItem(facts:{now:number;id:string;}):Promise<LegalWrite>;
 nextStoredVersion(facts:{id:string;}):Promise<{ n: number; } | null>;
-insertStoredDocument(facts:{identifier:string;id:string;next:number;name:string;type:"application/pdf" | "image/png" | "image/jpeg" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";checksum:string;length:number;objectKey:string;actorId:string;now:number;}):LegalWrite;
-advanceStoredItem(facts:{now:number;id:string;}):LegalWrite;
+insertStoredDocument(facts:{identifier:string;id:string;next:number;name:string;type:"application/pdf" | "image/png" | "image/jpeg" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";checksum:string;length:number;objectKey:string;actorId:string;now:number;}):Promise<LegalWrite>;
+advanceStoredItem(facts:{now:number;id:string;}):Promise<LegalWrite>;
 document(facts:{id:string;}):Promise<DocumentVersion | null>;
 disposed(facts:{id:string;}):Promise<Record<string, unknown> | null>;
 destroying(facts:{item_id:string;}):Promise<Record<string, unknown> | null>;
 recordExport(facts:{identifier:string;item_id:string;id:string;actorId:string;fact4:string;now:number;}):Promise<void>;
 preservationLock():LegalWrite;
-insertInspection(facts:{inspectionId:string;id:string;kind:"ocr" | "verify";resultJson:string;actorId:string;now:number;item_id:string;}):LegalWrite;
+insertInspection(facts:{inspectionId:string;id:string;kind:"ocr" | "verify";resultJson:string;actorId:string;now:number;item_id:string;}):Promise<LegalWrite>;
 recordInspectionRead(facts:{identifier:string;item_id:string;id:string;actorId:string;fact4:string;now:number;}):Promise<void>;
 submission(facts:{id:string;}):Promise<{ id: string; item_id: string; object_key: string; checksum: string; name: string; media_type: string; bytes: number; attachment_link_id: string | null; attachment_source_id: string | null; } | null>;
 recordSubmissionRead(facts:{identifier:string;item_id:string;null:null;actorId:string;fact4:"external-submission.download";now:number;}):Promise<void>;
@@ -32,7 +32,7 @@ requireExecutedApproval(key:string,values:(string | number)[]):LegalWrite;
 requireExecutedAuthority(key:string,documentId:string,values:string[]):LegalWrite;
 persistInspection(writes:LegalWrite[]):Promise<number>;
 guardChanges(id:string,version:number,key:string,edit?:boolean,allowFrozen?:boolean,preparation?:boolean):LegalWrite[];
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay<Result extends object=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -86,11 +86,11 @@ async function uploadDocument(
     }
   }
   const executedCopyId=executed?ports.identifiers.next():null;
-  const executionSteps=(documentId:string)=>executed&&approved&&executedCopyId?[
+  const executionSteps=async (documentId:string)=>executed&&approved&&executedCopyId?[
     ports.repository.requireExecutedApproval(key,[id,approved.cycle,approved.document_id,approved.document_hash,id,approved.cycle]),
     ...Array.from(new Set(executed.signers.flatMap(s=>s.authorityDocumentIds))).map(d=>ports.repository.requireExecutedAuthority(key,d,[d,id,d])),
-    ports.repository.retainExecutedCopy({executedCopyId:executedCopyId,id:id,documentId:documentId,cycle:approved.cycle,document_id:approved.document_id,document_hash:approved.document_hash,checksum:checksum,metadataJson:JSON.stringify(executed),actorId:a.userId,now:ports.clock.now()}),
-    ports.repository.lockExecutedDocument({documentId:documentId}),
+    await ports.repository.retainExecutedCopy({executedCopyId:executedCopyId,id:id,documentId:documentId,cycle:approved.cycle,document_id:approved.document_id,document_hash:approved.document_hash,checksum:checksum,metadataJson:JSON.stringify(executed),actorId:a.userId,now:ports.clock.now()}),
+    await ports.repository.lockExecutedDocument({documentId:documentId}),
   ]:[];
   if(ports.fileIntake.readOnly())fail("Attachment intake is disabled during rollback.","ATTACHMENTS_READ_ONLY",503);
   if (!ports.fileIntake.readOnly()) {
@@ -142,11 +142,11 @@ async function uploadDocument(
       [
         ...ports.repository.guardChanges(id,version,key,true,false,["rule","template"].includes(r.kind)),
         ...binding.guards,
-        ports.repository.insertCanonicalDocument({documentId:documentId,id:id,next:next,name:name,media_type:source.media_type,checksum_sha256:source.checksum_sha256,fact6:Number(source.bytes),object_key:source.object_key,actorId:a.userId,now:ports.clock.now(),attachmentLinkId:uploaded.attachmentLinkId,sourceId:uploaded.sourceId}),
-        ports.repository.advanceCanonicalItem({now:ports.clock.now(),id:id}),
+        await ports.repository.insertCanonicalDocument({documentId:documentId,id:id,next:next,name:name,media_type:source.media_type,checksum_sha256:source.checksum_sha256,fact6:Number(source.bytes),object_key:source.object_key,actorId:a.userId,now:ports.clock.now(),attachmentLinkId:uploaded.attachmentLinkId,sourceId:uploaded.sourceId}),
+        await ports.repository.advanceCanonicalItem({now:ports.clock.now(),id:id}),
         ...binding.steps,
-        ...executionSteps(documentId),
-        ports.repository.event(id,executed?"executed.import":"document.upload",`${name} · ${checksum}`,version + 1,ports.identifiers.next(),ports.clock.now()),
+        ...await executionSteps(documentId),
+        await ports.repository.event(id,executed?"executed.import":"document.upload",`${name} · ${checksum}`,version + 1,ports.identifiers.next(),ports.clock.now()),
       ],
     );
   }
@@ -168,9 +168,9 @@ async function uploadDocument(
     { id, version: version + 1 },
     [
       ...ports.repository.guardChanges(id,version,key,true,false,["rule","template"].includes(r.kind)),
-      ports.repository.insertStoredDocument({identifier:ports.identifiers.next(),id:id,next:next,name:name,type:type,checksum:checksum,length:bytes.length,objectKey:objectKey,actorId:a.userId,now:ports.clock.now()}),
-      ports.repository.advanceStoredItem({now:ports.clock.now(),id:id}),
-      ports.repository.event(id,"document.upload",`${name} · ${checksum}`,version + 1,ports.identifiers.next(),ports.clock.now()),
+      await ports.repository.insertStoredDocument({identifier:ports.identifiers.next(),id:id,next:next,name:name,type:type,checksum:checksum,length:bytes.length,objectKey:objectKey,actorId:a.userId,now:ports.clock.now()}),
+      await ports.repository.advanceStoredItem({now:ports.clock.now(),id:id}),
+      await ports.repository.event(id,"document.upload",`${name} · ${checksum}`,version + 1,ports.identifiers.next(),ports.clock.now()),
     ],
   );
 }
@@ -235,7 +235,7 @@ async function inspectDocument(id:string,kind:"ocr"|"verify"){
   if(kind==="verify"){if(document.media_type!=="application/pdf")fail("Signature inspection requires a PDF.");result={...await session.verify(),checksum:document.checksum};}
   else{const extracted=await session.extract(document),text=extracted.text;let pages=extracted.pages;if(!pages.length)pages=[{page:1,text:text.slice(0,200000)}];let remaining=200000;pages=pages.map(page=>{const text=page.text.slice(0,remaining);remaining-=text.length;return {...page,text};});result={text:text.slice(0,200000),pages,pageMapping:document.object_key?extracted.pageMapping:false,truncated:text.length>200000,checksum:document.checksum,requiresReview:true};}
   await documentAccess(id);const inspectionId=ports.identifiers.next();result={...result,inspectionId};
-  const changes=await ports.repository.persistInspection([ports.repository.preservationLock(),ports.repository.insertInspection({inspectionId,id:document.id,kind,resultJson:JSON.stringify(result),actorId:a.userId,now:ports.clock.now(),item_id:document.item_id})]);
+  const changes=await ports.repository.persistInspection([ports.repository.preservationLock(),await ports.repository.insertInspection({inspectionId,id:document.id,kind,resultJson:JSON.stringify(result),actorId:a.userId,now:ports.clock.now(),item_id:document.item_id})]);
   if(changes!==1)fail("Document preservation changed while inspecting. Refresh first.","LEGAL_DOCUMENT_FROZEN",409);
   await ports.repository.recordInspectionRead({identifier:ports.identifiers.next(),item_id:document.item_id,id:document.id,actorId:a.userId,fact4:`document.${kind}`,now:ports.clock.now()});return result;
  }catch(error){if(error instanceof Error&&"code"in error&&["ENOENT","ETIMEDOUT"].includes(String(error.code)))fail("The document tool is unavailable or timed out.","LEGAL_TOOL_UNAVAILABLE",503);throw error;}
