@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3170,
+    "revision": 3177,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261119-h",
+      "runId": "run-20261120-j",
       "agentId": "lead",
-      "startedAt": "2026-11-19T21:16:59.181Z",
-      "heartbeatAt": "2026-11-19T21:16:59.181Z",
-      "expiresAt": "2026-11-19T21:46:59.181Z",
-      "generation": 136,
-      "tokenHash": "caef360139c1d5dd3650d1a0a21ca4269afb90bd587a9d3291b12254d5ec767d"
+      "startedAt": "2026-11-20T02:18:12.204Z",
+      "heartbeatAt": "2026-11-20T02:18:12.204Z",
+      "expiresAt": "2026-11-20T02:48:12.204Z",
+      "generation": 138,
+      "tokenHash": "684178b9ff95559227220962b894c8e15c7cb4a08fa827fe85dbeae1c3218bb7"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -18813,18 +18813,11 @@
         "resources": [
           "owner:shared"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261119-h",
-          "agentId": "lead",
-          "claimedAt": "2026-11-19T21:34:32.192Z",
-          "heartbeatAt": "2026-11-19T21:34:32.192Z",
-          "expiresAt": "2026-11-19T22:04:32.192Z",
-          "generation": 136
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": "214eb50d3f24c3febc981b1d56bd5afff25c1189",
-        "lastPushedSha": null,
+        "implementedCommit": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b",
+        "lastPushedSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b",
         "checks": [
           {
             "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
@@ -18848,18 +18841,2403 @@
             "sourceSha": "214eb50d3f24c3febc981b1d56bd5afff25c1189",
             "sourceKind": "committed",
             "note": "Repository layout check passes on the final slice tree."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b",
+            "before": 1950,
+            "after": 1942,
+            "residual": [
+              {
+                "path": "packages/server-agent/src/adapters/agent-governance.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Covered by retire.agent.residual-writers: the TS writers in this agent module are removed when the native agent port owns the command."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-gateway.ts",
+                "writes": 2,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Covered by retire.agent.residual-writers: the TS writers in this agent module are removed when the native agent port owns the command."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-runtime.ts",
+                "writes": 1,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Covered by retire.agent.residual-writers: the TS writers in this agent module are removed when the native agent port owns the command."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/operations-guided-intake-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Covered by retire.agent.residual-writers: the TS writers in this agent module are removed when the native agent port owns the command."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/workspace-assistant.ts",
+                "writes": 7,
+                "removalTaskId": "retire.agent.residual-writers",
+                "removalCondition": "Covered by retire.agent.residual-writers: the TS writers in this agent module are removed when the native agent port owns the command."
+              },
+              {
+                "path": "packages/server-assets/src/adapters/attachment-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.assets.maintenance-transaction",
+                "removalCondition": "Covered by retire.assets.maintenance-transaction: the TS writers in this assets module are removed when the native assets port owns the command."
+              },
+              {
+                "path": "packages/server-assets/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.assets.maintenance-transaction",
+                "removalCondition": "Covered by retire.assets.maintenance-transaction: the TS writers in this assets module are removed when the native assets port owns the command."
+              },
+              {
+                "path": "packages/server-benefits/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.benefits.residual-writers",
+                "removalCondition": "Covered by retire.benefits.residual-writers: the TS writers in this benefits module are removed when the native benefits port owns the command."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/beta-billing.ts",
+                "writes": 5,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Covered by retire.billing.residual-writers: the TS writers in this billing module are removed when the native billing port owns the command."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/beta-onboarding-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Covered by retire.billing.residual-writers: the TS writers in this billing module are removed when the native billing port owns the command."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-api.ts",
+                "writes": 7,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Covered by retire.billing.residual-writers: the TS writers in this billing module are removed when the native billing port owns the command."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-attachments.ts",
+                "writes": 13,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Covered by retire.billing.residual-writers: the TS writers in this billing module are removed when the native billing port owns the command."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-jobs.ts",
+                "writes": 15,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Covered by retire.billing.residual-writers: the TS writers in this billing module are removed when the native billing port owns the command."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing.ts",
+                "writes": 32,
+                "removalTaskId": "retire.billing.residual-writers",
+                "removalCondition": "Covered by retire.billing.residual-writers: the TS writers in this billing module are removed when the native billing port owns the command."
+              },
+              {
+                "path": "packages/server-brand/src/adapters/attachments-service-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.brand.attachment-facts",
+                "removalCondition": "Covered by retire.brand.attachment-facts: the TS writers in this brand module are removed when the native brand port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/attachment-migration-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/attachments-portal-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/beta-resource-cleanup.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/calendar-retirement-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/company-acceptance-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/crm-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/customer-authority-notifications.ts",
+                "writes": 7,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/customer-portal-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/finance-refund-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/handbook-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/identity-notification-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inbox.ts",
+                "writes": 9,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inventory-counts-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inventory-reservation-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inventory-transit-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/learning-notification-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-approval-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-hold-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-law-source-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/legal-reminder-notifications.ts",
+                "writes": 4,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-files.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging.ts",
+                "writes": 12,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-handover-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-staff-policy-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-staff-task-alerts-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/organization-change-notice.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/organization-channels.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/organization-node-channels.ts",
+                "writes": 3,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/overtime-notification.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/payroll-decision-notification-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/people-lifecycle-notification-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/people-roster-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/people-roster-position-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/quality-notifications.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/rfq-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-agent.ts",
+                "writes": 11,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-ai.ts",
+                "writes": 8,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-home.ts",
+                "writes": 31,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-task.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-text.ts",
+                "writes": 5,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/supplier-bill-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/supplier-promise-notifications.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/web-push.ts",
+                "writes": 20,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/work-social-draft-policy.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/work-social-purchases.ts",
+                "writes": 5,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/workflow-notification-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.collaboration.maintenance-oracle-generator",
+                "removalCondition": "Covered by retire.collaboration.maintenance-oracle-generator: the TS writers in this collaboration module are removed when the native collaboration port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/billing-test-finance.ts",
+                "writes": 3,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/commerce-goods-accounting.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/commerce.ts",
+                "writes": 21,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/expense-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/manufacturing-existing-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/manufacturing-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/pos-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/sales-goods-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/supplier-bill-receipts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/supplier-promise-version.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commerce.commerce",
+                "removalCondition": "Covered by retire.commerce.commerce: the TS writers in this commerce module are removed when the native commerce port owns the command."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/company-package-lifecycle.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commercial.purchase-boundary",
+                "removalCondition": "Covered by retire.commercial.purchase-boundary: the TS writers in this commercial module are removed when the native commercial port owns the command."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commercial.purchase-boundary",
+                "removalCondition": "Covered by retire.commercial.purchase-boundary: the TS writers in this commercial module are removed when the native commercial port owns the command."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/package-grants.ts",
+                "writes": 4,
+                "removalTaskId": "retire.commercial.purchase-boundary",
+                "removalCondition": "Covered by retire.commercial.purchase-boundary: the TS writers in this commercial module are removed when the native commercial port owns the command."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/projection.ts",
+                "writes": 5,
+                "removalTaskId": "retire.commercial.purchase-boundary",
+                "removalCondition": "Covered by retire.commercial.purchase-boundary: the TS writers in this commercial module are removed when the native commercial port owns the command."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/purchase-command-boundary.ts",
+                "writes": 1,
+                "removalTaskId": "retire.commercial.purchase-boundary",
+                "removalCondition": "Covered by retire.commercial.purchase-boundary: the TS writers in this commercial module are removed when the native commercial port owns the command."
+              },
+              {
+                "path": "packages/server-crm/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.crm",
+                "removalCondition": "Covered by retire.crm: the TS writers in this crm module are removed when the native crm port owns the command."
+              },
+              {
+                "path": "packages/server-crm/src/adapters/identities.ts",
+                "writes": 7,
+                "removalTaskId": "retire.crm",
+                "removalCondition": "Covered by retire.crm: the TS writers in this crm module are removed when the native crm port owns the command."
+              },
+              {
+                "path": "packages/server-crm/src/adapters/leads.ts",
+                "writes": 10,
+                "removalTaskId": "retire.crm",
+                "removalCondition": "Covered by retire.crm: the TS writers in this crm module are removed when the native crm port owns the command."
+              },
+              {
+                "path": "packages/server-crm/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.crm",
+                "removalCondition": "Covered by retire.crm: the TS writers in this crm module are removed when the native crm port owns the command."
+              },
+              {
+                "path": "packages/server-customer_360/src/adapters/portal.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.customer_360",
+                "removalCondition": "Covered by migrate.customer_360: the TS writers in this customer_360 module are removed when the native customer_360 port owns the command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Covered by retire.customer_authority.residual-writers: the TS writers in this customer_authority module are removed when the native customer_authority port owns the command."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.customer_authority.residual-writers",
+                "removalCondition": "Covered by retire.customer_authority.residual-writers: the TS writers in this customer_authority module are removed when the native customer_authority port owns the command."
+              },
+              {
+                "path": "packages/server-ecommerce/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "migrate.ecommerce",
+                "removalCondition": "Covered by migrate.ecommerce: the TS writers in this ecommerce module are removed when the native ecommerce port owns the command."
+              },
+              {
+                "path": "packages/server-ecommerce/src/adapters/ecommerce.ts",
+                "writes": 13,
+                "removalTaskId": "migrate.ecommerce",
+                "removalCondition": "Covered by migrate.ecommerce: the TS writers in this ecommerce module are removed when the native ecommerce port owns the command."
+              },
+              {
+                "path": "packages/server-ecommerce/src/adapters/purchase-boundary.ts",
+                "writes": 1,
+                "removalTaskId": "migrate.ecommerce",
+                "removalCondition": "Covered by migrate.ecommerce: the TS writers in this ecommerce module are removed when the native ecommerce port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/hospitality-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/migration.ts",
+                "writes": 24,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/orphan-preservation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/service-repository.ts",
+                "writes": 55,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/beta-resource-cleanup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/customer-portal-files.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/document-derivatives.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/expense-native-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-destruction-source-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-portal-binding.ts",
+                "writes": 3,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/legal-portal-repository.ts",
+                "writes": 10,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/pos-images-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/private-attachment-reads.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-files/src/adapters/support-ticket-portal-files.ts",
+                "writes": 1,
+                "removalTaskId": "retire.files.residual-writers",
+                "removalCondition": "Covered by retire.files.residual-writers: the TS writers in this files module are removed when the native files port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/accounting-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-return-accounting-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/company-money.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-authority-changes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-receipt-issue.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-native-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-accruals.ts",
+                "writes": 12,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-ai.ts",
+                "writes": 18,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-asset-policies.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-assets.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-bank-automation.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-billing-corrections.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-book-adjustments.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-books.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-business-contracts.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-collections.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-company-tools.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-consolidation.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-due-drafts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-engines.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-expansion-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-editions.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-ownership.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-instruments.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany-pairs.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-invoice-lines.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-owned-reversal.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-planning.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-reporting.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-starter.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-identities.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-register.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-thai-documents.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding-remittance.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance.ts",
+                "writes": 49,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-accounting.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-tax-documents.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-planning.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-bank-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-owner-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-remittance-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-command-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-import-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-core-facts.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-daily-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refunds.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-bill-draft-void.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.finance",
+                "removalCondition": "Covered by retire.finance.finance: the TS writers in this finance module are removed when the native finance port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-access.ts",
+                "writes": 6,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-preferences.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-recovery.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-time-preference.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-invitation-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-management-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-onboarding-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts",
+                "writes": 10,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-grant-transaction.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts",
+                "writes": 11,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-transactions.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/invitation-delivery.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/organization-department-relocation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/payroll-owner-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-directory-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-worker-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-template-attributes.ts",
+                "writes": 2,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-sso-store.ts",
+                "writes": 7,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/provider-context-store.ts",
+                "writes": 5,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/technology.ts",
+                "writes": 6,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/throttle.ts",
+                "writes": 1,
+                "removalTaskId": "retire.identity_access.residual-writers",
+                "removalCondition": "Covered by retire.identity_access.residual-writers: the TS writers in this identity_access module are removed when the native identity_access port owns the command."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-facts.ts",
+                "writes": 8,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Covered by retire.inventory.commerce-stock-owner-effects: the TS writers in this inventory module are removed when the native inventory port owns the command."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-stock-owner-effects.ts",
+                "writes": 20,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Covered by retire.inventory.commerce-stock-owner-effects: the TS writers in this inventory module are removed when the native inventory port owns the command."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/inventory-transit.ts",
+                "writes": 3,
+                "removalTaskId": "retire.inventory.commerce-stock-owner-effects",
+                "removalCondition": "Covered by retire.inventory.commerce-stock-owner-effects: the TS writers in this inventory module are removed when the native inventory port owns the command."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Covered by retire.learning.residual-writers: the TS writers in this learning module are removed when the native learning port owns the command."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/learning.ts",
+                "writes": 4,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Covered by retire.learning.residual-writers: the TS writers in this learning module are removed when the native learning port owns the command."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.learning.residual-writers",
+                "removalCondition": "Covered by retire.learning.residual-writers: the TS writers in this learning module are removed when the native learning port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/app-enrollment-attempt-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/attachment-migration-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/access.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/approval.ts",
+                "writes": 5,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/citations.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/destruction-worker.ts",
+                "writes": 14,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/documents.ts",
+                "writes": 11,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/executed-copies.ts",
+                "writes": 4,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/features.ts",
+                "writes": 4,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/governance.ts",
+                "writes": 7,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/invitations.ts",
+                "writes": 5,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/jobs.ts",
+                "writes": 5,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/knowledge.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/law-corpus.ts",
+                "writes": 11,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/law-source-worker.ts",
+                "writes": 6,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/operations.ts",
+                "writes": 8,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/portal.ts",
+                "writes": 14,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/processing.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/references.ts",
+                "writes": 3,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/reminders.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/retention.ts",
+                "writes": 7,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/service.ts",
+                "writes": 12,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/signing.ts",
+                "writes": 3,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/trust.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/retention-execution.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/runtime-job-health-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.legal.destruction",
+                "removalCondition": "Covered by retire.legal.destruction: the TS writers in this legal module are removed when the native legal port owns the command."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manage_erpx.onboarding-command",
+                "removalCondition": "Covered by retire.manage_erpx.onboarding-command: the TS writers in this manage_erpx module are removed when the native manage_erpx port owns the command."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-api.ts",
+                "writes": 2,
+                "removalTaskId": "retire.manage_erpx.onboarding-command",
+                "removalCondition": "Covered by retire.manage_erpx.onboarding-command: the TS writers in this manage_erpx module are removed when the native manage_erpx port owns the command."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-email.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manage_erpx.onboarding-command",
+                "removalCondition": "Covered by retire.manage_erpx.onboarding-command: the TS writers in this manage_erpx module are removed when the native manage_erpx port owns the command."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-onboarding.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manage_erpx.onboarding-command",
+                "removalCondition": "Covered by retire.manage_erpx.onboarding-command: the TS writers in this manage_erpx module are removed when the native manage_erpx port owns the command."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-team.ts",
+                "writes": 2,
+                "removalTaskId": "retire.manage_erpx.onboarding-command",
+                "removalCondition": "Covered by retire.manage_erpx.onboarding-command: the TS writers in this manage_erpx module are removed when the native manage_erpx port owns the command."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/accounting.ts",
+                "writes": 4,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "Covered by retire.manufacturing: the TS writers in this manufacturing module are removed when the native manufacturing port owns the command."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/production-command-sources.ts",
+                "writes": 8,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "Covered by retire.manufacturing: the TS writers in this manufacturing module are removed when the native manufacturing port owns the command."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.manufacturing",
+                "removalCondition": "Covered by retire.manufacturing: the TS writers in this manufacturing module are removed when the native manufacturing port owns the command."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/asset.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Covered by retire.marketing.residual-writers: the TS writers in this marketing module are removed when the native marketing port owns the command."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Covered by retire.marketing.residual-writers: the TS writers in this marketing module are removed when the native marketing port owns the command."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/campaigns.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Covered by retire.marketing.residual-writers: the TS writers in this marketing module are removed when the native marketing port owns the command."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/crm-touches.ts",
+                "writes": 2,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Covered by retire.marketing.residual-writers: the TS writers in this marketing module are removed when the native marketing port owns the command."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/marketing.ts",
+                "writes": 8,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Covered by retire.marketing.residual-writers: the TS writers in this marketing module are removed when the native marketing port owns the command."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/public-submission.ts",
+                "writes": 4,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Covered by retire.marketing.residual-writers: the TS writers in this marketing module are removed when the native marketing port owns the command."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.marketing.residual-writers",
+                "removalCondition": "Covered by retire.marketing.residual-writers: the TS writers in this marketing module are removed when the native marketing port owns the command."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/staff-tasks.ts",
+                "writes": 2,
+                "removalTaskId": "retire.operations",
+                "removalCondition": "Covered by retire.operations: the TS writers in this operations module are removed when the native operations port owns the command."
+              },
+              {
+                "path": "packages/server-operations/src/adapters/workflow-approval-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.operations",
+                "removalCondition": "Covered by retire.operations: the TS writers in this operations module are removed when the native operations port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/beta-onboarding-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/company-business-acceptance.ts",
+                "writes": 6,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/department-authority.ts",
+                "writes": 4,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/member-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-level-history-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-staff-settings-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/organization-drafts.ts",
+                "writes": 13,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/organization.ts",
+                "writes": 15,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-lifecycle-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-placement-level-history.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/profile-media-command.ts",
+                "writes": 3,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/spending-template-owner.ts",
+                "writes": 1,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/staff-defaults.ts",
+                "writes": 2,
+                "removalTaskId": "retire.organization.organization",
+                "removalCondition": "Covered by retire.organization.organization: the TS writers in this organization module are removed when the native organization port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/attachments-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/beta-onboarding-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/calendar-commands-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/commerce-expense-payment-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-ai.ts",
+                "writes": 10,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-drafts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-payment-cancellation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-payments.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-workflow.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expenses.ts",
+                "writes": 7,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/final-pay-cancellation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-applied-package-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-person-link-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-review-evidence-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-self-service.ts",
+                "writes": 15,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave.ts",
+                "writes": 8,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-leave-legacy-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-leave-self-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-directory-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-lifecycle-worker-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-staff-settings-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-defaults.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-department-relocation.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-draft-placement.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/overtime.ts",
+                "writes": 8,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-adjustments.ts",
+                "writes": 10,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-deductions.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-payslips.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-readiness.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-recoveries.ts",
+                "writes": 7,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-statutory.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-directory.ts",
+                "writes": 10,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation-ai.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation.ts",
+                "writes": 16,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-handoffs.ts",
+                "writes": 3,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle-jobs.ts",
+                "writes": 11,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle.ts",
+                "writes": 25,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-payroll.ts",
+                "writes": 44,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-roster.ts",
+                "writes": 21,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-templates.ts",
+                "writes": 4,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/roster-position-exit.ts",
+                "writes": 6,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/technology-provisioning-facts.ts",
+                "writes": 14,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/worker-startup.ts",
+                "writes": 2,
+                "removalTaskId": "retire.people_payroll.people-payroll",
+                "removalCondition": "Covered by retire.people_payroll.people-payroll: the TS writers in this people_payroll module are removed when the native people_payroll port owns the command."
+              },
+              {
+                "path": "packages/server-planning/src/adapters/production-command-sources.ts",
+                "writes": 11,
+                "removalTaskId": "retire.planning.production-command-sources",
+                "removalCondition": "Covered by retire.planning.production-command-sources: the TS writers in this planning module are removed when the native planning port owns the command."
+              },
+              {
+                "path": "packages/server-planning/src/adapters/resources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.planning.production-command-sources",
+                "removalCondition": "Covered by retire.planning.production-command-sources: the TS writers in this planning module are removed when the native planning port owns the command."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.platform_administration.operations-writers",
+                "removalCondition": "Covered by retire.platform_administration.operations-writers: the TS writers in this platform_administration module are removed when the native platform_administration port owns the command."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/engineering-verification.ts",
+                "writes": 1,
+                "removalTaskId": "retire.platform_administration.operations-writers",
+                "removalCondition": "Covered by retire.platform_administration.operations-writers: the TS writers in this platform_administration module are removed when the native platform_administration port owns the command."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/release-acceptance.ts",
+                "writes": 9,
+                "removalTaskId": "retire.platform_administration.operations-writers",
+                "removalCondition": "Covered by retire.platform_administration.operations-writers: the TS writers in this platform_administration module are removed when the native platform_administration port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/counter-purchase-boundary.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/hospitality-rollout.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking-changes.ts",
+                "writes": 7,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking-refunds.ts",
+                "writes": 16,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking.ts",
+                "writes": 24,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-stripe.ts",
+                "writes": 25,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms.ts",
+                "writes": 24,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/import.ts",
+                "writes": 6,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pos-stripe-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/property-purchase-boundary.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/purchase-boundary.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.pms-booking",
+                "removalCondition": "Covered by retire.pms.pms-booking: the TS writers in this pms module are removed when the native pms port owns the command."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/attachment-migration-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Covered by retire.pos.residual: the TS writers in this pos module are removed when the native pos port owns the command."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-core.ts",
+                "writes": 49,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Covered by retire.pos.residual: the TS writers in this pos module are removed when the native pos port owns the command."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-daily.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Covered by retire.pos.residual: the TS writers in this pos module are removed when the native pos port owns the command."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-images.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Covered by retire.pos.residual: the TS writers in this pos module are removed when the native pos port owns the command."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-stripe.ts",
+                "writes": 27,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Covered by retire.pos.residual: the TS writers in this pos module are removed when the native pos port owns the command."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/purchase-boundary.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pos.residual",
+                "removalCondition": "Covered by retire.pos.residual: the TS writers in this pos module are removed when the native pos port owns the command."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.procurement",
+                "removalCondition": "Covered by retire.procurement: the TS writers in this procurement module are removed when the native procurement port owns the command."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/rfqs.ts",
+                "writes": 10,
+                "removalTaskId": "retire.procurement",
+                "removalCondition": "Covered by retire.procurement: the TS writers in this procurement module are removed when the native procurement port owns the command."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/supplier-bills.ts",
+                "writes": 10,
+                "removalTaskId": "retire.procurement",
+                "removalCondition": "Covered by retire.procurement: the TS writers in this procurement module are removed when the native procurement port owns the command."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/supplier-promises.ts",
+                "writes": 2,
+                "removalTaskId": "retire.procurement",
+                "removalCondition": "Covered by retire.procurement: the TS writers in this procurement module are removed when the native procurement port owns the command."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/inventory-count-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Covered by retire.quality.residual-writers: the TS writers in this quality module are removed when the native quality port owns the command."
+              },
+              {
+                "path": "packages/server-quality/src/adapters/quality.ts",
+                "writes": 1,
+                "removalTaskId": "retire.quality.residual-writers",
+                "removalCondition": "Covered by retire.quality.residual-writers: the TS writers in this quality module are removed when the native quality port owns the command."
+              },
+              {
+                "path": "packages/server-records/src/adapters/employee-requests.ts",
+                "writes": 6,
+                "removalTaskId": "retire.records",
+                "removalCondition": "Covered by retire.records: the TS writers in this records module are removed when the native records port owns the command."
+              },
+              {
+                "path": "packages/server-records/src/adapters/records.ts",
+                "writes": 10,
+                "removalTaskId": "retire.records",
+                "removalCondition": "Covered by retire.records: the TS writers in this records module are removed when the native records port owns the command."
+              },
+              {
+                "path": "packages/server-records/src/adapters/request-ai.ts",
+                "writes": 11,
+                "removalTaskId": "retire.records",
+                "removalCondition": "Covered by retire.records: the TS writers in this records module are removed when the native records port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/app-native-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/beta-onboarding-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/agent-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/brand-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/crm-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/generation.ts",
+                "writes": 5,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/learning-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/main-evidence-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/marketing-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/mcp.ts",
+                "writes": 2,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/planning-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/pos-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/reports.ts",
+                "writes": 11,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/talent-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/runtime/jobs.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/runtime/migrations.ts",
+                "writes": 1,
+                "removalTaskId": "retire.runtime.residual-writers",
+                "removalCondition": "Covered by retire.runtime.residual-writers: the TS writers in this runtime module are removed when the native runtime port owns the command."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/attachment-purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Covered by retire.talent.residual-writers: the TS writers in this talent module are removed when the native talent port owns the command."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/people-hire-handoff-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Covered by retire.talent.residual-writers: the TS writers in this talent module are removed when the native talent port owns the command."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Covered by retire.talent.residual-writers: the TS writers in this talent module are removed when the native talent port owns the command."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/talent.ts",
+                "writes": 8,
+                "removalTaskId": "retire.talent.residual-writers",
+                "removalCondition": "Covered by retire.talent.residual-writers: the TS writers in this talent module are removed when the native talent port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar-commands-facts.ts",
+                "writes": 26,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar-reminders-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar/reminder-authority.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar/reminder-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/daily-plan.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/navigation-counts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/page-layouts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/quick-access-preferences.ts",
+                "writes": 2,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/workflow-projector.ts",
+                "writes": 3,
+                "removalTaskId": "retire.work_projection.calendar-commands-facts",
+                "removalCondition": "Covered by retire.work_projection.calendar-commands-facts: the TS writers in this work_projection module are removed when the native work_projection port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/agent-bootstrap-assertions.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/approval-planning.ts",
+                "writes": 18,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/beta-invitation-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/collaboration-agent-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/collaboration-ai-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/command-assertions.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/commands.ts",
+                "writes": 5,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/customer-portal-events.ts",
+                "writes": 3,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/executive-generation-assertions.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/expense-native-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/finance-book-adjustment-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/finance-business-contract-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/finance-owner-decision-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/flow-planning-ports.ts",
+                "writes": 6,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/inventory-counts-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/inventory-transfers-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/leave-review-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/legal-approval-facts.ts",
+                "writes": 8,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/legal-portal-journal.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/operations-guided-intake-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/organization-draft-events.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/payroll-owner-facts.ts",
+                "writes": 6,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/payroll-statutory-decision-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-evaluation-ai-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-evaluation-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-lifecycle-audit-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-lifecycle-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-lifecycle-worker-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/pms-command-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/pos-core-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/records-request-ai-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/runtime-job-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/system-payroll-preview-events.ts",
+                "writes": 2,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/technology-provisioning-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/work-ui-layout-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.workflow",
+                "removalCondition": "Covered by retire.workflow: the TS writers in this workflow module are removed when the native workflow port owns the command."
+              }
+            ],
+            "note": "Wave-0 follow-up: deleted the 155 dual-scan-verified runtime-unreachable modules; residual writers remain under owner migrate/retire tasks (390 files, sum 1942)."
+          },
+          {
+            "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+            "result": "passed",
+            "sourceSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b",
+            "before": 1950,
+            "after": 1942
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b"
+          },
+          {
+            "command": "bun scripts/docs/generate-capability-matrix.ts --check",
+            "result": "passed",
+            "sourceSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b",
+            "note": "187 capabilities verified after deletion; coverage + capability inventories regenerated."
+          },
+          {
+            "command": "bun scripts/testing/ts-reachability.mjs --list && bun scripts/testing/ts-reachability-ast.mjs",
+            "result": "passed",
+            "sourceSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b",
+            "note": "Dual-scan convergence post-slice: base graph scan and AST cross-check agree; the only remaining unreachable module is the retained sandbox-executed packages/server-records/src/adapters/record-owner-pages.ts."
+          },
+          {
+            "command": "./node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts tests/unit/pms/hospitality-page-cut.test.ts",
+            "result": "passed",
+            "sourceSha": "9ac707c5cf71261d12f3b4bb80e5297178f1ed1b",
+            "note": "15/15; the only test asserting against the retained record-owner-pages.ts reference."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Execute the bounded deletion: remove the 155 runtime-unreachable TS modules (scanner-v3 + AST agree; 55 variable-dynamic sites manually audited; 1 sandbox-executed file record-owner-pages.ts retained), prune the 37 affected package.json exports entries, repoint the capability-delivery.ts feature-temporary-access service to adapters/native-recovery.ts, repair the docs gate (187th engineering-scenarios entry support/incidents + stale E10 link) and regenerate coverage/capability/acceptance artifacts. Ledger: retirement:ts-writes 1950 -> 1942. PR #1 remains open and unmerged per owner instruction.",
+        "nextAction": "Migrated: 155 dual-scan-verified runtime-unreachable modules retired (retirement:ts-writes 1950->1942, residual 390 files attributed to owner tasks). One sandbox-executed file retained: packages/server-records/src/adapters/record-owner-pages.ts. Follow-up: prune 35 stale capability-source refs in packages/contracts/src/ownership.json (outside this task's allowedPaths).",
         "handoff": {
-          "runId": "run-20261119-e",
+          "runId": "run-20261119-i",
           "agentId": "lead",
-          "at": "2026-11-19T06:47:13.194Z",
-          "previousStatus": "blocked",
-          "reason": "handoff",
-          "nextAction": "Slice closed non-terminal (blocked, audit recorded): 74 of the original 81 unreachable modules deleted (66 in b8faed727, 8 already removed before the WIP base), 7 retained as test-reachable via export specifiers; flat KPI 1950->1950 (zero SQL writes in deleted files); typecheck + structure:check green at 214eb50d. Next: scope a bounded wave-0 follow-up task deleting the 243 remaining root-complete dead modules under packages/server-*/src (list: .scratch/dev/rust-migration/dead-modules-20261119.txt; top owners workflow 24, identity_access 20, people_payroll 19, commerce 16, organization 15) with per-owner retirement:ts-writes deltas; then wave 1 (manage_erpx 7, customer_authority 5, records 27). PR #1 remains open, unmerged per owner instruction."
+          "at": "2026-11-20T02:18:12.204Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261119-i lease lapsed while running post-slice vitest suites and scanners between ledger operations; slice committed and pushed at 9ac707c5c, tree contains only the ledger file",
+          "nextAction": "Execute the bounded deletion: remove the 155 runtime-unreachable TS modules (scanner-v3 + AST agree; 55 variable-dynamic sites manually audited; 1 sandbox-executed file record-owner-pages.ts retained), prune the 37 affected package.json exports entries, repoint the capability-delivery.ts feature-temporary-access service to adapters/native-recovery.ts, repair the docs gate (187th engineering-scenarios entry support/incidents + stale E10 link) and regenerate coverage/capability/acceptance artifacts. Ledger: retirement:ts-writes 1950 -> 1942. PR #1 remains open and unmerged per owner instruction."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -44352,20 +46730,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 235,
-      "migratedPackets": 130,
+      "migratedPackets": 131,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 130,
+        "migrated": 131,
         "blocked": 81,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 136,
-    "updatedAt": "2026-11-19T21:34:32.193Z",
+    "lastCoordinatorGeneration": 138,
+    "updatedAt": "2026-11-20T02:19:30.048Z",
     "handoff": {
       "fromRun": "run-20261116-retirement-i",
       "completedTaskIds": [
@@ -44410,10 +46788,10 @@
       "acceptance": false
     },
     "lastRecovery": {
-      "previousRunId": "run-20261119-e",
-      "runId": "run-20261119-h",
-      "at": "2026-11-19T21:16:59.181Z",
-      "reason": "run-20261119-e lease expired while the lead session was between slices (no claimed tasks at expiry; in_progress retire.benefits.residual-writers holds a null claim and is untouched). WIP reconciled: working tree holds lead-owned scanner fix (ts-reachability.mjs), AST tool, docs-gate repair (engineering-scenarios.json 187, stale E10 link, capability-delivery service path) and regenerated capability artifacts - all to be committed in this run. Resuming as lead to execute the bounded unreachable-TS deletion slice (155 files).",
+      "previousRunId": "run-20261119-i",
+      "runId": "run-20261120-j",
+      "at": "2026-11-20T02:18:12.205Z",
+      "reason": "run-20261119-i lease lapsed while running post-slice vitest suites and scanners between ledger operations; slice committed and pushed at 9ac707c5c, tree contains only the ledger file",
       "wipReviewed": true,
       "previousRunStopped": true
     },
