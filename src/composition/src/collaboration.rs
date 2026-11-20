@@ -10,7 +10,7 @@ use erpx_server_collaboration::public::notification_statement::{
     learning_assignment_notification_statement,
     organization_change_notification_statement,
     legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
-    company_acceptance_reviewer_statement, company_acceptance_result_statement, inventory_transit_notification_statement, legal_law_source_notification_statement, customer_portal_notification_statement, social_task_origin_statement, workflow_invoicing_notification_statement, workflow_notification_statement, roster_coverage_notification_statement, legal_feature_notice_statement, legal_sla_notice_statement, legal_escalation_notice_statement, legal_deadline_notice_statement, social_mention_statement, social_mention_notice_statement, social_agent_reply_statement, social_topic_statement, social_topic_binding_statement, attachment_access_event_statement, attachment_event_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
+    company_acceptance_reviewer_statement, company_acceptance_result_statement, inventory_transit_notification_statement, legal_law_source_notification_statement, customer_portal_notification_statement, social_task_origin_statement, workflow_invoicing_notification_statement, workflow_notification_statement, roster_coverage_notification_statement, legal_feature_notice_statement, legal_sla_notice_statement, legal_escalation_notice_statement, legal_deadline_notice_statement, social_mention_statement, social_mention_notice_statement, social_agent_reply_statement, social_topic_statement, social_topic_binding_statement, attachment_access_event_statement, attachment_event_statement, legal_retire_source_statement, legal_retire_ledger_statement, legal_retire_event_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
     rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
     NotificationStatement, NotificationStatementInput,
@@ -2146,7 +2146,13 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                     Box::pin(async move {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
-                        if input.kind.as_deref() == Some("attachment_event") {
+                        if input.kind.as_deref() == Some("legal_retire_source") {
+                            legal_retire_source_statement(connection, &company_id, &input).await.map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("legal_retire_ledger") {
+                            legal_retire_ledger_statement(connection, &company_id, &input).await.map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("legal_retire_event") {
+                            legal_retire_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("attachment_event") {
                             attachment_event_statement(connection, &company_id, &input).await.map_err(Into::into)
                         } else if input.kind.as_deref() == Some("attachment_access_event") {
                             attachment_access_event_statement(connection, &company_id, &input).await.map_err(Into::into)
@@ -2348,7 +2354,7 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
     learning_assignment_notification_statement,
     organization_change_notification_statement,
     legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
-    company_acceptance_reviewer_statement, company_acceptance_result_statement, inventory_transit_notification_statement, legal_law_source_notification_statement, customer_portal_notification_statement, social_task_origin_statement, workflow_invoicing_notification_statement, workflow_notification_statement, roster_coverage_notification_statement, legal_feature_notice_statement, legal_sla_notice_statement, legal_escalation_notice_statement, legal_deadline_notice_statement, social_mention_statement, social_mention_notice_statement, social_agent_reply_statement, social_topic_statement, social_topic_binding_statement, attachment_access_event_statement, attachment_event_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
+    company_acceptance_reviewer_statement, company_acceptance_result_statement, inventory_transit_notification_statement, legal_law_source_notification_statement, customer_portal_notification_statement, social_task_origin_statement, workflow_invoicing_notification_statement, workflow_notification_statement, roster_coverage_notification_statement, legal_feature_notice_statement, legal_sla_notice_statement, legal_escalation_notice_statement, legal_deadline_notice_statement, social_mention_statement, social_mention_notice_statement, social_agent_reply_statement, social_topic_statement, social_topic_binding_statement, attachment_access_event_statement, attachment_event_statement, legal_retire_source_statement, legal_retire_ledger_statement, legal_retire_event_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
     rfq_notification_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
     NotificationStatement, NotificationStatementInput,

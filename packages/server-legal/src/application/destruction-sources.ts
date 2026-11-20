@@ -14,7 +14,7 @@ sourceShared(facts:{id:string;itemId:string;companyId:string;id2:string;itemId2:
 retainedLedger(facts:{id:string;}):Promise<LegalRows<{ id: string; object_key: string; bytes: number; variant: string; }>>;
 objectShared(facts:{objectKey:string;id:string;}):Promise<Record<string,unknown> | null>;
 retireSource(facts:{now:number;id:string;companyId:string;}):Promise<void>;
-retireLedger(facts:{now:number;id:string;}):Promise<void>;
+retireLedger(facts:{now:number;id:string;companyId:string;}):Promise<void>;
 recordRetirement(facts:{fact0:string;companyId:string;id:string;action:string;fact4:string;now:number;}):Promise<void>;
 };
 export function createLegalDestructionApplication(ports:{repository:LegalDestructionRepository;clock:Clock}){
@@ -73,7 +73,7 @@ async function sealLegalDestructionSources(companyId:string,destructionId:string
  const now=ports.clock.now();
  for(const source of manifest.canonicalSources??[]){
   await ports.repository.retireSource({now:now,id:source.id,companyId:companyId});
-  await ports.repository.retireLedger({now:now,id:source.id});
+  await ports.repository.retireLedger({now:now,id:source.id,companyId:companyId});
   for(const action of ["source.destroyed","source.bytes_deleted"]){
    await ports.repository.recordRetirement({fact0:`legal-destruction-${destructionId}-${source.id}-${action}`,companyId:companyId,id:source.id,action:action,fact4:JSON.stringify({destructionId,checksum:source.checksum}),now:now});
   }

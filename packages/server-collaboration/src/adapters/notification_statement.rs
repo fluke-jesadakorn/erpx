@@ -1271,3 +1271,49 @@ pub async fn attachment_event_statement(
         ],
     })
 }
+
+
+/// Legal destruction: retire the attachment source row.
+pub async fn legal_retire_source_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE attachments SET source_state='destroyed',destroyed_at=? WHERE id=? AND company_id=? AND source_state='available' AND legal_hold=0".to_owned(),
+        values: vec![serde_json::Value::Number(input.now.into()), value(&input.record_id), value(company.as_str())],
+    })
+}
+
+/// Legal destruction: retire the stored ledger row.
+pub async fn legal_retire_ledger_statement(
+    connection: &mut PgConnection,
+    _company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, _company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE attachment_storage_ledger SET state='destroyed',destroyed_at=? WHERE attachment_id=? AND state='stored'".to_owned(),
+        values: vec![serde_json::Value::Number(input.now.into()), value(&input.record_id)],
+    })
+}
+
+/// Legal destruction audit event.
+pub async fn legal_retire_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,'system:legal',?,?,?) ON CONFLICT(id) DO NOTHING".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()), value(&input.record_id),
+            value(&input.record_type), value(&input.message), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
