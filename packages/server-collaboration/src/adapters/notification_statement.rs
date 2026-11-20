@@ -2121,3 +2121,72 @@ pub async fn legal_access_event_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal governance: create an intake form.
+pub async fn legal_intake_form_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_intake_forms(id,company_id,name,fields,sla_days,created_by) VALUES(?,?,?,?::jsonb,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal governance: approve an intake form.
+pub async fn legal_intake_form_approve_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_intake_forms SET state='approved',approved_by=?,version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal governance: apply an intake to an item with SLA computation.
+pub async fn legal_intake_apply_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_items SET intake_form_id=?,intake_answers=?::jsonb,sla_started_at=?,\
+ sla_due_at=floor(extract(epoch FROM ((clock_timestamp() AT TIME ZONE timezone + (? || ' days')::interval) AT TIME ZONE timezone))*1000)::bigint,\
+ escalation_owner=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal governance: create a signing authority.
+pub async fn legal_authority_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_authorities(id,item_id,company_id,user_id,document_id,currency,\
+ limit_minor,valid_from,valid_until,state,created_by) VALUES(?,?,?,?,?,?,?,?,?,'proposed',?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal governance: decide on a signing authority.
+pub async fn legal_authority_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_authorities SET state=?,approved_by=?,version=version+1 WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
