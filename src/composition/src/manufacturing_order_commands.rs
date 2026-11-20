@@ -68,6 +68,11 @@ const PASS_QC_CAPABILITIES: &[&str] = &[
     "finance.production-costing",
     "inventory.stock-core",
 ];
+const CANCEL_CAPABILITIES: &[&str] = &[
+    "manufacturing.execution",
+    "manufacturing.materials",
+    "inventory.stock-core",
+];
 
 fn conflict(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Conflict, code, message)
@@ -133,6 +138,7 @@ fn decimal_minor(value: i64) -> String {
 pub enum ManufacturingOrderAction {
     Issue,
     PassQc,
+    Cancel,
 }
 
 impl ManufacturingOrderAction {
@@ -140,6 +146,7 @@ impl ManufacturingOrderAction {
         match value {
             "issue" => Some(Self::Issue),
             "pass-qc" => Some(Self::PassQc),
+            "cancel" => Some(Self::Cancel),
             _ => None,
         }
     }
@@ -148,6 +155,7 @@ impl ManufacturingOrderAction {
         match self {
             Self::Issue => "issue",
             Self::PassQc => "pass-qc",
+            Self::Cancel => "cancel",
         }
     }
 
@@ -155,6 +163,7 @@ impl ManufacturingOrderAction {
         match self {
             Self::Issue => "in_progress",
             Self::PassQc => "completed",
+            Self::Cancel => "cancelled",
         }
     }
 
@@ -162,6 +171,7 @@ impl ManufacturingOrderAction {
         match self {
             Self::Issue => "records.write",
             Self::PassQc => "records.review",
+            Self::Cancel => "records.write",
         }
     }
 
@@ -169,6 +179,7 @@ impl ManufacturingOrderAction {
         match self {
             Self::Issue => ISSUE_CAPABILITIES,
             Self::PassQc => PASS_QC_CAPABILITIES,
+            Self::Cancel => CANCEL_CAPABILITIES,
         }
     }
 }
@@ -251,6 +262,15 @@ impl ManufacturingOrderInput {
             return Err(invalid(
                 "MANUFACTURING_LOT_LIMIT",
                 "Select at most five hundred output lots.",
+            ));
+        }
+        if action == ManufacturingOrderAction::Cancel
+            && (!self.material_lot_allocations.is_empty()
+                || !self.output_lot_allocations.is_empty())
+        {
+            return Err(invalid(
+                "MANUFACTURING_ORDER_INVALID",
+                "Cancelling an order does not post material or output lots.",
             ));
         }
         Ok(())
@@ -735,6 +755,9 @@ fn journal_lines(
                 "WIP relieved at independent disposition",
             );
         }
+        // Cancellation releases reservations and capacity only; it posts no
+        // accounting journal, matching the retained TS transition.
+        ManufacturingOrderAction::Cancel => {}
     }
     lines
 }
@@ -812,6 +835,33 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
         let entry_date = self.input.entry_date(now);
         let mut journal = None;
         match self.action {
+            ManufacturingOrderAction::Cancel => {
+                if !["planned", "reserved"].contains(&order.status.as_str()) {
+                    return Err(conflict(
+                        "INVALID_MANUFACTURING_TRANSITION",
+                        "Only an unissued order can be cancelled.",
+                    )
+                    .into());
+                }
+                // The released reservation rows and the Planning capacity rows
+                // are taken in `apply` inside the same owner transaction. No
+                // journal, lot profile or evidence binding is required here.
+                let result = ManufacturingOrderResult {
+                    id: order.id.clone(),
+                    status: self.action.status().into(),
+                    version: next,
+                    journal_id: None,
+                };
+                self.order = Some(order);
+                self.lines = lines;
+                self.entry_date = entry_date;
+                let result = CommandJson::from_serializable(&result)?;
+                return Ok(WorkflowOutput {
+                    version: next,
+                    result,
+                    event_scope: None,
+                });
+            }
             ManufacturingOrderAction::Issue => {
                 if order.status != "reserved" {
                     return Err(conflict(
@@ -1175,6 +1225,22 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
         let next = self.input.expected_version + 1;
         let status = self.action.status();
         match self.action {
+            ManufacturingOrderAction::Cancel => {
+                let released = sqlx::query(
+                    "UPDATE manufacturing_material_reservations \
+                     SET released_milli=quantity_milli-consumed_milli WHERE order_id=$1",
+                )
+                .bind(self.id)
+                .execute(&mut *c)
+                .await?;
+                if order.status == "reserved" && released.rows_affected() == 0 {
+                    return Err(conflict(
+                        "MATERIAL_RESERVATION_REQUIRED",
+                        "The material reservation changed. Reload and retry.",
+                    )
+                    .into());
+                }
+            }
             ManufacturingOrderAction::Issue => {
                 let mut material = 0_i64;
                 for (index, line) in self.issue_plan.iter().enumerate() {
@@ -1449,6 +1515,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
             }
         }
         let (phase, amount, quantity) = match self.action {
+            ManufacturingOrderAction::Cancel => ("cancel", 0_i64, 0_i64),
             ManufacturingOrderAction::Issue => {
                 let material = self
                     .issue_plan
@@ -1553,7 +1620,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
         if transition.rows_affected() != 1 {
             return Err(conflict("CONFLICT", "Order changed. Reload and retry.").into());
         }
-        if self.action == ManufacturingOrderAction::PassQc {
+        if matches!(
+            self.action,
+            ManufacturingOrderAction::PassQc | ManufacturingOrderAction::Cancel
+        ) {
             sqlx::query(
                 "UPDATE planning_resource_allocations SET released_at=$1 WHERE scenario_id=\
                  (SELECT r.scenario_id FROM planning_recommendations r \
@@ -1673,7 +1743,18 @@ async fn prepare_order_journal<C: Clock + Sync>(
 
 #[cfg(test)]
 mod tests {
-    use super::{utc_date, valid_date};
+    use super::{ManufacturingOrderAction, utc_date, valid_date};
+
+    #[test]
+    fn cancel_action_uses_the_native_owner_contract() {
+        let action = ManufacturingOrderAction::parse("cancel").expect("cancel is native");
+        assert_eq!(action.as_str(), "cancel");
+        assert_eq!(action.status(), "cancelled");
+        assert_eq!(action.permission(), "records.write");
+        assert!(action.capabilities().contains(&"manufacturing.execution"));
+        assert!(action.capabilities().contains(&"inventory.stock-core"));
+        assert!(ManufacturingOrderAction::parse("scrap").is_none());
+    }
 
     #[test]
     fn utc_date_derives_the_retained_iso_day() {
