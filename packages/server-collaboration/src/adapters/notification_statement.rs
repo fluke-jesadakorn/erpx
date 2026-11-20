@@ -664,3 +664,48 @@ pub async fn explicit_notification_statement(
         ],
     })
 }
+
+/// Customer-portal staff notification. Recipients are resolved from current
+/// assignments and the order on the caller's serializable unit.
+pub async fn customer_portal_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.message.is_empty()
+        || input.now <= 0
+        || input.order_id.as_deref().unwrap_or("").is_empty()
+    {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT DISTINCT 'customer-portal-'||?||'-'||a.user_id,a.company_id,a.user_id,\
+ 'commerce_order',o.id,o.version,?,?::bigint \
+ FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) a \
+ JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\
+ \"party_id\",\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\
+ \"subtotal_minor\",\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\
+ \"created_at\",\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",\
+ \"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders) o \
+ ON o.id=? AND o.company_id=a.company_id \
+ WHERE a.company_id=? AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+ AND iam_role_allows(a.role,a.company_id,'commerce.read') \
+ AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=o.branch_id) \
+ OR (a.scope_kind='department' AND a.scope_node_id=o.department_id)) ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
+            value(input.order_id.as_deref().unwrap_or("")),
+            value(company.as_str()),
+        ],
+    })
+}

@@ -6,7 +6,8 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { hash } from "@erpx/server-legal/public/legal/service";
 import { projectCustomerPortalAccess, lockCustomerPortalBinding, customerPortalIdentityExists, prepareCustomerPortalEvidenceChange } from "@erpx/server-customer_authority/public/portal-access";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { notifyCustomerPortalStaff } from "@erpx/server-collaboration/public/customer-portal-notifications";
+import { notifyCustomerPortalStaff } from "@erpx/server-collaboration/adapters/native-customer-portal-notification";
+import { customerPortalWorkContext } from "@erpx/server-customer_360/domain/portal";
 import { auditCustomerPortalCommand, enqueueCustomerPortalCommand, clearCustomerPortalAssertions } from "@erpx/server-workflow/public/customer-portal-events";
 import { createCustomerPortalApplication, type PortalRepository } from "@erpx/server-customer_360/application/portal";
 import type { CustomerPortalSessionActor, PortalActionRow } from "@erpx/server-customer_360/domain/portal";
@@ -68,7 +69,17 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
       await db.prepare(`INSERT INTO customer_portal_actions(id,company_id,binding_id,order_id,customer_id,user_id,action,note,source_version,request_key,request_hash,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'recorded',?)`).bind(id, binding.company_id, binding.binding_id, binding.order_id, binding.customer_id, actor.userId, input.action, input.note, Number(binding.order_version), key, requestHash, now).run();
       if (evidence) await evidence.commit();
     },
-    notify: (command, message) => notifyCustomerPortalStaff(db, { id: command.id, message, now: command.now, orderId: command.binding.order_id, companyId: command.binding.company_id }),
+    notify: (command, message) => notifyCustomerPortalStaff(
+      db,
+      customerPortalWorkContext(command.actor as Required<CustomerPortalSessionActor>, {
+        id: command.binding.binding_id,
+        company_id: command.binding.company_id,
+        branch_id: null,
+        department_id: null,
+        version: Number(command.binding.binding_version),
+      }),
+      { id: command.id, message, now: command.now, orderId: command.binding.order_id, companyId: command.binding.company_id },
+    ),
     audit: (command, eventId) => auditCustomerPortalCommand(db, command, eventId),
     outbox: (command, eventId, manifest) => enqueueCustomerPortalCommand(db, command, eventId, manifest),
     uniqueConflict: error => (error as { code?: string })?.code === "23505",

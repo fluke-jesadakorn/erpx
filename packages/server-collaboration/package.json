@@ -233,7 +233,8 @@
     "./adapters/native-notification-statement": "./src/adapters/native-notification-statement.ts",
     "./adapters/native-legal-approval-notification": "./src/adapters/native-legal-approval-notification.ts",
     "./adapters/native-payroll-notification": "./src/adapters/native-payroll-notification.ts",
-    "./adapters/native-payroll-decision-notification": "./src/adapters/native-payroll-decision-notification.ts"
+    "./adapters/native-payroll-decision-notification": "./src/adapters/native-payroll-decision-notification.ts",
+    "./adapters/native-customer-portal-notification": "./src/adapters/native-customer-portal-notification.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
