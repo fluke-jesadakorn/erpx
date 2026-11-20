@@ -101,6 +101,7 @@ pub mod finance_supplier_batch;
 pub mod handbook;
 pub mod identity_access;
 pub mod identity_access_review_alerts;
+pub mod staff_task_alert_worker;
 #[cfg(feature = "existing-business")]
 pub mod learning;
 #[cfg(feature = "existing-business")]

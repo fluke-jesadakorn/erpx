@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {isValidElement,type ReactNode} from 'react';
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
-import { escalateStaffTasks } from "@erpx/server-operations/public/staff-task-alerts";
+import { escalateStaffTasks } from "../../support/operations/staff-task-alert-fixture";
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 let taskPresenterActor:WorkContext|undefined;
 let taskPresenterHost='console-dev-erpx.jesadakorn.com';
