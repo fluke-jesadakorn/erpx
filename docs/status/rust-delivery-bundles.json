@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3233,
+    "revision": 3237,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:34:59.441Z",
-      "expiresAt": "2026-11-20T11:04:59.441Z",
+      "heartbeatAt": "2026-11-20T10:44:54.279Z",
+      "expiresAt": "2026-11-20T11:14:54.279Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47331,6 +47331,20 @@
             "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
             "sourceKind": "committed",
             "note": "Repository layout passes."
+          },
+          {
+            "command": "bun -e \"ensureSchemaTemplate(root,'H001_DB',fingerprint)\"",
+            "result": "failed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "Root cause of people_payroll.roster.integration runner failure: tests/support/postgres-templates.ts:61 throws POSTGRES_18_6_REQUIRED because installed PostgreSQL/pg_dump is 18.7 (Homebrew) while the test environment pins 18.6. The suite uses postgres mode=template; manufacturing.production.integration uses mode=raw and therefore runs. No application code failure."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=people_payroll.rust-roster-position-exit-postgres.integration",
+            "result": "passed",
+            "sourceSha": "8ddff0e2db84cacc167064db254f2eb69aa61a62",
+            "sourceKind": "committed",
+            "note": "3/3 native roster-position-exit PostgreSQL tests pass, confirming the native owner effects that replaced the deleted TS writer."
           }
         ],
         "retainedLegacy": [
@@ -47341,14 +47355,14 @@
           }
         ],
         "blocker": "handoff",
-        "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: native route/client authority, TS writer/barrel/export deletion, oracle move and KPI 1928->1922 / 291->285 are recorded at 8ddff0e2d. Blocker is the registered roster integration runner failing at Vite startup (source-map TypeError) and 2 pre-existing unit suites failing on server-only; no KPI regression. Next: resolve the runner fault, re-run people_payroll.roster.integration, then mark migrated with cutover flags.",
+        "nextAction": "Blocked on PG 18.6 pin only (POSTGRES_18_6_REQUIRED); native roster-exit PG suite passes 3/3 and KPI 1928->1922 is recorded. Awaiting operator decision on PG version.",
         "handoff": {
           "runId": "run-20261120-k",
           "agentId": "lead",
-          "at": "2026-11-20T10:34:51.307Z",
+          "at": "2026-11-20T10:44:44.393Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: native route/client authority, TS writer/barrel/export deletion, oracle move and KPI 1928->1922 / 291->285 are recorded at 8ddff0e2d. Blocker is the registered roster integration runner failing at Vite startup (source-map TypeError) and 2 pre-existing unit suites failing on server-only; no KPI regression. Next: resolve the runner fault, re-run people_payroll.roster.integration, then mark migrated with cutover flags."
+          "nextAction": "Blocked on PG 18.6 pin only (POSTGRES_18_6_REQUIRED); native roster-exit PG suite passes 3/3 and KPI 1928->1922 is recorded. Awaiting operator decision on PG version."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -47485,7 +47499,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:34:59.443Z",
+    "updatedAt": "2026-11-20T10:44:54.280Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
