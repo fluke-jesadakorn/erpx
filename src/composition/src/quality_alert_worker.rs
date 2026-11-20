@@ -3,6 +3,7 @@
 use erpx_server_identity_access::public::SystemAccountClock;
 use erpx_server_quality::public::quality_alerts::{
     QUALITY_ALERT_WARNING_WINDOW_MS, drain_quality_alerts,
+    route_quality_alert_notifications_pooled,
 };
 use erpx_server_runtime::public::postgres::{DatabasePool, PoolLimits};
 use erpx_server_shared::public::{BusinessError, Clock};
@@ -13,12 +14,15 @@ pub async fn run_once(
     write: &DatabasePool,
     now: i64,
 ) -> Result<(u64, u64), BusinessError> {
-    drain_quality_alerts(
+    let escalated = drain_quality_alerts(
         write.clone(),
         now,
         QUALITY_ALERT_WARNING_WINDOW_MS,
     )
-    .await
+    .await?;
+    let production = std::env::var("NODE_ENV").ok().as_deref() == Some("production");
+    let notified = route_quality_alert_notifications_pooled(write.clone(), now, production).await?;
+    Ok((escalated.0, escalated.1 + notified))
 }
 
 #[cfg(feature = "private-field-api")]

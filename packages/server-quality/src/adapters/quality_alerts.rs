@@ -11,10 +11,10 @@ use crate::application::quality_alerts::{
 };
 use crate::domain::quality::HoldStatus;
 use erpx_server_runtime::public::postgres::{
-    DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
+    DatabasePool, PersistenceError, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
-use sqlx::{PgConnection, Row};
+use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -485,6 +485,86 @@ pub async fn drain_quality_alerts(
                 FailureKind::Unavailable,
                 "QUALITY_ALERT_UNAVAILABLE",
                 "The scheduled Quality escalation sweep is unavailable.",
+            ),
+        })
+}
+
+/// Native Quality alert-notification sweep. This replaces the TS-only job
+/// writer with the owner-owned statement on the caller's serializable unit.
+/// `production` mirrors scheduledFeaturePredicate('quality'): quality is not a
+/// release module, so the production predicate is FALSE.
+pub async fn route_quality_alert_notifications(
+    c: &mut PgConnection,
+    now: i64,
+    production: bool,
+) -> Result<u64, Error> {
+    if !c.is_in_transaction()
+        || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+            .fetch_one(&mut *c)
+            .await?
+            != "serializable"
+    {
+        return Err(PersistenceError::new("QUALITY_ALERT_NOTICE_UNIT_REQUIRED").into());
+    }
+    let feature = if production { "FALSE" } else { "TRUE" };
+    let recipient = format!(
+        "m.company_id=h.company_id \
+ AND iam_assignment_active(m.id,$2::bigint) \
+ AND iam_role_allows(m.role,m.company_id,CASE WHEN h.status IN ('awaiting_release','cancel_pending') THEN 'quality.release' ELSE 'quality.inspect' END) \
+ AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=h.branch_id)) \
+ AND NOT iam_same_person(m.user_id,h.created_by,h.company_id) \
+ AND (h.status<>'cancel_pending' OR NOT iam_same_person(m.user_id,h.cancel_requested_by,h.company_id)) \
+ AND (h.status<>'awaiting_release' OR NOT iam_same_person(m.user_id,h.last_inspector,h.company_id))"
+    );
+    // The retained TS predicate uses `iam_assignment_active(m.id, <ms>)`; the
+    // native sweep passes the same bounded now value as a double-precision ms.
+    let sql = format!(
+        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) \
+ SELECT DISTINCT a.id||':'||m.user_id,h.company_id,m.user_id,'quality_alert',a.id,a.version, \
+ CASE WHEN a.phase='overdue' THEN 'Quality hold is overdue: take responsibility for inspection or release follow-up' \
+ ELSE 'Quality hold is due within 24 hours: prepare the next inspection or release action' END,$1::bigint \
+ FROM (SELECT \"id\",\"hold_id\",\"phase\",\"source_version\",\"due_date\",\"detected_at\",\
+ \"version\",\"acknowledged_by\",\"acknowledged_at\",\"reason\" FROM inventory_quality_alerts) a \
+ JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"warehouse_id\",\"product_id\",\"reason\",\
+ \"due_date\",\"status\",\"created_by\",\"last_inspector\",\"last_result\",\"released_by\",\
+ \"release_reason\",\"released_at\",\"version\",\"created_at\",\"updated_at\",\
+ \"cancel_requested_by\",\"cancel_reason\",\"cancelled_by\",\"cancelled_at\",\"lot_id\",\
+ \"held_quantity_milli\",\"source_type\",\"source_id\",\"disposition_kind\",\
+ \"disposition_reason\",\"disposition_requested_by\",\"disposition_count_id\",\"disposed_by\",\
+ \"disposed_at\",\"spec_id\",\"spec_version\",\"quantity_scope\",\
+ \"disposition_quantity_milli\" FROM inventory_quality_holds) h ON h.id=a.hold_id \
+ JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) m ON {recipient} \
+ WHERE a.acknowledged_by IS NULL AND h.status NOT IN ('released','cancelled','disposed') \
+ AND {feature} ON CONFLICT DO NOTHING"
+    );
+    Ok(sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
+        .bind(now)
+        .bind(now as f64)
+        .execute(&mut *c)
+        .await?
+        .rows_affected())
+}
+
+/// Pooled wrapper for the scheduled Quality alert-notification sweep.
+pub async fn route_quality_alert_notifications_pooled(
+    pool: DatabasePool,
+    now: i64,
+    production: bool,
+) -> Result<u64, BusinessError> {
+    PgUnitOfWork::new(pool)
+        .run(TransactionOptions::default(), move |c| {
+            Box::pin(async move { route_quality_alert_notifications(c, now, production).await })
+        })
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_ALERT_NOTICE_UNAVAILABLE",
+                "The scheduled Quality alert notice sweep is unavailable.",
             ),
         })
 }

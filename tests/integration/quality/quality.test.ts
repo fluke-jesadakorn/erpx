@@ -1,3 +1,4 @@
+import {seedQualityAlertNotices} from '../../support/quality/quality-alert-notice-fixture';
 import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
@@ -75,7 +76,7 @@ it('cancels an incorrect uninspected hold only after independent review, retaini
 
 it('recovers quality due-soon and overdue escalations with live routing and persisted acknowledgement',async()=>{
  const {qualityAlerts,qualityAlertWork,getQualityAlert}=await import("@erpx/server-quality/public/quality-alerts");
- const {routeQualityAlertNotifications}=await import("@erpx/server-collaboration/public/quality-notifications");
+
  const due=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-22',reason:'Prepare a quality inspection before the receiving deadline'},key());
  const overdue=await seedNativeQualityHold(db,f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-20',reason:'Recover a missed quality inspection and preserve the quarantine evidence'},key());
  const now=Date.parse('2026-09-21T12:00:00Z'),today=new Date(now).toISOString().slice(0,10),horizon=new Date(now+86_400_000).toISOString().slice(0,10);
@@ -89,7 +90,7 @@ it('recovers quality due-soon and overdue escalations with live routing and pers
    FROM inventory_quality_holds h
    WHERE h.status NOT IN ('released','cancelled','disposed') AND ${from?'h.due_date>=? AND h.due_date<=?':'h.due_date<?'}
    ON CONFLICT DO NOTHING`).bind(now,...(from?[from,to]:[to])).run();
- await routeQualityAlertNotifications(db,now);
+ await seedQualityAlertNotices(db,now);
  expect((await db.prepare("SELECT id,phase,source_version,due_date::text due_date FROM inventory_quality_alerts WHERE hold_id IN (?,?) ORDER BY id").bind(String(due.id),String(overdue.id)).all<{id:string;phase:string;source_version:number;due_date:string}>()).results).toEqual([{id:`quality-alert-due-soon-${due.id}`,phase:'due_soon',source_version:1,due_date:'2026-09-22'},{id:`quality-alert-overdue-${overdue.id}`,phase:'overdue',source_version:1,due_date:'2026-09-20'}]);
  const alerts=await qualityAlerts(f.manager),dueAlert=alerts.find(a=>a.hold_id===String(due.id)&&a.phase==='due_soon'),overdueAlert=alerts.find(a=>a.hold_id===String(overdue.id)&&a.phase==='overdue');
  expect(dueAlert).toMatchObject({source_version:1,version:1,can_ack:1,recipients:2});

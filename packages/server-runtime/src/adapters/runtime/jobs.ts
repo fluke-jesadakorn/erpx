@@ -72,10 +72,8 @@ export async function scheduledWork(env: JobEnv) {
     if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-roster")).escalateRosterCoverage(write);
     await (await import("@erpx/server-people_payroll/public/leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
     await (await import("@erpx/server-inventory/public/inventory-reservation-alerts")).escalateInventoryReservations(write);
-    // The due-soon/overdue escalation inserts are native (erpx quality
-    // quality_alert_worker); Collaboration still routes their notices until a
-    // native Quality notification port lands.
-    await (await import("@erpx/server-collaboration/public/quality-notifications")).routeQualityAlertNotifications(write,Date.now());
+    // Quality due-soon/overdue escalation and notice routing are owned by the
+    // native quality_alert_worker; no TS writer remains in this sweep.
     await (await import("@erpx/server-identity_access/public/iam-access-review-alerts")).escalateAccessReviews(write);
     await (await import("@erpx/server-operations/public/staff-task-alerts")).escalateStaffTasks(write);
     await (await import("@erpx/server-collaboration/public/inbox")).drainInboxNotices(write);
