@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3184,
+    "revision": 3186,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -46716,16 +46716,23 @@
           "owner:commercial",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Split by package grant, projection and purchase-command families as needed; bind native routes for each consumer before deleting the corresponding TS writers.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "BLOCKED for full slice. Only packages/server-commercial/src/adapters/company-package-lifecycle.ts (1 write) has native route/client parity, but ERPX_NATIVE_COMMERCIAL_CONFIG is absent in the authorized dev environment (verified: key absent from .env/.env.local and from the running dev process; native 127.0.0.1:3198 is not listening), so making the feature-admin packages route fail closed would break it. Native PlatformPackageGrantPolicy obligations fail closed (src/composition/src/commercial.rs:583-597) and finance deferred effects are not wired into PgPackageBatchReview::retain (:658-664). removalTaskId=ports.commercial-obligation-effects (new: configure ERPX_NATIVE_COMMERCIAL_CONFIG with a mounted commercial_package_grants target and wire native obligation + finance deferred ports), removalCondition=the admin packages/preview|apply route returns native authority 200 in authorized dev and the TS branch can be deleted without 503. package-grants.ts (4 writes) is not separable: ~70 TS tests plus 8 seed scripts and direct-PG production readers depend on it, and tests/integration/commercial/rust-purchase-postgres.test.rs:29-43 still uses TS readCompanyPurchaseFacts. removalTaskId=retire.commercial.read-oracle-and-seeds, removalCondition=native-seeded presentation revision oracle and all production readers switched to native-company-packages. projection.ts (5 billing-usage writes) and purchase-command-boundary.ts (1 command_assertions write) have no native producer; removalTaskId=retire.billing.usage-projection and retire.commercial.purchase-command-boundary respectively. No files edited; KPI unchanged 1942.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T09:19:31.890Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "BLOCKED for full slice. Only packages/server-commercial/src/adapters/company-package-lifecycle.ts (1 write) has native route/client parity, but ERPX_NATIVE_COMMERCIAL_CONFIG is absent in the authorized dev environment (verified: key absent from .env/.env.local and from the running dev process; native 127.0.0.1:3198 is not listening), so making the feature-admin packages route fail closed would break it. Native PlatformPackageGrantPolicy obligations fail closed (src/composition/src/commercial.rs:583-597) and finance deferred effects are not wired into PgPackageBatchReview::retain (:658-664). removalTaskId=ports.commercial-obligation-effects (new: configure ERPX_NATIVE_COMMERCIAL_CONFIG with a mounted commercial_package_grants target and wire native obligation + finance deferred ports), removalCondition=the admin packages/preview|apply route returns native authority 200 in authorized dev and the TS branch can be deleted without 503. package-grants.ts (4 writes) is not separable: ~70 TS tests plus 8 seed scripts and direct-PG production readers depend on it, and tests/integration/commercial/rust-purchase-postgres.test.rs:29-43 still uses TS readCompanyPurchaseFacts. removalTaskId=retire.commercial.read-oracle-and-seeds, removalCondition=native-seeded presentation revision oracle and all production readers switched to native-company-packages. projection.ts (5 billing-usage writes) and purchase-command-boundary.ts (1 command_assertions write) have no native producer; removalTaskId=retire.billing.usage-projection and retire.commercial.purchase-command-boundary respectively. No files edited; KPI unchanged 1942."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -46739,18 +46746,18 @@
       "totalPackets": 235,
       "migratedPackets": 131,
       "statusCounts": {
-        "pending": 22,
+        "pending": 21,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 131,
-        "blocked": 82,
+        "blocked": 83,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T09:18:39.849Z",
+    "updatedAt": "2026-11-20T09:19:31.891Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
