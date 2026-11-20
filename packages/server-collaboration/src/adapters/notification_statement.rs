@@ -3077,3 +3077,50 @@ pub async fn finance_journal_reverse_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: create or update a tax identity (values_json carries ordered binds).
+pub async fn finance_tax_identity_upsert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.kind.as_deref() == Some("finance_tax_identity_insert") {
+        Ok(NotificationStatement {
+            sql: "INSERT INTO finance_tax_identities(id,company_id,party_id,legal_name,tax_id,address,branch_code,entity_kind,vat_registered,vat_registration_evidence,effective_from,effective_to,previous_identity_id,signer_name,signer_authority,rule_pack_version,evidence_ref,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+            values: values_from_json(input)?,
+        })
+    } else {
+        Ok(NotificationStatement {
+            sql: "UPDATE finance_tax_identities SET party_id=?,legal_name=?,tax_id=?,address=?,branch_code=?,entity_kind=?,vat_registered=?,vat_registration_evidence=?,effective_from=?,effective_to=?,previous_identity_id=?,signer_name=?,signer_authority=?,rule_pack_version=?,evidence_ref=?,version=version+1,updated_at=? WHERE id=?".to_owned(),
+            values: values_from_json(input)?,
+        })
+    }
+}
+
+/// Finance: mark a previous tax identity superseded.
+pub async fn finance_tax_identity_supersede_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_tax_identities SET status='superseded',version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: decide on a tax identity draft.
+pub async fn finance_tax_identity_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_tax_identities SET status=?,reviewed_by=?,review_reason=?,reviewed_at=?,signature_link_id=?,signature_sha256=?,signature_media_type=?,signature_data_uri=?,version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

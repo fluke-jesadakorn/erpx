@@ -277,7 +277,8 @@
     "./adapters/native-legal-portal-writes": "./src/adapters/native-legal-portal-writes.ts",
     "./adapters/native-finance-book-adjustments": "./src/adapters/native-finance-book-adjustments.ts",
     "./adapters/native-finance-planning": "./src/adapters/native-finance-planning.ts",
-    "./adapters/native-finance-owned-reversal": "./src/adapters/native-finance-owned-reversal.ts"
+    "./adapters/native-finance-owned-reversal": "./src/adapters/native-finance-owned-reversal.ts",
+    "./adapters/native-finance-tax-identities": "./src/adapters/native-finance-tax-identities.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
