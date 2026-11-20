@@ -1,3 +1,5 @@
+pub(crate) mod notification_statement_http;
+pub(crate) mod notification_statement;
 pub(crate) mod social_source_policy;
 pub(crate) mod task_source_origin;
 pub(crate) mod legal_hold_notifications;

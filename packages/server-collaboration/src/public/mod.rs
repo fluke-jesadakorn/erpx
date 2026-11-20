@@ -69,3 +69,18 @@ pub mod social_source_policy {
         into_business, read_published_post, source_guard, source_hash, PublishedPost, SourceItem,
     };
 }
+
+/// Native-owned notification statement port.
+pub mod notification_statement {
+    pub use crate::adapters::notification_statement::{
+        notification_statement, NotificationStatement, NotificationStatementInput,
+    };
+}
+
+/// Native notification statement HTTP ingress.
+pub mod notification_statement_http {
+    pub use crate::adapters::notification_statement_http::{
+        notification_statement_router, StatementBackend, StatementFuture, StatementRequest,
+        StatementTarget,
+    };
+}

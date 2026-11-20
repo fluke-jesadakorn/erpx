@@ -229,7 +229,8 @@
     "./public/native-social-page": "./src/public/native-social-page.ts",
     "./public/native-messaging-page": "./src/public/native-messaging-page.ts",
     "./public/native-inbox-page": "./src/public/native-inbox-page.ts",
-    "./public/native-collaboration-page": "./src/public/native-collaboration-page.ts"
+    "./public/native-collaboration-page": "./src/public/native-collaboration-page.ts",
+    "./adapters/native-notification-statement": "./src/adapters/native-notification-statement.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

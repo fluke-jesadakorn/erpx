@@ -15,14 +15,15 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { overtimeCommandSchema, type OvertimeDetails } from "@erpx/feature-people_payroll/lib/overtime";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { isTransactionalSqlDatabase, type SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import { nativeOvertimeNotification } from './native-overtime-notification';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { overtimeEvidenceFacts } from '@erpx/server-files/public/overtime-evidence-facts';
-import { overtimeNotification } from '@erpx/server-collaboration/public/overtime-notification';
+
 import { type OvertimeRow } from '@erpx/server-people_payroll/domain/overtime';
 import { createOvertimeApplication, type OvertimeRepository, type OvertimePorts } from '@erpx/server-people_payroll/application/overtime';
 export type { OvertimeRow } from '@erpx/server-people_payroll/domain/overtime';
 export type OvertimeDetail=Awaited<ReturnType<typeof getOvertime>>;
-function serviceContext(provided?: SqlDatabase,providedOwned=false): OvertimePorts<SqlStatement> {
+function serviceContext(actor: WorkContext, provided?: SqlDatabase,providedOwned=false): OvertimePorts<SqlStatement> {
     let database = provided!;
     const repository: OvertimeRepository<SqlStatement> = { readOvertimeSetupEligibility(companyId: string, engagement_id: string) {
             return database.prepare("SELECT eligible FROM overtime_eligibility WHERE company_id=? AND engagement_id=?").bind(companyId, engagement_id).first<{
@@ -74,11 +75,11 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): OvertimePor
     return { repository, clock: { now: Date.now }, prepare: async (holding) => {
             if (!provided)
                 database = (await holdingResources(holding)).write;
-        }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), notification: (...args) => overtimeNotification(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), peopleRequestRoute: (...args) => fromNative(() => peopleRequestRoute(database, ...args)), approvalView: (...args) => fromNative(() => approvalView(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), prepareDecision: (...args) => fromNative(() => prepareDecision(database, ...args)), closeApprovals: (...args) => closeApprovals(database, ...args), prepareAttachmentBinding: (...args) => fromNative(() => prepareAttachmentBinding(database, ...args)), transaction: run => {
-            if(providedOwned)return run(serviceContext(database,true));
+        }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), notification: (...args) => nativeOvertimeNotification(database, actor, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), peopleRequestRoute: (...args) => fromNative(() => peopleRequestRoute(database, ...args)), approvalView: (...args) => fromNative(() => approvalView(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), prepareDecision: (...args) => fromNative(() => prepareDecision(database, ...args)), closeApprovals: (...args) => closeApprovals(database, ...args), prepareAttachmentBinding: (...args) => fromNative(() => prepareAttachmentBinding(database, ...args)), transaction: run => {
+            if(providedOwned)return run(serviceContext(actor,database,true));
             if (!isTransactionalSqlDatabase(database))
                 throw new Error('OVERTIME_TRANSACTION_REQUIRED');
-            return database.transaction(tx => run(serviceContext(tx)));
+            return database.transaction(tx => run(serviceContext(actor,tx)));
         } };
 }
 async function fromNative<Result>(run: () => Promise<Result>) {
@@ -101,11 +102,11 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function overtimeSetup(db: SqlDatabase, actor: WorkContext) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(tx)).overtimeSetup(actor)),db); }
-export async function previewOvertime(actor: WorkContext, raw: OvertimeDetails, actual = false, excludeId: string | null = null, database?: SqlDatabase) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(tx)).previewOvertime(actor,raw,actual,excludeId)),database); }
+export async function overtimeSetup(db: SqlDatabase, actor: WorkContext) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(actor,tx)).overtimeSetup(actor)),db); }
+export async function previewOvertime(actor: WorkContext, raw: OvertimeDetails, actual = false, excludeId: string | null = null, database?: SqlDatabase) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(actor,tx)).previewOvertime(actor,raw,actual,excludeId)),database); }
 
-export async function listOvertime(actor: WorkContext) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(tx)).listOvertime(actor))); }
-export async function createOvertime(actor: WorkContext, raw: OvertimeDetails, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:"overtime.create",purpose:"new-work",resultKind:"overtime"},tx=>invoke(() => createOvertimeApplication(serviceContext(tx,Boolean(tx))).createOvertime(actor,raw,key))); }
-export async function commandOvertime(actor: WorkContext, id: string, raw: z.infer<typeof overtimeCommandSchema>, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:`overtime.${raw.action}`,purpose:["save","submit"].includes(raw.action)?"new-work":"settle-existing",target:{kind:"overtime",id}},tx=>invoke(() => createOvertimeApplication(serviceContext(tx,Boolean(tx))).commandOvertime(actor,id,raw,key))); }
-export async function overtimeWork(actor: WorkContext) { return withWorkforcePurchasedRead(actor,async tx=>{const rows=await invoke(() => createOvertimeApplication(serviceContext(tx)).overtimeWork(actor)),purchase=await workforcePurchaseControls(actor,tx);return !purchase?rows:rows.map(row=>((["draft","rejected"].includes(row.status)?purchase.newWork:purchase.settleExisting)?row:({...row,canAct:false,queue:row.queue==="completed"?"completed" as const:"waiting" as const})));}); }
-export async function setOvertimeEligibility(actor: WorkContext, raw: unknown, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:"overtime.eligibility",purpose:"new-work",permission:"leave.policy.manage",target:{kind:"configuration",id:actor.companyId}},tx=>invoke(() => createOvertimeApplication(serviceContext(tx,Boolean(tx))).setOvertimeEligibility(actor,raw,key))); }
+export async function listOvertime(actor: WorkContext) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(actor,tx)).listOvertime(actor))); }
+export async function createOvertime(actor: WorkContext, raw: OvertimeDetails, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:"overtime.create",purpose:"new-work",resultKind:"overtime"},tx=>invoke(() => createOvertimeApplication(serviceContext(actor,tx,Boolean(tx))).createOvertime(actor,raw,key))); }
+export async function commandOvertime(actor: WorkContext, id: string, raw: z.infer<typeof overtimeCommandSchema>, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:`overtime.${raw.action}`,purpose:["save","submit"].includes(raw.action)?"new-work":"settle-existing",target:{kind:"overtime",id}},tx=>invoke(() => createOvertimeApplication(serviceContext(actor,tx,Boolean(tx))).commandOvertime(actor,id,raw,key))); }
+export async function overtimeWork(actor: WorkContext) { return withWorkforcePurchasedRead(actor,async tx=>{const rows=await invoke(() => createOvertimeApplication(serviceContext(actor,tx)).overtimeWork(actor)),purchase=await workforcePurchaseControls(actor,tx);return !purchase?rows:rows.map(row=>((["draft","rejected"].includes(row.status)?purchase.newWork:purchase.settleExisting)?row:({...row,canAct:false,queue:row.queue==="completed"?"completed" as const:"waiting" as const})));}); }
+export async function setOvertimeEligibility(actor: WorkContext, raw: unknown, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:"overtime.eligibility",purpose:"new-work",permission:"leave.policy.manage",target:{kind:"configuration",id:actor.companyId}},tx=>invoke(() => createOvertimeApplication(serviceContext(actor,tx,Boolean(tx))).setOvertimeEligibility(actor,raw,key))); }

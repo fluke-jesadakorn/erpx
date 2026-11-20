@@ -3244,6 +3244,7 @@ async fn assemble_checked(
         let mut collaboration_inbox_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut collaboration_work_targets = Vec::new();
+        let mut notification_statement_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3849,6 +3850,25 @@ async fn assemble_checked(
                 }
                 #[cfg(feature = "existing-business")]
                 {
+                    notification_statement_targets.push(
+                        erpx_server_collaboration::public::notification_statement_http::StatementTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(crate::collaboration::CollaborationWorkBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::collaboration::CollaborationWorkService::new(
+                                    authorizer.clone(),
+                                    crate::collaboration::SocialConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            )),
+                        },
+                    );
                     collaboration_work_targets.push(
                         erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpTarget {
                             host: holding.host.clone(),
@@ -6238,6 +6258,14 @@ async fn assemble_checked(
                     collaboration_work_targets,
                 )
                 .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !notification_statement_targets.is_empty() {
+            router = router.merge(
+                erpx_server_collaboration::public::notification_statement_http::notification_statement_router(
+                    notification_statement_targets,
+                )
+                .map_err(|_| "PRIVATE_API_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

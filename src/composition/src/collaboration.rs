@@ -5,6 +5,12 @@
 //! Records SQL is duplicated. Messaging/inbox mounts are separate because they
 //! need the Files and Work-projection ports.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_collaboration::public::notification_statement::{
+    notification_statement, NotificationStatement, NotificationStatementInput,
+};
+use erpx_server_collaboration::public::notification_statement_http::{
+    StatementBackend, StatementFuture, StatementRequest,
+};
 use erpx_server_collaboration::public::social::{
     PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, SocialUploadFilesFuture,
     SocialUploadFilesPort, execute, lock_social_sources,
@@ -2099,6 +2105,49 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
         self.configuration.company()
     }
 
+    /// Authoritative notification statement on the caller-authorized Holding unit.
+    pub async fn notification_statement(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        input: NotificationStatementInput,
+    ) -> Result<NotificationStatement, Error> {
+        let expected = self.configuration.company.clone();
+        let company = self.configuration.company.clone();
+        selection.mutation = false;
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    if selection.company_id != expected {
+                        return Err(scope_error());
+                    }
+                    Ok(selection)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("collaboration".into()),
+                    destination: "feed".into(),
+                    api: true,
+                },
+                CollaborationSources,
+                move |connection, current| {
+                    let company = company.clone();
+                    let input = input.clone();
+                    Box::pin(async move {
+                        current.require_permission("records.read")?;
+                        let company_id = CompanyId::new(company.as_str())?;
+                        notification_statement(connection, &company_id, &input)
+                            .await
+                            .map_err(Into::into)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn read(
         &self,
         host: &str,
@@ -2109,7 +2158,13 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
         erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpReadReply,
         Error,
     > {
-        use erpx_server_collaboration::public::collaboration_work::{
+        use erpx_server_collaboration::public::notification_statement::{
+    notification_statement, NotificationStatement, NotificationStatementInput,
+};
+use erpx_server_collaboration::public::notification_statement_http::{
+    StatementBackend, StatementFuture, StatementRequest,
+};
+use erpx_server_collaboration::public::collaboration_work::{
             read_scope_card, read_scope_relation, read_scope_workspace,
         };
         use erpx_server_collaboration::public::collaboration_work_http::{
@@ -2365,6 +2420,18 @@ impl<C: Clock + Send + Sync + 'static>
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .command(request.host, proof, selection, request.change, request.key)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> StatementBackend for CollaborationWorkBackend<C> {
+    fn statement<'a>(&'a self, request: StatementRequest<'a>) -> StatementFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .notification_statement(request.host, proof, selection, request.input.clone())
                 .await
                 .map_err(business)
         })
