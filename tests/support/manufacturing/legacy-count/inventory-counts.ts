@@ -10,7 +10,7 @@ import {countSourcePurchasePredicate} from "@erpx/server-inventory/adapters/coun
 import {countSourceAccess} from "@erpx/server-inventory/adapters/count-purchases";
 import {inventoryQualitySnapshotSources as qualitySnapshotSources} from '@erpx/server-quality/public/inventory-quality-snapshot-sources';
 const qualitySources=qualitySnapshotSources();
-import {inventoryCountEffects} from '@erpx/server-quality/public/inventory-count-effects';
+import {inventoryCountEffects} from '../inventory-count-effects-fixture';
 import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
 import {inventoryReadProjection as inventoryfinanceProjection} from '@erpx/server-finance/public/inventory-read-projections';
 import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erpx/server-people_payroll/public/inventory-read-projections';

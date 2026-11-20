@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3290,
+    "revision": 3292,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -48561,6 +48561,46 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.inventory-count-effects",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "quality",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire superseded inventory count quality writers",
+        "scope": "Delete packages/server-quality/src/adapters/inventory-count-effects.ts (5 writes: hold insert, disposal/rejection updates, disposition events) and its public barrel. Native Quality adapter count_disposition.rs owns all five effects inside the serializable count transaction. Move the fixture-only oracle to test support with a removalTaskId.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/support/manufacturing/**",
+          "fixtures/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "claimedAt": "2026-11-20T11:55:03.364Z",
+          "heartbeatAt": "2026-11-20T11:55:03.364Z",
+          "expiresAt": "2026-11-20T12:25:03.364Z",
+          "generation": 139
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the superseded TS writer and barrel; keep the fixture oracle in test support with a removalTaskId.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -48569,11 +48609,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 250,
+      "totalPackets": 251,
       "migratedPackets": 136,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 136,
@@ -48583,7 +48623,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T11:53:19.469Z",
+    "updatedAt": "2026-11-20T11:55:03.365Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
