@@ -3326,6 +3326,8 @@ async fn assemble_checked(
         let mut staff_work_targets = Vec::new();
         let mut people_payroll_targets = Vec::new();
         let mut people_payroll_command_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut workforce_targets = Vec::new();
         let mut asset_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut generic_payment_targets = Vec::new();
@@ -5267,6 +5269,27 @@ async fn assemble_checked(
                         backend: people_payroll_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                workforce_targets.push(
+                    erpx_server_people_payroll::public::workforce_http::WorkforceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::people_workforce::WorkforceBackend::new(
+                            Arc::new(crate::people_workforce::WorkforceService::new(
+                                authorizer.clone(),
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                crate::people_workforce::WorkforceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(pools[0].clone()),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 if !operations_targets.iter().any(|target: &erpx_server_operations::public::operations_http::OperationsHttpTarget| {
                     target.host == holding.host
                         && target.holding_slug == holding.registration.slug
@@ -6682,6 +6705,15 @@ async fn assemble_checked(
                     people_payroll_command_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !workforce_targets.is_empty() {
+            router = router.merge(
+                erpx_server_people_payroll::public::workforce_http::workforce_router(
+                    workforce_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PEOPLE_WORKFORCE_CONFIGURATION_INVALID")?,
             );
         }
         if !asset_targets.is_empty() {

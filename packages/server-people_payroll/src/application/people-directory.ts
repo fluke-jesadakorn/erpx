@@ -3,7 +3,6 @@ import type { levelChangeStatements } from "@erpx/server-operations/public/staff
 import type { requireCompanyAuthority, authorityGuard } from "@erpx/server-operations/public/staff-policy";
 import type {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import type {validateStaffOrganization} from '@erpx/server-organization/public/organization';
-import type { rosterPositionExitStatements } from "@erpx/server-people_payroll/public/roster-position-exit";
 import type { recommendationStatements } from "@erpx/server-organization/public/staff-defaults";
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
@@ -78,7 +77,6 @@ export interface PeopleDirectoryPorts<Effect> {
     authorityGuard(...args: Tail<Parameters<typeof authorityGuard>>): PortResult<ReturnType<typeof authorityGuard>, Effect>;
     organizationGuard(...args: Tail<Parameters<typeof organizationGuard>>): PortResult<ReturnType<typeof organizationGuard>, Effect>;
     validateStaffOrganization(...args: Tail<Parameters<typeof validateStaffOrganization>>): PortResult<ReturnType<typeof validateStaffOrganization>, Effect>;
-    rosterPositionExitStatements(...args: Tail<Parameters<typeof rosterPositionExitStatements>>): PortResult<ReturnType<typeof rosterPositionExitStatements>, Effect>;
     recommendationStatements(...args: Tail<Parameters<typeof recommendationStatements>>): PortResult<ReturnType<typeof recommendationStatements>, Effect>;
 }
 export function createPeopleDirectoryApplication<Effect>(ports: PeopleDirectoryPorts<Effect>) {
@@ -161,7 +159,7 @@ export function createPeopleDirectoryApplication<Effect>(ports: PeopleDirectoryP
             const previous = await repository.readSaveDirectoryPersonPrevious(actor.companyId, current.position_id);
             const next = positionId ? await repository.readSaveDirectoryPersonNext(actor.companyId, positionId) : null;
             if (previous?.roster_required === 1 && next?.roster_required !== 1)
-                steps.push(...ports.rosterPositionExitStatements(actor, [engagement], commandId, input.reason));
+                throw new BusinessRuleError(503, "NATIVE_PEOPLE_WORKFORCE_REQUIRED", "A roster-required position exit must use the native People directory command.");
         }
         steps.push(...await ports.recommendationStatements(actor, {
             engagementId: engagement, positionId, levelId,

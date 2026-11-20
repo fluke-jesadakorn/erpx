@@ -32,3 +32,11 @@ pub mod staff_facts;
 
 pub mod workflow_projection_source;
 pub mod rfq_request_people;
+
+/// Native People workforce directory command HTTP ingress.
+pub mod workforce_http {
+    pub use crate::adapters::workforce_http::{
+        workforce_router, WorkforceHttpBackend, WorkforceHttpFuture, WorkforceHttpKind,
+        WorkforceHttpRequest, WorkforceHttpResponse, WorkforceHttpTarget,
+    };
+}

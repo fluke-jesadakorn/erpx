@@ -1,3 +1,12 @@
+/**
+ * FIXTURE-ONLY ORACLE — native-seeded roster position exit effects.
+ *
+ * The production TypeScript writer was retired in favour of the native People
+ * workforce command with composed Organization/Identity ports. This copy
+ * exists only to seed PostgreSQL integration fixtures and is tracked for
+ * removal by retire.people_payroll.fixture-oracle once the native-seeded
+ * harness covers the roster suite.
+ */
 import type {SqlDatabase,SqlStatement} from '@erpx/server-runtime/public/runtime/types';import type {WorkContext} from '@erpx/server-identity_access/public/authorization';import {rosterPositionExitNotifications} from '@erpx/server-collaboration/public/people-roster-position-notifications';import {createRosterPositionExitApplication} from '@erpx/server-people_payroll/application/roster-position-exit';export function rosterPositionExitStatements(db:SqlDatabase,actor:WorkContext,engagementIds:string[],commandId:string,reason:string):SqlStatement[]{return createRosterPositionExitApplication({clock:{now:Date.now},stage(input){const {actor,engagementIds,commandId,reason}=input;const notificationStages=rosterPositionExitNotifications(db,input);  const ids = `{${engagementIds.join(",")}}`, now = input.now;
   const affected = `SELECT a.id,a.person_id,a.engagement_id,s.week_id,w.department_id
     FROM people_roster_assignments a JOIN people_roster_shifts s ON s.id=a.shift_id

@@ -2486,7 +2486,6 @@
 @source "../../../../packages/server-people_payroll/src/adapters/records-self-service-owned-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/retirement-clearance.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/roster-notification-purchases.ts";
-@source "../../../../packages/server-people_payroll/src/adapters/roster-position-exit.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/roster-purchases.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/self-service-product-entry.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/spending-template-read.ts";
@@ -2673,7 +2672,6 @@
 @source "../../../../packages/server-people_payroll/src/public/records-self-service-owned-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/retirement-clearance-policy.ts";
 @source "../../../../packages/server-people_payroll/src/public/retirement-clearance.ts";
-@source "../../../../packages/server-people_payroll/src/public/roster-position-exit.ts";
 @source "../../../../packages/server-people_payroll/src/public/roster-purchases.ts";
 @source "../../../../packages/server-people_payroll/src/public/rules/financial-product-entry.ts";
 @source "../../../../packages/server-people_payroll/src/public/rules/learning-worker-startup-entry.ts";

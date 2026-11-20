@@ -160,7 +160,8 @@
     "./lib/thai-payroll-rules": "./src/lib/thai-payroll-rules.ts",
     "./lib/overtime": "./src/lib/overtime.ts",
     "./lib/hr-settings-navigation": "./src/lib/hr-settings-navigation.ts",
-    "./lib/people-draft-import": "./src/lib/people-draft-import.ts"
+    "./lib/people-draft-import": "./src/lib/people-draft-import.ts",
+    "./adapters/server/native-workforce": "./src/adapters/server/native-workforce.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

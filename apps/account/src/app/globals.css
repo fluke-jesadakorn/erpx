@@ -1944,7 +1944,6 @@
 @source "../../../../packages/server-people_payroll/src/adapters/records-request-preview-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/retirement-clearance.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/roster-notification-purchases.ts";
-@source "../../../../packages/server-people_payroll/src/adapters/roster-position-exit.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/roster-purchases.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/spending-template-read.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/technology-provisioning-facts.ts";
@@ -2095,7 +2094,6 @@
 @source "../../../../packages/server-people_payroll/src/public/records-request-preview-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/retirement-clearance-policy.ts";
 @source "../../../../packages/server-people_payroll/src/public/retirement-clearance.ts";
-@source "../../../../packages/server-people_payroll/src/public/roster-position-exit.ts";
 @source "../../../../packages/server-people_payroll/src/public/roster-purchases.ts";
 @source "../../../../packages/server-people_payroll/src/public/rules/people-roster-domain.ts";
 @source "../../../../packages/server-people_payroll/src/public/rules/self-service-product-entry.ts";

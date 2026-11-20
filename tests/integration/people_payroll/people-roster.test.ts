@@ -1,9 +1,10 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
+vi.mock('server-only', () => ({}));
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { escalateRosterCoverage, rosterCommand, rosterData, rosterNotificationLink } from "@erpx/server-people_payroll/public/people-roster";
 import { rosterMonday, addDays } from "@erpx/feature-people_payroll/lib/people-roster";
-import { rosterPositionExitStatements } from "@erpx/server-people_payroll/public/roster-position-exit";
+import { rosterPositionExitStatements } from "../../support/people_payroll/roster-exit-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { prepareLocalBrowserRosterExample } from "../../../fixtures/people_payroll/builders/local-browser-roster-directory";
 import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";

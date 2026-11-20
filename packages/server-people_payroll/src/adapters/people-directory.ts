@@ -11,7 +11,6 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { requireCompanyAuthority, authorityGuard } from "@erpx/server-operations/public/staff-policy";
 import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import {validateStaffOrganization} from '@erpx/server-organization/public/organization';
-import { rosterPositionExitStatements } from "@erpx/server-people_payroll/public/roster-position-exit";
 import { recommendationStatements } from "@erpx/server-organization/public/staff-defaults";
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { BusinessRuleError } from '@erpx/server-shared/index';
@@ -93,7 +92,7 @@ function application(provided?: SqlDatabase) {
     return createPeopleDirectoryApplication({ repository, clock: { now: Date.now }, authorize: requirePermission, prepare: async (holding) => {
             if (!provided)
                 database = (await holdingResources(holding)).write;
-        }, commands: projectWorkerNativeCommands(database), levelChangeStatements: (...args) => levelChangeStatements(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), authorityGuard: (...args) => authorityGuard(database, ...args), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), rosterPositionExitStatements: (...args) => rosterPositionExitStatements(database, ...args), recommendationStatements: (...args) => fromNative(() => recommendationStatements(database, ...args)) });
+        }, commands: projectWorkerNativeCommands(database), levelChangeStatements: (...args) => levelChangeStatements(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), authorityGuard: (...args) => authorityGuard(database, ...args), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), recommendationStatements: (...args) => fromNative(() => recommendationStatements(database, ...args)) });
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {

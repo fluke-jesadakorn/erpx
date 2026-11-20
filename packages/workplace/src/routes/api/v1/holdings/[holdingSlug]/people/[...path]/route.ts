@@ -18,6 +18,7 @@ import {organizationOverview,organizationNodeChangeSchema,organizationNodeDecisi
 import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationPositionMoveCommand, nativeOrganizationPositionMoveList, nativeOrganizationPositionSave, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
 import { ownedPeoplePayrollRun, ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { nativePeoplePayrollCommand, nativePeoplePayrollFailure, peoplePayrollPageContext } from "@erpx/feature-people_payroll/public/native-payroll-summary-page";
+import { createNativeWorkforceClient, nativeWorkforceConfigured, nativeWorkforceConfiguration, nativeWorkforceFailure } from "@erpx/feature-people_payroll/adapters/server/native-workforce";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@erpx/server-identity_access/public/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
@@ -241,8 +242,15 @@ export async function POST(request: Request, context: Context) {
     if(p[0]==="directory"&&p[2]==="invitations"&&p[3]&&p[4]==="revoke")return Response.json(canonicalDestinationLinks({data:await revokeInvitation(actor,p[1],p[3],id)}));
     if(p[0]==="directory"&&p[2]==="grant")return Response.json(canonicalDestinationLinks({data:await grantPersonAccess(actor,p[1],parsed(grantSchema.safeParse(input)),id)}));
     if(p[0]==="directory"&&p[2]==="revoke"){const data=parsed(z.object({assignmentId:z.string().min(1)}).safeParse(input));return Response.json(canonicalDestinationLinks({data:await revokePersonAccess(actor,p[1],data.assignmentId,id)}));}
-    if (p[0] === "directory" && p.length === 1) return Response.json(canonicalDestinationLinks({data:await saveDirectoryPerson(actor,null,{...parsed(directorySchema.safeParse(input)),expectedVersion:1},id)}),{status:201});
-    if (p[0] === "directory" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await saveDirectoryPerson(actor,p[1],parsed(directoryUpdateSchema.safeParse(input)),id)}));
+    if (p[0] === "directory" && (p.length === 1 || p.length === 2)) {
+      if (!nativeWorkforceConfigured()) throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People directory service is unavailable.");
+      try {
+        const client = createNativeWorkforceClient(nativeWorkforceConfiguration(process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG!));
+        const checked = p.length === 1 ? parsed(directorySchema.safeParse(input)) : parsed(directoryUpdateSchema.safeParse(input));
+        const data = await client(request.headers, peoplePayrollPageContext(actor), holdingSlug, p.length === 2 ? p[1] : null, JSON.stringify(checked), id);
+        return Response.json(canonicalDestinationLinks({data}),{status:p.length===1?201:200,headers:{"Cache-Control":"private, no-store"}});
+      } catch (error) { const failure = nativeWorkforceFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
+    }
     if (p[0] === "directory" && p[2] === "status") return Response.json(canonicalDestinationLinks({data:await setDirectoryStatus(actor,p[1],parsed(directoryStatusSchema.safeParse(input)),id)}));
     if (p[0] === "people" && p.length === 1) { const data=parsed(createPersonSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createPerson(actor,data,id)}),{status:201}); }
     if (p[0] === "engagements" && p.length === 1) { const data=parsed(createEngagementSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createEngagement(actor,data,id)}),{status:201}); }
