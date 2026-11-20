@@ -1606,3 +1606,26 @@ pub async fn legal_quarantine_event_statement(
         ],
     })
 }
+
+
+/// Customer portal: record a portal action (authoritative insert).
+pub async fn customer_portal_action_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO customer_portal_actions(id,company_id,binding_id,order_id,customer_id,\
+ user_id,action,note,source_version,request_key,request_hash,status,created_at) \
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,'recorded',?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()), value(&input.record_id),
+            value(input.order_id.as_deref().unwrap_or("")), value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.user_id), value(&input.record_type), value(&input.message),
+            serde_json::Value::Number(input.record_version.into()), value(input.target_id.as_deref().unwrap_or("")),
+            value(input.source_hash.as_deref().unwrap_or("")), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}

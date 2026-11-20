@@ -19,6 +19,7 @@ import {customerPortalOwnedUnit} from '@erpx/server-customer_authority/public/po
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
+import { customerPortalActions } from '@erpx/server-collaboration/adapters/native-customer-portal-actions';
 
 function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()=>Promise<void>): PortalRepository {
   const action = (predicate: string, values: string[]) => db.prepare(`SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE ${predicate}`).bind(...values).first<PortalActionRow>();
@@ -66,7 +67,7 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
     },
     record: async (command, evidence) => {
       const { id, input, binding, actor, key, requestHash, now } = command;
-      await db.prepare(`INSERT INTO customer_portal_actions(id,company_id,binding_id,order_id,customer_id,user_id,action,note,source_version,request_key,request_hash,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'recorded',?)`).bind(id, binding.company_id, binding.binding_id, binding.order_id, binding.customer_id, actor.userId, input.action, input.note, Number(binding.order_version), key, requestHash, now).run();
+      await customerPortalActions(db).record({ id, companyId: binding.company_id, bindingId: binding.binding_id, orderId: binding.order_id, customerId: binding.customer_id, userId: actor.userId, action: input.action, note: input.note, sourceVersion: Number(binding.order_version), requestKey: key, requestHash, now });
       if (evidence) await evidence.commit();
     },
     notify: (command, message) => notifyCustomerPortalStaff(

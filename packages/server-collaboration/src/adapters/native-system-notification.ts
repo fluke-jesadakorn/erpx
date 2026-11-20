@@ -36,6 +36,8 @@ export async function nativeSystemNotificationStatement(
     identifier?: string;
     item_id?: string;
     timestamp?: number;
+    order_id?: string;
+    source_hash?: string;
   },
   key: string,
   now: number,

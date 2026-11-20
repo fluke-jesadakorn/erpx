@@ -252,7 +252,8 @@
     "./adapters/native-document-derivatives": "./src/adapters/native-document-derivatives.ts",
     "./adapters/native-beta-cleanup": "./src/adapters/native-beta-cleanup.ts",
     "./adapters/native-legal-access-events": "./src/adapters/native-legal-access-events.ts",
-    "./adapters/native-legal-portal-staged": "./src/adapters/native-legal-portal-staged.ts"
+    "./adapters/native-legal-portal-staged": "./src/adapters/native-legal-portal-staged.ts",
+    "./adapters/native-customer-portal-actions": "./src/adapters/native-customer-portal-actions.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
