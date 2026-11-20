@@ -3,6 +3,7 @@ import { commercialOwnerProjectionSources as commerceProjectionSources } from "@
 import { commercialOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import {prepareQualityNotification as notify} from '@erpx/server-collaboration/public/quality-notifications';
+import {nativeCustomerReturnHoldStatements} from './native-customer-return-hold';
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import 'server-only';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -27,8 +28,13 @@ function repository(write:SqlDatabase,actor:WorkContext):QualityRepository<SqlSt
  holds:id=>rows(write,actor,id),
  activeSpec:productId=>write.prepare("SELECT id,version FROM inventory_quality_specs WHERE company_id=? AND product_id=? AND status='active'").bind(actor.companyId,productId).first<Row>(),
  evidenceVersionGuard:(id,expectedVersion,key)=>[assertion(write,key,'quality-evidence-version',"EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=? AND status IN ('held','awaiting_release')",[id,actor.companyId,expectedVersion])],
- receiptHold:(input,spec,now)=>{const steps=[];if(spec)steps.push(assertion(write,input.key,'quality-spec',"EXISTS(SELECT 1 FROM inventory_quality_specs WHERE id=? AND version=? AND status='active')",[spec.id,spec.version]));steps.push(write.prepare('INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,lot_id,held_quantity_milli,source_type,source_id,spec_id,spec_version,quantity_scope) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,\'partial\')').bind(input.id,actor.companyId,input.branchId,input.warehouseId,input.productId,input.reason,input.dueDate,actor.userId,now,now,input.lotId??null,input.quantityMilli,input.sourceType??'goods_receipt',input.sourceId,spec?.id??null,spec?.version??null),notify(write,input.key,input.id));return steps;
- },
+ receiptHold:async(input,spec,now)=>{
+   const statements=await nativeCustomerReturnHoldStatements(actor,input,actor.userId,now);
+   const steps:SqlStatement[]=[];
+   if(statements.specGuard)steps.push(write.prepare(statements.specGuard.sql).bind(...statements.specGuard.values));
+   steps.push(write.prepare(statements.hold.sql).bind(...statements.hold.values),notify(write,input.key,input.id));
+   return steps;
+ }
 };}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export async function getQualityHold(actor:WorkContext,id:string,provided?:SqlDatabase){const write=provided??(await holdingResources(actor.holdingId)).write;await requireQualityPurchasedRead(write,actor,id);return translated(()=>application(actor,write).getQualityHold(id));}

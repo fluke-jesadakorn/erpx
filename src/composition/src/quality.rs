@@ -18,6 +18,12 @@ use erpx_server_identity_access::public::{
     },
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
 };
+use erpx_server_quality::public::customer_return_hold::{
+    customer_return_hold_statements, CustomerReturnHoldInput, CustomerReturnHoldStatements,
+};
+use erpx_server_quality::public::customer_return_hold_http::{
+    HoldStatementBackend, HoldStatementFuture, HoldStatementRequest,
+};
 use erpx_server_quality::public::quality_commands::{
     HoldStatus, InspectionResult, QualityAlertAcknowledgeCommand,
     QualityAlertAcknowledgementReceipt, QualityDispositionCommand, QualityDispositionReceipt,
@@ -582,6 +588,52 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         )
                         .await?;
                         Ok(spec_receipt(&outcome)?)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Customer-return Quality hold statement descriptors, generated on the
+    /// caller-authorized serializable Holding unit. No ledger write occurs here.
+    pub async fn customer_return_hold_statement(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        input: CustomerReturnHoldInput,
+    ) -> Result<CustomerReturnHoldStatements, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        selection.mutation = false;
+        let expected_company = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    if selection.company_id != expected_company {
+                        return Err(scope());
+                    }
+                    Ok(selection)
+                },
+                Self::access(),
+                QualitySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let input = input.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("quality.hold")?;
+                        let company_id = CompanyId::new(company.as_str())?;
+                        customer_return_hold_statements(connection, &company_id, &input)
+                            .await
+                            .map_err(Into::into)
                     })
                 },
             )
@@ -1347,4 +1399,16 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
 #[allow(dead_code)]
 fn _router(targets: Vec<QualityHttpTarget>) -> Result<axum::Router, BusinessError> {
     quality_router(targets)
+}
+
+impl<C: Clock + Send + Sync + 'static> HoldStatementBackend for QualityBackend<C> {
+    fn statements<'a>(&'a self, request: HoldStatementRequest<'a>) -> HoldStatementFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .customer_return_hold_statement(request.host, proof, selection, request.input.clone())
+                .await
+                .map_err(business)
+        })
+    }
 }

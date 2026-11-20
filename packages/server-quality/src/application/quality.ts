@@ -6,7 +6,7 @@ export interface QualityRepository<Effects>{
  holds(id?:string):Promise<Row[]>;
  activeSpec(productId:string):Promise<Row|null>;
  evidenceVersionGuard(id:string,expectedVersion:number,key:string):Effects;
- receiptHold(input:ReceiptQualityHold,spec:Row|null,now:number):Effects;
+ receiptHold(input:ReceiptQualityHold,spec:Row|null,now:number):Promise<Effects>;
 }
 export function createQualityApplication<Effects>(ports:{departmentScope:boolean;companyScope:boolean;userId:string;authorize(permission:string):void;can(permission:string):boolean;samePerson(id:string|number|null):boolean;clock:Clock;hash(value:string):Promise<string>;repository():Promise<QualityRepository<Effects>>}){
  const fail=(status:number,code:string,message:string):never=>{throw new BusinessRuleError(status,code,message);};

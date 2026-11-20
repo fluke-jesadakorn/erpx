@@ -3133,6 +3133,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut hold_statement_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
         let mut people_relationship_targets = Vec::new();
         let mut people_grants_targets = Vec::new();
@@ -4618,6 +4619,25 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                hold_statement_targets.push(
+                    erpx_server_quality::public::customer_return_hold_http::HoldStatementTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::quality::QualityBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::quality::QualityService::new(
+                                authorizer.clone(),
+                                crate::quality::QualityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 customer_notes_targets.push(
                     erpx_server_customer_360::public::customer_notes_http::CustomerNotesHttpTarget {
                         host: holding.host.clone(),
@@ -5792,6 +5812,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !hold_statement_targets.is_empty() {
+            router = router.merge(
+                erpx_server_quality::public::customer_return_hold_http::hold_statement_router(
+                    hold_statement_targets,
+                )
+                .map_err(|_| "PRIVATE_API_HOLD_STATEMENT_CONFIGURATION_INVALID")?,
             );
         }
         if !identity_access_targets.is_empty() {

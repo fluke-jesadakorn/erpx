@@ -19,3 +19,19 @@ pub mod attachment_hold;
 pub mod attachment_descriptor;
 
 pub mod portal_commerce_locks;
+
+/// Native-owned customer-return Quality hold statement port.
+pub mod customer_return_hold {
+    pub use crate::adapters::customer_return_hold_statement::{
+        customer_return_hold_statements, CustomerReturnHoldInput, CustomerReturnHoldStatements,
+        HoldStatement,
+    };
+}
+
+/// Native customer-return Quality hold statement HTTP ingress.
+pub mod customer_return_hold_http {
+    pub use crate::adapters::customer_return_hold_http::{
+        hold_statement_router, HoldStatementBackend, HoldStatementFuture, HoldStatementRequest,
+        HoldStatementTarget,
+    };
+}

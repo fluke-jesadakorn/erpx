@@ -15,7 +15,7 @@ import { commerceCommerceStockEffects } from '@erpx/server-inventory/public/comm
 import { prepareBusinessEvidence } from '@erpx/server-records/public/business-evidence';
 import { confirmedFunctionalFx, prepareJournal } from '@erpx/server-finance/public/journal-planning';
 import { snapshotMoney } from '@erpx/server-finance/public/company-money';
-import { receiptQualityHoldSteps } from '@erpx/server-quality/public/quality';
+import { fixtureCustomerReturnHold } from '../quality/customer-return-hold-fixture';
 import { quantityMilli, lineAmounts, scaledAmount } from '@erpx/feature-commerce/lib/commerce-math';
 import { convertUnits } from '@erpx/feature-finance/lib/company-money';
 import { minorToDecimal } from '@erpx/feature-finance/lib/finance-money';
@@ -286,7 +286,7 @@ async function fulfill(
       }
       const qualityHoldId = incoming && allocation.disposition === 'quarantine' ? `quality-${key}-${i}-${allocationIndex}` : null;
       if (qualityHoldId)
-        steps.push(...await receiptQualityHoldSteps(db, actor, { id: qualityHoldId, key: `${key}-${i}-${allocationIndex}`, branchId: String(order.branch_id), warehouseId: String(order.warehouse_id), productId: String(line.product_id), lotId: allocation.lotId, quantityMilli: allocation.quantityMilli, reason: allocation.reason, dueDate: allocation.dueDate, sourceId: allocationId }));
+        steps.push(...fixtureCustomerReturnHold(db, { id: qualityHoldId, key: `${key}-${i}-${allocationIndex}`, branchId: String(order.branch_id), warehouseId: String(order.warehouse_id), productId: String(line.product_id), lotId: allocation.lotId, quantityMilli: allocation.quantityMilli, reason: allocation.reason, dueDate: allocation.dueDate, sourceId: allocationId }, actor.companyId, actor.userId, Date.now()));
       steps.push(inventory.prepareInventoryLotMoves2({ fact0: `lot-move-${allocationId}`, lotId: allocation.lotId, warehouse_id: order.warehouse_id, fact3: incoming ? 'goods_receipt' : 'delivery', lineId, fact5: incoming ? allocation.quantityMilli : -allocation.quantityMilli, fact6: incoming ? allocation.valueMinor : -allocation.valueMinor, date: input.date, userId: actor.userId, fact9: Date.now() }), inventory.prepareInventoryFulfillmentLotAllocations1({ fact0: `lot-allocation-${allocationId}`, lineId, lotId: allocation.lotId, quantityMilli: allocation.quantityMilli, valueMinor: allocation.valueMinor, disposition: allocation.disposition, qualityHoldId }));
     }
     steps.push(db.prepare('UPDATE commerce_order_lines SET fulfilled_milli=fulfilled_milli+? WHERE id=?').bind(qty, line.id));

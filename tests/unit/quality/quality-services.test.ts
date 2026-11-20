@@ -8,7 +8,7 @@ const baseHold:QualityRow={id:'hold',status:'held',created_by:'creator',last_ins
 function fixture(overrides:Partial<QualityRepository<string[]>>={}){
  const calls:string[]=[];
  const repository:QualityRepository<string[]>={
-  async holds(){return [baseHold];},async activeSpec(){return {id:'spec',version:2};},evidenceVersionGuard:()=>['version-fence'],receiptHold(input,spec,now){return [JSON.stringify({input,spec,now})];},...overrides,
+  async holds(){return [baseHold];},async activeSpec(){return {id:'spec',version:2};},evidenceVersionGuard:()=>['version-fence'],async receiptHold(input,spec,now){return [JSON.stringify({input,spec,now})];},...overrides,
  };
  const ports={departmentScope:false,companyScope:true,userId:'manager',authorize(permission:string){calls.push(permission);},can:(permission:string)=>Boolean(permission),samePerson:(id:string|number|null)=>id==='manager',clock:{now:()=>42},hash:async()=> '1234567890abcdef',async repository(){return repository;}};
  return {ports,repository,calls,app:createQualityApplication(ports)};
