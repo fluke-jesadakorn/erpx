@@ -2107,3 +2107,17 @@ pub async fn legal_processing_job_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal: record a positional document access event.
+pub async fn legal_access_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

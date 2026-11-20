@@ -265,7 +265,8 @@
     "./adapters/native-legal-executed-copies": "./src/adapters/native-legal-executed-copies.ts",
     "./adapters/native-legal-signing-references": "./src/adapters/native-legal-signing-references.ts",
     "./adapters/native-legal-trust-processing": "./src/adapters/native-legal-trust-processing.ts",
-    "./adapters/native-legal-event": "./src/adapters/native-legal-event.ts"
+    "./adapters/native-legal-event": "./src/adapters/native-legal-event.ts",
+    "./adapters/native-legal-access-event": "./src/adapters/native-legal-access-event.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
