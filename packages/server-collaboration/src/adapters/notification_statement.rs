@@ -1317,3 +1317,56 @@ pub async fn legal_retire_event_statement(
         ],
     })
 }
+
+
+/// Legal portal: bind an uploaded attachment link.
+pub async fn legal_bind_link_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE attachment_links SET state='bound',bound_at=?,\
+ binding_type='legal_portal_submission',binding_id=? WHERE id=? AND state='draft' AND attachment_id=?".to_owned(),
+        values: vec![serde_json::Value::Number(input.now.into()), value(&input.idempotency_key), value(&input.record_id), value(input.identifier.as_deref().unwrap_or(""))],
+    })
+}
+
+/// Legal portal: bind the attachment set.
+pub async fn legal_bind_set_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE attachment_sets SET state='bound',bound_at=?,bound_command_id=?,updated_at=? WHERE id=? AND state='draft' AND expected_target_version=?".to_owned(),
+        values: vec![
+            serde_json::Value::Number(input.now.into()), value(&input.idempotency_key),
+            serde_json::Value::Number(input.now.into()), value(&input.record_id),
+            serde_json::Value::Number(input.record_version.into()),
+        ],
+    })
+}
+
+/// Legal portal: attachment set-bound audit event.
+pub async fn legal_bind_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,\
+ action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()), value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id), value(input.item_id.as_deref().unwrap_or("")), value(&input.user_id),
+            value(&input.record_type), value(&input.message), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}

@@ -8,7 +8,7 @@ import {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import {holdingBindingBySlug,holdingResources} from "../../../../../packages/server-runtime/src/public/runtime";
 import {currentSession} from "@erpx/server-identity_access/public/authorization";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {legalPortalBindingWrites} from "@erpx/server-files/public/legal-portal-binding";
+import {legalPortalBindingStatements} from "@erpx/server-collaboration/adapters/native-legal-portal-binding";
 import {legalPortalRepository} from '@erpx/server-files/public/legal-portal-repository';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {legalPortalJournal} from "@erpx/server-workflow/public/legal-portal-journal";
@@ -21,7 +21,7 @@ import {createLegalPortalApplication,type LegalPortalWrite,type LegalPortalUnit,
 export type {PortalActor} from "@erpx/server-legal/domain/portal";
 export async function portalContext(slug:string){const {session}=await currentSession();const actor=legalPortalActor(session.user,session.session.id,(status,code,message)=>new ApiError(status,code,message)),binding=await holdingBindingBySlug(slug),resources=await holdingResources(binding.id);return {...resources,actor};}
 async function shareRecord(database:SqlDatabase,facts:LegalPortalShareFacts,strictHistory=false){return database.prepare(`SELECT s.*,i.company_id,i.branch_id,i.department_id,i.version AS item_version,i.kind FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id WHERE ${await legalPortalPurchasePredicate('i',strictHistory)} AND s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>?`).bind(facts.id,facts.email,facts.actorId,facts.now).first<LegalPortalShare>();}
-function unit(db:SqlDatabase):LegalPortalUnit{const fileBinding=legalPortalBindingWrites(db),journal=legalPortalJournal(db),writes=new WeakMap<LegalPortalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalPortalWrite{const write:LegalPortalWrite={owner:"legal"};writes.set(write,statement);return write;}
+function unit(db:SqlDatabase):LegalPortalUnit{const legalNative=legalPortalBindingStatements(db),journal=legalPortalJournal(db),writes=new WeakMap<LegalPortalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalPortalWrite{const write:LegalPortalWrite={owner:"legal"};writes.set(write,statement);return write;}
 return {
 shares:async(facts:{email:string;actorId:string;now:number;})=>db.prepare(`SELECT s.id,s.document_id,s.expires_at,s.user_id,d.name,d.version,d.checksum FROM legal_shares s JOIN legal_documents d ON d.id=s.document_id AND d.item_id=s.item_id JOIN legal_items i ON i.id=s.item_id WHERE ${await legalPortalPurchasePredicate()} AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>? ORDER BY s.created_at DESC LIMIT 100`).bind(facts.email,facts.actorId,facts.now).all(),
 share:facts=>shareRecord(db,facts),
@@ -58,10 +58,10 @@ uploadReplay:(facts:{key:string;actorId:string;})=>db.prepare("SELECT request_ha
 externalUpload:(facts:{key:string;shareId:string;objectKey:string;checksum:string;name:string;mediaType:string;bytes:number;actorId:string;now:number;linkId:string;sourceId:string;})=>db.prepare(`INSERT INTO legal_external_uploads(
           id,share_id,object_key,checksum,name,media_type,bytes,created_by,created_at,attachment_link_id,attachment_source_id
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(facts.key,facts.shareId,facts.objectKey,facts.checksum,facts.name,facts.mediaType,facts.bytes,facts.actorId,facts.now,facts.linkId,facts.sourceId).run(),
-bindLink:facts=>stage(fileBinding.bindLink(facts)),
-bindSet:facts=>stage(fileBinding.bindSet(facts)),
+bindLink:async facts=>stage(await legalNative.bindLink(facts)),
+bindSet:async facts=>stage(await legalNative.bindSet(facts)),
 advanceUploadItem:(facts:{now:number;item_id:string;company_id:string;expectedTargetVersion:number;})=>stage(db.prepare("UPDATE legal_items SET version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(facts.now,facts.item_id,facts.company_id,facts.expectedTargetVersion)),
-bindEvent:facts=>stage(fileBinding.bindEvent(facts)),
+bindEvent:async facts=>stage(await legalNative.bindEvent(facts)),
 uploadEvent:(facts:{identifier:string;actorId:string;fact2:string;now:number;item_id:string;})=>db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT ?,id,'portal.upload',?,?,version,? FROM legal_items WHERE id=?").bind(facts.identifier,facts.actorId,facts.fact2,facts.now,facts.item_id).run(),
 uploadCommandReceipt:(facts:{key:string;actorId:string;digest:string;fact3:string;now:number;})=>db.prepare("INSERT INTO legal_portal_receipts VALUES(?,?,?,?,?)").bind(facts.key,facts.actorId,facts.digest,facts.fact3,facts.now).run(),
 item:(facts:{itemId:string;})=>db.prepare("SELECT company_id,branch_id,department_id,version FROM legal_items WHERE id=?").bind(facts.itemId).first<{

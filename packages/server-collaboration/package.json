@@ -246,7 +246,8 @@
     "./adapters/native-legal-reminder-notifications": "./src/adapters/native-legal-reminder-notifications.ts",
     "./adapters/native-social-text": "./src/adapters/native-social-text.ts",
     "./adapters/native-attachment-access-event": "./src/adapters/native-attachment-access-event.ts",
-    "./adapters/native-legal-destruction-events": "./src/adapters/native-legal-destruction-events.ts"
+    "./adapters/native-legal-destruction-events": "./src/adapters/native-legal-destruction-events.ts",
+    "./adapters/native-legal-portal-binding": "./src/adapters/native-legal-portal-binding.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -38,10 +38,10 @@ uploadReceipt(facts:{key:string;actorId:string;}):Promise<{ request_hash: string
 uploadEnabled(facts:{company_id:string;}):Promise<Record<string, unknown> | null>;
 uploadReplay(facts:{key:string;actorId:string;}):Promise<{ request_hash: string; result_json: string; } | null>;
 externalUpload(facts:{key:string;shareId:string;objectKey:string;checksum:string;name:string;mediaType:string;bytes:number;actorId:string;now:number;linkId:string;sourceId:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-bindLink(facts:{now:number;key:string;linkId:string;sourceId:string;}):LegalPortalWrite;
-bindSet(facts:{now:number;key:string;now2:number;setId:string;expectedTargetVersion:number;}):LegalPortalWrite;
+bindLink(facts:{now:number;key:string;linkId:string;sourceId:string;companyId:string;}):Promise<LegalPortalWrite>;
+bindSet(facts:{now:number;key:string;now2:number;setId:string;expectedTargetVersion:number;companyId:string;}):Promise<LegalPortalWrite>;
 advanceUploadItem(facts:{now:number;item_id:string;company_id:string;expectedTargetVersion:number;}):LegalPortalWrite;
-bindEvent(facts:{fact0:string;company_id:string;sourceId:string;linkId:string;setId:string;actorId:string;fact6:"set.bound";fact7:string;now:number;}):LegalPortalWrite;
+bindEvent(facts:{fact0:string;company_id:string;sourceId:string;linkId:string;setId:string;actorId:string;fact6:"set.bound";fact7:string;now:number;}):Promise<LegalPortalWrite>;
 uploadEvent(facts:{identifier:string;actorId:string;fact2:string;now:number;item_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 uploadCommandReceipt(facts:{key:string;actorId:string;digest:string;fact3:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 item(facts:{itemId:string;}):Promise<{ company_id: string; branch_id: string | null; department_id: string | null; version: number; } | null>;
@@ -329,10 +329,10 @@ async function portalUpload(shareId:string,name:string,mediaType:string,bytes:Ui
     {
       const now = ports.clock.now();
       await tx.batch([
-        tx.bindLink({now:now,key:key,linkId:canonical.linkId,sourceId:canonical.sourceId}),
-        tx.bindSet({now:now,key:key,now2:now,setId:canonical.setId,expectedTargetVersion:canonical.expectedTargetVersion}),
+        await tx.bindLink({now:now,key:key,linkId:canonical.linkId,sourceId:canonical.sourceId,companyId:s.company_id}),
+        await tx.bindSet({now:now,key:key,now2:now,setId:canonical.setId,expectedTargetVersion:canonical.expectedTargetVersion,companyId:s.company_id}),
         tx.advanceUploadItem({now:now,item_id:s.item_id,company_id:s.company_id,expectedTargetVersion:canonical.expectedTargetVersion}),
-        tx.bindEvent({fact0:`attachment-bind-${key}`,company_id:s.company_id,sourceId:canonical.sourceId,linkId:canonical.linkId,setId:canonical.setId,actorId:a.userId,fact6:"set.bound",fact7:JSON.stringify({
+        await tx.bindEvent({fact0:`attachment-bind-${key}`,company_id:s.company_id,sourceId:canonical.sourceId,linkId:canonical.linkId,setId:canonical.setId,actorId:a.userId,fact6:"set.bound",fact7:JSON.stringify({
               bindingType: "legal_portal_submission",
               bindingId: key,
               portalShareId: shareId,
