@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3268,
+    "revision": 3273,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T11:02:05.471Z",
-      "expiresAt": "2026-11-20T11:32:05.471Z",
+      "heartbeatAt": "2026-11-20T11:19:30.399Z",
+      "expiresAt": "2026-11-20T11:49:30.399Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47594,18 +47594,11 @@
           "owner:operations",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261120-k",
-          "agentId": "lead",
-          "claimedAt": "2026-11-20T11:18:31.931Z",
-          "heartbeatAt": "2026-11-20T11:18:31.931Z",
-          "expiresAt": "2026-11-20T11:48:31.931Z",
-          "generation": 139
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "1fd42fb402f3df2c286378595efc58d3525f7705",
+        "lastPushedSha": "1fd42fb402f3df2c286378595efc58d3525f7705",
         "checks": [
           {
             "command": "cargo check -p erpx-server-collaboration",
@@ -47620,11 +47613,61 @@
             "sourceSha": "f5d7d858797b17ca64583b6c80f5ba3482a5d126",
             "sourceKind": "committed",
             "note": "1/1 stale-source guard test passes."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1fd42fb402f3df2c286378595efc58d3525f7705",
+            "sourceKind": "committed",
+            "before": 1922,
+            "after": 1920,
+            "note": "Deleted the two staff-tasks SQL writers after native Staff Work post-source cutover."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1fd42fb402f3df2c286378595efc58d3525f7705",
+            "sourceKind": "committed",
+            "before": 3,
+            "after": 1,
+            "note": "Only the workflow approval revision write remains, bound to migrate.operations.native-approval-revision."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=collaboration.social-beta.integration",
+            "result": "passed",
+            "sourceSha": "1fd42fb402f3df2c286378595efc58d3525f7705",
+            "sourceKind": "committed",
+            "note": "89/89 pass with the relocated fixture oracle; native saveTask source binding verified through the real flow."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "1fd42fb402f3df2c286378595efc58d3525f7705",
+            "sourceKind": "committed",
+            "note": "Composed Collaboration source-policy/task-origin ports, SaveTaskCommand source witness and beta native transport compile."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "1fd42fb402f3df2c286378595efc58d3525f7705",
+            "sourceKind": "committed",
+            "note": "Root + tests tsconfig pass."
           }
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "tests/support/operations/staff-tasks-fixture.ts",
+            "removalTaskId": "retire.operations.fixture-oracle",
+            "removalCondition": "Replace the copied TS saveTask oracle with native-seeded PostgreSQL fixtures and delete the copy once the native social task suite no longer depends on it."
+          },
+          {
+            "path": "packages/server-operations/src/adapters/workflow-approval-effects.ts",
+            "removalTaskId": "migrate.operations.native-approval-revision",
+            "removalCondition": "Workflow reroute approval revision must use a native Operations effect with the same version semantics before this write is deleted."
+          }
+        ],
         "blocker": null,
-        "nextAction": "PARTIAL: native social_task_origins binding + version/hash guard implemented and tested. BLOCKED for TS writer deletion: sourceAccessSql policy spans IAM assignments, Projects audience, PMS source and Operations handover (packages/server-collaboration/src/adapters/social-source-policy.ts); native sourceSnapshot/sha256 parity and ai-draft guard are not exposed. removalTaskId=ports.collaboration-social-source-policy, removalCondition=Collaboration exposes a native sourceSnapshot/sourceGuard port with exact audience policy and the save-task application consumes it inside the caller transaction.",
+        "nextAction": "Migrated: KPI 1922->1920, social beta suite 89/89. Next: migrate.operations.native-approval-revision.",
         "handoff": {
           "runId": "run-20261120-k",
           "agentId": "lead",
@@ -47634,7 +47677,13 @@
           "nextAction": "PARTIAL: native social_task_origins binding + version/hash guard implemented and tested. BLOCKED for TS writer deletion: sourceAccessSql policy spans IAM assignments, Projects audience, PMS source and Operations handover (packages/server-collaboration/src/adapters/social-source-policy.ts); native sourceSnapshot/sha256 parity and ai-draft guard are not exposed. removalTaskId=ports.collaboration-social-source-policy, removalCondition=Collaboration exposes a native sourceSnapshot/sourceGuard port with exact audience policy and the save-task application consumes it inside the caller transaction."
         },
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.operations"
       },
       {
         "id": "migrate.operations.native-approval-revision",
@@ -47747,20 +47796,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 248,
-      "migratedPackets": 132,
+      "migratedPackets": 133,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 132,
+        "migrated": 133,
         "blocked": 91,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T11:18:31.933Z",
+    "updatedAt": "2026-11-20T11:19:30.401Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
