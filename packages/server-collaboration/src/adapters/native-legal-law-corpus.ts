@@ -38,6 +38,8 @@ export function legalLawCorpus(db: SqlDatabase, companyId: string, userId: strin
       call('legal_applicability_approve', '', [f.actorId, f.now, f.id]),
     reviewSourceCheck: (f: { id: string }) => call('legal_source_check_review', '', [f.id]),
     advanceRecord: (f: { now: number; id: string }) => call('legal_advance_record', '', [f.now, f.id]),
+    accessEvent: (f: { identifier: string; itemId: string; documentId: string; action: string; now: number }) =>
+      call('legal_access_event', f.identifier, [f.identifier, f.itemId, f.documentId, userId, f.action, f.now]),
     event: (f: { id: string; action: string; note: string; version: number; identifier: string; now: number }) =>
       call('legal_approval_event', f.identifier, [f.identifier, f.id, f.action, userId, f.note, f.version, f.now]),
   };

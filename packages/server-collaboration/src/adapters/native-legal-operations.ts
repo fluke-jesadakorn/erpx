@@ -25,5 +25,7 @@ export function legalOperations(db: SqlDatabase, companyId: string, userId: stri
       call('legal_proposal_accept', '', [f.proposalJson, f.proposalId]),
     advanceItem: (f: { now: number; id: string }) =>
       call('legal_advance_record', '', [f.now, f.id]),
+    event: (f: { id: string; action: string; note: string; version: number; identifier: string; now: number }) =>
+      call('legal_approval_event', f.identifier, [f.identifier, f.id, f.action, userId, f.note, f.version, f.now]),
   };
 }

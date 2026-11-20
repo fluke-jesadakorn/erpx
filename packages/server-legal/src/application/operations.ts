@@ -31,7 +31,7 @@ purchase(raw:unknown,key:string):Promise<{id:string}>;
 executedCopies(id:string):ReturnType<ReturnType<typeof import("@erpx/server-legal/application/executed-copies").createExecutedCopyApplication>["executedCopies"]>;
 batch(writes:LegalWrite[]):Promise<unknown>;
 guardChanges(id:string,version:number,key:string,edit?:boolean,allowFrozen?:boolean,preparation?:boolean):LegalWrite[];
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay<Result extends object=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -286,7 +286,7 @@ async function applyAiDraft(
             },
           }),proposalId:x.proposalId}),
       await ports.repository.advanceItem({now:now,id:item.id}),
-      ports.repository.event(item.id,"ai.accepted",`Reviewed proposal ${x.proposalId}; document ${documentId}`,item.version + 1,ports.identifiers.next(),ports.clock.now()),
+      await ports.repository.event(item.id,"ai.accepted",`Reviewed proposal ${x.proposalId}; document ${documentId}`,item.version + 1,ports.identifiers.next(),ports.clock.now()),
     ],
   );
 }
