@@ -1419,3 +1419,58 @@ pub async fn expense_revoke_attachment_statement(
         values: vec![serde_json::Value::Number(input.now.into()), value(&input.record_id)],
     })
 }
+
+
+/// Document derivative: attachment document record.
+pub async fn doc_attachment_record_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_documents(attachment_id,company_id,original_checksum,\
+ page_count,created_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: vec![value(&input.record_id), value(company.as_str()), value(&input.idempotency_key), serde_json::Value::Number(input.record_version.into()), serde_json::Value::Number(input.now.into())],
+    })
+}
+
+/// Document derivative: rendered page row.
+pub async fn doc_derivative_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_derivatives(id,attachment_id,company_id,page_number,\
+ object_key,checksum_sha256,original_checksum,bytes,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(&input.record_id), value(company.as_str()),
+            serde_json::Value::Number(input.record_version.into()), value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.message), value(input.item_id.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.timestamp.unwrap_or_default().into()), value(&input.user_id), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Document derivative: storage ledger row.
+pub async fn doc_storage_ledger_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,\
+ object_key,bytes,state,created_at) VALUES(?,?,?,'derivative',?,?,'stored',?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()), value(&input.record_id),
+            value(input.identifier.as_deref().unwrap_or("")), serde_json::Value::Number(input.timestamp.unwrap_or_default().into()),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
