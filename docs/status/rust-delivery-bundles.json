@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3220,
+    "revision": 3227,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:13:34.987Z",
-      "expiresAt": "2026-11-20T10:43:34.987Z",
+      "heartbeatAt": "2026-11-20T10:20:33.498Z",
+      "expiresAt": "2026-11-20T10:50:33.498Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47138,16 +47138,59 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-identity-access",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "Native Control-DB account-link port verifies the \"user\" row plus Holding assignment predicates."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib people_account_link",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "1/1 portable-error test passes."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "Native staff-placement port validates Organization facts and writes placement history."
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --lib people_staff_placement",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "1/1 portable-error test passes."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "Composition implements PersonAccountLinkPort and StaffPlacementPort against the owner adapters."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement StaffPlacementPort in composition against Organization-owned placement tables in the caller serializable transaction.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Implemented and composed at 6dbc2dd4; KPI impact is realized only after migrate.people_payroll.workforce-http switches the route and deletes roster-position-exit.ts.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T10:20:24.572Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Implemented and composed at 6dbc2dd4; KPI impact is realized only after migrate.people_payroll.workforce-http switches the route and deletes roster-position-exit.ts."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -47258,16 +47301,59 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-identity-access",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "Native Control-DB account-link port verifies the \"user\" row plus Holding assignment predicates."
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --lib people_account_link",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "1/1 portable-error test passes."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "Native staff-placement port validates Organization facts and writes placement history."
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --lib people_staff_placement",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "1/1 portable-error test passes."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "6dbc2dd4fe225ebde1b5adffbd086bbcad295873",
+            "sourceKind": "committed",
+            "note": "Composition implements PersonAccountLinkPort and StaffPlacementPort against the owner adapters."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Needed before native People workforce directory save can be authoritative.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Port implemented at 6dbc2dd4 (cargo checks + unit tests pass) and composed into People workforce. Remaining for roster-exit retirement: native workforce directory-save HTTP router/client and workplace route switch under migrate.people_payroll.workforce-http, then delete roster-position-exit.ts writer/barrel and move oracle (people_payroll 291->285, global 1928->1922).",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T10:20:24.397Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Port implemented at 6dbc2dd4 (cargo checks + unit tests pass) and composed into People workforce. Remaining for roster-exit retirement: native workforce directory-save HTTP router/client and workplace route switch under migrate.people_payroll.workforce-http, then delete roster-position-exit.ts writer/barrel and move oracle (people_payroll 291->285, global 1928->1922)."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -47281,18 +47367,18 @@
       "totalPackets": 244,
       "migratedPackets": 131,
       "statusCounts": {
-        "pending": 25,
+        "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 131,
-        "blocked": 88,
+        "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:13:34.989Z",
+    "updatedAt": "2026-11-20T10:20:33.500Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
