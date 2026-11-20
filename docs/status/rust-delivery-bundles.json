@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3208,
+    "revision": 3210,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T10:02:57.484Z",
-      "expiresAt": "2026-11-20T10:32:57.484Z",
+      "heartbeatAt": "2026-11-20T10:07:20.363Z",
+      "expiresAt": "2026-11-20T10:37:20.363Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47061,6 +47061,49 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.people_payroll.native-directory-save",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native directory save to unblock roster-position-exit writer retirement",
+        "scope": "Implement a native People directory save command that includes the roster-required -> non-roster position exit phase (using the existing native roster_position_exit domain/application/adapters), mount it in composition, switch the workplace people/[...path] directory create/update route to native authority with full payload parity, then delete packages/server-people_payroll/src/adapters/roster-position-exit.ts and its barrel/export, move the oracle to native seeding and record people_payroll KPI 291->285.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "workflow.command-ledger",
+          "runtime.unit-of-work"
+        ],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-people_payroll/package.json",
+          "packages/feature-people_payroll/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "src/composition/src/organization_position.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**",
+          "tests/support/**"
+        ],
+        "resources": [
+          "owner:people_payroll",
+          "resource:composition"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Native directory save command is the removalTaskId for the 6 roster-position-exit TS writes; no native directory-save command exists today.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -47069,10 +47112,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 239,
+      "totalPackets": 240,
       "migratedPackets": 131,
       "statusCounts": {
-        "pending": 22,
+        "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -47083,7 +47126,7 @@
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T10:02:57.487Z",
+    "updatedAt": "2026-11-20T10:07:20.365Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
