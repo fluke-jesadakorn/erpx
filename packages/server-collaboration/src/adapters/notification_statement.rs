@@ -57,6 +57,10 @@ pub struct NotificationStatementInput {
     pub document_table: Option<String>,
     #[serde(default)]
     pub recipient_sql: Option<String>,
+    #[serde(default)]
+    pub node_id: Option<String>,
+    #[serde(default)]
+    pub scope_node_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -123,7 +127,7 @@ mod tests {
             record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
             idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
             approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
-            post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None,
+            post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None, node_id: None, scope_node_id: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -988,6 +992,65 @@ pub async fn workflow_notification_statement(
             value(&input.company_id),
             value(&input.record_id),
             value(&input.user_id),
+        ],
+    })
+}
+
+
+/// Roster-coverage escalation notice. Eligible roster managers are resolved
+/// through the current organization ancestor chain on the caller's unit.
+pub async fn roster_coverage_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if input.company_id != company.as_str()
+        || input.node_id.as_deref().unwrap_or("").is_empty()
+        || input.idempotency_key.is_empty()
+        || input.record_id.is_empty()
+        || input.message.is_empty()
+        || input.now <= 0
+    {
+        return Err(invalid().into());
+    }
+    let sql = "WITH RECURSIVE ancestors AS ( \
+ SELECT id,parent_id FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\
+ \"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) organization_nodes \
+ WHERE id=? AND company_id=? \
+ UNION ALL SELECT parent.id,parent.parent_id \
+ FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\
+ \"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) parent \
+ JOIN ancestors child ON child.parent_id=parent.id WHERE parent.company_id=? \
+ ) INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
+ record_version,message,created_at) \
+ SELECT ? || '-' || a.user_id,?,a.user_id,'roster_coverage',?,1,?,? \
+ FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\
+ \"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\
+ \"parent_id\",\"source\",\"source_id\" FROM assignments) a \
+ WHERE a.company_id=? AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?) \
+ AND iam_role_allows(a.role,a.company_id,'roster.manage') \
+ AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=? \
+ OR a.scope_kind='department' AND a.scope_node_id IN (SELECT id FROM ancestors)) \
+ ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    let company_value = value(company.as_str());
+    let now = serde_json::Value::Number(input.now.into());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(input.node_id.as_deref().unwrap_or("")),
+            company_value.clone(),
+            company_value.clone(),
+            value(&input.idempotency_key),
+            company_value.clone(),
+            value(&input.record_id),
+            value(&input.message),
+            now.clone(),
+            company_value,
+            now.clone(),
+            now,
+            input.scope_node_id.as_deref().map(value).unwrap_or(serde_json::Value::Null),
         ],
     })
 }

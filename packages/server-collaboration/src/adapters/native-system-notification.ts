@@ -25,6 +25,8 @@ export async function nativeSystemNotificationStatement(
     recordVersion: number;
     message: string;
     kind?: string;
+    node_id?: string;
+    scope_node_id?: string;
   },
   key: string,
   now: number,

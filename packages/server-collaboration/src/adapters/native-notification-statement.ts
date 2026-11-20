@@ -51,6 +51,8 @@ export async function nativeNotificationStatement(
     ai_draft_id?: string;
     document_table?: string;
     recipient_sql?: string;
+    node_id?: string;
+    scope_node_id?: string;
   },
   key: string,
   now: number,

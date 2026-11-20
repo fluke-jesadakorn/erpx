@@ -11,7 +11,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import { type ShiftWithWeek } from '@erpx/server-people_payroll/domain/people-roster';
 import { createPeopleRosterApplication, type PeopleRosterPorts } from '@erpx/server-people_payroll/application/people-roster';
 import { rosterOrganizationFacts } from '@erpx/server-organization/public/people-roster-facts';
-import { rosterNotifications } from '@erpx/server-collaboration/public/people-roster-facts';
+import { rosterNotifications } from '@erpx/server-collaboration/adapters/native-roster-notifications';
 import { rosterIdentityFacts } from '@erpx/server-identity_access/public/people-roster-facts';
 import { rosterCommandSchema, type RosterCommand } from '@erpx/server-people_payroll/domain/roster';
 import { rosterPurchasedAccess, rosterPurchasePurpose, withRosterCoveragePurchasedTransaction, withRosterPurchasedTransaction } from '@erpx/server-people_payroll/adapters/roster-purchases';
