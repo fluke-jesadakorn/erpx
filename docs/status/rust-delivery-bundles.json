@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3697,
+    "revision": 3703,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T18:59:31.813Z",
-      "expiresAt": "2026-11-20T19:29:31.813Z",
+      "heartbeatAt": "2026-11-20T19:07:11.932Z",
+      "expiresAt": "2026-11-20T19:37:11.932Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -62471,6 +62471,126 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.envelope-expiry",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire legal envelope-expiry TS writer",
+        "scope": "Delete db.prepare INSERT INTO legal_events in legal/reminders.ts expire(); native legal_envelope_expire owns the CTE + event via holding-keyed fragment transport.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "9c865e6f46d8f8e192e8a39008337366ced72d19",
+        "lastPushedSha": "9c865e6f46d8f8e192e8a39008337366ced72d19",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9c865e6f46d8f8e192e8a39008337366ced72d19",
+            "sourceKind": "committed",
+            "before": 31,
+            "after": 30,
+            "note": "Retired TS legal envelope-expiry writer; legal KPI 31->30, global 1716->1715.",
+            "residual": [
+              {
+                "path": "packages/server-legal/src/adapters/app-enrollment-attempt-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/attachment-migration-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/attachment-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/invitations.ts",
+                "writes": 5,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/jobs.ts",
+                "writes": 5,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/law-source-worker.ts",
+                "writes": 6,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/reminders.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/portal-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/purchases.ts",
+                "writes": 2,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/runtime-job-health-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.legal.service-repository",
+                "removalCondition": "Delete only after the owner-native Legal port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "9c865e6f46d8f8e192e8a39008337366ced72d19",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "9c865e6f46d8f8e192e8a39008337366ced72d19",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + 61/61 legal unit."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native envelope expiry; legal KPI 31->30, global 1716->1715.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -62479,21 +62599,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 316,
-      "migratedPackets": 203,
+      "totalPackets": 317,
+      "migratedPackets": 204,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 203,
+        "migrated": 204,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T18:59:31.815Z",
+    "updatedAt": "2026-11-20T19:07:11.933Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "b43d64afa8d76fb54bf2f95c3e12d393bde70b34",
