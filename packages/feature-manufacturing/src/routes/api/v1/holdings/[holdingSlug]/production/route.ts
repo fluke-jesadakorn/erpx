@@ -4,14 +4,10 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
   changeManufacturingOrder,
-  createPlanningScenario,
-  cancelPlanningScenario,
   productionDetail,
   productionWorkspace,
-  reviewPlanningRecommendation,
 } from "@erpx/server-manufacturing/public/production";
 import { createManufacturingAccountingProfile, reviewManufacturingAccountingProfile } from "@erpx/server-manufacturing/public/production-accounting";
-import { saveProductionResource, saveProductionResourceCalendar } from "@erpx/server-manufacturing/public/production-resources";
 import { nativePlanningCommand } from "@erpx/feature-manufacturing/public/native-planning-workspace-page";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -124,14 +120,6 @@ export async function POST(r: Request, c: C) {
     }
     if (i.entity === "accounting")
       data = typeof i.id === "string" ? await reviewManufacturingAccountingProfile(a, i.id, i, key) : await createManufacturingAccountingProfile(a, i, key);
-    else if (i.entity === "resource")
-      data = await saveProductionResource(a, typeof i.id === "string" ? i.id : null, i, key);
-    else if (i.entity === "resource-calendar")
-      data = await saveProductionResourceCalendar(a, i.id, i, key);
-    else if (i.entity === "scenario")
-      data = typeof i.id === "string" ? await cancelPlanningScenario(a, i.id, i, key) : await createPlanningScenario(a, i, key);
-    else if (i.entity === "recommendation")
-      data = await reviewPlanningRecommendation(a, i.id, i, key);
     else data = await changeManufacturingOrder(a, i.id, i, key);
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {

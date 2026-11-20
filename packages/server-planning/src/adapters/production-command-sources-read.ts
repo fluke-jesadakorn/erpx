@@ -86,20 +86,16 @@ async comparison(comparisonScenarioId:string,companyId:string,branch_id:string |
       JOIN planning_recommendations r ON r.scenario_id=s.id WHERE s.id=? AND s.company_id=? AND s.branch_id=? AND s.specification_id=?`)
       .bind(comparisonScenarioId, companyId, branch_id, specificationId).first<Row>();},
 guardComparison(key:string,value:"comparison",comparisonScenarioId:string,companyId:string,value2:string,specificationId:string,value3:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM planning_scenarios WHERE id=? AND company_id=? AND branch_id=? AND specification_id=? AND version=?)", [comparisonScenarioId, companyId, value2, specificationId, value3]);},
-prepareScenario(id:string,companyId:string,branch_id:string | number | null,warehouseId:string,specificationId:string,specificationVersion:number,demand:number,dueDate:string,capacityMinutes:number,value:string,userId:string,now:number,now2:number,value2:string){return db.prepare(`INSERT INTO planning_scenarios(id,company_id,branch_id,warehouse_id,specification_id,specification_version,demand_quantity_milli,due_date,capacity_minutes,shortages_json,status,created_by,version,created_at,updated_at,context_json)
-      VALUES(?,?,?,?,?,?,?,?,?,?,'calculated',?,1,?,?,?)`).bind(id, companyId, branch_id, warehouseId, specificationId,
-        specificationVersion, demand, dueDate, capacityMinutes, value, userId, now, now2, value2);},
-prepareRecommendation(recommendationId:string,id:string,value:1,demand:number,requiredMinutes:number,feasible:string,userId:string,now:number,now2:number){return db.prepare("INSERT INTO planning_recommendations VALUES(?,?,?,?,?,?,'proposed',?,NULL,1,?,?)")
-      .bind(recommendationId, id, value, demand, requiredMinutes, feasible, userId, now, now2);},
-prepareCalculateEvent(value:string,id:string,userId:string,value2:"Calculated from confirmed Sales demand and captured supply/capacity" | "Calculated from declared manual demand and captured supply/capacity",now:number){return db.prepare("INSERT INTO planning_scenario_events VALUES(?,?,1,'calculate',?,?,?)")
-      .bind(value, id, userId, value2, now);},
+prepareScenario(id:string,companyId:string,branch_id:string | number | null,warehouseId:string,specificationId:string,specificationVersion:number,demand:number,dueDate:string,capacityMinutes:number,value:string,userId:string,now:number,now2:number,value2:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
+prepareRecommendation(recommendationId:string,id:string,value:1,demand:number,requiredMinutes:number,feasible:string,userId:string,now:number,now2:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
+prepareCalculateEvent(value:string,id:string,userId:string,value2:"Calculated from confirmed Sales demand and captured supply/capacity" | "Calculated from declared manual demand and captured supply/capacity",now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 async scenario(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare("SELECT * FROM planning_scenarios WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)")
     .bind(id, companyId, branchId, branchId2).first<Row>();},
 lockScenarioRecommendations(id:string){return db.prepare("SELECT id FROM planning_recommendations WHERE scenario_id=? FOR UPDATE").bind(id);},
 guardUnreleasedScenario(key:string,value:"scenario",id:string,companyId:string,expectedVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM planning_scenarios WHERE id=? AND company_id=? AND version=? AND status='calculated')", [id, companyId, expectedVersion]);},
-prepareScenarioCancellation(now:number,id:string){return db.prepare("UPDATE planning_scenarios SET status='cancelled',version=version+1,updated_at=? WHERE id=?").bind(now, id);},
-prepareRecommendationCancellation(userId:string,now:number,id:string){return db.prepare("UPDATE planning_recommendations SET status='rejected',reviewed_by=?,version=version+1,updated_at=? WHERE scenario_id=? AND status='proposed'").bind(userId, now, id);},
-prepareCancelEvent(value:string,id:string,value2:number,userId:string,reason:string,now:number){return db.prepare("INSERT INTO planning_scenario_events VALUES(?,?,?,'cancel',?,?,?)").bind(value, id, value2, userId, reason, now);},
+prepareScenarioCancellation(now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
+prepareRecommendationCancellation(userId:string,now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
+prepareCancelEvent(value:string,id:string,value2:number,userId:string,reason:string,now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 async scopedRecommendation(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db
       .prepare(
         "SELECT r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.context_json,s.created_by scenario_created_by FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE r.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?)",
@@ -114,19 +110,9 @@ guardIndependentRecommendation(key:string,value:"recommendation",id:string,expec
         "EXISTS(SELECT 1 FROM planning_recommendations WHERE id=? AND version=? AND status='proposed' AND created_by<>?)",
         [id, expectedVersion, userId],
       );},
-prepareRecommendationReview(status:"approved" | "rejected",userId:string,now:number,id:string){return db
-        .prepare(
-          "UPDATE planning_recommendations SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(status, userId, now, id);},
+prepareRecommendationReview(status:"approved" | "rejected",userId:string,now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 guardCapacityReservation(key:string,value:string,resourceId:string,workDate:string,minutes:number,availableMinutes:number){return assertion(db, key, value, "COALESCE((SELECT sum(minutes) FROM planning_resource_allocations WHERE resource_id=? AND work_date=? AND released_at IS NULL),0)+?<=?", [resourceId, workDate, minutes, availableMinutes]);},
-prepareCapacityReservation(value:string,scenario_id:string | number | null,resourceId:string,workDate:string,minutes:number,userId:string,now:number){return db.prepare("INSERT INTO planning_resource_allocations(id,scenario_id,resource_id,work_date,minutes,created_by,created_at) VALUES(?,?,?,?,?,?,?)")
-        .bind(value, scenario_id, resourceId, workDate, minutes, userId, now);},
-prepareScenarioRelease(now:number,scenario_id:string | number | null){return db
-        .prepare(
-          "UPDATE planning_scenarios SET status='released',version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(now, scenario_id);},
-prepareReleaseEvent(value:string,userId:string,reason:string,now:number,scenario_id:string | number | null){return db.prepare("INSERT INTO planning_scenario_events(id,scenario_id,version,action,actor_id,reason,created_at) SELECT ?,id,version,'release',?,?,? FROM planning_scenarios WHERE id=?")
-        .bind(value, userId, reason, now, scenario_id);},
+prepareCapacityReservation(value:string,scenario_id:string | number | null,resourceId:string,workDate:string,minutes:number,userId:string,now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
+prepareScenarioRelease(now:number,scenario_id:string | number | null){throw new Error("NATIVE_PLANNING_REQUIRED");},
+prepareReleaseEvent(value:string,userId:string,reason:string,now:number,scenario_id:string | number | null){throw new Error("NATIVE_PLANNING_REQUIRED");},
 };}

@@ -1,3 +1,6 @@
+// FIXTURE-ONLY ORACLE: copied from the retired packages/server-planning writer so the
+// PostgreSQL integration suite retains its exact pre-cutover SQL semantics.
+// Production code must never import this module. See tests/support/planning/index.ts.
 import "server-only";
 
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -9,7 +12,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import type {PlanningContext} from "@erpx/server-planning/public/capacity";
-import {BusinessRuleError} from '@erpx/server-shared/index';import {createPlanningResourceApplication,type PlanningResourceRepository} from '@erpx/server-planning/application/resources';import {planningResourceSources as owner0} from '@erpx/server-organization/public/planning-resource-sources';
+import {BusinessRuleError} from '@erpx/server-shared/index';import {createPlanningResourceApplication,type PlanningResourceRepository} from './application-resources';import {planningResourceSources as owner0} from '@erpx/server-organization/public/planning-resource-sources';
 import {planningResourceSources as owner1} from '@erpx/server-commerce/public/planning-resource-sources';async function inward<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function application(db:SqlDatabase){const repository:PlanningResourceRepository<SqlStatement>={guardResourceVersion(key:string,value:"resource",id:string,companyId:string,branchId:string,expectedVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM production_resources WHERE id=? AND company_id=? AND branch_id=? AND version=?)", [id, companyId, branchId, expectedVersion]);},
@@ -32,5 +35,5 @@ export async function saveProductionResourceCalendar(a: WorkContext,id: string,r
 export function planningContextGuards(db: SqlDatabase,a: WorkContext,key: string,context: PlanningContext){return application(db).planningContextGuards(a,key,context);}
 
 
-import {resourceSchema,calendarSchema} from "@erpx/server-planning/domain/resources";
+import {resourceSchema,calendarSchema} from "./domain-resources";
 import {withManufacturingPurchasedCommand} from "@erpx/server-manufacturing/public/purchases";

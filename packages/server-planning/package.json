@@ -9,8 +9,6 @@
     "./adapters/executive-evidence-sources": "./src/adapters/executive-evidence-sources.ts",
     "./adapters/production-read-projections": "./src/adapters/production-read-projections.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
-    "./adapters/resources": "./src/adapters/resources.ts",
-    "./adapters/production-command-sources": "./src/adapters/production-command-sources.ts",
     "./adapters/attachments-policy-facts": "./src/adapters/attachments-policy-facts.ts",
     "./adapters/attachments-service-facts": "./src/adapters/attachments-service-facts.ts",
     "./adapters/attachments-operational-facts": "./src/adapters/attachments-operational-facts.ts",
@@ -22,8 +20,6 @@
     "./public/executive-evidence-sources": "./src/public/executive-evidence-sources.ts",
     "./public/production-read-projections": "./src/public/production-read-projections.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
-    "./public/resources": "./src/public/resources.ts",
-    "./public/production-command-sources": "./src/public/production-command-sources.ts",
     "./public/attachments-policy-facts": "./src/public/attachments-policy-facts.ts",
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
@@ -35,7 +31,9 @@
     "./application/scenarios": "./src/application/scenarios.ts",
     "./domain/resources": "./src/domain/resources.ts",
     "./domain/capacity": "./src/domain/capacity.ts",
-    "./domain/scenarios": "./src/domain/scenarios.ts"
+    "./domain/scenarios": "./src/domain/scenarios.ts",
+    "./adapters/production-command-sources-read": "./src/adapters/production-command-sources-read.ts",
+    "./adapters/resources-read": "./src/adapters/resources-read.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

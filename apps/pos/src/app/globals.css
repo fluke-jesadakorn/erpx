@@ -2855,10 +2855,10 @@
 @source "../../../../packages/server-planning/src/adapters/attachments-service-facts.ts";
 @source "../../../../packages/server-planning/src/adapters/capacity.ts";
 @source "../../../../packages/server-planning/src/adapters/executive-metric-projections.ts";
-@source "../../../../packages/server-planning/src/adapters/production-command-sources.ts";
+@source "../../../../packages/server-planning/src/adapters/production-command-sources-read.ts";
 @source "../../../../packages/server-planning/src/adapters/production-read-projections.ts";
 @source "../../../../packages/server-planning/src/adapters/purchase-sources.ts";
-@source "../../../../packages/server-planning/src/adapters/resources.ts";
+@source "../../../../packages/server-planning/src/adapters/resources-read.ts";
 @source "../../../../packages/server-planning/src/adapters/scenarios.ts";
 @source "../../../../packages/server-planning/src/application/capacity.ts";
 @source "../../../../packages/server-planning/src/application/resources.ts";
@@ -2872,10 +2872,10 @@
 @source "../../../../packages/server-planning/src/public/attachments-service-facts.ts";
 @source "../../../../packages/server-planning/src/public/capacity.ts";
 @source "../../../../packages/server-planning/src/public/executive-metric-projections.ts";
-@source "../../../../packages/server-planning/src/public/production-command-sources.ts";
+@source "../../../../packages/server-planning/src/adapters/production-command-sources-read.ts";
 @source "../../../../packages/server-planning/src/public/production-read-projections.ts";
 @source "../../../../packages/server-planning/src/public/purchase-sources.ts";
-@source "../../../../packages/server-planning/src/public/resources.ts";
+@source "../../../../packages/server-planning/src/adapters/resources-read.ts";
 @source "../../../../packages/server-planning/src/public/scenarios.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/attachments-finance-facts.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/company-release-attachment-read-sources.ts";

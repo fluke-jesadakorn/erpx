@@ -13,7 +13,8 @@ import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-r
 import {changeOrderReservation,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {seedNativeQualityHold} from "../../quality/hold";
-import {changeManufacturingOrder,createPlanningScenario,reviewPlanningRecommendation} from "@erpx/server-manufacturing/public/production";
+import {changeManufacturingOrder} from "@erpx/server-manufacturing/public/production";
+import {createPlanningScenario,reviewPlanningRecommendation} from "../../../tests/support/planning";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans} from "@erpx/server-files/public/attachments/service";
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
 import {createAccount,createAccountSchema} from '@erpx/server-finance/public/finance';

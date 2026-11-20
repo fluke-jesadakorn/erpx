@@ -11,7 +11,7 @@ import {seedFinanceJournal} from '../../../tests/support/helpers/finance-journal
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
-import {saveProductionResource,saveProductionResourceCalendar} from "@erpx/server-manufacturing/public/production-resources";
+import {saveProductionResource,saveProductionResourceCalendar} from "../../../tests/support/planning";
 import {createManufacturingAccountingProfile,reviewManufacturingAccountingProfile} from "@erpx/server-manufacturing/public/production-accounting";
 import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
 import {posCommand} from '@erpx/server-pos/public/pos-core';

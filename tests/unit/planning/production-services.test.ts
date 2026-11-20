@@ -1,7 +1,10 @@
 import {afterEach,describe,expect,test,vi} from 'vitest';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {createPlanningResourceApplication,type PlanningResourceRepository,type PlanningResourcePorts} from "@erpx/server-planning/application/resources";
-import {createPlanningScenarioApplication,type PlanningScenarioRepository,type PlanningScenarioPorts} from "@erpx/server-planning/application/scenarios";
+// Fixture-only copies of the retired Planning application writers; the pure
+// application modules are imported directly so the unit lane does not load the
+// server-only adapters. See tests/support/planning/index.ts.
+import {createPlanningResourceApplication,type PlanningResourceRepository,type PlanningResourcePorts} from "../../support/planning/legacy/application-resources";
+import {createPlanningScenarioApplication,type PlanningScenarioRepository,type PlanningScenarioPorts} from "../../support/planning/legacy/application-scenarios";
 import {createManufacturingProductionApplication,type ManufacturingProductionRepository,type ManufacturingProductionPorts} from "@erpx/server-manufacturing/application/production";
 import {createManufacturingAccountingApplication,type ManufacturingAccountingRepository,type ManufacturingAccountingPorts} from "@erpx/server-manufacturing/application/accounting";
 import {createManufacturingLotApplication,type ManufacturingLotRepository} from "@erpx/server-manufacturing/application/lots";
