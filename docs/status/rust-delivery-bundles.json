@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3715,
+    "revision": 3721,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T19:15:33.384Z",
-      "expiresAt": "2026-11-20T19:45:33.384Z",
+      "heartbeatAt": "2026-11-20T19:18:50.936Z",
+      "expiresAt": "2026-11-20T19:48:50.936Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -63281,6 +63281,342 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.owned-reversal",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire finance journal-reversal TS writers (3 writes)",
+        "scope": "Delete reversal journal/lines/reverse INSERT/UPDATEs in finance-owned-reversal.ts; native finance_reversal_* statements own them via values_json.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "704307ccb6164b16d08dc9043c7be241c8055e04",
+        "lastPushedSha": "704307ccb6164b16d08dc9043c7be241c8055e04",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "704307ccb6164b16d08dc9043c7be241c8055e04",
+            "sourceKind": "committed",
+            "before": 327,
+            "after": 324,
+            "note": "Retired 3 TS finance journal-reversal writers; finance KPI 327->324, global 1709->1706.",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/accounting-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-return-accounting-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/company-money.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/customer-authority-changes.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-native-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-accruals.ts",
+                "writes": 12,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-ai.ts",
+                "writes": 18,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-asset-policies.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-assets.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-bank-automation.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-billing-corrections.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-books.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-business-contracts.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-collections.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-company-tools.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-consolidation.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-due-drafts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-engines.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-expansion-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-editions.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-ownership.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-instruments.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany-pairs.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-intercompany.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-invoice-lines.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-reporting.ts",
+                "writes": 8,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-starter.ts",
+                "writes": 5,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-identities.ts",
+                "writes": 4,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-register.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-thai-documents.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding-remittance.ts",
+                "writes": 9,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance.ts",
+                "writes": 49,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/hospitality-tax-documents.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/journal-planning.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-owner-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/payroll-remittance-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-command-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-import-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-core-facts.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-daily-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refunds.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/sales.ts",
+                "writes": 3,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/supplier-bill-draft-void.ts",
+                "writes": 1,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "704307ccb6164b16d08dc9043c7be241c8055e04",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "704307ccb6164b16d08dc9043c7be241c8055e04",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + finance book-services unit."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated: native finance journal reversal; finance KPI 327->324, global 1709->1706.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -63289,21 +63625,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 319,
-      "migratedPackets": 206,
+      "totalPackets": 320,
+      "migratedPackets": 207,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 206,
+        "migrated": 207,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T19:15:33.386Z",
+    "updatedAt": "2026-11-20T19:18:50.938Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "verifiedPushedCheckpoint": "46a5a82dec7ba039345ab1a4506613c266bb0c35",
