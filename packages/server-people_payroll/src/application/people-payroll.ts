@@ -276,7 +276,7 @@ export interface PeoplePayrollRepository<Effect> {
     guard91(key: string, value: "no-pending-advance", engagementId: string): Effect;
     stageRequestPayrollAdvanceEffect(id: string, companyId: string, id2: string, person_id: string, amountMinor: number, installmentCount: number, firstDeductionPeriod: string, currency: string, reason: string, userId: string, now: number, now2: number): Effect;
     stageRequestPayrollAdvanceEffect2(value: string, id: string, companyId: string, userId: string, value2: 1, value3: string, now: number): Effect;
-    stageRequestPayrollAdvanceEffect3(id: string, companyId: string, id2: string, now: number, companyId2: string, now2: number, userId: string): Effect;
+    stageRequestPayrollAdvanceEffect3(id: string, companyId: string, id2: string, now: number, companyId2: string, now2: number, userId: string): Promise<Effect>;
     readDecidePayrollAdvanceRow(advanceId: string, companyId: string): Promise<Record<string, string | number | null> | null>;
     guard96(key: string, value: "advance-version", advanceId: string, companyId: string, expectedVersion: number): Effect;
     stageDecidePayrollAdvanceStatements(status: "approved" | "rejected" | "cancelled", status2: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, advanceId: string): Effect;
@@ -411,7 +411,7 @@ export interface PeoplePayrollRepository<Effect> {
     guard159(key: string, value: "approved-run", runId: string, companyId: string, expectedVersion: number, revision: number, input_digest: string): Effect;
     stageRequestPayrollCorrectionEffect(id: string, runId: string, companyId: string, version: number, revision: number, input_digest: string, totals_json: string, reason: string, userId: string, now: number, now2: number): Effect;
     stageRequestPayrollCorrectionEffect2(value: string, id: string, runId: string, companyId: string, userId: string, version: number, value2: string, now: number): Effect;
-    stageRequestPayrollCorrectionEffect3(id: string, companyId: string, id2: string, now: number, companyId2: string, now2: number, userId: string): Effect;
+    stageRequestPayrollCorrectionEffect3(id: string, companyId: string, id2: string, now: number, companyId2: string, now2: number, userId: string): Promise<Effect>;
     readDecidePayrollCorrectionRow(correctionId: string, companyId: string): Promise<Record<string, string | number | null> | null>;
     guard164(key: string, value: "correction-version", correctionId: string, companyId: string, expectedVersion: number): Effect;
     guard165(key: string, value: "run-evidence", run_id: string | number | null, companyId: string, run_version: string | number | null, run_revision: string | number | null, input_digest: string | number | null): Effect;
@@ -1134,7 +1134,7 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
             repository.guard91(key, "no-pending-advance", input.engagementId),
             repository.stageRequestPayrollAdvanceEffect(id, actor.companyId, engagement.id, engagement.person_id, amountMinor, input.installmentCount, input.firstDeductionPeriod, input.currency, input.reason, actor.userId, now, now),
             repository.stageRequestPayrollAdvanceEffect2(`payroll-advance-event-${key}`, id, actor.companyId, actor.userId, 1, JSON.stringify({ amountMinor, installmentCount: input.installmentCount, firstDeductionPeriod: input.firstDeductionPeriod, currency: input.currency, reason: input.reason }), now),
-            repository.stageRequestPayrollAdvanceEffect3(id, actor.companyId, id, now, actor.companyId, now, actor.userId),
+            await repository.stageRequestPayrollAdvanceEffect3(id, actor.companyId, id, now, actor.companyId, now, actor.userId),
         ]);
     }
     async function decidePayrollAdvance(actor: WorkContext, advanceId: string, input: z.infer<typeof payrollAdvanceDecisionSchema>, key: string) {
@@ -1379,7 +1379,7 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
             repository.guard159(key, "approved-run", runId, actor.companyId, input.expectedVersion, run.revision, run.input_digest),
             repository.stageRequestPayrollCorrectionEffect(id, runId, actor.companyId, run.version, run.revision, run.input_digest, run.totals_json, input.reason, actor.userId, now, now),
             repository.stageRequestPayrollCorrectionEffect2(`payroll-correction-event-${key}`, id, runId, actor.companyId, actor.userId, run.version, JSON.stringify({ reason: input.reason, runRevision: run.revision, inputDigest: run.input_digest, totals: JSON.parse(run.totals_json) }), now),
-            repository.stageRequestPayrollCorrectionEffect3(id, actor.companyId, id, now, actor.companyId, now, actor.userId),
+            await repository.stageRequestPayrollCorrectionEffect3(id, actor.companyId, id, now, actor.companyId, now, actor.userId),
             ...(attachmentBinding?.steps ?? []),
         ]);
     }

@@ -30,7 +30,7 @@ import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-st
 import type { IamActor } from "@erpx/server-identity_access/public/iam-context";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {workspaceGrantsForAccount,workspaceCompaniesForAccount} from "@erpx/server-identity_access/public/authorization";
-import { escalateAccessReviews } from "@erpx/server-identity_access/public/iam-access-review-alerts";
+import { seedAccessReviewAlerts as escalateAccessReviews } from "../../support/identity_access/access-review-alert-fixture";
 import {privateFileDenialAuthoritySourceLocks,privateFileDenialAuthorityWitness} from '@erpx/server-identity_access/public/private-file-denial-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";

@@ -75,7 +75,8 @@ export async function scheduledWork(env: JobEnv) {
     // native inventory_reservation_alerts worker; no TS writer remains.
     // Quality due-soon/overdue escalation and notice routing are owned by the
     // native quality_alert_worker; no TS writer remains in this sweep.
-    await (await import("@erpx/server-identity_access/public/iam-access-review-alerts")).escalateAccessReviews(write);
+    // Access-certification due-soon/overdue notices are owned by the native
+    // identity_access_review_alerts worker; no TS writer remains.
     await (await import("@erpx/server-operations/public/staff-task-alerts")).escalateStaffTasks(write);
     await (await import("@erpx/server-collaboration/public/inbox")).drainInboxNotices(write);
     await (await import("@erpx/server-work_projection/public/calendar/reminders")).drainCalendarReminders(write as PostgresDatabase);

@@ -12192,6 +12192,18 @@ pub async fn run_production_workers_file(
         }));
     }
     if !config.holdings.is_empty() {
+        let databases = config
+            .holdings
+            .iter()
+            .map(|holding| holding.database.clone())
+            .collect::<Vec<_>>();
+        let stop = stop.clone();
+        handles.push(tokio::spawn(async move {
+            crate::identity_access_review_alerts::run(databases, stop).await;
+            Ok::<(), &'static str>(())
+        }));
+    }
+    if !config.holdings.is_empty() {
         let path = path.to_owned();
         let mut stop = stop.clone();
         handles.push(tokio::spawn(async move {

@@ -561,3 +561,72 @@ pub async fn legal_hold_notification_statement(
         ],
     })
 }
+
+/// Payroll advance independent-decision notice. The INSERT...SELECT resolves
+/// eligible payroll.approve holders from assignments in the caller's unit.
+pub async fn payroll_advance_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    advance_id: &str,
+    now: i64,
+    user_id: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if advance_id.is_empty() || user_id.is_empty() || now <= 0 {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT 'payroll-advance-review-'||md5(?||':'||a.user_id),?,a.user_id,'payroll_advance',?,1,\
+ 'Payroll advance needs an independent decision',? \
+ FROM assignments a WHERE a.company_id=? AND a.scope_kind='holding' AND a.revoked_at IS NULL \
+ AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'payroll.approve') \
+ AND NOT iam_same_person(a.user_id,?,a.company_id) GROUP BY a.user_id ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(advance_id),
+            value(company.as_str()),
+            value(advance_id),
+            serde_json::Value::Number(now.into()),
+            value(company.as_str()),
+            serde_json::Value::Number(now.into()),
+            value(user_id),
+        ],
+    })
+}
+
+/// Approved payroll independent-correction notice, same owner unit as above.
+pub async fn payroll_correction_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    correction_id: &str,
+    now: i64,
+    user_id: &str,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    if correction_id.is_empty() || user_id.is_empty() || now <= 0 {
+        return Err(invalid().into());
+    }
+    let sql = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,\
+ record_id,record_version,message,created_at) \
+ SELECT 'payroll-correction-review-'||md5(?||':'||a.user_id),?,a.user_id,'payroll_correction',?,1,\
+ 'Approved payroll needs an independent correction decision',? \
+ FROM assignments a WHERE a.company_id=? AND a.scope_kind='holding' AND a.revoked_at IS NULL \
+ AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'payroll.approve') \
+ AND NOT iam_same_person(a.user_id,?,a.company_id) GROUP BY a.user_id ON CONFLICT DO NOTHING";
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: sql.to_owned(),
+        values: vec![
+            value(correction_id),
+            value(company.as_str()),
+            value(correction_id),
+            serde_json::Value::Number(now.into()),
+            value(company.as_str()),
+            serde_json::Value::Number(now.into()),
+            value(user_id),
+        ],
+    })
+}

@@ -100,6 +100,7 @@ pub mod finance_supplier_batch;
 #[cfg(feature = "existing-business")]
 pub mod handbook;
 pub mod identity_access;
+pub mod identity_access_review_alerts;
 #[cfg(feature = "existing-business")]
 pub mod learning;
 #[cfg(feature = "existing-business")]
