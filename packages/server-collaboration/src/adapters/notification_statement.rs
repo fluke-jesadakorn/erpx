@@ -1789,3 +1789,26 @@ pub async fn legal_file_preservation_statement(
         ],
     })
 }
+
+
+/// Legal: authorize retention execution for an approved destruction.
+pub async fn legal_retention_authorization_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO legal_retention_execution_authorizations(command_id,destruction_id,\
+ item_id,company_id,kind,actor_id,assignment_id,authority_json,source_hash,item_version,created_at) \
+ VALUES(?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(&input.record_id), value(input.item_id.as_deref().unwrap_or("")),
+            value(company.as_str()), value(&input.record_type), value(&input.user_id),
+            value(input.identifier.as_deref().unwrap_or("")), value(&input.message),
+            value(input.source_hash.as_deref().unwrap_or("")), serde_json::Value::Number(input.record_version.into()),
+            serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
