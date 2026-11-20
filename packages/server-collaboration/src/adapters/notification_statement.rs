@@ -1833,3 +1833,23 @@ pub async fn finance_hotel_account_statement(
         ],
     })
 }
+
+
+/// Finance: ignore an unused payroll bank observation.
+pub async fn finance_bank_ignore_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_bank_transactions SET match_status='ignored',matched_type=NULL,\
+ matched_id=NULL,version=version+1 WHERE id=? AND company_id=? AND version=? \
+ AND match_status IN ('unmatched','proposed')".to_owned(),
+        values: vec![
+            value(&input.record_id), value(company.as_str()),
+            serde_json::Value::Number(input.record_version.into()),
+        ],
+    })
+}

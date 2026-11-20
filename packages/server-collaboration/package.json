@@ -258,7 +258,8 @@
     "./adapters/native-customer-receipt": "./src/adapters/native-customer-receipt.ts",
     "./adapters/native-legal-file-preservation": "./src/adapters/native-legal-file-preservation.ts",
     "./adapters/native-legal-retention-authorization": "./src/adapters/native-legal-retention-authorization.ts",
-    "./adapters/native-finance-hotel-account": "./src/adapters/native-finance-hotel-account.ts"
+    "./adapters/native-finance-hotel-account": "./src/adapters/native-finance-hotel-account.ts",
+    "./adapters/native-finance-bank-ignore": "./src/adapters/native-finance-bank-ignore.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
