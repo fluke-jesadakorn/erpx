@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3280,
+    "revision": 3284,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T11:32:26.634Z",
-      "expiresAt": "2026-11-20T12:02:26.634Z",
+      "heartbeatAt": "2026-11-20T11:46:09.348Z",
+      "expiresAt": "2026-11-20T12:16:09.348Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -47710,25 +47710,70 @@
           "owner:operations",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261120-k",
-          "agentId": "lead",
-          "claimedAt": "2026-11-20T11:33:47.020Z",
-          "heartbeatAt": "2026-11-20T11:33:47.020Z",
-          "expiresAt": "2026-11-20T12:03:47.020Z",
-          "generation": 139
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+        "lastPushedSha": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+            "sourceKind": "committed",
+            "before": 1913,
+            "after": 1912,
+            "note": "Deleted the final staff_tasks version writer after native task-reroute cutover."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+            "sourceKind": "committed",
+            "before": 1,
+            "after": 0,
+            "note": "Operations owner has no remaining TS writes."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+            "sourceKind": "committed",
+            "note": "Native task_reroute command wired through the Staff Work HTTP transport; authority, eligibility, identifiers and dispatch compile."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=workflow.rust-task-reroute-postgres.integration",
+            "result": "passed",
+            "sourceSha": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+            "sourceKind": "committed",
+            "note": "2/2 native PG tests: pending approver replacement with flow/decision/notification, and policy failures leaving no receipt."
+          },
+          {
+            "command": "bunx tsc --noEmit && bunx tsc --noEmit --project tests/config/tsconfig.json && bun run structure:check",
+            "result": "passed",
+            "sourceSha": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+            "sourceKind": "committed",
+            "note": "Root/tests typechecks and repository layout pass after route/writer changes."
+          },
+          {
+            "command": "vitest unit: native-operations-transport, operations-services, work-services",
+            "result": "passed",
+            "sourceSha": "7b49c6397d33bc7de75c36364cec10fc0a679898",
+            "sourceKind": "committed",
+            "note": "11/11 + 56/56 + 13/13."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the operations approval revision effect natively and switch workflow reroute, then delete workflow-approval-effects.ts.",
+        "nextAction": "Migrated: native task.approval.reroute authority through Staff Work HTTP transport; KPI 1913->1912, operations 1->0.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "ports.collaboration-social-source-policy",
@@ -48160,20 +48205,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 249,
-      "migratedPackets": 134,
+      "migratedPackets": 135,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 134,
+        "migrated": 135,
         "blocked": 91,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T11:33:47.022Z",
+    "updatedAt": "2026-11-20T11:46:09.349Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
