@@ -642,7 +642,7 @@ export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Eff
             r.stageAssignFlowPrimaryEffect2(JSON.stringify(saved), actor.companyId, kind, id),
             ...(input.saveDefault ? [r.stageAssignFlowPrimaryEffect3(actor.companyId, kind, step.key, scope.branch_id, scope.department_id, person.userId, actor.userId, input.reason, ports.clock.now())] : []),
             r.stageAssignFlowPrimaryEffect4(ports.identifiers.next(), key, actor.companyId, kind, id, step.key, actor.userId, administrator?.legal_name ?? actor.userId, `${input.reason} → ${person.name}`, view.recordVersion, ports.clock.now()),
-            ports.notification(scope, person.userId, kind, id, view.recordVersion, `${step.action}: assigned to you`),
+            await ports.notification(scope, person.userId, kind, id, view.recordVersion, `${step.action}: assigned to you`),
         ], { companyId: scope.company_id, branchId: scope.branch_id, departmentId: scope.department_id });
     }
     return { flowRecord, flowRoleAllowed, resolveFlow, prepareFlowCommand, assignFlowPrimary, flowCommandTarget };

@@ -250,7 +250,7 @@ async function openApproval(key: string, kind: ApprovalKind, id: string, phase: 
             for (const userId of route.steps[0].candidateUserIds ?? [
                 route.steps[0].userId,
             ])
-                statements.push(ports.notification(route.scope, userId, kind, id, recordVersion, `${phase === "start" ? "Start" : phase === "completion" ? "Completion" : "Request"} approval needs your decision`));
+                statements.push(await ports.notification(route.scope, userId, kind, id, recordVersion, `${phase === "start" ? "Start" : phase === "completion" ? "Completion" : "Request"} approval needs your decision`));
         return { statements, instanceId };
     }
 async function initializeLegacyApproval(instance: ApprovalInstance): Promise<ApprovalInstance> {
@@ -311,7 +311,7 @@ async function initializeLegacyApproval(instance: ApprovalInstance): Promise<App
                     departmentId: route.scope.department_id,
                     version: record.version + 1,
                 }), now),
-                ports.notification(route.scope, route.steps[0].userId, instance.record_type, instance.record_id, instance.version, "Request approval needs your decision"),
+                await ports.notification(route.scope, route.steps[0].userId, instance.record_type, instance.record_id, instance.version, "Request approval needs your decision"),
                 r.stageInitializeLegacyApprovalEffect7(key),
             ]);
         }
@@ -502,7 +502,7 @@ async function prepareDecision(actor: StaffActor, key: string, kind: ApprovalKin
             r.stagePrepareDecisionStatements(approve ? "approved" : "rejected", actor.userId, step.id),
             r.stagePrepareDecisionStatements2(!approve ? "rejected" : final ? "approved" : "pending", next && approve ? next.ordinal : step.ordinal, now, instance.id),
             r.stagePrepareDecisionStatements3(ports.identifiers.next(), instance.id, step.id, override ? "override" : approve ? "approve" : "reject", actor.userId, override ? step.approver_user_id : null, actor.userId, reason, version, key, now, decisionEvidence),
-            ports.notification(instance, instance.requester_user_id, kind, id, version + 1, approve
+            await ports.notification(instance, instance.requester_user_id, kind, id, version + 1, approve
                 ? final
                     ? "Approval complete"
                     : "Step approved; awaiting the next decision"
@@ -514,7 +514,7 @@ async function prepareDecision(actor: StaffActor, key: string, kind: ApprovalKin
                     ? { ...s, state: "approved", approver_user_id: actor.userId }
                     : s))
                 : [next.approver_user_id])
-                statements.push(ports.notification(instance, userId, kind, id, version + 1, "Approval needs your decision"));
+                statements.push(await ports.notification(instance, userId, kind, id, version + 1, "Approval needs your decision"));
         return { statements, final, instance, next };
     }
 function closeApprovals(key: string, kind: ApprovalKind, id: string, actorId: string, action: "cancel" | "revise", reason: string, version: number) {
@@ -613,7 +613,7 @@ export function createApprovalsApplication<Effect>(ports:ApprovalsPorts<Effect>)
             r.stageRerouteApprovalEffect3(now, id),
             r.stageRerouteApprovalEffect4(ports.identifiers.next(), id, current.id, actor.userId, current.approver_user_id, input.approverUserId, input.reason, input.expectedVersion, key, now),
             r.stageRerouteApprovalEffect5(now, instance.record_id, instance.record_type),
-            ports.notification(instance, input.approverUserId, instance.record_type, instance.record_id, input.expectedVersion + 1, "Approval rerouted to you"),
+            await ports.notification(instance, input.approverUserId, instance.record_type, instance.record_id, input.expectedVersion + 1, "Approval rerouted to you"),
         ], {
             companyId: instance.company_id,
             branchId: instance.branch_id,

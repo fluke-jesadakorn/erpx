@@ -307,7 +307,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
           now,
           id,
         ),
-      notification(
+      await notification(
         write,
         {
           company_id: actor.companyId,

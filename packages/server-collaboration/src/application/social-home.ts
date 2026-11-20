@@ -238,7 +238,7 @@ export interface SocialHomePorts<Effect> {
     pmsSourceLink: typeof pmsSourceLink;
     readablePost(...args: Tail<Parameters<typeof readablePost>>): ReturnType<typeof readablePost>;
     sourceGuard(...args: Tail<Parameters<typeof sourceGuard>>): Effect;
-    notification(...args: Tail<Parameters<typeof notification>>): Effect;
+    notification(...args: Tail<Parameters<typeof notification>>): Promise<Effect>;
     authorityGuard(...args: Tail<Parameters<typeof authorityGuard>>): Effect;
     requireCompanyAuthority(...args: Tail<Parameters<typeof requireCompanyAuthority>>): ReturnType<typeof requireCompanyAuthority>;
     validateMentions(...args: Tail<Parameters<typeof validateMentions>>): ReturnType<typeof validateMentions>;
@@ -766,7 +766,7 @@ const{socialUploadOwner}=createSocialUploadRead(ports);
                 .slice(0, 10)
                 .entries()) {
                 await ports.readablePost({ companyId: actor.companyId, userId: user }, id);
-                steps.push(ports.sourceGuard(key, { ...post, version: post.version + 1 }, user, `mention-${i}`), ports.notification(post, user, "post", id, post.version + 1, "You were mentioned in a conversation"));
+                steps.push(ports.sourceGuard(key, { ...post, version: post.version + 1 }, user, `mention-${i}`), await ports.notification(post, user, "post", id, post.version + 1, "You were mentioned in a conversation"));
             }
         }
         else if (input.action === "appreciate")

@@ -23,13 +23,17 @@ pub struct StatementRequest<'a> {
 pub trait StatementBackend: Send + Sync {
     fn statement<'a>(&'a self, request: StatementRequest<'a>) -> StatementFuture<'a>;
 }
+#[derive(Clone)]
 pub struct StatementTarget {
     pub host: String,
     pub holding_slug: String,
     pub origin: String,
     pub backend: Arc<dyn StatementBackend>,
 }
-struct AppState { targets: BTreeMap<(String, String), StatementTarget> }
+struct AppState {
+    targets: BTreeMap<(String, String), StatementTarget>,
+    company_targets: BTreeMap<String, StatementTarget>,
+}
 fn malformed() -> BusinessError {
     BusinessError::invalid("NOTIFICATION_STATEMENT_INVALID", "Use one notification statement request.")
 }
@@ -69,6 +73,38 @@ async fn statement(State(state): State<Arc<AppState>>, Path(slug): Path<String>,
         Err(e) => error(e),
     }
 }
+async fn system_statement(State(state): State<Arc<AppState>>, Path(company_id): Path<String>, request: Request) -> Response {
+    let result = async move {
+        let t = state.company_targets.get(&company_id)
+            .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
+        let headers = request.headers().clone();
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT).await.map_err(|_| malformed())?;
+        let input: NotificationStatementInput = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        t.backend.statement(StatementRequest { host: &t.host, headers: &headers, input }).await
+    }.await;
+    match result {
+        Ok(s) => (StatusCode::OK, Json(serde_json::json!({"data":s}))).into_response(),
+        Err(e) => error(e),
+    }
+}
+
+/// Company-keyed system route. No browser Origin/Host checks: this is reachable
+/// only on the private native API and is used by system workers that hold a
+/// Company id but no browser WorkContext.
+pub fn system_notification_statement_router(
+    pairs: Vec<(String, StatementTarget)>,
+) -> Result<Router, BusinessError> {
+    let mut company_targets = BTreeMap::new();
+    for (company, target) in pairs {
+        if company.is_empty() || company_targets.insert(company, target).is_some() {
+            return Err(BusinessError::invalid("NOTIFICATION_STATEMENT_CONFIG_INVALID", "Use exact distinct companies."));
+        }
+    }
+    Ok(Router::new()
+        .route("/api/v1/companies/{company_id}/collaboration/notification-statement", post(system_statement))
+        .with_state(Arc::new(AppState { targets: BTreeMap::new(), company_targets })))
+}
+
 pub fn notification_statement_router(targets: Vec<StatementTarget>) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
     for t in targets {
@@ -79,7 +115,7 @@ pub fn notification_statement_router(targets: Vec<StatementTarget>) -> Result<Ro
     }
     Ok(Router::new()
         .route("/api/v1/holdings/{holding_slug}/collaboration/notification-statement", post(statement))
-        .with_state(Arc::new(AppState { targets: configured })))
+        .with_state(Arc::new(AppState { targets: configured, company_targets: BTreeMap::new() })))
 }
 // keep imports used
 #[allow(dead_code)]

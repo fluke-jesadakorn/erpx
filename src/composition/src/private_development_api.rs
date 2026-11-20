@@ -3245,6 +3245,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut collaboration_work_targets = Vec::new();
         let mut notification_statement_targets = Vec::new();
+        let mut notification_statement_companies = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3869,6 +3870,7 @@ async fn assemble_checked(
                             )),
                         },
                     );
+                    notification_statement_companies.push(company.clone());
                     collaboration_work_targets.push(
                         erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpTarget {
                             host: holding.host.clone(),
@@ -6263,9 +6265,22 @@ async fn assemble_checked(
         if !notification_statement_targets.is_empty() {
             router = router.merge(
                 erpx_server_collaboration::public::notification_statement_http::notification_statement_router(
-                    notification_statement_targets,
+                    notification_statement_targets.clone(),
                 )
                 .map_err(|_| "PRIVATE_API_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !notification_statement_companies.is_empty() {
+            let pairs = notification_statement_companies
+                .into_iter()
+                .map(|company| company.as_str().to_owned())
+                .zip(notification_statement_targets.into_iter())
+                .collect::<Vec<_>>();
+            router = router.merge(
+                erpx_server_collaboration::public::notification_statement_http::system_notification_statement_router(
+                    pairs,
+                )
+                .map_err(|_| "PRIVATE_API_SYSTEM_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

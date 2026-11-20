@@ -225,7 +225,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
       return expenseMutation({id,status:"rejected",stage:"draft",version:input.expectedVersion+1}, [
       assertion(write,key,"expense-version","EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='approved' AND workflow_stage='gl_posting' AND journal_id IS NULL)",[id,actor.companyId,input.expectedVersion]),
       write.prepare("UPDATE finance_expenses SET status='rejected',workflow_stage='draft',accounting_json='{}',approved_by=NULL,rejection_reason=?,version=version+1,updated_at=? WHERE id=?").bind(input.reason,now,id),
-      notification(write,scope(row),String(row.created_by),"expense",id,input.expectedVersion+1,"GL reviewer returned this claim for correction."),
+      await notification(write,scope(row),String(row.created_by),"expense",id,input.expectedVersion+1,"GL reviewer returned this claim for correction."),
     ]);
     },
     async prepareAccountingApproval(actor, key, id, input, row, capturedDecision, now) {
@@ -234,7 +234,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
         assertion(write, key, "expense-version", "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='in_review' AND workflow_stage='accounts_approval' AND cancelled_at IS NULL)", [id, actor.companyId, input.expectedVersion]),
         ...decision.statements,
         write.prepare("UPDATE finance_expenses SET status='approved',workflow_stage='gl_posting',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId, now, id),
-        notification(write, scope(row), actor.userId, "expense", id, input.expectedVersion + 1, "Accounting approved. Review Debit / Credit and post GL before payment."),
+        await notification(write, scope(row), actor.userId, "expense", id, input.expectedVersion + 1, "Accounting approved. Review Debit / Credit and post GL before payment."),
       ]);
     },
     async prepareDecision(actor, key, id, action, input, _row, capturedDecision, stage, now) {

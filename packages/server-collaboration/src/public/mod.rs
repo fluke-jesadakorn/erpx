@@ -85,7 +85,7 @@ pub mod notification_statement {
 /// Native notification statement HTTP ingress.
 pub mod notification_statement_http {
     pub use crate::adapters::notification_statement_http::{
-        notification_statement_router, StatementBackend, StatementFuture, StatementRequest,
-        StatementTarget,
+        notification_statement_router, system_notification_statement_router, StatementBackend,
+        StatementFuture, StatementRequest, StatementTarget,
     };
 }

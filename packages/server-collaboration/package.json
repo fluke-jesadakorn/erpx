@@ -240,7 +240,8 @@
     "./adapters/native-inventory-transit-notification": "./src/adapters/native-inventory-transit-notification.ts",
     "./adapters/native-social-task-origin": "./src/adapters/native-social-task-origin.ts",
     "./adapters/native-workflow-invoicing-notification": "./src/adapters/native-workflow-invoicing-notification.ts",
-    "./adapters/native-workflow-notification": "./src/adapters/native-workflow-notification.ts"
+    "./adapters/native-workflow-notification": "./src/adapters/native-workflow-notification.ts",
+    "./adapters/native-system-notification": "./src/adapters/native-system-notification.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

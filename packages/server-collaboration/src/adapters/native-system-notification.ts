@@ -1,0 +1,51 @@
+import 'server-only';
+import { ApiError } from '@erpx/server-runtime/public/http';
+import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+
+type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number }>;
+type Statement = Readonly<{ sql: string; values: unknown[] }>;
+
+function configuration(): Settings {
+  const raw = process.env.ERPX_NATIVE_COLLABORATION_CONFIG;
+  if (!raw) throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
+  try { return JSON.parse(raw) as Settings; }
+  catch { throw new ApiError(503, 'NATIVE_COLLABORATION_CONFIGURATION_INVALID', 'Collaboration transport is misconfigured.'); }
+}
+
+/** Ask the native Collaboration owner for an authoritative notification INSERT
+ * using a Company id only (no browser WorkContext). Reachable only on the
+ * private native API. The caller executes the statement in its own unit. */
+export async function nativeSystemNotificationStatement(
+  db: SqlDatabase,
+  companyId: string,
+  input: {
+    userId: string;
+    recordType: string;
+    recordId: string;
+    recordVersion: number;
+    message: string;
+    kind?: string;
+  },
+  key: string,
+  now: number,
+): Promise<SqlStatement> {
+  const config = configuration();
+  const headers = new Headers({
+    'content-type': 'application/json',
+    'idempotency-key': key,
+    'x-erpx-context-company': companyId,
+  });
+  let response: Response;
+  try {
+    response = await fetch(
+      `${config.privateBaseUrl}/api/v1/companies/${encodeURIComponent(companyId)}/collaboration/notification-statement`,
+      { method: 'POST', headers, body: JSON.stringify({ ...input, companyId, now, idempotencyKey: key }), cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+    );
+  } catch {
+    throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
+  }
+  const body = (await response.json().catch(() => null)) as { data?: Statement; error?: { code?: string; message?: string } } | null;
+  if (!response.ok || !body?.data)
+    throw new ApiError(response.status, body?.error?.code ?? 'NATIVE_COLLABORATION_FAILED', body?.error?.message ?? 'The native Collaboration request failed.');
+  return db.prepare(body.data.sql).bind(...body.data.values);
+}

@@ -176,7 +176,7 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
                 ? r.stageSaveTaskEffect(input.title, input.description, input.assigneeUserId, dueAt, input.projectId, JSON.stringify(input.startApprovers), JSON.stringify(input.completionApprovers), nextState, revision ? 1 : 0, now, recordId)
                 : r.stageSaveTaskEffect2(recordId, actor.companyId, staff.branch_id, staff.department_id, input.title, input.description, actor.userId, input.assigneeUserId, dueAt, input.projectId, JSON.stringify(input.startApprovers), JSON.stringify(input.completionApprovers), nextState, now, now),
             ...sourceSteps,
-            ports.notification(current ?? staff, input.assigneeUserId, "task", recordId, version, revision ? "Task revised; approvals restart" : "Task assigned to you"),
+            await ports.notification(current ?? staff, input.assigneeUserId, "task", recordId, version, revision ? "Task revised; approvals restart" : "Task assigned to you"),
         ], scope(current ?? staff));
     }
 
