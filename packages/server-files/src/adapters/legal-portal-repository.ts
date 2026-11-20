@@ -3,7 +3,8 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import {legalPortalStorageAllowance} from "@erpx/server-manage_erpx/public/legal-portal-storage-allowance";
 import type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository,PortalAttachmentStageScope,PortalAttachmentRecoverySource} from "@erpx/server-legal/public/portal-attachment-contracts";
-function unit(db:SqlDatabase):PortalAttachmentUnit{const writes=new WeakMap<PortalAttachmentWrite,SqlStatement>();function stage(statement:SqlStatement):PortalAttachmentWrite{const write:PortalAttachmentWrite={owner:"files"};writes.set(write,statement);return write;}
+import { legalAccessEvents } from '@erpx/server-collaboration/adapters/native-legal-access-events';
+function unit(db:SqlDatabase):PortalAttachmentUnit{const nativeAccess=legalAccessEvents(db);const writes=new WeakMap<PortalAttachmentWrite,SqlStatement>();function stage(statement:SqlStatement):PortalAttachmentWrite{const write:PortalAttachmentWrite={owner:"files"};writes.set(write,statement);return write;}
 function stagedSource(facts:PortalAttachmentStageScope){return db.prepare(`SELECT a.object_key,a.checksum_sha256,a.media_type,a.bytes,s.expected_target_version,
  CASE WHEN s.state='draft' AND l.state='draft' AND i.status='ready' AND a.source_state='available' AND a.revoked_at IS NULL THEN 1 ELSE 0 END recovery_draft,
  jsonb_build_object('source',to_jsonb(a),'upload',to_jsonb(i),'link',to_jsonb(l),'set',to_jsonb(s))::text image,
@@ -58,6 +59,6 @@ readableSource:(facts:{linkId:string;companyId:string;itemId:string;purposeKey:"
       checksum_sha256: string;
       source_state: string;
     }>(),
-allowedRead:(facts:{fact0:string;companyId:string;attachment_id:string;link_id:string;actorId:string;now:number;})=>db.prepare("INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,variant,outcome,created_at) VALUES(?,?,?,?,?,'original','allowed',?)").bind(facts.fact0,facts.companyId,facts.attachment_id,facts.link_id,facts.actorId,facts.now).run(),
-deniedRead:(facts:{fact0:string;companyId:string;attachment_id:string;link_id:string;actorId:string;fact5:string;now:number;})=>db.prepare("INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,variant,outcome,reason,created_at) VALUES(?,?,?,?,?,'original','denied',?,?)").bind(facts.fact0,facts.companyId,facts.attachment_id,facts.link_id,facts.actorId,facts.fact5,facts.now).run(),batch:steps=>db.batch(steps.map(write=>{const statement=writes.get(write);if(!statement)throw new Error("LEGAL_PORTAL_FILES_REPOSITORY_MISMATCH");return statement;})),};}
+allowedRead:facts=>nativeAccess.allowedRead(facts),
+deniedRead:facts=>nativeAccess.deniedRead(facts),batch:steps=>db.batch(steps.map(write=>{const statement=writes.get(write);if(!statement)throw new Error("LEGAL_PORTAL_FILES_REPOSITORY_MISMATCH");return statement;})),};}
 export function legalPortalRepository(db:SqlDatabase):PortalAttachmentRepository{return {...unit(db),transaction:work=>{if(!(db instanceof PostgresDatabase))throw new Error("LEGAL_PORTAL_FILES_TRANSACTION_REQUIRED");return db.transaction(tx=>work(unit(tx)));}};}

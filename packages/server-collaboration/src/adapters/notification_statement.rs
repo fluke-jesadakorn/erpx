@@ -1492,3 +1492,42 @@ pub async fn beta_expire_upload_statement(
         ],
     })
 }
+
+
+/// Legal portal: allowed original-variant attachment read access event.
+pub async fn legal_access_allowed_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
+ variant,outcome,created_at) VALUES(?,?,?,?,?,'original','allowed',?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")), value(&input.record_id),
+            value(&input.user_id), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
+
+/// Legal portal: denied original-variant attachment read access event.
+pub async fn legal_access_denied_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let value = |v: &str| serde_json::Value::String(v.to_owned());
+    Ok(NotificationStatement {
+        sql: "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
+ variant,outcome,reason,created_at) VALUES(?,?,?,?,?,'original','denied',?,?)".to_owned(),
+        values: vec![
+            value(&input.idempotency_key), value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")), value(&input.record_id),
+            value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into()),
+        ],
+    })
+}
