@@ -1,10 +1,11 @@
-import {calendarRetirementNotification} from "@erpx/server-collaboration/public/calendar-retirement-notifications";
+import {nativeCalendarRetirementNotification} from "./native-calendar-retirement-notification";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
 const organizationFinalSources=organizationFinalOwnerProjections();
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PreparationTask } from "@erpx/feature-people_payroll/lib/people-lifecycle";
-export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase) {
+export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase, actor?: WorkContext) {
     return { read5: (facts: {
             value1: string;
             value2: string;
@@ -40,7 +41,10 @@ export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase) {
             value5: number;
             value6: string;
             value7: number;
-        }) => calendarRetirementNotification(db,facts),
+        }) => {
+            if (!actor) throw new Error('CALENDAR_NOTIFICATION_ACTOR_REQUIRED');
+            return nativeCalendarRetirementNotification(db, actor, facts);
+        },
         write11: (facts: {
             value1: "completed" | "not_required";
             value2: string;

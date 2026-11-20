@@ -22,6 +22,7 @@ import {isManualCalendarCommand,withCalendarPurchasedTransaction} from '@erpx/se
 import {calendarCommandSchema,type CalendarCommand} from '@erpx/server-work_projection/public/rules/calendar-domain';
 const service = createCalendarCommands<SqlStatement>({ clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, fail, requirePlacement });
 export function calendarCommandsUnit(db: SqlDatabase, roster?: {actor: WorkContext; key: string},people?:{actor:WorkContext;key:string;input:{id:string;action:"task.plan"|"task.complete"}},manual?:{actor:WorkContext;key:string;input:CalendarCommand}): CalendarCommandsUnit<SqlStatement> {
+    const commandActor = roster?.actor ?? people?.actor ?? manual?.actor;
     return { reschedule: (...args) => rescheduleRosterShift(db, ...args), read1: facts => calendarCommandsWorkProjectionFacts(db).read1(facts),
         read2: facts => calendarCommandsOperationsFacts(db).read2(facts),
         read3: facts => calendarCommandsWorkProjectionFacts(db).read3(facts),
@@ -30,7 +31,7 @@ export function calendarCommandsUnit(db: SqlDatabase, roster?: {actor: WorkConte
         read6: facts => calendarCommandsIdentityAccessFacts(db).read6(facts),
         read7: facts => calendarCommandsPeoplePayrollFacts(db).read7(facts),
         write8: facts => calendarCommandsPeoplePayrollFacts(db).write8(facts),
-        write9: facts => calendarCommandsPeoplePayrollFacts(db).write9(facts),
+        write9: facts => calendarCommandsPeoplePayrollFacts(db, commandActor).write9(facts),
         read10: facts => calendarCommandsIdentityAccessFacts(db).read10(facts),
         write11: facts => calendarCommandsPeoplePayrollFacts(db).write11(facts),
         read12: facts => calendarCommandsWorkProjectionFacts(db).read12(facts),
@@ -82,8 +83,8 @@ export function calendarCommandsUnit(db: SqlDatabase, roster?: {actor: WorkConte
         clearanceCompletion: (...args) => requireClearanceCompletion(db, ...args),
         publish: input => publishInboxEvent(db, input),
         transaction: callback => roster
-            ? withRosterPurchasedTransaction(db, roster.actor, {key: roster.key, operation: "calendar.shift.reschedule", purpose: "settle-existing"}, tx => callback(calendarCommandsUnit(tx)))
-            : people?withPeoplePreparationTransaction(db,people.actor,people.input,people.key,tx=>callback(calendarCommandsUnit(tx))):manual?withCalendarPurchasedTransaction(db,manual.actor,manual.input,manual.key,tx=>callback(calendarCommandsUnit(tx))):(db as PostgresDatabase).transaction(tx => callback(calendarCommandsUnit(tx))) };
+            ? withRosterPurchasedTransaction(db, roster.actor, {key: roster.key, operation: "calendar.shift.reschedule", purpose: "settle-existing"}, tx => callback(calendarCommandsUnit(tx, roster, people, manual)))
+            : people?withPeoplePreparationTransaction(db,people.actor,people.input,people.key,tx=>callback(calendarCommandsUnit(tx))):manual?withCalendarPurchasedTransaction(db,manual.actor,manual.input,manual.key,tx=>callback(calendarCommandsUnit(tx))):(db as PostgresDatabase).transaction(tx => callback(calendarCommandsUnit(tx, roster, people, manual))) };
 }
 export function localInterval(db: SqlDatabase, start: string, end: string, zone: string) { return service.localInterval(calendarCommandsUnit(db), start, end, zone); }
 export function calendarCommand(database: PostgresDatabase, actor: WorkContext, raw: unknown, key: string) {
