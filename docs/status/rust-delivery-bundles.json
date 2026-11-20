@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 3186,
+    "revision": 3196,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261120-k",
       "agentId": "lead",
       "startedAt": "2026-11-20T08:58:20.101Z",
-      "heartbeatAt": "2026-11-20T09:18:39.846Z",
-      "expiresAt": "2026-11-20T09:48:39.846Z",
+      "heartbeatAt": "2026-11-20T09:43:24.715Z",
+      "expiresAt": "2026-11-20T10:13:24.715Z",
       "generation": 139,
       "tokenHash": "d91be517d21bce1fc2c6f2e2bda87d56c53daf90c00c315a833fde7a4f3b7e48"
     },
@@ -46643,19 +46643,22 @@
           "manufacturing.order-actions"
         ],
         "allowedPaths": [
-          "packages/server-planning/src/adapters/production-command-sources.ts",
-          "packages/server-planning/src/adapters/resources.ts",
-          "packages/server-planning/src/public/**",
+          "packages/server-planning/src/**",
+          "packages/server-planning/Cargo.toml",
           "packages/server-planning/package.json",
           "packages/server-manufacturing/src/**",
-          "packages/feature-manufacturing/src/**",
-          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/manufacturing/**",
+          "packages/feature-manufacturing/**",
           "src/composition/src/manufacturing.rs",
+          "src/composition/src/manufacturing_order_commands.rs",
+          "src/composition/src/manufacturing_order_http.rs",
           "src/composition/src/private_development_api.rs",
           "tests/unit/planning/**",
           "tests/integration/planning/**",
           "tests/unit/manufacturing/**",
-          "tests/integration/manufacturing/**"
+          "tests/integration/manufacturing/**",
+          "tests/support/**",
+          "fixtures/**",
+          "tests/catalogue/**"
         ],
         "resources": [
           "owner:planning",
@@ -46670,7 +46673,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "BLOCKED (not ready). Native Planning router/client parity is complete and the live production route at packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts already sends scenario/recommendation/resource/resource-calendar to native, but closure is blocked by: (1) packages/server-planning/src/adapters/production-command-sources.ts:132 prepareCapacityRelease is still the sole source for Manufacturing order cancel/other release paths; native only releases on PassQc (src/composition/src/manufacturing_order_commands.rs:132-145,1556-1566), so deleting it regresses capacity release. removalTaskId=migrate.manufacturing.order-actions (extend native order cancel/release, then delete the writer); removalCondition=native cancel/other order paths release planning capacity in one owner transaction with receipt/audit/outbox and no TS writer. (2) tests/integration/manufacturing/production.test.ts mixes planning writers with TS Manufacturing/Finance/attachment assertions; removalTaskId=migrate.manufacturing.production-oracles, removalCondition=full native-seeded PostgreSQL oracle covers the mixed journey. (3) allowedPaths omit application/scenarios.ts, application/resources.ts, adapters/scenarios.ts, tests/support/**, fixtures/** and generated inventories; lead must refine before a future claim. KPI unchanged 1942; no files edited in this claim.",
+        "nextAction": "prepareCapacityRelease is retired (native cancel/scrap own it, KPI 1942->1941, planning 14->13). Remaining 13 planning writes need: native scenario/resource command consumers switched in fixtures/tests, production-services oracle moved to native-seeded harness, and barrels/exports deleted. Scope paths refreshed to include application/{scenarios,resources}.ts, adapters/scenarios.ts, tests/support/** and fixtures/**.",
         "handoff": {
           "runId": "run-20261120-k",
           "agentId": "lead",
@@ -46735,6 +46738,173 @@
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.manufacturing.native-order-cancel",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "manufacturing",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native Manufacturing order cancel with Planning capacity release",
+        "scope": "Implement the native Manufacturing order cancel action (planned/reserved -> cancelled) with material-reservation release and planning_resource_allocations release in the same owner transaction, mount the HTTP action, switch the feature-manufacturing production route to native authority for cancel, delete the replaced TS cancel branch/writers, and move the oracle to the native-seeded harness. This closes the capacity-release prerequisite of retire.planning.production-command-sources.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "workflow.command-ledger",
+          "runtime.unit-of-work"
+        ],
+        "allowedPaths": [
+          "src/composition/src/manufacturing_order_commands.rs",
+          "src/composition/src/manufacturing_order_http.rs",
+          "src/composition/src/manufacturing.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/feature-manufacturing/**",
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**",
+          "tests/unit/planning/**"
+        ],
+        "resources": [
+          "owner:manufacturing",
+          "resource:composition"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "3a3e219b98949febd6c20f945b8d615b1c171039",
+            "sourceKind": "committed",
+            "note": "Native Manufacturing Cancel action compiles in the configured composition feature set."
+          },
+          {
+            "command": "cargo test -p erpx-service --lib manufacturing_order_commands::tests",
+            "result": "passed",
+            "sourceSha": "3a3e219b98949febd6c20f945b8d615b1c171039",
+            "sourceKind": "committed",
+            "note": "3/3 including cancel_action_uses_the_native_owner_contract; proves parse/status/permission/capabilities."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "3a3e219b98949febd6c20f945b8d615b1c171039",
+            "sourceKind": "committed",
+            "note": "Root + tests tsconfig pass with the cancel route branch switched to native."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "PARTIAL: native Cancel action implemented and verified (cargo check/test 3/3, typecheck, pushed 3a3e219b9). BLOCKED for writer deletion: packages/server-manufacturing/src/application/production.ts:178 still calls planning prepareCapacityRelease for scrap (status cancelled); native scrap action does not exist yet, so deleting the planning writer would regress scrap capacity release. removalTaskId=migrate.manufacturing.native-order-scrap (new bounded task to implement native scrap with scrap-account posting + independent QC check, switch the feature route, then delete TS cancel/scrap branches); removalCondition=both TS callers of prepareCapacityRelease are gone and the native-seeded oracle covers cancel/scrap receipt/audit/outbox and released capacity. Also ERPX_NATIVE_PLANNING_CONFIG/ERPX_NATIVE_MANUFACTURING_CONFIG are absent in the authorized dev environment, so route fail-closed cannot yet be browser-verified; native service 127.0.0.1:3198 is not listening. KPI unchanged 1942; no TS writer deleted in this claim.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T09:31:12.169Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "PARTIAL: native Cancel action implemented and verified (cargo check/test 3/3, typecheck, pushed 3a3e219b9). BLOCKED for writer deletion: packages/server-manufacturing/src/application/production.ts:178 still calls planning prepareCapacityRelease for scrap (status cancelled); native scrap action does not exist yet, so deleting the planning writer would regress scrap capacity release. removalTaskId=migrate.manufacturing.native-order-scrap (new bounded task to implement native scrap with scrap-account posting + independent QC check, switch the feature route, then delete TS cancel/scrap branches); removalCondition=both TS callers of prepareCapacityRelease are gone and the native-seeded oracle covers cancel/scrap receipt/audit/outbox and released capacity. Also ERPX_NATIVE_PLANNING_CONFIG/ERPX_NATIVE_MANUFACTURING_CONFIG are absent in the authorized dev environment, so route fail-closed cannot yet be browser-verified; native service 127.0.0.1:3198 is not listening. KPI unchanged 1942; no TS writer deleted in this claim."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.manufacturing.native-order-scrap",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "manufacturing",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Native Manufacturing order scrap with independent QC and capacity release",
+        "scope": "Implement the native scrap action (qc_failed -> cancelled) with independent reviewer check, scrap-account Finance posting and planning capacity release in one owner transaction; switch the feature route to native for scrap; delete the TS cancel/scrap branches and preparation methods that remain the last callers of planning prepareCapacityRelease; migrate the oracle to native seeding; record the KPI pair.",
+        "dependsOn": [],
+        "requiredPorts": [
+          "workflow.command-ledger",
+          "runtime.unit-of-work"
+        ],
+        "allowedPaths": [
+          "src/composition/src/manufacturing_order_commands.rs",
+          "src/composition/src/manufacturing_order_http.rs",
+          "src/composition/src/manufacturing.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/feature-manufacturing/**",
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**",
+          "tests/unit/planning/**"
+        ],
+        "resources": [
+          "owner:manufacturing",
+          "resource:composition"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "a70cde441498644608424cfc1ed0cf986a26ae24",
+            "sourceKind": "committed",
+            "note": "Native Manufacturing cancel + scrap actions compile with all match arms covered."
+          },
+          {
+            "command": "cargo test -p erpx-service --lib manufacturing_order_commands::tests",
+            "result": "passed",
+            "sourceSha": "a70cde441498644608424cfc1ed0cf986a26ae24",
+            "sourceKind": "committed",
+            "note": "3/3 including cancel/scrap action contract (parse, status, permission, capabilities)."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "a70cde441498644608424cfc1ed0cf986a26ae24",
+            "sourceKind": "committed",
+            "note": "Root + tests tsconfig pass after deleting the TS capacity-release writer."
+          },
+          {
+            "command": "bunx vitest run tests/unit/planning/production-services.test.ts --exclude '.scratch/**'",
+            "result": "passed",
+            "sourceSha": "a70cde441498644608424cfc1ed0cf986a26ae24",
+            "sourceKind": "committed",
+            "note": "155/155; TS cancel/scrap cases replaced with native-only fail-closed assertions."
+          },
+          {
+            "command": "bun scripts/testing/test.ts integration --suite=manufacturing.production.integration",
+            "result": "failed",
+            "sourceSha": "a70cde441498644608424cfc1ed0cf986a26ae24",
+            "sourceKind": "committed",
+            "note": "39/40 pass. The single failure is a pre-existing environment assertion: tests/integration/manufacturing/production.test.ts:1190 expects pg_dump '18.6' but the installed binary reports '18.7 (Homebrew)'. All cancel/scrap/capacity-release cases pass."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a70cde441498644608424cfc1ed0cf986a26ae24",
+            "sourceKind": "committed",
+            "before": 1942,
+            "after": 1941,
+            "note": "Deleted packages/server-planning/src/adapters/production-command-sources.ts prepareCapacityRelease after switching cancel/scrap to the native owner; global 1942->1941, planning 14->13. Residual 1941 remains classified to open retire tasks; this packet is not closed."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "PARTIAL LANDED at a70cde441: native cancel/scrap actions, route authority, TS capacity-release writer deletion, oracle updates, KPI 1942->1941 (planning 14->13); checks recorded with before/after. BLOCKED for full retire.planning.production-command-sources closure: 13 planning writes remain in scenarios.ts/resources.ts, their production/test consumers still import them and the TS production-services oracle must move to the native-seeded harness. removalTaskId=retire.planning.production-command-sources (scope/allowedPaths just refined to include application/adapters/tests-support/fixtures), removalCondition=all 13 planning writes deleted with native route authority and a native-seeded oracle and check after=0. Environment blocker: ERPX_NATIVE_PLANNING_CONFIG and ERPX_NATIVE_MANUFACTURING_CONFIG absent in authorized dev, native 127.0.0.1:3198 not listening; no authenticated browser verification. Integration suite 39/40 with one pre-existing pg_dump 18.7-vs-18.6 assertion.",
+        "handoff": {
+          "runId": "run-20261120-k",
+          "agentId": "lead",
+          "at": "2026-11-20T09:43:18.752Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "PARTIAL LANDED at a70cde441: native cancel/scrap actions, route authority, TS capacity-release writer deletion, oracle updates, KPI 1942->1941 (planning 14->13); checks recorded with before/after. BLOCKED for full retire.planning.production-command-sources closure: 13 planning writes remain in scenarios.ts/resources.ts, their production/test consumers still import them and the TS production-services oracle must move to the native-seeded harness. removalTaskId=retire.planning.production-command-sources (scope/allowedPaths just refined to include application/adapters/tests-support/fixtures), removalCondition=all 13 planning writes deleted with native route authority and a native-seeded oracle and check after=0. Environment blocker: ERPX_NATIVE_PLANNING_CONFIG and ERPX_NATIVE_MANUFACTURING_CONFIG absent in authorized dev, native 127.0.0.1:3198 not listening; no authenticated browser verification. Integration suite 39/40 with one pre-existing pg_dump 18.7-vs-18.6 assertion."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -46743,7 +46913,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 235,
+      "totalPackets": 237,
       "migratedPackets": 131,
       "statusCounts": {
         "pending": 21,
@@ -46751,13 +46921,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 131,
-        "blocked": 83,
+        "blocked": 85,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 139,
-    "updatedAt": "2026-11-20T09:19:31.891Z",
+    "updatedAt": "2026-11-20T09:43:24.717Z",
     "handoff": {
       "fromRun": "run-20261120-k",
       "completedTaskIds": [
