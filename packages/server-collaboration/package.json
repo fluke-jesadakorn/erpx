@@ -293,7 +293,8 @@
     "./adapters/native-finance-invoice-lines": "./src/adapters/native-finance-invoice-lines.ts",
     "./adapters/native-finance-expansion-evidence": "./src/adapters/native-finance-expansion-evidence.ts",
     "./adapters/native-finance-commerce-facts": "./src/adapters/native-finance-commerce-facts.ts",
-    "./adapters/native-finance-payroll-remittance": "./src/adapters/native-finance-payroll-remittance.ts"
+    "./adapters/native-finance-payroll-remittance": "./src/adapters/native-finance-payroll-remittance.ts",
+    "./adapters/native-finance-pos-facts": "./src/adapters/native-finance-pos-facts.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -3534,3 +3534,17 @@ pub async fn finance_payroll_remittance_match_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance/POS: upsert a daily customer party.
+pub async fn finance_pos_party_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,phone,notification_email,address_json,created_at,updated_at) VALUES(?,?,'customer',?,?,?,'active',?,?,?::jsonb,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
