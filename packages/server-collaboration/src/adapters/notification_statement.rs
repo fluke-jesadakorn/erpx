@@ -6148,3 +6148,50 @@ mod tech_provision_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for leave self-service statements.
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_1: &str = "INSERT INTO leave_requests(id,number,employee_id,person_id,engagement_id,company_id,branch_id,department_id,start_date,days,handover_note,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_2: &str = "UPDATE leave_requests SET start_date=?,days=?,handover_note=?,leave_type_id=?,end_date=?,start_segment=?,end_segment=?,policy_version_id=?,calculated_units=?,calculation_snapshot=?::jsonb,\n    evidence_policy_snapshot=?::jsonb,evidence_due_at=?,submitted_at=CASE WHEN ?='pending_approval' THEN ? ELSE submitted_at END,\n    state=?,version=?,prepared_by=?,decided_by=NULL,decision_note=NULL,last_command_id=?,updated_at=? WHERE id=?";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_3: &str = "DELETE FROM leave_day_segments WHERE request_id=?";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_4: &str = "INSERT INTO leave_day_segments(id,request_id,company_id,leave_date,segment,units,source) VALUES(?,?,?,?,?,?,?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_5: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at) VALUES(?,?,?,?,?,'reservation',?,?,?,?,?,?,?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_6: &str = "INSERT INTO leave_types(id,company_id,code,name,description,tracked,evidence_after_units,evidence_note,effective_from,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_7: &str = "INSERT INTO leave_holiday_calendars(id,company_id,name,timezone,created_by,created_at) VALUES(?,?,?,?,?,?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_8: &str = "INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,effective_to,timezone,workweek_json,allow_negative,created_by,created_at) VALUES(?,?,?,?,?,'active',?,?,?,?::jsonb,?,?,?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_9: &str = "INSERT INTO leave_policy_rules(\n      policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,accrual_period,carryover_limit,employee_eligible,contractor_eligible,\n      evidence_min_units,evidence_purpose,evidence_min_count,evidence_due_stage,evidence_grace_days,evidence_note,evidence_privacy\n    ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'requester_approvers_hr' WHERE EXISTS(SELECT 1 FROM leave_types WHERE id=? AND company_id=?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_10: &str = "INSERT INTO leave_holidays(id,calendar_id,holiday_date,name) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM leave_holiday_calendars WHERE id=? AND company_id=?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_11: &str = "UPDATE leave_policy_assignments SET effective_to=? WHERE id=?";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_12: &str = "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,holiday_calendar_id,effective_from,effective_to,created_by,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?)";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_13: &str = "UPDATE leave_policy_assignments SET effective_to=?,version=version+1 WHERE id=? AND company_id=?";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_14: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,command_key,note,created_by,created_at) VALUES(?,?,?,?,'adjustment',?,?,?,?,?,?) ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING";
+pub const LEAVE_SS_SQL_LEAVE_SS_STMT_15: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,command_key,note,created_by,created_at)\n    SELECT ?,?,?,?,?,?,?,?,?,'system:leave-accrual',? WHERE ${scheduledFeaturePredicate(\"?\", \"people_payroll\")}\n    ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING";
+
+#[cfg(test)]
+mod leave_self_service_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn leave_self_service_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-leave-self-service-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid leave self-service SQL contract");
+        let pairs = [
+            ("leave_ss_stmt_1", LEAVE_SS_SQL_LEAVE_SS_STMT_1),
+            ("leave_ss_stmt_2", LEAVE_SS_SQL_LEAVE_SS_STMT_2),
+            ("leave_ss_stmt_3", LEAVE_SS_SQL_LEAVE_SS_STMT_3),
+            ("leave_ss_stmt_4", LEAVE_SS_SQL_LEAVE_SS_STMT_4),
+            ("leave_ss_stmt_5", LEAVE_SS_SQL_LEAVE_SS_STMT_5),
+            ("leave_ss_stmt_6", LEAVE_SS_SQL_LEAVE_SS_STMT_6),
+            ("leave_ss_stmt_7", LEAVE_SS_SQL_LEAVE_SS_STMT_7),
+            ("leave_ss_stmt_8", LEAVE_SS_SQL_LEAVE_SS_STMT_8),
+            ("leave_ss_stmt_9", LEAVE_SS_SQL_LEAVE_SS_STMT_9),
+            ("leave_ss_stmt_10", LEAVE_SS_SQL_LEAVE_SS_STMT_10),
+            ("leave_ss_stmt_11", LEAVE_SS_SQL_LEAVE_SS_STMT_11),
+            ("leave_ss_stmt_12", LEAVE_SS_SQL_LEAVE_SS_STMT_12),
+            ("leave_ss_stmt_13", LEAVE_SS_SQL_LEAVE_SS_STMT_13),
+            ("leave_ss_stmt_14", LEAVE_SS_SQL_LEAVE_SS_STMT_14),
+            ("leave_ss_stmt_15", LEAVE_SS_SQL_LEAVE_SS_STMT_15),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "leave self-service SQL contract drift: {key}");
+        }
+    }
+}

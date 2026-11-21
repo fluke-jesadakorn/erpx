@@ -344,7 +344,8 @@
     "./adapters/native-finance-ai-sql": "./src/adapters/native-finance-ai-sql.ts",
     "./adapters/native-expense-effects-sql": "./src/adapters/native-expense-effects-sql.ts",
     "./adapters/native-finance-main-sql": "./src/adapters/native-finance-main-sql.ts",
-    "./adapters/native-tech-provision-sql": "./src/adapters/native-tech-provision-sql.ts"
+    "./adapters/native-tech-provision-sql": "./src/adapters/native-tech-provision-sql.ts",
+    "./adapters/native-leave-self-service-sql": "./src/adapters/native-leave-self-service-sql.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
