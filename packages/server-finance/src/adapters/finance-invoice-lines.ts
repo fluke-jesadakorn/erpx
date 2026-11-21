@@ -1,5 +1,6 @@
 import{currentInvoiceLines}from '@erpx/server-finance/public/invoice-line-read';
 import "server-only";
+import { financeInvoiceLines } from '@erpx/server-collaboration/adapters/native-finance-invoice-lines';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -17,7 +18,12 @@ export async function prepareInvoiceLineRevision(db: SqlDatabase, actor: WorkCon
         ...accounts.map((account, index) => assertion(db, commandId, `line-account-${index}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND status='active' AND version=?)", [account.id, actor.companyId, account.version])),
         assertion(db, commandId, "line-party", "EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND version=? AND status='active')", [input.partyId, actor.companyId, Number(party.version)]),
     ];
-    const steps: SqlStatement[] = rows.map((line, ordinal) => db.prepare(`INSERT INTO finance_invoice_line_versions(id,company_id,invoice_id,source_version,ordinal,description,quantity_millis,unit_price_minor,tax_bps,subtotal_minor,tax_minor,total_minor,currency,account_id,tax_account_id,source_snapshot_json,origin_kind,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(`${invoiceId}:v${revision}:${ordinal}`, actor.companyId, invoiceId, revision, ordinal, line.description, line.quantityMillis, line.unitPriceMinor, line.taxBps, line.subtotalMinor, line.taxMinor, line.totalMinor, input.currency, line.accountId, line.taxAccountId, JSON.stringify({ schema: "finance.invoice.line.v1", companyId: actor.companyId, invoiceDate: input.invoiceDate, invoiceNumber: input.invoiceNumber, kind: input.kind, taxCode: input.taxCode ?? null, party, netAccount: byId.get(line.accountId), taxAccount: line.taxAccountId ? byId.get(line.taxAccountId) : null, controlAccount: byId.get(controlAccount) }), plan.mode === "native_lines" ? "native_line" : "whole_document", actor.userId, now));
+    const steps: SqlStatement[] = await Promise.all(rows.map(async (line, ordinal) => {
+      const id = `${invoiceId}:v${revision}:${ordinal}`;
+      const snapshot = { schema: "finance.invoice.line.v1", companyId: actor.companyId, invoiceDate: input.invoiceDate, invoiceNumber: input.invoiceNumber, kind: input.kind, taxCode: input.taxCode ?? null, party, netAccount: byId.get(line.accountId), taxAccount: line.taxAccountId ? byId.get(line.taxAccountId) : null, controlAccount: byId.get(controlAccount) };
+      const values = [id, actor.companyId, invoiceId, revision, ordinal, line.description, line.quantityMillis, line.unitPriceMinor, line.taxBps, line.subtotalMinor, line.taxMinor, line.totalMinor, input.currency, line.accountId, line.taxAccountId, JSON.stringify(snapshot), plan.mode === "native_lines" ? "native_line" : "whole_document", actor.userId, now];
+      return await financeInvoiceLines(db, actor.companyId).version(id, values);
+    }));
     const snapshot = await snapshotMoney(db, actor, { sourceType: "finance_invoice", sourceId: invoiceId, amountKind: `draft:v${revision}`, transactionDate: input.invoiceDate, currency: input.currency, currencyScale: 2, amountUnits: String(amounts.subtotal + amounts.tax) });
     steps.push(snapshot.statement);
     return { guards, steps, mode: plan.mode, revision, count: rows.length };
