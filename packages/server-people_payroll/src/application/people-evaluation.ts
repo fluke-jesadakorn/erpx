@@ -22,7 +22,7 @@ type PortResult<Value, Effect> = Value extends Promise<infer Result> ? Promise<P
     [Key in keyof Value]: PortResult<Value[Key], Effect>;
 } : Value;
 export interface PeopleEvaluationRepository<Effect> {
-    stageEvaluationAuthorityEffect(key: string): Effect;
+    stageEvaluationAuthorityEffect(key: string, companyId: string): Promise<Effect>;
     readEvaluationEmployeesRows(companyId: string, userId: string, companyId2: string, companyId3: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null, role: string): Promise<{
         results: (Row)[];
     }>;
@@ -694,7 +694,7 @@ export function createPeopleEvaluationRead<Effect>(ports:PeopleEvaluationReadPor
         ports.authorize(actor, permission);
         const key = ports.ids.newId();
         try {
-            await ports.batch([...ports.authorityGuards(actor, key), repository.stageEvaluationAuthorityEffect(key)]);
+            await ports.batch([...ports.authorityGuards(actor, key), await repository.stageEvaluationAuthorityEffect(key, actor.companyId)]);
         }
         catch {
             throw new BusinessRuleError(403, "EVALUATION_ACCESS_CHANGED", "Your evaluation access changed. Reload your work role.");

@@ -71,7 +71,7 @@ export interface ApprovalsRepository<Effect> {
     stageInitializeLegacyApprovalEffect4(key: string, id: string, version: number, key2: string, now: number): Effect;
     stageInitializeLegacyApprovalEffect5(key: string, key2: string, value: "system", value2: "system", value3: "approval.initialize", record_type: ApprovalKind, record_id: string, value4: number, value5: "Initialize route; no historical approval inferred", now: number): Effect;
     stageInitializeLegacyApprovalEffect6(key: string, key2: string, value: string, record_type: ApprovalKind, record_id: string, value2: number, value3: string, now: number): Effect;
-    stageInitializeLegacyApprovalEffect7(key: string): Effect;
+    stageInitializeLegacyApprovalEffect7(key: string, companyId: string): Promise<Effect>;
     guard26(key: string, label: string, approver_user_id: string, company_id: string, authority: "named" | "department" | "hr_admin" | "holding_owner", now: number, now2: number, authority2: "named" | "department" | "hr_admin" | "holding_owner", branch_id: string | null, department_id: string | null): Effect;
     readApprovalViewActiveScope(assignmentId: string, userId: string, companyId: string, role: string, now: number, now2: number, policyStep: boolean, branch_id: string | null, department_id: string | null): Promise<Record<string, unknown> | null>;
     readApprovalViewHistory(kind: "expense" | "leave" | "leave_cancellation" | "overtime" | "task", id: string, companyId: string): Promise<{
@@ -312,7 +312,7 @@ async function initializeLegacyApproval(instance: ApprovalInstance): Promise<App
                     version: record.version + 1,
                 }), now),
                 await ports.notification(route.scope, route.steps[0].userId, instance.record_type, instance.record_id, instance.version, "Request approval needs your decision"),
-                r.stageInitializeLegacyApprovalEffect7(key),
+                await r.stageInitializeLegacyApprovalEffect7(key, instance.company_id),
             ]);
         }
         catch (error) {

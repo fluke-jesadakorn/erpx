@@ -37,7 +37,7 @@ type PortResult<Value, Effect> = Value extends Promise<infer Result> ? Promise<P
     [Key in keyof Value]: PortResult<Value[Key], Effect>;
 } : Value;
 export interface GuidedIntakeRepository<Effect> {
-    stageCheckAuthorityEffect(key: string): Effect;
+    stageCheckAuthorityEffect(key: string, companyId: string): Promise<Effect>;
     readPrepareGuidedIntakePrevious(id: string): Promise<{
         user_id: string;
         company_id: string;
@@ -54,7 +54,7 @@ export interface GuidedIntakeRepository<Effect> {
     guard3(id: string, value: "assistant-rate", companyId: string, value2: number): Effect;
     guard4(id: string, value: "assistant-quota", companyId: string, value2: number, companyId2: string, month: string, companyId3: string, month2: string, companyId4: string, month3: string, companyId5: string): Effect;
     stagePrepareGuidedIntakeEffect(id: string, companyId: string, userId: string, assignmentId: string, value: string, value2: string, message: string, value3: string, now: number, now2: number, sessionId: string): Effect;
-    stagePrepareGuidedIntakeEffect2(id: string): Effect;
+    stagePrepareGuidedIntakeEffect2(id: string, companyId: string): Promise<Effect>;
     stagePrepareGuidedIntakeEffect3(value: string, sourcesJson: string, now: number, id: string): Effect;
     stagePrepareGuidedIntakeEffect4(value: string, now: number, id: string): Effect;
 }
@@ -106,7 +106,7 @@ export function createGuidedIntakeApplication<Effect>(ports: GuidedIntakePorts<E
     async function checkAuthority(actor: WorkContext) {
         const key = ports.identifiers.next();
         try {
-            await ports.batch([...ports.workContextGuards(actor, key), ...ports.iamMutationGuards(actor, key), r.stageCheckAuthorityEffect(key)]);
+            await ports.batch([...ports.workContextGuards(actor, key), ...ports.iamMutationGuards(actor, key), await r.stageCheckAuthorityEffect(key, actor.companyId)]);
         }
         catch {
             throw new BusinessRuleError(409, "WORK_CONTEXT_CHANGED", "Your access changed. Reload before using the assistant.");
@@ -164,7 +164,7 @@ export function createGuidedIntakeApplication<Effect>(ports: GuidedIntakePorts<E
             ports.aiRequestQuotaLock(actor.companyId),
             r.guard4(id, "assistant-quota", actor.companyId, Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), 1), actor.companyId, month, actor.companyId, month, actor.companyId, month, actor.companyId),
             r.stagePrepareGuidedIntakeEffect(id, actor.companyId, actor.userId, actor.assignmentId, scopeKey(actor), `intake:${context.path}`, input.message, JSON.stringify([context.path]), now, now, governance.sessionId),
-            r.stagePrepareGuidedIntakeEffect2(id),
+            await r.stagePrepareGuidedIntakeEffect2(id, actor.companyId),
         ]);
         try {
             const generated = await generate({ ...ports.withAiGatewayScope(provider.endpoint, id, "guided-intake", actor.branchId), sessionId: await ports.sha256(governance.sessionId) }, [

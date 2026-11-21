@@ -33,7 +33,7 @@ export interface ExecutiveGenerationRepository<Effect> {
     guard6(key: string, value: "executive-concurrency", companyId: string): Effect;
     guard7(key: string, value: "executive-quota", companyId: string, start: number, companyId2: string, start2: number, companyId3: string, month: string, companyId4: string, month2: string, companyId5: string, month3: string, companyId6: string): Effect;
     source7(key: string, id: string, companyId: string, userId: string, assignmentId: string, value: string, question: string, value2: string, value3: string, value4: string, now: number, now2: number): Effect;
-    source8(key: string): Effect;
+    source8(key: string, companyId: string): Promise<Effect>;
     source9(now: number, jobId: string, id: string, userId: string, assignmentId: string): Effect;
     source10(now: number, now2: number): Promise<{
         success: boolean;
@@ -46,9 +46,9 @@ export interface ExecutiveGenerationRepository<Effect> {
     source11(token: string, value: number, now: number): Promise<Job | null>;
     guard13(id: string, value: "generation-lease", id2: string, token: string, now: number): Effect;
     source13(value: string, now: number, id: string): Effect;
-    source14(id: string): Effect;
+    source14(id: string, companyId: string): Promise<Effect>;
     source15(value: string, now: number, id: string, token: string): Effect;
-    source16(value: string): Effect;
+    source16(value: string, companyId: string): Promise<Effect>;
 }
 export interface ExecutiveGenerationPorts<Effect> {
     repository: ExecutiveGenerationRepository<Effect>;
@@ -101,7 +101,7 @@ export function createExecutiveGenerationApplication<Effect>(ports: ExecutiveGen
             ports.aiRequestQuotaLock(a.companyId),
             r.guard7(key, "executive-quota", a.companyId, start, a.companyId, start, a.companyId, month, a.companyId, month, a.companyId, month, a.companyId),
             r.source7(key, id, a.companyId, a.userId, a.assignmentId, executiveScope(a), input.question, JSON.stringify({ ...input, definition: x.definition, filters: x.filters, version: x.r.version }), JSON.stringify(a), JSON.stringify(provider.snapshot), now, now),
-            r.source8(key),
+            await r.source8(key, a.companyId),
         ]);
     }
     async function cancelGeneration(a: WorkContext, id: string, jobId: string, key: string) {
@@ -163,7 +163,7 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
                 ports.aiSnapshotGuard(`${j.id}:complete`, provider.snapshot),
                 r.source13(JSON.stringify(proposal), ports.clock.now(), j.id),
                 ports.aiUsageStatement(j.id, provider.snapshot, "executive-canvas", "succeeded", result.inputTokens, result.outputTokens, a.branchId),
-                r.source14(j.id),
+                await r.source14(j.id, j.company_id),
             ]);
         }
         catch (e) {
@@ -173,7 +173,7 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
                 ...ports.generationFeatureGuards(`${j.id}:failed`, j.company_id),
                 r.source15(e instanceof BusinessRuleError ? e.message : "AI could not produce a valid English report. Your saved report is unchanged. Try a simpler request.", ports.clock.now(), j.id, token),
                 ...(provider ? [ports.aiUsageStatement(j.id, provider.snapshot, "executive-canvas", "failed", 0, 0, (JSON.parse(j.actor_json) as WorkContext).branchId)] : []),
-                r.source16(`${j.id}:failed`),
+                await r.source16(`${j.id}:failed`, j.company_id),
             ]);
         }
         return true;

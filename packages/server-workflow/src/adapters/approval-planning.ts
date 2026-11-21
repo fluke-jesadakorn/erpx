@@ -1,5 +1,6 @@
 
 import {workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections} from "@erpx/server-people_payroll/public/workflow-final-owner-projections";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import { createApprovalsSourceRepository as organization_approvals } from '@erpx/server-organization/public/workflow-approvals-facts';
 import { createApprovalsSourceRepository as identity_access_approvals } from '@erpx/server-identity_access/public/workflow-approvals-facts';
 import { createApprovalsSourceRepository as people_payroll_approvals } from '@erpx/server-people_payroll/public/workflow-approvals-facts';
@@ -98,7 +99,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
             return database.prepare("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES(?,?,?,?,?,?,?,?)")
                 .bind(key, key2, value, record_type, record_id, value2, value3, now);
         },
-        stageInitializeLegacyApprovalEffect7(key: string) { return database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key); },
+        stageInitializeLegacyApprovalEffect7(key: string, companyId: string) { return nativeClearCommandAssertions(database, companyId, key); },
         guard26(key: string, label: string, approver_user_id: string, company_id: string, authority: "named" | "department" | "hr_admin" | "holding_owner", now: number, now2: number, authority2: "named" | "department" | "hr_admin" | "holding_owner", branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard26(key, label, approver_user_id, company_id, authority, now, now2, authority2, branch_id, department_id); },
         readApprovalViewActiveScope(assignmentId: string, userId: string, companyId: string, role: string, now: number, now2: number, policyStep: boolean, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).readApprovalViewActiveScope(assignmentId, userId, companyId, role, now, now2, policyStep, branch_id, department_id); },
         readApprovalViewHistory(kind: "expense" | "leave" | "leave_cancellation" | "overtime" | "task", id: string, companyId: string) {
