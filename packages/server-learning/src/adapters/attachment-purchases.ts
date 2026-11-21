@@ -32,7 +32,7 @@ export async function learningAttachmentPurchaseScope(database:SqlDatabase,actor
 export async function authorizeLearningAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){
  const scope=await learningAttachmentPurchaseScope(database,actor,type,id);if(!scope)return;
  const key=`learning-file-read:${randomUUID()}`;
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
  await checkPurchasedCapability(database,await learningPackageEnforcementMode(),{companyId:scope.companyId,capability:scope.capability,purpose:operation==="read"?"history":scope.purpose});
 }
 export async function learningAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly LearningAttachmentPurchase[]){

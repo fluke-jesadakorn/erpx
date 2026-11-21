@@ -54,7 +54,7 @@ export async function withAssetPurchasedCommand<Result>(actor:WorkContext,comman
   await checkPurchasedCapability(database,mode,purchase);await authority(database,actor,command.permissions,key);
   if(!command.creating&&!await source(database,actor,command.target))throw new ApiError(404,"ASSETS_SOURCE_NOT_FOUND","The actual Assets or Maintenance source was not found in this workspace.");
   const boundary=purchaseCommandBoundary(database,mode,key,purchase)!;await database.batch(boundary.before);const result=await run(database),witness=await source(database,actor,command.target);if(!witness)throw new ApiError(409,"ASSETS_SOURCE_CHANGED","The actual owner source changed.");
-  composition.checks.push(async()=>{await authority(database,actor,command.permissions,key);const observed=await database.batch([assertion(database,key,"assets-owner-source",`(${sourceQuery(command.target)})=?`,[...sourceArgs(actor,command.target),witness]),...boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);boundary.observe?.(observed);});return result;
+  composition.checks.push(async()=>{await authority(database,actor,command.permissions,key);const observed=await database.batch([assertion(database,key,"assets-owner-source",`(${sourceQuery(command.target)})=?`,[...sourceArgs(actor,command.target),witness]),...boundary.after,await nativeClearCommandAssertions(database, actor.companyId, key)]);boundary.observe?.(observed);});return result;
  };
  try{
   if(provided)return await execute(provided);

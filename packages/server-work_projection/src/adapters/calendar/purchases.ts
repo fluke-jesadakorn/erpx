@@ -101,6 +101,6 @@ export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase
   if(await database.prepare(`SELECT version FROM ${kind(input)==='appointment'?'calendar_appointments':'calendar_announcements'} WHERE id=? AND company_id=?`).bind(resultId,actor.companyId).first<number>('version')!==result.version&&!receipt)throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The original Calendar acknowledgement no longer matches its source.');
   await flushFinanceDeferredEffects(database);
   for(let i=0;i<ids.length;i++)if(!completed[i]||await image(database,actor.companyId,kind(input),ids[i])!==completed[i])throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The completed Calendar source changed during deferred effects.');
-  await current(database,actor,guard,true);await ready(database,actor);await recordAuthority(database,actor,input,resultId,true);if(queued)await requireQueuedAccountAuthority(database,queued);const results=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(guard)]);boundary.observe?.(results);return result;
+  await current(database,actor,guard,true);await ready(database,actor);await recordAuthority(database,actor,input,resultId,true);if(queued)await requireQueuedAccountAuthority(database,queued);const results=await database.batch([...boundary.after,await nativeClearCommandAssertions(database, actor.companyId, guard)]);boundary.observe?.(results);return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}
 }

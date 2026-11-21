@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority,requireQueuedAccountAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -37,7 +38,7 @@ export async function withMessagingPurchasedCommand<Result>(owner:SqlDatabase,ac
   if(!command.companyScope)unit.targets.add(command.id);
   const replay=command.isReplay?await command.isReplay(database):!!await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND record_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,actor.userId,command.id,actor.companyId).first(),purpose=replay?'history' as const:typeof command.purpose==='function'?await command.purpose(database):command.purpose,scope={companyId:actor.companyId,capability:'work.messages',purpose},key=`messages-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope);
   const bound=await requireQueuedAccountAuthority(database,actor);await requireMessagingPurchase(database,bound,purpose);if(boundary)await database.batch(boundary.before);const result=await run(database),completed=await image(database,actor.companyId,command.id,command.team,command.companyScope);
-  unit.checks.push(async()=>{if(completed!==await image(database,actor.companyId,command.id,command.team,command.companyScope))throw new ApiError(409,'MESSAGING_SOURCE_CHANGED','The completed original conversation changed during deferred effects.');await requireQueuedAccountAuthority(database,bound);await requireMessagingPurchase(database,bound,purpose);const observations=await database.batch([...(boundary?.after??[]),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary?.observe?.(observations);});return result;
+  unit.checks.push(async()=>{if(completed!==await image(database,actor.companyId,command.id,command.team,command.companyScope))throw new ApiError(409,'MESSAGING_SOURCE_CHANGED','The completed original conversation changed during deferred effects.');await requireQueuedAccountAuthority(database,bound);await requireMessagingPurchase(database,bound,purpose);const observations=await database.batch([...(boundary?.after??[]),await nativeClearCommandAssertions(database, actor.companyId, key)]);boundary?.observe?.(observations);});return result;
  }
 }
 
