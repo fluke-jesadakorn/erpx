@@ -86,7 +86,7 @@ recordFailure:async(facts)=>{const {actor,id,claimed,provider,stale,message,inpu
 pending:async(now)=>(await db.prepare("SELECT id FROM finance_ai_proposals WHERE attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) ORDER BY created_at,id LIMIT 2").bind(now).all<{ id: string }>()).results,
 exhausted:async(now)=>{return db.batch([
     db.prepare(nativeFinanceAiSql('ai_stmt_12')).bind(now, now),
-    db.prepare("UPDATE finance_ai_usage SET state='failed',lease_until=0 WHERE state='reserved' AND proposal_id IN (SELECT id FROM finance_ai_proposals WHERE state IN ('failed','stale','dismissed'))"),
+    db.prepare(nativeFinanceAiSql('ai_stmt_18')),
   ]);},
 proposals:async(actor)=>(await db.prepare("SELECT * FROM finance_ai_proposals WHERE company_id=? ORDER BY updated_at DESC,id LIMIT 30").bind(actor.companyId).all<FinanceAiProposal>()).results,
 events:async(actor)=>(await db.prepare("SELECT proposal_id,action,evidence_json,created_at FROM finance_ai_events WHERE company_id=? AND proposal_id IS NOT NULL ORDER BY created_at DESC LIMIT 120").bind(actor.companyId).all<{proposal_id:string;action:string;evidence_json:string;created_at:number}>()).results,

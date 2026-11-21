@@ -5923,6 +5923,7 @@ pub const FINANCE_AI_SQL_AI_STMT_14: &str = "UPDATE finance_ai_policies SET next
 pub const FINANCE_AI_SQL_AI_STMT_15: &str = "UPDATE finance_ai_policies SET last_error=NULL WHERE company_id=? AND version=?";
 pub const FINANCE_AI_SQL_AI_STMT_16: &str = "UPDATE finance_ai_policies SET last_error=?,next_scan_at=? WHERE company_id=? AND version=?";
 pub const FINANCE_AI_SQL_AI_STMT_17: &str = "UPDATE finance_ai_proposals SET state='applied',draft_command_id=?,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_AI_SQL_AI_STMT_18: &str = "UPDATE finance_ai_usage SET state='failed',lease_until=0 WHERE state='reserved' AND proposal_id IN (SELECT id FROM finance_ai_proposals WHERE state IN ('failed','stale','dismissed'))";
 
 #[cfg(test)]
 mod finance_ai_sql_contract_tests {
@@ -5949,6 +5950,7 @@ mod finance_ai_sql_contract_tests {
             ("ai_stmt_15", FINANCE_AI_SQL_AI_STMT_15),
             ("ai_stmt_16", FINANCE_AI_SQL_AI_STMT_16),
             ("ai_stmt_17", FINANCE_AI_SQL_AI_STMT_17),
+            ("ai_stmt_18", FINANCE_AI_SQL_AI_STMT_18),
         ];
         for (key, native) in pairs {
             assert_eq!(parsed[key].as_str(), Some(native), "finance AI SQL contract drift: {key}");

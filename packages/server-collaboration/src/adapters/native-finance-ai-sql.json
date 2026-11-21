@@ -15,5 +15,6 @@
   "ai_stmt_14": "UPDATE finance_ai_policies SET next_scan_at=? WHERE company_id=? AND enabled AND version=? AND next_scan_at<=? RETURNING company_id",
   "ai_stmt_15": "UPDATE finance_ai_policies SET last_error=NULL WHERE company_id=? AND version=?",
   "ai_stmt_16": "UPDATE finance_ai_policies SET last_error=?,next_scan_at=? WHERE company_id=? AND version=?",
-  "ai_stmt_17": "UPDATE finance_ai_proposals SET state='applied',draft_command_id=?,version=version+1,updated_at=? WHERE id=?"
+  "ai_stmt_17": "UPDATE finance_ai_proposals SET state='applied',draft_command_id=?,version=version+1,updated_at=? WHERE id=?",
+  "ai_stmt_18": "UPDATE finance_ai_usage SET state='failed',lease_until=0 WHERE state='reserved' AND proposal_id IN (SELECT id FROM finance_ai_proposals WHERE state IN ('failed','stale','dismissed'))"
 }
