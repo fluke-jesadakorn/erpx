@@ -5495,3 +5495,93 @@ mod business_contract_sql_contract_tests {
         }
     }
 }
+
+/// Finance bank automation: native-owned bank_csv_mapping_insert statement.
+pub async fn bank_csv_mapping_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_bank_csv_mappings(id,company_id,name,columns_json,created_by,created_at) VALUES(?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_import_file_insert statement.
+pub async fn bank_import_file_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_bank_import_files(id,company_id,bank_account_id,mapping_id,file_hash,statement_id,created_at) VALUES(?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_match_group_insert statement.
+pub async fn bank_match_group_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_bank_match_groups(id,company_id,currency,status,source_hash,explanation_json,proposed_by,created_at,updated_at) VALUES(?,?,?,'proposed',?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_match_allocation_insert statement.
+pub async fn bank_match_allocation_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_bank_match_allocations(id,group_id,bank_transaction_id,target_type,target_id,amount_minor,created_at) VALUES(?,?,?,'journal_line',?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_txn_match statement.
+pub async fn bank_txn_match_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='group',matched_id=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_match_target_insert statement.
+pub async fn bank_match_target_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_bank_match_targets(journal_line_id,group_id) VALUES(?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_txn_unmatch statement.
+pub async fn bank_txn_unmatch_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='unmatched',matched_type=NULL,matched_id=NULL,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_match_target_delete statement.
+pub async fn bank_match_target_delete_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "DELETE FROM finance_bank_match_targets WHERE group_id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance bank automation: native-owned bank_match_group_decision statement.
+pub async fn bank_match_group_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_match_groups SET status=?,version=version+1,confirmed_by=CASE WHEN ?='matched' THEN ? ELSE confirmed_by END,reversed_by=CASE WHEN ?='reversed' THEN ? ELSE reversed_by END,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
