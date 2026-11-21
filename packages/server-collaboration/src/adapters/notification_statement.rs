@@ -3867,3 +3867,30 @@ pub async fn collaboration_org_room_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal: backfill specialized attachment linkage on a legal document.
+pub async fn legal_backfill_document_attachment_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_documents SET attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Legal: backfill specialized attachment linkage on an external upload.
+pub async fn legal_backfill_external_attachment_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_external_uploads SET attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
