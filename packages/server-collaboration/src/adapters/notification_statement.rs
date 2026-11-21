@@ -5585,3 +5585,133 @@ pub async fn bank_match_group_decision_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_bank_match_groups SET status=?,version=version+1,confirmed_by=CASE WHEN ?='matched' THEN ? ELSE confirmed_by END,reversed_by=CASE WHEN ?='reversed' THEN ? ELSE reversed_by END,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance tax register: native-owned tax_entry_insert statement.
+pub async fn tax_entry_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_tax_entries(id,company_id,chart_id,financial_event_id,tax_account_id,source_type,source_id,source_version,original_entry_id,direction,document_date,accounting_date,tax_point_date,claim_month,document_reference,treatment,deductible_bps,taxable_minor,tax_minor,deductible_minor,source_hash,evidence_json,prepared_by,created_at,replaces_entry_id,correction_id)\n      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned tax_package_event statement.
+pub async fn tax_package_event_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_statutory_package_events VALUES(?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned tax_entry_decision statement.
+pub async fn tax_entry_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_tax_entries SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned vat_correction_insert statement.
+pub async fn vat_correction_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_vat_corrections(id,company_id,chart_id,root_entry_id,family_source_id,reason,family_evidence_json,prepared_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned tax_entry_correction_decision statement.
+pub async fn tax_entry_correction_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_tax_entries SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE correction_id=? AND status='prepared'".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned vat_correction_decision statement.
+pub async fn vat_correction_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_vat_corrections SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned calc_run_insert statement.
+pub async fn calc_run_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_calculation_runs(id,company_id,holding_id,kind,policy_version,currency,currency_scale,source_hash,input_json,result_json,explanation_json,status,prepared_by,created_at,updated_at) VALUES(?,?,?,'thai_statutory',1,'THB',2,?,?,?,?,'prepared',?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned statutory_package_insert statement.
+pub async fn statutory_package_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_statutory_packages(id,company_id,jurisdiction,form_code,filing_kind,calculation_run_id,status,schema_version,effective_date,prepared_by,created_at,updated_at,chart_id,filing_month,source_hash,snapshot_json,original_package_id,evidence_json) VALUES(?,?,'TH','PP30',?,?,'prepared','erpx-pp30-workpaper-v1',?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned statutory_package_approve statement.
+pub async fn statutory_package_approve_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_statutory_packages SET status='approved_for_export',version=version+1,reviewed_by=?,approved_by=?,review_reason=?,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned calc_run_approve statement.
+pub async fn calc_run_approve_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_calculation_runs SET status='approved',version=version+1,reviewed_by=?,approved_by=?,updated_at=? WHERE id=? AND status='prepared'".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned statutory_package_export statement.
+pub async fn statutory_package_export_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_statutory_packages SET status='exported',version=version+1,export_content=?,export_hash=?,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned statutory_package_file statement.
+pub async fn statutory_package_file_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_statutory_packages SET status='filed',version=version+1,filing_reference=?,filed_at=?,evidence_json=(evidence_json::jsonb||?::jsonb)::text,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance tax register: native-owned statutory_package_supersede statement.
+pub async fn statutory_package_supersede_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_statutory_packages SET status='superseded',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}

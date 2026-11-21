@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceTaxRegister } from '@erpx/server-collaboration/adapters/native-finance-tax-register';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import {financeTaxSourceVersion} from "@erpx/server-commerce/public/finance-tax-source-version";
 import {financeOwnedSnapshotSources as commerceSnapshotSources} from "@erpx/server-commerce/public/finance-owned-snapshot-sources";
@@ -64,9 +65,8 @@ function sourceGuards(write: SqlDatabase, actor: WorkContext, key: string, type:
 function decision(write: SqlDatabase, actor: WorkContext, key: string, id: string, operation: string, version: number, input: unknown) {
     return financeOwnerDecisionEffects(write).appendRetainedLayoutDecision({id:crypto.randomUUID(),commandId:key,recordId:id,action:operation,actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:version,inputDigest:digest(input),createdAt:Date.now()});
 }
-function insertTaxEntry(write: SqlDatabase, actor: WorkContext, p: VatTaxEntryPlan) {
-    return write.prepare(`INSERT INTO finance_tax_entries(id,company_id,chart_id,financial_event_id,tax_account_id,source_type,source_id,source_version,original_entry_id,direction,document_date,accounting_date,tax_point_date,claim_month,document_reference,treatment,deductible_bps,taxable_minor,tax_minor,deductible_minor,source_hash,evidence_json,prepared_by,created_at,replaces_entry_id,correction_id)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(p.id, actor.companyId, p.chartId, p.financialEventId, p.taxAccountId, p.sourceType, p.sourceId, p.sourceVersion, p.originalEntryId, p.direction, p.documentDate, p.accountingDate, p.taxPointDate, p.claimMonth, p.documentReference, p.treatment, p.deductibleBps, p.taxableMinor, p.taxMinor, p.deductibleMinor, p.sourceHash, p.evidenceJson, actor.userId, p.createdAt, p.replacesEntryId, p.correctionId);
+async function insertTaxEntry(write: SqlDatabase, actor: WorkContext, p: VatTaxEntryPlan) {
+    return await nativeFinanceTaxRegister(write, actor.companyId).taxEntryInsert([p.id, actor.companyId, p.chartId, p.financialEventId, p.taxAccountId, p.sourceType, p.sourceId, p.sourceVersion, p.originalEntryId, p.direction, p.documentDate, p.accountingDate, p.taxPointDate, p.claimMonth, p.documentReference, p.treatment, p.deductibleBps, p.taxableMinor, p.taxMinor, p.deductibleMinor, p.sourceHash, p.evidenceJson, actor.userId, p.createdAt, p.replacesEntryId, p.correctionId]);
 }
 async function originalVatEntry(write: SqlDatabase, actor: WorkContext, source: TaxRow) {
     return write.prepare("SELECT * FROM finance_current_tax_entries WHERE company_id=? AND source_type='invoice' AND source_id=? AND status='approved'").bind(actor.companyId, source.invoice_id).first<TaxRow>();
@@ -126,8 +126,8 @@ export function vatCloseGuards(write: SqlDatabase, actor: WorkContext, key: stri
 function registerGuard(write: SqlDatabase, actor: WorkContext, key: string, p: TaxRow, json: string) {
     return assertion(write, key, "vat-register", `(${registerJson})::jsonb=?::jsonb`, [actor.companyId, p.chart_id, p.filing_month, json]);
 }
-function packageEvent(write: SqlDatabase, actor: WorkContext, key: string, id: string, version: number, action: string, evidence: unknown) {
-    return write.prepare("INSERT INTO finance_statutory_package_events VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, key, version, action, actor.userId, JSON.stringify(evidence), Date.now());
+async function packageEvent(write: SqlDatabase, actor: WorkContext, key: string, id: string, version: number, action: string, evidence: unknown) {
+    return await nativeFinanceTaxRegister(write, actor.companyId).packageEvent([crypto.randomUUID(), id, key, version, action, actor.userId, JSON.stringify(evidence), Date.now()]);
 }
 export async function prepareVatPackage(actor: WorkContext, raw: z.infer<typeof vatPackageSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-package.prepare",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).prepareVatPackage(actor, raw, key)); }
 export async function approveVatPackage(actor: WorkContext, id: string, raw: z.infer<typeof taxReviewSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-package.approve",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).approveVatPackage(actor, id, raw, key)); }
@@ -151,14 +151,14 @@ function vatService(provided?: SqlDatabase) {
             return executeCommand(write, actor, key, "finance.tax.prepare", input, id, 1, { id, status: "prepared", version: 1, taxMinor: ledger, deductibleMinor: deductible }, [
                 ...sourceGuards(write, actor, key, input.sourceType, source),
                 assertion(write, key, "tax-family-correction", "NOT EXISTS(SELECT 1 FROM finance_vat_corrections WHERE company_id=? AND family_source_id=? AND status='prepared')", [actor.companyId, familyId]),
-                insertTaxEntry(write, actor, taxEntry),
+                await insertTaxEntry(write, actor, taxEntry),
             ]);
         }, entry: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_tax_entries WHERE id=? AND company_id=?").bind(id, actor.companyId).first<TaxRow>(); }, commitReviewVatEntry: async (facts) => {
             const { actor, key, operation, input, id, status, verifiedSource, entry } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1 }, [
                 assertion(write, key, "tax-entry", "EXISTS(SELECT 1 FROM finance_tax_entries WHERE id=? AND company_id=? AND version=? AND status='prepared')", [id, actor.companyId, input.expectedVersion]), ...(verifiedSource ? sourceGuards(write, actor, key, entry.source_type as VatSourceType, verifiedSource.source) : []),
-                write.prepare("UPDATE finance_tax_entries SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?").bind(status, actor.userId, input.reason, Date.now(), id),
+                await nativeFinanceTaxRegister(write, actor.companyId).taxEntryDecision([status, actor.userId, input.reason, Date.now(), id]),
                 decision(write, actor, key, id, operation, input.expectedVersion, input),
             ]);
         }, previousEntry: async (facts) => { const { entryId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_current_tax_entries WHERE id=? AND company_id=? AND status='approved'").bind(entryId, actor.companyId).first<TaxRow>(); }, pendingFamily: async (facts) => { const { actor, familyId } = facts; const write = await db(actor); return write.prepare("SELECT 1 FROM finance_vat_corrections WHERE company_id=? AND family_source_id=? AND status='prepared'").bind(actor.companyId, familyId).first(); }, commitPrepareVatCorrection: async (facts) => {
@@ -168,11 +168,11 @@ function vatService(provided?: SqlDatabase) {
                 familyGuard(write, actor, key, familyId, json),
                 assertion(write, key, "vat-correction-current", "EXISTS(SELECT 1 FROM finance_current_tax_entries WHERE id=? AND company_id=? AND version=? AND status='approved')", [entryId, actor.companyId, input.expectedEntryVersion]),
                 assertion(write, key, "vat-correction-volume", "(SELECT COUNT(*) FROM finance_vat_corrections WHERE company_id=? AND status='prepared')<100", [actor.companyId]),
-                write.prepare("INSERT INTO finance_vat_corrections(id,company_id,chart_id,root_entry_id,family_source_id,reason,family_evidence_json,prepared_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, previous.chart_id, entryId, familyId, input.reason, json, actor.userId, Date.now()),
-                ...members.flatMap((member, index) => [
+                await nativeFinanceTaxRegister(write, actor.companyId).vatCorrectionInsert([id, actor.companyId, previous.chart_id, entryId, familyId, input.reason, json, actor.userId, Date.now()]),
+                ...(await Promise.all(members.map(async (member, index) => [
                     ...sourceGuards(write, actor, key, member.facts.sourceType, member.current.source, `replacement-${index}-`),
-                    insertTaxEntry(write, actor, taxEntries[index]),
-                ]),
+                    await insertTaxEntry(write, actor, taxEntries[index]),
+                ]))).flat(),
             ]);
         }, replacementEntries: async (facts) => { const { id, actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_tax_entries WHERE correction_id=? ORDER BY id").bind(id).all<TaxRow>()).results; }, commitReviewVatCorrection: async (facts) => {
             const { actor, key, operation, input, id, status, entries, verifiedFamilyJson, correction, verifiedSources, now } = facts;
@@ -180,8 +180,8 @@ function vatService(provided?: SqlDatabase) {
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1, entryCount: entries.length }, [
                 assertion(write, key, "vat-correction-version", "EXISTS(SELECT 1 FROM finance_vat_corrections WHERE id=? AND company_id=? AND status='prepared' AND version=?)", [id, actor.companyId, input.expectedVersion]),
                 assertion(write, key, "vat-correction-entries", "COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_tax_entries t WHERE correction_id=?),'[]'::jsonb)=?::jsonb", [id, JSON.stringify(entries)]), ...(verifiedFamilyJson !== null ? [familyGuard(write, actor, key, String(correction.family_source_id), verifiedFamilyJson), ...verifiedSources.flatMap((current, index) => sourceGuards(write, actor, key, entries[index].source_type as VatSourceType, current.source, `replacement-${index}-`))] : []),
-                write.prepare("UPDATE finance_tax_entries SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE correction_id=? AND status='prepared'").bind(status, actor.userId, input.reason, now, id),
-                write.prepare("UPDATE finance_vat_corrections SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?").bind(status, actor.userId, input.reason, now, id),
+                await nativeFinanceTaxRegister(write, actor.companyId).taxEntryCorrectionDecision([status, actor.userId, input.reason, now, id]),
+                await nativeFinanceTaxRegister(write, actor.companyId).vatCorrectionDecision([status, actor.userId, input.reason, now, id]),
                 decision(write, actor, key, id, operation, input.expectedVersion, input),
             ]);
         }, commitPrepareVatPackage: async (facts) => {
@@ -191,11 +191,9 @@ function vatService(provided?: SqlDatabase) {
                 registerGuard(write, actor, key, { chart_id: input.chartId, filing_month: input.filingMonth }, r.json),
                 ...reconciliationGuards(write, actor, key, input.chartId, dates.end, String(p.effective_date), reconciliation.rows),
                 assertion(write, key, "vat-profile", "EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE id=? AND company_id=? AND status='approved')", [p.id, actor.companyId]),
-                write.prepare("INSERT INTO finance_calculation_runs(id,company_id,holding_id,kind,policy_version,currency,currency_scale,source_hash,input_json,result_json,explanation_json,status,prepared_by,created_at,updated_at) VALUES(?,?,?,'thai_statutory',1,'THB',2,?,?,?,?,'prepared',?,?,?)")
-                    .bind(runId, actor.companyId, actor.holdingId, r.sourceHash, JSON.stringify({ registerEntryIds: r.entries.map(e => e.id) }), JSON.stringify(result), JSON.stringify({ engine: "source-vat-register-v1", preparationOnly: true, priorCreditsIncluded: false }), actor.userId, now, now),
-                write.prepare("INSERT INTO finance_statutory_packages(id,company_id,jurisdiction,form_code,filing_kind,calculation_run_id,status,schema_version,effective_date,prepared_by,created_at,updated_at,chart_id,filing_month,source_hash,snapshot_json,original_package_id,evidence_json) VALUES(?,?,'TH','PP30',?,?,'prepared','erpx-pp30-workpaper-v1',?,?,?,?,?,?,?,?,?,?)")
-                    .bind(id, actor.companyId, input.filingKind, runId, dates.end, actor.userId, now, now, input.chartId, input.filingMonth, r.sourceHash, JSON.stringify(snapshot), original?.id ?? null, JSON.stringify({ preparationReason: input.reason })),
-                packageEvent(write, actor, key, id, 1, "prepare", { sourceHash: r.sourceHash, reason: input.reason }),
+                await nativeFinanceTaxRegister(write, actor.companyId).calcRunInsert([runId, actor.companyId, actor.holdingId, r.sourceHash, JSON.stringify({ registerEntryIds: r.entries.map(e => e.id) }), JSON.stringify(result), JSON.stringify({ engine: "source-vat-register-v1", preparationOnly: true, priorCreditsIncluded: false }), actor.userId, now, now]),
+                await nativeFinanceTaxRegister(write, actor.companyId).statutoryPackageInsert([id, actor.companyId, input.filingKind, runId, dates.end, actor.userId, now, now, input.chartId, input.filingMonth, r.sourceHash, JSON.stringify(snapshot), original?.id ?? null, JSON.stringify({ preparationReason: input.reason })]),
+                await packageEvent(write, actor, key, id, 1, "prepare", { sourceHash: r.sourceHash, reason: input.reason }),
             ]);
         }, commitApproveVatPackage: async (facts) => {
             const { actor, key, operation, input, id, p, r, currentProfile, current } = facts;
@@ -205,9 +203,9 @@ function vatService(provided?: SqlDatabase) {
                 assertion(write, key, "vat-calculation", "EXISTS(SELECT 1 FROM finance_calculation_runs WHERE id=? AND company_id=? AND status='prepared' AND version=1)", [p.calculation_run_id, actor.companyId]),
                 registerGuard(write, actor, key, p, r.json),
                 ...reconciliationGuards(write, actor, key, String(p.chart_id), String(p.effective_date), String(currentProfile.effective_date), current.rows),
-                write.prepare("UPDATE finance_statutory_packages SET status='approved_for_export',version=version+1,reviewed_by=?,approved_by=?,review_reason=?,updated_at=? WHERE id=?").bind(actor.userId, actor.userId, input.reason, Date.now(), id),
-                write.prepare("UPDATE finance_calculation_runs SET status='approved',version=version+1,reviewed_by=?,approved_by=?,updated_at=? WHERE id=? AND status='prepared'").bind(actor.userId, actor.userId, Date.now(), p.calculation_run_id),
-                decision(write, actor, key, id, operation, input.expectedVersion, input), packageEvent(write, actor, key, id, input.expectedVersion + 1, "approve", input),
+                await nativeFinanceTaxRegister(write, actor.companyId).statutoryPackageApprove([actor.userId, actor.userId, input.reason, Date.now(), id]),
+                await nativeFinanceTaxRegister(write, actor.companyId).calcRunApprove([actor.userId, actor.userId, Date.now(), p.calculation_run_id]),
+                decision(write, actor, key, id, operation, input.expectedVersion, input), await packageEvent(write, actor, key, id, input.expectedVersion + 1, "approve", input),
             ]);
         }, commitExportVatWorkpaper: async (facts) => {
             const { actor, key, operation, input, id, p, content, exportHash, r, currentProfile, current } = facts;
@@ -215,23 +213,23 @@ function vatService(provided?: SqlDatabase) {
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status: "exported", version: input.expectedVersion + 1, filename: `ERPX-PP30-workpaper-${p.filing_month}.csv`, content, exportHash }, [
                 assertion(write, key, "vat-package", "EXISTS(SELECT 1 FROM finance_statutory_packages WHERE id=? AND company_id=? AND status='approved_for_export' AND version=?)", [id, actor.companyId, input.expectedVersion]), registerGuard(write, actor, key, p, r.json),
                 ...reconciliationGuards(write, actor, key, String(p.chart_id), String(p.effective_date), String(currentProfile.effective_date), current.rows),
-                write.prepare("UPDATE finance_statutory_packages SET status='exported',version=version+1,export_content=?,export_hash=?,updated_at=? WHERE id=?").bind(content, exportHash, Date.now(), id),
-                packageEvent(write, actor, key, id, input.expectedVersion + 1, "export", { exportHash, reason: input.reason }),
+                await nativeFinanceTaxRegister(write, actor.companyId).statutoryPackageExport([content, exportHash, Date.now(), id]),
+                await packageEvent(write, actor, key, id, input.expectedVersion + 1, "export", { exportHash, reason: input.reason }),
             ]);
         }, commitRecordVatFiling: async (facts) => {
             const { actor, key, operation, input, id } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status: "filed", version: input.expectedVersion + 1 }, [
                 assertion(write, key, "vat-package", "EXISTS(SELECT 1 FROM finance_statutory_packages WHERE id=? AND company_id=? AND status='exported' AND version=?)", [id, actor.companyId, input.expectedVersion]),
-                write.prepare("UPDATE finance_statutory_packages SET status='filed',version=version+1,filing_reference=?,filed_at=?,evidence_json=(evidence_json::jsonb||?::jsonb)::text,updated_at=? WHERE id=?").bind(input.filingReference, Date.parse(`${input.filedDate}T00:00:00+07:00`), JSON.stringify({ filing: input }), Date.now(), id),
-                packageEvent(write, actor, key, id, input.expectedVersion + 1, "file", input),
+                await nativeFinanceTaxRegister(write, actor.companyId).statutoryPackageFile([input.filingReference, Date.parse(`${input.filedDate}T00:00:00+07:00`), JSON.stringify({ filing: input }), Date.now(), id]),
+                await packageEvent(write, actor, key, id, input.expectedVersion + 1, "file", input),
             ]);
         }, commitSupersedeVatPackage: async (facts) => {
             const { actor, key, operation, input, id } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status: "superseded", version: input.expectedVersion + 1 }, [
                 assertion(write, key, "vat-package", "EXISTS(SELECT 1 FROM finance_statutory_packages WHERE id=? AND company_id=? AND version=? AND status IN ('prepared','approved_for_export','exported'))", [id, actor.companyId, input.expectedVersion]),
-                write.prepare("UPDATE finance_statutory_packages SET status='superseded',version=version+1,updated_at=? WHERE id=?").bind(Date.now(), id), packageEvent(write, actor, key, id, input.expectedVersion + 1, "supersede", input),
+                await nativeFinanceTaxRegister(write, actor.companyId).statutoryPackageSupersede([Date.now(), id]), await packageEvent(write, actor, key, id, input.expectedVersion + 1, "supersede", input),
             ]);
         }, profiles: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_accounting_profiles WHERE company_id=? AND status='approved'").bind(actor.companyId).all<TaxRow>()).results; }, chart: async (facts) => { const { chartId, actor } = facts; const write = await db(actor); return write.prepare("SELECT 1 FROM finance_charts WHERE id=? AND company_id=?").bind(chartId, actor.companyId).first(); }, workspaceEntries: async (facts) => { const { actor, chartId, filingMonth } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_current_tax_entries WHERE company_id=? AND chart_id=? AND claim_month=? ORDER BY tax_point_date,id LIMIT 1000").bind(actor.companyId, chartId, filingMonth).all<TaxRow>()).results; }, workspaceCandidates: async (facts) => {
             const { actor, chartId } = facts;

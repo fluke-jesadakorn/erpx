@@ -334,7 +334,8 @@
     "./adapters/native-finance-wh-remittance": "./src/adapters/native-finance-wh-remittance.ts",
     "./adapters/native-asset-policy-sql": "./src/adapters/native-asset-policy-sql.ts",
     "./adapters/native-business-contract-sql": "./src/adapters/native-business-contract-sql.ts",
-    "./adapters/native-finance-bank-automation": "./src/adapters/native-finance-bank-automation.ts"
+    "./adapters/native-finance-bank-automation": "./src/adapters/native-finance-bank-automation.ts",
+    "./adapters/native-finance-tax-register": "./src/adapters/native-finance-tax-register.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
