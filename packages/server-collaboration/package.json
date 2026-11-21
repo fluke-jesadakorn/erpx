@@ -311,7 +311,8 @@
     "./adapters/native-worker-startup": "./src/adapters/native-worker-startup.ts",
     "./adapters/native-beta-onboarding": "./src/adapters/native-beta-onboarding.ts",
     "./adapters/native-organization-relocation": "./src/adapters/native-organization-relocation.ts",
-    "./adapters/native-people-handoffs": "./src/adapters/native-people-handoffs.ts"
+    "./adapters/native-people-handoffs": "./src/adapters/native-people-handoffs.ts",
+    "./adapters/native-organization-node-channels": "./src/adapters/native-organization-node-channels.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -4084,3 +4084,45 @@ pub async fn people_handoff_compensation_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Collaboration: provision an organization team row.
+pub async fn org_node_team_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO messaging_teams(id,company_id,name,owner_id,organization_managed,created_at) VALUES(?,?,'Organization','organization',true,?) ON CONFLICT DO NOTHING".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Collaboration: provision an organization channel room (caller-supplied source fragment).
+pub async fn org_node_room_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let source = input.source_access_sql.as_deref().unwrap_or("");
+    if source.is_empty() { return Err(invalid().into()); }
+    Ok(NotificationStatement {
+        sql: format!("INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,organization_node_id,created_at) SELECT ?,?,'channel',?,'organization',?,?,? WHERE EXISTS(SELECT 1 {source} WHERE id=? AND company_id=? AND status='active') ON CONFLICT DO NOTHING"),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Collaboration: rename an organization channel room.
+pub async fn org_node_room_rename_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE messaging_rooms SET name=? WHERE company_id=? AND organization_node_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
