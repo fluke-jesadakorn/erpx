@@ -4376,3 +4376,34 @@ pub async fn finance_starter_dimension_value_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "INSERT INTO finance_dimension_values(id,company_id,dimension_id,code,name,created_at) VALUES(?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
 }
+
+
+/// People: apply a draft placement to an engagement.
+pub async fn people_draft_engagement_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE hr_engagements SET position_id=?,branch_id=?,department_id=?,level_id=?,manager_person_id=?,job_title=?,version=version+1,updated_at=? WHERE company_id=? AND id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// People: apply a draft placement to an employee.
+pub async fn people_draft_employee_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE employees SET branch_id=?,department_id=? WHERE company_id=? AND person_id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// People: record a draft placement history entry.
+pub async fn people_draft_history_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
