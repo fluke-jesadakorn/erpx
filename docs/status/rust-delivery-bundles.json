@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4480,
+    "revision": 4489,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:11:28.966Z",
-      "expiresAt": "2026-11-21T18:41:28.966Z",
+      "heartbeatAt": "2026-11-21T18:15:27.946Z",
+      "expiresAt": "2026-11-21T18:45:27.946Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -46971,15 +46971,22 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "claimedAt": "2026-11-21T18:11:56.679Z",
+          "heartbeatAt": "2026-11-21T18:15:27.946Z",
+          "expiresAt": "2026-11-21T18:45:27.946Z",
+          "generation": 147
+        },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
-        "nextAction": "Integrate slice: moved 2 inventory fact-read families to native statement kinds inventory_stmt_16..21 (scope holding), retired TS oracles transfers.ts + landed-costs.ts, unit test drops oracle imports; all 4 checks pass. Lead must add a native read route returning row payloads (current nativeInventoryStatement returns rows:[] and PgNativeCommandRepository discards SELECT rows), then switch the two callers to it. counts.ts retained because tests/support/manufacturing/legacy-count/inventory-counts.ts (out of claim, tagged fixture) still imports createInventoryCountApplication; delete it and its package.json export under retire.manufacturing after that fixture migrates. See .scratch/dev/rust-migration/handoff-retire.reads.inventory.json.",
+        "blocker": null,
+        "nextAction": "transfers.ts+landed-costs.ts deleted (0 SELECT, delta 0) so cannot migrate yet; counts.ts retained by tests/support/manufacturing/legacy-count/inventory-counts.ts fixture. Next: migrate fixture to native seeding then delete counts.ts, or port a live read family (supply-package-obligations 39) for strict decrease.",
         "handoff": {
           "runId": "run-20261121-f",
           "agentId": "wf-inv",
@@ -47407,8 +47414,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:11:28.966Z",
-          "expiresAt": "2026-11-21T18:41:28.966Z",
+          "heartbeatAt": "2026-11-21T18:15:27.946Z",
+          "expiresAt": "2026-11-21T18:45:27.946Z",
           "generation": 147
         },
         "baseSha": null,
@@ -47417,7 +47424,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verified dead-code deletion (nativeOrgBrowserExecute + WorkContext import) with zero importers; org SELECT 454->454 no delta so KPI not met. Roster reads retained (5 live importers); need follow-up native roster read port before roster retirement. Cargo check erpx-server-organization passed.",
+        "nextAction": "Dead-code deletion verified (nativeOrgBrowserExecute removed, zero importers); org SELECT 454->454 no KPI delta so cannot migrate yet. Roster reads retained (5 importers: access/organization/presentation-queries/profile-facts/seed-acme); no native roster port in organization crate. Next: open native roster read port + TS bridge, repoint 5 importers, then retry retirement.",
         "handoff": {
           "runId": "run-20261121-f",
           "agentId": "wf-org",
@@ -104980,8 +104987,8 @@
       "migratedPackets": 317,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 1,
-        "ready_for_integration": 1,
+        "in_progress": 2,
+        "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 317,
         "blocked": 88,
@@ -104990,7 +104997,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:11:28.968Z",
+    "updatedAt": "2026-11-21T18:15:27.948Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
