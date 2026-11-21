@@ -88,7 +88,8 @@ export type CommerceReturnsUnit<Effect> = {
         id: string;
         ordinal: number;
         accountId: string;
-    }): Effect;
+        companyId: string;
+    }): Promise<Effect>;
     guardRule1(facts: {
         key: string;
         guardId: string;
@@ -224,13 +225,13 @@ export function createCommerceReturnsApplication<Effect, Context = unknown>(port
                 counter.baseDebit -= difference;
         }
         const basePostings = allocated.map((line, index) => ({ ...journal.preparedLines[index], baseDebit: line.baseDebit, baseCredit: line.baseCredit }));
-        const steps: Effect[] = [
+        const steps: Effect[] = await Promise.all([
             write.prepareFinanceInvoices1({ id: original.id }),
             write.guardRule1({ key: input.key, guardId: 'original-credit-capacity', values: [original.id, input.returnId, previous] }),
             ...journal.steps,
-            ...basePostings.map((line, ordinal) => write.prepareFinanceJournalLines1({ baseDebit: line.baseDebit, baseCredit: line.baseCredit, id: journal.result.id, ordinal: ordinal, accountId: line.accountId })),
+            ...basePostings.map((line, ordinal) => write.prepareFinanceJournalLines1({ baseDebit: line.baseDebit, baseCredit: line.baseCredit, id: journal.result.id, ordinal: ordinal, accountId: line.accountId, companyId: a.companyId })),
             write.guardRule2({ key: input.key, guardId: 'credit-carrying-balance', values: [journal.result.id] }),
-        ];
+        ]);
         return { steps, journalId: journal.result.id, baseCreditMinor: baseCredit, controlAccountId: control, baseCurrency: original.base_currency, basePostings };
     }
     /** Separate applied receivable/payable carrying from the refund that stays on the control account. */

@@ -3506,3 +3506,17 @@ pub async fn finance_expansion_review_file_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance/commerce: set base carrying amounts on a journal line.
+pub async fn finance_commerce_base_carry_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_journal_lines SET base_debit_minor=?,base_credit_minor=? WHERE journal_id=? AND ordinal=? AND account_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

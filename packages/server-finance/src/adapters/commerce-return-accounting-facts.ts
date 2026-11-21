@@ -1,4 +1,5 @@
 import {financeOwnedSnapshotSources as commerceSnapshotSources} from "@erpx/server-commerce/public/finance-owned-snapshot-sources";
+import { financeCommerceFacts } from '@erpx/server-collaboration/adapters/native-finance-commerce-facts';
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -16,6 +17,6 @@ readFinanceJournalLines2:(facts:{incoming:boolean;control:string;id:string;retur
 readFinanceJournalLines3:(facts:{journal_id:string;})=>db.prepare(`SELECT account_id,SUM(debit_minor-credit_minor) transaction_amount,
    SUM(base_debit_minor-base_credit_minor) base_amount FROM finance_journal_lines WHERE journal_id=? GROUP BY account_id`).bind(facts.journal_id).all<{account_id:string;transaction_amount:number;base_amount:number}>(),
 prepareFinanceInvoices1:(facts:{id:string;})=>db.prepare('SELECT id FROM finance_invoices WHERE id=? FOR UPDATE').bind(facts.id),
-prepareFinanceJournalLines1:(facts:{baseDebit:number;baseCredit:number;id:string;ordinal:number;accountId:string;})=>db.prepare('UPDATE finance_journal_lines SET base_debit_minor=?,base_credit_minor=? WHERE journal_id=? AND ordinal=? AND account_id=?').bind(facts.baseDebit,facts.baseCredit,facts.id,facts.ordinal,facts.accountId),
+prepareFinanceJournalLines1:(facts:{baseDebit:number;baseCredit:number;id:string;ordinal:number;accountId:string;companyId:string;})=>financeCommerceFacts(db,facts.companyId).baseCarry({baseDebit:facts.baseDebit,baseCredit:facts.baseCredit,id:facts.id,ordinal:facts.ordinal,accountId:facts.accountId}),
 guardRule2:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,"(SELECT SUM(base_debit_minor)=SUM(base_credit_minor) FROM finance_journal_lines WHERE journal_id=?)",facts.values)
 };}
