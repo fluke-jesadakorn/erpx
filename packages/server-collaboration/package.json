@@ -292,7 +292,8 @@
     "./adapters/native-finance-journal-planning": "./src/adapters/native-finance-journal-planning.ts",
     "./adapters/native-finance-invoice-lines": "./src/adapters/native-finance-invoice-lines.ts",
     "./adapters/native-finance-expansion-evidence": "./src/adapters/native-finance-expansion-evidence.ts",
-    "./adapters/native-finance-commerce-facts": "./src/adapters/native-finance-commerce-facts.ts"
+    "./adapters/native-finance-commerce-facts": "./src/adapters/native-finance-commerce-facts.ts",
+    "./adapters/native-finance-payroll-remittance": "./src/adapters/native-finance-payroll-remittance.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
