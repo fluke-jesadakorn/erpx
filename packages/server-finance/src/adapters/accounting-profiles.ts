@@ -1,3 +1,4 @@
+import { financeAccountingProfiles } from '@erpx/server-collaboration/adapters/native-finance-accounting-profiles';
 import { withFinancePurchasedRead, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import { createAccountingProfiles } from '@erpx/server-finance/application/accounting-profiles';
@@ -35,8 +36,7 @@ function profileService(provided?: SqlDatabase) {
             return executeCommand(write, actor, key, "finance.profile.prepare", input, id, 1, { id, status: "draft", version: 1 }, [
                 assertion(write, key, "ledger", "EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')", [input.statutoryChartId, actor.companyId]),
                 assertion(write, key, "profile", "NOT EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE company_id=? AND status='approved')", [actor.companyId]),
-                write.prepare("INSERT INTO finance_accounting_profiles(id,company_id,statutory_chart_id,standard,fiscal_start_month,effective_date,eligibility_evidence,policy_evidence,tax_basis,inventory_policy,depreciation_policy,prepared_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
-                    .bind(id, actor.companyId, input.statutoryChartId, input.standard, input.fiscalStartMonth, input.effectiveDate, input.eligibilityEvidence, input.policyEvidence, input.taxBasis, input.inventoryPolicy, input.depreciationPolicy, actor.userId, Date.now()),
+                await financeAccountingProfiles(write, actor.companyId).create({ id, companyId: actor.companyId, statutoryChartId: input.statutoryChartId, standard: input.standard, fiscalStartMonth: input.fiscalStartMonth, effectiveDate: input.effectiveDate, eligibilityEvidence: input.eligibilityEvidence, policyEvidence: input.policyEvidence, taxBasis: input.taxBasis, inventoryPolicy: input.inventoryPolicy, depreciationPolicy: input.depreciationPolicy, userId: actor.userId, now: Date.now() }),
             ]);
         }, profile: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_accounting_profiles WHERE id=? AND company_id=?").bind(id, actor.companyId).first<AccountingProfile>(); }, commitProfileDecision: async (facts) => {
             const { actor, key, operation, input, id, status, decision, profile, now } = facts;
@@ -47,8 +47,7 @@ function profileService(provided?: SqlDatabase) {
                     assertion(write, key, "ledger", "EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')", [profile.statutory_chart_id, actor.companyId]),
                     assertion(write, key, "single-statutory-ledger", "NOT EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE company_id=? AND status='approved')", [actor.companyId]),
                 ] : []),
-                write.prepare("UPDATE finance_accounting_profiles SET status=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1 WHERE id=? AND company_id=?")
-                    .bind(status, actor.userId, input.reason, now, id, actor.companyId),
+                await financeAccountingProfiles(write, actor.companyId).decide({ status, userId: actor.userId, reason: input.reason, now, id, companyId: actor.companyId }),
                 financeOwnerDecisionEffects(write).appendRetainedLayoutDecision({id:crypto.randomUUID(),commandId:key,recordId:id,action:operation,actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:input.expectedVersion,inputDigest:createHash("sha256").update(JSON.stringify(input)).digest("hex"),createdAt:now}),
             ]);
         }, chartExists: async (facts) => { const { query, actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT 1 FROM finance_charts WHERE id=? AND company_id=?").bind(query.chartId, actor.companyId).first(); }, events: async (facts) => {

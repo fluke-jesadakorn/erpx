@@ -285,7 +285,8 @@
     "./adapters/native-payroll-final-pay-cancellation": "./src/adapters/native-payroll-final-pay-cancellation.ts",
     "./adapters/native-expense-drafts": "./src/adapters/native-expense-drafts.ts",
     "./adapters/native-finance-sales-defaults": "./src/adapters/native-finance-sales-defaults.ts",
-    "./adapters/native-payroll-statutory": "./src/adapters/native-payroll-statutory.ts"
+    "./adapters/native-payroll-statutory": "./src/adapters/native-payroll-statutory.ts",
+    "./adapters/native-finance-accounting-profiles": "./src/adapters/native-finance-accounting-profiles.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
