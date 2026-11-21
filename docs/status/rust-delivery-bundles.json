@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4528,
+    "revision": 4531,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:36:52.846Z",
-      "expiresAt": "2026-11-21T19:06:52.846Z",
+      "heartbeatAt": "2026-11-21T18:40:30.078Z",
+      "expiresAt": "2026-11-21T19:10:30.078Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -27867,8 +27867,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:36:52.846Z",
-          "expiresAt": "2026-11-21T19:06:52.846Z",
+          "heartbeatAt": "2026-11-21T18:40:30.078Z",
+          "expiresAt": "2026-11-21T19:10:30.078Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43766,8 +43766,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:36:52.846Z",
-          "expiresAt": "2026-11-21T19:06:52.846Z",
+          "heartbeatAt": "2026-11-21T18:40:30.078Z",
+          "expiresAt": "2026-11-21T19:10:30.078Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47037,8 +47037,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:36:52.846Z",
-          "expiresAt": "2026-11-21T19:06:52.846Z",
+          "heartbeatAt": "2026-11-21T18:40:30.078Z",
+          "expiresAt": "2026-11-21T19:10:30.078Z",
           "generation": 147
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -47475,8 +47475,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:36:52.846Z",
-          "expiresAt": "2026-11-21T19:06:52.846Z",
+          "heartbeatAt": "2026-11-21T18:40:30.078Z",
+          "expiresAt": "2026-11-21T19:10:30.078Z",
           "generation": 147
         },
         "baseSha": null,
@@ -47673,8 +47673,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:41.639Z",
-          "heartbeatAt": "2026-11-21T18:36:52.846Z",
-          "expiresAt": "2026-11-21T19:06:52.846Z",
+          "heartbeatAt": "2026-11-21T18:40:30.078Z",
+          "expiresAt": "2026-11-21T19:10:30.078Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47752,11 +47752,23 @@
             "result": "passed",
             "sourceSha": "5db0d98a6c3d0cecf2a62ff0cf1bde9a9bdb8ef4",
             "note": "cargo test -p erpx-server-pms --test pms_http: 7 passed 0 failed (existing router/target/selection/header tests unbroken; BoardOnlyBackend compiles via default fail-closed method)"
+          },
+          {
+            "command": "cargo-check:erpx-service-existing-business",
+            "result": "passed",
+            "sourceSha": "fc114fd85c8b42e2d9b6589c183964e5e6ab703e",
+            "note": "cargo check -p erpx-service --features existing-business green after PmsService::refund_context + PmsHttpBackend::refund_context impl (composition pms.rs); no new warnings in touched files"
+          },
+          {
+            "command": "audit:refund-bridge-remaining",
+            "result": "passed",
+            "sourceSha": "fc114fd85c8b42e2d9b6589c183964e5e6ab703e",
+            "note": "Route auto-mounted via existing pms_http_router mount. Remaining: feature-pms TS bridge (native-pms.ts pattern) + rewire application line 421 + delete TS combined-row site. Site-1 status lock stays TS (must remain in-txn)."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Route registered + DB-verified repo methods. Next: composition PmsBackend::refund_context impl (resolve session/Company, run repo method in read unit) - already mounted via pms_http_router - then feature-pms TS bridge + rewire line 421 + delete TS combined-row site.",
+        "nextAction": "Composition impl done + mounted. Next: feature-pms TS bridge (copy native-pms.ts config pattern) + rewire retryBookingRefund line 421 to it + delete TS readPmsBookingRefundRequests7 site; verify against native service on same DB. Site-1 (status FOR UPDATE) stays TS with removalTaskId until full command migrates.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -51195,8 +51207,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:36:52.846Z",
-          "expiresAt": "2026-11-21T19:06:52.846Z",
+          "heartbeatAt": "2026-11-21T18:40:30.078Z",
+          "expiresAt": "2026-11-21T19:10:30.078Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105158,7 +105170,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:36:52.848Z",
+    "updatedAt": "2026-11-21T18:40:30.079Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

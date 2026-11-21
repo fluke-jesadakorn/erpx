@@ -21,8 +21,10 @@ use erpx_server_pms::public::guest_account::{
     pms_guest_account,
 };
 use erpx_server_pms::public::pms_http::{
-    PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest, PmsHttpResponse,
+    PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest,
+    PmsHttpRefundContextRequest, PmsHttpResponse, PmsRefundContextSelection,
 };
+use erpx_server_pms::public::refund::{PgPmsRefundRepository, PmsRefundRepository};
 use erpx_server_pms::public::report::{
     PgPmsReportRead, PmsReportEntries, PmsReportEntriesRequest, PmsReportHttpBackend,
     PmsReportHttpFuture, PmsReportHttpResponse, PmsReportRange, PmsReportRangeRequest,
@@ -420,6 +422,58 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
                         .await?;
                         Ok(PmsHttpResponse {
                             data: data.value(),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+    /// Native PMS refund request-context read (request + payment property,
+    /// account and livemode) over the caller's owner connection. Read-only;
+    /// no unit, lock or write. The mutation that consumes the context keeps
+    /// its own permission and transaction in the caller.
+    pub async fn refund_context<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        selection: PmsRefundContextSelection,
+    ) -> Result<PmsHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                PmsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let selection = selection.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("pms.read")?;
+                        let mut repository = PgPmsRefundRepository::new(connection);
+                        let refund_context = repository
+                            .request_with_payment_context(
+                                &selection.request_id,
+                                company.as_str(),
+                            )
+                            .await?
+                            .ok_or_else(not_found)?;
+                        Ok(PmsHttpResponse {
+                            data: serde_json::to_value(&refund_context)
+                                .map_err(|_| Error::from(unavailable()))?,
                             context: context(current),
                         })
                     })
@@ -1144,6 +1198,20 @@ impl<C: Clock + Send + Sync + 'static> PmsHttpBackend for PmsBackend<C> {
             let desk_selection = request.selection.clone();
             self.service
                 .front_desk(request.host, proof, move || Ok(selection), desk_selection)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn refund_context<'a>(
+        &'a self,
+        request: PmsHttpRefundContextRequest<'a>,
+    ) -> PmsHttpFuture<'a, PmsHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            let context_selection = request.selection.clone();
+            self.service
+                .refund_context(request.host, proof, move || Ok(selection), context_selection)
                 .await
                 .map_err(business)
         })
