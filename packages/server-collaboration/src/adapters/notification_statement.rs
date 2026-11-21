@@ -4181,3 +4181,54 @@ pub async fn legal_job_health_failure_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE legal_runtime_health SET heartbeat_at=?,failure_count=failure_count+1,last_error=? WHERE task=?".to_owned(), values: values_from_json(input)? })
 }
+
+
+/// Finance: prepare a collection case.
+pub async fn finance_collection_prepare_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_collection_cases(id,company_id,invoice_id,invoice_version,as_of_date,stage,amount_minor,currency,message,source_hash,prepared_by,created_at,root_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: supersede a parent collection case.
+pub async fn finance_collection_supersede_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_collection_cases SET status='superseded',version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: revise a collection case.
+pub async fn finance_collection_revise_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_collection_cases(id,company_id,invoice_id,invoice_version,as_of_date,stage,amount_minor,currency,message,source_hash,prepared_by,created_at,root_id,revision_number,parent_case_id,parent_version,revision_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: record a collection test delivery.
+pub async fn finance_collection_delivery_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_collection_deliveries(case_id,company_id,adapter,delivered_by,payload_hash,delivered_at) VALUES(?,?,'test',?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: decide on a collection case.
+pub async fn finance_collection_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_collection_cases SET status=?,version=version+1,reviewed_by=CASE WHEN ?='approved' THEN ? ELSE reviewed_by END,review_reason=CASE WHEN ?='approved' THEN ? ELSE review_reason END,reviewed_at=CASE WHEN ?='approved' THEN ? ELSE reviewed_at END WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
