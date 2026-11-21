@@ -6244,3 +6244,62 @@ mod people_eval_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for people roster statements.
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_1: &str = "INSERT INTO people_roster_assignments(id,shift_id,person_id,engagement_id) VALUES(?,?,?,?)";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_2: &str = "INSERT INTO people_roster_history(id,company_id,department_id,week_id,request_id,record_id,action,actor_id,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_3: &str = "UPDATE people_roster_requests SET state='invalidated',decision_note='The referenced shift or assignment changed.',version=version+1,updated_at=?\n    WHERE company_id=? AND state IN ${pending} AND id!=? AND (target_shift_id=ANY(?::text[]) OR source_assignment_id=ANY(?::text[]) OR target_assignment_id=ANY(?::text[])) RETURNING *";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_4: &str = "INSERT INTO people_roster_locks(company_id) VALUES(?) ON CONFLICT(company_id) DO UPDATE SET version=people_roster_locks.version+1";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_5: &str = "UPDATE people_roster_shifts SET local_date=?,start_time=?,end_time=?,starts_at=?,ends_at=?,version=version+1 WHERE id=?";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_6: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=? RETURNING *";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_7: &str = "INSERT INTO people_roster_locks(company_id) VALUES(?) ON CONFLICT(company_id) DO UPDATE SET version=people_roster_locks.version+1";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_8: &str = "INSERT INTO people_roster_templates(id,company_id,department_id,name,start_time,end_time,capacity,active,version,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)\n        ON CONFLICT(id) DO UPDATE SET name=excluded.name,start_time=excluded.start_time,end_time=excluded.end_time,capacity=excluded.capacity,active=excluded.active,version=excluded.version,updated_at=excluded.updated_at";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_9: &str = "INSERT INTO people_roster_weeks(id,company_id,branch_id,department_id,week_start,timezone,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_10: &str = "INSERT INTO people_roster_shifts(id,week_id,template_id,name,local_date,start_time,end_time,starts_at,ends_at,capacity) VALUES(?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_11: &str = "UPDATE people_roster_weeks SET state='published',published_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_12: &str = "INSERT INTO people_roster_shifts(id,week_id,template_id,name,local_date,start_time,end_time,starts_at,ends_at,capacity,version) VALUES(?,?,?,?,?,?,?,?,?,?,?)\n        ON CONFLICT(id) DO UPDATE SET template_id=excluded.template_id,name=excluded.name,local_date=excluded.local_date,start_time=excluded.start_time,end_time=excluded.end_time,starts_at=excluded.starts_at,ends_at=excluded.ends_at,capacity=excluded.capacity,version=excluded.version";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_13: &str = "UPDATE people_roster_assignments SET state='released',version=version+1 WHERE shift_id=? AND state='assigned'";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_14: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_15: &str = "UPDATE people_roster_shifts SET state='cancelled',version=version+1 WHERE id=?";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_16: &str = "UPDATE people_roster_assignments SET state='released',version=version+1 WHERE shift_id=? AND state='assigned'";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_17: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=? RETURNING *";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_18: &str = "INSERT INTO people_roster_requests(id,company_id,department_id,kind,requester_person_id,coworker_person_id,source_assignment_id,source_version,target_shift_id,target_assignment_id,target_version,state,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_19: &str = "UPDATE people_roster_assignments SET state='released',version=version+1 WHERE id=?";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_20: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=ANY(?::text[])";
+pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_21: &str = "UPDATE people_roster_requests SET state=?,decision_note=?,accepted_by=CASE WHEN ?='accept' THEN ? ELSE accepted_by END,decided_by=?,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod people_roster_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn people_roster_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-people-roster-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid people roster SQL contract");
+        let pairs = [
+            ("people_roster_stmt_1", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_1),
+            ("people_roster_stmt_2", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_2),
+            ("people_roster_stmt_3", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_3),
+            ("people_roster_stmt_4", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_4),
+            ("people_roster_stmt_5", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_5),
+            ("people_roster_stmt_6", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_6),
+            ("people_roster_stmt_7", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_7),
+            ("people_roster_stmt_8", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_8),
+            ("people_roster_stmt_9", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_9),
+            ("people_roster_stmt_10", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_10),
+            ("people_roster_stmt_11", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_11),
+            ("people_roster_stmt_12", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_12),
+            ("people_roster_stmt_13", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_13),
+            ("people_roster_stmt_14", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_14),
+            ("people_roster_stmt_15", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_15),
+            ("people_roster_stmt_16", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_16),
+            ("people_roster_stmt_17", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_17),
+            ("people_roster_stmt_18", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_18),
+            ("people_roster_stmt_19", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_19),
+            ("people_roster_stmt_20", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_20),
+            ("people_roster_stmt_21", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_21),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "people roster SQL contract drift: {key}");
+        }
+    }
+}
