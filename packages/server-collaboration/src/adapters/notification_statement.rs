@@ -4870,3 +4870,73 @@ pub async fn wh_assessment_decision_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_withholding_assessments SET status=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance Thai document: native-owned thai_doc_sequence_seed statement.
+pub async fn thai_doc_sequence_seed_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_thai_document_sequences(company_id,document_kind,fiscal_year,last_number) VALUES(?,?,?,0) ON CONFLICT DO NOTHING".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance Thai document: native-owned thai_doc_sequence_bump statement.
+pub async fn thai_doc_sequence_bump_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_thai_document_sequences SET last_number=last_number+1 WHERE company_id=? AND document_kind=? AND fiscal_year=? AND last_number=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance Thai document: native-owned thai_doc_issue statement.
+pub async fn thai_doc_issue_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_issued_thai_documents(id,company_id,document_kind,document_number,issue_date,payment_id,invoice_id,assessment_id,previous_document_id,edition,payer_identity_id,payee_identity_id,source_fingerprint,snapshot_json,export_html,export_sha256,reason,issued_by,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance Thai document: native-owned thai_doc_event_issued statement.
+pub async fn thai_doc_event_issued_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_thai_document_events(id,document_id,company_id,action,reason,actor_id,command_id,created_at) VALUES(?,?,?,'issued',?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance Thai document: native-owned thai_doc_change_insert statement.
+pub async fn thai_doc_change_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_thai_document_changes(id,company_id,document_id,corrected_payer_identity_id,corrected_payee_identity_id,issue_date,reason,source_fingerprint,source_snapshot_json,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance Thai document: native-owned thai_doc_event_supersede statement.
+pub async fn thai_doc_event_supersede_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_thai_document_events(id,document_id,company_id,action,replacement_document_id,reason,actor_id,command_id,created_at) VALUES(?,?,?,'superseded',?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance Thai document: native-owned thai_doc_change_decision statement.
+pub async fn thai_doc_change_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_thai_document_changes SET status=?,replacement_document_id=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}

@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceThaiDocuments } from '@erpx/server-collaboration/adapters/native-finance-thai-documents';
 import { salesInvoiceLines } from "@erpx/server-finance/adapters/sales-lines";
 import type { IssueSummary } from '@erpx/server-finance/domain/thai-documents';
 import { createThaiDocuments } from '@erpx/server-finance/application/thai-documents';
@@ -34,11 +35,11 @@ export async function prepareThaiDocumentIssue(db: SqlDatabase, actor: WorkConte
             ...(snapshot.kind === "withholding_certificate" ? [db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(`finance-withholding-month:${actor.companyId}:${String(snapshot.paymentDate).slice(0, 7)}:${snapshot.formKind}`)] : []),
             ...(snapshot.kind === "withholding_certificate" ? await currentTaxSignerGuards(db, actor, payer, commandId) : []),
             ...taxIdentityGuards(db, actor, commandId, [payer, payee]),
-            db.prepare("INSERT INTO finance_thai_document_sequences(company_id,document_kind,fiscal_year,last_number) VALUES(?,?,?,0) ON CONFLICT DO NOTHING").bind(actor.companyId, snapshot.kind, year),
+            await nativeFinanceThaiDocuments(db, actor.companyId).sequenceSeed([actor.companyId, snapshot.kind, year]),
             assertion(db, commandId, "thai-document-number", "EXISTS(SELECT 1 FROM finance_thai_document_sequences WHERE company_id=? AND document_kind=? AND fiscal_year=? AND last_number=?)", [actor.companyId, snapshot.kind, year, last]),
-            db.prepare("UPDATE finance_thai_document_sequences SET last_number=last_number+1 WHERE company_id=? AND document_kind=? AND fiscal_year=? AND last_number=?").bind(actor.companyId, snapshot.kind, year, last),
-            db.prepare("INSERT INTO finance_issued_thai_documents(id,company_id,document_kind,document_number,issue_date,payment_id,invoice_id,assessment_id,previous_document_id,edition,payer_identity_id,payee_identity_id,source_fingerprint,snapshot_json,export_html,export_sha256,reason,issued_by,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, snapshot.kind, number, snapshot.issueDate, input.paymentId ?? null, input.invoiceId ?? null, input.assessmentId ?? null, input.previous?.id ?? null, snapshot.edition, payer.id, payee.id, fingerprint, JSON.stringify(complete), html, sha256, snapshot.reason, actor.userId, commandId, now),
-            db.prepare("INSERT INTO finance_thai_document_events(id,document_id,company_id,action,reason,actor_id,command_id,created_at) VALUES(?,?,?,'issued',?,?,?,?)").bind(`thai-event-${commandId}`, id, actor.companyId, snapshot.reason, actor.userId, commandId, now),
+            await nativeFinanceThaiDocuments(db, actor.companyId).sequenceBump([actor.companyId, snapshot.kind, year, last]),
+            await nativeFinanceThaiDocuments(db, actor.companyId).issue([id, actor.companyId, snapshot.kind, number, snapshot.issueDate, input.paymentId ?? null, input.invoiceId ?? null, input.assessmentId ?? null, input.previous?.id ?? null, snapshot.edition, payer.id, payee.id, fingerprint, JSON.stringify(complete), html, sha256, snapshot.reason, actor.userId, commandId, now]),
+            await nativeFinanceThaiDocuments(db, actor.companyId).eventIssued([`thai-event-${commandId}`, id, actor.companyId, snapshot.reason, actor.userId, commandId, now]),
         ] };
 }
 export async function issueThaiTaxInvoice(actor: WorkContext, invoiceId: string, input: z.input<typeof thaiInvoiceIssueSchema>, commandId: string) { return withFinancePurchasedCommand(actor,{key:commandId,operation:"finance.thai-tax-invoice.issue",purpose:"settle-existing",capability:"finance.tax"},tx=>documentService(tx).issueThaiTaxInvoice(actor, invoiceId, input, commandId)); }
@@ -78,7 +79,7 @@ function documentService(provided?: SqlDatabase) {
             return executeCommand(write, actor, commandId, "finance.thai-document.change.prepare", input, id, 1, { id, status: "draft", version: 1 }, [
                 ...taxIdentityGuards(write, actor, commandId, [payer, payee]),
                 assertion(write, commandId, "current-document", "NOT EXISTS(SELECT 1 FROM finance_thai_document_events WHERE document_id=? AND action IN ('cancelled','superseded'))", [documentId]),
-                write.prepare("INSERT INTO finance_thai_document_changes(id,company_id,document_id,corrected_payer_identity_id,corrected_payee_identity_id,issue_date,reason,source_fingerprint,source_snapshot_json,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, documentId, payer.id, payee.id, input.issueDate, input.reason, taxSourceDigest(source), JSON.stringify(source), actor.userId, now, now),
+                await nativeFinanceThaiDocuments(write, actor.companyId).changeInsert([id, actor.companyId, documentId, payer.id, payee.id, input.issueDate, input.reason, taxSourceDigest(source), JSON.stringify(source), actor.userId, now, now]),
             ]);
         }, pendingChange: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_thai_document_changes WHERE id=? AND company_id=?").bind(id, actor.companyId).first<Record<string, string | number | null>>(); }, originalForDecision: async (facts) => { const { change, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_issued_thai_documents WHERE id=? AND company_id=?").bind(change.document_id, actor.companyId).first<IssuedDocument>(); }, financialSourceForDecision: async (facts) => {
             const { original, actor } = facts;
@@ -96,8 +97,8 @@ function documentService(provided?: SqlDatabase) {
                 guards.push(assertion(write, commandId, 'financial-source', original.payment_id ? "EXISTS(SELECT 1 FROM finance_payments WHERE id=? AND company_id=? AND status='settled')" : "EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND status IN ('posted','partially_paid','paid'))", [original.payment_id ?? original.invoice_id, actor.companyId]));
             return executeCommand(write, actor, commandId, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1, replacementDocumentId: issue?.id ?? null }, [
                 ...guards, ...(nativeIssue?.steps ?? []),
-                ...(issue ? [write.prepare("INSERT INTO finance_thai_document_events(id,document_id,company_id,action,replacement_document_id,reason,actor_id,command_id,created_at) VALUES(?,?,?,'superseded',?,?,?,?,?)").bind(`thai-supersede-${commandId}`, original.id, actor.companyId, issue.id, input.reason, actor.userId, commandId, now)] : []),
-                write.prepare("UPDATE finance_thai_document_changes SET status=?,replacement_document_id=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?").bind(status, issue?.id ?? null, actor.userId, input.reason, now, now, id),
+                ...(issue ? [await nativeFinanceThaiDocuments(write, actor.companyId).eventSupersede([`thai-supersede-${commandId}`, original.id, actor.companyId, issue.id, input.reason, actor.userId, commandId, now])] : []),
+                await nativeFinanceThaiDocuments(write, actor.companyId).changeDecision([status, issue?.id ?? null, actor.userId, input.reason, now, now, id]),
             ]);
         } });
 }

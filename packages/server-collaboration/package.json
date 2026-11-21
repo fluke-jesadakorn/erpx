@@ -325,7 +325,8 @@
     "./adapters/native-finance-accruals": "./src/adapters/native-finance-accruals.ts",
     "./adapters/native-pms-finance-facts": "./src/adapters/native-pms-finance-facts.ts",
     "./adapters/native-finance-books": "./src/adapters/native-finance-books.ts",
-    "./adapters/native-finance-withholding": "./src/adapters/native-finance-withholding.ts"
+    "./adapters/native-finance-withholding": "./src/adapters/native-finance-withholding.ts",
+    "./adapters/native-finance-thai-documents": "./src/adapters/native-finance-thai-documents.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
