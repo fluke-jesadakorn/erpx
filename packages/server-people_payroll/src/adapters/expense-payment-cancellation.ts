@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativePeopleBatchA } from '@erpx/server-collaboration/adapters/native-people-batch-a';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
@@ -60,7 +61,7 @@ function nativeCancellation(database:SqlDatabase){
     assertion(database,key,'payment-cancel-parent','EXISTS(SELECT 1 FROM finance_expenses e WHERE id=? AND company_id=? AND version=? AND to_jsonb(e)=?::jsonb)',[expenseId,actor.companyId,input.expenseVersion,source.expense]),
     assertion(database,key,'payment-cancel-draft',"EXISTS(SELECT 1 FROM expense_payment_drafts d WHERE id=? AND company_id=? AND expense_id=? AND version=? AND status='draft' AND payment_id IS NULL AND to_jsonb(d)=?::jsonb)",[id,actor.companyId,expenseId,input.expectedVersion,source.draft]),
     assertion(database,key,'payment-cancel-native',nativeSource,[id,actor.companyId]),assertion(database,key,'payment-cancel-treasury',independent,independentArgs),
-    database.prepare("UPDATE expense_payment_drafts SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=? AND status='draft' AND payment_id IS NULL").bind(now,id,actor.companyId,input.expectedVersion),
+    await nativePeopleBatchA(database).cancelPayment({companyId:actor.companyId,now,id,expectedVersion:input.expectedVersion}),
    ]);
   },
  });

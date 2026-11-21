@@ -75,7 +75,7 @@ export interface LeaveSelfServiceRepository<Effect> {
     readSaveSelfServiceLeaveEmployee(person_id: string, companyId: string): Promise<{
         id: string;
     } | null>;
-    stageSaveSelfServiceLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number): Effect;
+    stageSaveSelfServiceLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number): Promise<Effect>;
     stageSaveSelfServiceLeaveEffect2(id: string, value: string, employeeId: string, person_id: string, engagement_id: string, companyId: string, value2: string, department_id: string | null, startDate: string, value3: number, handoverNote: string, userId: string, now: number, now2: number): Effect;
     stageSaveSelfServiceLeaveEffect3(startDate: string, value: number, handoverNote: string, leaveTypeId: string, endDate: string, startSegment: "full" | "first_half" | "second_half", endSegment: "full" | "first_half" | "second_half", id: string, units: number, value2: string, value3: string, evidenceDueAt: number | null, state: "draft" | "pending_approval", now: number, state2: "draft" | "pending_approval", version: number, userId: string, key: string, now2: number, id2: string): Effect;
     stageSaveSelfServiceLeaveEffect4(id: string): Effect;
@@ -537,7 +537,7 @@ export function createLeaveSelfServiceApplication<Effect>(ports: LeaveSelfServic
             const employee = await repository.readSaveSelfServiceLeaveEmployee(staff.person_id, context.companyId);
             const employeeId = employee?.id ?? `employee-${staff.person_id}`;
             if (!employee)
-                statements.push(repository.stageSaveSelfServiceLeaveEffect(employeeId, staff.person_id, context.companyId, staff.branch_id ?? '', staff.department_id, staff.legal_name, now));
+                statements.push(await repository.stageSaveSelfServiceLeaveEffect(employeeId, staff.person_id, context.companyId, staff.branch_id ?? '', staff.department_id, staff.legal_name, now));
             statements.push(repository.stageSaveSelfServiceLeaveEffect2(id, `LR-${key}`, employeeId, staff.person_id, staff.engagement_id, context.companyId, staff.branch_id ?? '', staff.department_id, input.startDate, Math.ceil(preview.units), input.handoverNote, context.userId, now, now));
         }
         const evidenceDueAt = !input.saveOnly && preview.evidence.required

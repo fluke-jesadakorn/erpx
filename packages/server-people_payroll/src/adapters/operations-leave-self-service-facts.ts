@@ -1,4 +1,5 @@
 import "server-only";
+import { nativePeopleBatchA } from '@erpx/server-collaboration/adapters/native-people-batch-a';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function leaveEmployeeFacts(database: SqlDatabase) {
     return { readSaveSelfServiceLeaveEmployee(person_id: string, companyId: string) {
@@ -6,5 +7,5 @@ export function leaveEmployeeFacts(database: SqlDatabase) {
                 id: string;
             }>();
         },
-        stageSaveSelfServiceLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number) { return database.prepare("INSERT INTO employees(id,person_id,company_id,branch_id,department_id,display_name,status,created_at) VALUES(?,?,?,?,?,?,'active',?)").bind(employeeId, person_id, companyId, value, department_id, legal_name, now); } };
+        stageSaveSelfServiceLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number) { return nativePeopleBatchA(database).employee({employeeId,personId:person_id,companyId,branch:value,department:department_id,legalName:legal_name,now}); } };
 }

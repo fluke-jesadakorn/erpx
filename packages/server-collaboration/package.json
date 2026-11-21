@@ -299,7 +299,8 @@
     "./adapters/native-finance-group-editions": "./src/adapters/native-finance-group-editions.ts",
     "./adapters/native-finance-company-tools": "./src/adapters/native-finance-company-tools.ts",
     "./adapters/native-finance-payroll-owner": "./src/adapters/native-finance-payroll-owner.ts",
-    "./adapters/native-finance-supplier-bill": "./src/adapters/native-finance-supplier-bill.ts"
+    "./adapters/native-finance-supplier-bill": "./src/adapters/native-finance-supplier-bill.ts",
+    "./adapters/native-people-batch-a": "./src/adapters/native-people-batch-a.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
