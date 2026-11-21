@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4264,
+    "revision": 4291,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261121-b",
       "agentId": "lead",
       "startedAt": "2026-11-21T08:06:05.796Z",
-      "heartbeatAt": "2026-11-21T08:15:44.597Z",
-      "expiresAt": "2026-11-21T08:45:44.597Z",
+      "heartbeatAt": "2026-11-21T08:42:04.189Z",
+      "expiresAt": "2026-11-21T09:12:04.189Z",
       "generation": 141,
       "tokenHash": "e1ee4b563f3f3158c6fee0c3e5dd74f814e4e65d9222e3384a19caece1b64bff"
     },
@@ -100534,6 +100534,288 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf1a1",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "identity_access",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire identity_access TS writers via native axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['identity_access']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-identity_access/**",
+          "packages/server-identity_access/src/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a1",
+          "claimedAt": "2026-11-21T08:42:53.851Z",
+          "heartbeatAt": "2026-11-21T08:42:53.851Z",
+          "expiresAt": "2026-11-21T09:12:53.851Z",
+          "generation": 141
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assigned to worker wf1a1. Await claim and implementation.",
+        "handoff": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a1",
+          "at": "2026-11-21T08:42:52.968Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Assigned to worker wf1a1. Await claim and implementation."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf1a2",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pms",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire pms TS writers via native axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['pms']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-pms/**",
+          "packages/server-pms/src/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a2",
+          "claimedAt": "2026-11-21T08:42:53.948Z",
+          "heartbeatAt": "2026-11-21T08:42:53.948Z",
+          "expiresAt": "2026-11-21T09:12:53.948Z",
+          "generation": 141
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assigned to worker wf1a2. Await claim and implementation.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf1a3",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "files",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire files TS writers via native axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['files']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-files/**",
+          "packages/server-files/src/**",
+          "packages/server-collaboration/src/adapters/collaboration-home-sources.ts"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a3",
+          "claimedAt": "2026-11-21T08:42:54.087Z",
+          "heartbeatAt": "2026-11-21T08:42:54.087Z",
+          "expiresAt": "2026-11-21T09:12:54.087Z",
+          "generation": 141
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assigned to worker wf1a3. Await claim and implementation.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf1a4",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pos",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire pos TS writers via native axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['pos']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-pos/**",
+          "packages/server-pos/src/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a4",
+          "claimedAt": "2026-11-21T08:42:54.216Z",
+          "heartbeatAt": "2026-11-21T08:42:54.216Z",
+          "expiresAt": "2026-11-21T09:12:54.216Z",
+          "generation": 141
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assigned to worker wf1a4. Await claim and implementation.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf1a5",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "billing",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire billing TS writers via native axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['billing']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-billing/**",
+          "packages/server-billing/src/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a5",
+          "claimedAt": "2026-11-21T08:42:54.348Z",
+          "heartbeatAt": "2026-11-21T08:42:54.348Z",
+          "expiresAt": "2026-11-21T09:12:54.348Z",
+          "generation": 141
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assigned to worker wf1a5. Await claim and implementation.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf1a6",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "organization",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire organization TS writers via native axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['organization']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-organization/**",
+          "packages/server-organization/src/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a6",
+          "claimedAt": "2026-11-21T08:42:54.443Z",
+          "heartbeatAt": "2026-11-21T08:42:54.443Z",
+          "expiresAt": "2026-11-21T09:12:54.443Z",
+          "generation": 141
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assigned to worker wf1a6. Await claim and implementation.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf1a7",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire collaboration TS writers via native axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['collaboration']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-collaboration/**",
+          "packages/server-collaboration/src/adapters/notification_statement.rs",
+          "packages/server-collaboration/package.json"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261121-b",
+          "agentId": "worker-wf1a7",
+          "claimedAt": "2026-11-21T08:44:07.143Z",
+          "heartbeatAt": "2026-11-21T08:44:07.143Z",
+          "expiresAt": "2026-11-21T09:14:07.143Z",
+          "generation": 141
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assigned to worker wf1a7. Await claim and implementation.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -100542,11 +100824,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 410,
+      "totalPackets": 417,
       "migratedPackets": 297,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 0,
+        "in_progress": 7,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 297,
@@ -100556,7 +100838,7 @@
       }
     },
     "lastCoordinatorGeneration": 141,
-    "updatedAt": "2026-11-21T08:15:44.598Z",
+    "updatedAt": "2026-11-21T08:44:07.144Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
