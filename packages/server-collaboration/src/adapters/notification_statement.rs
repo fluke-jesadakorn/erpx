@@ -4140,3 +4140,44 @@ pub async fn collaboration_backfill_messaging_attachment_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Legal: renew a runtime job health heartbeat.
+pub async fn legal_job_health_renew_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE legal_runtime_health SET heartbeat_at=? WHERE task=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Legal: start a runtime job health record.
+pub async fn legal_job_health_start_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO legal_runtime_health(task,heartbeat_at) VALUES(?,?) ON CONFLICT(task) DO UPDATE SET heartbeat_at=excluded.heartbeat_at".to_owned(), values: values_from_json(input)? })
+}
+
+/// Legal: record a runtime job success.
+pub async fn legal_job_health_success_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE legal_runtime_health SET heartbeat_at=?,last_success_at=?,failure_count=0,last_error=NULL WHERE task=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Legal: record a runtime job failure.
+pub async fn legal_job_health_failure_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE legal_runtime_health SET heartbeat_at=?,failure_count=failure_count+1,last_error=? WHERE task=?".to_owned(), values: values_from_json(input)? })
+}

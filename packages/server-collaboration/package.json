@@ -313,7 +313,8 @@
     "./adapters/native-organization-relocation": "./src/adapters/native-organization-relocation.ts",
     "./adapters/native-people-handoffs": "./src/adapters/native-people-handoffs.ts",
     "./adapters/native-organization-node-channels": "./src/adapters/native-organization-node-channels.ts",
-    "./adapters/native-collaboration-backfill": "./src/adapters/native-collaboration-backfill.ts"
+    "./adapters/native-collaboration-backfill": "./src/adapters/native-collaboration-backfill.ts",
+    "./adapters/native-legal-job-health": "./src/adapters/native-legal-job-health.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

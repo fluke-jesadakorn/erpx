@@ -208,16 +208,16 @@ export async function legalWork(env: JobEnv) {
     await Promise.allSettled(tasks.map(async ([task, run]) => {
       const now = Date.now();
       const renewal = setInterval(() => {
-        void runtimeLegalJobHealthEffects(write).renew(Date.now(),task).catch(() => {});
+        void runtimeLegalJobHealthEffects(write,slot.id).renew(Date.now(),task).catch(() => {});
       },15_000);
       try {
-        await runtimeLegalJobHealthEffects(write).started(task,now);
+        await runtimeLegalJobHealthEffects(write,slot.id).started(task,now);
         await run();
-        await runtimeLegalJobHealthEffects(write).succeeded(Date.now(),Date.now(),task);
+        await runtimeLegalJobHealthEffects(write,slot.id).succeeded(Date.now(),Date.now(),task);
       } catch (error) {
         const code = String((error as {code?: string}).code ?? (error instanceof Error ? error.name : 'LegalJobError')).slice(0,64);
         console.error(JSON.stringify({event:'legal_work_failed',holdingId:slot.id,task,code}));
-        await runtimeLegalJobHealthEffects(write).failed(Date.now(),code,task).catch(() => {});
+        await runtimeLegalJobHealthEffects(write,slot.id).failed(Date.now(),code,task).catch(() => {});
       } finally { clearInterval(renewal); }
     }));
   }
