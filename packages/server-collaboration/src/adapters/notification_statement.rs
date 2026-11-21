@@ -133,7 +133,7 @@ pub async fn notification_statement(
 
 #[cfg(test)]
 mod tests {
-    use super::{NotificationStatementInput, INSERT};
+    use super::{NotificationStatementInput, INSERT, WORKFLOW_ASSERTION_CLEAR_SQL};
     #[test]
     fn insert_shape_matches_legacy_writer() {
         let _i = NotificationStatementInput {
@@ -147,6 +147,12 @@ mod tests {
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
         assert_eq!(INSERT.matches('?').count(), 8);
+    }
+    #[test]
+    fn workflow_assertion_clear_contract_matches_native_sql() {
+        let contract = include_str!("../../../../packages/server-workflow/src/adapters/native-command-assertion-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(contract).expect("invalid command-assertion SQL contract");
+        assert_eq!(parsed["sql"].as_str(), Some(WORKFLOW_ASSERTION_CLEAR_SQL));
     }
 }
 
@@ -3806,6 +3812,11 @@ pub async fn people_attachment_owner_version_statement(
     })
 }
 
+
+/// Native-owned constant SQL for the workflow command-assertion cleanup.
+/// A checked-in JSON contract mirrors this for synchronous TS statement preparation;
+/// the test in this module enforces the contract matches this constant.
+pub const WORKFLOW_ASSERTION_CLEAR_SQL: &str = "DELETE FROM command_assertions WHERE command_id=?";
 
 /// Workflow: clear the assertion rows retained for a command.
 pub async fn workflow_command_assertion_clear_statement(
