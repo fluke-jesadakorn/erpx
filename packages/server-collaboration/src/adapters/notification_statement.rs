@@ -5904,3 +5904,54 @@ mod company_money_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for finance AI worker statements.
+pub const FINANCE_AI_SQL_AI_STMT_1: &str = "INSERT INTO finance_ai_events(id,company_id,proposal_id,action,actor_id,command_id,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?)";
+pub const FINANCE_AI_SQL_AI_STMT_2: &str = "UPDATE finance_ai_proposals SET claim_until=? WHERE id=? AND state='running' AND lease_token=? AND claim_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
+pub const FINANCE_AI_SQL_AI_STMT_3: &str = "UPDATE finance_ai_proposals SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) RETURNING *";
+pub const FINANCE_AI_SQL_AI_STMT_4: &str = "INSERT INTO finance_ai_policies(company_id,enabled,version,kinds_json,timezone,daily_limit,monthly_limit,owner_actor_json,reason,changed_by,changed_at,next_scan_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,0) ON CONFLICT(company_id) DO UPDATE SET enabled=excluded.enabled,version=excluded.version,kinds_json=excluded.kinds_json,timezone=excluded.timezone,daily_limit=excluded.daily_limit,monthly_limit=excluded.monthly_limit,owner_actor_json=excluded.owner_actor_json,reason=excluded.reason,changed_by=excluded.changed_by,changed_at=excluded.changed_at,next_scan_at=0,last_error=NULL";
+pub const FINANCE_AI_SQL_AI_STMT_5: &str = "UPDATE finance_ai_proposals SET state='queued',version=version+1,error=NULL,attempts=0,lease_token=NULL,claim_until=NULL,actor_json=?,usage_id=?,updated_at=? WHERE id=? AND state IN ('failed','stale')";
+pub const FINANCE_AI_SQL_AI_STMT_6: &str = "INSERT INTO finance_ai_proposals(id,company_id,kind,source_id,source_version,source_hash,source_json,source_query_json,company_revision,policy_version,provider_json,actor_json,state,usage_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'queued',?,?,?)";
+pub const FINANCE_AI_SQL_AI_STMT_7: &str = "INSERT INTO finance_ai_usage(id,proposal_id,company_id,actor_id,month,business_date,state,lease_until,created_at) VALUES(?,?,?,?,?,?,'reserved',?,?)";
+pub const FINANCE_AI_SQL_AI_STMT_8: &str = "UPDATE finance_ai_proposals SET state='ready',result_json=?,error=NULL,lease_token=NULL,claim_until=NULL,version=version+1,updated_at=? WHERE id=? AND lease_token=?";
+pub const FINANCE_AI_SQL_AI_STMT_9: &str = "UPDATE finance_ai_usage SET state='succeeded',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
+pub const FINANCE_AI_SQL_AI_STMT_10: &str = "UPDATE finance_ai_proposals SET state=?,error=?,lease_token=NULL,claim_until=NULL,version=version+1,updated_at=? WHERE id=? AND state='running' AND lease_token=? RETURNING id";
+pub const FINANCE_AI_SQL_AI_STMT_11: &str = "UPDATE finance_ai_usage SET state='failed',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
+pub const FINANCE_AI_SQL_AI_STMT_12: &str = "UPDATE finance_ai_proposals SET state='failed',error='Preparation was interrupted. Retry or continue manually.',lease_token=NULL,claim_until=NULL,version=version+1,updated_at=? WHERE state='running' AND claim_until<? AND attempts>=3";
+pub const FINANCE_AI_SQL_AI_STMT_13: &str = "UPDATE finance_ai_proposals SET state='dismissed',version=version+1,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=?";
+pub const FINANCE_AI_SQL_AI_STMT_14: &str = "UPDATE finance_ai_policies SET next_scan_at=? WHERE company_id=? AND enabled AND version=? AND next_scan_at<=? RETURNING company_id";
+pub const FINANCE_AI_SQL_AI_STMT_15: &str = "UPDATE finance_ai_policies SET last_error=NULL WHERE company_id=? AND version=?";
+pub const FINANCE_AI_SQL_AI_STMT_16: &str = "UPDATE finance_ai_policies SET last_error=?,next_scan_at=? WHERE company_id=? AND version=?";
+pub const FINANCE_AI_SQL_AI_STMT_17: &str = "UPDATE finance_ai_proposals SET state='applied',draft_command_id=?,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod finance_ai_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn finance_ai_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-finance-ai-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid finance AI SQL contract");
+        let pairs = [
+            ("ai_stmt_1", FINANCE_AI_SQL_AI_STMT_1),
+            ("ai_stmt_2", FINANCE_AI_SQL_AI_STMT_2),
+            ("ai_stmt_3", FINANCE_AI_SQL_AI_STMT_3),
+            ("ai_stmt_4", FINANCE_AI_SQL_AI_STMT_4),
+            ("ai_stmt_5", FINANCE_AI_SQL_AI_STMT_5),
+            ("ai_stmt_6", FINANCE_AI_SQL_AI_STMT_6),
+            ("ai_stmt_7", FINANCE_AI_SQL_AI_STMT_7),
+            ("ai_stmt_8", FINANCE_AI_SQL_AI_STMT_8),
+            ("ai_stmt_9", FINANCE_AI_SQL_AI_STMT_9),
+            ("ai_stmt_10", FINANCE_AI_SQL_AI_STMT_10),
+            ("ai_stmt_11", FINANCE_AI_SQL_AI_STMT_11),
+            ("ai_stmt_12", FINANCE_AI_SQL_AI_STMT_12),
+            ("ai_stmt_13", FINANCE_AI_SQL_AI_STMT_13),
+            ("ai_stmt_14", FINANCE_AI_SQL_AI_STMT_14),
+            ("ai_stmt_15", FINANCE_AI_SQL_AI_STMT_15),
+            ("ai_stmt_16", FINANCE_AI_SQL_AI_STMT_16),
+            ("ai_stmt_17", FINANCE_AI_SQL_AI_STMT_17),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "finance AI SQL contract drift: {key}");
+        }
+    }
+}
