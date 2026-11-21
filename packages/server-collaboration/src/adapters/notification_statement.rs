@@ -4940,3 +4940,83 @@ pub async fn thai_doc_change_decision_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_thai_document_changes SET status=?,replacement_document_id=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance billing correction: native-owned billing_correction_insert statement.
+pub async fn billing_correction_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_billing_corrections(id,company_id,billing_run_id,invoice_id,number,entry_date,period_id,input_json,result_json,source_hash,source_json,subtotal_minor,tax_minor,total_minor,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance billing correction: native-owned billing_correction_reject statement.
+pub async fn billing_correction_reject_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_billing_corrections SET status='rejected',version=?,reviewed_by=?,review_reason=?,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance billing correction: native-owned billing_recognition_reverse statement.
+pub async fn billing_recognition_reverse_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_recognition_runs SET status='reversed',version=version+1,reversal_journal_id=?,reason=?,updated_at=? WHERE id=? AND version=? AND status='posted'".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance billing correction: native-owned billing_invoice_paid statement.
+pub async fn billing_invoice_paid_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_invoices SET outstanding_minor=0,base_outstanding_minor=0,status='paid',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance billing correction: native-owned billing_correction_post statement.
+pub async fn billing_correction_post_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_billing_corrections SET status='posted',version=?,reviewed_by=?,review_reason=?,credit_journal_id=?,replacement_bill_id=?,credited_minor=?,refund_minor=?,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance billing correction: native-owned billing_refund_obligation statement.
+pub async fn billing_refund_obligation_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_refund_obligations(id,company_id,billing_correction_id,invoice_id,party_id,direction,currency,chart_id,balance_account_id,amount_minor,outstanding_minor,base_amount_minor,base_outstanding_minor,source_credit_journal_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'outgoing',?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance billing correction: native-owned billing_invoice_created_by statement.
+pub async fn billing_invoice_created_by_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_invoices SET created_by=? WHERE id=? AND company_id=? AND status='draft' AND version=1".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance billing correction: native-owned billing_run_approve statement.
+pub async fn billing_run_approve_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_business_billing_runs SET no_charge_status='approved',reviewed_by=?,review_reason=?,version=version+1 WHERE id=? AND company_id=? AND no_charge_status='draft'".to_owned(), values: values_from_json(input)? })
+}
