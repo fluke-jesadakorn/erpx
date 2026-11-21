@@ -3948,3 +3948,32 @@ pub async fn people_legacy_leave_request_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// People: record a project-worker starter row (server-chosen table).
+pub async fn people_worker_starter_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let table = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("INSERT INTO {table}(person_id,company_id,account_id,engagement_id,command_id,request_hash,proof_json) SELECT ?,?,?,?,?,request_hash,?::jsonb FROM command_receipts WHERE command_id=? AND operation=? AND record_id=?"),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People: record a project-worker placement row (server-chosen table).
+pub async fn people_worker_placement_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let table = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("INSERT INTO {table}(case_id,company_id,person_id,engagement_id,starter_command_id,command_id,request_hash,proof_json) SELECT ?,?,?,?,?,?,request_hash,?::jsonb FROM command_receipts WHERE command_id=? AND operation='people.lifecycle.submit' AND record_id=?"),
+        values: values_from_json(input)?,
+    })
+}

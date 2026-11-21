@@ -307,7 +307,8 @@
     "./adapters/native-organization-channels": "./src/adapters/native-organization-channels.ts",
     "./adapters/native-backfill-attachment": "./src/adapters/native-backfill-attachment.ts",
     "./adapters/native-beta-resource-cleanup": "./src/adapters/native-beta-resource-cleanup.ts",
-    "./adapters/native-leave-legacy": "./src/adapters/native-leave-legacy.ts"
+    "./adapters/native-leave-legacy": "./src/adapters/native-leave-legacy.ts",
+    "./adapters/native-worker-startup": "./src/adapters/native-worker-startup.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
