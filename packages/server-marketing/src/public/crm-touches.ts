@@ -1,1 +1,1 @@
-export { prepareCrmSourceTouch, prepareCrmReservationTouch } from "@erpx/server-marketing/adapters/crm-touches";
+export { prepareCrmSourceTouch } from "@erpx/server-marketing/adapters/crm-touches";
