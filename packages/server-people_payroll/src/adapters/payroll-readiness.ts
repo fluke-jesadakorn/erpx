@@ -1,3 +1,4 @@
+import { nativePpPayrollReadinessSql } from '@erpx/server-collaboration/adapters/native-pp-payroll_readiness-sql';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead, withPayrollJobsPurchasedTransaction } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { peoplePackageEnforcementMode, type PackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { packageClockSql, purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
@@ -179,7 +180,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         guard41(key: string, value: "preview", runId: string, companyId: string, expectedVersion: number, inputDigest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='preview' AND version=? AND input_digest=?)", [runId, companyId, expectedVersion, inputDigest]); },
-        stageSubmitPayrollReviewEffect(userId: string, inputDigest: string, now: number, now2: number, runId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_payroll_runs SET status='in_review',submitted_by=?,submitted_digest=?,submitted_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='preview' AND version=?").bind(userId, inputDigest, now, now2, runId, companyId, expectedVersion); },
+        stageSubmitPayrollReviewEffect(userId: string, inputDigest: string, now: number, now2: number, runId: string, companyId: string, expectedVersion: number) { return database.prepare(nativePpPayrollReadinessSql('pp_payroll_readiness_stmt_1')).bind(userId, inputDigest, now, now2, runId, companyId, expectedVersion); },
         readGetPayrollScheduleGroup(groupId: string, companyId: string) { return database.prepare("SELECT id,frequency,timezone,currency,schedule_enabled,pay_delay_days,schedule_anchor_date,schedule_version FROM hr_pay_groups WHERE id=? AND company_id=?").bind(groupId, companyId).first<Schedule>(); },
         readSavePayrollScheduleGroup(groupId: string, companyId: string) {
             return database.prepare("SELECT id,frequency,schedule_version FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(groupId, companyId).first<{
@@ -189,11 +190,11 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         guard45(key: string, value: "pay-group", groupId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active' AND schedule_version=?)", [groupId, companyId, expectedVersion]); },
-        stageSavePayrollScheduleEffect(enabled: boolean, payDelayDays: number, value: string | null, now: number, groupId: string, companyId: string, expectedVersion: number) { return database.prepare("UPDATE hr_pay_groups SET schedule_enabled=?,pay_delay_days=?,schedule_anchor_date=?,schedule_version=schedule_version+1,updated_at=? WHERE id=? AND company_id=? AND schedule_version=?").bind(enabled, payDelayDays, value, now, groupId, companyId, expectedVersion); },
+        stageSavePayrollScheduleEffect(enabled: boolean, payDelayDays: number, value: string | null, now: number, groupId: string, companyId: string, expectedVersion: number) { return database.prepare(nativePpPayrollReadinessSql('pp_payroll_readiness_stmt_2')).bind(enabled, payDelayDays, value, now, groupId, companyId, expectedVersion); },
         readDrainPayrollSchedulesGroups() { return database.prepare(`SELECT id,company_id,currency,country_code,frequency,timezone,schedule_enabled,pay_delay_days,schedule_anchor_date,schedule_version FROM hr_pay_groups WHERE status='active' AND schedule_enabled=TRUE AND ${purchase("hr_pay_groups.company_id","new-work")} ORDER BY id`).all<Schedule>(); },
         readDrainPayrollSchedulesExisting(company_id: string, id: string, periodStart: string, periodEnd: string) { return database.prepare("SELECT id FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled' LIMIT 1").bind(company_id, id, periodStart, periodEnd).first(); },
         async stageDrainPayrollSchedulesResult(id: string, company_id: string, id2: string, periodStart: string, periodEnd: string, payDate: string, currency: string, timestamp: number, timestamp2: number, company_id2: string, id3: string, periodStart2: string, periodEnd2: string, scheduleVersion: number) {
-            const insert = (tx: SqlDatabase) => tx.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) SELECT ?,?,?,NULL,?,?,?,?,'preview','draft','system:payroll-schedule',?,? WHERE NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled') ON CONFLICT DO NOTHING").bind(id, company_id, id2, periodStart, periodEnd, payDate, currency, timestamp, timestamp2, company_id2, id3, periodStart2, periodEnd2).run();
+            const insert = (tx: SqlDatabase) => tx.prepare(nativePpPayrollReadinessSql('pp_payroll_readiness_stmt_3')).bind(id, company_id, id2, periodStart, periodEnd, payDate, currency, timestamp, timestamp2, company_id2, id3, periodStart2, periodEnd2).run();
             if (mode === "disabled") return insert(database);
             let image: string | undefined;
             return fromNative(() => withPayrollJobsPurchasedTransaction(database, async (tx, permits) => {
@@ -283,20 +284,17 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         stageDrainPayrollScheduledPreviewsCompleted(value: string, digest: string, timestamp: number, id: string) {
-            return database.prepare(`UPDATE hr_payroll_runs SET status='preview',revision=revision+1,totals_json=?,input_digest=?,
-          submitted_by=NULL,submitted_digest=NULL,submitted_at=NULL,version=version+1,updated_at=?,error_message=NULL WHERE id=?`)
+            return database.prepare(nativePpPayrollReadinessSql('pp_payroll_readiness_stmt_4'))
                 .bind(value, digest, timestamp, id).run();
         },
         stageDrainPayrollScheduledPreviewsCompleted2(value: string, id: string, engagementId: string, workerType: string, value2: string, value3: string, gross: number, deductions: number, employer: number, net: number, currency: string, timestamp: number) {
-            return database.prepare(`INSERT INTO hr_payroll_items(id,run_id,engagement_id,worker_type,input_snapshot_json,result_json,
-            gross_minor,deductions_minor,employer_cost_minor,net_minor,currency,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+            return database.prepare(nativePpPayrollReadinessSql('pp_payroll_readiness_stmt_5'))
                 .bind(value, id, engagementId, workerType, value2, value3, gross, deductions, employer, net, currency, timestamp).run();
         },
         stageDrainPayrollScheduledPreviewsCompleted3(...args) { return systemPayrollPreviewEvents(database).stageDrainPayrollScheduledPreviewsCompleted3(...args); },
         stageDrainPayrollScheduledPreviewsCompleted4(...args) { return systemPayrollPreviewEvents(database).stageDrainPayrollScheduledPreviewsCompleted4(...args); },
         stageDrainPayrollScheduledPreviewsEffect(value: string, value2: number, id: string) {
-            return database.prepare(`UPDATE hr_payroll_runs SET status='failed',error_message=?,updated_at=?
-        WHERE id=? AND status IN ('draft','failed') AND created_by='system:payroll-schedule'`).bind(value, value2, id).run();
+            return database.prepare(nativePpPayrollReadinessSql('pp_payroll_readiness_stmt_6')).bind(value, value2, id).run();
         } };
     return { repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, authorize: requirePermission, prepare: async (holding) => { database = provided ?? (await holdingResources(holding)).write; }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, thaiEvidence: (...args) => fromNative(() => thaiEvidenceForEmployee(database, ...args)), thaiGuards: (...args) => thaiEvidenceGuards(database, ...args), adjustmentInputs: (run) => fromNative(() => payrollAdjustmentInputs(database, run)), adjustmentFresh: run => fromNative(() => payrollAdjustmentSourceFresh(database, run)), adjustmentGuards: (...args) => payrollAdjustmentGuards(database, ...args), calculate: (...args) => calculatePayrollItemForSystem(database, ...args), transactional: provided ? isTransactionalSqlDatabase(provided) : false, transaction: run => {
             if (!isTransactionalSqlDatabase(database))

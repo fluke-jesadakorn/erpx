@@ -1,0 +1,6 @@
+{
+  "pp_people_templates_stmt_1": "UPDATE people_holding_templates SET version=version+1,name=$1,definition=$2,updated_at=$3 WHERE id=$4",
+  "pp_people_templates_stmt_2": "INSERT INTO people_holding_templates(id,holding_id,name,definition,created_by,updated_at) VALUES($1,$2,$3,$4,$5,$6)",
+  "pp_people_templates_stmt_3": "INSERT INTO people_lifecycle_settings(company_id,version,definition) VALUES($1,1,$2) ON CONFLICT(company_id) DO UPDATE SET version=people_lifecycle_settings.version+1,definition=excluded.definition",
+  "pp_people_templates_stmt_4": "INSERT INTO people_template_adoptions(company_id,template_id,template_version,definition) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,template_id) DO UPDATE SET template_version=excluded.template_version,version=people_template_adoptions.version+1,definition=excluded.definition"
+}

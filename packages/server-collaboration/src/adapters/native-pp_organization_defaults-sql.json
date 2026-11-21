@@ -1,0 +1,8 @@
+{
+  "pp_organization_defaults_stmt_1": "INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,timezone,workweek_json,created_by,created_at) VALUES(?,?,?,?,?,'active',?,'UTC','[1,2,3,4,5]'::jsonb,?,?)",
+  "pp_organization_defaults_stmt_2": "INSERT INTO leave_policy_rules(policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,employee_eligible,contractor_eligible) VALUES(?,?,'annual',?,0,true,false)",
+  "pp_organization_defaults_stmt_3": "UPDATE hr_engagements SET pay_group_id=? WHERE id=?",
+  "pp_organization_defaults_stmt_4": "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,'monthly',?,0,0,?,'[]','draft',?,?,?)",
+  "pp_organization_defaults_stmt_5": "UPDATE leave_policy_assignments SET effective_to=?,version=version+1 WHERE id=?",
+  "pp_organization_defaults_stmt_6": "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,effective_from,created_by,created_at) VALUES(?,?,?,?,?,?,?)"
+}

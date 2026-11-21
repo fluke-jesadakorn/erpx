@@ -1,0 +1,10 @@
+{
+  "pp_overtime_stmt_1": "INSERT INTO overtime_requests(id,company_id,engagement_id,person_id,branch_id,department_id,created_by,mode,timezone,start_local,end_local,starts_at,ends_at,break_minutes,minutes,reason,late_explanation,roster_shift_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  "pp_overtime_stmt_2": "UPDATE overtime_requests SET start_local=?,end_local=?,timezone=?,starts_at=?,ends_at=?,break_minutes=?,minutes=?,reason=?,late_explanation=?,roster_shift_id=? WHERE id=?",
+  "pp_overtime_stmt_3": "UPDATE overtime_requests SET ${authorization ? 'planned_snapshot' : 'actuals_snapshot'}=?::jsonb,decision_note='' WHERE id=?",
+  "pp_overtime_stmt_4": "INSERT INTO overtime_payroll_handoffs(id,request_id,company_id,engagement_id,request_version,work_date,minutes,timezone,approved_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+  "pp_overtime_stmt_5": "UPDATE overtime_requests SET decision_note=? WHERE id=?",
+  "pp_overtime_stmt_6": "UPDATE overtime_requests SET state=?,version=?,updated_at=? WHERE id=?",
+  "pp_overtime_stmt_7": "UPDATE hr_engagements SET self_service_top_level=?,version=version+1 WHERE id=? AND company_id=?",
+  "pp_overtime_stmt_8": "INSERT INTO overtime_eligibility(company_id,engagement_id,eligible,reason,updated_by,updated_at,version) VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,engagement_id) DO UPDATE SET eligible=excluded.eligible,reason=excluded.reason,updated_by=excluded.updated_by,updated_at=excluded.updated_at,version=excluded.version"
+}

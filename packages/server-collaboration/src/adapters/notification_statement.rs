@@ -6477,3 +6477,605 @@ mod people_payroll_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for pp_attachments_service_facts statements.
+pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_LEAVE_REQUEST: &str = "UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?";
+pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_PREFIX: &str = "UPDATE ";
+pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID: &str = " SET version=version+1";
+pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID2: &str = ",updated_at=?";
+pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_SUFFIX: &str = " WHERE id=? AND version=?";
+pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_SERVICE_FACTS_STMT_1: &str = "UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?";
+
+#[cfg(test)]
+mod pp_attachments_service_facts_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_attachments_service_facts_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_attachments_service_facts-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_attachments_service_facts SQL contract");
+        let pairs = [
+            ("pp_attachments_leave_request", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_LEAVE_REQUEST),
+            ("pp_attachments_dynamic_prefix", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_PREFIX),
+            ("pp_attachments_dynamic_mid", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID),
+            ("pp_attachments_dynamic_mid2", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID2),
+            ("pp_attachments_dynamic_suffix", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_SUFFIX),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_attachments_service_facts SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_expense_payments statements.
+pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_1: &str = "UPDATE expense_payment_drafts SET payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_2: &str = "UPDATE expense_payment_drafts SET version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_3: &str = "INSERT INTO expense_payment_drafts(id,expense_id,company_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?)";
+pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_4: &str = "UPDATE expense_payment_drafts SET status='confirmed',payment_id=?,payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod pp_expense_payments_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_expense_payments_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_expense_payments-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expense_payments SQL contract");
+        let pairs = [
+            ("pp_expense_payments_stmt_1", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_1),
+            ("pp_expense_payments_stmt_2", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_2),
+            ("pp_expense_payments_stmt_3", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_3),
+            ("pp_expense_payments_stmt_4", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_4),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_expense_payments SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_expense_workflow statements.
+pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_1: &str = "UPDATE finance_expenses SET category_account_id=?,amount_minor=?,tax_minor=?,accounting_json=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_2: &str = "UPDATE finance_expenses SET employee_id=?,engagement_id=?,branch_id=?,department_id=?,workflow_version=2,workflow_stage=?,status='in_review',accounting_json='{}',approved_by=NULL,rejection_reason=NULL,submitted_at=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_3: &str = "UPDATE finance_expenses SET workflow_stage='cancelled',status='rejected',cancelled_at=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_4: &str = "UPDATE finance_expenses SET status='rejected',workflow_stage='draft',accounting_json='{}',approved_by=NULL,rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_5: &str = "UPDATE finance_expenses SET status='approved',workflow_stage='gl_posting',approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_6: &str = "UPDATE finance_expenses SET status=?,workflow_stage=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod pp_expense_workflow_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_expense_workflow_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_expense_workflow-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expense_workflow SQL contract");
+        let pairs = [
+            ("pp_expense_workflow_stmt_1", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_1),
+            ("pp_expense_workflow_stmt_2", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_2),
+            ("pp_expense_workflow_stmt_3", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_3),
+            ("pp_expense_workflow_stmt_4", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_4),
+            ("pp_expense_workflow_stmt_5", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_5),
+            ("pp_expense_workflow_stmt_6", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_6),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_expense_workflow SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_identity_applied_package_effects statements.
+pub const PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_SQL_PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_STMT_1: &str = "INSERT INTO people_applied_packages(id,company_id,person_id,engagement_id,position_id,package_id,package_revision,definition,source_kind,scope,case_id,authorizing_assignment_id,valid_from,valid_until,created_at) SELECT 'legacy:'||c.id,c.company_id,c.person_id,c.engagement_id,c.definition->>'positionId',c.package_id,c.package_revision,r.definition,'position',c.review_snapshot,c.id,c.authorizing_assignment_id,c.effective_at,a.valid_until,$2 FROM people_lifecycle_cases c JOIN people_package_revisions r ON r.company_id=c.company_id AND r.package_id=c.package_id AND r.revision=c.package_revision ${lifecycleAppliedPackageAssignmentJoin()} WHERE c.id=$1 ON CONFLICT(id) DO NOTHING";
+
+#[cfg(test)]
+mod pp_identity_applied_package_effects_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_identity_applied_package_effects_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_identity_applied_package_effects-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_identity_applied_package_effects SQL contract");
+        let pairs = [
+            ("pp_identity_applied_package_effects_stmt_1", PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_SQL_PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_STMT_1),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_identity_applied_package_effects SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_identity_person_link_effects statements.
+pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_1: &str = "UPDATE hr_people SET user_id=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_2: &str = "UPDATE employees SET user_id=? WHERE person_id=?";
+pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_3: &str = "UPDATE hr_people SET user_id=$1,version=version+1 WHERE id=$2 AND company_id=$3";
+pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_4: &str = "UPDATE employees SET user_id=$1 WHERE user_id=$2 AND company_id=$3";
+
+#[cfg(test)]
+mod pp_identity_person_link_effects_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_identity_person_link_effects_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_identity_person_link_effects-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_identity_person_link_effects SQL contract");
+        let pairs = [
+            ("pp_identity_person_link_effects_stmt_1", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_1),
+            ("pp_identity_person_link_effects_stmt_2", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_2),
+            ("pp_identity_person_link_effects_stmt_3", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_3),
+            ("pp_identity_person_link_effects_stmt_4", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_4),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_identity_person_link_effects SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_leave statements.
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_1: &str = "UPDATE leave_requests SET start_date=?,days=?,handover_note=?,state=?,person_id=?,engagement_id=?,branch_id=?,department_id=?,prepared_by=?,decided_by=NULL,decision_note=NULL,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_2: &str = "UPDATE leave_requests SET state=?,decision_note=?,decided_by=?,evidence_version=evidence_version+?,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_3: &str = "INSERT INTO leave_cancellation_reviews(id,request_id,company_id,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)";
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_4: &str = "UPDATE leave_requests SET cancellation_state='pending_review',version=version+1,last_command_id=?,updated_at=? WHERE id=?";
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_5: &str = "UPDATE leave_requests SET state='cancelled',decision_note=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_6: &str = "UPDATE leave_requests SET state=?,cancellation_state=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_7: &str = "UPDATE leave_cancellation_reviews SET state=?,decided_by=?,decision_note=?,version=version+1,updated_at=? WHERE request_id=? AND state='pending_approval'";
+pub const PP_LEAVE_SQL_PP_LEAVE_STMT_8: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at)\n SELECT ?||':'||entitlement_year,company_id,engagement_id,leave_type_id,request_id,?,sum(units)*?,entitlement_year||'-01-01',entitlement_year,?||':'||entitlement_year,?,?,?\n FROM leave_balance_entries WHERE request_id=? AND company_id=? AND kind IN (${source}) GROUP BY company_id,engagement_id,leave_type_id,request_id,entitlement_year HAVING sum(units)<0";
+
+#[cfg(test)]
+mod pp_leave_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_leave_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_leave-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_leave SQL contract");
+        let pairs = [
+            ("pp_leave_stmt_1", PP_LEAVE_SQL_PP_LEAVE_STMT_1),
+            ("pp_leave_stmt_2", PP_LEAVE_SQL_PP_LEAVE_STMT_2),
+            ("pp_leave_stmt_3", PP_LEAVE_SQL_PP_LEAVE_STMT_3),
+            ("pp_leave_stmt_4", PP_LEAVE_SQL_PP_LEAVE_STMT_4),
+            ("pp_leave_stmt_5", PP_LEAVE_SQL_PP_LEAVE_STMT_5),
+            ("pp_leave_stmt_6", PP_LEAVE_SQL_PP_LEAVE_STMT_6),
+            ("pp_leave_stmt_7", PP_LEAVE_SQL_PP_LEAVE_STMT_7),
+            ("pp_leave_stmt_8", PP_LEAVE_SQL_PP_LEAVE_STMT_8),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_leave SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_operations_people_directory_facts statements.
+pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_1: &str = "UPDATE employees SET display_name=?,branch_id=?,department_id=? WHERE person_id=?";
+pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_2: &str = "INSERT INTO employees(id,person_id,company_id,branch_id,department_id,display_name,status,created_at) VALUES(?,?,?,?,?,?,'active',?)";
+pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_3: &str = "UPDATE employees SET user_id=? WHERE person_id=?";
+pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_4: &str = "UPDATE employees SET status=? WHERE person_id=?";
+
+#[cfg(test)]
+mod pp_operations_people_directory_facts_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_operations_people_directory_facts_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_operations_people_directory_facts-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_operations_people_directory_facts SQL contract");
+        let pairs = [
+            ("pp_operations_people_directory_facts_stmt_1", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_1),
+            ("pp_operations_people_directory_facts_stmt_2", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_2),
+            ("pp_operations_people_directory_facts_stmt_3", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_3),
+            ("pp_operations_people_directory_facts_stmt_4", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_4),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_operations_people_directory_facts SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_operations_people_lifecycle_worker_effects statements.
+pub const PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_1: &str = "UPDATE employees SET status='inactive' WHERE company_id=$1 AND person_id=$2";
+pub const PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_2: &str = "UPDATE employees SET branch_id=$3,department_id=$4,status='active' WHERE company_id=$1 AND person_id=$2";
+pub const PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_3: &str = "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)";
+
+#[cfg(test)]
+mod pp_operations_people_lifecycle_worker_effects_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_operations_people_lifecycle_worker_effects_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_operations_people_lifecycle_worker_effects-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_operations_people_lifecycle_worker_effects SQL contract");
+        let pairs = [
+            ("pp_operations_people_lifecycle_worker_effects_stmt_1", PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_1),
+            ("pp_operations_people_lifecycle_worker_effects_stmt_2", PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_2),
+            ("pp_operations_people_lifecycle_worker_effects_stmt_3", PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_3),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_operations_people_lifecycle_worker_effects SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_organization_defaults statements.
+pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_1: &str = "INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,timezone,workweek_json,created_by,created_at) VALUES(?,?,?,?,?,'active',?,'UTC','[1,2,3,4,5]'::jsonb,?,?)";
+pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_2: &str = "INSERT INTO leave_policy_rules(policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,employee_eligible,contractor_eligible) VALUES(?,?,'annual',?,0,true,false)";
+pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_3: &str = "UPDATE hr_engagements SET pay_group_id=? WHERE id=?";
+pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_4: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,'monthly',?,0,0,?,'[]','draft',?,?,?)";
+pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_5: &str = "UPDATE leave_policy_assignments SET effective_to=?,version=version+1 WHERE id=?";
+pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_6: &str = "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,effective_from,created_by,created_at) VALUES(?,?,?,?,?,?,?)";
+
+#[cfg(test)]
+mod pp_organization_defaults_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_organization_defaults_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_organization_defaults-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_organization_defaults SQL contract");
+        let pairs = [
+            ("pp_organization_defaults_stmt_1", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_1),
+            ("pp_organization_defaults_stmt_2", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_2),
+            ("pp_organization_defaults_stmt_3", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_3),
+            ("pp_organization_defaults_stmt_4", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_4),
+            ("pp_organization_defaults_stmt_5", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_5),
+            ("pp_organization_defaults_stmt_6", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_6),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_organization_defaults SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_overtime statements.
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_1: &str = "INSERT INTO overtime_requests(id,company_id,engagement_id,person_id,branch_id,department_id,created_by,mode,timezone,start_local,end_local,starts_at,ends_at,break_minutes,minutes,reason,late_explanation,roster_shift_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_2: &str = "UPDATE overtime_requests SET start_local=?,end_local=?,timezone=?,starts_at=?,ends_at=?,break_minutes=?,minutes=?,reason=?,late_explanation=?,roster_shift_id=? WHERE id=?";
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_3: &str = "UPDATE overtime_requests SET ${authorization ? 'planned_snapshot' : 'actuals_snapshot'}=?::jsonb,decision_note='' WHERE id=?";
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_4: &str = "INSERT INTO overtime_payroll_handoffs(id,request_id,company_id,engagement_id,request_version,work_date,minutes,timezone,approved_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_5: &str = "UPDATE overtime_requests SET decision_note=? WHERE id=?";
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_6: &str = "UPDATE overtime_requests SET state=?,version=?,updated_at=? WHERE id=?";
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_7: &str = "UPDATE hr_engagements SET self_service_top_level=?,version=version+1 WHERE id=? AND company_id=?";
+pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_8: &str = "INSERT INTO overtime_eligibility(company_id,engagement_id,eligible,reason,updated_by,updated_at,version) VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,engagement_id) DO UPDATE SET eligible=excluded.eligible,reason=excluded.reason,updated_by=excluded.updated_by,updated_at=excluded.updated_at,version=excluded.version";
+
+#[cfg(test)]
+mod pp_overtime_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_overtime_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_overtime-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_overtime SQL contract");
+        let pairs = [
+            ("pp_overtime_stmt_1", PP_OVERTIME_SQL_PP_OVERTIME_STMT_1),
+            ("pp_overtime_stmt_2", PP_OVERTIME_SQL_PP_OVERTIME_STMT_2),
+            ("pp_overtime_stmt_3", PP_OVERTIME_SQL_PP_OVERTIME_STMT_3),
+            ("pp_overtime_stmt_4", PP_OVERTIME_SQL_PP_OVERTIME_STMT_4),
+            ("pp_overtime_stmt_5", PP_OVERTIME_SQL_PP_OVERTIME_STMT_5),
+            ("pp_overtime_stmt_6", PP_OVERTIME_SQL_PP_OVERTIME_STMT_6),
+            ("pp_overtime_stmt_7", PP_OVERTIME_SQL_PP_OVERTIME_STMT_7),
+            ("pp_overtime_stmt_8", PP_OVERTIME_SQL_PP_OVERTIME_STMT_8),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_overtime SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_payroll_adjustments statements.
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_1: &str = "INSERT INTO hr_payroll_adjustment_revisions(id,run_id,revision,taxable_arrears_minor,non_taxable_arrears_minor,social_security_wage_minor,time_entries_json,reason,evidence_ref,created_by,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_2: &str = "INSERT INTO hr_payroll_adjustment_time_claims(run_id,source_revision,time_entry_id) VALUES(?,?,?)";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_3: &str = "INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,adjustment_of_run_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'THB','production','calculating',?,?,?,?)";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_4: &str = "INSERT INTO hr_payroll_adjustments(run_id,company_id,original_run_id,original_item_id,engagement_id,source_ref,source_snapshot_json,source_digest,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_5: &str = "UPDATE hr_payroll_adjustment_time_claims SET active=false WHERE run_id=? AND active";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_6: &str = "UPDATE hr_payroll_adjustments SET source_revision=source_revision+1 WHERE run_id=?";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_7: &str = "UPDATE hr_payroll_runs SET status='calculating',input_digest=NULL,totals_json='{}',version=version+1,updated_at=? WHERE id=?";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_8: &str = "DELETE FROM hr_payroll_items WHERE run_id=?";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_9: &str = "UPDATE hr_payroll_runs SET status='preview',revision=revision+1,totals_json=?,input_digest=?,version=version+1,error_message=NULL,updated_at=? WHERE id=?";
+pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_10: &str = "INSERT INTO hr_payroll_items(id,run_id,engagement_id,worker_type,input_snapshot_json,result_json,gross_minor,deductions_minor,employer_cost_minor,net_minor,currency,created_at) VALUES(?,?,?,'employee',?,?,?,?,?,?,'THB',?)";
+
+#[cfg(test)]
+mod pp_payroll_adjustments_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_payroll_adjustments_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_payroll_adjustments-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_adjustments SQL contract");
+        let pairs = [
+            ("pp_payroll_adjustments_stmt_1", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_1),
+            ("pp_payroll_adjustments_stmt_2", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_2),
+            ("pp_payroll_adjustments_stmt_3", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_3),
+            ("pp_payroll_adjustments_stmt_4", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_4),
+            ("pp_payroll_adjustments_stmt_5", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_5),
+            ("pp_payroll_adjustments_stmt_6", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_6),
+            ("pp_payroll_adjustments_stmt_7", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_7),
+            ("pp_payroll_adjustments_stmt_8", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_8),
+            ("pp_payroll_adjustments_stmt_9", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_9),
+            ("pp_payroll_adjustments_stmt_10", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_10),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_adjustments SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_payroll_other_remittance statements.
+pub const PP_PAYROLL_OTHER_REMITTANCE_SQL_PP_PAYROLL_OTHER_REMITTANCE_STMT_1: &str = "INSERT INTO hr_payroll_statutory_remittances(id,company_id,run_id,kind,amount_minor,liability_account_id,bank_account_id,bank_transaction_id,journal_id,bank_reference,recorded_by,recorded_at,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+#[cfg(test)]
+mod pp_payroll_other_remittance_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_payroll_other_remittance_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_payroll_other_remittance-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_other_remittance SQL contract");
+        let pairs = [
+            ("pp_payroll_other_remittance_stmt_1", PP_PAYROLL_OTHER_REMITTANCE_SQL_PP_PAYROLL_OTHER_REMITTANCE_STMT_1),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_other_remittance SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_payroll_readiness statements.
+pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_1: &str = "UPDATE hr_payroll_runs SET status='in_review',submitted_by=?,submitted_digest=?,submitted_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='preview' AND version=?";
+pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_2: &str = "UPDATE hr_pay_groups SET schedule_enabled=?,pay_delay_days=?,schedule_anchor_date=?,schedule_version=schedule_version+1,updated_at=? WHERE id=? AND company_id=? AND schedule_version=?";
+pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_3: &str = "INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) SELECT ?,?,?,NULL,?,?,?,?,'preview','draft','system:payroll-schedule',?,? WHERE NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled') ON CONFLICT DO NOTHING";
+pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_4: &str = "UPDATE hr_payroll_runs SET status='preview',revision=revision+1,totals_json=?,input_digest=?,\n          submitted_by=NULL,submitted_digest=NULL,submitted_at=NULL,version=version+1,updated_at=?,error_message=NULL WHERE id=?";
+pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_5: &str = "INSERT INTO hr_payroll_items(id,run_id,engagement_id,worker_type,input_snapshot_json,result_json,\n            gross_minor,deductions_minor,employer_cost_minor,net_minor,currency,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_6: &str = "UPDATE hr_payroll_runs SET status='failed',error_message=?,updated_at=?\n        WHERE id=? AND status IN ('draft','failed') AND created_by='system:payroll-schedule'";
+
+#[cfg(test)]
+mod pp_payroll_readiness_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_payroll_readiness_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_payroll_readiness-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_readiness SQL contract");
+        let pairs = [
+            ("pp_payroll_readiness_stmt_1", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_1),
+            ("pp_payroll_readiness_stmt_2", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_2),
+            ("pp_payroll_readiness_stmt_3", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_3),
+            ("pp_payroll_readiness_stmt_4", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_4),
+            ("pp_payroll_readiness_stmt_5", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_5),
+            ("pp_payroll_readiness_stmt_6", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_6),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_readiness SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_payroll_recoveries statements.
+pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_1: &str = "INSERT INTO hr_payroll_recovery_events(id,recovery_id,company_id,action,actor_id,recovery_version,evidence_json,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_2: &str = "INSERT INTO hr_payroll_recoveries(id,company_id,original_run_id,original_item_id,engagement_id,person_id,employee_user_id,source_ref,source_snapshot_json,source_digest,policy_json,policy_digest,amount_minor,currency,installment_count,first_deduction_period,reason,evidence_ref,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,\\'THB\\',?,?,?,?,?,?,?)";
+pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_3: &str = "UPDATE hr_payroll_recoveries SET status=?,version=version+1,consent_by=?,consent_at=?,consent_html=?,consent_sha256=?,updated_at=? WHERE id=?";
+pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_4: &str = "UPDATE hr_payroll_recoveries SET status=?,version=version+1,reviewed_by=?,legal_basis_ref=?,updated_at=? WHERE id=?";
+pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_5: &str = "INSERT INTO hr_payroll_advances(id,company_id,engagement_id,person_id,status,version,amount_minor,installment_count,first_deduction_period,currency,reason,requested_by,approved_by,review_reason,created_at,reviewed_at,updated_at,recovery_id) VALUES(?,?,?,?,'approved',2,?,?,?,'THB',?,?,?,?,?,?,?,?)";
+pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_6: &str = "UPDATE hr_payroll_recoveries SET status='recognized',version=version+1,journal_id=?,advance_id=?,recognized_by=?,updated_at=? WHERE id=?";
+pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_7: &str = "INSERT INTO hr_payroll_advance_repayments(id,advance_id,company_id,sequence,due_period_start,due_period_end,amount_minor,created_at) VALUES(?,?,?,?,?,?,?,?)";
+
+#[cfg(test)]
+mod pp_payroll_recoveries_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_payroll_recoveries_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_payroll_recoveries-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_recoveries SQL contract");
+        let pairs = [
+            ("pp_payroll_recoveries_stmt_1", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_1),
+            ("pp_payroll_recoveries_stmt_2", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_2),
+            ("pp_payroll_recoveries_stmt_3", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_3),
+            ("pp_payroll_recoveries_stmt_4", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_4),
+            ("pp_payroll_recoveries_stmt_5", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_5),
+            ("pp_payroll_recoveries_stmt_6", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_6),
+            ("pp_payroll_recoveries_stmt_7", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_7),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_recoveries SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_people_directory statements.
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_1: &str = "UPDATE hr_people SET legal_name=?,preferred_name=?,email=?,phone=?,work_email=?,work_phone=?,country_code=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_2: &str = "UPDATE hr_engagements SET branch_id=?,department_id=?,job_title=?,worker_type=?,employment_type=?,start_date=?,currency=?,manager_person_id=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_3: &str = "INSERT INTO hr_people(id,company_id,legal_name,preferred_name,email,phone,work_email,work_phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_4: &str = "INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,manager_person_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'onboarding',?,?,?,?,?,?,?)";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_5: &str = "UPDATE hr_engagements SET level_id=? WHERE id=?";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_6: &str = "UPDATE hr_people SET user_id=? WHERE id=?";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_7: &str = "UPDATE hr_engagements SET position_id=? WHERE id=?";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_8: &str = "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_9: &str = "UPDATE hr_people SET status=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_10: &str = "UPDATE hr_engagements SET status=?,version=version+1,updated_at=? WHERE person_id=? AND status!='ended'";
+
+#[cfg(test)]
+mod pp_people_directory_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_people_directory_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_people_directory-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_directory SQL contract");
+        let pairs = [
+            ("pp_people_directory_stmt_1", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_1),
+            ("pp_people_directory_stmt_2", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_2),
+            ("pp_people_directory_stmt_3", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_3),
+            ("pp_people_directory_stmt_4", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_4),
+            ("pp_people_directory_stmt_5", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_5),
+            ("pp_people_directory_stmt_6", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_6),
+            ("pp_people_directory_stmt_7", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_7),
+            ("pp_people_directory_stmt_8", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_8),
+            ("pp_people_directory_stmt_9", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_9),
+            ("pp_people_directory_stmt_10", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_10),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_directory SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_people_evaluation_ai statements.
+pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_1: &str = "INSERT INTO hr_evaluation_ai_jobs(id,company_id,actor_json,query_json,source_hash,provider_json,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_2: &str = "UPDATE hr_evaluation_ai_jobs SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) RETURNING *";
+pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_3: &str = "UPDATE hr_evaluation_ai_jobs SET claim_until=? WHERE id=? AND lease_token=? AND state='running'";
+pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_4: &str = "UPDATE hr_evaluation_ai_jobs SET state='ready',result_json=?,error=NULL,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=? AND lease_token=?";
+pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_5: &str = "UPDATE hr_evaluation_ai_jobs SET state=?,error=?,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=? AND lease_token=?";
+pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_6: &str = "UPDATE hr_evaluation_ai_jobs SET state='failed',error='AI was interrupted. Continue manually.',lease_token=NULL,claim_until=NULL,updated_at=? WHERE state='running' AND claim_until<? AND attempts>=3";
+
+#[cfg(test)]
+mod pp_people_evaluation_ai_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_people_evaluation_ai_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_people_evaluation_ai-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_evaluation_ai SQL contract");
+        let pairs = [
+            ("pp_people_evaluation_ai_stmt_1", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_1),
+            ("pp_people_evaluation_ai_stmt_2", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_2),
+            ("pp_people_evaluation_ai_stmt_3", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_3),
+            ("pp_people_evaluation_ai_stmt_4", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_4),
+            ("pp_people_evaluation_ai_stmt_5", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_5),
+            ("pp_people_evaluation_ai_stmt_6", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_6),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_evaluation_ai SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_people_lifecycle_jobs statements.
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_1: &str = "UPDATE hr_engagements SET status=$2,end_date=CASE WHEN $2='ended' THEN $3 ELSE end_date END,version=version+1,updated_at=$4 WHERE id=$1";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_2: &str = "UPDATE people_access_cutoffs SET restored_at=$3 WHERE company_id=$1 AND person_id=$2 AND cancelled_at IS NULL AND restored_at IS NULL AND effective_at<=$3";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_3: &str = "UPDATE people_applied_packages SET ended_at=$3 WHERE company_id=$1 AND person_id=$2 AND source_kind='position' AND ended_at IS NULL";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_4: &str = "UPDATE people_lifecycle_cases SET status='completed' WHERE id=$1";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_5: &str = "UPDATE hr_engagements SET position_id=$2,branch_id=$3,department_id=$4,level_id=$5,manager_person_id=$6,job_title=$7,status='active',version=version+1,updated_at=$8 WHERE id=$1";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_6: &str = "UPDATE hr_engagements SET pay_group_id=$2 WHERE id=$1";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_7: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES($1,$2,$3,'monthly',$4,0,0,$5,'[]','draft',$6,$7,$7) ON CONFLICT(id) DO NOTHING";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_8: &str = "UPDATE leave_policy_assignments SET effective_to=$1,version=version+1 WHERE id=$2";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_9: &str = "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,effective_from,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_10: &str = "UPDATE people_lifecycle_cases SET status='completed',version=version+1,updated_at=$2 WHERE id=$1";
+pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_11: &str = "UPDATE people_lifecycle_cases SET attempts=attempts+1,next_attempt_at=$2+LEAST(3600000,1000*power(2,LEAST(attempts,12)))::bigint,last_error=$3 WHERE id=$1 AND status='scheduled'";
+
+#[cfg(test)]
+mod pp_people_lifecycle_jobs_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_people_lifecycle_jobs_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_people_lifecycle_jobs-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_lifecycle_jobs SQL contract");
+        let pairs = [
+            ("pp_people_lifecycle_jobs_stmt_1", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_1),
+            ("pp_people_lifecycle_jobs_stmt_2", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_2),
+            ("pp_people_lifecycle_jobs_stmt_3", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_3),
+            ("pp_people_lifecycle_jobs_stmt_4", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_4),
+            ("pp_people_lifecycle_jobs_stmt_5", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_5),
+            ("pp_people_lifecycle_jobs_stmt_6", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_6),
+            ("pp_people_lifecycle_jobs_stmt_7", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_7),
+            ("pp_people_lifecycle_jobs_stmt_8", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_8),
+            ("pp_people_lifecycle_jobs_stmt_9", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_9),
+            ("pp_people_lifecycle_jobs_stmt_10", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_10),
+            ("pp_people_lifecycle_jobs_stmt_11", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_11),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_lifecycle_jobs SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_people_templates statements.
+pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_1: &str = "UPDATE people_holding_templates SET version=version+1,name=$1,definition=$2,updated_at=$3 WHERE id=$4";
+pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_2: &str = "INSERT INTO people_holding_templates(id,holding_id,name,definition,created_by,updated_at) VALUES($1,$2,$3,$4,$5,$6)";
+pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_3: &str = "INSERT INTO people_lifecycle_settings(company_id,version,definition) VALUES($1,1,$2) ON CONFLICT(company_id) DO UPDATE SET version=people_lifecycle_settings.version+1,definition=excluded.definition";
+pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_4: &str = "INSERT INTO people_template_adoptions(company_id,template_id,template_version,definition) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,template_id) DO UPDATE SET template_version=excluded.template_version,version=people_template_adoptions.version+1,definition=excluded.definition";
+
+#[cfg(test)]
+mod pp_people_templates_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_people_templates_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_people_templates-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_templates SQL contract");
+        let pairs = [
+            ("pp_people_templates_stmt_1", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_1),
+            ("pp_people_templates_stmt_2", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_2),
+            ("pp_people_templates_stmt_3", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_3),
+            ("pp_people_templates_stmt_4", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_4),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_templates SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_commerce_expense_payment_effects statements.
+pub const PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_SQL_PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_STMT_1: &str = "UPDATE finance_expenses SET status=CASE WHEN ?=0 THEN 'reimbursed' ELSE 'posted' END,workflow_stage=CASE WHEN ?=0 THEN 'completed' ELSE 'payment' END,reimbursed_at=CASE WHEN ?=0 THEN ?::bigint ELSE NULL END,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod pp_commerce_expense_payment_effects_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_commerce_expense_payment_effects_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_commerce_expense_payment_effects-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_commerce_expense_payment_effects SQL contract");
+        let pairs = [
+            ("pp_commerce_expense_payment_effects_stmt_1", PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_SQL_PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_STMT_1),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_commerce_expense_payment_effects SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_expense_ai statements.
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_1: &str = "UPDATE expense_ai_proposals SET state='stale',updated_at=? WHERE id=? AND company_id=? AND state='ready'";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_2: &str = "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at,actor_json,finance_policy_version) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?,?,?)";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_3: &str = "INSERT INTO expense_ai_usage(id,company_id,actor_id,month,state,lease_until,created_at) VALUES(?,?,?,?,'reserved',?,?)";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_4: &str = "UPDATE expense_ai_proposals SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND (state='queued' OR (state='running' AND claim_until<?))";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_5: &str = "UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_6: &str = "UPDATE expense_ai_proposals SET state='ready',result_json=?,error=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=?";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_7: &str = "UPDATE expense_ai_usage SET state='succeeded',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_8: &str = "UPDATE expense_ai_proposals SET state=?,error=?,result_json=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=? AND lease_token=?";
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_9: &str = "UPDATE expense_ai_usage SET state='failed',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
+
+#[cfg(test)]
+mod pp_expense_ai_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_expense_ai_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_expense_ai-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expense_ai SQL contract");
+        let pairs = [
+            ("pp_expense_ai_stmt_1", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_1),
+            ("pp_expense_ai_stmt_2", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_2),
+            ("pp_expense_ai_stmt_3", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_3),
+            ("pp_expense_ai_stmt_4", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_4),
+            ("pp_expense_ai_stmt_5", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_5),
+            ("pp_expense_ai_stmt_6", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_6),
+            ("pp_expense_ai_stmt_7", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_7),
+            ("pp_expense_ai_stmt_8", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_8),
+            ("pp_expense_ai_stmt_9", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_9),
+            ("pp_expense_ai_renew", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_RENEW),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_expense_ai SQL contract drift: {key}");
+        }
+    }
+}
+
+/// Native-owned SQL contract for pp_expenses statements.
+pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_1: &str = "UPDATE finance_expenses SET branch_id=?,department_id=? WHERE id=?";
+pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_2: &str = "UPDATE finance_expenses SET status=?,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,approved_by=CASE WHEN ?='approve' THEN ? WHEN ?='submit' THEN NULL ELSE approved_by END,rejection_reason=?,cancelled_at=CASE WHEN ?='cancel' THEN ? ELSE cancelled_at END,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_3: &str = "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)";
+pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_4: &str = "UPDATE finance_expenses SET version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_5: &str = "UPDATE finance_expenses SET status='posted',workflow_stage='payment',invoice_id=?,journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_6: &str = "UPDATE finance_expenses SET status='rejected',cancelled_at=?,rejection_reason=?,reversal_journal_id=?,version=version+1,updated_at=? WHERE id=?";
+pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_7: &str = "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,'cancel',?,?,?,?)";
+
+#[cfg(test)]
+mod pp_expenses_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pp_expenses_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pp_expenses-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expenses SQL contract");
+        let pairs = [
+            ("pp_expenses_stmt_1", PP_EXPENSES_SQL_PP_EXPENSES_STMT_1),
+            ("pp_expenses_stmt_2", PP_EXPENSES_SQL_PP_EXPENSES_STMT_2),
+            ("pp_expenses_stmt_3", PP_EXPENSES_SQL_PP_EXPENSES_STMT_3),
+            ("pp_expenses_stmt_4", PP_EXPENSES_SQL_PP_EXPENSES_STMT_4),
+            ("pp_expenses_stmt_5", PP_EXPENSES_SQL_PP_EXPENSES_STMT_5),
+            ("pp_expenses_stmt_6", PP_EXPENSES_SQL_PP_EXPENSES_STMT_6),
+            ("pp_expenses_stmt_7", PP_EXPENSES_SQL_PP_EXPENSES_STMT_7),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "pp_expenses SQL contract drift: {key}");
+        }
+    }
+}
+pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_RENEW: &str = "UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'";

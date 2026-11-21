@@ -1,6 +1,7 @@
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
 
+import { nativePpExpensePaymentsSql } from '@erpx/server-collaboration/adapters/native-pp-expense_payments-sql';
 import { withExpensePurchasedCommand } from "@erpx/server-people_payroll/adapters/expense-purchases";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
@@ -162,7 +163,7 @@ function originalNativeExpensePaymentPreparation(write: SqlDatabase) {
       ),
       write
         .prepare(
-          "UPDATE expense_payment_drafts SET payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?",
+          nativePpExpensePaymentsSql('pp_expense_payments_stmt_1'),
         )
         .bind(input.date, amount, input.reference, Date.now(), id),
       ...(evidence?.steps ?? []),
@@ -218,7 +219,7 @@ function originalNativeExpensePaymentSlipRemoval(write: SqlDatabase) {
       await filesExpenseEffects(write).revokeAttachment({at:now,attachmentId:attachmentId,companyId:actor.companyId}),
       write
         .prepare(
-          "UPDATE expense_payment_drafts SET version=version+1,updated_at=? WHERE id=?",
+          nativePpExpensePaymentsSql('pp_expense_payments_stmt_2'),
         )
         .bind(now, id),
     ]);
@@ -249,7 +250,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
       ),
       write
         .prepare(
-          "INSERT INTO expense_payment_drafts(id,expense_id,company_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+          nativePpExpensePaymentsSql('pp_expense_payments_stmt_3'),
         )
         .bind(draftId, id, actor.companyId, actor.userId, now, now),
     ]);
@@ -297,7 +298,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
       ...(evidence?.steps ?? []),
       write
         .prepare(
-          "UPDATE expense_payment_drafts SET status='confirmed',payment_id=?,payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?",
+          nativePpExpensePaymentsSql('pp_expense_payments_stmt_4'),
         )
         .bind(
           prepared.result.paymentId,

@@ -1,0 +1,13 @@
+{
+  "pp_people_lifecycle_jobs_stmt_1": "UPDATE hr_engagements SET status=$2,end_date=CASE WHEN $2='ended' THEN $3 ELSE end_date END,version=version+1,updated_at=$4 WHERE id=$1",
+  "pp_people_lifecycle_jobs_stmt_2": "UPDATE people_access_cutoffs SET restored_at=$3 WHERE company_id=$1 AND person_id=$2 AND cancelled_at IS NULL AND restored_at IS NULL AND effective_at<=$3",
+  "pp_people_lifecycle_jobs_stmt_3": "UPDATE people_applied_packages SET ended_at=$3 WHERE company_id=$1 AND person_id=$2 AND source_kind='position' AND ended_at IS NULL",
+  "pp_people_lifecycle_jobs_stmt_4": "UPDATE people_lifecycle_cases SET status='completed' WHERE id=$1",
+  "pp_people_lifecycle_jobs_stmt_5": "UPDATE hr_engagements SET position_id=$2,branch_id=$3,department_id=$4,level_id=$5,manager_person_id=$6,job_title=$7,status='active',version=version+1,updated_at=$8 WHERE id=$1",
+  "pp_people_lifecycle_jobs_stmt_6": "UPDATE hr_engagements SET pay_group_id=$2 WHERE id=$1",
+  "pp_people_lifecycle_jobs_stmt_7": "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES($1,$2,$3,'monthly',$4,0,0,$5,'[]','draft',$6,$7,$7) ON CONFLICT(id) DO NOTHING",
+  "pp_people_lifecycle_jobs_stmt_8": "UPDATE leave_policy_assignments SET effective_to=$1,version=version+1 WHERE id=$2",
+  "pp_people_lifecycle_jobs_stmt_9": "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,effective_from,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING",
+  "pp_people_lifecycle_jobs_stmt_10": "UPDATE people_lifecycle_cases SET status='completed',version=version+1,updated_at=$2 WHERE id=$1",
+  "pp_people_lifecycle_jobs_stmt_11": "UPDATE people_lifecycle_cases SET attempts=attempts+1,next_attempt_at=$2+LEAST(3600000,1000*power(2,LEAST(attempts,12)))::bigint,last_error=$3 WHERE id=$1 AND status='scheduled'"
+}

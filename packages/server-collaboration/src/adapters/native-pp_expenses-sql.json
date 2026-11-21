@@ -1,0 +1,9 @@
+{
+  "pp_expenses_stmt_1": "UPDATE finance_expenses SET branch_id=?,department_id=? WHERE id=?",
+  "pp_expenses_stmt_2": "UPDATE finance_expenses SET status=?,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,approved_by=CASE WHEN ?='approve' THEN ? WHEN ?='submit' THEN NULL ELSE approved_by END,rejection_reason=?,cancelled_at=CASE WHEN ?='cancel' THEN ? ELSE cancelled_at END,version=version+1,updated_at=? WHERE id=?",
+  "pp_expenses_stmt_3": "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)",
+  "pp_expenses_stmt_4": "UPDATE finance_expenses SET version=version+1,updated_at=? WHERE id=?",
+  "pp_expenses_stmt_5": "UPDATE finance_expenses SET status='posted',workflow_stage='payment',invoice_id=?,journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?",
+  "pp_expenses_stmt_6": "UPDATE finance_expenses SET status='rejected',cancelled_at=?,rejection_reason=?,reversal_journal_id=?,version=version+1,updated_at=? WHERE id=?",
+  "pp_expenses_stmt_7": "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,'cancel',?,?,?,?)"
+}

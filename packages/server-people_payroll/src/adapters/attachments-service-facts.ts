@@ -1,4 +1,5 @@
 import "server-only";
+import { nativePpAttachmentsServiceFactsSql } from '@erpx/server-collaboration/adapters/native-pp-attachments_service_facts-sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -25,11 +26,11 @@ function ownerVersionStep(db: SqlDatabase, targetType: string, targetId: string,
     if (!allowedTargets.has(targetType))
         return null;
     if (targetType === "leave_request")
-        return db.prepare("UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?").bind(now, targetId, expectedVersion);
+        return db.prepare(nativePpAttachmentsServiceFactsSql('pp_attachments_leave_request')).bind(now, targetId, expectedVersion);
     const descriptor = recordVersionTables[targetType];
     if (!descriptor)
         throw new ApiError(422, "RECORD_ATTACHMENT_BIND_UNSUPPORTED", "This record does not support standalone document binding.");
-    return db.prepare(`UPDATE ${descriptor.table} SET version=version+1${["inventory_lots", "commerce_products", "marketing_campaigns"].includes(descriptor.table) ? "" : ",updated_at=?"} WHERE id=? AND version=?${descriptor.extra ? ` AND ${descriptor.extra}` : ""}`)
+    return db.prepare(`${nativePpAttachmentsServiceFactsSql('pp_attachments_dynamic_prefix')}${descriptor.table}${nativePpAttachmentsServiceFactsSql('pp_attachments_dynamic_mid')}${["inventory_lots", "commerce_products", "marketing_campaigns"].includes(descriptor.table) ? "" : nativePpAttachmentsServiceFactsSql('pp_attachments_dynamic_mid2')}${nativePpAttachmentsServiceFactsSql('pp_attachments_dynamic_suffix')}${descriptor.extra ? ` AND ${descriptor.extra}` : ""}`)
         .bind(...(["inventory_lots", "commerce_products", "marketing_campaigns"].includes(descriptor.table) ? [targetId, expectedVersion] : [now, targetId, expectedVersion]));
 }
 export function attachmentServicePeoplePayrollFacts(db: SqlDatabase) {

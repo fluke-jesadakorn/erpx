@@ -1,6 +1,7 @@
 import{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields}from '@erpx/server-people_payroll/adapters/expense-workflow-read';
 export{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields};
 
+import { nativePpExpenseWorkflowSql } from '@erpx/server-collaboration/adapters/native-pp-expense_workflow-sql';
 import {withExpensePurchasedCommand} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import {peoplePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -103,7 +104,7 @@ function originalNativeExpenseAccounting(write: SqlDatabase) {
       ),
       write
         .prepare(
-          "UPDATE finance_expenses SET category_account_id=?,amount_minor=?,tax_minor=?,accounting_json=?,version=version+1,updated_at=? WHERE id=?",
+          nativePpExpenseWorkflowSql('pp_expense_workflow_stmt_1'),
         )
         .bind(
           input.categoryAccountId,
@@ -179,7 +180,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
         ),
         write
           .prepare(
-            "UPDATE finance_expenses SET employee_id=?,engagement_id=?,branch_id=?,department_id=?,workflow_version=2,workflow_stage=?,status='in_review',accounting_json='{}',approved_by=NULL,rejection_reason=NULL,submitted_at=?,version=version+1,updated_at=? WHERE id=?",
+            nativePpExpenseWorkflowSql('pp_expense_workflow_stmt_2'),
           )
           .bind(
             staff.person_id,
@@ -215,7 +216,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
         ),
         write
           .prepare(
-            "UPDATE finance_expenses SET workflow_stage='cancelled',status='rejected',cancelled_at=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?",
+            nativePpExpenseWorkflowSql('pp_expense_workflow_stmt_3'),
           )
           .bind(now, input.reason, now, id),
       ]);
@@ -224,7 +225,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
 
       return expenseMutation({id,status:"rejected",stage:"draft",version:input.expectedVersion+1}, [
       assertion(write,key,"expense-version","EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='approved' AND workflow_stage='gl_posting' AND journal_id IS NULL)",[id,actor.companyId,input.expectedVersion]),
-      write.prepare("UPDATE finance_expenses SET status='rejected',workflow_stage='draft',accounting_json='{}',approved_by=NULL,rejection_reason=?,version=version+1,updated_at=? WHERE id=?").bind(input.reason,now,id),
+      write.prepare(nativePpExpenseWorkflowSql('pp_expense_workflow_stmt_4')).bind(input.reason,now,id),
       await notification(write,scope(row),String(row.created_by),"expense",id,input.expectedVersion+1,"GL reviewer returned this claim for correction."),
     ]);
     },
@@ -233,7 +234,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
       return expenseMutation({ id, status: "approved", stage: "gl_posting", version: input.expectedVersion + 1 }, [
         assertion(write, key, "expense-version", "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='in_review' AND workflow_stage='accounts_approval' AND cancelled_at IS NULL)", [id, actor.companyId, input.expectedVersion]),
         ...decision.statements,
-        write.prepare("UPDATE finance_expenses SET status='approved',workflow_stage='gl_posting',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId, now, id),
+        write.prepare(nativePpExpenseWorkflowSql('pp_expense_workflow_stmt_5')).bind(actor.userId, now, id),
         await notification(write, scope(row), actor.userId, "expense", id, input.expectedVersion + 1, "Accounting approved. Review Debit / Credit and post GL before payment."),
       ]);
     },
@@ -255,7 +256,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
       ...decision.statements,
       write
         .prepare(
-          "UPDATE finance_expenses SET status=?,workflow_stage=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?",
+          nativePpExpenseWorkflowSql('pp_expense_workflow_stmt_6'),
         )
         .bind(
           action === "reject" ? "rejected" : "in_review",

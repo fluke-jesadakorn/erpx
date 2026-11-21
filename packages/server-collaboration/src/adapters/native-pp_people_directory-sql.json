@@ -1,0 +1,12 @@
+{
+  "pp_people_directory_stmt_1": "UPDATE hr_people SET legal_name=?,preferred_name=?,email=?,phone=?,work_email=?,work_phone=?,country_code=?,version=version+1,updated_at=? WHERE id=?",
+  "pp_people_directory_stmt_2": "UPDATE hr_engagements SET branch_id=?,department_id=?,job_title=?,worker_type=?,employment_type=?,start_date=?,currency=?,manager_person_id=?,version=version+1,updated_at=? WHERE id=?",
+  "pp_people_directory_stmt_3": "INSERT INTO hr_people(id,company_id,legal_name,preferred_name,email,phone,work_email,work_phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+  "pp_people_directory_stmt_4": "INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,manager_person_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'onboarding',?,?,?,?,?,?,?)",
+  "pp_people_directory_stmt_5": "UPDATE hr_engagements SET level_id=? WHERE id=?",
+  "pp_people_directory_stmt_6": "UPDATE hr_people SET user_id=? WHERE id=?",
+  "pp_people_directory_stmt_7": "UPDATE hr_engagements SET position_id=? WHERE id=?",
+  "pp_people_directory_stmt_8": "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+  "pp_people_directory_stmt_9": "UPDATE hr_people SET status=?,version=version+1,updated_at=? WHERE id=?",
+  "pp_people_directory_stmt_10": "UPDATE hr_engagements SET status=?,version=version+1,updated_at=? WHERE person_id=? AND status!='ended'"
+}

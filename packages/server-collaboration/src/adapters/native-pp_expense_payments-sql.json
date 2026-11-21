@@ -1,0 +1,6 @@
+{
+  "pp_expense_payments_stmt_1": "UPDATE expense_payment_drafts SET payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?",
+  "pp_expense_payments_stmt_2": "UPDATE expense_payment_drafts SET version=version+1,updated_at=? WHERE id=?",
+  "pp_expense_payments_stmt_3": "INSERT INTO expense_payment_drafts(id,expense_id,company_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+  "pp_expense_payments_stmt_4": "UPDATE expense_payment_drafts SET status='confirmed',payment_id=?,payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?"
+}

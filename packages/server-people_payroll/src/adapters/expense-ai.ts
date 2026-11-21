@@ -1,3 +1,4 @@
+import { nativePpExpenseAiSql } from '@erpx/server-collaboration/adapters/native-pp-expense-ai-sql';
 import {peoplePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {captureExpenseQueueActor,withExpensePurchasedRead,withExpensePurchasedCommand,expenseFinalRead} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import {withExpenseAiPurchasedClaim,withExpenseAiPurchasedMutation,expenseJobUnavailable} from "@erpx/server-people_payroll/adapters/expense-ai-purchases";
@@ -178,11 +179,11 @@ function originalNativeExpenseAiQueue(db: SqlDatabase, env: BetaEnvironment) {
         ],
       ),
       ...(existing?.state === "ready" && input.retry ? [db.prepare(
-        "UPDATE expense_ai_proposals SET state='stale',updated_at=? WHERE id=? AND company_id=? AND state='ready'",
+        nativePpExpenseAiSql('pp_expense_ai_stmt_1'),
       ).bind(now, existing.id, actor.companyId)] : []),
       db
         .prepare(
-          "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at,actor_json,finance_policy_version) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?,?,?)",
+          nativePpExpenseAiSql('pp_expense_ai_stmt_2'),
         )
         .bind(
           proposalId,
@@ -201,7 +202,7 @@ function originalNativeExpenseAiQueue(db: SqlDatabase, env: BetaEnvironment) {
         ),
       db
         .prepare(
-          "INSERT INTO expense_ai_usage(id,company_id,actor_id,month,state,lease_until,created_at) VALUES(?,?,?,?,'reserved',?,?)",
+          nativePpExpenseAiSql('pp_expense_ai_stmt_3'),
         )
         .bind(
           proposalId,
@@ -236,7 +237,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       try { return await withExpenseAiPurchasedClaim(db,id,async database=>{
       const db=database;
       const now = Date.now(), lease = crypto.randomUUID();
-      const claimed = await db.prepare("UPDATE expense_ai_proposals SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND (state='queued' OR (state='running' AND claim_until<?))")
+      const claimed = await db.prepare(nativePpExpenseAiSql('pp_expense_ai_stmt_4'))
         .bind(lease, now + 120000, now, id, now).run();
       if (claimed.meta.changes !== 1) return null;
       const row = (await db.prepare("SELECT * FROM expense_ai_proposals WHERE id=?").bind(id).first<Proposal>())!;
@@ -247,7 +248,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       let renewing: Promise<void> | null = null;
       const renewal = setInterval(() => {
         if (renewing) return;
-        renewing = db.prepare("UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'")
+        renewing = db.prepare(nativePpExpenseAiSql('pp_expense_ai_stmt_5'))
           .bind(Date.now() + 120000, id, lease).run().then(() => {}).catch(() => {}).finally(() => { renewing = null; });
       }, 30000);
       return async () => { clearInterval(renewal); await renewing; };
@@ -261,7 +262,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
     allowed: (actor, claim, paymentId) => expenseAiAllowed(db, actor, claim, paymentId,"settle-existing"),
     async accounts(companyId) { return (await db.prepare(`SELECT a.id,a.name,a.code,a.currency FROM (${financeProjectionSources.finance_accounts}) a JOIN (${commerceProjectionSources.commerce_settings}) s ON s.chart_id=a.chart_id AND s.company_id=a.company_id WHERE a.company_id=? AND a.category='expense' AND a.status='active'`).bind(companyId).all<{ id: string; name: string; currency: string }>()).results; },
     async periods(companyId) { return (await db.prepare(`SELECT id,name,start_date,end_date FROM (${financeProjectionSources.finance_periods}) finance_periods WHERE company_id=? AND state='open'`).bind(companyId).all<{ id: string }>()).results; },
-    async renew(id, lease) { await withExpenseAiPurchasedMutation(db,id,async database=>{await database.prepare("UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'").bind(Date.now()+120000,id,lease).run();}); },
+    async renew(id, lease) { await withExpenseAiPurchasedMutation(db,id,async database=>{await database.prepare(nativePpExpenseAiSql('pp_expense_ai_renew')).bind(Date.now()+120000,id,lease).run();}); },
     async imageContent(context, batch) {
       const content: Exclude<AiMessage["content"], string> = [
           {
@@ -345,12 +346,12 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       ...providerGuards(db, lease, snapshot),
       db
         .prepare(
-          "UPDATE expense_ai_proposals SET state='ready',result_json=?,error=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=?",
+          nativePpExpenseAiSql('pp_expense_ai_stmt_6'),
         )
         .bind(JSON.stringify(result), Date.now(), id),
       db
         .prepare(
-          "UPDATE expense_ai_usage SET state='succeeded',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?",
+          nativePpExpenseAiSql('pp_expense_ai_stmt_7'),
         )
         .bind(inputTokens, outputTokens, id),
       ...usageStatements("succeeded"),
@@ -381,12 +382,12 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       ),
       db
         .prepare(
-          "UPDATE expense_ai_proposals SET state=?,error=?,result_json=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=? AND lease_token=?",
+          nativePpExpenseAiSql('pp_expense_ai_stmt_8'),
         )
         .bind(stale ? "stale" : "failed", message, Date.now(), id, lease),
       db
         .prepare(
-          "UPDATE expense_ai_usage SET state='failed',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?",
+          nativePpExpenseAiSql('pp_expense_ai_stmt_9'),
         )
         .bind(inputTokens, outputTokens, id),
       ...usageStatements("failed"),

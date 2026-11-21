@@ -1,0 +1,6 @@
+{
+  "pp_identity_person_link_effects_stmt_1": "UPDATE hr_people SET user_id=?,version=version+1,updated_at=? WHERE id=?",
+  "pp_identity_person_link_effects_stmt_2": "UPDATE employees SET user_id=? WHERE person_id=?",
+  "pp_identity_person_link_effects_stmt_3": "UPDATE hr_people SET user_id=$1,version=version+1 WHERE id=$2 AND company_id=$3",
+  "pp_identity_person_link_effects_stmt_4": "UPDATE employees SET user_id=$1 WHERE user_id=$2 AND company_id=$3"
+}

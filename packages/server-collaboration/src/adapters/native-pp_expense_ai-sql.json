@@ -1,0 +1,12 @@
+{
+  "pp_expense_ai_stmt_1": "UPDATE expense_ai_proposals SET state='stale',updated_at=? WHERE id=? AND company_id=? AND state='ready'",
+  "pp_expense_ai_stmt_2": "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at,actor_json,finance_policy_version) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?,?,?)",
+  "pp_expense_ai_stmt_3": "INSERT INTO expense_ai_usage(id,company_id,actor_id,month,state,lease_until,created_at) VALUES(?,?,?,?,'reserved',?,?)",
+  "pp_expense_ai_stmt_4": "UPDATE expense_ai_proposals SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND (state='queued' OR (state='running' AND claim_until<?))",
+  "pp_expense_ai_stmt_5": "UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'",
+  "pp_expense_ai_stmt_6": "UPDATE expense_ai_proposals SET state='ready',result_json=?,error=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=?",
+  "pp_expense_ai_stmt_7": "UPDATE expense_ai_usage SET state='succeeded',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?",
+  "pp_expense_ai_stmt_8": "UPDATE expense_ai_proposals SET state=?,error=?,result_json=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=? AND lease_token=?",
+  "pp_expense_ai_stmt_9": "UPDATE expense_ai_usage SET state='failed',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?",
+  "pp_expense_ai_renew": "UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'"
+}

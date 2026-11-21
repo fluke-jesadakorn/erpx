@@ -1,6 +1,7 @@
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
+import { nativePpExpensesSql } from '@erpx/server-collaboration/adapters/native-pp-expenses-sql';
 import {expensePaymentCancellations,expensePreparedPaymentSources,expensePaymentTreasurySql} from '@erpx/server-people_payroll/adapters/expense-payment-cancellation-sources';
 import {requireExpensePortUnit} from "@erpx/server-people_payroll/adapters/expense-purchases";
 
@@ -270,14 +271,14 @@ function originalNativeExpenseLifecycle(write: SqlDatabase) {
       ? [
           write
             .prepare(
-              "UPDATE finance_expenses SET branch_id=?,department_id=? WHERE id=?",
+              nativePpExpensesSql('pp_expenses_stmt_1'),
             )
             .bind(route.scope.branch_id, route.scope.department_id, id),
         ]
       : []),
     write
       .prepare(
-        "UPDATE finance_expenses SET status=?,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,approved_by=CASE WHEN ?='approve' THEN ? WHEN ?='submit' THEN NULL ELSE approved_by END,rejection_reason=?,cancelled_at=CASE WHEN ?='cancel' THEN ? ELSE cancelled_at END,version=version+1,updated_at=? WHERE id=?",
+        nativePpExpensesSql('pp_expenses_stmt_2'),
       )
       .bind(
         status,
@@ -299,7 +300,7 @@ function originalNativeExpenseLifecycle(write: SqlDatabase) {
       ? [
           write
             .prepare(
-              "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)",
+              nativePpExpensesSql('pp_expenses_stmt_3'),
             )
             .bind(
               crypto.randomUUID(),
@@ -380,7 +381,7 @@ function originalNativeExpenseReceiptRemoval(write: SqlDatabase) {
       await filesExpenseEffects(write).revokeAttachment({at:now,attachmentId:attachmentId,companyId:actor.companyId}),
       write
         .prepare(
-          "UPDATE finance_expenses SET version=version+1,updated_at=? WHERE id=?",
+          nativePpExpensesSql('pp_expenses_stmt_4'),
         )
         .bind(now, id),
     ]);
@@ -467,7 +468,7 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
       ...postedMoney,
       write
         .prepare(
-          "UPDATE finance_expenses SET status='posted',workflow_stage='payment',invoice_id=?,journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?",
+          nativePpExpensesSql('pp_expenses_stmt_5'),
         )
         .bind(invoice, journal.result.id, now, now, id),
     ]);
@@ -539,12 +540,12 @@ function originalNativeExpenseReversal(write: SqlDatabase) {
       financeExpenseEffects(write).voidExpenseInvoice({updatedAt:now,invoiceId:invoice.id}),
       write
         .prepare(
-          "UPDATE finance_expenses SET status='rejected',cancelled_at=?,rejection_reason=?,reversal_journal_id=?,version=version+1,updated_at=? WHERE id=?",
+          nativePpExpensesSql('pp_expenses_stmt_6'),
         )
         .bind(now, input.reason, reversal, now, id),
       write
         .prepare(
-          "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,'cancel',?,?,?,?)",
+          nativePpExpensesSql('pp_expenses_stmt_7'),
         )
         .bind(
           crypto.randomUUID(),

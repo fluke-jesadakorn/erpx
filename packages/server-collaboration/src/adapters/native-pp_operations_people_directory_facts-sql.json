@@ -1,0 +1,6 @@
+{
+  "pp_operations_people_directory_facts_stmt_1": "UPDATE employees SET display_name=?,branch_id=?,department_id=? WHERE person_id=?",
+  "pp_operations_people_directory_facts_stmt_2": "INSERT INTO employees(id,person_id,company_id,branch_id,department_id,display_name,status,created_at) VALUES(?,?,?,?,?,?,'active',?)",
+  "pp_operations_people_directory_facts_stmt_3": "UPDATE employees SET user_id=? WHERE person_id=?",
+  "pp_operations_people_directory_facts_stmt_4": "UPDATE employees SET status=? WHERE person_id=?"
+}
