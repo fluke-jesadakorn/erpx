@@ -64,10 +64,15 @@ describe('native PMS refund-context transport', () => {
     expect((init.headers as Record<string, string>).cookie).toContain('__Host-erpx-session');
   });
 
-  it('maps native 404 to the retained null contract', async () => {
+  it('maps the ABSENT record code to the retained null contract', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(new Response('{}', { status: 404 })),
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: 'PMS_REFUND_CONTEXT_ABSENT' } }), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
     await expect(refundRequestContext(incoming(), 'h001', 'missing')).resolves.toBeNull();
   });
@@ -85,6 +90,47 @@ describe('native PMS refund-context transport', () => {
     });
   });
 
+  it('fails closed on a reserved privateBaseUrl port', async () => {
+    for (const port of [3100, 3101, 3103, 5432, 3250]) {
+      process.env[REFUND_CONTEXT_CONFIG_KEY] = config({
+        privateBaseUrl: `http://127.0.0.1:${port}`,
+      });
+      await expect(refundRequestContext(incoming(), 'h001', 'req-1')).rejects.toMatchObject({
+        code: 'NATIVE_PMS_REFUND_CONTEXT_UNAVAILABLE',
+      });
+    }
+  });
+
+  it('fails closed when holdings are missing or malformed', async () => {
+    process.env[REFUND_CONTEXT_CONFIG_KEY] = config({ holdings: [] });
+    await expect(refundRequestContext(incoming(), 'h001', 'req-1')).rejects.toMatchObject({
+      code: 'NATIVE_PMS_REFUND_CONTEXT_UNAVAILABLE',
+    });
+    process.env[REFUND_CONTEXT_CONFIG_KEY] = config({
+      holdings: [{ origin: 'http://acme.example.com', holdingSlug: 'acme', holdingId: 'h001' }],
+    });
+    await expect(refundRequestContext(incoming(), 'h001', 'req-1')).rejects.toMatchObject({
+      code: 'NATIVE_PMS_REFUND_CONTEXT_UNAVAILABLE',
+    });
+  });
+
+  it('maps only the ABSENT record code to null; other 404s fail closed', async () => {
+    const absent = new Response(JSON.stringify({ error: { code: 'PMS_REFUND_CONTEXT_ABSENT' } }), {
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(absent));
+    await expect(refundRequestContext(incoming(), 'h001', 'missing')).resolves.toBeNull();
+
+    const unknownTarget = new Response(JSON.stringify({ error: { code: 'NOT_FOUND' } }), {
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(unknownTarget));
+    await expect(refundRequestContext(incoming(), 'h001', 'req-1')).rejects.toMatchObject({
+      status: 503,
+    });
+  });
   it('fails closed when the native payload drops a required field', async () => {
     const { livemode, ...partial } = contextRow;
     void livemode;

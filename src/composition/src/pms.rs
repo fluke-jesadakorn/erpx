@@ -470,7 +470,13 @@ impl<C: Clock + Send + Sync + 'static> PmsService<C> {
                                 company.as_str(),
                             )
                             .await?
-                            .ok_or_else(not_found)?;
+                            .ok_or_else(|| {
+                                BusinessError::new(
+                                    FailureKind::NotFound,
+                                    "PMS_REFUND_CONTEXT_ABSENT",
+                                    "No such refund request for the current Company.",
+                                )
+                            })?;
                         Ok(PmsHttpResponse {
                             data: serde_json::to_value(&refund_context)
                                 .map_err(|_| Error::from(unavailable()))?,

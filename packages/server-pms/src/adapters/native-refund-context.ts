@@ -11,6 +11,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
  */
 export const REFUND_CONTEXT_CONFIG_KEY = 'ERPX_NATIVE_PMS_REFUND_CONTEXT_CONFIG';
 const BODY_LIMIT = 2 * 1024 * 1024;
+const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
 export type RefundContextSettings = Readonly<{
   privateBaseUrl: string;
@@ -81,9 +82,43 @@ function settings(): RefundContextSettings {
   } catch {
     return fail();
   }
-  if (base.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(base.hostname))
+  const port = Number(base.port);
+  if (
+    base.protocol !== 'http:' ||
+    !['127.0.0.1', '[::1]'].includes(base.hostname) ||
+    !base.port ||
+    RESERVED_PORTS.has(port) ||
+    (port >= 3200 && port <= 3299) ||
+    base.username ||
+    base.password ||
+    value.privateBaseUrl !== base.origin
+  )
     return fail();
-  return value as RefundContextSettings;
+  if (!Array.isArray(value.holdings) || value.holdings.length === 0) return fail();
+  const holdings: Array<{ origin: string; holdingSlug: string; holdingId: string }> = [];
+  for (const entry of value.holdings) {
+    if (
+      !record(entry) ||
+      typeof entry.origin !== 'string' ||
+      typeof entry.holdingSlug !== 'string' ||
+      typeof entry.holdingId !== 'string' ||
+      !identifier(entry.holdingId) ||
+      entry.holdingSlug.length === 0 ||
+      entry.holdingSlug.length > 128 ||
+      // eslint-disable-next-line no-control-regex
+      /[\u0000-\u001f/?#\\]/.test(entry.holdingSlug)
+    )
+      return fail();
+    let origin: URL;
+    try {
+      origin = new URL(entry.origin);
+    } catch {
+      return fail();
+    }
+    if (origin.protocol !== 'https:' || origin.username || origin.password) return fail();
+    holdings.push({ origin: entry.origin, holdingSlug: entry.holdingSlug, holdingId: entry.holdingId });
+  }
+  return { privateBaseUrl: value.privateBaseUrl, timeoutMs: value.timeoutMs as number, holdings };
 }
 
 async function readBody(body: ReadableStream<Uint8Array>): Promise<string> {
@@ -189,8 +224,23 @@ export async function refundRequestContext(
     return fail(503);
   }
   if (response.status === 404) {
+    // Null only for the native record-absent signal. Any other 404 (unknown
+    // target, unmounted route, gateway page) is a configuration or routing
+    // failure and fails closed.
+    try {
+      const text = await response.text();
+      const body = JSON.parse(text) as unknown;
+      if (
+        record(body) &&
+        record(body.error) &&
+        body.error.code === 'PMS_REFUND_CONTEXT_ABSENT'
+      )
+        return null;
+    } catch {
+      // Fall through to fail-closed below.
+    }
     await response.body?.cancel().catch(() => undefined);
-    return null;
+    return fail(503);
   }
   if (response.redirected || response.status !== 200 || !response.body) {
     await response.body?.cancel().catch(() => undefined);

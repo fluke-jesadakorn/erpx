@@ -304,8 +304,8 @@ fn refund_context_selection(request: &Request) -> Result<PmsRefundContextSelecti
             continue;
         }
         let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
-        let name = percent_decode(name)?;
-        let value = percent_decode(value)?;
+        let name = percent_decode(name).map_err(|_| refund_context_malformed())?;
+        let value = percent_decode(value).map_err(|_| refund_context_malformed())?;
         if !seen.insert(name.clone()) {
             return Err(refund_context_malformed());
         }
