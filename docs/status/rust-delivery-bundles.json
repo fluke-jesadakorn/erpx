@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4017,
+    "revision": 4023,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261121-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T00:21:01.833Z",
-      "heartbeatAt": "2026-11-21T02:56:39.960Z",
-      "expiresAt": "2026-11-21T03:26:39.960Z",
+      "heartbeatAt": "2026-11-21T03:00:12.613Z",
+      "expiresAt": "2026-11-21T03:30:12.613Z",
       "generation": 140,
       "tokenHash": "f5becb3db42bf1f7d81277664514d662d8d99fbe32235d3cb8f6b0344bfd3da3"
     },
@@ -93139,6 +93139,126 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.messaging-backfill",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire collaboration messaging-backfill TS writer (1 write)",
+        "scope": "Delete UPDATE messaging_files in attachment-migration-facts.ts; native collaboration_backfill_messaging_attachment statement owns it via values_json.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/server-files/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "919b7b99e6dc4b00f873ca7382b68c597467d720",
+        "lastPushedSha": "919b7b99e6dc4b00f873ca7382b68c597467d720",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "919b7b99e6dc4b00f873ca7382b68c597467d720",
+            "sourceKind": "committed",
+            "before": 98,
+            "after": 97,
+            "note": "Retired 1 TS messaging-backfill writer; collaboration KPI 98->97, global 1555->1554.",
+            "residual": [
+              {
+                "path": "packages/server-collaboration/src/adapters/attachments-portal-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/inbox.ts",
+                "writes": 9,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-files.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging.ts",
+                "writes": 12,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-handover-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-agent.ts",
+                "writes": 11,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-ai.ts",
+                "writes": 8,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-home.ts",
+                "writes": 31,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/web-push.ts",
+                "writes": 20,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/work-social-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.collaboration.service-repository",
+                "removalCondition": "Delete only after the owner-native Collaboration port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "919b7b99e6dc4b00f873ca7382b68c597467d720",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "919b7b99e6dc4b00f873ca7382b68c597467d720",
+            "sourceKind": "committed",
+            "note": "Native compile + 3/3 statement tests + attachment-cutover 4/4 + operations 74/74."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -93147,24 +93267,24 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 369,
-      "migratedPackets": 256,
+      "totalPackets": 370,
+      "migratedPackets": 257,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 256,
+        "migrated": 257,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 140,
-    "updatedAt": "2026-11-21T02:56:39.961Z",
+    "updatedAt": "2026-11-21T03:00:12.614Z",
     "handoff": {
       "fromRun": "run-20261121-a",
-      "verifiedPushedCheckpoint": "a2353067297514e9cfcc12367ab3222e07a82cfc",
+      "verifiedPushedCheckpoint": "919b7b99e6dc4b00f873ca7382b68c597467d720",
       "remoteVerifiedAt": "HEAD==origin==cfc105b0990deb5889c24472a78d5f50e23f1e2d; tree clean after coordinator close commit",
       "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1832 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, the 3 expense attachment withdrawal/revocation writers, the 3 document derivative writers, the beta upload expiry writer, the 2 legal portal access-event writers, the 4 legal portal attachment staging writers, the customer portal action writer, the 3 release acceptance event writers, the customer receipt issuance writer, the 4 legal portal draft/staging writers (completing legal-portal-repository.ts), the legal file preservation writer, the legal retention execution authorization writer, the finance hotel account creation writer, the payroll bank observation ignore writer, the 5 legal feature writers (dynamic table via table_name transport), the 5 legal approval writers, the 4 legal executed-copy review writers, the 6 legal signing/reference writers, the 3 legal trust/processing writers, the legal access event writer, the 2 legal document access-event writers (citation/knowledge), the 7 legal governance writers, the 7 legal retention writers, the 7 legal operations writers, the 11 legal document writers, the 10 legal law-corpus writers, the 11 legal service writers, the 14 legal destruction-worker writers, the 14 legal portal writers, the 2 residual legal access/event writers, the legal envelope-expiry writer (holding-keyed fragment transport), the 3 finance book-adjustment writers, the 3 finance planning/report writers, the 3 finance journal-reversal writers, the 4 finance tax-identity writers, the 2 finance due-draft writers, the 4 finance intercompany-pair writers, the 3 payroll advance-deduction writers, the 3 payroll final-pay cancellation writers, the 2 payroll expense-draft writers, the 3 finance sales-defaults writers, the 2 payroll statutory-profile writers, the 2 finance accounting-profile writers, the 2 finance hospitality tax-document writers, the 2 finance PMS-import writers, the 2 finance journal-planning writers, the finance invoice line-version writer, the finance expansion review-file writer, the finance/commerce journal-line base-carry writer, the finance/payroll remittance-match writer, the finance/POS party writer, the finance/payroll other-remittance match writer, the 3 finance group-edition writers, the finance company-tool writer, the 2 finance payroll-owner writers, the 2 finance due-draft worker writers, the finance supplier-bill draft-void writer, 3 people/payroll writers (employee, payslip, expense-payment cancel), 3 more (leave evidence manifest, 2 calendar prep-task writes), 2 more (statutory remittance, staff level assignment), and 9 workflow command-assertion cleanup writers, then 4 more, then 17 more via async guards conversion, then 5 more in async callbacks, then 8 more (3 flatMap + 5 dynamic IN), then 8 more (key/guard/flatMap async), then 2 more (customer-portal, layout wrappers), then 6 more (agent, executive, guided-intake, approval, evaluation), then 5 more (records-request 2, pms 1, pos 2), then 5 more (collab agent/ai 5), then 4 more (people-eval-ai, beta, manufacturing 2, workflow commands), then 4 more (assets×2, legal, marketing) via native workflow_command_assertion_clear, 2 organization-channel statements, and 2 legal backfill attachment statements, and 2 beta AI reservation-expiry statements, and 2 legacy leave statements, and 2 project-worker starter statements, and 3 beta onboarding statements, and 2 organization relocation statements, and 3 hire handoff statements, and 3 organization node-channel statements (also repaired a malformed handoff adapter from the prior commit), and 1 messaging backfill statement. Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA.",
       "lastKpi": 1554,
@@ -93173,7 +93293,7 @@
         "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 263,
+        "migrated": 264,
         "blocked": 91,
         "deferred": 1,
         "done": 51
