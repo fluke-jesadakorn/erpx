@@ -115,5 +115,13 @@ mod tests {
             )
             .is_err()
         );
+        let posted = json!({"kind":"order.posted-revision","recordId":"j","values":[1,"j","c"]});
+        assert!(parse_owner_write(&posted).is_ok());
+        assert!(
+            parse_owner_write(
+                &json!({"kind":"order.posted-revision","recordId":"j","values":[1,"j"]})
+            )
+            .is_err()
+        );
     }
 }

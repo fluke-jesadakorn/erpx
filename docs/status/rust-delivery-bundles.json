@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4549,
+    "revision": 4552,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:54:41.082Z",
-      "expiresAt": "2026-11-21T19:24:41.082Z",
+      "heartbeatAt": "2026-11-21T18:55:45.701Z",
+      "expiresAt": "2026-11-21T19:25:45.701Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -25420,8 +25420,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:51:45.673Z",
-          "heartbeatAt": "2026-11-21T18:54:41.082Z",
-          "expiresAt": "2026-11-21T19:24:41.082Z",
+          "heartbeatAt": "2026-11-21T18:55:45.701Z",
+          "expiresAt": "2026-11-21T19:25:45.701Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -25504,11 +25504,17 @@
             "result": "passed",
             "sourceSha": "569a3f159c93bd7a4527407efa1d8eee159f9dea",
             "note": "both packages typecheck clean; financeProjectionSources import removed with the deleted SQL"
+          },
+          {
+            "command": "cargo-test:erpx-server-commerce-lib",
+            "result": "passed",
+            "sourceSha": "3d83ef9586b630a7836a4dc0dc4e32c56754bc8a",
+            "note": "12/12 pass incl extended closed_registry_and_arity covering order.posted-revision arity 3 ok / arity 2 reject"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Posted-journal bump native (broad 4->3). Next: attachment version-bump ports x2 + billing-test sandbox classification; verify bump against native service on same DB.",
+        "nextAction": "Kind registry tested (arity 3). Next: e2e bump via native service on same DB; then attachment version-bump ports + billing-test sandbox classification.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-commerce-retire",
@@ -27900,8 +27906,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:54:41.082Z",
-          "expiresAt": "2026-11-21T19:24:41.082Z",
+          "heartbeatAt": "2026-11-21T18:55:45.701Z",
+          "expiresAt": "2026-11-21T19:25:45.701Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43799,8 +43805,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:54:41.082Z",
-          "expiresAt": "2026-11-21T19:24:41.082Z",
+          "heartbeatAt": "2026-11-21T18:55:45.701Z",
+          "expiresAt": "2026-11-21T19:25:45.701Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -51518,8 +51524,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:54:41.082Z",
-          "expiresAt": "2026-11-21T19:24:41.082Z",
+          "heartbeatAt": "2026-11-21T18:55:45.701Z",
+          "expiresAt": "2026-11-21T19:25:45.701Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105481,7 +105487,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:54:41.084Z",
+    "updatedAt": "2026-11-21T18:55:45.703Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
