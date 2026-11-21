@@ -4550,3 +4550,113 @@ pub async fn inbox_notice_target_complete_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE inbox_notice_targets SET delivered_at=? WHERE notice_id=? AND user_id=? AND delivered_at IS NULL".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance: accrual schedule_insert native statement.
+pub async fn finance_accrual_schedule_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_accrual_schedules(id,company_id,description,debit_account_id,credit_account_id,currency,total_minor,start_date,end_date,next_run_date,frequency,status,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'draft',1,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual event_created native statement.
+pub async fn finance_accrual_event_created_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_accrual_schedule_events(id,schedule_id,company_id,action,actor_id,schedule_version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,1,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual schedule_decision native statement.
+pub async fn finance_accrual_schedule_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_accrual_schedules SET status=?,approved_by=CASE WHEN ?='active' THEN ? ELSE approved_by END,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual event_decision native statement.
+pub async fn finance_accrual_event_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_accrual_schedule_events(id,schedule_id,company_id,action,actor_id,schedule_version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual journal_insert native statement.
+pub async fn finance_accrual_journal_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual journal_lines_insert native statement.
+pub async fn finance_accrual_journal_lines_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?,0),(?,?,?,?,?,?,?,?,?,1)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual run_insert native statement.
+pub async fn finance_accrual_run_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_accrual_schedule_runs(id,schedule_id,company_id,period_start,period_end,amount_minor,currency,journal_id,schedule_version,source_hash,status,version,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?, 'prepared',1,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual event_run native statement.
+pub async fn finance_accrual_event_run_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_accrual_schedule_events(id,schedule_id,run_id,company_id,action,actor_id,schedule_version,run_version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual journal_post native statement.
+pub async fn finance_accrual_journal_post_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_journals SET status='posted',version=version+1,posted_by=?,posted_at=?,updated_at=? WHERE id=? AND status='draft'".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual run_post native statement.
+pub async fn finance_accrual_run_post_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_accrual_schedule_runs SET status='posted',posted_by=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: accrual schedule_post native statement.
+pub async fn finance_accrual_schedule_post_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_accrual_schedules SET next_run_date=?,status=CASE WHEN ? THEN 'completed' ELSE status END,version=version+1,updated_at=? WHERE id=? AND status='active' AND version=?".to_owned(), values: values_from_json(input)? })
+}
