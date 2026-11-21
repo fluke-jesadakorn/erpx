@@ -5330,3 +5330,93 @@ pub async fn refund_obligation_settle_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_refund_obligations SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=COALESCE(base_outstanding_minor,?)-?,status=CASE WHEN outstanding_minor=? THEN 'settled' ELSE 'approved' END,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance withholding remittance: native-owned wh_package_insert statement.
+pub async fn wh_package_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_withholding_packages(id,company_id,month,form_kind,previous_package_id,edition,tax_minor,monthly_tax_minor,chart_id,source_fingerprint,snapshot_json,export_csv,export_sha256,prepared_by,reason,command_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_package_decision statement.
+pub async fn wh_package_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_withholding_packages SET status=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_remittance_insert statement.
+pub async fn wh_remittance_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_withholding_remittances(id,company_id,package_id,amount_minor,liability_accounts_json,bank_account_id,bank_transaction_id,journal_id,filing_channel,filing_evidence,bank_reference,recorded_by,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_remittance_item_insert statement.
+pub async fn wh_remittance_item_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_withholding_remittance_items(remittance_id,assessment_id,company_id,tax_minor) VALUES(?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_bank_match statement.
+pub async fn wh_bank_match_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='withholding_remittance',matched_id=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_package_settle statement.
+pub async fn wh_package_settle_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_withholding_packages SET status='settled',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_remittance_reverse statement.
+pub async fn wh_remittance_reverse_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_withholding_remittances SET status='reversed',reversal_bank_transaction_id=?,reversal_journal_id=?,reversal_evidence=?,reversed_by=?,reversed_at=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_package_reverse statement.
+pub async fn wh_package_reverse_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_withholding_packages SET status='reversed',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding remittance: native-owned wh_bank_match2 statement.
+pub async fn wh_bank_match2_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='withholding_remittance_reversal',matched_id=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
