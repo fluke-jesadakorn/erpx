@@ -5460,3 +5460,38 @@ mod asset_policy_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for finance business-contract statements.
+pub const BUSINESS_CONTRACT_SQL_PREPARE_CONTRACT: &str = "INSERT INTO finance_business_contracts(id,company_id,root_id,parent_id,number,name,chart_id,party_id,start_date,end_date,edition,content_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const BUSINESS_CONTRACT_SQL_SUPERSEDE_CONTRACT: &str = "UPDATE finance_business_contracts SET status='superseded',version=version+1,updated_at=? WHERE id=?";
+pub const BUSINESS_CONTRACT_SQL_DECIDE_CONTRACT: &str = "UPDATE finance_business_contracts SET status=?,reviewed_by=?,version=?,updated_at=? WHERE id=?";
+pub const BUSINESS_CONTRACT_SQL_VOID_CONTRACT_INVOICE: &str = "UPDATE finance_invoices SET status='voided',outstanding_minor=0,base_outstanding_minor=0,version=version+1,updated_at=? WHERE id=? AND company_id=?";
+pub const BUSINESS_CONTRACT_SQL_PREPARE_BILL: &str = "INSERT INTO finance_business_billing_runs(id,company_id,contract_id,root_id,contract_version,billing_key,service_from,service_to,input_json,result_json,source_hash,invoice_id,invoice_version,created_by,created_at,no_charge_status,parent_run_id,parent_version,bill_edition,contract_content_json,revision_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const BUSINESS_CONTRACT_SQL_PREPARE_RECOGNITION: &str = "INSERT INTO finance_recognition_runs(id,company_id,billing_run_id,item_key,due_date,entry_date,period_id,amount_minor,account_id,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const BUSINESS_CONTRACT_SQL_DECIDE_RECOGNITION: &str = "UPDATE finance_recognition_runs SET status=?,version=?,reviewed_by=?,journal_id=?,reason=?,updated_at=? WHERE id=?";
+pub const BUSINESS_CONTRACT_SQL_REVERSE_RECOGNITION: &str = "UPDATE finance_recognition_runs SET status='reversed',version=version+1,reversal_journal_id=?,reason=?,updated_at=? WHERE id=?";
+pub const BUSINESS_CONTRACT_SQL_APPROVE_NO_CHARGE: &str = "UPDATE finance_business_billing_runs SET no_charge_status=?,reviewed_by=?,review_reason=?,version=version+1 WHERE id=?";
+
+#[cfg(test)]
+mod business_contract_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn business_contract_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-business-contract-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid business contract SQL contract");
+        let pairs = [
+            ("prepare_contract", BUSINESS_CONTRACT_SQL_PREPARE_CONTRACT),
+            ("supersede_contract", BUSINESS_CONTRACT_SQL_SUPERSEDE_CONTRACT),
+            ("decide_contract", BUSINESS_CONTRACT_SQL_DECIDE_CONTRACT),
+            ("void_contract_invoice", BUSINESS_CONTRACT_SQL_VOID_CONTRACT_INVOICE),
+            ("prepare_bill", BUSINESS_CONTRACT_SQL_PREPARE_BILL),
+            ("prepare_recognition", BUSINESS_CONTRACT_SQL_PREPARE_RECOGNITION),
+            ("decide_recognition", BUSINESS_CONTRACT_SQL_DECIDE_RECOGNITION),
+            ("reverse_recognition", BUSINESS_CONTRACT_SQL_REVERSE_RECOGNITION),
+            ("approve_no_charge", BUSINESS_CONTRACT_SQL_APPROVE_NO_CHARGE),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "business contract SQL contract drift: {key}");
+        }
+    }
+}
