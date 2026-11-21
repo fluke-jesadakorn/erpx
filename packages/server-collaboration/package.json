@@ -295,7 +295,8 @@
     "./adapters/native-finance-commerce-facts": "./src/adapters/native-finance-commerce-facts.ts",
     "./adapters/native-finance-payroll-remittance": "./src/adapters/native-finance-payroll-remittance.ts",
     "./adapters/native-finance-pos-facts": "./src/adapters/native-finance-pos-facts.ts",
-    "./adapters/native-finance-payroll-other": "./src/adapters/native-finance-payroll-other.ts"
+    "./adapters/native-finance-payroll-other": "./src/adapters/native-finance-payroll-other.ts",
+    "./adapters/native-finance-group-editions": "./src/adapters/native-finance-group-editions.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

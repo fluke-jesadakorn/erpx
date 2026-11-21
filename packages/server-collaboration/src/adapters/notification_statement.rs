@@ -3562,3 +3562,43 @@ pub async fn finance_payroll_other_match_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: prepare a group report edition.
+pub async fn finance_group_edition_prepare_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_group_report_editions(id,holding_id,company_id,parent_id,root_id,edition,start_date,end_date,currency,content_json,source_json,result_json,source_hash,export_content,export_sha256,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: supersede a parent group report edition.
+pub async fn finance_group_edition_supersede_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_group_report_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: decide on a group report edition.
+pub async fn finance_group_edition_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_group_report_editions SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
