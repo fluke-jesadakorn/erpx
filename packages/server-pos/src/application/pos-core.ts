@@ -260,6 +260,7 @@ export type PosUnit<Effect extends PosEffect> = {
     }): Promise<PosRow | null>;
     writeCommandAssertions1(facts: {
         key: string;
+        companyId: string;
     }): Promise<PosRows<Record<string, unknown>>>;
     writePosReceipts1(facts: {
         key: string;
@@ -1067,13 +1068,13 @@ export function createPosApplication<Effect extends PosEffect>(ports: {
                 if (old) {
                     if (old.request_hash !== hash && old.request_hash !== ports.hash(JSON.stringify({ user: actor.userId, assignment: actor.assignmentId, company: actor.companyId, branch: actor.branchId, operation, input: legacyGuestAccount(input) })))
                         fail('IDEMPOTENCY_CONFLICT', 'Command number is already used for other data');
-                    await tx.writeCommandAssertions1({ key: key });
+                    await tx.writeCommandAssertions1({ key: key, companyId: actor.companyId });
                     return canonicalGuestAccount(json<Record<string, unknown>>(old.result_json));
                 }
                 const result = await perform(tx, actor, operation, input, key);
                 await tx.writePosReceipts1({ key: key, companyId: actor.companyId, hash: hash, fact3: JSON.stringify(result), fact4: ports.clock.now() });
                 await audit(tx, actor.companyId, actor.branchId, actor.userId, operation, String(result.id ?? key), { input, result, assignmentId: actor.assignmentId });
-                await tx.writeCommandAssertions1({ key: key });
+                await tx.writeCommandAssertions1({ key: key, companyId: actor.companyId });
                 return result;
             });
         }

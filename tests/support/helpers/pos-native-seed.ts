@@ -116,7 +116,7 @@ export async function seedPosCommand(
     if (receipt) {
       if (receipt.request_hash !== hash && receipt.request_hash !== digest({ user: actor.userId, assignment: actor.assignmentId, company: actor.companyId, branch: actor.branchId, operation, input: legacyGuestAccount(input) }))
         fail('IDEMPOTENCY_CONFLICT', 'Command number is already used for other data');
-      await posCoreWorkflowFacts(transaction).writeCommandAssertions1({ key });
+      await posCoreWorkflowFacts(transaction).writeCommandAssertions1({ key, companyId: actor.companyId });
       return canonicalGuestAccount(JSON.parse(String(receipt.result_json)) as Record<string, unknown>);
     }
     const attachmentInput = z.object({
@@ -150,7 +150,7 @@ export async function seedPosCommand(
     if (attachmentBinding) await transaction.batch(attachmentBinding.steps);
     await run(transaction, 'INSERT INTO pos_receipts VALUES(?,?,?,?,?)', key, actor.companyId, hash, JSON.stringify(result), Date.now());
     await audit(transaction, actor.companyId, actor.branchId, actor.userId, operation, String(result.id ?? key), { input, result, assignmentId: actor.assignmentId });
-    await posCoreWorkflowFacts(transaction).writeCommandAssertions1({ key });
+    await posCoreWorkflowFacts(transaction).writeCommandAssertions1({ key, companyId: actor.companyId });
     return result;
   };
   try {

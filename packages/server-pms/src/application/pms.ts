@@ -286,6 +286,7 @@ export type PmsUnit<Effect extends PmsEffect> = {
     }): Promise<PmsRows<Record<string, unknown>>>;
     deleteCommandAssertions(facts: {
         id: `${string}-${string}-${string}-${string}-${string}`;
+        companyId: string;
     }): Promise<PmsRows<Record<string, unknown>>>;
     readCommerceWarehouses2(facts: {
         warehouseId: string;
@@ -1424,7 +1425,7 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
         }, id, "posted");
         await db.batch(prepared.steps);
         await db.insertPmsPostings({ id: id, id2: p.id, source: effect.source, recordId: effect.recordId, id3: prepared.result.id, date: effect.date });
-        await db.deleteCommandAssertions({ id: id });
+        await db.deleteCommandAssertions({ id: id, companyId: actor.companyId });
         return prepared.result.id;
     }
     async function effects(db: PmsUnit<Effect>, actor: WorkContext, s: Snapshot, e: Effects) {
