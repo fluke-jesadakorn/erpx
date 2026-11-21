@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4173,
+    "revision": 4179,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261121-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T00:21:01.833Z",
-      "heartbeatAt": "2026-11-21T04:49:52.353Z",
-      "expiresAt": "2026-11-21T05:19:52.353Z",
+      "heartbeatAt": "2026-11-21T04:53:04.310Z",
+      "expiresAt": "2026-11-21T05:23:04.311Z",
       "generation": 140,
       "tokenHash": "f5becb3db42bf1f7d81277664514d662d8d99fbe32235d3cb8f6b0344bfd3da3"
     },
@@ -98604,6 +98604,108 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.group-ownership-sql-contract",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire finance group-ownership TS writers via native SQL contract (10 writes)",
+        "scope": "Move 10 group-ownership INSERT/UPDATE SQL into native Rust consts mirrored by a checked-in JSON contract enforced by a Rust test; TS prepares a real Statement synchronously, preserving sync repository signatures and call sites.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/server-collaboration/src/**",
+          "src/composition/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "57c2ebf15b52c67aa26b54600ac7c09ed975d313",
+        "lastPushedSha": "57c2ebf15b52c67aa26b54600ac7c09ed975d313",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "57c2ebf15b52c67aa26b54600ac7c09ed975d313",
+            "sourceKind": "committed",
+            "before": 124,
+            "after": 114,
+            "note": "Retired 10 TS group-ownership writer SQL literals via native-owned SQL contract; finance KPI 124->114, global 1371->1361.",
+            "residual": [
+              {
+                "path": "packages/server-finance/src/adapters/commerce-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/company-money.ts",
+                "writes": 7,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-native-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-ai.ts",
+                "writes": 18,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-consolidation.ts",
+                "writes": 13,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance.ts",
+                "writes": 49,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-core-facts.ts",
+                "writes": 11,
+                "removalTaskId": "retire.finance.service-repository",
+                "removalCondition": "Delete only after the owner-native Finance port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "57c2ebf15b52c67aa26b54600ac7c09ed975d313",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "57c2ebf15b52c67aa26b54600ac7c09ed975d313",
+            "sourceKind": "committed",
+            "note": "Native compile + 7/7 statement tests + 1/1 new group-ownership SQL contract test + book-services 23/23 + instrument-services 19/19."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -98612,24 +98714,24 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 395,
-      "migratedPackets": 282,
+      "totalPackets": 396,
+      "migratedPackets": 283,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 282,
+        "migrated": 283,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 140,
-    "updatedAt": "2026-11-21T04:49:52.354Z",
+    "updatedAt": "2026-11-21T04:53:04.313Z",
     "handoff": {
       "fromRun": "run-20261121-a",
-      "verifiedPushedCheckpoint": "e4f2c60ca7c4b0e02bc9c1742fab8c3f8abce1e6",
+      "verifiedPushedCheckpoint": "57c2ebf15b52c67aa26b54600ac7c09ed975d313",
       "remoteVerifiedAt": "HEAD==origin==cfc105b0990deb5889c24472a78d5f50e23f1e2d; tree clean after coordinator close commit",
       "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1832 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, the 3 expense attachment withdrawal/revocation writers, the 3 document derivative writers, the beta upload expiry writer, the 2 legal portal access-event writers, the 4 legal portal attachment staging writers, the customer portal action writer, the 3 release acceptance event writers, the customer receipt issuance writer, the 4 legal portal draft/staging writers (completing legal-portal-repository.ts), the legal file preservation writer, the legal retention execution authorization writer, the finance hotel account creation writer, the payroll bank observation ignore writer, the 5 legal feature writers (dynamic table via table_name transport), the 5 legal approval writers, the 4 legal executed-copy review writers, the 6 legal signing/reference writers, the 3 legal trust/processing writers, the legal access event writer, the 2 legal document access-event writers (citation/knowledge), the 7 legal governance writers, the 7 legal retention writers, the 7 legal operations writers, the 11 legal document writers, the 10 legal law-corpus writers, the 11 legal service writers, the 14 legal destruction-worker writers, the 14 legal portal writers, the 2 residual legal access/event writers, the legal envelope-expiry writer (holding-keyed fragment transport), the 3 finance book-adjustment writers, the 3 finance planning/report writers, the 3 finance journal-reversal writers, the 4 finance tax-identity writers, the 2 finance due-draft writers, the 4 finance intercompany-pair writers, the 3 payroll advance-deduction writers, the 3 payroll final-pay cancellation writers, the 2 payroll expense-draft writers, the 3 finance sales-defaults writers, the 2 payroll statutory-profile writers, the 2 finance accounting-profile writers, the 2 finance hospitality tax-document writers, the 2 finance PMS-import writers, the 2 finance journal-planning writers, the finance invoice line-version writer, the finance expansion review-file writer, the finance/commerce journal-line base-carry writer, the finance/payroll remittance-match writer, the finance/POS party writer, the finance/payroll other-remittance match writer, the 3 finance group-edition writers, the finance company-tool writer, the 2 finance payroll-owner writers, the 2 finance due-draft worker writers, the finance supplier-bill draft-void writer, 3 people/payroll writers (employee, payslip, expense-payment cancel), 3 more (leave evidence manifest, 2 calendar prep-task writes), 2 more (statutory remittance, staff level assignment), and 9 workflow command-assertion cleanup writers, then 4 more, then 17 more via async guards conversion, then 5 more in async callbacks, then 8 more (3 flatMap + 5 dynamic IN), then 8 more (key/guard/flatMap async), then 2 more (customer-portal, layout wrappers), then 6 more (agent, executive, guided-intake, approval, evaluation), then 5 more (records-request 2, pms 1, pos 2), then 5 more (collab agent/ai 5), then 4 more (people-eval-ai, beta, manufacturing 2, workflow commands), then 4 more (assets×2, legal, marketing) via native workflow_command_assertion_clear, 2 organization-channel statements, and 2 legal backfill attachment statements, and 2 beta AI reservation-expiry statements, and 2 legacy leave statements, and 2 project-worker starter statements, and 3 beta onboarding statements, and 2 organization relocation statements, and 3 hire handoff statements, and 3 organization node-channel statements (also repaired a malformed handoff adapter from the prior commit), 1 messaging backfill statement, 4 legal job-health statements, 5 finance collection statements, 5 finance calculation-engine statements, 5 finance intercompany statements, 5 finance starter statements, and 3 organization draft-placement statements, and 6 orphan customer-authority write statements deleted (no callers, native owns commands), and the last command_assertions writer moved to native-owned SQL contract (KPI command_assertions=0). Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA. Native finance reporting statement package/event + year closing generators added. Native inbox event/delivery/notice/target statements added. Native accrual schedule/journal/run/event generators added. Two remaining orphan 1-write helpers deleted (marketing crm reservation touch, runtime holding binding effects). Native PMS finance fact statements added (party/invoice/payment/allocation/bank-match). Native finance book opening/rule/dimension statements added. Native finance withholding assessment/line/document statements added. Native Thai document sequence/issue/event/change statements added. Native Thai document and billing correction statements added. Native finance asset/event/disposal/depreciation statements added. Native finance instrument edition/run/bank-match statements added. Native finance refund obligation/instruction/payment statements added. Native withholding remittance package/remittance/bank-match statements added. Native asset-policy SQL contract (11 statements) added; sync repository signature preserved. Native business-contract SQL contract (9 statements) added. Native bank automation CSV/import/match-group/target statements added. Native tax-register entry/correction/statutory-package/calculation-run statements added. Native group-ownership SQL contract (10 statements) added.",
       "lastKpi": 1361,
@@ -98638,7 +98740,7 @@
         "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 289,
+        "migrated": 290,
         "blocked": 91,
         "deferred": 1,
         "done": 51
