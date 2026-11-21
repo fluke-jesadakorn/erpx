@@ -27,7 +27,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typ
 export type CommerceOwnerWriteKind =
   | 'settings.initialize' | 'billing-test.document' | 'billing-test.entry' | 'billing-test.line'
   | 'supplier.fulfillment-version' | 'supplier.order-version' | 'supplier.fulfillment-links'
-  | 'mfg-existing-posting-confirmation' | 'goods-carrying'
+  | 'mfg-existing-posting-confirmation' | 'goods-carrying' | 'order.posted-revision'
   | 'product.create' | 'product.update';
 
 export async function nativeCommerceOwnerWrite(

@@ -46,7 +46,7 @@ async function flowAfterEffects(db: SqlDatabase, actor: StaffActor, key: string,
     const after = [await stageWorkflowNotification(db, actor as WorkContext, { id: crypto.randomUUID(), kind, now: Date.now(), companyId: actor.companyId, recordId: id, actorId: actor.userId, documentTable: tables[kind], recipientSql: recipient })];
     after.push(db.prepare(`UPDATE flow_events e SET next_step_key=(${state}),next_user_id=(${recipient}) FROM ${tables[kind]} d JOIN flow_routes r ON r.company_id=d.company_id AND r.kind=? AND r.record_id=d.id WHERE e.command_id=? AND d.company_id=? AND d.id=?`).bind(kind, key, actor.companyId, id));
     if (kind === 'journal')
-        after.unshift(stageWorkflowPostedOrderRevision(db, Date.now(), id, actor.companyId));
+        after.unshift(stageWorkflowPostedOrderRevision(Date.now(), id, actor.companyId, actor.userId, key));
     if (kind === 'journal')
         after.push(await stageWorkflowInvoicingNotification(db, actor as WorkContext, crypto.randomUUID(), Date.now(), id));
     return after;

@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4546,
+    "revision": 4549,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:51:51.668Z",
-      "expiresAt": "2026-11-21T19:21:51.668Z",
+      "heartbeatAt": "2026-11-21T18:54:41.082Z",
+      "expiresAt": "2026-11-21T19:24:41.082Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -25420,8 +25420,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:51:45.673Z",
-          "heartbeatAt": "2026-11-21T18:51:51.668Z",
-          "expiresAt": "2026-11-21T19:21:51.668Z",
+          "heartbeatAt": "2026-11-21T18:54:41.082Z",
+          "expiresAt": "2026-11-21T19:24:41.082Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -25484,11 +25484,31 @@
             "result": "passed",
             "sourceSha": "db3cd90c66734783a66b798a0e44766c44e349cf",
             "note": "Verified same-unit requirement (finance.ts:394-398 single executeCommand batch) and that CommerceOwnerWriteBackend runs its own PgUnitOfWork (commerce_owner_write.rs:78-100) - a normal committing kind would match 0 rows. Correction: nativeOwnerStatement also executes remotely (separate unit), it only preserves the SqlStatement interface. Required: finance-style statement-factory route for commerce, or migrate the journal-post command native first. TS stays authority with removalTaskId. No code changed."
+          },
+          {
+            "command": "retirement:ts-writes broad UPDATE audit packages/server-commerce/src (excl FOR UPDATE)",
+            "result": "passed",
+            "sourceSha": "569a3f159c93bd7a4527407efa1d8eee159f9dea",
+            "before": 4,
+            "after": 3,
+            "note": "Posted-journal order bump routed to native order.posted-revision (guarded SQL in owner crate); remaining: 2 templated attachment bumps + 1 billing-test sandbox writer"
+          },
+          {
+            "command": "cargo-check:erpx-server-commerce",
+            "result": "passed",
+            "sourceSha": "569a3f159c93bd7a4527407efa1d8eee159f9dea",
+            "note": "cargo check green; lib 12/12 pass"
+          },
+          {
+            "command": "tsc:server-commerce+server-workflow",
+            "result": "passed",
+            "sourceSha": "569a3f159c93bd7a4527407efa1d8eee159f9dea",
+            "note": "both packages typecheck clean; financeProjectionSources import removed with the deleted SQL"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Build commerce statement-factory route (mirror nativeFinanceOwnerWrite: return {sql,values} executed in caller unit), register order_version_bump_posted kind (3 params), switch workflow-command-effects.ts:3, drop financeProjectionSources import. Alt: migrate Finance journal-post command native first.",
+        "nextAction": "Posted-journal bump native (broad 4->3). Next: attachment version-bump ports x2 + billing-test sandbox classification; verify bump against native service on same DB.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-commerce-retire",
@@ -27880,8 +27900,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:51:51.668Z",
-          "expiresAt": "2026-11-21T19:21:51.668Z",
+          "heartbeatAt": "2026-11-21T18:54:41.082Z",
+          "expiresAt": "2026-11-21T19:24:41.082Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43779,8 +43799,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:51:51.668Z",
-          "expiresAt": "2026-11-21T19:21:51.668Z",
+          "heartbeatAt": "2026-11-21T18:54:41.082Z",
+          "expiresAt": "2026-11-21T19:24:41.082Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -51498,8 +51518,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:51:51.668Z",
-          "expiresAt": "2026-11-21T19:21:51.668Z",
+          "heartbeatAt": "2026-11-21T18:54:41.082Z",
+          "expiresAt": "2026-11-21T19:24:41.082Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105461,7 +105481,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:51:51.669Z",
+    "updatedAt": "2026-11-21T18:54:41.084Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

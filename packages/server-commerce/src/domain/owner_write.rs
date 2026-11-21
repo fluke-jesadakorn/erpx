@@ -29,6 +29,7 @@ pub fn kind_spec(kind: &str) -> Option<(&'static str, usize, &'static str)> {
         "product.create" => ("product_create", 10, "commerce_products"),
         "product.update" => ("product_update", 9, "commerce_products"),
         "order.version-bump" => ("order_version_bump", 2, "commerce_orders"),
+        "order.posted-revision" => ("order_posted_revision", 3, "commerce_orders"),
         "return.create" => ("return_create", 16, "commerce_orders"),
         "return.line" => ("return_line", 13, "commerce_orders"),
         "return.lot-allocation" => ("return_lot_allocation", 9, "commerce_orders"),

@@ -69,6 +69,11 @@ fn kind_sql(kind: &str) -> &'static str {
         "order_version_bump" => {
             "UPDATE commerce_orders SET version=version+1,updated_at=$1 WHERE id=$2"
         }
+        "order_posted_revision" => {
+            "UPDATE commerce_orders o SET version=o.version+1,updated_at=$1 \
+             FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id \
+             WHERE f.order_id=o.id AND j.id=$2 AND j.company_id=$3 AND j.status='posted'"
+        }
         "return_create" => {
             "INSERT INTO commerce_returns(id,company_id,branch_id,order_id,fulfillment_id,invoice_id,kind,number,return_date,reason,subtotal_minor,tax_minor,total_minor,requested_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)"
         }

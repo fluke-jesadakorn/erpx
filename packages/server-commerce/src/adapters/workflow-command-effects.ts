@@ -1,3 +1,10 @@
-import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-export function stageWorkflowPostedOrderRevision(db:SqlDatabase,now:number,journalId:string,companyId:string){return db.prepare(`UPDATE commerce_orders o SET version=o.version+1,updated_at=? FROM commerce_fulfillments f JOIN (${financeProjectionSources.finance_journals}) j ON j.id=f.journal_id WHERE f.order_id=o.id AND j.id=? AND j.company_id=? AND j.status='posted'`).bind(now,journalId,companyId);}
+import { nativeOwnerStatement } from "@erpx/server-commerce/adapters/native-owner-write";
+/**
+ * Native posted-journal order revision. The guarded bump executes in the
+ * native Commerce owner unit after the Finance journal post step commits in
+ * the same batch order, so the `posted` guard reads the just-posted journal.
+ * Carries no SQL and no TS fallback: the owner crate owns the statement.
+ */
+export function stageWorkflowPostedOrderRevision(now: number, journalId: string, companyId: string, actorId: string, key: string) {
+  return nativeOwnerStatement('order.posted-revision', [now, journalId, companyId], journalId, actorId, key, companyId);
+}
