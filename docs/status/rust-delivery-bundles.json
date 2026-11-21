@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4533,
+    "revision": 4540,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:40:51.660Z",
-      "expiresAt": "2026-11-21T19:10:51.660Z",
+      "heartbeatAt": "2026-11-21T18:50:42.114Z",
+      "expiresAt": "2026-11-21T19:20:42.114Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -27867,8 +27867,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:40:51.660Z",
-          "expiresAt": "2026-11-21T19:10:51.660Z",
+          "heartbeatAt": "2026-11-21T18:50:42.114Z",
+          "expiresAt": "2026-11-21T19:20:42.114Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43766,8 +43766,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:40:51.660Z",
-          "expiresAt": "2026-11-21T19:10:51.660Z",
+          "heartbeatAt": "2026-11-21T18:50:42.114Z",
+          "expiresAt": "2026-11-21T19:20:42.114Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47037,8 +47037,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:40:51.660Z",
-          "expiresAt": "2026-11-21T19:10:51.660Z",
+          "heartbeatAt": "2026-11-21T18:50:42.114Z",
+          "expiresAt": "2026-11-21T19:20:42.114Z",
           "generation": 147
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -47475,8 +47475,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:40:51.660Z",
-          "expiresAt": "2026-11-21T19:10:51.660Z",
+          "heartbeatAt": "2026-11-21T18:50:42.114Z",
+          "expiresAt": "2026-11-21T19:20:42.114Z",
           "generation": 147
         },
         "baseSha": null,
@@ -47668,18 +47668,11 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T18:24:41.639Z",
-          "heartbeatAt": "2026-11-21T18:40:51.660Z",
-          "expiresAt": "2026-11-21T19:10:51.660Z",
-          "generation": 147
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "165542364ad278c208fcfc2f0b1c95ca6d6090fd",
+        "lastPushedSha": "165542364ad278c208fcfc2f0b1c95ca6d6090fd",
         "checks": [
           {
             "command": "audit:pms-native-parity",
@@ -47782,12 +47775,293 @@
             "result": "passed",
             "sourceSha": "fc114fd85c8b42e2d9b6589c183964e5e6ab703e",
             "note": "134/134 pass incl 91 pms-application (no test reaches rewired line; proxy fakes unaffected)"
+          },
+          {
+            "command": "retirement:ts-statements git grep -I -c 'SELECT ' HEAD -- ' :(glob)packages/server-pms/src/**/*.ts' line-count",
+            "result": "passed",
+            "sourceSha": "165542364ad278c208fcfc2f0b1c95ca6d6090fd",
+            "before": 497,
+            "after": 496,
+            "residual": [
+              {
+                "path": "packages/server-pms/src/adapters/addon-package-obligations.ts",
+                "writes": 28,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/attachment-read-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/attachments-finance-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/collaboration-home-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/commercial-owner-projection-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/crm-analytics-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/crm-attachment-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/crm-purchase-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/entrypoint-queries.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/executive-main-evidence-sources.ts",
+                "writes": 8,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/executive-metric-projections.ts",
+                "writes": 15,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/feature-availability.ts",
+                "writes": 6,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/finance-owned-snapshot-sources.ts",
+                "writes": 17,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/finance-record-sources.ts",
+                "writes": 5,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/finance-snapshot-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/guest-account-finance-evidence.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/hospitality-day-controls.ts",
+                "writes": 7,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/hospitality-owner-projection-sources.ts",
+                "writes": 4,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/hospitality-rollout.ts",
+                "writes": 7,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/hospitality-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/metric-purchases.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/operations-handover-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/package-obligations.ts",
+                "writes": 19,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/platform-owner-projection-sources.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking-changes.ts",
+                "writes": 8,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking-refunds.ts",
+                "writes": 16,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking.ts",
+                "writes": 21,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-stripe.ts",
+                "writes": 20,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms.ts",
+                "writes": 120,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/finance.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/guest-document.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/home.ts",
+                "writes": 27,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/import.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/read-repository.ts",
+                "writes": 79,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/record-details.ts",
+                "writes": 2,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/reports.ts",
+                "writes": 25,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/source-query.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/source.ts",
+                "writes": 4,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pos-guest-account-interface.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pos-stripe-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/property-purchase-boundary.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/provider-authority.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/purchase-boundary.ts",
+                "writes": 1,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/social-source-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.pms.read-tail-followup",
+                "removalCondition": "Port remaining read family to native owner port, switch consumer, delete the TS SQL."
+              }
+            ],
+            "note": "TS combined-row site deleted, rewired to native refund-context route; zero references repo-wide; fail-closed bridge unit-tested 6/6"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Bridge + rewire done and unit-verified. Next: e2e retry flow against native service on same DB (needs service boot env), then close slice with SELECT KPI.",
-        "handoff": null,
+        "nextAction": "Closed combined-row slice (497->496, residual 496 classified). Follow-ups: status FOR UPDATE stays TS; booking mail/link + reports + balances under retire.pms.read-tail-followup; e2e via native service when boot env available.",
+        "handoff": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-21T18:50:32.547Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Combined-row slice complete and verified (worker PASS): symbol deleted repo-wide, SELECT 497->496, call chain rewired to native route, no second implementor. Ready for lead integration."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -51225,8 +51499,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:40:51.660Z",
-          "expiresAt": "2026-11-21T19:10:51.660Z",
+          "heartbeatAt": "2026-11-21T18:50:42.114Z",
+          "expiresAt": "2026-11-21T19:20:42.114Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105175,20 +105449,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 425,
-      "migratedPackets": 317,
+      "migratedPackets": 318,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 317,
+        "migrated": 318,
         "blocked": 87,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:48:05.753Z",
+    "updatedAt": "2026-11-21T18:50:42.117Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
