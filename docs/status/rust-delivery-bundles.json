@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4571,
+    "revision": 4575,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T19:05:26.061Z",
-      "expiresAt": "2026-11-21T19:35:26.062Z",
+      "heartbeatAt": "2026-11-21T19:12:54.048Z",
+      "expiresAt": "2026-11-21T19:42:54.048Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -25420,8 +25420,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:51:45.673Z",
-          "heartbeatAt": "2026-11-21T19:05:26.061Z",
-          "expiresAt": "2026-11-21T19:35:26.062Z",
+          "heartbeatAt": "2026-11-21T19:12:54.048Z",
+          "expiresAt": "2026-11-21T19:42:54.048Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -25720,8 +25720,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:58:22.273Z",
-          "heartbeatAt": "2026-11-21T19:05:26.061Z",
-          "expiresAt": "2026-11-21T19:35:26.062Z",
+          "heartbeatAt": "2026-11-21T19:12:54.048Z",
+          "expiresAt": "2026-11-21T19:42:54.048Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -27920,8 +27920,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T19:05:26.061Z",
-          "expiresAt": "2026-11-21T19:35:26.062Z",
+          "heartbeatAt": "2026-11-21T19:12:54.048Z",
+          "expiresAt": "2026-11-21T19:42:54.048Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43819,8 +43819,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T19:05:26.061Z",
-          "expiresAt": "2026-11-21T19:35:26.062Z",
+          "heartbeatAt": "2026-11-21T19:12:54.048Z",
+          "expiresAt": "2026-11-21T19:42:54.048Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -51538,8 +51538,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T19:05:26.061Z",
-          "expiresAt": "2026-11-21T19:35:26.062Z",
+          "heartbeatAt": "2026-11-21T19:12:54.048Z",
+          "expiresAt": "2026-11-21T19:42:54.048Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105682,8 +105682,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T19:03:11.471Z",
-          "heartbeatAt": "2026-11-21T19:05:26.061Z",
-          "expiresAt": "2026-11-21T19:35:26.062Z",
+          "heartbeatAt": "2026-11-21T19:12:54.048Z",
+          "expiresAt": "2026-11-21T19:42:54.048Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105695,12 +105695,18 @@
             "result": "passed",
             "sourceSha": "f957d897f3d05dfca1561758d18a73d64ada6064",
             "note": "9/10 sites COVERED by existing native refund/mail repo methods (predicates verified exact incl FOR UPDATE variants); 1 genuine GAP: readPmsRecords3 public recovery by number+email needs new native reservation_by_number_and_email. Correction: native payment()/approval_target()/etc live in refund_postgres.rs, not booking_postgres.rs. In-tx locked reads stay TS; pre-tx validation reads are bridge candidates."
+          },
+          {
+            "command": "build:erpx-server-private-api",
+            "result": "passed",
+            "sourceSha": "f957d897f3d05dfca1561758d18a73d64ada6064",
+            "note": "cargo build -p erpx-service --no-default-features --features private-field-api,existing-business --bin erpx-server green (1m28s); vips-dependent files-scan-worker excluded; binary smoke-tested via owners inventory. NOTE: full e2e still needs test-config + seeded holdings/session + pms rows."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "nextAction": "Build PmsBookingMailRepository::reservation_by_number_and_email for the public recovery link; bridge pre-tx validation reads (recovery_payment, approval_target, payment_by_id, refundable_requests, finance_rows, mail rows) one family at a time; in-tx FOR UPDATE reads wait for command migration.",
+        "nextAction": "Binary ready. Next: write --test-config (1-3 holdings, loopback, leased erpx_dev_rust_* DBs), seed holdings/Company/session+pms rows, boot private-api, curl refund-context route, then switch retryBookingRefund line 421 caller and delete TS site.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -105725,7 +105731,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T19:05:26.063Z",
+    "updatedAt": "2026-11-21T19:12:54.049Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
