@@ -28,8 +28,8 @@ export interface LeaveRepository<Effect> {
     readCreateLeaveEmployee(person_id: string, companyId: string): Promise<{
         id: string;
     } | null>;
-    stageCreateLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number): Effect;
-    stageCreateLeaveEffect2(id: string, value: string, person_id: string, companyId: string, person_id2: string, engagement_id: string, companyId2: string, value2: string, department_id: string | null, startDate: string, days: number, handoverNote: string, userId: string, now: number, now2: number): Effect;
+    stageCreateLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number): Promise<Effect>;
+    stageCreateLeaveEffect2(id: string, value: string, person_id: string, companyId: string, person_id2: string, engagement_id: string, companyId2: string, value2: string, department_id: string | null, startDate: string, days: number, handoverNote: string, userId: string, now: number, now2: number): Promise<Effect>;
     guard6(key: string, value: "leave-state", id: string, version: number, states: string[]): Effect;
     guard7(key: string, value: "placement", engagement_id: string, engagement_version: number): Effect;
     stageSubmitLeaveEffect(startDate: string, days: number, handoverNote: string, state: "draft" | "pending_approval", person_id: string, engagement_id: string, value: string, department_id: string | null, userId: string, key: string, now: number, id: string): Effect;
@@ -96,10 +96,10 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
             ports.staffGuard(key, context.companyId, context.userId),
             ...(!employee
                 ? [
-                    repository.stageCreateLeaveEffect(employeeId, staff.person_id, context.companyId, staff.branch_id ?? "", staff.department_id, staff.legal_name, now),
+                    await repository.stageCreateLeaveEffect(employeeId, staff.person_id, context.companyId, staff.branch_id ?? "", staff.department_id, staff.legal_name, now),
                 ]
                 : []),
-            repository.stageCreateLeaveEffect2(id, `LR-${key}`, staff.person_id, context.companyId, staff.person_id, staff.engagement_id, context.companyId, staff.branch_id ?? "", staff.department_id, input.startDate, input.days, input.handoverNote, context.userId, now, now),
+            await repository.stageCreateLeaveEffect2(id, `LR-${key}`, staff.person_id, context.companyId, staff.person_id, staff.engagement_id, context.companyId, staff.branch_id ?? "", staff.department_id, input.startDate, input.days, input.handoverNote, context.userId, now, now),
         ], eventScope(staff));
     }
     function guard(key: string, id: string, version: number, states: string[]) {
