@@ -18,3 +18,16 @@ export function financeDueDrafts(db: SqlDatabase, companyId: string) {
       call('finance_due_draft_decide', '', [f.status, f.now, f.id]),
   };
 }
+
+import { nativeHoldingNotificationStatement } from './native-system-notification';
+
+/** Native-owned finance due-draft worker statements (holding-keyed, company-less). */
+export function financeDueDraftsWorker(db: SqlDatabase, holdingId: string) {
+  const call = (kind: string, values: unknown[]): Promise<SqlStatement> =>
+    nativeHoldingNotificationStatement(db, holdingId,
+      { userId: '', recordType: '', recordId: '', recordVersion: 0, message: '', kind, values_json: JSON.stringify(values) }, '', 0);
+  return {
+    complete: (f: { result: unknown; time: number; id: string | number | null }) => call('finance_due_draft_complete', [JSON.stringify(f.result), f.time, f.id]),
+    block: (f: { code: string; message: string; time: number; id: string | number | null }) => call('finance_due_draft_block', [f.code, f.message, f.time + 3600000, f.time, f.id]),
+  };
+}

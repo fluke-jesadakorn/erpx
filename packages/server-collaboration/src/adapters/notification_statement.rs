@@ -3643,3 +3643,30 @@ pub async fn finance_payroll_batch_bank_match_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: complete a due draft (worker, holding-keyed).
+pub async fn finance_due_draft_complete_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_due_drafts SET status='prepared',version=version+1,result_json=?,attempts=attempts+1,last_code=NULL,last_message=NULL,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: block a due draft (worker, holding-keyed).
+pub async fn finance_due_draft_block_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_due_drafts SET status='blocked',version=version+1,attempts=attempts+1,last_code=?,last_message=?,next_attempt_at=?,updated_at=? WHERE id=? AND status IN ('scheduled','blocked')".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
