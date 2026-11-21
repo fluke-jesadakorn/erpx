@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4089,
+    "revision": 4095,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261121-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T00:21:01.833Z",
-      "heartbeatAt": "2026-11-21T03:45:49.359Z",
-      "expiresAt": "2026-11-21T04:15:49.359Z",
+      "heartbeatAt": "2026-11-21T03:56:52.572Z",
+      "expiresAt": "2026-11-21T04:26:52.572Z",
       "generation": 140,
       "tokenHash": "f5becb3db42bf1f7d81277664514d662d8d99fbe32235d3cb8f6b0344bfd3da3"
     },
@@ -95316,6 +95316,1421 @@
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.shared.orphan-writers-2",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "collaboration",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Delete 2 orphan TS writers (marketing/runtime, 2 writes)",
+        "scope": "Delete orphan prepareCrmReservationTouch (marketing) and platformHoldingBindingEffects (runtime) with their barrel exports; native owners already cover the capabilities.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "packages/server-runtime/src/**",
+          "tests/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "status": "migrated",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "ad0c8d0c6523d303616de0b5874960b186d3de0a",
+        "lastPushedSha": "ad0c8d0c6523d303616de0b5874960b186d3de0a",
+        "checks": [
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-*/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ad0c8d0c6523d303616de0b5874960b186d3de0a",
+            "sourceKind": "committed",
+            "before": 1491,
+            "after": 1489,
+            "note": "Deleted 2 orphan TS writers (0 callers); global KPI 1491->1489.",
+            "residual": [
+              {
+                "path": "packages/server-agent/src/adapters/agent-governance.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-gateway.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/ai-runtime.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/operations-guided-intake-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-agent/src/adapters/workspace-assistant.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/beta-billing.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/beta-onboarding-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-api.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-attachments.ts",
+                "writes": 13,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing-jobs.ts",
+                "writes": 15,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-billing/src/adapters/billing.ts",
+                "writes": 32,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-brand/src/adapters/attachments-service-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/attachments-portal-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging-files.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/messaging.ts",
+                "writes": 12,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/operations-handover-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-agent.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-ai.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/social-home.ts",
+                "writes": 31,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/web-push.ts",
+                "writes": 20,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-collaboration/src/adapters/work-social-purchases.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/billing-test-finance.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/commerce-goods-accounting.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/commerce.ts",
+                "writes": 21,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/expense-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/manufacturing-existing-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/manufacturing-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/pos-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/sales-goods-posting-setup.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/supplier-bill-receipts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commerce/src/adapters/supplier-promise-version.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/company-package-lifecycle.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/package-grants.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/projection.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-commercial/src/adapters/purchase-command-boundary.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-crm/src/adapters/identities.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-crm/src/adapters/leads.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-customer_authority/src/adapters/portal-access.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-ecommerce/src/adapters/ecommerce.ts",
+                "writes": 13,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/migration.ts",
+                "writes": 24,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/orphan-preservation.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/attachments/service-repository.ts",
+                "writes": 55,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-files/src/adapters/collaboration-home-sources.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/commerce-facts.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/company-money.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/expense-native-effects.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-ai.ts",
+                "writes": 18,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-asset-policies.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-assets.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-bank-automation.ts",
+                "writes": 9,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-billing-corrections.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-books.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-business-contracts.ts",
+                "writes": 9,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-consolidation.ts",
+                "writes": 13,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-group-ownership.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-instruments.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-tax-register.ts",
+                "writes": 13,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-thai-documents.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding-remittance.ts",
+                "writes": 9,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance-withholding.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/finance.ts",
+                "writes": 49,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pms-command-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/pos-core-facts.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-finance/src/adapters/refunds.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-access.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-preferences.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-recovery.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/account-time-preference.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-invitation-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-management-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/beta-onboarding-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/gpo-rules.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-api.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-auth.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-grant-transaction.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-migrations.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-service.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/iam-transactions.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/invitation-delivery.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/organization-department-relocation.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/payroll-owner-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-directory-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-facts.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-lifecycle-worker-effects.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/people-template-attributes.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/product-sso-store.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/provider-context-store.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/technology.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-identity_access/src/adapters/throttle.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-facts.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/commerce-stock-owner-effects.ts",
+                "writes": 20,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-inventory/src/adapters/inventory-transit.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-learning/src/adapters/learning.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/app-enrollment-attempt-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/invitations.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/jobs.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/law-source-worker.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-legal/src/adapters/legal/reminders.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-api.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-email.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-onboarding.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manage_erpx/src/adapters/beta-team.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/accounting.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-manufacturing/src/adapters/production-command-sources.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/asset.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/campaigns.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/crm-touches.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/marketing.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-marketing/src/adapters/public-submission.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/beta-onboarding-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/company-business-acceptance.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/department-authority.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/member-profiles.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-level-history-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/operations-staff-settings-facts.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/organization-drafts.ts",
+                "writes": 13,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/organization.ts",
+                "writes": 15,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-lifecycle-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/people-placement-level-history.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/profile-media-command.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/spending-template-owner.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-organization/src/adapters/staff-defaults.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/attachments-service-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/commerce-expense-payment-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-ai.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-payments.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expense-workflow.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/expenses.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-applied-package-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/identity-person-link-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave-self-service.ts",
+                "writes": 15,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/leave.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-directory-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/operations-people-lifecycle-worker-effects.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/organization-defaults.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/overtime.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-adjustments.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-other-remittance.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-readiness.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/payroll-recoveries.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-directory.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation-ai.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-evaluation.ts",
+                "writes": 16,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle-jobs.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-lifecycle.ts",
+                "writes": 25,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-payroll.ts",
+                "writes": 44,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-roster.ts",
+                "writes": 21,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/people-templates.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-people_payroll/src/adapters/technology-provisioning-facts.ts",
+                "writes": 14,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/attachments-finance-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/engineering-verification.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-platform_administration/src/adapters/release-acceptance.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/hospitality-rollout.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking-changes.ts",
+                "writes": 7,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking-refunds.ts",
+                "writes": 16,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-booking.ts",
+                "writes": 24,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms-stripe.ts",
+                "writes": 25,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms.ts",
+                "writes": 24,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pms/import.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pms/src/adapters/pos-stripe-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/attachment-migration-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-core.ts",
+                "writes": 49,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-daily.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-images.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-pos/src/adapters/pos-stripe.ts",
+                "writes": 27,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/rfqs.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/supplier-bills.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-procurement/src/adapters/supplier-promises.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-records/src/adapters/employee-requests.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-records/src/adapters/records.ts",
+                "writes": 10,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-records/src/adapters/request-ai.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/beta-onboarding-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/agent-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/brand-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/crm-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/generation.ts",
+                "writes": 5,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/learning-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/main-evidence-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/marketing-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/mcp.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/planning-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/pos-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/reports.ts",
+                "writes": 11,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/executive/talent-evidence.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/runtime/jobs.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-runtime/src/adapters/runtime/migrations.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/people-hire-handoff-facts.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-talent/src/adapters/talent.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar-commands-facts.ts",
+                "writes": 26,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar-reminders-facts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/calendar/reminder-authority.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/daily-plan.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/navigation-counts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/page-layouts.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/quick-access-preferences.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-work_projection/src/adapters/workflow-projector.ts",
+                "writes": 3,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/approval-planning.ts",
+                "writes": 17,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/beta-invitation-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/command-assertions.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/commands.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/customer-portal-events.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/finance-book-adjustment-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/finance-business-contract-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/finance-owner-decision-effects.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/flow-planning-ports.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/inventory-counts-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/inventory-transfers-sources.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/leave-review-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/legal-approval-facts.ts",
+                "writes": 8,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/legal-portal-journal.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/organization-draft-events.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/payroll-owner-facts.ts",
+                "writes": 6,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/payroll-statutory-decision-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-evaluation-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-lifecycle-audit-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-lifecycle-facts.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/people-lifecycle-worker-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/runtime-job-effects.ts",
+                "writes": 4,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/system-payroll-preview-events.ts",
+                "writes": 2,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              },
+              {
+                "path": "packages/server-workflow/src/adapters/technology-provisioning-effects.ts",
+                "writes": 1,
+                "removalTaskId": "retire.owner.service-repository",
+                "removalCondition": "Delete only after the owner-native port is mounted and no live TS caller or fallback remains."
+              }
+            ]
+          },
+          {
+            "command": "tsc:both-projects",
+            "result": "passed",
+            "sourceSha": "ad0c8d0c6523d303616de0b5874960b186d3de0a",
+            "sourceKind": "committed",
+            "note": "Both TypeScript projects typecheck."
+          },
+          {
+            "command": "cargo:check-and-tests",
+            "result": "passed",
+            "sourceSha": "ad0c8d0c6523d303616de0b5874960b186d3de0a",
+            "sourceKind": "committed",
+            "note": "Native compile + 4/4 statement tests + operations 74/74 + marketing.editor 29/29."
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrated.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -95324,24 +96739,24 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 381,
-      "migratedPackets": 268,
+      "totalPackets": 382,
+      "migratedPackets": 269,
       "statusCounts": {
         "pending": 23,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 268,
+        "migrated": 269,
         "blocked": 90,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 140,
-    "updatedAt": "2026-11-21T03:45:49.363Z",
+    "updatedAt": "2026-11-21T03:56:52.574Z",
     "handoff": {
       "fromRun": "run-20261121-a",
-      "verifiedPushedCheckpoint": "653f011b5369382f42085fb1301e531461bed35e",
+      "verifiedPushedCheckpoint": "ad0c8d0c6523d303616de0b5874960b186d3de0a",
       "remoteVerifiedAt": "HEAD==origin==cfc105b0990deb5889c24472a78d5f50e23f1e2d; tree clean after coordinator close commit",
       "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1832 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, the 3 expense attachment withdrawal/revocation writers, the 3 document derivative writers, the beta upload expiry writer, the 2 legal portal access-event writers, the 4 legal portal attachment staging writers, the customer portal action writer, the 3 release acceptance event writers, the customer receipt issuance writer, the 4 legal portal draft/staging writers (completing legal-portal-repository.ts), the legal file preservation writer, the legal retention execution authorization writer, the finance hotel account creation writer, the payroll bank observation ignore writer, the 5 legal feature writers (dynamic table via table_name transport), the 5 legal approval writers, the 4 legal executed-copy review writers, the 6 legal signing/reference writers, the 3 legal trust/processing writers, the legal access event writer, the 2 legal document access-event writers (citation/knowledge), the 7 legal governance writers, the 7 legal retention writers, the 7 legal operations writers, the 11 legal document writers, the 10 legal law-corpus writers, the 11 legal service writers, the 14 legal destruction-worker writers, the 14 legal portal writers, the 2 residual legal access/event writers, the legal envelope-expiry writer (holding-keyed fragment transport), the 3 finance book-adjustment writers, the 3 finance planning/report writers, the 3 finance journal-reversal writers, the 4 finance tax-identity writers, the 2 finance due-draft writers, the 4 finance intercompany-pair writers, the 3 payroll advance-deduction writers, the 3 payroll final-pay cancellation writers, the 2 payroll expense-draft writers, the 3 finance sales-defaults writers, the 2 payroll statutory-profile writers, the 2 finance accounting-profile writers, the 2 finance hospitality tax-document writers, the 2 finance PMS-import writers, the 2 finance journal-planning writers, the finance invoice line-version writer, the finance expansion review-file writer, the finance/commerce journal-line base-carry writer, the finance/payroll remittance-match writer, the finance/POS party writer, the finance/payroll other-remittance match writer, the 3 finance group-edition writers, the finance company-tool writer, the 2 finance payroll-owner writers, the 2 finance due-draft worker writers, the finance supplier-bill draft-void writer, 3 people/payroll writers (employee, payslip, expense-payment cancel), 3 more (leave evidence manifest, 2 calendar prep-task writes), 2 more (statutory remittance, staff level assignment), and 9 workflow command-assertion cleanup writers, then 4 more, then 17 more via async guards conversion, then 5 more in async callbacks, then 8 more (3 flatMap + 5 dynamic IN), then 8 more (key/guard/flatMap async), then 2 more (customer-portal, layout wrappers), then 6 more (agent, executive, guided-intake, approval, evaluation), then 5 more (records-request 2, pms 1, pos 2), then 5 more (collab agent/ai 5), then 4 more (people-eval-ai, beta, manufacturing 2, workflow commands), then 4 more (assets×2, legal, marketing) via native workflow_command_assertion_clear, 2 organization-channel statements, and 2 legal backfill attachment statements, and 2 beta AI reservation-expiry statements, and 2 legacy leave statements, and 2 project-worker starter statements, and 3 beta onboarding statements, and 2 organization relocation statements, and 3 hire handoff statements, and 3 organization node-channel statements (also repaired a malformed handoff adapter from the prior commit), 1 messaging backfill statement, 4 legal job-health statements, 5 finance collection statements, 5 finance calculation-engine statements, 5 finance intercompany statements, 5 finance starter statements, and 3 organization draft-placement statements, and 6 orphan customer-authority write statements deleted (no callers, native owns commands), and the last command_assertions writer moved to native-owned SQL contract (KPI command_assertions=0). Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA. Native finance reporting statement package/event + year closing generators added. Native inbox event/delivery/notice/target statements added. Native accrual schedule/journal/run/event generators added. Two remaining orphan 1-write helpers deleted (marketing crm reservation touch, runtime holding binding effects).",
       "lastKpi": 1489,
@@ -95350,7 +96765,7 @@
         "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 275,
+        "migrated": 276,
         "blocked": 91,
         "deferred": 1,
         "done": 51
