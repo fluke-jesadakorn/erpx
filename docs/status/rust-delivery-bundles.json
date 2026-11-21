@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4552,
+    "revision": 4557,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:55:45.701Z",
-      "expiresAt": "2026-11-21T19:25:45.701Z",
+      "heartbeatAt": "2026-11-21T18:58:26.285Z",
+      "expiresAt": "2026-11-21T19:28:26.285Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -25420,8 +25420,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:51:45.673Z",
-          "heartbeatAt": "2026-11-21T18:55:45.701Z",
-          "expiresAt": "2026-11-21T19:25:45.701Z",
+          "heartbeatAt": "2026-11-21T18:58:26.285Z",
+          "expiresAt": "2026-11-21T19:28:26.285Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -25708,22 +25708,36 @@
           "packages/server-files/Cargo.toml",
           "packages/server-files/package.json",
           "packages/feature-files/**",
-          "fixtures/**",
-          "tests/unit/files/**",
-          "tests/integration/files/**"
+          "fixtures/files/**",
+          "scripts/testing/fixtures/field-cleanup-legacy.ts",
+          "tests/unit/files/**"
         ],
         "resources": [
           "owner:files"
         ],
-        "status": "blocked",
-        "claim": null,
-        "baseSha": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "claimedAt": "2026-11-21T18:58:22.273Z",
+          "heartbeatAt": "2026-11-21T18:58:26.285Z",
+          "expiresAt": "2026-11-21T19:28:26.285Z",
+          "generation": 147
+        },
+        "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "audit:files-expiry-triage",
+            "result": "passed",
+            "sourceSha": "9a6cb2a2367c23025ae2041dd4bb9730b01c373c",
+            "note": "All 10 sites NEEDS_PORT with exact native designs: generic attach/bind commands (#1-2), legacy expiry job method with fence+leave scope+expired identities (#3-8), unused-social-intent expiry on caller connection (#9-10). No covering native port exists; adjacent code verified non-covering. No edits."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Audited the 15 residual Files TS files at 5f1d2d5e5: every one still has a live importer (support-ticket-portal-files via Support customer portal reads, private-attachment-reads via Finance attachment reads, customer-portal-files via customer_authority/customer_360 portals, pos-images-facts via POS images, beta-resource-cleanup via manage_erpx cleanup, document-derivatives via the workplace derivatives route + agent test, orphan-preservation via migration/application, migration/legal/collaboration/expense files via their owners). No file is safe to delete inside the Files-only path set; removal requires the native producer for the consuming owner and the consumer switch. service-repository.ts 55 is the generic engine blocked on the remaining non-field/non-support native producer. Resume after migrate.files.support-attachment-mount and the generic owner expansions.",
+        "blocker": null,
+        "nextAction": "Build 4 native Files methods (attach_upload_source_to_draft_link, bind_draft_link, expire_legacy_attachment_drafts, expire_unused_social_*_uploads) then switch callers in service.ts:424/643, cleanupAttachmentDrafts, savePostDraft/postAction; keep link.expired/set.expired events.",
         "handoff": {
           "runId": "run-20261113-f",
           "agentId": "lead",
@@ -27906,8 +27920,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:55:45.701Z",
-          "expiresAt": "2026-11-21T19:25:45.701Z",
+          "heartbeatAt": "2026-11-21T18:58:26.285Z",
+          "expiresAt": "2026-11-21T19:28:26.285Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43805,8 +43819,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:55:45.701Z",
-          "expiresAt": "2026-11-21T19:25:45.701Z",
+          "heartbeatAt": "2026-11-21T18:58:26.285Z",
+          "expiresAt": "2026-11-21T19:28:26.285Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -51524,8 +51538,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:55:45.701Z",
-          "expiresAt": "2026-11-21T19:25:45.701Z",
+          "heartbeatAt": "2026-11-21T18:58:26.285Z",
+          "expiresAt": "2026-11-21T19:28:26.285Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105477,17 +105491,17 @@
       "migratedPackets": 318,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 4,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 318,
-        "blocked": 88,
+        "blocked": 87,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:55:45.703Z",
+    "updatedAt": "2026-11-21T18:58:26.287Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
