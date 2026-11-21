@@ -329,7 +329,8 @@
     "./adapters/native-finance-thai-documents": "./src/adapters/native-finance-thai-documents.ts",
     "./adapters/native-finance-billing-corrections": "./src/adapters/native-finance-billing-corrections.ts",
     "./adapters/native-finance-assets": "./src/adapters/native-finance-assets.ts",
-    "./adapters/native-finance-instruments": "./src/adapters/native-finance-instruments.ts"
+    "./adapters/native-finance-instruments": "./src/adapters/native-finance-instruments.ts",
+    "./adapters/native-finance-refunds": "./src/adapters/native-finance-refunds.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
