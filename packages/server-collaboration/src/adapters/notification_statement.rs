@@ -3670,3 +3670,17 @@ pub async fn finance_due_draft_block_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: void an unposted supplier-bill draft invoice.
+pub async fn finance_supplier_bill_draft_void_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
