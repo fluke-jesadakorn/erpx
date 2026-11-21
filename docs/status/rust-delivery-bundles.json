@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4540,
+    "revision": 4546,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:50:42.114Z",
-      "expiresAt": "2026-11-21T19:20:42.114Z",
+      "heartbeatAt": "2026-11-21T18:51:51.668Z",
+      "expiresAt": "2026-11-21T19:21:51.668Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -25415,9 +25415,16 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "blocked",
-        "claim": null,
-        "baseSha": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "claimedAt": "2026-11-21T18:51:45.673Z",
+          "heartbeatAt": "2026-11-21T18:51:51.668Z",
+          "expiresAt": "2026-11-21T19:21:51.668Z",
+          "generation": 147
+        },
+        "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": "17363f280c8d92ea6f429111ad4d21c710f4d924",
         "lastPushedSha": "17363f280c8d92ea6f429111ad4d21c710f4d924",
         "checks": [
@@ -25471,11 +25478,17 @@
             "result": "passed",
             "sourceSha": "17363f280c8d92ea6f429111ad4d21c710f4d924",
             "note": "15/15; commerce fulfillment seeding and adjacent order commands unchanged."
+          },
+          {
+            "command": "audit:posted-journal-bump-cutover-design",
+            "result": "passed",
+            "sourceSha": "db3cd90c66734783a66b798a0e44766c44e349cf",
+            "note": "Verified same-unit requirement (finance.ts:394-398 single executeCommand batch) and that CommerceOwnerWriteBackend runs its own PgUnitOfWork (commerce_owner_write.rs:78-100) - a normal committing kind would match 0 rows. Correction: nativeOwnerStatement also executes remotely (separate unit), it only preserves the SqlStatement interface. Required: finance-style statement-factory route for commerce, or migrate the journal-post command native first. TS stays authority with removalTaskId. No code changed."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead: split the remaining 21 adapter/commerce.ts writes plus 30 other Commerce writes into command-level retire packets (save/return/invoice/settlement) with native counterparts.",
+        "blocker": null,
+        "nextAction": "Build commerce statement-factory route (mirror nativeFinanceOwnerWrite: return {sql,values} executed in caller unit), register order_version_bump_posted kind (3 params), switch workflow-command-effects.ts:3, drop financeProjectionSources import. Alt: migrate Finance journal-post command native first.",
         "handoff": {
           "runId": "run-20261113-b",
           "agentId": "worker-commerce-retire",
@@ -27867,8 +27880,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:50:42.114Z",
-          "expiresAt": "2026-11-21T19:20:42.114Z",
+          "heartbeatAt": "2026-11-21T18:51:51.668Z",
+          "expiresAt": "2026-11-21T19:21:51.668Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43766,8 +43779,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:50:42.114Z",
-          "expiresAt": "2026-11-21T19:20:42.114Z",
+          "heartbeatAt": "2026-11-21T18:51:51.668Z",
+          "expiresAt": "2026-11-21T19:21:51.668Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47032,29 +47045,22 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:50:42.114Z",
-          "expiresAt": "2026-11-21T19:20:42.114Z",
-          "generation": 147
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "transfers.ts+landed-costs.ts deleted (0 SELECT, delta 0) so cannot migrate yet; counts.ts retained by tests/support/manufacturing/legacy-count/inventory-counts.ts fixture. Next: migrate fixture to native seeding then delete counts.ts, or port a live read family (supply-package-obligations 39) for strict decrease.",
         "handoff": {
-          "runId": "run-20261121-f",
-          "agentId": "wf-inv",
-          "at": "2026-11-21T16:49:29.884Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
-          "nextAction": "Integrate slice: moved 2 inventory fact-read families to native statement kinds inventory_stmt_16..21 (scope holding), retired TS oracles transfers.ts + landed-costs.ts, unit test drops oracle imports; all 4 checks pass. Lead must add a native read route returning row payloads (current nativeInventoryStatement returns rows:[] and PgNativeCommandRepository discards SELECT rows), then switch the two callers to it. counts.ts retained because tests/support/manufacturing/legacy-count/inventory-counts.ts (out of claim, tagged fixture) still imports createInventoryCountApplication; delete it and its package.json export under retire.manufacturing after that fixture migrates. See .scratch/dev/rust-migration/handoff-retire.reads.inventory.json."
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-21T18:51:45.604Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "transfers.ts+landed-costs.ts deleted (0 SELECT, delta 0) so cannot migrate yet; counts.ts retained by tests/support/manufacturing/legacy-count/inventory-counts.ts fixture. Next: migrate fixture to native seeding then delete counts.ts, or port a live read family (supply-package-obligations 39) for strict decrease."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -47470,29 +47476,22 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:50:42.114Z",
-          "expiresAt": "2026-11-21T19:20:42.114Z",
-          "generation": 147
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Dead-code deletion verified (nativeOrgBrowserExecute removed, zero importers); org SELECT 454->454 no KPI delta so cannot migrate yet. Roster reads retained (5 importers: access/organization/presentation-queries/profile-facts/seed-acme); no native roster port in organization crate. Next: open native roster read port + TS bridge, repoint 5 importers, then retry retirement.",
         "handoff": {
-          "runId": "run-20261121-f",
-          "agentId": "wf-org",
-          "at": "2026-11-21T16:49:29.884Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
-          "nextAction": "Integrate the one-file diff deleting dead nativeOrgBrowserExecute in packages/server-organization/src/adapters/native-organization-owner-write.ts (plus its unused WorkContext import). Do NOT delete the two organization-roster-read TS files: no native roster/member read port or bridge exists in the organization Rust crate. Open a follow-up task to add a native roster read port + TS bridge and repoint all 5 importers (access.ts, organization.ts, presentation-queries.ts, profile-facts.ts, scripts/seed/seed-acme-organization.ts) before retrying roster retirement. Evidence: .scratch/dev/rust-migration/handoff-retire.reads.organization.json"
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-21T18:51:45.533Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Dead-code deletion verified (nativeOrgBrowserExecute removed, zero importers); org SELECT 454->454 no KPI delta so cannot migrate yet. Roster reads retained (5 importers: access/organization/presentation-queries/profile-facts/seed-acme); no native roster port in organization crate. Next: open native roster read port + TS bridge, repoint 5 importers, then retry retirement."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -51499,8 +51498,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:50:42.114Z",
-          "expiresAt": "2026-11-21T19:20:42.114Z",
+          "heartbeatAt": "2026-11-21T18:51:51.668Z",
+          "expiresAt": "2026-11-21T19:21:51.668Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105452,17 +105451,17 @@
       "migratedPackets": 318,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 318,
-        "blocked": 87,
+        "blocked": 88,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:50:42.117Z",
+    "updatedAt": "2026-11-21T18:51:51.669Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
