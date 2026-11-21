@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceIntercompany } from '@erpx/server-collaboration/adapters/native-finance-intercompany';
 import { groupCompanyPurchases, groupRecordPurchases, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
 import "server-only";
 import type { z } from "zod";
@@ -30,18 +31,18 @@ company:(id)=>financeIntercompanyActiveCompany(write,id),
 existingEntity:async(actor,companyId)=>write.prepare("SELECT id FROM finance_group_entities WHERE holding_id=? AND company_id=?").bind(actor.holdingId, companyId).first<{ id: string }>(),
 createEntityCommit:async(facts)=>{const {actor,input,key,id,now}=facts;return executeCommand(write, actor, key, "finance.group-entity.create", input, id, 1, { id, companyId: input.companyId, status: "active", version: 1 }, [
     assertion(write, key, "group-entity-unique", "NOT EXISTS(SELECT 1 FROM finance_group_entities WHERE holding_id=? AND company_id=?)", [actor.holdingId, input.companyId]),
-    write.prepare("INSERT INTO finance_group_entities(id,holding_id,company_id,reporting_name,functional_currency,status,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'active',1,?,?,?)").bind(id, actor.holdingId, input.companyId, input.reportingName, input.functionalCurrency, actor.userId, now, now),
+    await nativeFinanceIntercompany(write, actor.companyId).groupEntity([id, actor.holdingId, input.companyId, input.reportingName, input.functionalCurrency, actor.userId, now, now]),
   ], { companyId: input.companyId, branchId: null, departmentId: null });},
 createCommit:async(facts)=>{const {actor,input,key,id,now,result,amount}=facts;return executeCommand(write, actor, key, "finance.intercompany.create", input, id, 1, result, [
-    write.prepare("INSERT INTO finance_intercompany_transactions(id,holding_id,source_company_id,target_company_id,reference,currency,amount_minor,source_journal_id,target_journal_id,status,version,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,'unmatched',1,?,?)").bind(id, actor.holdingId, actor.companyId, input.targetCompanyId, input.reference, input.currency, amount, input.sourceJournalId ?? null, input.targetJournalId ?? null, actor.userId, now),
-    write.prepare("INSERT INTO finance_intercompany_events(id,transaction_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(`intercompany-event-${key}`, id, actor.holdingId, "created", null, "unmatched", actor.userId, 1, "Intercompany item prepared for independent matching.", JSON.stringify({ sourceJournalId: input.sourceJournalId ?? null, targetJournalId: input.targetJournalId ?? null }), now),
+    await nativeFinanceIntercompany(write, actor.companyId).transaction([id, actor.holdingId, actor.companyId, input.targetCompanyId, input.reference, input.currency, amount, input.sourceJournalId ?? null, input.targetJournalId ?? null, actor.userId, now]),
+    await nativeFinanceIntercompany(write, actor.companyId).event([`intercompany-event-${key}`, id, actor.holdingId, "created", null, "unmatched", actor.userId, 1, "Intercompany item prepared for independent matching.", JSON.stringify({ sourceJournalId: input.sourceJournalId ?? null, targetJournalId: input.targetJournalId ?? null }), now]),
   ]);},
 previousActor:async(id)=>write.prepare("SELECT actor_id FROM finance_intercompany_events WHERE transaction_id=? AND action IN ('created','matched','settled') ORDER BY version DESC LIMIT 1").bind(id).first<{ actor_id: string }>(),
 decisionCommit:async(facts)=>{const {actor,id,input,key,rule,row,version,now,result}=facts;  const steps: SqlStatement[] = [
     assertion(write, key, "intercompany-version", "EXISTS(SELECT 1 FROM finance_intercompany_transactions WHERE id=? AND holding_id=? AND status=? AND version=?)", [id, actor.holdingId, rule.from, input.expectedVersion]),
     assertion(write, key, "intercompany-independent", "NOT EXISTS(SELECT 1 FROM finance_intercompany_events WHERE transaction_id=? AND version=(SELECT MAX(version) FROM finance_intercompany_events WHERE transaction_id=?) AND actor_id=?)", [id, id, actor.userId]),
-    write.prepare("UPDATE finance_intercompany_transactions SET status=?,version=version+1 WHERE id=? AND holding_id=?").bind(rule.to, id, actor.holdingId),
-    write.prepare("INSERT INTO finance_intercompany_events(id,transaction_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(`intercompany-event-${key}`, id, actor.holdingId, rule.event, row.status, rule.to, actor.userId, version, input.reason, JSON.stringify({ previousVersion: input.expectedVersion }), now),
+    await nativeFinanceIntercompany(write, actor.companyId).status([rule.to, id, actor.holdingId]),
+    await nativeFinanceIntercompany(write, actor.companyId).event([`intercompany-event-${key}`, id, actor.holdingId, rule.event, row.status, rule.to, actor.userId, version, input.reason, JSON.stringify({ previousVersion: input.expectedVersion }), now]),
   ];
   return executeCommand(write, actor, key, rule.operation, input, id, version, result, steps);},
 detail:async(actor,id)=>write.prepare(groupSourceSql("SELECT * FROM finance_intercompany_transactions WHERE id=? AND holding_id=?",[groupRecordHistorySql("intercompany","finance_intercompany_transactions",historySql)])).bind(id,actor.holdingId).first<IntercompanyRow>()})}
