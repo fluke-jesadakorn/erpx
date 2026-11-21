@@ -6303,3 +6303,70 @@ mod people_roster_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for people lifecycle statements.
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_1: &str = "UPDATE people_lifecycle_cases SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=?";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_2: &str = "UPDATE people_preparation_tasks SET status='cancelled',version=version+1,updated_at=? WHERE company_id=? AND case_id=? AND status='pending'";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_3: &str = "INSERT INTO people_lifecycle_cases(id,company_id,person_id,engagement_id,kind,status,version,effective_at,package_id,package_revision,definition,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,version=excluded.version,effective_at=excluded.effective_at,package_id=excluded.package_id,package_revision=excluded.package_revision,definition=excluded.definition,updated_at=excluded.updated_at";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_4: &str = "UPDATE people_lifecycle_cases SET review_snapshot=?,authorizing_assignment_id=?,workflow=? WHERE id=?";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_5: &str = "INSERT INTO people_access_cutoffs(company_id,person_id,case_id,effective_at) VALUES(?,?,?,?)";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_6: &str = "UPDATE people_lifecycle_cases SET departure_reason=? WHERE id=? AND company_id=?";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_7: &str = "INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged,due_date,responsibility,clearance_type) VALUES(?,?,?,'lifecycle',?,?,?,?,?,?,?)";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_8: &str = "INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged) VALUES(?,?,?,'lifecycle',?,?,?,?) ON CONFLICT(id) DO NOTHING";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_9: &str = "UPDATE people_lifecycle_cases SET status='cancelled',version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_10: &str = "UPDATE people_access_cutoffs SET cancelled_at=? WHERE case_id=?";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_11: &str = "UPDATE people_preparation_tasks SET status='cancelled',version=version+1 WHERE case_id=? AND status='pending'";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_12: &str = "INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,position_id,level_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'onboarding',?,?,?,?,?,?)";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_13: &str = "UPDATE hr_people SET status='active',version=version+1,updated_at=? WHERE company_id=? AND id=?";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_14: &str = "INSERT INTO people_lifecycle_settings VALUES(?,?,?) ON CONFLICT(company_id) DO UPDATE SET version=excluded.version,definition=excluded.definition";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_15: &str = "UPDATE people_preparation_tasks SET assignee_id=?,version=version+1 WHERE company_id=? AND assignee_id IS NULL AND status='pending' AND clearance_type IS NULL";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_16: &str = "INSERT INTO people_access_packages(company_id,id,version,published_revision,definition) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,id) DO UPDATE SET version=excluded.version,published_revision=excluded.published_revision,definition=excluded.definition";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_17: &str = "INSERT INTO people_package_revisions VALUES($1,$2,$3,$4,$5,$6)";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_18: &str = "UPDATE people_position_packages SET revision=$3 WHERE company_id=$1 AND package_id=$2";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_19: &str = "INSERT INTO people_position_packages VALUES($1,$2,$3,$4) ON CONFLICT(company_id,position_id) DO UPDATE SET package_id=excluded.package_id,revision=excluded.revision";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_20: &str = "UPDATE people_preparation_tasks SET status='completed',version=version+1,updated_at=$3 WHERE company_id=$1 AND position_id=$2 AND kind='position'";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_21: &str = "INSERT INTO people_lifecycle_grants(id,company_id,case_id,user_id,grant_index,definition,review_id) VALUES($1,$2,$3,$4,$5,$6,$7)";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_22: &str = "UPDATE people_lifecycle_cases SET version=version+1,updated_at=$2 WHERE id=$1";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_23: &str = "UPDATE people_lifecycle_cases SET status='blocked',last_error='ACCESS_REVIEW_REJECTED',version=version+1,updated_at=$2 WHERE id=$1";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_24: &str = "UPDATE people_lifecycle_grants SET assignment_id=$2 WHERE id=$1";
+pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_25: &str = "UPDATE people_lifecycle_cases SET status='scheduled',version=version+1,updated_at=$2 WHERE id=$1";
+
+#[cfg(test)]
+mod people_lifecycle_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn people_lifecycle_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-people-lifecycle-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid people lifecycle SQL contract");
+        let pairs = [
+            ("people_lifecycle_stmt_1", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_1),
+            ("people_lifecycle_stmt_2", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_2),
+            ("people_lifecycle_stmt_3", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_3),
+            ("people_lifecycle_stmt_4", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_4),
+            ("people_lifecycle_stmt_5", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_5),
+            ("people_lifecycle_stmt_6", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_6),
+            ("people_lifecycle_stmt_7", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_7),
+            ("people_lifecycle_stmt_8", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_8),
+            ("people_lifecycle_stmt_9", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_9),
+            ("people_lifecycle_stmt_10", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_10),
+            ("people_lifecycle_stmt_11", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_11),
+            ("people_lifecycle_stmt_12", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_12),
+            ("people_lifecycle_stmt_13", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_13),
+            ("people_lifecycle_stmt_14", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_14),
+            ("people_lifecycle_stmt_15", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_15),
+            ("people_lifecycle_stmt_16", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_16),
+            ("people_lifecycle_stmt_17", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_17),
+            ("people_lifecycle_stmt_18", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_18),
+            ("people_lifecycle_stmt_19", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_19),
+            ("people_lifecycle_stmt_20", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_20),
+            ("people_lifecycle_stmt_21", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_21),
+            ("people_lifecycle_stmt_22", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_22),
+            ("people_lifecycle_stmt_23", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_23),
+            ("people_lifecycle_stmt_24", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_24),
+            ("people_lifecycle_stmt_25", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_25),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "people lifecycle SQL contract drift: {key}");
+        }
+    }
+}
