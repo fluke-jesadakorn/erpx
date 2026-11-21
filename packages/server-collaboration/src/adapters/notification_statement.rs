@@ -3492,3 +3492,17 @@ pub async fn finance_invoice_line_version_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: record a review-file evidence manifest.
+pub async fn finance_expansion_review_file_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_expansion_review_files(id,company_id,target_type,target_id,target_version,command_id,manifest_json,manifest_sha256,reviewed_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

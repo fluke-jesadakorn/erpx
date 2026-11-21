@@ -290,7 +290,8 @@
     "./adapters/native-hospitality-tax-documents": "./src/adapters/native-hospitality-tax-documents.ts",
     "./adapters/native-finance-pms-import": "./src/adapters/native-finance-pms-import.ts",
     "./adapters/native-finance-journal-planning": "./src/adapters/native-finance-journal-planning.ts",
-    "./adapters/native-finance-invoice-lines": "./src/adapters/native-finance-invoice-lines.ts"
+    "./adapters/native-finance-invoice-lines": "./src/adapters/native-finance-invoice-lines.ts",
+    "./adapters/native-finance-expansion-evidence": "./src/adapters/native-finance-expansion-evidence.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
