@@ -14,6 +14,8 @@ import { quantityMilli, lineAmounts, scaledAmount } from "@erpx/feature-commerce
 import { convertUnits } from "@erpx/feature-finance/lib/company-money";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
+import { nativeWarehouseSave, NativeCommerceWave2Error } from "@erpx/server-commerce/adapters/native-wave2";
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 import {orderSchema,transitionSchema,fulfillmentSchema,invoiceFromDeliverySchema,settlementSchema,returnRequestSchema,returnDecisionSchema,returnCompleteSchema,productSchema,partyMasterSchema,warehouseSchema,stockReservationSchema,roles,commercePermissions} from "@erpx/server-commerce/domain/commerce";
 export type Row = Record<string, string | number | null>;
 export type CommerceRows<Row> = {
@@ -173,7 +175,7 @@ export type CommerceUnit<Effect> = {
     prepareCommerceOrders1(facts: {
         now: number;
         id: string;
-    }): Effect;
+    }): Promise<Effect>;
     readCommerceFulfillments2(facts: {
         fulfillmentId: string;
     }): Promise<Row | null>;
@@ -225,7 +227,7 @@ export type CommerceUnit<Effect> = {
         userId: string;
         now: number;
         now2: number;
-    }): Effect;
+    }): Promise<Effect>;
     prepareCommerceReturnLines1(facts: {
         returnLineId: string;
         id: string;
@@ -240,7 +242,7 @@ export type CommerceUnit<Effect> = {
         fact10: string | number | null;
         fact11: string | number | null;
         expectedSubtotal: string | number | null;
-    }): Effect;
+    }): Promise<Effect>;
     prepareCommerceReturnLotAllocations1(facts: {
         id: string;
         returnLineId: string;
@@ -251,11 +253,11 @@ export type CommerceUnit<Effect> = {
         snapshotQuantity: number;
         snapshotValue: number;
         snapshotVersion: number;
-    }): Effect;
+    }): Promise<Effect>;
     prepareCommerceFulfillments1(facts: {
         fulfillmentId: string;
         expectedVersion: number;
-    }): Effect;
+    }): Promise<Effect>;
     readCommerceReturns2(facts: {
         returnId: string;
         companyId: string;
@@ -265,7 +267,7 @@ export type CommerceUnit<Effect> = {
         reason: string;
         fact2: number;
         returnId: string;
-    }): Effect;
+    }): Promise<Effect>;
     readCommerceFulfillments3(facts: {
         fulfillment_id: string | number | null;
         companyId: string;
@@ -305,7 +307,7 @@ export type CommerceUnit<Effect> = {
         fact5: string | number | null;
         return_date: string | number | null;
         now: number;
-    }): Effect;
+    }): Promise<Effect>;
     readCommerceReturnLotAllocations4(facts: {
         id: string | number | null;
     }): Promise<CommerceRows<Row>>;
@@ -348,7 +350,7 @@ export type CommerceUnit<Effect> = {
         fact4: string | null;
         now: number;
         returnId: string;
-    }): Effect;
+    }): Promise<Effect>;
     readCommerceReturns3(facts: {
         returnId: string;
         companyId: string;
@@ -380,7 +382,7 @@ export type CommerceUnit<Effect> = {
         credited2: number;
         now: number;
         invoice_id: string | number | null;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareCommerceReturns5(facts: {
         credited: number;
         refund: number;
@@ -390,7 +392,7 @@ export type CommerceUnit<Effect> = {
         fact5: string | null;
         now: number;
         returnId: string;
-    }): Effect;
+    }): Promise<Effect>;
     prepareFinanceRefundObligations1(facts: {
         refundId: string;
         companyId: string;
@@ -411,7 +413,7 @@ export type CommerceUnit<Effect> = {
         userId: string;
         now: number;
         now2: number;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     readEmployeeRequests1(facts: {
         companyId: string;
         id: string;
@@ -444,10 +446,10 @@ export type CommerceUnit<Effect> = {
         fact11: 0 | 1;
         now: number;
         record: string;
-    }): Effect;
+    }): Promise<Effect>;
     prepareCommerceOrderLines1(facts: {
         record: string;
-    }): Effect;
+    }): Promise<Effect>;
     prepareCommerceOrders3(facts: {
         record: string;
         companyId: string;
@@ -470,7 +472,7 @@ export type CommerceUnit<Effect> = {
         userId: string;
         now: number;
         now2: number;
-    }): Effect;
+    }): Promise<Effect>;
     prepareCommerceOrderLines2(facts: {
         id: string;
         record: string;
@@ -485,7 +487,7 @@ export type CommerceUnit<Effect> = {
         listPrice: number;
         discountBps: number;
         itemType: "stock" | "service";
-    }): Effect;
+    }): Promise<Effect>;
     readCommerceFulfillments4(facts: {
         id: string;
     }): Promise<Record<string, unknown> | null>;
@@ -503,7 +505,7 @@ export type CommerceUnit<Effect> = {
         fact7: boolean;
         fact8: number;
         id: string;
-    }): Effect;
+    }): Promise<Effect>;
     prepareFinanceParties1(facts: {
         party_id: string | number | null;
         companyId: string;
@@ -515,12 +517,12 @@ export type CommerceUnit<Effect> = {
         fact3: number;
         fact4: number;
         id: string;
-    }): Effect;
+    }): Promise<Effect>;
     prepareCommerceOrderLines3(facts: {
         salesId: string;
         salesId2: string;
         id: string;
-    }): Effect;
+    }): Promise<Effect>;
     prepareFinanceJournals1(facts: {
         journalId: string;
         companyId: string;
@@ -538,7 +540,7 @@ export type CommerceUnit<Effect> = {
         fact13: number | null;
         now: number;
         now2: number;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareFinanceJournalLines1(facts: {
         fact0: string;
         journalId: string;
@@ -548,130 +550,30 @@ export type CommerceUnit<Effect> = {
         debit2: number;
         credit2: number;
         i: number;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     readAttachments2(facts: {
         attachmentId: string;
         id: string;
     }): Promise<Record<string, unknown> | null>;
-    prepareCommerceFulfillments2(facts: {
-        fulfillment: string;
-        id: string;
-        fact2: string;
-        date: string;
-        userId: string;
-        fact5: number;
-        fact6: string | null;
-        completionMode: "goods" | "service" | "mixed";
-    }): Effect;
     readCommerceOrderLines2(facts: {
         lineId: string;
         id: string;
     }): Promise<Row | null>;
-    readInventoryActiveReservations3(facts: {
-        warehouse_id: string | number | null;
-        product_id: string | number | null;
-    }): Promise<Row | null>;
-    readInventoryOrderReservations3(facts: {
-        id: string | number | null;
-    }): Promise<CommerceRows<Row>>;
     readCommerceFulfillmentLines2(facts: {
         id: string | number | null;
     }): Promise<{
         subtotal: number;
         tax: number;
     } | null>;
-    readInventoryLots1(facts: {
-        warehouse_id: string | number | null;
-        companyId: string;
-        product_id: string | number | null;
-        identity: string;
-        tracking: string;
-    }): Promise<Row | null>;
-    readInventoryQualityHolds3(facts: {
-        fact0: string;
-        companyId: string;
-        product_id: string | number | null;
-        warehouse_id: string | number | null;
-    }): Promise<Row | null>;
     prepareCommerceStock2(facts: {
         warehouse_id: string | number | null;
         product_id: string | number | null;
-    }): Effect;
-    prepareInventoryOrderReservations4(facts: {
-        n: number;
-        id: string | number | null;
     }): Effect;
     prepareCommerceStock3(facts: {
         fact0: number;
         fact1: number;
         warehouse_id: string | number | null;
         product_id: string | number | null;
-    }): Effect;
-    prepareCommerceFulfillmentLines1(facts: {
-        fact0: string;
-        fulfillment: string;
-        id: string | number | null;
-        qty: number;
-        cost: number;
-        subtotal: number;
-        tax: number;
-        stockCurrency: string;
-    }): Effect;
-    prepareInventoryLots3(facts: {
-        lotId: string;
-        companyId: string;
-        product_id: string | number | null;
-        tracking: string;
-        lotCode: string | null;
-        serialNumber: string | null;
-        manufacturedDate: string | null;
-        expiryDate: string | null;
-        userId: string;
-        fact9: number;
-    }): Effect;
-    prepareInventoryLots4(facts: {
-        lotId: string;
-    }): Effect;
-    prepareInventoryLotBalances3(facts: {
-        lotId: string;
-        warehouse_id: string | number | null;
-        quantityMilli: number;
-        valueMinor: number;
-    }): Effect;
-    prepareInventoryLotBalances4(facts: {
-        quantityMilli: number;
-        valueMinor: number;
-        lotId: string;
-        warehouse_id: string | number | null;
-    }): Effect;
-    prepareInventoryLots5(facts: {
-        lotId: string;
-        lotId2: string;
-    }): Effect;
-    prepareInventoryLotMoves2(facts: {
-        fact0: string;
-        lotId: string;
-        warehouse_id: string | number | null;
-        fact3: "goods_receipt" | "delivery";
-        lineId: string;
-        fact5: number;
-        fact6: number;
-        date: string;
-        userId: string;
-        fact9: number;
-    }): Effect;
-    prepareInventoryFulfillmentLotAllocations1(facts: {
-        fact0: string;
-        lineId: string;
-        lotId: string;
-        quantityMilli: number;
-        valueMinor: number;
-        disposition: "available" | "quarantine";
-        qualityHoldId: string | null;
-    }): Effect;
-    prepareCommerceOrderLines4(facts: {
-        qty: number;
-        id: string | number | null;
     }): Effect;
     prepareCommerceStockMoves1(facts: {
         fact0: string;
@@ -681,39 +583,6 @@ export type CommerceUnit<Effect> = {
         fact4: number;
         fact5: number;
         fact6: number;
-    }): Effect;
-    prepareCommerceGoodsValuations1(facts: {
-        fulfillment: string;
-        companyId: string;
-        chart_id: string | number | null;
-        journal: string;
-        fact4: string;
-        fact5: string;
-        stockCurrency: string;
-        date: string;
-        micros: number;
-        sourceRateId: string | null;
-        targetRateId: string | null;
-        usedLatestFallback: boolean;
-        documentSubtotal: number;
-        value: number;
-        userId: string;
-        fact15: number;
-    }): Effect;
-    prepareCommerceFulfillmentEvidence1(facts: {
-        fulfillment: string;
-        attachmentId: string;
-        userId: string;
-        fact3: number;
-    }): Effect;
-    prepareCommerceFulfillments3(facts: {
-        journal: string;
-        fulfillment: string;
-    }): Effect;
-    prepareCommerceOrders6(facts: {
-        id: string;
-        fact1: number;
-        id2: string;
     }): Effect;
     readCommerceFulfillments5(facts: {
         fulfillmentId: string;
@@ -745,14 +614,15 @@ export type CommerceUnit<Effect> = {
         fact13: string | number | null;
         fact14: string | number | null;
         fulfillmentId: string;
+        sourceVersion: number;
         userId: string;
         fact17: number;
         fact18: number;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareCommerceFulfillments4(facts: {
         invoice: string;
         fulfillmentId: string;
-    }): Effect;
+    }): Promise<Effect>;
     readFinanceInvoices1(facts: {
         invoiceId: string;
         companyId: string;
@@ -801,7 +671,7 @@ export type CommerceUnit<Effect> = {
         fact13: number;
         fact14: number;
         fact15: string | null;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareFinanceAllocations1(facts: {
         fact0: string;
         companyId: string;
@@ -812,14 +682,14 @@ export type CommerceUnit<Effect> = {
         amountMinor3: number;
         userId: string;
         fact8: number;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareFinanceInvoices5(facts: {
         amountMinor: number;
         amountMinor2: number;
         amountMinor3: number;
         fact3: number;
         invoiceId: string;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareFinanceExpenses1(facts: {
         fact0: number;
         fact1: number;
@@ -861,7 +731,7 @@ export type CommerceUnit<Effect> = {
         fact6: "unknown" | "granted" | "revoked";
         fact7: number;
         id: string;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareFinanceParties3(facts: {
         record: string;
         companyId: string;
@@ -876,7 +746,7 @@ export type CommerceUnit<Effect> = {
         fact10: "unknown" | "granted" | "revoked";
         fact11: number;
         fact12: number;
-    }): Effect;
+    }): Promise<Effect> | Effect;
     prepareCommerceWarehouses1(facts: {
         code: string;
         name: string;
@@ -1014,32 +884,12 @@ export type CommerceUnit<Effect> = {
         guardId: string;
         values: string[];
     }): Effect;
-    guardRule24(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
     guardRule25(facts: {
         key: string;
         guardId: string;
         values: (string | number | null)[];
     }): Effect;
     guardRule26(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
-    guardRule27(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
-    guardRule28(facts: {
-        key: string;
-        guardId: string;
-        values: (string | number | null)[];
-    }): Effect;
-    guardRule29(facts: {
         key: string;
         guardId: string;
         values: (string | number | null)[];
@@ -1360,7 +1210,7 @@ export type CommerceUnit<Effect> = {
             baseCurrency: string;
         };
     }>;
-    refundNotifications(arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string): Effect;
+    refundNotifications(arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string): Promise<Effect>;
     getEmployeeRequest(arg0: WorkContext, arg1: string): Promise<EmployeeRequest>;
     prepareRequestOrderHandoff(arg0: WorkContext, arg1: string, arg2: string, arg3: string, arg4: number | undefined, arg5: boolean, arg6: string | undefined): Promise<{
         row: EmployeeRequest;
@@ -1580,7 +1430,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             if (left)
                 throw ports.error(422, 'OVER_RELEASE', 'Release quantity exceeds the remaining reservation.');
         }
-        steps.push(write.prepareCommerceOrders1({ now: now, id: id }));
+        steps.push(await write.prepareCommerceOrders1({ now: now, id: id }));
         return write.executeCommand(actor, key, 'commerce.stock.reserve', input, id, input.expectedVersion + 1, { id, version: input.expectedVersion + 1 }, steps, { companyId: actor.companyId, branchId: String(order.branch_id), departmentId: order.department_id ? String(order.department_id) : null });
     }
     async function requestCommerceReturn(actor: WorkContext, fulfillmentId: string, raw: z.input<typeof returnRequestSchema>, key: string, ownerWrite?: CommerceUnit<Effect>) {
@@ -1688,17 +1538,17 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         const steps: Effect[] = [
             ...(attachmentBinding?.guards ?? []),
             write.guardRule4({ key: key, guardId: "fulfillment", values: [fulfillmentId, input.expectedVersion] }),
-            write.prepareCommerceReturns1({ id: id, companyId: actor.companyId, branch_id: fulfillment.branch_id, order_id: fulfillment.order_id, fulfillmentId: fulfillmentId, invoice_id: fulfillment.invoice_id, kind: kind, number: number, date: input.date, reason: input.reason, subtotal: subtotal, tax: tax, total: total, userId: actor.userId, now: now, now2: now }),
+            await write.prepareCommerceReturns1({ id: id, companyId: actor.companyId, branch_id: fulfillment.branch_id, order_id: fulfillment.order_id, fulfillmentId: fulfillmentId, invoice_id: fulfillment.invoice_id, kind: kind, number: number, date: input.date, reason: input.reason, subtotal: subtotal, tax: tax, total: total, userId: actor.userId, now: now, now2: now }),
         ];
         for (const line of lines) {
             const returnLineId = `${id}-${line.index}`;
-            steps.push(write.guardRule5({ key: key, guardId: `return-line-${line.index}`, values: [line.id, line.quantity, line.id, fulfillmentId] }), write.prepareCommerceReturnLines1({ returnLineId: returnLineId, id: id, id2: line.id, product_id: line.product_id, quantity: line.quantity, returnValue: line.returnValue, returnSubtotal: line.returnSubtotal, returnTax: line.returnTax, index: line.index, condition: line.condition, fact10: line.conditionNote || null, fact11: line.qualityDueDate || null, expectedSubtotal: line.expectedSubtotal }));
+            steps.push(write.guardRule5({ key: key, guardId: `return-line-${line.index}`, values: [line.id, line.quantity, line.id, fulfillmentId] }), await write.prepareCommerceReturnLines1({ returnLineId: returnLineId, id: id, id2: line.id, product_id: line.product_id, quantity: line.quantity, returnValue: line.returnValue, returnSubtotal: line.returnSubtotal, returnTax: line.returnTax, index: line.index, condition: line.condition, fact10: line.conditionNote || null, fact11: line.qualityDueDate || null, expectedSubtotal: line.expectedSubtotal }));
             for (const lot of returnLots.get(returnLineId) ?? [])
-                steps.push(write.prepareCommerceReturnLotAllocations1({ id: lot.id, returnLineId: returnLineId, fulfillmentAllocationId: lot.fulfillmentAllocationId, lotId: lot.lotId, quantity: lot.quantity, value: lot.value, snapshotQuantity: lot.snapshotQuantity, snapshotValue: lot.snapshotValue, snapshotVersion: lot.snapshotVersion }));
+                steps.push(await write.prepareCommerceReturnLotAllocations1({ id: lot.id, returnLineId: returnLineId, fulfillmentAllocationId: lot.fulfillmentAllocationId, lotId: lot.lotId, quantity: lot.quantity, value: lot.value, snapshotQuantity: lot.snapshotQuantity, snapshotValue: lot.snapshotValue, snapshotVersion: lot.snapshotVersion }));
         }
         if (attachmentBinding)
             steps.push(...attachmentBinding.steps);
-        steps.push(write.prepareCommerceFulfillments1({ fulfillmentId: fulfillmentId, expectedVersion: input.expectedVersion }));
+        steps.push(await write.prepareCommerceFulfillments1({ fulfillmentId: fulfillmentId, expectedVersion: input.expectedVersion }));
         return write.executeCommand(actor, key, "commerce.return.request", commandInput, id, 1, { id, orderId: String(fulfillment.order_id), status: "requested", version: 1 }, steps);
     }
     async function decideCommerceReturn(actor: WorkContext, returnId: string, action: "approve" | "reject", input: z.infer<typeof returnDecisionSchema>, key: string): Promise<CommerceReturnDecision> {
@@ -1716,7 +1566,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             return write.executeCommand(actor, key, "commerce.return.reject", input, returnId, input.expectedVersion + 1, { id: returnId, orderId: String(row.order_id), status: "rejected", version: input.expectedVersion + 1 }, [
                 ...(reviewEvidence?.guards ?? []), ...(reviewEvidence?.steps ?? []),
                 write.guardRule6({ key: key, guardId: "return", values: [returnId, actor.companyId, input.expectedVersion] }),
-                write.prepareCommerceReturns2({ userId: actor.userId, reason: input.reason, fact2: ports.clock.now(), returnId: returnId }),
+                await write.prepareCommerceReturns2({ userId: actor.userId, reason: input.reason, fact2: ports.clock.now(), returnId: returnId }),
             ]);
         const lines = (await write.readCommerceReturnLines3({ returnId })).results;
         const hasStock = lines.some(line => line.item_type !== "service");
@@ -1744,7 +1594,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         const credit = await write.prepareReturnCredit(actor, { key, invoiceId: String(row.invoice_id), returnId, periodId, entryDate: String(row.return_date), postings: creditPostings }), creditJournal = credit.journalId;
         const goodsFx = incoming ? null : await write.prepareReturnGoodsFx(actor, { invoiceId: String(row.invoice_id), returnId, key, periodId, entryDate: String(row.return_date), stockBase: value, clearingAccountId: String(config.clearing_account_id), creditPostings: credit.basePostings });
         const creditMoney = await write.snapshotMoneyReversal(actor, { sourceType: 'commerce_return', sourceId: returnId, amountKind: 'credit_total', transactionDate: String(row.return_date), amountUnits: String(row.total_minor), original: { sourceType: 'finance_invoice', sourceId: String(row.invoice_id), amountKind: 'total' } });
-        const steps: Effect[] = [...(reviewEvidence?.guards ?? []), ...(reviewEvidence?.steps ?? []), write.prepareCommerceReturns3({ returnId: returnId }), write.prepareFinanceInvoices1({ invoice_id: row.invoice_id }), creditMoney.statement, write.guardRule7({ key: key, guardId: "supplier-reservation", values: [row.invoice_id] }), write.guardRule6({ key: key, guardId: "return", values: [returnId, actor.companyId, input.expectedVersion] }), ...(stockJournal ? journalSteps(write, actor, key, stockJournal, config, periodId, String(row.return_date), String(row.kind) + "_stock", returnId, stockPostings, "draft") : []), ...credit.steps];
+        const steps: Effect[] = [...(reviewEvidence?.guards ?? []), ...(reviewEvidence?.steps ?? []), write.prepareCommerceReturns3({ returnId: returnId }), write.prepareFinanceInvoices1({ invoice_id: row.invoice_id }), creditMoney.statement, write.guardRule7({ key: key, guardId: "supplier-reservation", values: [row.invoice_id] }), write.guardRule6({ key: key, guardId: "return", values: [returnId, actor.companyId, input.expectedVersion] }), ...(stockJournal ? await journalSteps(write, actor, key, stockJournal, config, periodId, String(row.return_date), String(row.kind) + "_stock", returnId, stockPostings, "draft") : []), ...credit.steps];
         for (const [index, line] of lines.entries()) {
             if (line.item_type === "service") continue;
             if (Number(line.value_minor) > 0)
@@ -1754,7 +1604,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
                 throw ports.error(409, "STOCK_NOT_FOUND", "Stock record is unavailable for this return.");
             if (!incoming && (Number(stock.quantity_milli) < Number(line.quantity_milli) || Number(stock.value_minor) < Number(line.value_minor)))
                 throw ports.error(409, "INSUFFICIENT_RETURN_STOCK", "Supplier return quantity or value exceeds current stock.");
-            steps.push(write.guardRule9({ key: key, guardId: `return-date-${index}`, values: [row.warehouse_id, line.product_id, row.return_date] }), write.guardRule10({ key: key, guardId: `return-stock-${index}`, values: [row.warehouse_id, line.product_id, stock.version] }), write.prepareCommerceStock1({ fact0: incoming ? line.quantity_milli : -Number(line.quantity_milli), fact1: incoming ? line.value_minor : -Number(line.value_minor), warehouse_id: row.warehouse_id, product_id: line.product_id }), write.prepareCommerceReturnStockMoves1({ fact0: `${returnId}-${index}`, returnId: returnId, warehouse_id: row.warehouse_id, product_id: line.product_id, fact4: incoming ? line.quantity_milli : -Number(line.quantity_milli), fact5: incoming ? line.value_minor : -Number(line.value_minor), return_date: row.return_date, now: now }));
+            steps.push(write.guardRule9({ key: key, guardId: `return-date-${index}`, values: [row.warehouse_id, line.product_id, row.return_date] }), write.guardRule10({ key: key, guardId: `return-stock-${index}`, values: [row.warehouse_id, line.product_id, stock.version] }), write.prepareCommerceStock1({ fact0: incoming ? line.quantity_milli : -Number(line.quantity_milli), fact1: incoming ? line.value_minor : -Number(line.value_minor), warehouse_id: row.warehouse_id, product_id: line.product_id }), await write.prepareCommerceReturnStockMoves1({ fact0: `${returnId}-${index}`, returnId: returnId, warehouse_id: row.warehouse_id, product_id: line.product_id, fact4: incoming ? line.quantity_milli : -Number(line.quantity_milli), fact5: incoming ? line.value_minor : -Number(line.value_minor), return_date: row.return_date, now: now }));
             const lotAllocations = (await write.readCommerceReturnLotAllocations4({ id: line.id })).results;
             for (const [lotIndex, lot] of lotAllocations.entries()) {
                 if (Number(lot.snapshot_version) === 0)
@@ -1776,7 +1626,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         }
         if (goodsFx)
             steps.push(...goodsFx.steps);
-        steps.push(write.prepareCommerceReturns4({ userId: actor.userId, stockJournal: stockJournal, creditJournal: creditJournal, baseCreditMinor: credit.baseCreditMinor, fact4: goodsFx?.result.id ?? null, now: now, returnId: returnId }));
+        steps.push(await write.prepareCommerceReturns4({ userId: actor.userId, stockJournal: stockJournal, creditJournal: creditJournal, baseCreditMinor: credit.baseCreditMinor, fact4: goodsFx?.result.id ?? null, now: now, returnId: returnId }));
         return write.executeCommand(actor, key, "commerce.return.approve", input, returnId, input.expectedVersion + 1, { id: returnId, orderId: String(row.order_id), status: "approved", version: input.expectedVersion + 1, ...(stockJournal ? { stockJournalId: stockJournal } : {}), creditJournalId: creditJournal, ...(goodsFx ? { goodsFxJournalId: goodsFx.result.id } : {}) }, steps);
     }
     async function completeCommerceReturn(actor: WorkContext, returnId: string, input: z.infer<typeof returnCompleteSchema>, key: string): Promise<CommerceReturnCompletion> {
@@ -1814,13 +1664,13 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             write.guardRule14({ key: key, guardId: "return", values: [returnId, actor.companyId, input.expectedVersion, row.invoice_version] }),
             write.guardRule15({ key: key, guardId: "return-periods", values: [row.stock_journal_id, row.credit_journal_id, actor.companyId] }),
             write.guardRule16({ key: key, guardId: "goods-fx-posted", values: [returnId] }),
-            write.prepareFinanceInvoices3({ credited: credited, baseCreditedMinor: values.baseCreditedMinor, credited2: credited, now: now, invoice_id: row.invoice_id }),
-            write.prepareCommerceReturns5({ credited: credited, refund: refund, carried: carried, baseCreditedMinor: values.baseCreditedMinor, baseRefundMinor: values.baseRefundMinor, fact5: fx?.result.id ?? null, now: now, returnId: returnId }),
+            await write.prepareFinanceInvoices3({ credited: credited, baseCreditedMinor: values.baseCreditedMinor, credited2: credited, now: now, invoice_id: row.invoice_id }),
+            await write.prepareCommerceReturns5({ credited: credited, refund: refund, carried: carried, baseCreditedMinor: values.baseCreditedMinor, baseRefundMinor: values.baseRefundMinor, fact5: fx?.result.id ?? null, now: now, returnId: returnId }),
         ];
         if (refundId)
-            steps.push(write.prepareFinanceRefundObligations1({ refundId: refundId, companyId: actor.companyId, branch_id: row.branch_id, department_id: row.department_id, returnId: returnId, invoice_id: row.invoice_id, party_id: row.party_id, fact7: row.kind === "customer_return" ? "outgoing" : "incoming", currency: row.currency, chart_id: row.chart_id, fact10: row.kind === "customer_return" ? row.debit_account_id : row.credit_account_id, refund: refund, refund2: refund, baseRefundMinor: values.baseRefundMinor, baseRefundMinor2: values.baseRefundMinor, credit_journal_id: row.credit_journal_id, userId: actor.userId, now: now, now2: now }));
+            steps.push(await write.prepareFinanceRefundObligations1({ refundId: refundId, companyId: actor.companyId, branch_id: row.branch_id, department_id: row.department_id, returnId: returnId, invoice_id: row.invoice_id, party_id: row.party_id, fact7: row.kind === "customer_return" ? "outgoing" : "incoming", currency: row.currency, chart_id: row.chart_id, fact10: row.kind === "customer_return" ? row.debit_account_id : row.credit_account_id, refund: refund, refund2: refund, baseRefundMinor: values.baseRefundMinor, baseRefundMinor2: values.baseRefundMinor, credit_journal_id: row.credit_journal_id, userId: actor.userId, now: now, now2: now }));
         if (refundId)
-            steps.push(write.refundNotifications(key, refundId, 'approval', 'Posted return requires independent refund approval', actor.userId));
+            steps.push(await write.refundNotifications(key, refundId, 'approval', 'Posted return requires independent refund approval', actor.userId));
         return write.executeCommand(actor, key, "commerce.return.complete", input, returnId, input.expectedVersion + 1, { id: returnId, orderId: String(row.order_id), status: "posted", version: input.expectedVersion + 1, creditedMinor: credited, refundMinor: refund, refundId }, steps);
     }
     async function saveOrder(actor: WorkContext, id: string | null, input: z.infer<typeof orderSchema>, key: string, ownerWrite?: CommerceUnit<Effect>) {
@@ -1901,14 +1751,14 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             steps.push(write.guardRule18({ key: key, guardId: 'price-list', values: [pricing.list.id, actor.companyId, pricing.list.version, input.orderDate, input.orderDate] }));
         if (existing) {
             steps.push(versionGuard(write, key, "commerce_orders", record, input.expectedVersion ?? 0, ["draft"]));
-            steps.push(write.prepareCommerceOrders2({ partyId: input.partyId, warehouseId: input.warehouseId || null, branch_id: warehouse?.branch_id ?? actor.branchId, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact8: pricing.list?.id ?? null, fact9: pricing.list?.version ?? null, fact10: input.discountReason?.trim() || null, fact11: pricing.requiresApproval ? 1 : 0, now: now, record: record }));
-            steps.push(write.prepareCommerceOrderLines1({ record: record }));
+            steps.push(await write.prepareCommerceOrders2({ partyId: input.partyId, warehouseId: input.warehouseId || null, branch_id: warehouse?.branch_id ?? actor.branchId, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact8: pricing.list?.id ?? null, fact9: pricing.list?.version ?? null, fact10: input.discountReason?.trim() || null, fact11: pricing.requiresApproval ? 1 : 0, now: now, record: record }));
+            steps.push(await write.prepareCommerceOrderLines1({ record: record }));
         }
         else
-            steps.push(write.prepareCommerceOrders3({ record: record, companyId: actor.companyId, branch_id: warehouse?.branch_id ?? actor.branchId, departmentId: actor.departmentId, kind: input.kind, fact5: `${input.kind === "quote" ? "QT" : input.kind === "sales" ? "SO" : "PO"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, partyId: input.partyId, warehouseId: input.warehouseId || null, currency: config.currency, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact14: pricing.list?.id ?? null, fact15: pricing.list?.version ?? null, fact16: input.discountReason?.trim() || null, fact17: pricing.requiresApproval ? 1 : 0, userId: actor.userId, now: now, now2: now }));
+            steps.push(await write.prepareCommerceOrders3({ record: record, companyId: actor.companyId, branch_id: warehouse?.branch_id ?? actor.branchId, departmentId: actor.departmentId, kind: input.kind, fact5: `${input.kind === "quote" ? "QT" : input.kind === "sales" ? "SO" : "PO"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, partyId: input.partyId, warehouseId: input.warehouseId || null, currency: config.currency, orderDate: input.orderDate, dueDate: input.dueDate, note: input.note, subtotal: subtotal, tax: tax, fact14: pricing.list?.id ?? null, fact15: pricing.list?.version ?? null, fact16: input.discountReason?.trim() || null, fact17: pricing.requiresApproval ? 1 : 0, userId: actor.userId, now: now, now2: now }));
         for (const l of lineRows) {
             steps.push(write.guardRule19({ key: key, guardId: `product-${l.index}`, values: [l.product.id, l.product.version] }));
-            steps.push(write.prepareCommerceOrderLines2({ id: l.id, record: record, productId: l.line.productId, name: l.product.name, qty: l.qty, price: l.price, taxBps: l.line.taxBps, subtotal: l.subtotal, tax: l.tax, index: l.index, listPrice: l.listPrice, discountBps: l.discountBps, itemType: l.product.item_type === "service" ? "service" : "stock" }));
+            steps.push(await write.prepareCommerceOrderLines2({ id: l.id, record: record, productId: l.line.productId, name: l.product.name, qty: l.qty, price: l.price, taxBps: l.line.taxBps, subtotal: l.subtotal, tax: l.tax, index: l.index, listPrice: l.listPrice, discountBps: l.discountBps, itemType: l.product.item_type === "service" ? "service" : "stock" }));
         }
         if (handoff)
             steps.push(...handoff.steps);
@@ -1961,7 +1811,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         const steps = [
             versionGuard(write, key, "commerce_orders", id, input.expectedVersion, from),
             ...(input.action === 'cancel' ? [write.prepareInventoryOrderReservations3({ id: id })] : []),
-            write.prepareCommerceOrders4({ state: state, fact1: input.action === "approve" ? actor.userId : row.approved_by, fact2: input.action === 'approve', userId: actor.userId, fact4: input.action === 'return', fact5: input.action === 'approve', fact6: ports.clock.now(), fact7: input.action === 'return', fact8: ports.clock.now(), id: id }),
+            await write.prepareCommerceOrders4({ state: state, fact1: input.action === "approve" ? actor.userId : row.approved_by, fact2: input.action === 'approve', userId: actor.userId, fact4: input.action === 'return', fact5: input.action === 'approve', fact6: ports.clock.now(), fact7: input.action === 'return', fact8: ports.clock.now(), id: id }),
         ];
         if (input.action === "approve" && row.kind === "sales") {
             steps.unshift(write.prepareFinanceParties1({ party_id: row.party_id, companyId: actor.companyId }), write.guardRule20({ key: key, guardId: "customer-credit-limit", values: [row.party_id, actor.companyId, Number(row.subtotal_minor) + Number(row.tax_minor)] }));
@@ -1970,228 +1820,25 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         if (input.action === "convert") {
             salesId = `order-${key}`;
             steps.push(await commerceMoney(write, actor, { sourceType: 'commerce_order_revision', sourceId: `${salesId}:1`, amountKind: 'total', transactionDate: String(row.order_date), currency: String(row.currency), amountUnits: Number(row.subtotal_minor) + Number(row.tax_minor) }));
-            steps.push(write.prepareCommerceOrders5({ salesId: salesId, fact1: `SO-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, userId: actor.userId, fact3: ports.clock.now(), fact4: ports.clock.now(), id: id }));
-            steps.push(write.prepareCommerceOrderLines3({ salesId: salesId, salesId2: salesId, id: id }));
+            steps.push(await write.prepareCommerceOrders5({ salesId: salesId, fact1: `SO-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, userId: actor.userId, fact3: ports.clock.now(), fact4: ports.clock.now(), id: id }));
+            steps.push(await write.prepareCommerceOrderLines3({ salesId: salesId, salesId2: salesId, id: id }));
         }
         return write.executeCommand(actor, key, `commerce.order.${input.action}`, input, id, input.expectedVersion + 1, { id, state, version: input.expectedVersion + 1, salesId }, steps);
     }
-    function journalSteps(db: CommerceUnit<Effect>, actor: WorkContext, key: string, journalId: string, config: Row, periodId: string, date: string, source: string, sourceId: string, lines: Posting[], status: "draft" | "posted" = "posted") {
+    async function journalSteps(db: CommerceUnit<Effect>, actor: WorkContext, key: string, journalId: string, config: Row, periodId: string, date: string, source: string, sourceId: string, lines: Posting[], status: "draft" | "posted" = "posted") {
         const debit = lines.reduce((s, l) => s + l.debit, 0), credit = lines.reduce((s, l) => s + l.credit, 0);
         if (debit !== credit || !Number.isSafeInteger(debit))
             throw ports.error(422, "UNBALANCED_JOURNAL", "The journal is not balanced.");
         const now = ports.clock.now();
         const steps = [
             db.guardRule21({ key: key, guardId: `period-${journalId}`, values: [periodId, actor.companyId, date, date] }),
-            db.prepareFinanceJournals1({ journalId: journalId, companyId: actor.companyId, chart_id: config.chart_id, periodId: periodId, fact4: `GL-${journalId.slice(-36)}`, date: date, currency: config.currency, source: source, sourceId: sourceId, fact9: `${source} ${sourceId}`, status: status, userId: actor.userId, fact12: status === "posted" ? actor.userId : null, fact13: status === "posted" ? now : null, now: now, now2: now }),
+            await db.prepareFinanceJournals1({ journalId: journalId, companyId: actor.companyId, chart_id: config.chart_id, periodId: periodId, fact4: `GL-${journalId.slice(-36)}`, date: date, currency: config.currency, source: source, sourceId: sourceId, fact9: `${source} ${sourceId}`, status: status, userId: actor.userId, fact12: status === "posted" ? actor.userId : null, fact13: status === "posted" ? now : null, now: now, now2: now }),
         ];
         for (const [i, line] of lines.filter((l) => l.debit || l.credit).entries()) {
             steps.push(db.guardRule22({ key: key, guardId: `account-${journalId}-${i}`, values: [line.account, actor.companyId, config.chart_id] }));
-            steps.push(db.prepareFinanceJournalLines1({ fact0: `${journalId}-${i}`, journalId: journalId, account: line.account, debit: line.debit, credit: line.credit, debit2: line.debit, credit2: line.credit, i: i }));
+            steps.push(await db.prepareFinanceJournalLines1({ fact0: `${journalId}-${i}`, journalId: journalId, account: line.account, debit: line.debit, credit: line.credit, debit2: line.debit, credit2: line.credit, i: i }));
         }
         return steps;
-    }
-    async function fulfillOrder(actor: WorkContext, id: string, raw: z.input<typeof fulfillmentSchema>, key: string) {
-        const input = fulfillmentSchema.parse(raw);
-        actor = allowed(actor, input.completionMode === "service" ? "sales" : "stock");
-        if (input.completionMode === "mixed") actor = allowed(actor, "sales");
-        const write = await ports.forActor(actor);
-        const previous = await write.replayCommand<{ id:string; version:number; fulfillmentId:string }>(actor, key, "commerce.order.fulfill", id, input);
-        if (previous)
-            return previous;
-        const order = await orderRow(write, actor, id);
-        if (order.kind === "quote")
-            throw ports.error(422, "ORDER_REQUIRED", "Convert the quotation to a sales order first.");
-        const config = await settings(write, actor);
-        const periodId = await period(write, actor, input.date);
-        if (input.completionMode !== "service" && (!config.inventory_account_id || !config.cogs_account_id || !config.clearing_account_id))
-            throw ports.error(409, "INVENTORY_POSTING_SETUP_REQUIRED", "Ask Finance to configure inventory, cost of sales and clearing accounts before delivering goods.");
-        const fulfillment = `delivery-${key}`;
-        const journal = `journal-${key}`;
-        const incoming = order.kind === "purchase";
-        if (incoming && input.completionMode !== "goods")
-            throw ports.error(422, "SERVICE_SUPPLIER_BILL_REQUIRED", "Purchased services use supplier bills.");
-        if (input.date < String(order.order_date))
-            throw ports.error(422, "INVALID_COMPLETION_DATE", "Completion cannot precede the order date.");
-        const stockCurrency = String(config.base_currency), valuationFx = await write.confirmedFunctionalFx(actor, incoming ? String(order.currency) : stockCurrency, stockCurrency, input.date);
-        const convertedStock = (units: number) => {
-            const value = convertUnits(String(units), 2, 2, '1', minorToDecimal(valuationFx.micros, 6));
-            if (value > BigInt(Number.MAX_SAFE_INTEGER))
-                throw ports.error(422, 'MONEY_OVERFLOW', 'The functional inventory amount exceeds supported ledger precision.');
-            return Number(value);
-        };
-        if (!incoming && input.completionMode === "service" && input.evidenceNote.length < 3)
-            throw ports.error(422, "SERVICE_COMPLETION_NOTE_REQUIRED", "Describe the service completed and who confirmed it.");
-        if (!incoming && input.completionMode !== "service" && ((!input.evidenceIds.length && !input.attachmentSetIds.length) || input.evidenceNote.length < 3))
-            throw ports.error(422, 'DELIVERY_EVIDENCE_REQUIRED', 'Attach proof of delivery and record who or what confirmed receipt.');
-        if (new Set(input.evidenceIds).size !== input.evidenceIds.length)
-            throw ports.error(422, 'DELIVERY_EVIDENCE_DUPLICATE', 'Use each delivery evidence file once.');
-        if (!incoming)
-            for (const attachmentId of input.evidenceIds) {
-                const valid = await write.readAttachments2({ attachmentId: attachmentId, id: id });
-                if (!valid)
-                    throw ports.error(422, 'DELIVERY_EVIDENCE_INVALID', 'The selected proof is missing, revoked, belongs to another order, or is already linked to a delivery.');
-            }
-        if (new Set(input.lines.map((l) => l.lineId)).size !== input.lines.length)
-            throw ports.error(422, "DUPLICATE_LINE", "Each order line may appear once.");
-        const attachmentBinding = await write.prepareBusinessEvidence(actor, { attachmentSetIds: input.attachmentSetIds, targetTypes: incoming ? ["purchase_order", "purchase_receipt", "commerce_order"] : ["commerce_order_delivery"], bindingType: incoming ? "purchase_receipt" : "commerce_fulfillment", contexts: incoming ? [...(["delivery_note", "packing_list", "damage_photo"].map(purposeKey => ({ purposeKey, componentKind: "action" as const, componentRef: "goods-receipt" }))), { purposeKey: "purchase_receipt", componentKind: "action", componentRef: "goods-receipt" }] : [{ purposeKey: "proof_of_delivery", componentKind: "action", componentRef: "delivery" }], targetId: id, expectedTargetVersion: input.expectedVersion, commandId: key, bindingId: fulfillment });
-        const steps: Effect[] = [
-            ...(attachmentBinding?.guards ?? []),
-            versionGuard(write, key, "commerce_orders", id, input.expectedVersion, [
-                "confirmed",
-                "partially_fulfilled",
-            ]),
-            write.prepareCommerceFulfillments2({ fulfillment: fulfillment, id: id, fact2: `${incoming ? "GR" : "DN"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, userId: actor.userId, fact5: ports.clock.now(), fact6: incoming ? null : input.evidenceNote, completionMode: input.completionMode }),
-        ];
-        if (!incoming)
-            for (const [index, attachmentId] of input.evidenceIds.entries())
-                steps.push(write.guardRule23({ key: key, guardId: `delivery-evidence-${index}`, values: [attachmentId, id] }));
-        let value = 0, documentSubtotal = 0, goodsCount = 0;
-        for (const [i, entry] of input.lines.entries()) {
-            const line = await write.readCommerceOrderLines2({ lineId: entry.lineId, id: id });
-            if (!line)
-                throw ports.error(422, "LINE_INVALID", "Order line not found.");
-            const qty = quantityMilli(entry.quantity);
-            const remaining = Number(line.quantity_milli) - Number(line.fulfilled_milli);
-            if (qty > remaining)
-                throw ports.error(422, "OVER_FULFILLMENT", "Quantity exceeds the remaining order quantity.");
-            if (line.item_type === "service") {
-                if (incoming || input.completionMode === "goods")
-                    throw ports.error(422, "SERVICE_COMPLETION_REQUIRED", "Complete service lines through the service action.");
-                if (entry.allocations?.length)
-                    throw ports.error(422, "SERVICE_STOCK_ALLOCATION_FORBIDDEN", "Services have no lot or serial allocations.");
-                const prior = await write.readCommerceFulfillmentLines2({ id: line.id });
-                const amounts = qty === remaining ? { subtotal: Number(line.subtotal_minor) - Number(prior?.subtotal ?? 0), tax: Number(line.tax_minor) - Number(prior?.tax ?? 0) } : lineAmounts(qty, Number(line.price_minor), Number(line.tax_bps));
-                steps.push(write.guardRule25({ key, guardId: `service-line-${i}`, values: [line.id, line.fulfilled_milli, qty] }));
-                for (const [amountKind, amountUnits] of [["subtotal", amounts.subtotal], ["tax", amounts.tax], ["total", amounts.subtotal + amounts.tax]] as const)
-                    steps.push(await commerceMoney(write, actor, { sourceType: "commerce_fulfillment_line", sourceId: `${fulfillment}-${i}`, amountKind, transactionDate: input.date, currency: String(order.currency), amountUnits }));
-                steps.push(write.prepareCommerceFulfillmentLines1({ fact0: `${fulfillment}-${i}`, fulfillment, id: line.id, qty, cost: 0, subtotal: amounts.subtotal, tax: amounts.tax, stockCurrency }));
-                steps.push(write.prepareCommerceOrderLines4({ qty, id: line.id }));
-                continue;
-            }
-            if (input.completionMode === "service" || !order.warehouse_id)
-                throw ports.error(422, "STOCK_DELIVERY_REQUIRED", "Stock items require warehouse delivery authority.");
-            goodsCount += 1;
-            const stock = await write.readInventoryActiveReservations3({ warehouse_id: order.warehouse_id, product_id: line.product_id });
-            const ownReservations = incoming ? [] : (await write.readInventoryOrderReservations3({ id: line.id })).results;
-            const ownHeld = ownReservations.reduce((sum, r) => sum + Number(r.quantity_milli) - Number(r.consumed_milli) - Number(r.released_milli), 0);
-            if (!incoming && Number(stock?.quantity_milli ?? 0) - Number(stock?.reserved_milli ?? 0) + ownHeld < qty)
-                throw ports.error(409, "INSUFFICIENT_STOCK", "There is not enough stock in this warehouse. Receive the purchase first.");
-            const previous = await write.readCommerceFulfillmentLines2({ id: line.id });
-            const amounts = qty === remaining
-                ? {
-                    subtotal: Number(line.subtotal_minor) - Number(previous?.subtotal ?? 0),
-                    tax: Number(line.tax_minor) - Number(previous?.tax ?? 0),
-                }
-                : lineAmounts(qty, Number(line.price_minor), Number(line.tax_bps));
-            const stockSubtotal = incoming ? convertedStock(documentSubtotal + amounts.subtotal) - convertedStock(documentSubtotal) : 0;
-            documentSubtotal += amounts.subtotal;
-            const tracking = String(line.tracking_mode ?? 'none'), allocations = entry.allocations ?? [];
-            if (tracking === 'none' && allocations.length)
-                throw ports.error(422, 'LOT_ALLOCATION_UNEXPECTED', 'This product does not use lot or serial tracking.');
-            if (tracking !== 'none' && allocations.reduce((sum, a) => sum + quantityMilli(a.quantity), 0) !== qty)
-                throw ports.error(422, 'LOT_ALLOCATION_REQUIRED', 'Allocate the full movement quantity to lots or serial numbers.');
-            if (tracking === 'serial' && allocations.some(a => quantityMilli(a.quantity) !== 1000))
-                throw ports.error(422, 'SERIAL_QUANTITY_INVALID', 'Each serial allocation must be exactly one unit.');
-            const lotPrepared: Array<{
-                lotId: string;
-                quantityMilli: number;
-                valueMinor: number;
-                disposition: 'available' | 'quarantine';
-                reason: string;
-                dueDate: string;
-                existing: Row | null;
-                lotCode: string | null;
-                serialNumber: string | null;
-                manufacturedDate: string | null;
-                expiryDate: string | null;
-            }> = [];
-            let cost = tracking === 'none' ? (incoming ? stockSubtotal : qty === Number(stock?.quantity_milli) ? Number(stock?.value_minor) : scaledAmount(Number(stock?.value_minor ?? 0), qty, Number(stock?.quantity_milli ?? 1))) : 0;
-            if (tracking !== 'none') {
-                const identities = new Set<string>();
-                let allocatedValue = 0;
-                for (const [allocationIndex, allocation] of allocations.entries()) {
-                    const allocationQty = quantityMilli(allocation.quantity), identity = incoming ? (tracking === 'serial' ? allocation.serialNumber : allocation.lotCode) : allocation.lotId;
-                    if (!identity || identities.has(identity))
-                        throw ports.error(422, 'LOT_ALLOCATION_DUPLICATE', 'Use each lot or serial once per movement line.');
-                    identities.add(identity);
-                    let existing: Row | null;
-                    if (incoming)
-                        existing = await write.readInventoryLots1({ warehouse_id: order.warehouse_id, companyId: actor.companyId, product_id: line.product_id, identity: identity, tracking: tracking }) ?? null;
-                    else
-                        existing = await write.readInventoryQualityHolds3({ fact0: allocation.lotId ?? '', companyId: actor.companyId, product_id: line.product_id, warehouse_id: order.warehouse_id }) ?? null;
-                    if (!incoming && (!existing || Number(existing.quantity_milli) < allocationQty || Number(existing.quality_held)))
-                        throw ports.error(409, 'LOT_UNAVAILABLE', 'The selected lot or serial is unavailable, quarantined, or has insufficient quantity.');
-                    if (incoming && tracking === 'serial' && existing)
-                        throw ports.error(409, 'SERIAL_ALREADY_RECEIVED', 'This serial number already exists for the product.');
-                    if (incoming && allocation.disposition === 'quarantine' && (!allocation.quarantineReason || !allocation.quarantineDueDate))
-                        throw ports.error(422, 'QUARANTINE_EVIDENCE_REQUIRED', 'Quarantined receipt allocations require a reason and review due date.');
-                    const lotId = String(existing?.id ?? `lot-${(await ports.hash(`${actor.companyId}:${line.product_id}:${tracking}:${identity}`)).slice(0, 48)}`), allocationValue = incoming ? (allocationIndex === allocations.length - 1 ? stockSubtotal - allocatedValue : scaledAmount(stockSubtotal, allocationQty, qty)) : (allocationQty === Number(existing!.quantity_milli) ? Number(existing!.value_minor) : scaledAmount(Number(existing!.value_minor), allocationQty, Number(existing!.quantity_milli)));
-                    allocatedValue += allocationValue;
-                    cost += incoming ? 0 : allocationValue;
-                    lotPrepared.push({ lotId, quantityMilli: allocationQty, valueMinor: allocationValue, disposition: allocation.disposition, reason: allocation.quarantineReason, dueDate: allocation.quarantineDueDate, existing, lotCode: tracking === 'lot' ? String(allocation.lotCode) : null, serialNumber: tracking === 'serial' ? String(allocation.serialNumber) : null, manufacturedDate: allocation.manufacturedDate || String(existing?.manufactured_date ?? '') || null, expiryDate: allocation.expiryDate || String(existing?.expiry_date ?? '') || null });
-                }
-                if (incoming)
-                    cost = allocatedValue;
-            }
-            value += cost;
-            steps.push(write.guardRule24({ key: key, guardId: `movement-date-${i}`, values: [order.warehouse_id, line.product_id, input.date] }));
-            steps.push(write.guardRule25({ key: key, guardId: `line-${i}`, values: [line.id, line.fulfilled_milli, qty] }));
-            if (stock)
-                steps.push(write.guardRule26({ key: key, guardId: `stock-${i}`, values: [order.warehouse_id, line.product_id, stock.version] }));
-            else
-                steps.push(write.prepareCommerceStock2({ warehouse_id: order.warehouse_id, product_id: line.product_id }));
-            let consumeRemaining = qty;
-            for (const r of ownReservations) {
-                const n = Math.min(consumeRemaining, Number(r.quantity_milli) - Number(r.consumed_milli) - Number(r.released_milli));
-                if (!n)
-                    break;
-                steps.push(write.prepareInventoryOrderReservations4({ n: n, id: r.id }));
-                consumeRemaining -= n;
-            }
-            steps.push(write.prepareCommerceStock3({ fact0: incoming ? qty : -qty, fact1: incoming ? cost : -cost, warehouse_id: order.warehouse_id, product_id: line.product_id }));
-            for (const [amountKind, amountUnits] of [['stock_value', cost], ['subtotal', amounts.subtotal], ['tax', amounts.tax], ['total', amounts.subtotal + amounts.tax]] as const)
-                steps.push(await commerceMoney(write, actor, { sourceType: 'commerce_fulfillment_line', sourceId: `${fulfillment}-${i}`, amountKind, transactionDate: input.date, currency: amountKind === 'stock_value' ? stockCurrency : String(order.currency), amountUnits }));
-            steps.push(write.prepareCommerceFulfillmentLines1({ fact0: `${fulfillment}-${i}`, fulfillment: fulfillment, id: line.id, qty: qty, cost: cost, subtotal: amounts.subtotal, tax: amounts.tax, stockCurrency: stockCurrency }));
-            for (const [allocationIndex, allocation] of lotPrepared.entries()) {
-                const allocationId = `${fulfillment}-${i}-${allocationIndex}`, lineId = `${fulfillment}-${i}`;
-                if (incoming) {
-                    if (!allocation.existing)
-                        steps.push(write.prepareInventoryLots3({ lotId: allocation.lotId, companyId: actor.companyId, product_id: line.product_id, tracking: tracking, lotCode: allocation.lotCode, serialNumber: allocation.serialNumber, manufacturedDate: allocation.manufacturedDate, expiryDate: allocation.expiryDate, userId: actor.userId, fact9: ports.clock.now() }));
-                    else
-                        steps.push(write.guardRule27({ key: key, guardId: `lot-${i}-${allocationIndex}`, values: [allocation.lotId, actor.companyId, line.product_id, tracking, allocation.lotCode, allocation.serialNumber, allocation.manufacturedDate, allocation.expiryDate] }), write.prepareInventoryLots4({ lotId: allocation.lotId }));
-                    if (allocation.existing?.balance_version)
-                        steps.push(write.guardRule28({ key: key, guardId: `lot-balance-${i}-${allocationIndex}`, values: [allocation.lotId, order.warehouse_id, allocation.existing.balance_version] }));
-                    steps.push(write.prepareInventoryLotBalances3({ lotId: allocation.lotId, warehouse_id: order.warehouse_id, quantityMilli: allocation.quantityMilli, valueMinor: allocation.valueMinor }));
-                }
-                else {
-                    steps.push(write.guardRule29({ key: key, guardId: `lot-balance-${i}-${allocationIndex}`, values: [allocation.lotId, order.warehouse_id, allocation.existing!.balance_version, allocation.quantityMilli] }), write.prepareInventoryLotBalances4({ quantityMilli: allocation.quantityMilli, valueMinor: allocation.valueMinor, lotId: allocation.lotId, warehouse_id: order.warehouse_id }), write.prepareInventoryLots5({ lotId: allocation.lotId, lotId2: allocation.lotId }));
-                }
-                const qualityHoldId = incoming && allocation.disposition === 'quarantine' ? `quality-${key}-${i}-${allocationIndex}` : null;
-                if (qualityHoldId)
-                    steps.push(...await write.receiptQualityHoldSteps(actor, { id: qualityHoldId, key: `${key}-${i}-${allocationIndex}`, branchId: String(order.branch_id), warehouseId: String(order.warehouse_id), productId: String(line.product_id), lotId: allocation.lotId, quantityMilli: allocation.quantityMilli, reason: allocation.reason, dueDate: allocation.dueDate, sourceId: allocationId }));
-                steps.push(write.prepareInventoryLotMoves2({ fact0: `lot-move-${allocationId}`, lotId: allocation.lotId, warehouse_id: order.warehouse_id, fact3: incoming ? 'goods_receipt' : 'delivery', lineId: lineId, fact5: incoming ? allocation.quantityMilli : -allocation.quantityMilli, fact6: incoming ? allocation.valueMinor : -allocation.valueMinor, date: input.date, userId: actor.userId, fact9: ports.clock.now() }), write.prepareInventoryFulfillmentLotAllocations1({ fact0: `lot-allocation-${allocationId}`, lineId: lineId, lotId: allocation.lotId, quantityMilli: allocation.quantityMilli, valueMinor: allocation.valueMinor, disposition: allocation.disposition, qualityHoldId: qualityHoldId }));
-            }
-            steps.push(write.prepareCommerceOrderLines4({ qty: qty, id: line.id }));
-            steps.push(write.prepareCommerceStockMoves1({ fact0: `${fulfillment}-${i}`, warehouse_id: order.warehouse_id, product_id: line.product_id, fulfillment: fulfillment, fact4: incoming ? qty : -qty, fact5: incoming ? cost : -cost, fact6: ports.clock.now() }));
-        }
-        if (goodsCount) {
-        const goods = await write.prepareJournal(actor, { chartId: String(config.chart_id), periodId, entryDate: input.date,
-            currency: incoming ? String(order.currency) : stockCurrency, fxRate: minorToDecimal(valuationFx.micros, 6),
-            sourceType: incoming ? 'goods_receipt' : 'delivery', sourceId: fulfillment, memo: `${incoming ? 'Goods receipt' : 'Delivery'} ${fulfillment}`, isOpening: false,
-            lines: [{ accountId: String(incoming ? config.inventory_account_id : config.cogs_account_id), debit: minorToDecimal(incoming ? documentSubtotal : value), credit: '0' },
-                { accountId: String(incoming ? config.clearing_account_id : config.inventory_account_id), debit: '0', credit: minorToDecimal(incoming ? documentSubtotal : value) }] }, key, 'draft');
-        if (goods.preparedLines.reduce((sum, line) => sum + line.baseDebit, 0) !== value)
-            throw ports.error(409, 'GOODS_VALUATION_RECONCILIATION_REQUIRED', 'The frozen functional stock value must match the exact goods journal.');
-        steps.push(...goods.steps, write.prepareCommerceGoodsValuations1({ fulfillment: fulfillment, companyId: actor.companyId, chart_id: config.chart_id, journal: journal, fact4: String(order.currency), fact5: incoming ? String(order.currency) : stockCurrency, stockCurrency: stockCurrency, date: input.date, micros: valuationFx.micros, sourceRateId: valuationFx.sourceRateId, targetRateId: valuationFx.targetRateId, usedLatestFallback: valuationFx.usedLatestFallback, documentSubtotal: documentSubtotal, value: value, userId: actor.userId, fact15: ports.clock.now() }));
-        steps.push(write.prepareCommerceFulfillments3({ journal: journal, fulfillment: fulfillment }));
-        }
-        if (!incoming)
-            for (const attachmentId of input.evidenceIds)
-                steps.push(write.prepareCommerceFulfillmentEvidence1({ fulfillment: fulfillment, attachmentId: attachmentId, userId: actor.userId, fact3: ports.clock.now() }));
-        if (attachmentBinding)
-            steps.push(...attachmentBinding.steps);
-        steps.push(write.prepareCommerceOrders6({ id: id, fact1: ports.clock.now(), id2: id }));
-        return write.executeCommand(actor, key, "commerce.order.fulfill", input, id, input.expectedVersion + 1, { id, fulfillmentId: fulfillment, version: input.expectedVersion + 1 }, steps);
     }
     async function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) {
         actor = allowed(actor, "finance");
@@ -2231,9 +1878,10 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         if (!Number.isSafeInteger(total)) throw ports.error(422, "MONEY_OVERFLOW", "Invoice exceeds supported precision.");
         const steps = [
             await commerceMoney(write, actor, { sourceType: "commerce_invoice_source", sourceId: invoice, amountKind: "total", transactionDate: input.date, currency: invoiceCurrency, amountUnits: total }),
+            ...(payable ? [await commerceMoney(write, actor, { sourceType: "finance_invoice", sourceId: invoice, amountKind: "draft:v1", transactionDate: input.date, currency: invoiceCurrency, amountUnits: total })] : []),
             ...sources.map(source => write.guardRule30({ key, guardId: `completion-${source.row.id}`, values: [String(source.row.id), source.version] })),
-            write.prepareFinanceInvoices4({ invoice, companyId: actor.companyId, party_id: order.party_id, fact3: payable ? "payable" : "receivable", fact4: `${payable ? "BILL" : "INV"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, dueDate: input.dueDate, invoiceCurrency, subtotal: totals.subtotal, tax: totals.tax, total, total2: total, fact12: payable ? matching?.bill.clearing_account_id ?? config.clearing_account_id : config.receivable_account_id, fact13: payable ? matching?.bill.payable_account_id ?? config.payable_account_id : config.revenue_account_id, fact14: payable ? matching?.bill.tax_account_id ?? config.input_tax_account_id : config.output_tax_account_id, fulfillmentId, userId: actor.userId, fact17: ports.clock.now(), fact18: ports.clock.now() }),
-            ...(matching?.steps ?? sources.map(source => write.prepareCommerceFulfillments4({ invoice, fulfillmentId: String(source.row.id) }))),
+            await write.prepareFinanceInvoices4({ invoice, companyId: actor.companyId, party_id: order.party_id, fact3: payable ? "payable" : "receivable", fact4: `${payable ? "BILL" : "INV"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, dueDate: input.dueDate, invoiceCurrency, subtotal: totals.subtotal, tax: totals.tax, total, total2: total, fact12: payable ? matching?.bill.clearing_account_id ?? config.clearing_account_id : config.receivable_account_id, fact13: payable ? matching?.bill.payable_account_id ?? config.payable_account_id : config.revenue_account_id, fact14: payable ? matching?.bill.tax_account_id ?? config.input_tax_account_id : config.output_tax_account_id, fulfillmentId, sourceVersion: Number(sources[0].row.version) + 1, userId: actor.userId, fact17: ports.clock.now(), fact18: ports.clock.now() }),
+            ...(matching?.steps ?? await Promise.all(sources.map(source => write.prepareCommerceFulfillments4({ invoice, fulfillmentId: String(source.row.id) })))),
         ];
         return write.executeCommand(actor, key, "commerce.invoice.create", input, fulfillmentId, input.expectedVersion + 1, { id: String(order.id), invoiceId: invoice }, steps);
     }
@@ -2342,10 +1990,10 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             write.guardRule36({ key: key, guardId: "supplier-reservation", values: [invoiceId] }),
             versionGuard(write, key, "finance_invoices", invoiceId, input.expectedVersion, ["posted", "partially_paid"]),
             write.guardRule37({ key: key, guardId: "balance", values: [invoiceId, amountMinor] }),
-            ...journalSteps(write, actor, key, journal, config, periodId, input.date, "commerce_payment", payment, lines),
-            write.prepareFinancePayments1({ payment: payment, companyId: actor.companyId, party_id: invoice.party_id, fact3: payable ? "payment" : "receipt", reference: input.reference, date: input.date, currency: config.currency, amountMinor: amountMinor, amountMinor2: amountMinor, bankAccountId: bankAccountId, journal: journal, userId: actor.userId, fact12: payable ? actor.userId : null, fact13: ports.clock.now(), fact14: ports.clock.now(), fact15: input.paymentSlipId ?? null }),
-            write.prepareFinanceAllocations1({ fact0: `allocation-${key}`, companyId: actor.companyId, payment: payment, invoiceId: invoiceId, amountMinor: amountMinor, amountMinor2: amountMinor, amountMinor3: amountMinor, userId: actor.userId, fact8: ports.clock.now() }),
-            write.prepareFinanceInvoices5({ amountMinor: amountMinor, amountMinor2: amountMinor, amountMinor3: amountMinor, fact3: ports.clock.now(), invoiceId: invoiceId }),
+            ...await journalSteps(write, actor, key, journal, config, periodId, input.date, "commerce_payment", payment, lines),
+            await write.prepareFinancePayments1({ payment: payment, companyId: actor.companyId, party_id: invoice.party_id, fact3: payable ? "payment" : "receipt", reference: input.reference, date: input.date, currency: config.currency, amountMinor: amountMinor, amountMinor2: amountMinor, bankAccountId: bankAccountId, journal: journal, userId: actor.userId, fact12: payable ? actor.userId : null, fact13: ports.clock.now(), fact14: ports.clock.now(), fact15: input.paymentSlipId ?? null }),
+            await write.prepareFinanceAllocations1({ fact0: `allocation-${key}`, companyId: actor.companyId, payment: payment, invoiceId: invoiceId, amountMinor: amountMinor, amountMinor2: amountMinor, amountMinor3: amountMinor, userId: actor.userId, fact8: ports.clock.now() }),
+            await write.prepareFinanceInvoices5({ amountMinor: amountMinor, amountMinor2: amountMinor, amountMinor3: amountMinor, fact3: ports.clock.now(), invoiceId: invoiceId }),
         ];
         if (expense)
             steps.push(write.guardRule38({ key: key, guardId: "expense-claimant", values: [String(expense.employee_id), actor.userId] }), versionGuard(write, key, "finance_expenses", String(expense.id), Number(expense.version), ["posted"]), write.guardRule39({ key: key, guardId: "no-export", values: [String(expense.id)] }), write.prepareFinanceExpenses1({ fact0: Number(invoice.outstanding_minor) - amountMinor, fact1: Number(invoice.outstanding_minor) - amountMinor, fact2: Number(invoice.outstanding_minor) - amountMinor, fact3: ports.clock.now(), fact4: ports.clock.now(), id: expense.id }));
@@ -2374,9 +2022,10 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             steps.push(await commerceMoney(write, actor, { sourceType: 'commerce_product_revision', sourceId: `${record}:${version}`, amountKind: 'unit_price', transactionDate: new Date(ports.clock.now()).toISOString().slice(0, 10), currency: String(config.currency), amountUnits: decimalToMinor(v.price) }));
             if (id)
                 steps.push(write.guardRule40({ key: key, guardId: "master", values: [id, actor.companyId, v.expectedVersion ?? 0] }));
-            steps.push(id
-                ? write.prepareCommerceProducts1({ sku: v.sku, name: v.name, unit: v.unit, trackingMode: v.trackingMode, itemType: v.itemType, fact4: decimalToMinor(v.price), taxBps: v.taxBps, status: v.status, id: id })
-                : write.prepareCommerceProducts2({ record: record, companyId: actor.companyId, sku: v.sku, name: v.name, unit: v.unit, trackingMode: v.trackingMode, itemType: v.itemType, fact6: decimalToMinor(v.price), taxBps: v.taxBps, status: v.status }));
+            try {
+                if (id) await nativeCommerceOwnerWrite('product.update', [v.sku, v.name, v.unit, v.trackingMode, v.itemType, decimalToMinor(v.price), v.taxBps, v.status, id], id, actor.userId, key, actor.companyId);
+                else await nativeCommerceOwnerWrite('product.create', [record, actor.companyId, v.sku, v.name, v.unit, v.trackingMode, v.itemType, decimalToMinor(v.price), v.taxBps, v.status], record, actor.userId, key, actor.companyId);
+            } catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw ports.error(error.status, error.code, error.message); throw error; }
         }
         else if (kind === "parties") {
             const v = partyMasterSchema.parse(input);
@@ -2385,9 +2034,9 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             steps.push(await commerceMoney(write, actor, { sourceType: 'commerce_party_revision', sourceId: `${record}:${version}`, amountKind: 'credit_limit', transactionDate: new Date(ports.clock.now()).toISOString().slice(0, 10), currency: String(config.currency), amountUnits: decimalToMinor(v.creditLimit) }));
             if (id)
                 steps.push(write.guardRule41({ key: key, guardId: "master", values: [id, actor.companyId, v.kind, v.expectedVersion ?? 0] }));
-            steps.push(id
+            steps.push(await (id
                 ? write.prepareFinanceParties2({ code: v.code, name: v.name, paymentTermsDays: v.paymentTermsDays, fact3: decimalToMinor(v.creditLimit), status: v.status, fact5: v.kind === 'customer' ? (v.notificationEmail || null) : null, fact6: v.kind === 'customer' ? v.notificationConsent : 'unknown', fact7: ports.clock.now(), id: id })
-                : write.prepareFinanceParties3({ record: record, companyId: actor.companyId, kind: v.kind, code: v.code, name: v.name, currency: config.currency, paymentTermsDays: v.paymentTermsDays, fact7: decimalToMinor(v.creditLimit), status: v.status, fact9: v.kind === 'customer' ? (v.notificationEmail || null) : null, fact10: v.kind === 'customer' ? v.notificationConsent : 'unknown', fact11: ports.clock.now(), fact12: ports.clock.now() }));
+                : write.prepareFinanceParties3({ record: record, companyId: actor.companyId, kind: v.kind, code: v.code, name: v.name, currency: config.currency, paymentTermsDays: v.paymentTermsDays, fact7: decimalToMinor(v.creditLimit), status: v.status, fact9: v.kind === 'customer' ? (v.notificationEmail || null) : null, fact10: v.kind === 'customer' ? v.notificationConsent : 'unknown', fact11: ports.clock.now(), fact12: ports.clock.now() })));
         }
         else {
             actor = allowed(actor, "stock");
@@ -2401,9 +2050,10 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
                 if (v.status === "archived")
                     steps.push(write.guardRule44({ key: key, guardId: "stock-empty", values: [id] }));
             }
-            steps.push(id
-                ? write.prepareCommerceWarehouses1({ code: v.code, name: v.name, status: v.status, id: id })
-                : write.prepareCommerceWarehouses2({ record: record, companyId: actor.companyId, branchId: v.branchId, code: v.code, name: v.name, status: v.status }));
+            try {
+                if (id) await nativeWarehouseSave({ id, record, companyId: actor.companyId, branchId: v.branchId, code: v.code, name: v.name, status: v.status, now: ports.clock.now(), actorId: actor.userId }, key);
+                else await nativeWarehouseSave({ id: null, record, companyId: actor.companyId, branchId: v.branchId, code: v.code, name: v.name, status: v.status, now: ports.clock.now(), actorId: actor.userId }, key);
+            } catch (error) { if (error instanceof NativeCommerceWave2Error) throw ports.error(error.status, error.code, error.message); throw error; }
         }
         return write.executeCommand(actor, key, `commerce.${kind}.${id ? "update" : "create"}`, input, record, version, { id: record, version }, steps);
     }
@@ -2438,7 +2088,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
         const inTransit = query.view === 'stock' ? (await write.readInventoryInTransit1({ companyId: actor.companyId, branchId: actor.branchId, branchId2: actor.branchId, branchId3: actor.branchId })).results : [];
         return { ...data, page, movementPage, options, inTransit };
     }
-    return { commerceOverview, workOrderRows, getOrder, changeOrderReservation, requestCommerceReturn, decideCommerceReturn, completeCommerceReturn, saveOrder, transitionOrder, fulfillOrder, invoiceFulfillment, settleInvoice, prepareInvoiceSettlement, saveMaster, commercePage };
+    return { commerceOverview, workOrderRows, getOrder, changeOrderReservation, requestCommerceReturn, decideCommerceReturn, completeCommerceReturn, saveOrder, transitionOrder, invoiceFulfillment, settleInvoice, prepareInvoiceSettlement, saveMaster, commercePage };
 }
 
 export type CommerceOrderReadUnit<Effect>=Pick<CommerceUnit<Effect>,"readCommerceOrders1"|"readInventoryActiveReservations2"|"readCommerceFulfillments1"|"readCommerceReturnLines1"|"readCommerceReturns1"|"readHrPeople1"|"readCommerceOrders4"|"readInventoryOrderReservations1"|"readInventoryQualityHolds1"|"readCommerceReturnLotAllocations1"|"readCommerceReturnLotAllocations2"|"readInventoryQualityHolds2"|"readCommerceFulfillmentEvidence1"|"readAttachments1"|"readCommerceCustomerNotifications1"|"readCommerceCustomerNotificationSettings1">;

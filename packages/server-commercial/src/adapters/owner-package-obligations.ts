@@ -21,11 +21,6 @@ import {salesPackageObligations,lockSalesPackageObligationSources} from "@erpx/s
 import {salesCRMPackageObligations,lockSalesCRMPackageObligationSources} from "@erpx/server-crm/public/sales-package-obligations";
 import {salesInventoryPackageObligations,lockSalesInventoryPackageObligationSources} from "@erpx/server-inventory/public/sales-package-obligations";
 import {salesFinancePackageObligations,lockSalesFinancePackageObligationSources} from "@erpx/server-finance/public/sales-package-obligations";
-import {servicePackageObligations,lockServicePackageObligationSources} from "@erpx/server-field_service/public/package-obligations";
-import {serviceSupportPackageObligations,lockServiceSupportPackageObligationSources} from "@erpx/server-support/public/service-package-obligations";
-import {serviceInventoryPackageObligations,lockServiceInventoryPackageObligationSources} from "@erpx/server-inventory/public/service-package-obligations";
-import {serviceAssetPackageObligations,lockServiceAssetPackageObligationSources} from "@erpx/server-assets/public/service-package-obligations";
-import {serviceFinancePackageObligations,lockServiceFinancePackageObligationSources} from "@erpx/server-finance/public/service-package-obligations";
 import {benefitPackageObligations,lockBenefitPackageObligationSources} from "@erpx/server-benefits/public/package-obligations";
 import {benefitPeoplePackageObligations,lockBenefitPeoplePackageObligationSources} from "@erpx/server-people_payroll/public/benefits-package-obligations";
 import {benefitFinancePackageObligations,lockBenefitFinancePackageObligationSources} from "@erpx/server-finance/public/benefits-package-obligations";
@@ -73,7 +68,7 @@ import { requiresPackageSettlementReview } from "@erpx/server-commercial/domain/
  * Additional owners must supply their source locks before registering a package.
  */
 type SettlementInput = Pick<PackageObligationInput, "companyId" | "packageId" | "packageVersion">;
-export const hasOwnerPackageObligationSources = (input: Pick<SettlementInput, "packageId" | "packageVersion">) => input.packageVersion === 1 && ["work", "work-social", "work-messages", "work-routines", "support", "support-portal", "pos", "pos-restaurant", "pos-hotel-charge", "pms", "pms-minibar-linen", "finance", "finance-advanced", "manufacturing", "manufacturing-mrp", "recruit", "legal", "learn", "assets", "assets-preventive", "assets-parts-costs", "projects", "projects-costs", "people", "people-workforce", "people-payroll", "people-expenses", "people-performance", "sales-marketing", "people-benefits", "service", "service-parts-assets", "sales", "supply", "supply-quality", "supply-advanced", "sales-ecommerce", "sales-portal"].includes(input.packageId);
+export const hasOwnerPackageObligationSources = (input: Pick<SettlementInput, "packageId" | "packageVersion">) => input.packageVersion === 1 && ["work", "work-social", "work-messages", "work-routines", "support", "support-portal", "pos", "pos-restaurant", "pos-hotel-charge", "pms", "pms-minibar-linen", "finance", "finance-advanced", "manufacturing", "manufacturing-mrp", "recruit", "legal", "learn", "assets", "assets-preventive", "assets-parts-costs", "projects", "projects-costs", "people", "people-workforce", "people-payroll", "people-expenses", "people-performance", "sales-marketing", "people-benefits", "sales", "supply", "supply-quality", "supply-advanced", "sales-ecommerce", "sales-portal"].includes(input.packageId);
 export function withOwnerPackageObligations<Result>(owner: PostgresDatabase,
   input: SettlementInput | readonly SettlementInput[],
   run: (transaction: SqlDatabase) => Promise<Result>,
@@ -113,7 +108,6 @@ export function withOwnerPackageObligations<Result>(owner: PostgresDatabase,
   if(inputs.some(item=>item.packageId==="sales-portal"))sourceLocks.push(lock=>lockPortalAuthorityPackageObligationSources(owner,lock),lock=>lockPortalCustomerPackageObligationSources(owner,lock));
   if(inputs.some(item=>item.packageId==="sales-ecommerce"))sourceLocks.push(lock=>lockEcommercePackageObligationSources(owner,lock),lock=>lockEcommerceSalesPackageObligationSources(owner,lock),lock=>lockEcommerceInventoryPackageObligationSources(owner,lock),lock=>lockEcommerceFinancePackageObligationSources(owner,lock));
   if(inputs.some(item=>item.packageId==="sales"))sourceLocks.push(lock=>lockSalesPackageObligationSources(owner,lock),lock=>lockSalesCRMPackageObligationSources(owner,lock),lock=>lockSalesInventoryPackageObligationSources(owner,lock),lock=>lockSalesFinancePackageObligationSources(owner,lock));
-  if(inputs.some(item=>["service","service-parts-assets"].includes(item.packageId)))sourceLocks.push(lock=>lockServicePackageObligationSources(owner,lock),lock=>lockServiceSupportPackageObligationSources(owner,lock),lock=>lockServiceInventoryPackageObligationSources(owner,lock),lock=>lockServiceAssetPackageObligationSources(owner,lock),lock=>lockServiceFinancePackageObligationSources(owner,lock));
   return withPackageSettlementSources(owner, companyId, sourceLocks, async transaction => {
     const before = await readCompanyPackageGrants(transaction, companyId);
     const result = await run(transaction);
@@ -136,6 +130,7 @@ export function withOwnerPackageObligations<Result>(owner: PostgresDatabase,
 
 /** Only concrete owner readers are registered. Missing owners remain errors. */
 export function readOwnerPackageObligations(owner: PostgresDatabase, transaction: SqlDatabase, input: PackageObligationInput) {
+  if(["service","service-parts-assets"].includes(input.packageId))throw new Error("NATIVE_SERVICE_PACKAGE_REQUIRED");
   owner.assertActiveTransaction(transaction);
   return readPackageObligations(transaction, input, {
     ...(["pos-restaurant","pos-hotel-charge","pms-minibar-linen"].includes(input.packageId)&&input.packageVersion===1?{
@@ -170,14 +165,7 @@ export function readOwnerPackageObligations(owner: PostgresDatabase, transaction
       inventory:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>salesInventoryPackageObligations(owner,database,request),
       finance:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>salesFinancePackageObligations(owner,database,request),
     }:{}),
-    ...(["service","service-parts-assets"].includes(input.packageId)&&input.packageVersion===1?{
-      field_service:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>servicePackageObligations(owner,database,request),
-      support:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>serviceSupportPackageObligations(owner,database,request),
-      inventory:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>serviceInventoryPackageObligations(owner,database,request),
-      assets:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>serviceAssetPackageObligations(owner,database,request),
-      finance:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>serviceFinancePackageObligations(owner,database,request),
-    }:{}),
-    ...(!["service","service-parts-assets"].includes(input.packageId)?{support: (database:SqlDatabase, request:PackageObligationInput & {moduleId:string}) => supportPackageObligations(owner, database, request)}:{}),
+    support: (database:SqlDatabase, request:PackageObligationInput & {moduleId:string}) => supportPackageObligations(owner,database,request),
     ...(["people-payroll","people-expenses"].includes(input.packageId)&&input.packageVersion===1?{
       people_payroll:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>peopleAddonPackageObligations(owner,database,request),
       finance:(database:SqlDatabase,request:PackageObligationInput & {moduleId:string})=>peopleAddonFinancePackageObligations(owner,database,request),

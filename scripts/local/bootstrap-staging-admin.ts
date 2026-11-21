@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { dirname, resolve, sep } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { hashPassword } from 'better-auth/crypto';
-import { getRuntime, closeRuntime } from '../../src/server/runtime/env';
+import { getRuntime, closeRuntime } from "@erpx/server-runtime/public/runtime/env";
 import { bootstrapAdmin } from './bootstrap-admin-service';
 
 const base='/Library/Application Support/ERPX-Staging';

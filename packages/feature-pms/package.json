@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public/native-pms": "./src/public/native-pms.ts",
     "./components/visual-prototype.module.css": "./src/components/visual-prototype.module.css",
     "./components/pms-backoffice-guests-screen": "./src/components/pms-backoffice-guests-screen.tsx",
     "./components/standard-pms-import": "./src/components/standard-pms-import.tsx",
@@ -45,6 +46,7 @@
     "./components/promptpay-counter": "./src/components/promptpay-counter.tsx",
     "./components/pms-front-front-desk-screen": "./src/components/pms-front-front-desk-screen.tsx",
     "./components/workspace": "./src/components/workspace.tsx",
+    "./adapters/server/native-pms": "./src/adapters/server/native-pms.ts",
     "./components/booking-policy-settings": "./src/components/booking-policy-settings.tsx",
     "./components/public-booking-reservation.module.css": "./src/components/public-booking-reservation.module.css",
     "./components/booking.module.css": "./src/components/booking.module.css",
@@ -234,10 +236,12 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
     "qrcode": "1.5.4",
-    "react": "19.3.0",
-    "zod": "4.5.4"
+    "react": "19.3.1",
+    "zod": "4.6.7",
+    "@erpx/contracts": "workspace:*",
+    "@erpx/feature-runtime": "workspace:*"
   }
 }

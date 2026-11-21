@@ -15,7 +15,7 @@ import { pmsSocialSourcePurchasePredicate } from '@erpx/server-pms/public/social
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 
-import { workPackageEnforcementMode, projectsPackageEnforcementMode, pmsPackageEnforcementMode, readPurchasedAccesses } from '@erpx/server-commercial/public/purchase-command-boundary';
+import { appsPackageEnforcementMode, projectsPackageEnforcementMode, pmsPackageEnforcementMode, readPurchasedAccesses } from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operationalHandoverReceiptPredicate,operationalHandoverBindings} from '@erpx/server-collaboration/adapters/work-social-source';
@@ -43,7 +43,7 @@ export function purchasedReadWhere(project:boolean,stories:boolean,typed=operati
 }
 export const projectOnlyReadWhere=()=>`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${projectRead('history',true)})`;
 export function pmsRead(purpose:CapabilityPurpose){return `EXISTS(SELECT 1 FROM social_purchase_actor WHERE NOT EXISTS(SELECT 1 FROM (${sourceRows}) source WHERE source.kind='pms_record' AND NOT EXISTS(SELECT 1 FROM (${socialPmsSourceFacts}) social_pms_source WHERE social_pms_source.id=source.id AND social_pms_source.company_id=p.company_id AND ${pmsSocialSourcePurchasePredicate(purpose)})))`;}
-export async function socialOwnerModes(){const [work,project,pms]=await Promise.all([workPackageEnforcementMode(),projectsPackageEnforcementMode(),pmsPackageEnforcementMode()]);return {work,project,pms,disabled:work==='disabled'&&project==='disabled'&&pms==='disabled'};}
+export async function socialOwnerModes(){const [work,project,pms]=await Promise.all([appsPackageEnforcementMode(),projectsPackageEnforcementMode(),pmsPackageEnforcementMode()]);return {work,project,pms,disabled:work==='disabled'&&project==='disabled'&&pms==='disabled'};}
 export function workSocialReadScope(database:SqlDatabase,actor:Reader,stories=false):Promise<ReadScope>{return socialReadScope(database,actor,stories);}
 export function workSocialProductReadScope(database:SqlDatabase,actor:Reader):Promise<ReadScope>{return socialReadScope(database,actor,false,true);}
 export async function socialReadScope(database:SqlDatabase,actor:Reader,stories=false,strict=false):Promise<ReadScope>{

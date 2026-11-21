@@ -2,6 +2,7 @@ import {collaborationNotificationSnapshotSources as operationsSnapshotSources} f
 const operationsSources=operationsSnapshotSources();
 import "server-only";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {nativeOwnerWriteSystemUnscoped} from "@erpx/server-collaboration/adapters/native-owner-write";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function HandoverCollaborationFacts(database: SqlDatabase) {
     return { readHandoverViewVersions(companyId: string, ids: string[]) {
@@ -41,7 +42,6 @@ export function HandoverCollaborationFacts(database: SqlDatabase) {
         AND NOT EXISTS(SELECT 1 FROM social_handover_acknowledgements WHERE post_id=? AND user_id=? AND post_version=?)`, [postId, userId, postId2, userId2, version]);
         },
         stageAcknowledgeHandoverEffect(postId: string, userId: string, version: number, now: number, key: string) {
-            return database.prepare(`INSERT INTO social_handover_acknowledgements(post_id,user_id,post_version,acknowledged_at,command_id)
-        VALUES(?,?,?,?,?)`).bind(postId, userId, version, now, key);
+            return nativeOwnerWriteSystemUnscoped(database, 'handover_ack_insert', [postId, userId, version, now, key], `handover-ack:${key}`, now);
         } };
 }

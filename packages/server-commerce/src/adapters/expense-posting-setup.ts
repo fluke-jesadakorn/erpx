@@ -1,4 +1,10 @@
 import 'server-only';
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
+  try { return await nativeCommerceOwnerWrite('settings.initialize', [actor.companyId, ...fields.map((f: string) => input[f])], actor.companyId, actor.userId, key); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 import {createHash,randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
@@ -22,6 +28,7 @@ import {posStartupCommerceReadLocks} from '@erpx/server-commerce/adapters/pos-po
 import {manufacturingPostingDocumentState} from '@erpx/server-commerce/adapters/sales-goods-posting-setup';
 import {expensePostingSetupSchema,type ExpensePostingSetupInput,type ExpensePostingSetupView,type ExpensePostingSetupResult} from '@erpx/server-commerce/domain/expense-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const operation='commerce.expense-posting-setup.initialize',capabilities=['people.directory','people.expenses'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
 const fields=Object.keys(columns) as (keyof typeof columns)[];
@@ -73,12 +80,13 @@ export async function initializeExpensePostingSetup(actor:WorkContext,raw:unknow
    if(before.mapping)throw new ApiError(409,'COMMERCE_POSTING_ALREADY_CONFIGURED','Retain the actual Company mapping; initial Expense setup never overwrites it.');
    if(before.history||finance.expenseEconomics||finance.historyInvalid)throw new ApiError(409,'EXPENSE_POSTING_HISTORY_REQUIRES_REVIEW','Reconcile original goods, Stock, production or Expense economic history before initial setup.');
    await validateExpensePostingFinanceState(database,actor,input,before.documents.history);
-   result=await executeCommand(database,actor,key,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[database.prepare(`INSERT INTO commerce_settings(company_id,${fields.map(field=>columns[field]).join(',')}) VALUES(${Array.from({length:fields.length+1},()=>'?').join(',')})`).bind(actor.companyId,...fields.map(field=>input[field]))]);
+   await nativeSettingsWrite(actor, input, key, fields);
+   result=await executeCommand(database,actor,key,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[]);
   }
   const created=await state(database,actor.companyId),createdFinance=await expensePostingFinanceState(database,actor);
   if(before.image!==created.image||finance.image!==createdFinance.image||(receipt?!isDeepStrictEqual(before.mapping,created.mapping):!matches(created.mapping,input,actor.companyId))||(!!receipt||!!finance.defaults)&&!isDeepStrictEqual(finance.service,createdFinance.service))throw changed();
   const expectedReceipt=await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image');if(!expectedReceipt||receipt&&receipt!==expectedReceipt)throw changed();
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);
   const finalSource=await state(database,actor.companyId),finalFinance=await expensePostingFinanceState(database,actor);if(!isDeepStrictEqual(created,finalSource)||createdFinance.image!==finalFinance.image||!isDeepStrictEqual(createdFinance.service,await expensePostingEffectiveService(database,actor))||expectedReceipt!==await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image'))throw changed();
   if(identity(current)!==identity(await requireExpensePostingFinanceAuthority(database,actor)))throw new ApiError(409,'EXPENSE_POSTING_CONTEXT_CHANGED','The original Company Finance authority changed.');
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});return result;

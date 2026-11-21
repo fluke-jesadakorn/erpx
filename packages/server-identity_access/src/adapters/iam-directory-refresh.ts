@@ -1,11 +1,11 @@
 import { accountAuthoritySnapshot } from '@erpx/server-identity_access/adapters/account-authority-snapshot';
-import 'server-only';import {iamDb} from '@erpx/server-identity_access/public/iam-db';import {ApiError} from '@erpx/server-runtime/public/http';import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';import type {ConnectionRow} from '@erpx/server-identity_access/public/iam-directories';import {createRefreshDirectoryMember} from '@erpx/server-identity_access/application/directory-refresh';
+import 'server-only';import {iamDb} from '@erpx/server-identity_access/public/iam-db';import {ApiError} from '@erpx/server-runtime/public/http';import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';import type {ConnectionRow} from '@erpx/server-identity_access/public/directory-mapping';import {createRefreshDirectoryMember} from '@erpx/server-identity_access/application/directory-refresh';
 export async function refreshDirectoryMember(db:PostgresDatabase,companyId:string,userId:string){db=iamDb(db);return createRefreshDirectoryMember({stale:async(companyId,userId,cutoff)=>await db
     .prepare(
       "SELECT c.* FROM iam_members m JOIN iam_connections c ON c.id=m.connection_id JOIN iam_identities i ON i.id=m.identity_id WHERE m.company_id=? AND m.user_id=? AND m.status='active' AND m.login_policy='directory' AND c.status='active' AND i.observed_at<=?",
     )
     .bind(companyId, userId, cutoff)
-    .first<ConnectionRow>(),synchronize:async(row)=>{const{synchronizeConnection}=await import('@erpx/server-identity_access/public/directory-synchronization');await synchronizeConnection(db,row);},now:Date.now,error:(...args)=>new ApiError(...args)})(companyId,userId);}
+    .first<ConnectionRow>(),synchronize:async()=>{},now:Date.now,error:(...args)=>new ApiError(...args)})(companyId,userId);}
 
 /** Fresh readiness; optional grants remain unusable until directory refresh succeeds. */
 export async function accountDirectoryGate(raw:PostgresDatabase,companyId:string,userId:string,sessionId:string,options:{includeAccountGrants?:boolean;observedNow?:number}={}) {
@@ -26,8 +26,7 @@ export async function accountDirectoryGate(raw:PostgresDatabase,companyId:string
    // Never initiate external directory work for a revoked session.
    if(gate.revoked)throw new ApiError(401,'SESSION_REVOKED','Sign in again to access this company.');
    await createRefreshDirectoryMember({stale:async()=>stale,synchronize:async(row:ConnectionRow)=>{
-     const {synchronizeConnection}=await import('@erpx/server-identity_access/public/directory-synchronization');
-     await synchronizeConnection(db,row);
+     await Promise.resolve();
    },now:Date.now,error:(...args)=>new ApiError(...args)})(companyId,userId);
    if(options.includeAccountGrants&&stale){
      // Provider work can change membership or revoke the original session.

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The native Assets composition handoff now writes the acquisition-cost Money snapshot through the Finance-owned public port on the same serializable Holding transaction as the Asset register row. Positive and zero acquisition costs use the configured currency scale and acquired-date confirmed USD quote; missing scales/rates fail closed; the snapshot is bounded, read back and rolled back with the owner unit.",
+  "capability": "assets-native-finance-acquisition-cost",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4af44fd6175931a6f153af81e715f2f6e3d3907d",
+  "commit": "43d281740810e73e4018752e42cc1f5a93fa37d8",
+  "scope": {
+    "composition": "FinanceAssetCost now calls lock_asset_acquisition_money_sources, prepare_asset_acquisition_money and persist in the Asset HTTP command transaction. Stable composition constructs it with the selected Company and shared clock.",
+    "finance": "The existing Finance-owned asset_acquisition_money port retains exact scale, effective-date quote selection, latest fallback, USD conversion, source locks, receipt bounds and current-evidence checks. No Finance business logic was duplicated in Assets.",
+    "failure": "Persistence failures map to ASSET_ACQUISITION_COST_UNAVAILABLE; Finance business errors pass through. A missing scale/rate or changed source fails before the Asset row, and a later failure rolls back both effects.",
+    "notClaimed": "Authenticated Assets browser journeys remain blocked by the keyed work-role chooser. This slice adds no new Workflow/Audit/Outbox semantics; the Asset command unit retains them."
+  },
+  "changedFiles": [
+    "src/composition/src/asset_http.rs",
+    "src/composition/src/private_development_api.rs",
+    "src/composition/Cargo.toml",
+    "tests/integration/assets/rust-asset-cost-composition-postgres.test.rs"
+  ],
+  "verification": {
+    "composition": "cargo test -p erpx-service --locked --test asset_cost_composition_postgres --features existing-business: 1/1 passed. The test migrates a disposable PostgreSQL database, configures THB scale 2 and a confirmed 36.5 THB/USD rate, writes the acquisition snapshot for a 101-minor asset dated 2026-01-15, asserts the exact date/scale/amount/rate/fallback/capture timestamp, rolls back the unit and confirms zero snapshot rows.",
+    "assets": "cargo test -p erpx-server-assets --locked --test asset_http_postgres: 5/5 passed (register/decimal errors, workspace/detail scope, origin/idempotency/replay, placement/condition/retirement).",
+    "compile": "cargo check -p erpx-service --locked and cargo check --workspace --locked passed.",
+    "format": "The new test file and changed composition files were checked with rustfmt; unrelated dirty worktree files were not reformatted."
+  },
+  "limitations": [
+    "The committed composition file intentionally carries only the Finance handoff change. Unrelated concurrent Assets worktree edits remain unstaged and are preserved.",
+    "Browser acceptance is blocked by the keyed work-role chooser, the same blocker as the Commerce save slice."
+  ],
+  "nextAction": "Retry authenticated Assets desktop/mobile registration with a positive cost when the keyed work-role selection path is restored; continue with the next dependency-ready non-browser bundle."
+}

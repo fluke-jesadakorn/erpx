@@ -1,26 +1,25 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import {useProviderContext} from "@erpx/feature-identity_access/components/provider-context-boundary";
-import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,type ProviderPackageCapture} from "@erpx/server-commercial/public/rules/provider-package-command";
+import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,type ProviderPackageCapture} from "@erpx/feature-commercial/provider-package-command";
 import { Button, Field, TextArea, TextInput, Select, Stack, Panel, InlineNotice, Badge } from "@erpx/ui/components/foundation";
 import { DraftFormDrawer } from "@erpx/ui/components/draft-form-drawer";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import { contextGeneration, contextIsSwitching, registerUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
-import type { providerCompanyPackageOverview } from "@erpx/server-commercial/public/provider-commercial";
-import type { PackageGrantBatch, PackageGrantBatchPreview } from "@erpx/server-commercial/public/package-grants";
-import type { CompanyPackageGrant } from "@erpx/server-commercial/public/rules/packages";
+import type { GrantBatch as PackageGrantBatch, GrantBatchPreview as PackageGrantBatchPreview, NativeServicePackageOverview as Snapshot, CompanyPackageGrant } from "@erpx/contracts/commercial-service";
 
-type Snapshot = Awaited<ReturnType<typeof providerCompanyPackageOverview>>;
 type Company = { id: string; name: string; slug?: string; holdingId: string; holding: string };
 type Draft = { packageId: string; packageVersion: number; state: CompanyPackageGrant["state"]; starts: string; ends: string; reason: string; evidence: string };
 type Review = { comparison: PackageGrantBatchPreview; request: PackageGrantBatch; review: { token: string; expiresAt: number } };
 const utc = (value: number | null) => value === null ? "" : new Date(value).toISOString().slice(0, 16);
 
-export function CompanyPackageManager({ companies, canApply, language }: { companies: Company[]; canApply: boolean; language: "en" | "th" }) {
+export function CompanyPackageManager({ companies, canApply, language, initial }: { companies: Company[]; canApply: boolean; language: "en" | "th"; initial?: { holdingId: string; companyId: string; snapshot: Snapshot } }) {
   const th = language === "th", ready = useHydrated(),{state:provider}=useProviderContext();
-  const [selected, setSelected] = useState(""), [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const initialKey = initial ? `${initial.holdingId}:${initial.companyId}` : "";
+  const [selected, setSelected] = useState(initialKey), [snapshot, setSnapshot] = useState<Snapshot | null>(initial?.snapshot ?? null);
   const [packageId, setPackageId] = useState(""), [draft, setDraft] = useState<Draft | null>(null), [baseline, setBaseline] = useState("");
   const [review, setReview] = useState<Review | null>(null), [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false), [error, setError] = useState(""), [receipt, setReceipt] = useState("");
@@ -44,7 +43,7 @@ export function CompanyPackageManager({ companies, canApply, language }: { compa
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
     const ticket = ++epoch.current, generation = contextGeneration(); setPending(true); setError("");
     try {
-      const response = await fetch(path, { method, cache: "no-store", signal: abort.signal,
+      const response = await holdingFetch(path, { method, cache: "no-store", signal: abort.signal,
         ...(method === "POST" ? { headers: { "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) }, body: JSON.stringify(input) } : {}) });
       const body = await response.json();
       if (ticket !== epoch.current || generation !== contextGeneration() || abort.signal.aborted) return;

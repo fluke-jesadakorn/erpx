@@ -1,0 +1,11 @@
+# Initial maintainer; update to real, authorized owners as the community grows.
+# Review responsibility does not assign copyright or establish independent review.
+* @fluke-jesadakorn
+
+# Shared architecture, automation and operational boundaries.
+/.github/ @fluke-jesadakorn
+/docs/adr/ @fluke-jesadakorn
+/packages/server-*/ @fluke-jesadakorn
+/packages/feature-*/ @fluke-jesadakorn
+/migrations/ @fluke-jesadakorn
+/ops/ @fluke-jesadakorn

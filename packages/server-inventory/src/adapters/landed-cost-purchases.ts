@@ -13,6 +13,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {commerceLandedCostReceiptSources,commerceLandedCostReceiptSource,commerceLandedCostSourceReadLocks} from "@erpx/server-commerce/public/landed-cost-purchase-sources";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const capabilities=["supply.advanced-inventory","supply.receiving","supply.stock"] as const;
 export type LandedCostPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export const landedCostPurchaseSourceRows=`SELECT c.id,c.company_id,c.branch_id,receipt.warehouse_id,c.fulfillment_id,receipt.order_id,receipt.warehouse_active,
@@ -23,7 +24,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  if(actor.departmentId||!hasPermission(actor,permission)||!hasPermission(actor,"finance.read"))throw new ApiError(403,"LANDED_COST_ACCESS_CHANGED","Choose a current original Finance assignment for landed cost.");
  for(const required of new Set(["finance.read",permission])){
  const row=await database.prepare(`SELECT ${assignmentReadSql("landed_cost_scope",required)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) landed_cost_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,"LANDED_COST_ACCESS_CHANGED","The original landed-cost assignment is no longer current.");}
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 async function source(database:SqlDatabase,actor:WorkContext,id:string){const row=await database.prepare(`SELECT id,fulfillment_id,witness::text witness FROM (${landedCostPurchaseSourceRows}) actual_cost WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)`).bind(id,actor.companyId,actor.branchId,actor.branchId).first<{id:string;fulfillment_id:string;witness:string}>();if(!row)throw new ApiError(404,"LANDED_COST_NOT_FOUND","The original landed-cost receipt is unavailable in this workspace.");return row;}
 export async function landedCostSourceAccess(database:SqlDatabase,actor:WorkContext,id?:string):Promise<LandedCostPurchaseControls|undefined>{
@@ -44,6 +45,6 @@ export async function withLandedCostPurchasedCommand<Result>(owner:SqlDatabase,a
  const scopes=[...capabilities,...(command.financial?["finance.inventory-valuation"]:[])].map(capability=>({companyId:actor.companyId,capability,purpose})),boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));
  for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await current(database,actor,key,command.permission);await database.batch(boundaries.flatMap(item=>item.boundary.before));const result=await run(database);await flushFinanceDeferredEffects(database);
  const after=await source(database,actor,command.id),afterReceipt=await commerceLandedCostReceiptSource(database,actor,receiptId),afterFinance=afterReceipt?await financeLandedCostReceiptSource(database,{companyId:actor.companyId,receiptId,journalId:afterReceipt.journal_id}):null;if(!afterFinance||JSON.stringify(afterFinance)!==JSON.stringify(finance)||after.fulfillment_id!==receiptId||before&&after.witness!==before.witness||!afterReceipt||afterReceipt.witness!==receipt.witness||purpose==="new-work"&&!afterReceipt.warehouse_active)throw new ApiError(409,"LANDED_COST_SOURCE_CHANGED","The original landed-cost receipt, allocation or warehouse changed before commit.");
- await current(database,actor,key,command.permission);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
+ await current(database,actor,key,command.permission);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

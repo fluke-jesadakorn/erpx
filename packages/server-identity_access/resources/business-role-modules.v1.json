@@ -1,0 +1,243 @@
+[
+  {
+    "id": "support_agent",
+    "modules": [
+      "support"
+    ]
+  },
+  {
+    "id": "support_manager",
+    "modules": [
+      "support"
+    ]
+  },
+  {
+    "id": "quality_inspector",
+    "modules": [
+      "quality"
+    ]
+  },
+  {
+    "id": "quality_manager",
+    "modules": [
+      "quality"
+    ]
+  },
+  {
+    "id": "legal_counsel",
+    "modules": [
+      "legal",
+      "collaboration"
+    ]
+  },
+  {
+    "id": "legal_manager",
+    "modules": [
+      "legal",
+      "collaboration"
+    ]
+  },
+  {
+    "id": "legal_requester",
+    "modules": [
+      "legal",
+      "collaboration"
+    ]
+  },
+  {
+    "id": "executive_author",
+    "modules": [
+      "collaboration"
+    ]
+  },
+  {
+    "id": "pms_reservation",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pms_frontdesk",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pms_cashier",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pms_housekeeping",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pms_supervisor",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pms_maintenance",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pms_night_auditor",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pms_manager",
+    "modules": [
+      "pms"
+    ]
+  },
+  {
+    "id": "pos_cashier",
+    "modules": [
+      "pos"
+    ]
+  },
+  {
+    "id": "pos_server",
+    "modules": [
+      "pos"
+    ]
+  },
+  {
+    "id": "pos_kitchen",
+    "modules": [
+      "pos"
+    ]
+  },
+  {
+    "id": "pos_manager",
+    "modules": [
+      "pos",
+      "inventory"
+    ]
+  },
+  {
+    "id": "it_admin",
+    "modules": [
+      "collaboration"
+    ]
+  },
+  {
+    "id": "employee",
+    "modules": [
+      "people_payroll",
+      "collaboration"
+    ]
+  },
+  {
+    "id": "people_manager",
+    "modules": [
+      "people_payroll",
+      "collaboration"
+    ]
+  },
+  {
+    "id": "hr_admin",
+    "modules": [
+      "people_payroll",
+      "collaboration"
+    ]
+  },
+  {
+    "id": "payroll_preparer",
+    "modules": [
+      "people_payroll"
+    ]
+  },
+  {
+    "id": "payroll_approver",
+    "modules": [
+      "people_payroll"
+    ]
+  },
+  {
+    "id": "finance_preparer",
+    "modules": [
+      "finance"
+    ]
+  },
+  {
+    "id": "finance_approver",
+    "modules": [
+      "finance",
+      "pms"
+    ]
+  },
+  {
+    "id": "treasury",
+    "modules": [
+      "finance",
+      "people_payroll"
+    ]
+  },
+  {
+    "id": "sales_operator",
+    "modules": [
+      "sales",
+      "crm",
+      "customer_360",
+      "inventory",
+      "support"
+    ]
+  },
+  {
+    "id": "sales_manager",
+    "modules": [
+      "sales",
+      "crm",
+      "customer_360",
+      "inventory",
+      "support",
+      "marketing"
+    ]
+  },
+  {
+    "id": "purchasing_operator",
+    "modules": [
+      "procurement",
+      "inventory"
+    ]
+  },
+  {
+    "id": "purchasing_manager",
+    "modules": [
+      "procurement",
+      "inventory"
+    ]
+  },
+  {
+    "id": "warehouse_manager",
+    "modules": [
+      "inventory",
+      "operations"
+    ]
+  },
+  {
+    "id": "operations_manager",
+    "modules": [
+      "inventory",
+      "operations",
+      "procurement"
+    ]
+  },
+  {
+    "id": "auditor",
+    "modules": [
+      "finance",
+      "people_payroll",
+      "inventory"
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "runtime": "v26.11.1",
+  "purpose": "erpx/directory/selected-profile/v1",
+  "material": "explicit synthetic literals only",
+  "messageByteLength": 701,
+  "hmacSha256": "fd229c71067deacd958a857c1db0f01d5b14ca1d9644988d4e43f73330ddb33c"
+}

@@ -14,6 +14,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {inventoryTransferSources} from "@erpx/server-commerce/public/inventory-transfers-sources";
 import {inventoryTransitSources} from "@erpx/server-commerce/public/inventory-transit-sources";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 export type TransferPurchaseTarget={kind:"transfer"|"transit";id:string};
@@ -38,7 +39,7 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permissions:r
    .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
   if(!assignment?.allowed)throw new ApiError(403,"TRANSFER_ACCESS_CHANGED","The original warehouse assignment is no longer current.");
  }
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 /** Supply management only. Shared stock facts used by POS, Hotel, Sales and
  * Manufacturing retain their named owner contracts. */
@@ -87,7 +88,7 @@ export async function withTransferPurchasedCommand<Result>(owner:SqlDatabase,act
   const warehouseGuards=replay?[]:locations.map(side=>command.target.kind==="transfer"
    ?inventoryTransferSources(database).guardWarehouseVersion(key,`final-${side}-warehouse`,after[`${side}_warehouse_id` as keyof Source]??null,actor.companyId,after[`${side}_branch_id` as keyof Source]??null,after[`${side}_warehouse_version` as keyof Source]??null)
    :inventoryTransitSources(database).guardActiveLocation(key,`final-${side}-warehouse`,after[`${side}_warehouse_id` as keyof Source]??null,actor.companyId,after[`${side}_branch_id` as keyof Source]??null));
-  const observations=await database.batch([...warehouseGuards,...boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+  const observations=await database.batch([...warehouseGuards,...boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]),clearWorkflowCommandAssertions(database, key)]);
   boundaries[0]?.boundary.observe?.(observations);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

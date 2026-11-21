@@ -3,7 +3,7 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { RoleRevision } from "@erpx/feature-identity_access/lib/iam";
 import type { WorkspaceGrantFact } from '@erpx/server-identity_access/domain/authorization';
-import type { ConnectionRow } from '@erpx/server-identity_access/public/iam-directories';
+import type { ConnectionRow } from '@erpx/server-identity_access/domain/directories';
 import { identitySnapshotSources } from '@erpx/server-organization/public/identity-snapshot-sources';
 const organizationSources=identitySnapshotSources();
 export type AccountAuthoritySnapshot = {

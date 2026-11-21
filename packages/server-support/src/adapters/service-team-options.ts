@@ -2,7 +2,7 @@ import { finalRootOwnerProjectionSources as organizationProjectionSources } from
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { ServiceTeam } from "@erpx/server-support/adapters/service-teams";
+import type { ServiceTeam } from "@erpx/server-support/domain/service-teams";
 import { serviceOwner } from "@erpx/server-support/adapters/service-access";
 import { companyMembers } from "@erpx/server-organization/public/member-directory";
 import { createServiceTeamOptions } from "@erpx/server-support/application/service-team-options";

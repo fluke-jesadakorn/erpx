@@ -8,7 +8,7 @@ import { type FinanceChart } from "@erpx/feature-finance/components/finance-char
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { financeSetupWorkspace } from "@erpx/server-finance/public/finance-workspace";
+import { readFinanceSetup } from "../_native-setup";
 import { ledgerWorkspace } from "@erpx/server-finance/public/ledger";
 
 export default async function FinanceSetupPage({ params, searchParams }: {
@@ -20,7 +20,7 @@ export default async function FinanceSetupPage({ params, searchParams }: {
     const { holdingSlug } = await params, query = searchParams ? await searchParams : {}, requestedChart = typeof query.chart === "string" ? query.chart : null;
     const actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor));
     const profiles = await accountingProfiles(actor);
-    const setup = await financeSetupWorkspace(actor), ledger = setup.charts.length ? await ledgerWorkspace(actor, requestedChart ?? undefined) : null;
+    const setup = (await readFinanceSetup(actor, holdingSlug)).setup, ledger = setup.charts.length ? await ledgerWorkspace(actor, requestedChart ?? undefined) : null;
     const step = "profile";
     
     

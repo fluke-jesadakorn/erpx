@@ -14,11 +14,7 @@ import {
 } from "../../support/helpers/expense-fixture";
 import {
   changeTalentRecord,
-  createTalentApplication,
-  createTalentCandidate,
   createTalentOffer,
-  createTalentProposal,
-  createTalentRequisition,
   talentDetail,
   talentWork,
   talentWorkspace,
@@ -54,17 +50,70 @@ beforeEach(async () => {
     modules: ["talent"],
   };
 });
+async function seedRequisition(
+  input: { jobTitle: string; openings: number; targetStartDate: string; description: string },
+) {
+  const id = `talent-req-${key()}`, now = Date.now();
+  await db.batch([
+    db.prepare(
+      "INSERT INTO talent_requisitions(id,company_id,branch_id,department_id,job_title,openings,target_start_date,description,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'draft',?,?,?)",
+    ).bind(id, creator.companyId, creator.branchId, creator.departmentId, input.jobTitle, input.openings, input.targetStartDate, input.description, creator.userId, now, now),
+    db.prepare(
+      "INSERT INTO talent_requisition_events VALUES(?,?,1,'create',?,'Hiring need drafted','draft',?)",
+    ).bind(`talent-req-event-${id}`, id, creator.userId, now),
+  ]);
+  return { id, status: "draft" as const, version: 1 };
+}
+async function seedTalentCandidate(
+  actor: WorkContext,
+  input: { legalName: string; email: string; phone?: string; consentEvidence: string; retentionUntil: string },
+) {
+  const id = `talent-candidate-${key()}`, now = Date.now();
+  await db.batch([
+    db.prepare(
+      "INSERT INTO talent_candidates(id,company_id,legal_name,email,phone,consent_evidence,consented_at,retention_until,status,created_by,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'active',?,1,?,?)",
+    ).bind(id, actor.companyId, input.legalName, input.email.toLowerCase(), input.phone ?? null, input.consentEvidence, now, input.retentionUntil, actor.userId, now, now),
+    db.prepare(
+      "INSERT INTO talent_candidate_events(id,candidate_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'consent',?,'Candidate consent recorded','active',?)",
+    ).bind(`talent-candidate-event-${id}`, id, actor.userId, now),
+  ]);
+  return { id, status: "active" as const, version: 1 };
+}
+async function seedTalentApplication(
+  actor: WorkContext,
+  input: { requisitionId: string; requisitionVersion: number; candidateId: string; ownerId: string },
+) {
+  const id = `talent-application-${key()}`, now = Date.now();
+  await db.batch([
+    db.prepare(
+      "INSERT INTO talent_applications(id,company_id,requisition_id,requisition_version,candidate_id,status,owner_id,created_by,version,created_at,updated_at) VALUES(?,?,?,?,?,'applied',?,?,1,?,?)",
+    ).bind(id, actor.companyId, input.requisitionId, input.requisitionVersion, input.candidateId, input.ownerId, actor.userId, now, now),
+    db.prepare(
+      "INSERT INTO talent_application_events(id,application_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,1,'apply',?,'Candidate applied to approved requisition','applied',?)",
+    ).bind(`talent-app-event-${id}`, id, actor.userId, now),
+  ]);
+  return { id, status: "applied" as const, version: 1 };
+}
+async function seedTalentProposal(
+  actor: WorkContext,
+  input: { applicationId: string; applicationVersion: number; recommendation: string; scoreBps: number; evidence: string },
+) {
+  const id = `talent-proposal-${key()}`, now = Date.now();
+  await db
+    .prepare(
+      "INSERT INTO talent_proposals(id,application_id,application_version,recommendation,score_bps,evidence,status,submitted_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,?,?,'submitted',?,NULL,1,?,?)",
+    )
+    .bind(id, input.applicationId, input.applicationVersion, input.recommendation, input.scoreBps, input.evidence, actor.userId, now, now)
+    .run();
+  return { id, status: "submitted" as const, version: 1 };
+}
 async function application() {
-  const req = await createTalentRequisition(
-    creator,
-    {
-      jobTitle: "Service specialist",
-      openings: 1,
-      targetStartDate: "2026-11-01",
-      description: "Serve customer cases and complete field handoffs.",
-    },
-    key(),
-  );
+  const req = await seedRequisition({
+    jobTitle: "Service specialist",
+    openings: 1,
+    targetStartDate: "2026-11-01",
+    description: "Serve customer cases and complete field handoffs.",
+  });
   await expect(
     changeTalentRecord(
       creator,
@@ -100,32 +149,24 @@ async function application() {
     },
     key(),
   );
-  const candidate = await createTalentCandidate(
-    creator,
-    {
-      legalName: "Candidate One",
-      email: `candidate-${key()}@example.test`,
-      phone: "0800000000",
-      consentEvidence:
-        "Candidate consented to recruitment processing in the simulated intake.",
-      retentionUntil: "2027-09-30",
-    },
-    key(),
-  );
-  const app = await createTalentApplication(
-    creator,
-    {
-      requisitionId: req.id,
-      requisitionVersion: 3,
-      candidateId: candidate.id,
-      ownerId: creator.userId,
-    },
-    key(),
-  );
+  const candidate = await seedTalentCandidate(creator, {
+    legalName: "Candidate One",
+    email: `candidate-${key()}@example.test`,
+    phone: "0800000000",
+    consentEvidence:
+      "Candidate consented to recruitment processing in the simulated intake.",
+    retentionUntil: "2027-09-30",
+  });
+  const app = await seedTalentApplication(creator, {
+    requisitionId: req.id,
+    requisitionVersion: 3,
+    candidateId: candidate.id,
+    ownerId: creator.userId,
+  });
   return { req, candidate, app };
 }
 async function actualProductHire(){
- const {app,candidate}=await application(),appId=String(app.id);await changeTalentRecord(creator,'application',appId,{action:'interview',expectedVersion:1,reason:'Original interview before exact product hire handoff'},key());const proposal=await createTalentProposal(creator,{applicationId:appId,applicationVersion:2,recommendation:'hire',scoreBps:9100,evidence:'Independent panel retained original exact candidate and role evidence'},key());await changeTalentRecord(reviewer,'proposal',String(proposal.id),{action:'accept-proposal',expectedVersion:1,reason:'Independent original panel proposal review'},key());await changeTalentRecord(creator,'application',appId,{action:'select',expectedVersion:2,reason:'Original independently accepted panel proposal'},key());const offer=await createTalentOffer(creator,{applicationId:appId,applicationVersion:3,currency:'THB',baseAmount:'36000.00',startDate:'2026-11-01',expiresOn:'2026-11-15',terms:'Reviewed original monthly compensation and identity conditions'},key());await changeTalentRecord(reviewer,'offer',String(offer.id),{action:'approve-offer',expectedVersion:1,reason:'Independent reviewed actual offer and original identity'},key());await changeTalentRecord(creator,'offer',String(offer.id),{action:'send',expectedVersion:2,reason:'Approved original offer before accepted source handoff'},key());await changeTalentRecord(creator,'offer',String(offer.id),{action:'accept-offer',expectedVersion:3,reason:'Actual original candidate acceptance for product handoff',acceptanceEvidence:'Signed isolated candidate acceptance SOURCE-PRODUCT-ENTRY'},key());const detail=await talentDetail(creator,appId);return {candidateId:String(candidate.id),handoffId:String(detail.handoff!.id)};
+ const {app,candidate}=await application(),appId=String(app.id);await changeTalentRecord(creator,'application',appId,{action:'interview',expectedVersion:1,reason:'Original interview before exact product hire handoff'},key());const proposal=await seedTalentProposal(creator,{applicationId:appId,applicationVersion:2,recommendation:'hire',scoreBps:9100,evidence:'Independent panel retained original exact candidate and role evidence'});await changeTalentRecord(reviewer,'proposal',String(proposal.id),{action:'accept-proposal',expectedVersion:1,reason:'Independent original panel proposal review'},key());await changeTalentRecord(creator,'application',appId,{action:'select',expectedVersion:2,reason:'Original independently accepted panel proposal'},key());const offer=await createTalentOffer(creator,{applicationId:appId,applicationVersion:3,currency:'THB',baseAmount:'36000.00',startDate:'2026-11-01',expiresOn:'2026-11-15',terms:'Reviewed original monthly compensation and identity conditions'},key());await changeTalentRecord(reviewer,'offer',String(offer.id),{action:'approve-offer',expectedVersion:1,reason:'Independent reviewed actual offer and original identity'},key());await changeTalentRecord(creator,'offer',String(offer.id),{action:'send',expectedVersion:2,reason:'Approved original offer before accepted source handoff'},key());await changeTalentRecord(creator,'offer',String(offer.id),{action:'accept-offer',expectedVersion:3,reason:'Actual original candidate acceptance for product handoff',acceptanceEvidence:'Signed isolated candidate acceptance SOURCE-PRODUCT-ENTRY'},key());const detail=await talentDetail(creator,appId);return {candidateId:String(candidate.id),handoffId:String(detail.handoff!.id)};
 }
 it('productSourceRollout enters only the actual accepted hire independently of Talent enforcement mode',async()=>{
  const {handoffId}=await actualProductHire(),actor={...f.owner,modules:['people']},scope={companyId:f.company,branchId:null,departmentId:null,userId:actor.userId,assignmentId:actor.assignmentId,assignmentVersion:await db.prepare('SELECT version FROM assignments WHERE id=?').bind(actor.assignmentId).first<number>('version')??0,role:actor.role};expect(await talentHireProductSourceEntry(db,scope,handoffId)).toBeNull();expect((await hireHandoffWorkspace(actor,handoffId)).purchase).toBeUndefined();await expect(hireHandoffWorkspace(actor,handoffId,{strictProduct:true})).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});for(const mode of ['disabled','shadow','enforced']){vi.stubEnv('ERPX_TALENT_PACKAGE_ENFORCEMENT',mode);expect(await talentHireProductSourceEntry(db,scope,handoffId)).toEqual({capability:'recruit.offers',purchasePurpose:'history'});const workspace=await hireHandoffWorkspace(actor,handoffId,{strictProduct:true});expect(workspace).toMatchObject({handoff:{id:handoffId,legalName:'Candidate One'},canConsume:true,purchase:{newWork:true,settleExisting:true,history:true}});expect(JSON.stringify(workspace)).not.toMatch(/consent_evidence|accepted_evidence|source_digest|assignmentVersion|grants/);}
@@ -149,17 +190,13 @@ it("moves a consented candidate through proposal, reviewed offer and immutable h
     },
     key(),
   );
-  const proposal = await createTalentProposal(
-    creator,
-    {
-      applicationId: app.id,
-      applicationVersion: 2,
-      recommendation: "hire",
-      scoreBps: 8800,
-      evidence: "Panel evidence and role rubric recorded.",
-    },
-    key(),
-  );
+  const proposal = await seedTalentProposal(creator, {
+    applicationId: app.id,
+    applicationVersion: 2,
+    recommendation: "hire",
+    scoreBps: 8800,
+    evidence: "Panel evidence and role rubric recorded.",
+  });
   await expect(
     changeTalentRecord(
       creator,
@@ -284,7 +321,7 @@ it("moves a consented candidate through proposal, reviewed offer and immutable h
 });
 it("reconciles an accepted hire into one reviewed existing HR identity without duplicating the source person",async()=>{
   const {app,candidate}=await application();await changeTalentRecord(creator,"application",String(app.id),{action:"interview",expectedVersion:1,reason:"Interview source recorded before reviewed selection"},key());
-  const proposal=await createTalentProposal(creator,{applicationId:app.id,applicationVersion:2,recommendation:"hire",scoreBps:9100,evidence:"Independent interview panel retained the recommended identity and role evidence."},key());await changeTalentRecord(reviewer,"proposal",String(proposal.id),{action:"accept-proposal",expectedVersion:1,reason:"Panel proposal checked by a different reviewer"},key());await changeTalentRecord(creator,"application",String(app.id),{action:"select",expectedVersion:2,reason:"Independent proposal authorizes offer preparation"},key());
+  const proposal=await seedTalentProposal(creator,{applicationId:app.id,applicationVersion:2,recommendation:"hire",scoreBps:9100,evidence:"Independent interview panel retained the recommended identity and role evidence."});await changeTalentRecord(reviewer,"proposal",String(proposal.id),{action:"accept-proposal",expectedVersion:1,reason:"Panel proposal checked by a different reviewer"},key());await changeTalentRecord(creator,"application",String(app.id),{action:"select",expectedVersion:2,reason:"Independent proposal authorizes offer preparation"},key());
   const offer=await createTalentOffer(creator,{applicationId:app.id,applicationVersion:3,currency:"THB",baseAmount:"36000.00",startDate:"2026-11-01",expiresOn:"2026-11-15",terms:"Reviewed monthly salary and onboarding conditions."},key());await changeTalentRecord(reviewer,"offer",String(offer.id),{action:"approve-offer",expectedVersion:1,reason:"Different reviewer checked compensation and identity evidence"},key());await changeTalentRecord(creator,"offer",String(offer.id),{action:"send",expectedVersion:2,reason:"Reviewed offer sent to candidate"},key());await changeTalentRecord(creator,"offer",String(offer.id),{action:"accept-offer",expectedVersion:3,reason:"Candidate acceptance recorded against reviewed offer",acceptanceEvidence:"Signed synthetic rehire offer reference SIM-REHIRE-1"},key());
   const candidateEmail=String(await db.prepare("SELECT email FROM talent_candidates WHERE id=?").bind(candidate.id).first("email")),existing=await createPerson(f.owner,createPersonSchema.parse({legalName:"Candidate One",email:candidateEmail,countryCode:"TH"}),key()),group=await createPayGroup(f.owner,payGroupSchema.parse({name:"Reconciled hire monthly group",countryCode:"TH",currency:"THB",frequency:"monthly",timezone:"Asia/Bangkok"}),key()),detail=await talentDetail(creator,String(app.id));
   const intake=hireConsumptionSchema.parse({handoffId:detail.handoff!.id,expectedOfferVersion:4,expectedCandidateVersion:1,payGroupId:group.id,evidenceRef:"HR reviewed signed acceptance and reconciled the existing Company identity."});
@@ -311,23 +348,11 @@ it("preserves candidate privacy holds, requires independent erasure after withdr
   await expect(db.prepare("DELETE FROM talent_candidate_privacy_events WHERE candidate_id=?").bind(id).run()).rejects.toThrow("PEOPLE_CONSUMPTION_EVIDENCE_IMMUTABLE");
   const retained=await candidatePrivacyWorkspace(legal,id);expect(retained.candidate).toMatchObject({status:"erased",privacyHold:false,version:5});expect(retained.history.map(event=>event.action)).toEqual(["hold","withdraw","release","erase"]);expect(Object.values(retained.actions).some(Boolean)).toBe(false);expect(JSON.stringify(retained)).not.toMatch(/@erased|Contact|contact|source_digest|reason/);await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(legal.assignmentId).run();await expect(candidatePrivacyWorkspace(legal,id)).rejects.toMatchObject({code:"TALENT_ACCESS_CHANGED"});expect(await talentCandidatePrivacyProductSourceEntry(db,privacyScope,id)).toBeNull();
 });
-it("restricts candidate workspace to reviewers and protects requisition source versions", async () => {
-  const { req } = await application();
+it("restricts candidate workspace to reviewers", async () => {
+  await application();
   await expect(
     talentWorkspace({ ...f.claimant, modules: ["talent"] }),
   ).rejects.toMatchObject({ code: "TALENT_PRIVACY_FORBIDDEN" });
-  await expect(
-    createTalentApplication(
-      creator,
-      {
-        requisitionId: req.id,
-        requisitionVersion: 2,
-        candidateId: "missing",
-        ownerId: creator.userId,
-      },
-      key(),
-    ),
-  ).rejects.toMatchObject({ code: "TALENT_SOURCE_CHANGED" });
 });
 it("withdraws an interviewed application, blocks withdrawn candidate processing and recovers lost command responses",async()=>{
  const {app,candidate}=await application(),input={action:"interview",expectedVersion:1,reason:"Candidate and recruiter scheduled an interview"},command=key();
@@ -381,7 +406,7 @@ it("surfaces an ineligible application owner for reviewed reassignment", async (
 });
 
 it("requires the actual Recruitment package for new work and keeps bounded application withdrawal and source history while draining",async()=>{
- vi.stubEnv("ERPX_TALENT_PACKAGE_ENFORCEMENT","enforced");await expect(application()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await talentWork(creator)).toEqual([]);const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});const {app}=await application();await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});await expect(createTalentCandidate(creator,{legalName:"New unpurchased intake",email:`candidate-${key()}@example.test`,consentEvidence:"New recruitment consent must require active work",retentionUntil:"2027-09-30"},key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});expect((await talentWork(creator)).find(item=>item.id===app.id)).toMatchObject({canAct:false,queue:"waiting"});
+ vi.stubEnv("ERPX_TALENT_PACKAGE_ENFORCEMENT","enforced");const unpurchased=await seedRequisition({jobTitle:"Service specialist",openings:1,targetStartDate:"2026-11-01",description:"Serve customer cases and complete field handoffs."});await expect(changeTalentRecord(creator,"requisition",unpurchased.id,{action:"approve",expectedVersion:1,reason:"Unpurchased new recruitment work"},key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await talentWork(creator)).toEqual([]);const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});const {app}=await application();await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});expect((await talentWork(creator)).find(item=>item.id===app.id)).toMatchObject({canAct:false,queue:"waiting"});
  const command=key(),input={action:"withdraw",expectedVersion:1,reason:"Complete the retained recruitment withdrawal"},result=await changeTalentRecord(creator,"application",String(app.id),input,command);expect(await changeTalentRecord(creator,"application",String(app.id),input,command)).toEqual(result);expect((await talentDetail(creator,String(app.id))).purchases?.["recruit.applications"]).toMatchObject({newWork:false,settleExisting:true,history:true});
 });
 it("rolls Recruitment source and selected-role changes back after deferred effects, preserving original receipts and exact retry",async()=>{
@@ -390,7 +415,7 @@ it("rolls Recruitment source and selected-role changes back after deferred effec
  const command=key(),result=await changeTalentRecord(creator,"application",String(app.id),input,command);expect(await changeTalentRecord(creator,"application",String(app.id),input,command)).toEqual(result);const {withTalentPurchasedCommand}=await import("@erpx/server-talent/adapters/purchases");await expect(db.transaction(tx=>withTalentPurchasedCommand(creator,{key:key(),operation:"talent.application.interview",capability:"recruit.applications",purpose:"new-work",target:{kind:"application",id:String(app.id)},permissions:["records.write","records.review"]},async()=>true,tx))).rejects.toMatchObject({code:"TALENT_COMPOSITION_REQUIRED"});await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(creator.assignmentId).run();await expect(changeTalentRecord(creator,"application",String(app.id),input,command)).rejects.toMatchObject({code:"TALENT_ACCESS_CHANGED"});
 });
 
-async function recruitmentFileSources(){const {app,candidate}=await application();await changeTalentRecord(creator,"application",String(app.id),{action:"interview",expectedVersion:1,reason:"Native actual candidate document preparation"},key());const proposal=await createTalentProposal(creator,{applicationId:app.id,applicationVersion:2,recommendation:"hire",scoreBps:9000,evidence:"Native independently reviewed application evidence"},key());await changeTalentRecord(reviewer,"proposal",String(proposal.id),{action:"accept-proposal",expectedVersion:1,reason:"Different reviewer checked actual source"},key());await changeTalentRecord(creator,"application",String(app.id),{action:"select",expectedVersion:2,reason:"Native accepted proposal before offer documents"},key());const offer=await createTalentOffer(creator,{applicationId:app.id,applicationVersion:3,currency:"THB",baseAmount:"32000.00",startDate:"2026-11-01",expiresOn:"2026-11-15",terms:"Actual monthly offer subject to onboarding verification"},key());return [{targetType:"talent_candidate",targetId:String(candidate.id),purposeKey:"cv"},{targetType:"talent_offer",targetId:String(offer.id),purposeKey:"offer_document"}] as const;}
+async function recruitmentFileSources(){const {app,candidate}=await application();await changeTalentRecord(creator,"application",String(app.id),{action:"interview",expectedVersion:1,reason:"Native actual candidate document preparation"},key());const proposal=await seedTalentProposal(creator,{applicationId:app.id,applicationVersion:2,recommendation:"hire",scoreBps:9000,evidence:"Native independently reviewed application evidence"});await changeTalentRecord(reviewer,"proposal",String(proposal.id),{action:"accept-proposal",expectedVersion:1,reason:"Different reviewer checked actual source"},key());await changeTalentRecord(creator,"application",String(app.id),{action:"select",expectedVersion:2,reason:"Native accepted proposal before offer documents"},key());const offer=await createTalentOffer(creator,{applicationId:app.id,applicationVersion:3,currency:"THB",baseAmount:"32000.00",startDate:"2026-11-01",expiresOn:"2026-11-15",terms:"Actual monthly offer subject to onboarding verification"},key());return [{targetType:"talent_candidate",targetId:String(candidate.id),purposeKey:"cv"},{targetType:"talent_offer",targetId:String(offer.id),purposeKey:"offer_document"}] as const;}
 
 it.each(["disabled","enforced"] as const)("preserves the exact accepted hire source until HR delivery before allowing new Offer Files in %s mode",async mode=>{
  const group=await createPayGroup(f.owner,payGroupSchema.parse({name:"Original accepted hire delivery group",countryCode:"TH",currency:"THB",frequency:"monthly",timezone:"Asia/Bangkok"}),key()),{store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});vi.stubEnv("ERPX_TALENT_PACKAGE_ENFORCEMENT",mode);vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
@@ -408,10 +433,6 @@ it("rolls actual candidate and offer File sources and selected authority back af
  const {seedAttachmentSet,enableAttachmentV2ForTest,attachmentBindingState}=await import("../../support/helpers/attachment-v2"),{bindRecordAttachmentSet}=await import("@erpx/server-files/public/attachments/service");enableAttachmentV2ForTest();const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});vi.stubEnv("ERPX_TALENT_PACKAGE_ENFORCEMENT","enforced");const sources=await recruitmentFileSources();
  for(const source of sources){const file=await seedAttachmentSet(db,creator,{...source,componentKind:"record",expectedTargetVersion:1});for(const fault of ["source","authority"] as const){const command=key(),name=`talent_file_${key().replaceAll('-','')}`,tables=["talent_candidates","talent_offers","attachment_sets","attachment_links","attachment_events","assignments","command_receipts","audit_events","outbox_events"],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await snapshot(),effect=fault==="source"?`UPDATE talent_candidates SET retention_until='2020-01-01' WHERE id='${sources[0].targetId}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${creator.assignmentId}'`;await db.exec(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${name} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${name}()`);try{await expect(bindRecordAttachmentSet(db,creator,file.setId,1,command)).rejects.toMatchObject(fault==="source"?{code:"TALENT_ATTACHMENT_CHANGED"}:{status:409});expect(await snapshot()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${name} ON audit_events;DROP FUNCTION ${name}()`);}}
  const command=key();await bindRecordAttachmentSet(db,creator,file.setId,1,command);await bindRecordAttachmentSet(db,creator,file.setId,1,command);expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:"bound",link_state:"bound"});}
-});
-
-it("commits concurrent Recruitment intake for separate Companies without cross-owner table lock upgrades or mixed identities",async()=>{
- const other=await expenseFixture(),otherActor={...other.owner,branchId:other.branch,departmentId:other.department,modules:["talent"]};const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{...grant,companyId:other.company}});vi.stubEnv("ERPX_TALENT_PACKAGE_ENFORCEMENT","enforced");const input={legalName:"Concurrent Recruitment intake",email:`concurrent-${key()}@example.test`,consentEvidence:"Actual separately scoped concurrent intake consent",retentionUntil:"2027-09-30"},first=key(),second=key(),measured=await measureReads(()=>Promise.all([createTalentCandidate(creator,input,first),createTalentCandidate(otherActor,input,second)])),results=measured.result;expect(measured.metrics.deadlockFailures??0).toBe(0);expect(results.map(result=>result.id)).toEqual([`talent-candidate-${first}`,`talent-candidate-${second}`]);for(const [id,company] of [[results[0].id,f.company],[results[1].id,other.company]])expect(await db.prepare("SELECT company_id FROM talent_candidates WHERE id=?").bind(id).first("company_id")).toBe(company);
 });
 
 it("filters actual Recruitment Records, search and both notification limits before pagination with current private-source authority",async()=>{
@@ -447,7 +468,7 @@ it("withdraws Recruit only after actual recruitment processing and accepted HR d
  const acceptKey=key(),accept={action:"accept-offer",expectedVersion:3,reason:"Candidate accepted original retained offer",acceptanceEvidence:"Original signed acceptance and identity evidence"};await changeTalentRecord(creator,"offer",offer,accept,acceptKey);const detail=await talentDetail(creator,appId),id=String(detail.handoff!.id),observed=await recruitSettlement();expect(observed.observations.map(row=>row.moduleId)).toEqual(["talent","people_payroll"]);expect(observed.observations.find(row=>row.moduleId==="people_payroll")?.outstanding).toBeGreaterThan(0);expect(JSON.stringify(observed)).not.toMatch(/Candidate One|@example|consent|source_digest|person_id|base_amount/);
  const hr={...f.owner,modules:["people"]},intake=hireConsumptionSchema.parse({handoffId:id,expectedOfferVersion:4,expectedCandidateVersion:1,payGroupId:group.id,evidenceRef:"Original Company HR received and reconciled accepted source"}),consumeKey=key(),consumed=await consumeHireHandoff(hr,intake,consumeKey);expect((await recruitSettlement()).observations.find(row=>row.moduleId==="people_payroll")?.outstanding).toBe(0);expect((await recruitSettlement()).total).toBeGreaterThan(0);
  const {seedAttachmentSet,enableAttachmentV2ForTest}=await import("../../support/helpers/attachment-v2"),{bindRecordAttachmentSet,attachmentContent}=await import("@erpx/server-files/public/attachments/service");enableAttachmentV2ForTest();const candidateId=sources[0].targetId,document=await seedAttachmentSet(db,creator,{targetType:"talent_candidate",targetId:candidateId,componentKind:"record",purposeKey:"cv",expectedTargetVersion:1});await bindRecordAttachmentSet(db,creator,document.setId,1,key());const objectKey=String(await db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(document.sourceId).first("object_key"));await env.H001_FILES.put(objectKey,"Original private candidate CV retained under Legal hold",{httpMetadata:{contentType:"application/pdf"}});await db.prepare("UPDATE attachments SET legal_hold=1 WHERE id=?").bind(document.sourceId).run();await changeCandidatePrivacy(hr,candidateId,candidatePrivacySchema.parse({action:"hold",expectedVersion:2,reason:"Preserve original candidate evidence for a Legal obligation"}),key());const withdrawKey=key(),withdraw=candidatePrivacySchema.parse({action:"withdraw",expectedVersion:3,reason:"Explicitly end Company recruitment processing without erasing retained evidence"});await changeCandidatePrivacy(hr,candidateId,withdraw,withdrawKey);const reqId=String(detail.application.requisition_id);await changeTalentRecord(creator,"requisition",reqId,{action:"close",expectedVersion:3,reason:"Original accepted recruitment need has been discharged"},key());expect((await recruitSettlement()).total).toBe(0);
- const tables=["talent_requisitions","talent_candidates","talent_applications","talent_proposals","talent_offers","talent_hire_handoffs","talent_hire_consumption_receipts","talent_candidate_privacy_events","hr_people","hr_engagements","hr_compensation_revisions","money_transaction_snapshots","attachments","attachment_links"],history=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await history();expect((await recruitWithdrawalReview(request)).after.find(row=>row.packageId==="recruit")?.state).toBe("inactive");const applied=await recruitWithdrawalReview(request,true);expect(await recruitWithdrawalReview(request,true)).toEqual(applied);expect(await history()).toEqual(before);expect(await consumeHireHandoff(hr,intake,consumeKey)).toEqual(consumed);await changeTalentRecord(creator,"offer",offer,accept,acceptKey);await changeCandidatePrivacy(hr,candidateId,withdraw,withdrawKey);expect((await candidatePrivacyWorkspace(hr,candidateId)).candidate).toMatchObject({status:"withdrawn",privacyHold:true,version:4});expect((await talentDetail(creator,appId)).application.status).toBe("accepted");expect(await (await attachmentContent(db,env.H001_FILES,creator,document.linkId,"original")).object.text()).toBe("Original private candidate CV retained under Legal hold");await expect(createTalentCandidate(creator,{legalName:"New forbidden inactive intake",email:`inactive-${key()}@example.test`,consentEvidence:"Inactive cannot create recruitment activity",retentionUntil:"2027-09-30"},key())).rejects.toMatchObject({code:"PACKAGE_INACTIVE"});await expect(changeCandidatePrivacy(hr,candidateId,candidatePrivacySchema.parse({action:"erase",expectedVersion:4,reason:"An active hold cannot be bypassed by commercial inactivity"}),key())).rejects.toMatchObject({code:"CANDIDATE_ERASURE_BLOCKED"});
+ const tables=["talent_requisitions","talent_candidates","talent_applications","talent_proposals","talent_offers","talent_hire_handoffs","talent_hire_consumption_receipts","talent_candidate_privacy_events","hr_people","hr_engagements","hr_compensation_revisions","money_transaction_snapshots","attachments","attachment_links"],history=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await history();expect((await recruitWithdrawalReview(request)).after.find(row=>row.packageId==="recruit")?.state).toBe("inactive");const applied=await recruitWithdrawalReview(request,true);expect(await recruitWithdrawalReview(request,true)).toEqual(applied);expect(await history()).toEqual(before);expect(await consumeHireHandoff(hr,intake,consumeKey)).toEqual(consumed);await changeTalentRecord(creator,"offer",offer,accept,acceptKey);await changeCandidatePrivacy(hr,candidateId,withdraw,withdrawKey);expect((await candidatePrivacyWorkspace(hr,candidateId)).candidate).toMatchObject({status:"withdrawn",privacyHold:true,version:4});expect((await talentDetail(creator,appId)).application.status).toBe("accepted");expect(await (await attachmentContent(db,env.H001_FILES,creator,document.linkId,"original")).object.text()).toBe("Original private candidate CV retained under Legal hold");await expect(changeCandidatePrivacy(hr,candidateId,candidatePrivacySchema.parse({action:"erase",expectedVersion:4,reason:"An active hold cannot be bypassed by commercial inactivity"}),key())).rejects.toMatchObject({code:"CANDIDATE_ERASURE_BLOCKED"});
  await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(hr.assignmentId).run();await expect(consumeHireHandoff(hr,intake,consumeKey)).rejects.toMatchObject({code:"TALENT_ACCESS_CHANGED"});await expect(changeTalentRecord(creator,"offer",offer,accept,acceptKey)).rejects.toMatchObject({code:"TALENT_ACCESS_CHANGED"});await expect(attachmentContent(db,env.H001_FILES,creator,document.linkId,"original")).rejects.toMatchObject({status:404});expect((await recruitSettlement()).total).toBe(0);expect(await db.prepare("SELECT count(*)::int count FROM command_receipts WHERE command_id=?").bind(consumeKey).first("count")).toBe(1);
 });
 it("settles an actually declined offer without rewriting its original offered application and keeps ambiguous legacy sources outstanding",async()=>{
@@ -459,12 +480,12 @@ it("requires exact fresh Recruit source leases and locks every native obligation
  const {withOwnerPackageObligations}=await import("@erpx/server-commercial/public/owner-package-obligations"),{talentPackageObligations}=await import("@erpx/server-talent/public/package-obligations"),{talentPeoplePackageObligations}=await import("@erpx/server-people_payroll/public/talent-package-obligations"),input={...recruitSettlementInput(),moduleId:"talent",now:Date.now()};await expect(db.transaction(tx=>talentPackageObligations(db,tx,input))).rejects.toThrow("TALENT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");await expect(db.transaction(tx=>talentPeoplePackageObligations(db,tx,{...input,moduleId:"people_payroll"}))).rejects.toThrow("TALENT_PEOPLE_PACKAGE_OBLIGATION_SOURCE_REQUIRED");expect(()=>withOwnerPackageObligations(db,{...recruitSettlementInput(),packageVersion:2},tx=>talentPackageObligations(db,tx,{...input,packageVersion:2}))).toThrow("PACKAGE_OBLIGATION_SOURCES_REQUIRED");await expect(withOwnerPackageObligations(db,recruitSettlementInput(),tx=>talentPackageObligations(db,tx,{...input,companyId:"foreign-company"}))).rejects.toThrow("TALENT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");await expect(withOwnerPackageObligations(db,recruitSettlementInput(),tx=>talentPackageObligations(db,tx,{...input,moduleId:"people_payroll"}))).rejects.toThrow("TALENT_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  await withOwnerPackageObligations(db,recruitSettlementInput(),async tx=>{expect((await talentPackageObligations(db,tx,input)).outstanding).toBe(0);for(const table of ["talent_requisitions","talent_candidates","talent_applications","talent_proposals","talent_offers","talent_hire_handoffs","talent_hire_consumption_receipts","talent_candidate_privacy_events","hr_people","hr_engagements","hr_compensation_revisions","hr_pay_groups","money_transaction_snapshots","command_receipts","organization_nodes"]){await expect(db.transaction(async competing=>{await competing.prepare("SET LOCAL lock_timeout='100ms'").run();await competing.prepare(`LOCK TABLE ${table} IN ROW EXCLUSIVE MODE`).run();})).rejects.toMatchObject({code:"55P03"});}});
 });
-it("acquires Recruit withdrawal sources before the first snapshot and observes a concurrently committed actual candidate processing obligation",async()=>{
- const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});const request=await recruitWithdrawal(),command=key();let ready:()=>void=()=>{},failed:(cause:unknown)=>void=()=>{},release:()=>void=()=>{};const sourceReady=new Promise<void>((resolve,reject)=>{ready=resolve;failed=reject;}),finish=new Promise<void>(resolve=>{release=resolve;});
- const writer=db.transaction(async tx=>{talentDatabase=tx;try{await createTalentCandidate(creator,{legalName:"Concurrent real candidate",email:`source-${key()}@example.test`,consentEvidence:"Actual legacy compatible owner intake while Commercial sources wait",retentionUntil:"2027-09-30"},command);}finally{talentDatabase=undefined;}ready();await finish;}).catch(cause=>{failed(cause);throw cause;});try{await sourceReady;let completed=false;const review=recruitWithdrawalReview(request).then(()=>null,cause=>cause).finally(()=>{completed=true;});await new Promise(resolve=>setTimeout(resolve,100));expect(completed).toBe(false);release();await writer;expect(await review).toMatchObject({message:"PACKAGE_OBLIGATIONS_REMAIN"});}finally{release();talentDatabase=undefined;await writer.catch(()=>{});}expect(await db.prepare("SELECT status FROM talent_candidates WHERE id=?").bind(`talent-candidate-${command}`).first("status")).toBe("active");
+it("acquires Recruit withdrawal sources before the first snapshot and observes a concurrently committed actual requisition processing obligation",async()=>{
+ const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});const request=await recruitWithdrawal(),command=key(),req=await seedRequisition({jobTitle:"Concurrent recruitment need",openings:1,targetStartDate:"2026-11-01",description:"Actual concurrent requisition processing while Commercial sources wait"});let ready:()=>void=()=>{},failed:(cause:unknown)=>void=()=>{},release:()=>void=()=>{};const sourceReady=new Promise<void>((resolve,reject)=>{ready=resolve;failed=reject;}),finish=new Promise<void>(resolve=>{release=resolve;});
+ const writer=db.transaction(async tx=>{talentDatabase=tx;try{await changeTalentRecord(reviewer,"requisition",req.id,{action:"approve",expectedVersion:1,reason:"Concurrent owner source lease while Commercial sources wait"},command);}finally{talentDatabase=undefined;}ready();await finish;}).catch(cause=>{failed(cause);throw cause;});try{await sourceReady;let completed=false;const review=recruitWithdrawalReview(request).then(()=>null,cause=>cause).finally(()=>{completed=true;});await new Promise(resolve=>setTimeout(resolve,100));expect(completed).toBe(false);release();await writer;expect(await review).toMatchObject({message:"PACKAGE_OBLIGATIONS_REMAIN"});}finally{release();talentDatabase=undefined;await writer.catch(()=>{});}expect(await db.prepare("SELECT status FROM talent_requisitions WHERE id=?").bind(req.id).first("status")).toBe("approved");
 });
 it("rolls Recruit withdrawal and late normal or deferred owner activity back together after the original Commercial Apply",async()=>{
- const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});const candidate=await createTalentCandidate(creator,{legalName:"Original retained closed candidate",email:`retained-${key()}@example.test`,consentEvidence:"Original retained private processing consent",retentionUntil:"2027-09-30"},key());await changeCandidatePrivacy(f.owner,String(candidate.id),candidatePrivacySchema.parse({action:"withdraw",expectedVersion:1,reason:"Original Company privacy withdrawal before Commercial review"}),key());expect((await recruitSettlement()).total).toBe(0);const request=await recruitWithdrawal(),command=key();await expect(recruitWithdrawalReview(request,true,()=>createTalentCandidate(creator,{legalName:"Late normal legacy intake",email:`late-${key()}@example.test`,consentEvidence:"Actual normal owner command in same leased transaction",retentionUntil:"2027-09-30"},command).then(()=>{}))).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");expect(await db.prepare("SELECT id FROM talent_candidates WHERE id=?").bind(`talent-candidate-${command}`).first()).toBeNull();for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
+ const {store,grant}=recruitmentPurchase();await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});const candidate=await seedTalentCandidate(creator,{legalName:"Original retained closed candidate",email:`retained-${key()}@example.test`,consentEvidence:"Original retained private processing consent",retentionUntil:"2027-09-30"});await changeCandidatePrivacy(f.owner,String(candidate.id),candidatePrivacySchema.parse({action:"withdraw",expectedVersion:1,reason:"Original Company privacy withdrawal before Commercial review"}),key());expect((await recruitSettlement()).total).toBe(0);const req=await seedRequisition({jobTitle:"Late normal recruitment need",openings:1,targetStartDate:"2026-11-01",description:"Actual normal owner command in same leased transaction"});const request=await recruitWithdrawal(),command=key();await expect(recruitWithdrawalReview(request,true,()=>changeTalentRecord(reviewer,"requisition",req.id,{action:"approve",expectedVersion:1,reason:"Late normal owner command in same leased transaction"},command).then(()=>{}))).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");expect(await db.prepare("SELECT status FROM talent_requisitions WHERE id=?").bind(req.id).first("status")).toBe("draft");for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();await db.prepare("UPDATE talent_requisitions SET status='cancelled',version=version+1 WHERE id=?").bind(req.id).run();
  const name=`recruit_deferred_${key().replaceAll('-','')}`,before=await db.prepare("SELECT * FROM talent_candidates WHERE id=?").bind(candidate.id).first();await db.exec(`CREATE SEQUENCE ${name}_attempt;CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${name}_attempt');UPDATE talent_candidates SET status='active',version=version+1 WHERE id='${candidate.id}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${name} AFTER INSERT ON company_package_change_sets DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.company_id='${f.company}') EXECUTE FUNCTION ${name}()`);try{await expect(recruitWithdrawalReview(request,true)).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");expect(await db.prepare(`SELECT is_called FROM ${name}_attempt`).first("is_called")).toBe(true);expect(await db.prepare("SELECT * FROM talent_candidates WHERE id=?").bind(candidate.id).first()).toEqual(before);expect(await db.prepare("SELECT state,version FROM company_package_grants WHERE company_id=? AND package_id='recruit'").bind(f.company).first()).toEqual({state:"draining",version:2});expect(await db.prepare("SELECT id FROM company_package_change_sets WHERE id=?").bind(request.idempotencyKey).first()).toBeNull();}finally{await db.exec(`DROP TRIGGER ${name} ON company_package_change_sets;DROP FUNCTION ${name}();DROP SEQUENCE ${name}_attempt`);}
 });
 
@@ -489,7 +510,7 @@ it('observes actual native candidate Legal preservation before its byte snapshot
  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NOT(SELECT privacy_hold FROM talent_candidates WHERE id='${source.targetId}') THEN RAISE EXCEPTION 'STALE_NATIVE_CANDIDATE_PRIVACY';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${document.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${fault}()`);
  try{const observed=await committedSourceVisibility(db,async tx=>{talentDatabase=tx;try{await changeCandidatePrivacy(f.owner,source.targetId,candidatePrivacySchema.parse({action:'hold',expectedVersion:2,reason:'Original Legal preservation is committed before the private candidate byte snapshot'}),key());}finally{talentDatabase=undefined;}},()=>measureReads(()=>attachmentContent(db,env.H001_FILES,creator,document.linkId,'original')));expect(await observed.result.object.text()).toBe('Native candidate evidence retained under original Legal hold');expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{talentDatabase=undefined;await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}
  const other=await expenseFixture(),second={...other.owner,modules:['talent']},rows:{actor:WorkContext;id:string;file:Awaited<ReturnType<typeof seedAttachmentSet>>;bytes:string}[]=[];
- for(const actor of [{...f.owner,modules:['talent']},second]){const id=String((await createTalentCandidate(actor,{legalName:'Separate Company retained candidate',email:`private-${key()}@example.test`,consentEvidence:'Original explicit native isolated candidate intake consent',retentionUntil:'2027-09-30'},key())).id),file=await seedAttachmentSet(db,actor,{targetType:'talent_candidate',targetId:id,componentKind:'record',purposeKey:'cv',expectedTargetVersion:1});await bindRecordAttachmentSet(db,actor,file.setId,1,key());const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key')),bytes=`Native private Company ${actor.companyId}`;await env.H001_FILES.put(objectKey,bytes);rows.push({actor,id,file,bytes});}
+ for(const actor of [{...f.owner,modules:['talent']},second]){const id=String((await seedTalentCandidate(actor,{legalName:'Separate Company retained candidate',email:`private-${key()}@example.test`,consentEvidence:'Original explicit native isolated candidate intake consent',retentionUntil:'2027-09-30'})).id),file=await seedAttachmentSet(db,actor,{targetType:'talent_candidate',targetId:id,componentKind:'record',purposeKey:'cv',expectedTargetVersion:1});await bindRecordAttachmentSet(db,actor,file.setId,1,key());const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key')),bytes=`Native private Company ${actor.companyId}`;await env.H001_FILES.put(objectKey,bytes);rows.push({actor,id,file,bytes});}
  const parallel=`talent_parallel_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${parallel}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.08);UPDATE talent_candidates SET legal_name=legal_name WHERE id=CASE WHEN NEW.company_id='${f.company}' THEN '${rows[0].id}' ELSE '${rows[1].id}' END;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${parallel} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id IN('${rows[0].file.linkId}','${rows[1].file.linkId}') AND NEW.outcome='allowed') EXECUTE FUNCTION ${parallel}()`);
  try{const observed=await measureReads(()=>Promise.all(rows.map(row=>attachmentContent(db,env.H001_FILES,row.actor,row.file.linkId,'original'))));for(let index=0;index<rows.length;index++)expect(await observed.result[index].object.text()).toBe(rows[index].bytes);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${parallel} ON attachment_access_events;DROP FUNCTION ${parallel}()`);}
 });

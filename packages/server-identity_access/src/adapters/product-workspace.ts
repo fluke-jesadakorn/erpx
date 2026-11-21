@@ -1,5 +1,5 @@
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
-import {holdingRoutingEnabled,holdingUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingRoutingEnabled,holdingUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 import {expensePostingPrerequisitesProductEntry} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {payrollPostingPrerequisitesProductEntry} from '@erpx/server-finance/public/payroll-posting-prerequisites';
 import {peopleFinancialProductEntry} from "@erpx/server-people_payroll/public/financial-product-entry";
@@ -76,10 +76,10 @@ function service() {
       return isExecutiveVisible(write, actor);
     },
     selection: async (access, applicable) => initializeWorkSelection((await holdingResources(access.scope.holdingId)).write,
-      { sessionId: access.sessionId, userId: access.userId, companyId: access.scope.companyId, expiresAt: access.expiresAt }, access.assignments, applicable),
+      { sessionId: access.sessionId, userId: access.userId, companyId: access.scope.companyId, expiresAt: access.expiresAt }, access.assignments, applicable, access.requestHeaders),
     select: async (access, option, revision) => selectWorkRole((await holdingResources(access.scope.holdingId)).write,
       { sessionId: access.sessionId, userId: access.userId, companyId: access.scope.companyId, expiresAt: access.expiresAt,
-        assignmentId: option.assignmentId, assignmentVersion: option.assignmentVersion, revision }),
+        assignmentId: option.assignmentId, assignmentVersion: option.assignmentVersion, revision }, access.requestHeaders),
     commercePostingSetupEntry:async(access,assignment)=>commercePostingSetupProductEntry((await holdingResources(access.scope.holdingId)).write,{companyId:access.scope.companyId,branchId:"branchId" in access.scope?access.scope.branchId:null,departmentId:access.scope.kind==="department"?access.scope.departmentId:null,userId:access.userId,assignmentId:assignment.id,assignmentVersion:assignment.version!,role:assignment.role,sessionId:access.sessionId}),
     salesPostingSetupEntry:async(access,assignment)=>salesPostingSetupProductEntry((await holdingResources(access.scope.holdingId)).write,{companyId:access.scope.companyId,branchId:"branchId" in access.scope?access.scope.branchId:null,departmentId:access.scope.kind==="department"?access.scope.departmentId:null,userId:access.userId,assignmentId:assignment.id,assignmentVersion:assignment.version!,role:assignment.role,sessionId:access.sessionId}),
     expensePostingPrerequisitesEntry:async(access,assignment)=>expensePostingPrerequisitesProductEntry((await holdingResources(access.scope.holdingId)).write,{companyId:access.scope.companyId,branchId:"branchId" in access.scope?access.scope.branchId:null,departmentId:access.scope.kind==="department"?access.scope.departmentId:null,userId:access.userId,assignmentId:assignment.id,assignmentVersion:assignment.version!,role:assignment.role,sessionId:access.sessionId}),

@@ -1,7 +1,8 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
 import { afterEach } from "vitest";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
-import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillOrder,fulfillmentSchema,invoiceFulfillment} from '@erpx/server-commerce/public/commerce';
+import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillmentSchema,invoiceFulfillment} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import type {FinanceRow} from '@erpx/server-finance/public/finance';
 import {beforeAll,beforeEach,afterAll,describe,expect,it,vi} from "vitest";
@@ -254,7 +255,7 @@ it("issues retained ordinary VAT invoices from completed Commerce services witho
  await transitionOrder(f.owner,orderId,{expectedVersion:1,action:"submit"},key());await transitionOrder(manager,orderId,{expectedVersion:2,action:"approve"},key());
  const assignOrder=async(stepKey:string)=>{const flow=await resolveFlow(db,f.owner,"order",orderId);await assignFlowPrimary(db,f.owner,"order",orderId,{stepKey,userId:f.owner.userId,reason:"Assign fictional completed service responsibility",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());};
  await assignOrder("confirmed");const line=(await getOrder(f.owner,orderId)).lines[0];
- const completion=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,completionMode:"service",date:"2026-09-03",evidenceNote:"Customer accepted completed installation",lines:[{lineId:String(line.id),quantity:"1"}]}),key());
+ const completion=await seedCommerceFulfillment(db, f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,completionMode:"service",date:"2026-09-03",evidenceNote:"Customer accepted completed installation",lines:[{lineId:String(line.id),quantity:"1"}]}),key());
  await assignOrder("invoicing");const prepared=await invoiceFulfillment(f.owner,String(completion.fulfillmentId),{expectedVersion:1,date:"2026-09-03",dueDate:"2026-09-10"},key()),invoiceId=String(prepared.invoiceId);
  const invoiceFlow=await resolveFlow(db,f.owner,"invoice",invoiceId);await assignFlowPrimary(db,f.owner,"invoice",invoiceId,{stepKey:"draft",userId:f.manager.userId,reason,saveDefault:false,expectedVersion:invoiceFlow.version,recordVersion:invoiceFlow.recordVersion},key());await postInvoice(f.manager,invoiceId,{expectedVersion:1,periodId:f.period,entryDate:"2026-09-03"},key());
  const identities=await reviewedIdentities(String(customer.id)),issued=await issueThaiTaxInvoice(f.manager,invoiceId,{expectedVersion:2,payerIdentityId:identities.payerId,payeeIdentityId:identities.payeeId,reason},key());

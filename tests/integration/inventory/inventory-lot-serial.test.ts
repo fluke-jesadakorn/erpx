@@ -1,4 +1,4 @@
-import { qualityInspectionSchema } from "@erpx/server-quality/public/quality";
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import { transferActionSchema } from "@erpx/server-inventory/public/inventory-transfers";
 import {returnRequestSchema} from '@erpx/server-commerce/public/commerce';
@@ -10,19 +10,21 @@ import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {seedNativeQualityRelease} from "../../../fixtures/quality/hold";
+import {decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {inspectQualityHold,releaseQualityHold} from "@erpx/server-quality/public/quality";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {saveTransfer,transitionTransfer,transferDetail,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
-import {decideTransitLoss,dispatchTransit,getTransit,receiveTransit,requestTransitLoss,transitDetail} from "@erpx/server-inventory/public/inventory-transit";
+import {saveTransfer,transitionTransfer,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
+import {getTransit,transitDetail} from "@erpx/server-inventory/public/inventory-transit";
+import {decideTransitLoss,dispatchTransit,receiveTransit,requestTransitLoss} from "../../support/inventory/legacy-transit-writer";
 import {countDetail,countOptions,countsPage,getCount,saveCount,transitionCount} from "@erpx/server-inventory/public/inventory-counts";
 import {getDomainWork} from "@erpx/server-work_projection/public/domain-work";
 import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
 import {countSourceReadScope} from "@erpx/server-inventory/public/count-record-purchases";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
 import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
-import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
+import {postInvoice} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
 import {financeProductDocumentEntry,financeDocumentPostAccess,financeSourceDocumentReadLocks} from "@erpx/server-finance/public/document-purchases";
 import {financeDocumentFlow,financeDocumentPresentationAccess} from "@erpx/server-finance/public/record-presentation";
@@ -175,7 +177,7 @@ it.each([{label:'POS',packageId:'pos'},{label:'Hotel',packageId:'pms'}] as const
 it('reconciles lot balances to stock, quarantines one receipt lot, and releases it through independent Quality review',async()=>{
   const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Lot controlled item',unit:'each',trackingMode:'lot',price:'10'},key())).id);
   const purchase=await approved('purchase',supplier,product,'3'),purchaseId=String(purchase.order.id),purchaseLine=String(purchase.lines[0].id),receiptKey=key();
-  await fulfillOrder(f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'3',allocations:[{lotCode:'LOT-A',quantity:'2',disposition:'available'},{lotCode:'LOT-B',quantity:'1',disposition:'quarantine',quarantineReason:'Packaging requires inspection',quarantineDueDate:'2026-09-04'}]}]}),receiptKey);
+  await seedCommerceFulfillment(db, f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'3',allocations:[{lotCode:'LOT-A',quantity:'2',disposition:'available'},{lotCode:'LOT-B',quantity:'1',disposition:'quarantine',quarantineReason:'Packaging requires inspection',quarantineDueDate:'2026-09-04'}]}]}),receiptKey);
   const stock=await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first();
   const total=await db.prepare('SELECT sum(b.quantity_milli) quantity_milli,sum(b.value_minor) value_minor FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=?').bind(warehouse,product).first();
   expect(stock).toEqual({quantity_milli:3000,value_minor:3000});expect(total).toEqual(stock);
@@ -184,10 +186,9 @@ it('reconciles lot balances to stock, quarantines one receipt lot, and releases 
   expect(hold).toMatchObject({status:'held',held_quantity_milli:1000});
   const sale=await approved('sales',customer,product,'1'),saleId=String(sale.order.id),saleLine=String(sale.lines[0].id);
   const proof=await deliveryEvidence(db,f.owner,saleId);
-  await expect(fulfillOrder(f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof}),key())).rejects.toMatchObject({code:'LOT_UNAVAILABLE'});
-  await inspectQualityHold(f.reviewer,String(hold!.id),qualityInspectionSchema.parse({expectedVersion:1,result:'pass',evidence:'Package and contents inspected against supplier label'}),key());
-  await releaseQualityHold(f.manager,String(hold!.id),{expectedVersion:2,reason:'Independent review confirms this lot is usable'},key());
-  const delivery=await fulfillOrder(f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof}),key());
+  await expect(seedCommerceFulfillment(db, f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof}),key())).rejects.toMatchObject({code:'LOT_UNAVAILABLE'});
+  await seedNativeQualityRelease(db,{companyId:f.company,holdId:String(hold!.id),releasedBy:f.manager.userId,inspectorId:f.reviewer.userId,reason:'Independent review confirms this lot is usable'});
+  const delivery=await seedCommerceFulfillment(db, f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:lotB!.id,quantity:'1'}]}],...proof}),key());
   expect((await getOrder(f.owner,saleId)).lotAllocations).toMatchObject([{lot_code:'LOT-B',quantity_milli:1000,disposition:'available'}]);
   expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:2000,value_minor:2000});
   await expect(db.prepare("UPDATE inventory_lot_moves SET source_id='changed' WHERE source_id=?").bind(`${delivery.fulfillmentId}-0`).run()).rejects.toThrow('LOT_EVIDENCE_IMMUTABLE');
@@ -196,38 +197,25 @@ it('reconciles lot balances to stock, quarantines one receipt lot, and releases 
 it('requires one unit per serial and rejects a serial number already received',async()=>{
   const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Serialized item',unit:'each',trackingMode:'serial',price:'20'},key())).id);
   const purchase=await approved('purchase',supplier,product,'2'),id=String(purchase.order.id),line=String(purchase.lines[0].id);
-  await expect(fulfillOrder(f.owner,id,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:line,quantity:'2',allocations:[{serialNumber:'SN-001',quantity:'2'}]}]}),key())).rejects.toMatchObject({code:'SERIAL_QUANTITY_INVALID'});
-  await fulfillOrder(f.owner,id,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:line,quantity:'1',allocations:[{serialNumber:'SN-001',quantity:'1'}]}]}),key());
-  await expect(fulfillOrder(f.owner,id,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-03',lines:[{lineId:line,quantity:'1',allocations:[{serialNumber:'SN-001',quantity:'1'}]}]}),key())).rejects.toMatchObject({code:'SERIAL_ALREADY_RECEIVED'});
+  await expect(seedCommerceFulfillment(db, f.owner,id,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:line,quantity:'2',allocations:[{serialNumber:'SN-001',quantity:'2'}]}]}),key())).rejects.toMatchObject({code:'SERIAL_QUANTITY_INVALID'});
+  await seedCommerceFulfillment(db, f.owner,id,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:line,quantity:'1',allocations:[{serialNumber:'SN-001',quantity:'1'}]}]}),key());
+  await expect(seedCommerceFulfillment(db, f.owner,id,fulfillmentSchema.parse({expectedVersion:4,date:'2026-09-03',lines:[{lineId:line,quantity:'1',allocations:[{serialNumber:'SN-001',quantity:'1'}]}]}),key())).rejects.toMatchObject({code:'SERIAL_ALREADY_RECEIVED'});
   await expect(db.prepare("UPDATE commerce_products SET tracking_mode='lot' WHERE id=?").bind(product).run()).rejects.toThrow('TRACKING_MODE_LOCKED');
 });
 
-it('moves selected lot quantities and values between warehouses as one direct transfer',async()=>{
-  const target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Traceable destination'},key())).id);
-  const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Transferred lot item',unit:'box',trackingMode:'lot',price:'10'},key())).id);
-  const purchase=await approved('purchase',supplier,product,'3'),purchaseId=String(purchase.order.id),purchaseLine=String(purchase.lines[0].id);
-  await fulfillOrder(f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'3',allocations:[{lotCode:'MOVE-A',quantity:'2'},{lotCode:'MOVE-B',quantity:'1'}]}]}),key());
-  const lots=(await db.prepare("SELECT l.id,l.lot_code FROM inventory_lots l WHERE l.product_id=? ORDER BY l.lot_code").bind(product).all<{id:string;lot_code:string}>()).results;
-  const transfer=await saveTransfer(f.owner,null,transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:target,transferDate:'2026-09-03',reason:'Replenish the destination with selected physical lots',lines:[{productId:product,quantity:'2',allocations:lots.map(lot=>({lotId:lot.id,quantity:'1'}))}]}),key()),transferId=String(transfer.id);
-  const detail=await transferDetail(f.owner,transferId);expect(detail.allocations.map(a=>String(a.lot_code)).sort()).toEqual(['MOVE-A','MOVE-B']);
-  await transitionTransfer(f.owner,transferId,'submit',transferActionSchema.parse({expectedVersion:1}),key());const flow=await resolveFlow(db,f.owner,'transfer',transferId);await assignFlowPrimary(db,f.owner,'transfer',transferId,{stepKey:'submitted',userId:f.head.userId,reason:'Assign an independent receiving reviewer',saveDefault:false,expectedVersion:flow.version,recordVersion:2},key());
-  const wrongFiles=await seedAttachmentSet(db,f.head,{targetType:'inventory_transfer',targetId:transferId,purposeKey:'receipt_evidence',componentRef:'direct-receipt',expectedTargetVersion:2});
-  await expect(transitionTransfer(f.head,transferId,'post',{expectedVersion:2,reason:'Wrong receipt context must not post',attachmentSetIds:[wrongFiles.setId]},key())).rejects.toMatchObject({code:'TRANSFER_ATTACHMENT_PURPOSE'});
-  expect(await attachmentBindingState(db,wrongFiles.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
-  const receiptFiles=await seedAttachmentSet(db,f.head,{targetType:'inventory_transfer',targetId:transferId,purposeKey:'direct_receipt_evidence',componentRef:'direct-receipt',expectedTargetVersion:2});
-  await transitionTransfer(f.head,transferId,'post',{expectedVersion:2,reason:'Both selected lots counted at the receiving warehouse',attachmentSetIds:[receiptFiles.setId]},key());
-  expect(await attachmentBindingState(db,receiptFiles.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'direct_transfer_receipt',binding_id:`${transferId}:3`});
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:1000});
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(target,product).first()).toEqual({quantity_milli:2000,value_minor:2000});
-  expect((await db.prepare('SELECT l.lot_code,b.quantity_milli,b.value_minor FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=? ORDER BY l.lot_code').bind(target,product).all()).results).toEqual([{lot_code:'MOVE-A',quantity_milli:1000,value_minor:1000},{lot_code:'MOVE-B',quantity_milli:1000,value_minor:1000}]);
-  await expect(db.prepare('DELETE FROM inventory_transfer_lot_allocations WHERE transfer_line_id=?').bind(detail.lines[0].id).run()).rejects.toThrow('TRANSFER_LOT_EVIDENCE_IMMUTABLE');
+it('retires the TypeScript direct-transfer writer in favour of the native command',async()=>{
+  const input=transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:warehouse,transferDate:'2026-09-03',reason:'Retired TS direct transfer writer',lines:[{productId:'product',quantity:'1',allocations:[]}]});
+  await expect(saveTransfer(f.owner,null,input,key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  await expect(transitionTransfer(f.owner,'transfer','post',{expectedVersion:1,reason:'Retired TS direct transfer writer',attachmentSetIds:[]},key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transfers').first('n')).toBe(0);
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transfer_moves').first('n')).toBe(0);
 });
 
 it('preserves selected lot identity through supplier and customer returns',async()=>{
   f.manager.role='finance_approver';f.manager.assignmentId=await f.grant(f.manager,'finance_approver');
   const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Returned lot item',unit:'box',trackingMode:'lot',price:'10'},key())).id),purchase=await approved('purchase',supplier,product,'2'),orderId=String(purchase.order.id),orderLine=String(purchase.lines[0].id);
-  const receipt=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:orderLine,quantity:'2',allocations:[{lotCode:'RETURN-A',quantity:'1'},{lotCode:'RETURN-B',quantity:'1'}]}]}),key()),fulfillmentId=String(receipt.fulfillmentId),goodsJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(fulfillmentId).first('journal_id'));
-  let flow=await resolveFlow(db,f.owner,'journal',goodsJournal);await assignFlowPrimary(db,f.owner,'journal',goodsJournal,{stepKey:'draft',userId:f.manager.userId,reason:'Assign goods receipt journal review',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postJournal(f.manager,goodsJournal,key(),{expectedVersion:1});
+  const receipt=await seedCommerceFulfillment(db, f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:orderLine,quantity:'2',allocations:[{lotCode:'RETURN-A',quantity:'1'},{lotCode:'RETURN-B',quantity:'1'}]}]}),key()),fulfillmentId=String(receipt.fulfillmentId),goodsJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(fulfillmentId).first('journal_id'));
+  let flow=await resolveFlow(db,f.owner,'journal',goodsJournal);await assignFlowPrimary(db,f.owner,'journal',goodsJournal,{stepKey:'draft',userId:f.manager.userId,reason:'Assign goods receipt journal review',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await markFinanceJournalPosted(db,goodsJournal,f.manager.userId);
   flow=await resolveFlow(db,f.owner,'order',orderId);await assignFlowPrimary(db,f.owner,'order',orderId,{stepKey:'invoicing',userId:f.owner.userId,reason:'Assign invoice preparation after goods posting',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());const invoice=await invoiceFulfillment(f.owner,fulfillmentId,{expectedVersion:1,date:'2026-09-02',dueDate:'2026-09-03'},key());
   flow=await resolveFlow(db,f.owner,'invoice',String(invoice.invoiceId));await assignFlowPrimary(db,f.owner,'invoice',String(invoice.invoiceId),{stepKey:'draft',userId:f.manager.userId,reason:'Assign invoice posting review',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postInvoice(f.manager,String(invoice.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:'2026-09-02'},key());
   const detail=await getOrder(f.owner,orderId),line=detail.fulfillmentLines[0],lotB=detail.lotAllocations.find(a=>a.lot_code==='RETURN-B')!;
@@ -235,8 +223,8 @@ it('preserves selected lot identity through supplier and customer returns',async
   await decideCommerceReturn(f.head,String(requested.id),'approve',{expectedVersion:1,reason:'Physical RETURN-B label and supplier authorization verified'},key());
   expect((await db.prepare('SELECT l.lot_code,l.status,b.quantity_milli,b.value_minor FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.product_id=? AND b.warehouse_id=? ORDER BY l.lot_code').bind(product,warehouse).all()).results).toEqual([{lot_code:'RETURN-A',status:'active',quantity_milli:1000,value_minor:1000},{lot_code:'RETURN-B',status:'returned',quantity_milli:0,value_minor:0}]);
   expect(await db.prepare("SELECT quantity_milli,value_minor FROM inventory_lot_moves WHERE source_type='supplier_return' AND lot_id=?").bind(lotB.lot_id).first()).toEqual({quantity_milli:-1000,value_minor:-1000});
-  const sale=await approved('sales',customer,product,'1'),saleId=String(sale.order.id),saleLine=String(sale.lines[0].id),lotA=detail.lotAllocations.find(a=>a.lot_code==='RETURN-A')!,delivery=await fulfillOrder(f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:String(lotA.lot_id),quantity:'1'}]}],...(await deliveryEvidence(db,f.owner,saleId))}),key()),deliveryId=String(delivery.fulfillmentId),deliveryJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(deliveryId).first('journal_id'));
-  flow=await resolveFlow(db,f.owner,'journal',deliveryJournal);await assignFlowPrimary(db,f.owner,'journal',deliveryJournal,{stepKey:'draft',userId:f.manager.userId,reason:'Assign delivery journal review',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postJournal(f.manager,deliveryJournal,key(),{expectedVersion:1});
+  const sale=await approved('sales',customer,product,'1'),saleId=String(sale.order.id),saleLine=String(sale.lines[0].id),lotA=detail.lotAllocations.find(a=>a.lot_code==='RETURN-A')!,delivery=await seedCommerceFulfillment(db, f.owner,saleId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',lines:[{lineId:saleLine,quantity:'1',allocations:[{lotId:String(lotA.lot_id),quantity:'1'}]}],...(await deliveryEvidence(db,f.owner,saleId))}),key()),deliveryId=String(delivery.fulfillmentId),deliveryJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(deliveryId).first('journal_id'));
+  flow=await resolveFlow(db,f.owner,'journal',deliveryJournal);await assignFlowPrimary(db,f.owner,'journal',deliveryJournal,{stepKey:'draft',userId:f.manager.userId,reason:'Assign delivery journal review',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await markFinanceJournalPosted(db,deliveryJournal,f.manager.userId);
   flow=await resolveFlow(db,f.owner,'order',saleId);await assignFlowPrimary(db,f.owner,'order',saleId,{stepKey:'invoicing',userId:f.owner.userId,reason:'Assign customer invoice preparation',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());const customerInvoice=await invoiceFulfillment(f.owner,deliveryId,{expectedVersion:1,date:'2026-09-03',dueDate:'2026-09-04'},key());
   flow=await resolveFlow(db,f.owner,'invoice',String(customerInvoice.invoiceId));await assignFlowPrimary(db,f.owner,'invoice',String(customerInvoice.invoiceId),{stepKey:'draft',userId:f.manager.userId,reason:'Assign customer invoice posting review',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postInvoice(f.manager,String(customerInvoice.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:'2026-09-03'},key());
   const saleDetail=await getOrder(f.owner,saleId),customerReturn=await requestCommerceReturn(f.owner,deliveryId,returnRequestSchema.parse({expectedVersion:2,date:'2026-09-04',reason:'Customer returned the labelled unused lot',lines:[{lineId:String(saleDetail.fulfillmentLines[0].id),quantity:'1',allocations:[{lotId:String(lotA.lot_id),quantity:'1'}],condition:'unopened',conditionNote:'Label intact but Quality must verify packaging',qualityDueDate:'2026-09-05'}]}),key());await decideCommerceReturn(f.head,String(customerReturn.id),'approve',{expectedVersion:1,reason:'RETURN-A label and customer return evidence verified'},key());
@@ -252,7 +240,7 @@ it('posts a lot-level physical count with a missing lot and a newly found lot',a
   await db.prepare("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,status,created_at,updated_at) VALUES(?,?,?,'5400','Stock variance','expense','THB','active',1,1)").bind(`variance-${key()}`,f.company,f.chart).run();
   const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Counted lot item',unit:'box',trackingMode:'lot',price:'10'},key())).id);
   const purchase=await approved('purchase',supplier,product,'2'),purchaseId=String(purchase.order.id),purchaseLine=String(purchase.lines[0].id);
-  await fulfillOrder(f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'2',allocations:[{lotCode:'COUNT-A',quantity:'1'},{lotCode:'COUNT-B',quantity:'1'}]}]}),key());
+  await seedCommerceFulfillment(db, f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'2',allocations:[{lotCode:'COUNT-A',quantity:'1'},{lotCode:'COUNT-B',quantity:'1'}]}]}),key());
   const lots=(await db.prepare("SELECT l.id,l.lot_code FROM inventory_lots l WHERE l.product_id=? ORDER BY l.lot_code").bind(product).all<{id:string;lot_code:string}>()).results;
   const created=await saveCount(f.owner,null,{warehouseId:warehouse,countDate:'2026-09-02',reason:'Reconcile labelled stock found during cycle count',lines:[{productId:product,countedQuantity:'3',allocations:[{lotId:lots[0].id,countedQuantity:'0',manufacturedDate:'',expiryDate:''},{lotId:lots[1].id,countedQuantity:'1',manufacturedDate:'',expiryDate:''},{lotCode:'COUNT-C',countedQuantity:'2',unitCost:'15',manufacturedDate:'2026-08-01',expiryDate:'2027-08-01'}]}]},key()),countId=String(created.id);
   let detail=await countDetail(f.owner,countId);expect(detail.lotLines).toHaveLength(3);expect(detail.count.net_value_minor).toBe(2000);
@@ -268,7 +256,7 @@ it('posts a lot-level physical count with a missing lot and a newly found lot',a
   expect(await financeProductDocumentEntry(db,{companyId:f.company,branchId:f.owner.branchId,departmentId:f.owner.departmentId,userId:f.owner.userId,assignmentId:f.owner.assignmentId,assignmentVersion:assignment!.version,role:f.owner.role},{kind:'journal',id:journalId})).toEqual({capability:'finance.inventory-valuation',purchasePurpose:'history'});
   expect(await financeDocumentPresentationAccess(f.owner,'journal',journalId)).toEqual({sourceOnly:true,historyOnly:true});expect(await financeDocumentPostAccess(f.owner,'journal',journalId)).toEqual({canPost:false});expect(await financeDocumentFlow(f.owner,'journal',journalId)).toMatchObject({canAct:false,canManage:false});
   const journalVersion=Number(await db.prepare('SELECT version FROM finance_journals WHERE id=?').bind(journalId).first('version'));
-  await expect(postJournal(f.owner,journalId,key(),{expectedVersion:journalVersion})).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(ledgerWorkspace(f.owner,f.chart)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+  await expect(ledgerWorkspace(f.owner,f.chart)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   const support=await seedAttachmentSet(db,f.owner,{targetType:'finance_journal',targetId:journalId,componentKind:'record',purposeKey:'journal_support',expectedTargetVersion:journalVersion}),binding=key();
   await bindRecordAttachmentSet(db,f.owner,support.setId,journalVersion,binding);expect(await attachmentBindingState(db,support.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
   const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(support.sourceId).first('object_key'));await env.H001_FILES.put(objectKey,'Count source retained',{httpMetadata:{contentType:'application/pdf'}});await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(support.sourceId).run();expect(await (await attachmentContent(db,env.H001_FILES,f.owner,support.linkId,'original')).object.text()).toBe('Count source retained');
@@ -276,24 +264,14 @@ it('posts a lot-level physical count with a missing lot and a newly found lot',a
 });
 
 it('preserves lot identity through dispatch, partial receipt, and an independently approved transit loss',async()=>{
-  f.manager.role='finance_approver';f.manager.assignmentId=await f.grant(f.manager,'finance_approver');
-  const target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Lot transit destination'},key())).id);
-  const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Lot transport item',unit:'box',trackingMode:'lot',price:'10'},key())).id);
-  const purchase=await approved('purchase',supplier,product,'2'),purchaseId=String(purchase.order.id),purchaseLine=String(purchase.lines[0].id);
-  await fulfillOrder(f.owner,purchaseId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-02',lines:[{lineId:purchaseLine,quantity:'2',allocations:[{lotCode:'ROAD-A',quantity:'1'},{lotCode:'ROAD-B',quantity:'1'}]}]}),key());
-  const lots=(await db.prepare('SELECT id FROM inventory_lots WHERE product_id=? ORDER BY lot_code').bind(product).all<{id:string}>()).results;
-  const transfer=await saveTransfer(f.owner,null,transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:target,transferDate:'2026-09-03',deliveryMode:'transit',arrivalDueDate:'2026-09-05',reason:'Track both supplier lots while held by the carrier',lines:[{productId:product,quantity:'2',allocations:lots.map(lot=>({lotId:lot.id,quantity:'1'}))}]}),key()),transferId=String(transfer.id);
-  await transitionTransfer(f.owner,transferId,'submit',transferActionSchema.parse({expectedVersion:1}),key());const flow=await resolveFlow(db,f.owner,'transfer',transferId);await assignFlowPrimary(db,f.owner,'transfer',transferId,{stepKey:'submitted',userId:f.head.userId,reason:'Assign independent transport approval',saveDefault:false,expectedVersion:flow.version,recordVersion:2},key());await transitionTransfer(f.head,transferId,'post',transferActionSchema.parse({expectedVersion:2,reason:'Both labelled lots approved for carrier dispatch'}),key());
-  const transitId=`transit-${transferId}`;await dispatchTransit(f.owner,transitId,transitDispatchSchema.parse({expectedVersion:1,date:'2026-09-03',trackingReference:'LOT-ROAD-001',evidence:'Carrier accepted both sealed and labelled lots'}),key());
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});
-  const transit=await transitDetail(f.head,transitId);expect(transit.lots).toHaveLength(2);const lineId=String(transit.lines[0].id),roadA=transit.lots.find(l=>l.lot_code==='ROAD-A')!,roadB=transit.lots.find(l=>l.lot_code==='ROAD-B')!;
-  await receiveTransit(f.head,transitId,transitReceiveSchema.parse({expectedVersion:2,date:'2026-09-04',evidence:'ROAD-B physically counted at destination before ROAD-A',lines:[{lineId,quantity:'1',allocations:[{transitLotId:String(roadB.id),quantity:'1'}]}]}),key());
-  const loss=await requestTransitLoss(f.head,transitId,transitLossSchema.parse({expectedVersion:3,date:'2026-09-04',lineId,quantity:'1',allocations:[{transitLotId:String(roadA.id),quantity:'1'}],evidence:'ROAD-A missing under carrier incident LOT-ROAD-002'}),key());
-  await decideTransitLoss(f.manager,transitId,{expectedVersion:4,date:'2026-09-04',proposalId:String(loss.proposalId),decision:'approve',periodId:f.period,expenseAccountId:f.accounts.expense,evidence:'Independent Finance reviewed carrier evidence and lot cost'},key());
-  expect((await getTransit(f.owner,transitId)).status).toBe('completed');
-  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(target,product).first()).toEqual({quantity_milli:1000,value_minor:1000});
-  expect(await db.prepare('SELECT l.lot_code,b.quantity_milli FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=?').bind(target,product).first()).toEqual({lot_code:'ROAD-B',quantity_milli:1000});
-  expect(await db.prepare('SELECT sum(received_milli) received,sum(lost_milli) lost,sum(settled_value_minor) value FROM inventory_transit_lots WHERE transit_line_id=?').bind(lineId).first()).toEqual({received:1000,lost:1000,value:2000});
+  // The underlying native oracle lives in rust-stock-register-postgres.test.rs
+  // (transfer_landed_reorder_pg); this retained case proves the TypeScript
+  // transfer/transit writer can no longer create carrier rows.
+  const input=transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:warehouse,transferDate:'2026-09-03',deliveryMode:'transit',arrivalDueDate:'2026-09-05',reason:'Retired TS transit transfer writer',lines:[{productId:'product',quantity:'1',allocations:[]}]});
+  await expect(saveTransfer(f.owner,null,input,key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  await expect(transitionTransfer(f.owner,'transfer','submit',{expectedVersion:1,attachmentSetIds:[]},key())).rejects.toMatchObject({code:'NATIVE_INVENTORY_TRANSFER_REQUIRED'});
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transit').first('n')).toBe(0);
+  expect(await db.prepare('SELECT count(*) n FROM inventory_transfer_decisions').first('n')).toBe(0);
 });
 
 it.each(['stock_count','inventory_stock_count'] as const)('fresh private Inventory bytes fence the original %s source, actual Stock facts and deferred current IAM under Supply-only draining',async(targetType)=>{

@@ -1,3 +1,4 @@
+import { recordExecutiveEvidenceAccess } from '@erpx/feature-runtime/adapters/server/native-executive-evidence';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -13,12 +14,15 @@ import { executiveEvidenceSources } from '@erpx/server-crm/public/executive-evid
 import {executiveFollowupEvidenceSources} from '@erpx/server-sales/public/executive-followup-evidence-sources';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 function application(database: SqlDatabase) {
-    const repository: CrmEvidenceRepository = { ...executiveEvidenceSources(database), ...executiveFollowupEvidenceSources(database), source0(companyId: string, userId: string, assignmentId: string, provider: string, metric: "opportunity-pipeline" | "overdue-followups", action: "search" | "open", value: string, queryHash: string, now: number, value2: string) {
-            return database.prepare(`INSERT INTO executive_evidence_access_events
-    (id,company_id,actor_id,assignment_id,provider_id,metric_id,action,record_id,record_version,field_ids,query_hash,created_at)
-    SELECT 'executive-evidence-'||gen_random_uuid()::text,?,?,?,?,?,?,item.record_id,item.record_version,?::jsonb,?,?
-    FROM jsonb_to_recordset(?::jsonb) AS item(record_id text,record_version bigint)`)
-                .bind(companyId, userId, assignmentId, provider, metric, action, value, queryHash, now, value2).run();
+    const repository: CrmEvidenceRepository = { ...executiveEvidenceSources(database), ...executiveFollowupEvidenceSources(database), async source0(companyId: string, userId: string, assignmentId: string, provider: string, metric: "opportunity-pipeline" | "overdue-followups", action: "search" | "open", value: string, queryHash: string, now: number, value2: string) {
+            const rows = JSON.parse(value2) as Array<{ record_id: string; record_version: number | null }>;
+            await recordExecutiveEvidenceAccess({
+                userId, companyId, assignmentId,
+                provider: provider, metric, action,
+                fieldIds: value, queryHash,
+                records: rows.map((row) => ({ recordId: row.record_id, recordVersion: Number(row.record_version ?? 0) })),
+            });
+            return { success: true, meta: { changes: rows.length } };
         }, source1() { return database.prepare("SELECT to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') utc_date").first<{
             utc_date: string;
         }>(); } };

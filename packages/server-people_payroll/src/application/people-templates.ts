@@ -7,8 +7,8 @@ settings(companyId:string):Promise<TemplateRows<SettingsRow>>;
 attributes(companyId:string):Promise<TemplateRows<AttributeRow>>;
 activeRole(role:string,companyId:string):Promise<TemplateRows<Record<string,unknown>>>;
 groupReferences(companyId:string,value:string):Promise<TemplateRows<Record<string,unknown>>>;
-upsertAttribute(companyId:string,id:string,value:string):Promise<TemplateRows<Record<string,unknown>>>;
-attributeHistory(companyId:string,id:string,value:unknown,value2:string,now:number):Promise<TemplateRows<Record<string,unknown>>>;
+upsertAttribute(companyId:string,id:string,value:string):Promise<unknown> | unknown;
+attributeHistory(companyId:string,id:string,value:unknown,value2:string,now:number):Promise<unknown> | unknown;
 updateSettings(companyId:string,value:string):Promise<TemplateRows<Record<string,unknown>>>;
 recordAdoption(companyId:string,id:unknown,version:unknown,value:string):Promise<TemplateRows<Record<string,unknown>>>;}export interface PeopleTemplatePorts{repository:PeopleTemplateRepository;clock:Clock;identifiers:IdentifierSource;hash(value:string):string;companyScope(actor:IamActor):void;authorize(actor:IamActor,permission:string):unknown;command<Result>(actor:IamActor,key:string,operation:string,input:unknown,permission:string,run:(repository:PeopleTemplateRepository)=>Promise<Result>):Promise<Result>;preview<Result>(run:(repository:PeopleTemplateRepository)=>Promise<Result>):Promise<Result>;}export function createPeopleTemplateApplication(ports:PeopleTemplatePorts){function scope(actor: IamActor) {
   if (actor.platform || !actor.holdingId)

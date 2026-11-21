@@ -30,16 +30,16 @@ export interface SocialAiRepository<Effect> {
         provider_json: string | null;
     } | null>;
     guardQuota(id: string, value: "quota", companyId: string, month: string, companyId2: string, month2: string, companyId3: string, companyId4: string, now: number, userId: string, value2: number, maxConcurrent: number, maxPerMinute: number): Effect;
-    prepareDraft(id: string, postId: string, userId: string, kind: "summary" | "task", version: number, hash: string, value: string, value2: string, value3: string, now: number, value4: number): Effect;
-    reserveUsage(id: string, companyId: string, userId: string, month: string, value: number, now: number): Effect;
-    clearReserveAssertions(id: string): Effect;
-    captureProvider(value: string, id: string): Effect;
-    captureActor(value: string, id: string): Effect;
-    finishDraft(value: string, id: string): Effect;
-    finishUsage(inputTokens: number, outputTokens: number, id: string): Effect;
-    clearFinishAssertions(id: string): Effect;
-    failDraft(id: string): Effect;
-    failUsage(id: string): Effect;
+    prepareDraft(id: string, postId: string, userId: string, kind: "summary" | "task", version: number, hash: string, value: string, value2: string, value3: string, now: number, value4: number): Promise<Effect>;
+    reserveUsage(id: string, companyId: string, userId: string, month: string, value: number, now: number): Promise<Effect>;
+    clearReserveAssertions(id: string, companyId: string): Promise<Effect>;
+    captureProvider(value: string, id: string): Promise<Effect>;
+    captureActor(value: string, id: string): Promise<Effect>;
+    finishDraft(value: string, id: string): Promise<Effect>;
+    finishUsage(inputTokens: number, outputTokens: number, id: string): Promise<Effect>;
+    clearFinishAssertions(id: string, companyId: string): Promise<Effect>;
+    failDraft(id: string): Promise<Effect>;
+    failUsage(id: string): Promise<Effect>;
 }
 export interface SocialAiPorts<Effect> {
     repository: SocialAiRepository<Effect>;
@@ -59,7 +59,7 @@ export interface SocialAiPorts<Effect> {
     aiRequestQuotaLock(...args: Tail<Parameters<typeof aiRequestQuotaLock>>): Effect;
     resolveAiProvider(company: string, environment: BetaEnvironment, kind: "text" | "image", holdingSlug?: string, holdingId?: string): Promise<ResolvedSocialProvider>;
     aiSnapshotGuard(...args: Tail<Parameters<typeof aiSnapshotGuard>>): Effect;
-    aiUsageStatement(...args: Tail<Parameters<typeof aiUsageStatement>>): Effect;
+    aiUsageStatement(...args: Tail<Parameters<typeof aiUsageStatement>>): Promise<Effect>;
     generateProviderJson: SocialReplyProvider;
     withAiGatewayScope(endpoint: AiEndpoint, id: string, feature: string, branch: string | null, usageId?: string): AiEndpoint;
 }
@@ -132,20 +132,20 @@ export function createSocialAiApplication<Effect>(ports: SocialAiPorts<Effect>) 
         }
         // Reserve before the external request. Failed requests count because the provider may have billed them.
         try {
-            await ports.writePhase(actor,{phase:"reserve",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},()=>[
+            await ports.writePhase(actor,{phase:"reserve",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},async()=>[
                 ...ports.workContextGuards(actor, id),
                 ports.sourceGuard(id, source.post, actor.userId, "source"),
                 ports.aiRequestQuotaLock(actor.companyId),
                 r.guardQuota(id, "quota", actor.companyId, month, actor.companyId, month, actor.companyId, actor.companyId, now, actor.userId, now - socialAiLimits.rateWindowMs, socialAiLimits.concurrent, socialAiLimits.perMinute),
-                r.prepareDraft(id, postId, actor.userId, input.kind, source.post.version, source.hash, JSON.stringify(source.commentIds), JSON.stringify(source.sources), configured?.snapshot.model ?? env.AI_MODEL ?? "unconfigured", now, now + 86400000),
-                r.reserveUsage(id, actor.companyId, actor.userId, month, now + 60000, now),
-                r.clearReserveAssertions(id),
+                await r.prepareDraft(id, postId, actor.userId, input.kind, source.post.version, source.hash, JSON.stringify(source.commentIds), JSON.stringify(source.sources), configured?.snapshot.model ?? env.AI_MODEL ?? "unconfigured", now, now + 86400000),
+                await r.reserveUsage(id, actor.companyId, actor.userId, month, now + 60000, now),
+                await r.clearReserveAssertions(id, actor.companyId),
                 ...(configured
                     ? [
-                        r.captureProvider(JSON.stringify(configured.snapshot), id),
+                        await r.captureProvider(JSON.stringify(configured.snapshot), id),
                     ]
                     : []),
-                r.captureActor(JSON.stringify({ assignmentId: actor.assignmentId, role: actor.role, authority: actor.authority }), id),
+                await r.captureActor(JSON.stringify({ assignmentId: actor.assignmentId, role: actor.role, authority: actor.authority }), id),
             ]);
         }
         catch {
@@ -179,18 +179,18 @@ export function createSocialAiApplication<Effect>(ports: SocialAiPorts<Effect>) 
             if (configured &&
                 JSON.stringify((await ports.resolveAiProvider(actor.companyId, env, "text")).snapshot) !== JSON.stringify(configured.snapshot))
                 throw new Error("PROVIDER_CHANGED");
-            await ports.writePhase(actor,{phase:"finish",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},()=>[
+            await ports.writePhase(actor,{phase:"finish",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},async()=>[
                 ...ports.workContextGuards(actor, id),
                 ports.sourceGuard(id, source.post, actor.userId, "source-finish"),
                 ...(configured
                     ? [
                         ports.aiSnapshotGuard(id, configured.snapshot),
-                        ports.aiUsageStatement(id, configured.snapshot, "social", "succeeded", output.inputTokens, output.outputTokens, actor.branchId),
+                        await ports.aiUsageStatement(id, configured.snapshot, "social", "succeeded", output.inputTokens, output.outputTokens, actor.branchId),
                     ]
                     : []),
-                r.finishDraft(JSON.stringify(result), id),
-                r.finishUsage(output.inputTokens, output.outputTokens, id),
-                r.clearFinishAssertions(id),
+                await r.finishDraft(JSON.stringify(result), id),
+                await r.finishUsage(output.inputTokens, output.outputTokens, id),
+                await r.clearFinishAssertions(id, actor.companyId),
             ]);
             return {
                 id,
@@ -203,12 +203,12 @@ export function createSocialAiApplication<Effect>(ports: SocialAiPorts<Effect>) 
             };
         }
         catch {
-            await ports.writePhase(actor,{phase:"failure",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},()=>[
+            await ports.writePhase(actor,{phase:"failure",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},async()=>[
                 ...(configured
-                    ? [ports.aiUsageStatement(id, configured.snapshot, "social", "failed", 0, 0, actor.branchId)]
+                    ? [await ports.aiUsageStatement(id, configured.snapshot, "social", "failed", 0, 0, actor.branchId)]
                     : []),
-                r.failDraft(id),
-                r.failUsage(id),
+                await r.failDraft(id),
+                await r.failUsage(id),
             ]);
             throw new BusinessRuleError(503, "AI_UNAVAILABLE", "AI could not prepare a valid draft. Your text is safe; create the task manually.");
         }

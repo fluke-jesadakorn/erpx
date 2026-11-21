@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
 import { Combobox } from "@erpx/ui/components/popups";
 import { Button, Field, Select, TextInput } from "@erpx/ui/components/foundation";
@@ -61,7 +62,7 @@ function FormContext({ appearance = "legacy", version, effect }: ({ version: num
   );
 }
 async function post(url: string, body: unknown) {
-  const response = await fetch(url, {
+  const response = await holdingFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
     body: JSON.stringify(body),
@@ -221,7 +222,7 @@ function FlowEditor({ appearance = "legacy",
         setBusy(true);
         setMessage("");
         try {
-          if(!preview){const response=await fetch(`${url}/preview`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({departmentId:department.id,expectedVersion:policy?.version??0,steps,reason})});const body=await response.json();if(!response.ok)throw Error(body.error?.message??"Unable to preview this flow.");setPreview(body.data);return;}
+          if(!preview){const response=await holdingFetch(`${url}/preview`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({departmentId:department.id,expectedVersion:policy?.version??0,steps,reason})});const body=await response.json();if(!response.ok)throw Error(body.error?.message??"Unable to preview this flow.");setPreview(body.data);return;}
           if(preview.blockers.length)return;
           await post(url, {
             departmentId: department.id,
@@ -316,7 +317,7 @@ export function DepartmentAuthorityWorkspace({ appearance = "legacy", holdingSlu
   const [data, setData] = useState(initial);
   const root = `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/authority`;
   const refresh = async () => {
-    const response = await fetch(root, { cache: "no-store" });
+    const response = await holdingFetch(root, { cache: "no-store" });
     if (!response.ok) throw new Error("Could not reload authority data.");
     setData((await response.json()).data as Data);
   };

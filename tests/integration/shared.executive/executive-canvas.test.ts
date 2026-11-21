@@ -1,4 +1,5 @@
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
+import {createAssignmentSeed,createCourseSeed,publishCourseSeed} from '../../support/helpers/learning-courses';
 import {readExecutiveMetricProjection as financeProjection} from "@erpx/server-finance/public/executive-metric-projections";
 import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -7,6 +8,7 @@ import type {MetricSourceGroup,MetricSourcePage} from "@erpx/server-runtime/publ
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
+import { seedCrmQualifiedLead } from "../../support/helpers/crm-qualify-seed";
 import { createReport, reportView, reportLibrary, reportData, saveReport, saveShare, revokeShare, saveSchema, recipientPreviewContexts, previewShare, ownershipCandidates, transferReportOwnership } from "@erpx/server-runtime/public/executive/reports";
 import { queueGeneration, drainExecutiveGeneration, generationHistory, cancelGeneration } from "@erpx/server-runtime/public/executive/generation";
 import { canAuthor, currentAuthority } from "@erpx/server-runtime/public/executive/access";
@@ -18,7 +20,7 @@ import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import { formatMetric } from "@erpx/feature-shared/lib/executive/numbers";
 import {defaultConfig} from "@erpx/server-pms/public/rules/pms-model";
 import { dailyRoomReport } from "@erpx/feature-pms/lib/pms-read";
-import { listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "@erpx/server-inventory/public/inventory-reorder-policies";
+import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 // Exercise every populated metric fixture through its source query as well as its aggregate.
 function queryMetric(db:SqlDatabase,actor:WorkContext,id:MetricId,filters:Filters,breakdown?:Breakdown):Promise<MetricData>;
@@ -34,6 +36,16 @@ async function queryMetric(db:SqlDatabase,actor:WorkContext,id:MetricId,filters:
  return result;
 }
 const aiEnv={AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
+// Owner rows the native Assets register command persists; the TypeScript writer
+// is retired and the native Rust suites own command behavior.
+async function seedAsset(actor:{companyId:string;userId:string},input:{branchId:string;departmentId?:string|null;code:string;name:string;category:string;currency?:string;costMinor?:number;acquiredDate:string;warrantyEnd?:string|null}){
+ const id=`asset-${key()}`,at=Date.now();
+ await db.batch([
+  db.prepare("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,acquired_date,warranty_end,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,input.branchId,input.departmentId??null,input.code,input.name,input.category,input.currency??'THB',input.costMinor??0,input.acquiredDate,input.warrantyEnd??null,actor.userId,at,at),
+  db.prepare("INSERT INTO operational_asset_events VALUES(?,?,1,'register',?,'Asset registered','good','registered',NULL,NULL,?)").bind(`asset-event-${key()}`,id,actor.userId,at),
+ ]);
+ return {id,version:1};
+}
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);});
 beforeEach(async()=>{f=await expenseFixture();});
@@ -550,21 +562,45 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   await db.prepare("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,2500,200,1)")
     .bind(warehouse,stockedProduct).run();
 
-  const propose=(productId:string,reorderPoint:string,expectedVersion?:number)=>saveInventoryReorderPolicy(actor,{
-    warehouseId:warehouse,productId,reorderPoint,reason:"English-only reviewed stocking target",...(expectedVersion?{expectedVersion}:{})
-  },key());
-  const decide=(row:{id:string;version:number},action:"approve"|"reject"|"retire",reviewer=approver)=>transitionInventoryReorderPolicy(reviewer,row.id,{
-    action,expectedVersion:Number(row.version),reason:`English-only ${action} decision with source review`
-  },key());
+  // The native reorder command owns proposal/decision validation. Seed the
+  // persisted policy rows and immutable events directly so the executive
+  // shortage oracle is exercised without the retired fail-closed TS writer.
+  const now=Date.now(),eventReason=(action:string)=>`English-only ${action} fixture reason`;
+  const seedEvent=async(policyId:string,policyVersion:number,action:"propose"|"revise"|"approve"|"reject"|"retire",actorId:string)=>{
+    await db.prepare(`INSERT INTO inventory_reorder_policy_events(id,policy_id,policy_version,action,actor_id,reason,snapshot_json,created_at)
+      VALUES(?,?,?,?,?,?,?::jsonb,?)`).bind(`${policyId}:${policyVersion}`,policyId,policyVersion,action,actorId,eventReason(action),JSON.stringify({reason:eventReason(action)}),now).run();
+  };
+  const seedProposal=async(productId:string,reorderPointMilli:number)=>{
+    const id=`executive-reorder-policy-${key()}`;
+    await db.prepare(`INSERT INTO inventory_reorder_policies(id,company_id,warehouse_id,product_id,proposed_reorder_point_milli,requested_by,version,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,1,?,?)`).bind(id,f.company,warehouse,productId,reorderPointMilli,actor.userId,now,now).run();
+    await seedEvent(id,1,"propose",actor.userId);
+    return id;
+  };
+  const reviseProposal=async(policyId:string,reorderPointMilli:number,version:number)=>{
+    await db.prepare("UPDATE inventory_reorder_policies SET proposed_reorder_point_milli=?,requested_by=?,version=?,updated_at=? WHERE id=?")
+      .bind(reorderPointMilli,actor.userId,version,now,policyId).run();
+    await seedEvent(policyId,version,"revise",actor.userId);
+  };
+  const decideProposal=async(policyId:string,action:"approve"|"reject"|"retire",version:number,reviewer=approver)=>{
+    if(action==="approve") await db.prepare(`UPDATE inventory_reorder_policies SET current_reorder_point_milli=proposed_reorder_point_milli,
+      proposed_reorder_point_milli=NULL,approved_by=?,approved_at=?,retired_at=NULL,last_decision='approved',
+      last_reviewed_by=?,last_review_reason=?,last_reviewed_at=?,version=?,updated_at=? WHERE id=?`)
+      .bind(reviewer.userId,now,reviewer.userId,eventReason(action),now,version,now,policyId).run();
+    if(action==="reject") await db.prepare(`UPDATE inventory_reorder_policies SET proposed_reorder_point_milli=NULL,
+      last_decision='rejected',last_reviewed_by=?,last_review_reason=?,last_reviewed_at=?,version=?,updated_at=? WHERE id=?`)
+      .bind(reviewer.userId,eventReason(action),now,version,now,policyId).run();
+    if(action==="retire") await db.prepare(`UPDATE inventory_reorder_policies SET retired_at=?,last_decision='retired',
+      last_reviewed_by=?,last_review_reason=?,last_reviewed_at=?,version=?,updated_at=? WHERE id=?`)
+      .bind(now,reviewer.userId,eventReason(action),now,version,now,policyId).run();
+    await seedEvent(policyId,version,action,reviewer.userId);
+  };
   const noPolicy=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(noPolicy).toMatchObject({total:"0",status:"empty",rows:[]});
 
-  const first=await propose(stockedProduct,"3");
-  expect(first).toMatchObject({status:"pending",version:1});
-  await expect(decide({id:stringField(first,'id'),version:1},"approve",actor)).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
+  const stockedPolicy=await seedProposal(stockedProduct,3000);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).status).toBe("empty");
-  const approved=await decide({id:stringField(first,'id'),version:1},"approve");
-  expect(approved).toMatchObject({status:"approved",version:2});
+  await decideProposal(stockedPolicy,"approve",2);
   let metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric).toMatchObject({total:"1",unit:"count",status:"ready",scopeBoundary:{level:"company"}});
   expect(metric.rows).toEqual([{label:"Inventory shortages",value:"1"}]);
@@ -575,20 +611,18 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   const detail=await readExecutiveEvidence(db,actor,"inventory-shortages",firstEvidence.items[0].id,filters);
   expect(detail.record).toMatchObject({sku:"EX-REORDER-STOCKED",unit:"each",on_hand_milli:"2500",available_milli:"2500",approved_reorder_point_milli:"3000",policy_version:2,href:"/commerce?view=stock"});
 
-  const pendingChange=await propose(stockedProduct,"2",2);
-  expect(pendingChange.version).toBe(3);
+  await reviseProposal(stockedPolicy,2000,3);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).total).toBe("1");
-  const rejected=await decide({id:stringField(first,'id'),version:3},"reject");
-  expect(rejected).toMatchObject({status:"approved",version:4});
+  await decideProposal(stockedPolicy,"reject",4);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).total).toBe("1");
-  const replacement=await propose(stockedProduct,"2",4);
-  await decide({id:stringField(first,'id'),version:5},"approve");
+  await reviseProposal(stockedPolicy,2000,5);
+  await decideProposal(stockedPolicy,"approve",6);
   metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric).toMatchObject({total:"0",status:"ready"});
   expect(metric.rows).toEqual([{label:"Inventory shortages",value:"0"}]);
 
-  const missingStock=await propose(emptyProduct,"1");
-  await decide({id:stringField(missingStock,'id'),version:1},"approve");
+  const emptyPolicy=await seedProposal(emptyProduct,1000);
+  await decideProposal(emptyPolicy,"approve",2);
   metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric.total).toBe("1");
   const missingEvidence=await searchExecutiveEvidence(db,actor,{metric:"inventory-shortages",filters,query:"EX-REORDER-EMPTY",limit:10});
@@ -599,10 +633,10 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   const policies=await listInventoryReorderPolicies(actor),stocked=policies.find(row=>row.product_id===stockedProduct)!,empty=policies.find(row=>row.product_id===emptyProduct)!;
   expect(stocked).toMatchObject({current_reorder_point_milli:"2000",proposed_reorder_point_milli:null,last_decision:"approved",version:6});
   expect(empty).toMatchObject({current_reorder_point_milli:"1000",retired_at:null});
-  await decide(empty,"retire",actor);
+  await decideProposal(emptyPolicy,"retire",3,actor);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).total).toBe("0");
-  const retireStocked=await listInventoryReorderPolicies(actor).then(rows=>rows.find(row=>row.product_id===stockedProduct)!);
-  await decide(retireStocked,"retire",actor);
+  const stockedVersion=required(await db.prepare("SELECT version FROM inventory_reorder_policies WHERE id=?").bind(stockedPolicy).first<{version:number|string}>()).version;
+  await decideProposal(stockedPolicy,"retire",Number(stockedVersion)+1,actor);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).status).toBe("empty");
 
   await expect(queryMetric(db,{...actor,modules:[]},"inventory-shortages",filters)).rejects.toMatchObject({code:"METRIC_FORBIDDEN"});
@@ -612,10 +646,9 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   expect(audit.map(row=>row.action).sort()).toEqual(["open","open","search","search"]);
   expect(audit.every(row=>row.provider_id==="inventory-reorder-shortages"&&row.record_version===2)).toBe(true);
   expect(JSON.parse(audit[0].fields)).toEqual(["sku","product_name","unit","warehouse_name","on_hand_milli","reserved_milli","quarantined_milli","available_milli","approved_reorder_point_milli","policy_version","stock_version"]);
-  const immutable=await db.prepare("SELECT id FROM inventory_reorder_policy_events WHERE policy_id=? ORDER BY policy_version").bind(first.id).all<{id:string}>();
-  expect(immutable.results.map(row=>row.id)).toEqual(Array.from({length:7},(_,index)=>`${first.id}:${index+1}`));
+  const immutable=await db.prepare("SELECT id FROM inventory_reorder_policy_events WHERE policy_id=? ORDER BY policy_version").bind(stockedPolicy).all<{id:string}>();
+  expect(immutable.results.map(row=>row.id)).toEqual(Array.from({length:7},(_,index)=>`${stockedPolicy}:${index+1}`));
   await expect(db.prepare("UPDATE inventory_reorder_policy_events SET reason='changed' WHERE id=?").bind(immutable.results[0].id).run()).rejects.toThrow();
-  expect(replacement.version).toBe(5);
 });
 
 it("allows a bounded published live view without granting source-module access",async()=>{
@@ -2542,42 +2575,41 @@ it("Finance source purchase aligns the catalogue, aggregate, evidence search and
 });
 
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
-import {saveProject,projectSchema} from "@erpx/server-projects/public/staff-projects";
-import {saveProjectMilestone,projectMilestoneSchema} from "@erpx/server-projects/public/project-milestones";
-import {saveProjectWorkLog,projectWorkLogSchema,decideProjectWorkLog,projectWorkLogDecisionSchema,createProjectCostAllocation,projectCostAllocationSchema,decideProjectCostAllocation,projectCostAllocationDecisionSchema} from "@erpx/server-projects/public/project-actuals";
+import {projectSchema} from "@erpx/server-projects/public/staff-projects";
+import {seedCostAllocation,seedMilestone,seedProjectFor,seedWorkLog} from "../projects/project-actual-fixtures";
 import {readExecutiveMetricProjection as projectProjection} from "@erpx/server-projects/public/executive-metric-projections";
-import {createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 async function metricProjectGrant(state:'active'|'draining'='active',packageId='projects'){
  const prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-metric-provider'}),obligations:async()=>{throw Error('No synthetic metric withdrawal witness');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual Project metric source workflow',evidence:'test:project-metric-owner'}});
 }
 it('keeps Project metric catalogue, sources and evidence on current purchased history before limits without requiring full People',async()=>{
  try{
-  f.owner.modules=['projects','finance'];const filters={from:'2026-01-01',to:'2026-12-31',currency:'THB'},p=await saveProject(db,f.owner,null,projectSchema.parse({title:'Purchased executive Project',memberUserIds:[f.claimant.userId]}),key()),milestone=await saveProjectMilestone(db,f.owner,p.id,null,projectMilestoneSchema.parse({title:'Authorized due milestone',dueAt:new Date(Date.now()-1000).toISOString(),ownerUserId:f.claimant.userId}),key());
+  f.owner.modules=['projects','finance'];const filters={from:'2026-01-01',to:'2026-12-31',currency:'THB'},p=await seedProjectFor(db,f.owner,null,projectSchema.parse({title:'Purchased executive Project',memberUserIds:[f.claimant.userId]}),key()),milestone=await seedMilestone(db,{id:`milestone-${key()}`,companyId:f.company,projectId:p.id,title:'Authorized due milestone',dueAt:Date.now()-1000,ownerUserId:f.claimant.userId,createdBy:f.owner.userId});
   await db.prepare(`INSERT INTO staff_projects(id,company_id,branch_id,department_id,title,owner_user_id,created_at,updated_at) SELECT 'private-metric-'||?||'-'||n,company_id,branch_id,department_id,'Private Project',?,created_at,updated_at FROM staff_projects CROSS JOIN generate_series(1,106) n WHERE id=?`).bind(key(),f.claimant.userId,p.id).run();
   vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');for(const metric of ['projects','overdue-project-milestones','project-dependency-blockers','project-actual-hours','project-posted-cost'] as const){expect((await metricCatalogFor(db,f.owner)).find(row=>row.id===metric)?.available).toBe(false);await expect(ownerQueryMetric(db,f.owner,metric,filters)).rejects.toMatchObject({status:403});}
   await metricProjectGrant();const metric=await queryMetric(db,f.owner,'projects',filters);expect(metric.total).toBe('1');const overdue=await queryMetric(db,f.owner,'overdue-project-milestones',filters);expect(overdue.total).toBe('1');const sources=await ownerQueryMetric(db,f.owner,'overdue-project-milestones',filters,'default',{label:overdue.rows[0].label,page:1});expect(sources.rows.map(row=>row.id)).toEqual([milestone.id]);const evidence=await searchExecutiveEvidence(db,f.owner,{metric:'overdue-project-milestones',filters,query:'Authorized',limit:1});expect(evidence.items.map(item=>item.id)).toEqual([milestone.id]);expect((await readExecutiveEvidence(db,f.owner,'overdue-project-milestones',milestone.id,filters)).record).toMatchObject({project_id:p.id});
   expect((await metricCatalogFor(db,f.owner)).find(row=>row.id==='project-posted-cost')?.available).toBe(false);await expect(searchExecutiveEvidence(db,f.owner,{metric:'project-posted-cost',filters,limit:1})).rejects.toMatchObject({status:403});
-  const time=await saveProjectWorkLog(db,f.claimant,p.id,projectWorkLogSchema.parse({workDate:'2026-09-12',minutes:45}),key());await decideProjectWorkLog(db,f.owner,p.id,time.id,projectWorkLogDecisionSchema.parse({action:'approve',expectedVersion:1,reason:'Reviewed actual Project delivery.'}),key());expect((await queryMetric(db,f.owner,'project-actual-hours',filters)).total).toBe('2700000');
+  await seedWorkLog(db,{id:`project-time-${key()}`,companyId:f.company,projectId:p.id,userId:f.claimant.userId,workDate:'2026-09-12',minutes:45,state:'approved',version:2,reviewerId:f.owner.userId});expect((await queryMetric(db,f.owner,'project-actual-hours',filters)).total).toBe('2700000');
   await metricProjectGrant('draining');expect((await queryMetric(db,f.owner,'projects',filters)).total).toBe('1');expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['projects']);
   const snapshot=await projectProjection(db,f.owner,'projects',filters,'default');await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),f.owner.assignmentId).run();await expect(snapshot.source({label:metric.rows[0].label,page:1})).rejects.toMatchObject({code:'METRIC_SOURCE_UNAVAILABLE'});expect((await metricCatalogFor(db,f.owner)).find(row=>row.id==='projects')?.available).toBe(false);await expect(readExecutiveEvidence(db,f.owner,'overdue-project-milestones',milestone.id,filters)).rejects.toMatchObject({status:403});
  }finally{vi.unstubAllEnvs();}
 });
 it('requires the actual Project costs add-on and Finance authority for approved cost aggregate, drilldown and evidence',async()=>{
  try{
-  f.owner.modules=['projects','finance'];f.manager.modules=['projects','finance'];const filters={from:'2026-01-01',to:'2026-12-31',currency:'THB'};await metricProjectGrant();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');const p=await saveProject(db,f.owner,null,projectSchema.parse({title:'Purchased Project cost source',memberUserIds:[f.manager.userId]}),key());await expect(projectProjection(db,f.owner,'project-posted-cost',filters,'default')).rejects.toMatchObject({code:'METRIC_SOURCE_UNAVAILABLE'});await metricProjectGrant('active','projects-costs');
-  const journal=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-09-12',currency:'THB',sourceType:'manual',memo:'Actual Project metric expense',lines:[{accountId:f.accounts.expense,debit:'75.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'75.01'}]}),key());await postJournal(f.manager,journal.id,key(),{expectedVersion:1});const allocation=await createProjectCostAllocation(f.owner,projectCostAllocationSchema.parse({projectId:p.id,sourceLineId:`${journal.id}-0`,amount:'75.01'}),key());await decideProjectCostAllocation(f.manager,allocation.id,projectCostAllocationDecisionSchema.parse({action:'approve',expectedVersion:1,reason:'Independent actual expense allocation.'}),key());
+  f.owner.modules=['projects','finance'];f.manager.modules=['projects','finance'];const filters={from:'2026-01-01',to:'2026-12-31',currency:'THB'};await metricProjectGrant();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');const p=await seedProjectFor(db,f.owner,null,projectSchema.parse({title:'Purchased Project cost source',memberUserIds:[f.manager.userId]}),key());await expect(projectProjection(db,f.owner,'project-posted-cost',filters,'default')).rejects.toMatchObject({code:'METRIC_SOURCE_UNAVAILABLE'});await metricProjectGrant('active','projects-costs');
+  const journal=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-09-12',currency:'THB',memo:'Actual Project metric expense',key:key(),createdBy:f.owner.userId,status:'posted',lines:[{accountId:f.accounts.expense,debit:'75.01',credit:'0'},{accountId:f.accounts.payable,debit:'0',credit:'75.01'}]});const allocation=await seedCostAllocation(db,{id:`project-cost-${key()}`,companyId:f.company,projectId:p.id,journalLineId:`${journal.id}-0`,amountMinor:7501,createdBy:f.owner.userId,state:'approved',version:2,approvedBy:f.manager.userId});
   const metric=await queryMetric(db,f.owner,'project-posted-cost',filters);expect(metric.total).toBe('7501');const source=await ownerQueryMetric(db,f.owner,'project-posted-cost',filters,'default',{label:metric.rows[0].label,page:1});expect(source.rows.map(row=>row.id)).toEqual([allocation.id]);expect((await searchExecutiveEvidence(db,f.owner,{metric:'project-posted-cost',filters,limit:1})).items.map(row=>row.id)).toEqual([allocation.id]);expect((await readExecutiveEvidence(db,f.owner,'project-posted-cost',allocation.id,filters)).record).toMatchObject({project_id:p.id,journal_id:journal.id});
   const readOnly={...f.owner,role:'staff' as const};expect((await metricCatalogFor(db,readOnly)).find(row=>row.id==='project-posted-cost')?.available).toBe(false);await expect(projectProjection(db,readOnly,'project-posted-cost',filters,'default')).rejects.toMatchObject({code:'METRIC_SOURCE_UNAVAILABLE'});
  }finally{vi.unstubAllEnvs();}
 });
 
-import {createLearningCourse,changeLearningCourse,createLearningAssignment,changeLearningAssignment,learningWork} from "@erpx/server-learning/public/learning";
+import {changeLearningAssignment,learningWork} from "@erpx/server-learning/public/learning";
 import {listRecords,recordsPage,getRecord,searchReferences} from "@erpx/server-records/public/records";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
 import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
 import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
 import {readExecutiveMetricProjection as learningProjection} from "@erpx/server-learning/public/executive-metric-projections";
-async function learningSourceFixture(){for(const actor of [f.owner,f.tie,f.claimant]){actor.modules=['learning'];await db.prepare("UPDATE assignments SET modules_json='[\"learning\"]' WHERE id=?").bind(actor.assignmentId).run();}const course=await createLearningCourse(f.owner,{title:'Actual source Learning course',description:'Original practical course and retained qualification evidence.',provider:'Independent academy',durationMinutes:45,requiredFor:'equipment_operator'},key());await changeLearningCourse(f.tie,String(course.id),{action:'publish',expectedVersion:1,reason:'Independent source and audience review.'},key());const assignment=await createLearningAssignment(f.owner,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-09-01',reason:'Original assigned learner qualification.'},key());return {courseId:String(course.id),assignmentId:String(assignment.id)};}
+async function learningSourceFixture(){for(const actor of [f.owner,f.tie,f.claimant]){actor.modules=['learning'];await db.prepare("UPDATE assignments SET modules_json='[\"learning\"]' WHERE id=?").bind(actor.assignmentId).run();}const course=await createCourseSeed(db,f.owner,{title:'Actual source Learning course',description:'Original practical course and retained qualification evidence.',provider:'Independent academy',durationMinutes:45,requiredFor:'equipment_operator'},key());await publishCourseSeed(db,String(course.id),f.tie.userId);const assignment=await createAssignmentSeed(db,f.owner,{courseId:String(course.id),courseVersion:2,learnerId:f.claimant.userId,dueDate:'2026-09-01',reason:'Original assigned learner qualification.'},key());return {courseId:String(course.id),assignmentId:String(assignment.id)};}
 async function learningSourceGrant(state:'active'|'draining'='active'){const prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='learn');return packageGrantStore(db,{authorize:async()=>({userId:'isolated-learning-source-provider'}),obligations:async()=>{throw Error('No synthetic Learning withdrawal witness');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'learn',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual Learning source projection workflow',evidence:'test:learning-source-owner'}});}
 it('applies actual Learning scope and purchase before Records, search and both notification limits and prevents Flow resurrection',async()=>{
  try{
@@ -2601,8 +2633,11 @@ it('aligns Learning metric catalogue, source drilldown and metadata evidence wit
 
 it('aligns actual Assets metric catalogue and source drilldown with retained purchases and the original independent retirement event',async()=>{
  try{
-  const {createAsset,changeAsset}=await import("@erpx/server-assets/public/asset-maintenance"),{readExecutiveMetricProjection}=await import("@erpx/server-assets/public/executive-metric-projections");for(const actor of [f.owner,f.head])actor.modules=["assets"];const filters={from:"2026-01-01",to:"2026-12-31",currency:"THB"},create=async()=>String((await createAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:"Actual Executive Asset",category:"Safety equipment",currency:"THB",costMinor:0,acquiredDate:"2026-01-01"},key())).id),active=await create(),retired=await create();
-  await changeAsset(f.owner,active,{action:"place",expectedVersion:1,placement:"Controlled equipment room",custodianId:f.claimant.userId,reason:"Actual independently visible custody"},key());await changeAsset(f.head,retired,{action:"retire-request",expectedVersion:1,reason:"Independent original physical retirement request"},key());await changeAsset(f.owner,retired,{action:"retire-approve",expectedVersion:2,reason:"Independent physical evidence review"},key());
+  const {readExecutiveMetricProjection}=await import("@erpx/server-assets/public/executive-metric-projections");for(const actor of [f.owner,f.head])actor.modules=["assets"];const filters={from:"2026-01-01",to:"2026-12-31",currency:"THB"},create=async()=>String((await seedAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:"Actual Executive Asset",category:"Safety equipment",currency:"THB",costMinor:0,acquiredDate:"2026-01-01"})).id),active=await create(),retired=await create();
+  // The native Rust Assets command owns change authority. Retain the owner row and
+  // immutable event each action persists so the metric sources read real history.
+  const change=async(actor:typeof f.owner,id:string,action:"place"|"retire-request"|"retire-approve",expectedVersion:number,reason:string,extra:{placement?:string;custodianId?:string}={})=>{await db.transaction(async tx=>{const current=await tx.prepare("SELECT lifecycle_status,condition,placement,custodian_id,retirement_reason,version FROM operational_assets WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{lifecycle_status:string;condition:string;placement:string|null;custodian_id:string|null;retirement_reason:string|null;version:number}>();if(!current||Number(current.version)!==expectedVersion)throw new Error("ASSET_CHANGED");let lifecycle=current.lifecycle_status,placement=current.placement,custodian=current.custodian_id,retirement=current.retirement_reason;if(action==="place"){lifecycle="in_service";placement=extra.placement!;custodian=extra.custodianId!;}else if(action==="retire-request"){lifecycle="retirement_pending";retirement=reason;}else{lifecycle="retired";placement=null;custodian=null;}const now=Date.now(),version=expectedVersion+1;await tx.prepare("UPDATE operational_assets SET lifecycle_status=?,placement=?,custodian_id=?,retirement_reason=?,version=?,updated_at=? WHERE id=? AND version=?").bind(lifecycle,placement,custodian,retirement,version,now,id,expectedVersion).run();await tx.prepare("INSERT INTO operational_asset_events VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(`asset-event-${key()}`,id,version,action,actor.userId,reason,current.condition,lifecycle,placement,custodian,now).run();});};
+  await change(f.owner,active,"place",1,"Actual independently visible custody",{placement:"Controlled equipment room",custodianId:f.claimant.userId});await change(f.head,retired,"retire-request",1,"Independent original physical retirement request");await change(f.owner,retired,"retire-approve",2,"Independent physical evidence review");
   vi.stubEnv("ERPX_ASSETS_PACKAGE_ENFORCEMENT","enforced");const ids=["active-assets","asset-condition-location","asset-retirements"] as const;for(const id of ids){expect((await metricCatalogFor(db,f.owner)).find(metric=>metric.id===id)?.available).toBe(false);await expect(ownerQueryMetric(db,f.owner,id,filters)).rejects.toMatchObject({code:"METRIC_SOURCE_UNAVAILABLE"});}
   const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-asset-metric-provider"}),obligations:async()=>{throw Error("No synthetic Asset inactive witness");}}),grant={companyId:f.company,packageId:"assets",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Actual Asset source metric history",evidence:"test:assets-metric-source"};await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});
   for(const id of ids){expect((await metricCatalogFor(db,f.owner)).find(metric=>metric.id===id)?.available).toBe(true);const metric=await queryMetric(db,f.owner,id,filters);expect(metric.total).toBe("1");const source=await ownerQueryMetric(db,f.owner,id,filters,"default",{label:metric.rows[0].label,page:1});expect(source.rows.map(row=>row.id)).toEqual([id==="asset-retirements"?retired:active]);expect(source.rows[0].owner_kind).toBe("asset");}
@@ -2611,8 +2646,7 @@ it('aligns actual Assets metric catalogue and source drilldown with retained pur
 });
 it('keeps actual Maintenance aggregate, scoped source facts and private evidence behind the same retained Assets history',async()=>{
  try{
-  const {createAsset,createMaintenanceWork,changeMaintenanceWork}=await import("@erpx/server-assets/public/asset-maintenance"),{readExecutiveMetricProjection}=await import("@erpx/server-maintenance/public/executive-metric-projections");for(const actor of [f.owner,f.head])actor.modules=["assets","maintenance"];const filters={from:"2026-01-01",to:"2026-12-31",currency:"THB"},create=async()=>{const asset=await createAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:"Actual Maintenance Metric Asset",category:"Safety equipment",currency:"THB",costMinor:0,acquiredDate:"2026-01-01"},key());return String((await createMaintenanceWork(f.owner,{assetId:String(asset.id),assetVersion:1,title:"Actual Maintenance Metric Work",priority:"normal",ownerId:f.head.userId,reason:"Original native maintenance metric source"},key())).id);},completed=await create(),blocked=await create(),clock=vi.spyOn(Date,"now");
-  try{clock.mockReturnValue(Date.parse("2026-02-01T01:00:00Z"));await changeMaintenanceWork(f.head,completed,{action:"start",expectedVersion:1,reason:"Original isolated downtime start"},key());clock.mockReturnValue(Date.parse("2026-02-01T03:00:00Z"));await changeMaintenanceWork(f.head,completed,{action:"complete",expectedVersion:2,resultingCondition:"good",evidence:"Private maintenance completion narrative",reason:"Original evidenced downtime completion"},key());clock.mockReturnValue(Date.parse("2026-02-01T04:00:00Z"));await changeMaintenanceWork(f.head,blocked,{action:"start",expectedVersion:1,reason:"Original active maintenance"},key());await changeMaintenanceWork(f.head,blocked,{action:"block",expectedVersion:2,reason:"Waiting for independent inspection"},key());}finally{clock.mockRestore();}
+  const {readExecutiveMetricProjection}=await import("@erpx/server-maintenance/public/executive-metric-projections");for(const actor of [f.owner,f.head])actor.modules=["assets","maintenance"];const filters={from:"2026-01-01",to:"2026-12-31",currency:"THB"},at=Date.parse("2026-02-01T01:00:00Z"),create=async(status:"completed"|"blocked")=>{const asset=await seedAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:"Actual Maintenance Metric Asset",category:"Safety equipment",currency:"THB",costMinor:0,acquiredDate:"2026-01-01"}),id=`maintenance-${key()}`;await db.prepare("INSERT INTO maintenance_work_orders(id,company_id,branch_id,department_id,asset_id,title,priority,status,owner_id,scheduled_at,downtime_started_at,downtime_ended_at,blocked_reason,completion_evidence,resulting_condition,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,2,?,?,?)").bind(id,f.company,f.branch,f.department,String(asset.id),"Actual Maintenance Metric Work","normal",status,f.head.userId,status==="completed"?at:null,status==="completed"?Date.parse("2026-02-01T03:00:00Z"):null,status==="blocked"?"Waiting for independent inspection":null,status==="completed"?"Private maintenance completion narrative":null,status==="completed"?"good":null,f.owner.userId,at,at).run();return id;},completed=await create("completed");await create("blocked");
   const actor={...f.owner,modules:["maintenance"]},ids=["open-work-orders","blocked-maintenance","asset-downtime"] as const;vi.stubEnv("ERPX_ASSETS_PACKAGE_ENFORCEMENT","enforced");for(const id of ids){expect((await metricCatalogFor(db,actor)).find(metric=>metric.id===id)?.available).toBe(false);await expect(ownerQueryMetric(db,actor,id,filters)).rejects.toMatchObject({code:"METRIC_SOURCE_UNAVAILABLE"});}await expect(searchExecutiveEvidence(db,actor,{metric:"asset-downtime",filters,limit:1})).rejects.toMatchObject({code:"EVIDENCE_FORBIDDEN"});
   const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-maintenance-metric-provider"}),obligations:async()=>{throw Error("No synthetic Maintenance inactive witness");}}),grant={companyId:f.company,packageId:"assets",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Actual Maintenance source metric history",evidence:"test:maintenance-metric-source"};await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});
   for(const id of ids){expect((await metricCatalogFor(db,actor)).find(metric=>metric.id===id)?.available).toBe(true);const metric=await queryMetric(db,actor,id,filters);expect(metric.total).toBe(id==="asset-downtime"?"7200000":"1");expect((await ownerQueryMetric(db,actor,id,filters,"default",{label:metric.rows[0].label,page:1})).rows).toHaveLength(1);}
@@ -2628,7 +2662,7 @@ async function actualSalesMetricGrant(packageId:'sales'|'sales-marketing',state:
 }
 it('aligns purchased CRM metric catalogue aggregate drilldown and evidence with actual contact lineage and current authority',async()=>{
  try{
-  const {createCRMLead,getCRMLead,changeCRMLead}=await import('@erpx/server-crm/public/crm'),{changeCRMIdentity}=await import('@erpx/server-crm/public/crm-identities'),{readExecutiveMetricProjection}=await import('@erpx/server-crm/public/executive-metric-projections');f.owner.modules=['crm'];f.head.role='sales_manager';f.head.branchId=null;f.head.departmentId=null;f.head.modules=['crm'];f.head.assignmentId=await f.grant(f.head,'sales_manager');const filters={from:'2026-01-01',to:'2026-12-31',currency:'THB'},customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Original reviewed metric customer'},key())).id),body={branchId:f.branch,title:'Actual CRM metric opportunity',contactName:'Fictional customer',contactDetail:'PRIVATE_SYNTHETIC_CHANNEL',source:'Native staff inquiry',brief:'PRIVATE_SYNTHETIC_NARRATIVE',dueDate:'2026-12-20'},lead=await createCRMLead(f.owner,body,key()),detail=await getCRMLead(f.owner,String(lead.id));await changeCRMIdentity(f.head,{action:'link-finance',accountId:detail.account_id,customerId:customer,expectedVersion:1,evidence:'Independent source Company customer review'},key());await changeCRMLead(f.owner,String(lead.id),{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'75',closeDate:'2026-12-20',reason:'Actual customer requirements independently recorded'},key());
+  const {createCRMLead,getCRMLead}=await import('@erpx/server-crm/public/crm'),{changeCRMIdentity}=await import('@erpx/server-crm/public/crm-identities'),{readExecutiveMetricProjection}=await import('@erpx/server-crm/public/executive-metric-projections');f.owner.modules=['crm'];f.head.role='sales_manager';f.head.branchId=null;f.head.departmentId=null;f.head.modules=['crm'];f.head.assignmentId=await f.grant(f.head,'sales_manager');const filters={from:'2026-01-01',to:'2026-12-31',currency:'THB'},customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Original reviewed metric customer'},key())).id),body={branchId:f.branch,title:'Actual CRM metric opportunity',contactName:'Fictional customer',contactDetail:'PRIVATE_SYNTHETIC_CHANNEL',source:'Native staff inquiry',brief:'PRIVATE_SYNTHETIC_NARRATIVE',dueDate:'2026-12-20'},lead=await createCRMLead(f.owner,body,key()),detail=await getCRMLead(f.owner,String(lead.id));await changeCRMIdentity(f.head,{action:'link-finance',accountId:detail.account_id,customerId:customer,expectedVersion:1,evidence:'Independent source Company customer review'},key());await seedCrmQualifiedLead(db,{companyId:f.company,ownerId:f.owner.userId,leadId:String(lead.id),customerId:customer,expectedValue:'75',closeDate:'2026-12-20',reason:'Actual customer requirements independently recorded'});
   const foreign=await expenseFixture(),foreignLead=await createCRMLead(foreign.owner,{...body,branchId:foreign.branch,title:'Foreign Company metric negative'},key()),foreignDetail=await getCRMLead(foreign.owner,String(foreignLead.id)),opportunity=String(await db.prepare('SELECT id FROM crm_opportunities WHERE lead_id=?').bind(lead.id).first('id'));vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');expect((await metricCatalogFor(db,f.owner)).find(row=>row.id==='opportunity-pipeline')?.available).toBe(false);await expect(ownerQueryMetric(db,f.owner,'opportunity-pipeline',filters)).rejects.toMatchObject({code:'METRIC_SOURCE_UNAVAILABLE'});await expect(searchExecutiveEvidence(db,f.owner,{metric:'opportunity-pipeline',filters,limit:1})).rejects.toMatchObject({status:403});
   await actualSalesMetricGrant('sales');await actualSalesMetricGrant('sales','draining');const metric=await queryMetric(db,f.owner,'opportunity-pipeline',filters);expect(metric.total).toBe('7500');const sources=await ownerQueryMetric(db,f.owner,'opportunity-pipeline',filters,'default',{label:metric.rows[0].label,page:1});expect(sources.rows.map(row=>row.id)).toEqual([opportunity]);expect((await searchExecutiveEvidence(db,f.owner,{metric:'opportunity-pipeline',filters,limit:1})).items.map(row=>row.id)).toEqual([opportunity]);expect((await readExecutiveEvidence(db,f.owner,'opportunity-pipeline',opportunity,filters)).record).toMatchObject({id:opportunity});expect(JSON.stringify(sources)).not.toMatch(/PRIVATE_SYNTHETIC_CHANNEL|PRIVATE_SYNTHETIC_NARRATIVE/);
   await db.prepare('UPDATE crm_leads SET contact_id=? WHERE id=?').bind(foreignDetail.contact_id,lead.id).run();expect((await queryMetric(db,f.owner,'opportunity-pipeline',filters)).total).toBe('0');expect((await searchExecutiveEvidence(db,f.owner,{metric:'opportunity-pipeline',filters,limit:1})).items).toEqual([]);await expect(readExecutiveEvidence(db,f.owner,'opportunity-pipeline',opportunity,filters)).rejects.toMatchObject({status:404});await db.prepare('UPDATE crm_leads SET contact_id=? WHERE id=?').bind(detail.contact_id,lead.id).run();const snapshot=await readExecutiveMetricProjection(db,f.owner,'opportunity-pipeline',filters,'default');await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();await expect(snapshot.source({label:metric.rows[0].label,page:1})).rejects.toMatchObject({code:'METRIC_SOURCE_UNAVAILABLE'});expect((await metricCatalogFor(db,f.owner)).find(row=>row.id==='opportunity-pipeline')?.available).toBe(false);expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['sales']);

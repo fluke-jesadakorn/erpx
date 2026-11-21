@@ -16,6 +16,10 @@ import { TimeText } from "@erpx/feature-people_payroll/components/time/time-pref
 
 import { betaFetch } from "@erpx/feature-shared/lib/beta-client";
 import {
+  holdingHostForHost,
+  holdingUiUrl,
+} from "@erpx/feature-runtime/lib/holding-hosts";
+import {
   baht,
   billingMonth,
   type BillingCost,
@@ -154,8 +158,39 @@ export function BillingConsole({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [data, invoiceTarget, periodId, platform, subscriptionTarget]);
+  // Native-authoritative platform actions run on the selected Holding's own
+  // host; the retained platform route keeps its manual/audit reads in place.
+  function holdingWorkspaceUrl(action: string) {
+    if (!platform || !holding) return null;
+    if (
+      !["cost", "delete-cost", "complete-costs", "approve", "void"].includes(
+        action,
+      )
+    )
+      return null;
+    const here = holdingHostForHost(window.location.host);
+    if (!here || here.holdingId === holding) return null;
+    const account = accounts.find((entry) => entry.holding_id === holding);
+    if (!account) return null;
+    const path = window.location.pathname.replace(
+      /^\/holdings\/[^/]+/,
+      `/holdings/${account.slug}`,
+    );
+    const query = new URLSearchParams(window.location.search);
+    query.set("holdingId", holding);
+    return holdingUiUrl(`${path}?${query.toString()}`);
+  }
   async function command(action: string, fields: Record<string, unknown> = {}) {
     if (!data || !writable) return false;
+    // Cost review, approval and void are native-authoritative on the Holding's
+    // own host (the owner binds the session audience to that Host). A platform
+    // reviewer acting on another Holding is sent to that Holding's workspace
+    // instead of opening a cross-Holding native call.
+    const holdingWorkspace = holdingWorkspaceUrl(action);
+    if (holdingWorkspace) {
+      window.location.assign(holdingWorkspace);
+      return false;
+    }
     if (reason.trim().length < 3) {
       setMessage("Enter a reason with at least 3 characters before saving.");
       return false;

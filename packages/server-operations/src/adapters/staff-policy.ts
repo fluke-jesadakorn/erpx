@@ -12,7 +12,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { StaffPolicyIdentityAccessFacts } from '@erpx/server-identity_access/public/operations-staff-policy-facts';
 import { StaffPolicyOrganizationFacts } from '@erpx/server-organization/public/operations-staff-policy-facts';
-import { StaffPolicyCollaborationFacts } from '@erpx/server-collaboration/public/operations-staff-policy-facts';
+import { nativeSystemNotificationStatement } from '@erpx/server-collaboration/adapters/native-system-notification';
 export type { StaffActor } from '@erpx/server-operations/domain/staff-policy';
 export type { RecordScope } from '@erpx/server-operations/domain/staff-policy';
 export type { StaffPerson } from '@erpx/server-operations/domain/staff-policy';
@@ -47,7 +47,9 @@ function application(provided?: SqlDatabase) {
         readEligibleRoleUsersResults(...args) { return StaffPolicyIdentityAccessFacts(database).readEligibleRoleUsersResults(...args); },
         readRequestRouteEffect(...args) { return StaffPolicyIdentityAccessFacts(database).readRequestRouteEffect(...args); },
         readRequestRouteHead(...args) { return StaffPolicyOrganizationFacts(database).readRequestRouteHead(...args); },
-        stageNotificationEffect(...args) { return StaffPolicyCollaborationFacts(database).stageNotificationEffect(...args); } };
+        async stageNotificationEffect(value: string, companyId: string, userId: string, type: string, id: string, version: number, message: string, now: number) {
+          return nativeSystemNotificationStatement(database, companyId, { userId, recordType: type, recordId: id, recordVersion: version, message, kind: 'explicit' }, value, now);
+        } };
     return createStaffPolicyApplication({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
@@ -87,4 +89,4 @@ export function scopeActor<T extends StaffActor>(actor: T, record: RecordScope):
 export function reportingChain(people: StaffPerson[], personId: string): StaffPerson[] { return invokeSync(() => purereportingChain(people, personId)); }
 export async function eligibleRoleUsers(db: SqlDatabase, scope: RecordScope, role: "hr_admin" | "holding_owner") { return invoke(() => application(db).eligibleRoleUsers(scope, role)); }
 export async function requestRoute(db: SqlDatabase, companyId: string, userId: string, kind: "expense" | "leave", excluded: string[] = []): Promise<ApprovalRoute> { return invoke(() => application(db).requestRoute(companyId, userId, kind, excluded)); }
-export function notification(db: SqlDatabase, scope: RecordScope, userId: string, type: string, id: string, version: number, message: string) { return invokeSync(() => application(db).notification(scope, userId, type, id, version, message)); }
+export async function notification(db: SqlDatabase, scope: RecordScope, userId: string, type: string, id: string, version: number, message: string) { return invoke(() => application(db).notification(scope, userId, type, id, version, message)); }

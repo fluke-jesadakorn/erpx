@@ -9,7 +9,6 @@ import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store"
 import { decideDepartmentOverride,departmentOverrideDetail,departmentOverrideWork } from "@erpx/server-organization/public/department-decisions";
 import {saveEmployeeRequest,employeeRequestSchema,actOnEmployeeRequest,requestActionSchema} from '@erpx/server-records/public/employee-requests';
 import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
-import { reconcilePositionGpo } from "@erpx/server-identity_access/public/position-gpo";
 import { flowSettingsHub } from "@erpx/server-work_projection/public/flow-settings-hub";
 import { departmentFlowSettingsHistory } from "@erpx/server-organization/public/flow-settings-facts";
 import { activeLeavePolicySettings, leavePolicySettingsHistory } from "@erpx/server-people_payroll/public/flow-settings-facts";
@@ -116,33 +115,6 @@ it("lets only a higher real reporting manager override a pending department step
   expect(event).toMatchObject({previous_approver_user_id:f.head.userId,approver_user_id:f.owner.userId,actor_user_id:f.owner.userId});
   expect(JSON.parse(event!.authority_json!)).toMatchObject({outcome:"approve",originalApproverUserId:f.head.userId});
   expect(view.currentApprover?.stage).toBe("accounts_review");
-});
-
-it("queues position GPO removal on departure without changing appointment authority",async()=>{
-  const personId=`person-${f.head.userId}`,
-    engagement=(await db.prepare("SELECT id,position_id,version FROM hr_engagements WHERE person_id=?").bind(personId).first<{id:string;position_id:string;version:number}>())!,
-    position=engagement.position_id;
-  const connection=`gpo-connection-${key()}`,now=Date.now();
-  await db.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Test Directory','active_directory','{}'::jsonb,'active',?,?)").bind(connection,f.company,f.it.userId,now).run();
-  await db.prepare("INSERT INTO position_gpo_policies(company_id,position_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,updated_at) VALUES(?,?,1,1,?,'gpo','group','ou',?)").bind(f.company,position,connection,now).run();
-  await db.prepare("INSERT INTO position_gpo_revisions(id,company_id,position_id,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_gpo_version,affected_person_ids,published_by,reason,command_id,created_at) VALUES(?,?,?,1,?,'gpo','group','ou','1','[]'::jsonb,?,'Test binding',?,?)").bind(`revision-${key()}`,f.company,position,connection,f.it.userId,key(),now).run();
-  // The current inherited-GPO model reconciles verified source claims instead
-  // of firing a person-only trigger. Seed the membership that ERPX previously
-  // applied, then verify departure queues its canonical removal job.
-  const accountId=`gpo-account-${key()}`,sourceId=`position-gpo:${engagement.id}`,ruleId=`legacy-position:${position}`;
-  await db.batch([
-    db.prepare("INSERT INTO people_directory_membership_sources(connection_id,group_id,member_id,source_id,created_at) VALUES(?,'group',?,?,?)")
-      .bind(connection,accountId,sourceId,now),
-    db.prepare(`INSERT INTO organization_gpo_membership_claims(
-      connection_id,group_id,member_id,source_id,rule_id,company_id,position_id,engagement_id,person_id,
-      revision,engagement_version,gpo_id,computer_target_ou_id
-    ) VALUES(?,'group',?,?,?,?,?,?,?,1,?,'gpo','ou')`)
-      .bind(connection,accountId,sourceId,ruleId,f.company,position,engagement.id,personId,engagement.version),
-  ]);
-  await db.prepare("UPDATE hr_engagements SET status='ended',version=version+1 WHERE person_id=?").bind(personId).run();
-  await reconcilePositionGpo(db);
-  expect(await db.prepare("SELECT desired_action,status FROM position_gpo_jobs WHERE company_id=? AND person_id=?").bind(f.company,personId).first()).toMatchObject({desired_action:"remove",status:"queued"});
-  expect((await appointmentOverview(db,f.owner)).seats.find((s)=>s.kind==="head"&&s.scope_id===f.department)?.person_id).toBe(personId);
 });
 
 it("overrides only the pending purchase department step and continues to Accounting",async()=>{

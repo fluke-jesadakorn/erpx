@@ -53,7 +53,8 @@ export function getRuntime(): RuntimeEnv {
     if(resolve(manifestPath)!==join(data,'databases.json')||!Object.entries(manifest.databases).every(([binding,value])=>{
       if(!/^(CONTROL|H00[1-3])(_READ)?_DB$/.test(binding))return false;
       const url=new URL(value);
-      return ['postgres:','postgresql:'].includes(url.protocol)&&url.hostname==='127.0.0.1'&&url.port==='5432'&&url.username==='erpx_test_admin'&&url.pathname===`/erpx_browser_${engineering.run}_${binding.toLowerCase()}`;
+      const expected=engineering.nativeRoster?.entries.find(entry=>entry.binding===binding);
+      return ['postgres:','postgresql:'].includes(url.protocol)&&url.hostname==='127.0.0.1'&&url.port==='5432'&&url.username==='erpx_test_admin'&&!!url.password&&!url.search&&!url.hash&&url.pathname===(expected?`/erpx_dev_rust_${expected.token}`:`/erpx_browser_${engineering.run}_${binding.toLowerCase()}`);
     })||Object.keys(manifest.databases).length!==8||!['CONTROL_DB','CONTROL_READ_DB','H001_DB','H001_READ_DB','H002_DB','H002_READ_DB','H003_DB','H003_READ_DB'].every(binding=>Boolean(manifest.databases[binding]))||manifest.slots.length!==3||new Set(manifest.slots.map(slot=>slot.id)).size!==3||manifest.slots.some(slot=>!/^h00[1-3]$/.test(slot.id)||slot.write!==`${slot.id.toUpperCase()}_DB`||slot.read!==`${slot.id.toUpperCase()}_READ_DB`||slot.files!==`${slot.id.toUpperCase()}_FILES`))throw new Error('ENGINEERING_DATABASE_MANIFEST_MISMATCH');
     if(process.env.ERPX_MINIO_ENDPOINT||process.env.ERPX_MINIO_BUCKET)throw new Error('ENGINEERING_LOCAL_FILES_REQUIRED');
   }
@@ -97,10 +98,11 @@ export function getRuntime(): RuntimeEnv {
   }
   const role = process.env.ERPX_PROCESS_ROLE === 'jobs' ? 'jobs' : 'app';
   const poolLimits=databasePoolLimits({application:process.env.ERPX_APP_PG_POOL_MAX,development:process.env.ERPX_DEV_PG_POOL_MAX,control:process.env.ERPX_CONTROL_PG_POOL_MAX});
+  const nativeFence=engineering?.nativeRoster?{current:()=>{const fresh=engineeringVerificationContext();return !!fresh?.nativeRoster&&fresh.run===engineering.run&&fresh.sourceFingerprint===engineering.sourceFingerprint&&fresh.fileManifestSha256===engineering.fileManifestSha256&&fresh.nativeLeaseSha256===engineering.nativeLeaseSha256;}}:undefined;
   for (const [binding, connectionString] of Object.entries(manifest.databases)) {
     // Installer provides independently scoped database logins; a separate jobs
     // manifest grants projection writes that the web process cannot perform.
-    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max:databasePoolSize(binding,role,process.env.NODE_ENV,poolLimits),connectionTimeoutMillis:databasePoolAcquireTimeout(role,process.env.NODE_ENV) });
+    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max:databasePoolSize(binding,role,process.env.NODE_ENV,poolLimits),connectionTimeoutMillis:databasePoolAcquireTimeout(role,process.env.NODE_ENV) },nativeFence);
   }
   // Schema migrations use a separately provisioned login. The web process gets
   // these credentials only from the private, sibling migration manifest; app
@@ -115,7 +117,8 @@ export function getRuntime(): RuntimeEnv {
       for (const [binding, connectionString] of Object.entries(migrationManifest.databases)){
         if(engineering){
           const url=new URL(connectionString);
-          if(!/^(CONTROL|H00[1-3])(_READ)?_DB$/.test(binding)||url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!==`/erpx_browser_${engineering.run}_${binding.toLowerCase()}`)throw new Error('ENGINEERING_MIGRATION_MANIFEST_MISMATCH');
+          const expected=engineering.nativeRoster?.entries.find(entry=>entry.binding===binding);
+          if(!/^(CONTROL|H00[1-3])(_READ)?_DB$/.test(binding)||!['postgres:','postgresql:'].includes(url.protocol)||url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||!url.password||url.search||url.hash||url.pathname!==(expected?`/erpx_dev_rust_${expected.token}`:`/erpx_browser_${engineering.run}_${binding.toLowerCase()}`))throw new Error('ENGINEERING_MIGRATION_MANIFEST_MISMATCH');
         }
         env[`MIGRATION_${binding}`] = new PostgresDatabase({ connectionString, application_name: 'erpx-migration', max: 1 });
       }

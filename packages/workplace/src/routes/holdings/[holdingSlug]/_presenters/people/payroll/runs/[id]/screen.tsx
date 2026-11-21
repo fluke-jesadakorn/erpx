@@ -27,7 +27,8 @@ import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { getPayrollRun, listPayrollRuns, payrollPostingOptions } from "@erpx/server-people_payroll/public/people-payroll";
+import { payrollPostingOptions } from "@erpx/server-people_payroll/public/people-payroll";
+import { ownedPeoplePayrollRun, ownedPeoplePayrollRuns } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { isThaiHotelPayrollMockEnabled } from "@erpx/server-runtime/public/simulation-only-adapters";
 import {listPayslips} from "@erpx/server-people_payroll/public/payroll-payslips";
 import { Card } from "@erpx/ui/components/foundation";
@@ -40,13 +41,22 @@ export default async function PayrollRunDetail({ params, searchParams }: { param
   const simulationPayroll = isThaiHotelPayrollMockEnabled(actor.holdingSlug);
   const query = await searchParams, printing = query.print === "1";
   let data;
-  try { data = await getPayrollRun(actor, id); } catch (error) { return pageError(error, actor.holdingSlug); }
+  try {
+    const native = await ownedPeoplePayrollRun(actor, holdingSlug, id);
+    if (native === undefined) throw new ApiError(503, "NATIVE_PEOPLE_PAYROLL_UNAVAILABLE", "The native People Payroll reader is unavailable.");
+    data = native;
+  } catch (error) { return pageError(error, actor.holdingSlug); }
   const purchase = await payrollPurchaseControls(actor);
   const base = workspaceBase(publicScope(actor));
   const run = data.run as Record<string, unknown>;
   const previousItems = hasPermission(actor,"payroll.read") && data.items.length ? await (async()=>{
-    const earlier=(await listPayrollRuns(actor)).filter(candidate=>String(candidate.pay_group_id)===String(run.pay_group_id)&&String(candidate.period_end)<String(run.period_start)&&["approved","posted"].includes(String(candidate.status))).sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)))[0];
-    return earlier ? (await getPayrollRun(actor,String(earlier.id))).items : [];
+    const runs = await ownedPeoplePayrollRuns(actor, holdingSlug);
+    if (runs === undefined) throw new ApiError(503, "NATIVE_PEOPLE_PAYROLL_UNAVAILABLE", "The native People Payroll reader is unavailable.");
+    const earlier=runs.filter(candidate=>String(candidate.pay_group_id)===String(run.pay_group_id)&&String(candidate.period_end)<String(run.period_start)&&["approved","posted"].includes(String(candidate.status))).sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)))[0];
+    if (!earlier) return [];
+    const previous = await ownedPeoplePayrollRun(actor, holdingSlug, String(earlier.id));
+    if (previous === undefined) throw new ApiError(503, "NATIVE_PEOPLE_PAYROLL_UNAVAILABLE", "The native People Payroll reader is unavailable.");
+    return previous.items;
   })() : [];
   const previousNet=Object.fromEntries(previousItems.map(item=>[String(item.engagement_id),Number(item.net_minor)]));
   const flow = await documentFlow(actor,"payroll",id);
@@ -79,10 +89,10 @@ export default async function PayrollRunDetail({ params, searchParams }: { param
         {run.status==="approved"&&hasPermission(actor,"finance.approve")&&<PayrollAccountingPanel base={base} run={run} options={postingOptions} userId={actor.userId}/>}
         {run.status==="posted"&&(hasPermission(actor,"payroll.payment.read")||hasPermission(actor,"payroll.payment.prepare")||hasPermission(actor,"finance.pay"))&&<PayrollPaymentPanel base={base} run={run} batch={paymentBatch} items={paymentItems} userId={actor.userId} canPrepare={hasPermission(actor,"payroll.payment.prepare")} canApprove={hasPermission(actor,"finance.pay")&&(paymentBatch?.retry_requested_by??paymentBatch?.created_by)!==actor.userId} canExport={hasPermission(actor,"payroll.payment.execute")} canConfirm={hasPermission(actor,"finance.pay")}/>}
       </section>
-      <PayrollDisclosure title="Controlled corrections"><PayrollCorrectionControls appearance="standard" base={base} run={run} corrections={data.corrections} userId={actor.userId} canRequest={hasPermission(actor,"payroll.prepare")} canReview={hasPermission(actor,"payroll.approve")}/></PayrollDisclosure>
-      {adjustments&&(run.status==='posted'||Boolean(run.adjustment_of_run_id))&&<PayrollAdjustmentControls base={base} run={run} items={data.items} data={adjustments} canPrepare={hasPermission(actor,'payroll.prepare')}/>}
-      {hasPermission(actor,"payroll.read")&&<PayrollDisclosure title="Calculation policy and reports"><PayrollPolicySummary base={base} userId={actor.userId} run={run} exports={data.exports}/></PayrollDisclosure>}
-      {hasPermission(actor,"payroll.read")&&<PayrollItemList userId={actor.userId} run={run} items={data.items} previousNet={previousNet}/>}
+      <PayrollDisclosure title="Controlled corrections"><PayrollCorrectionControls appearance="standard" base={base} run={run} corrections={[...data.corrections]} userId={actor.userId} canRequest={hasPermission(actor,"payroll.prepare")} canReview={hasPermission(actor,"payroll.approve")}/></PayrollDisclosure>
+      {adjustments&&(run.status==='posted'||Boolean(run.adjustment_of_run_id))&&<PayrollAdjustmentControls base={base} run={run} items={[...data.items]} data={adjustments} canPrepare={hasPermission(actor,'payroll.prepare')}/>}
+      {hasPermission(actor,"payroll.read")&&<PayrollDisclosure title="Calculation policy and reports"><PayrollPolicySummary base={base} userId={actor.userId} run={run} exports={[...data.exports]}/></PayrollDisclosure>}
+      {hasPermission(actor,"payroll.read")&&<PayrollItemList userId={actor.userId} run={run} items={[...data.items]} previousNet={previousNet}/>}
       {run.status==="posted"&&hasPermission(actor,"finance.pay")&&<PayrollLiabilitiesPanel initial={initialLiabilities} base={base} runId={id} version={Number(run.version)} userId={actor.userId}/>}
       {run.status==="posted"&&hasPermission(actor,"finance.pay")&&actor.companyId&&<PayrollOtherRemittancesPanel initial={initialOtherLiabilities} base={base} companyId={actor.companyId} runId={id} version={Number(run.version)} currency={String(run.currency)} periodEnd={String(run.period_end)}/>}
       {hasPermission(actor,"payroll.read")&&<Card as="section" appearance="standard" className="ui-panel"><PayrollHeading title="Payslips"/><PayrollNote text="Issued employee copies retain the posted calculation and source digest. Employees see only their own copies through My payslips."/>{payslips.length?<ul>{payslips.map(slip=><li key={slip.id}><Link href={canonicalUiHref(`${base}/people/payslips/${slip.id}`)}>{slip.employeeName} · issued revision {slip.runRevision}</Link></li>)}</ul>:<PayrollNote text="Copies are issued when the run is independently posted."/>}</Card>}

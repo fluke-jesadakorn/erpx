@@ -4,6 +4,11 @@ import { expect, type BrowserContext } from "@playwright/test";
 export async function selectFixtureAssignment(context: BrowserContext, companyId: string, assignmentId: string, holdingSlug = "acme", workspaceSuffix = "") {
   const api = `/api/v1/holdings/${holdingSlug}`, origin = process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102";
   const assignmentApi = `${api}${workspaceSuffix}/assignments/active`;
+  if (process.env.ERPX_E2E_LOOPBACK_SSO === "1" && !(await context.cookies(origin)).some(cookie => cookie.name === "__Host-erpx-product")) {
+    const sso = await context.request.get(`${origin}/sso/start?next=${encodeURIComponent(`/holdings/${holdingSlug}/home`)}`);
+    expect(sso.status(), await sso.text()).toBeLessThan(500);
+    expect((await context.cookies(origin)).some(cookie => cookie.name === "__Host-erpx-product"), "Native Holding SSO must establish the product session").toBeTruthy();
+  }
   const company = await context.request.post(`${api}/companies/active`, { headers: { Origin: origin }, data: { companyId } });
   expect(company.ok(), await company.text()).toBeTruthy();
   const current = await context.request.get(assignmentApi);

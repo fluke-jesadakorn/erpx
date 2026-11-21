@@ -10,6 +10,6 @@ export function businessDocumentBrand(actor: WorkContext, input: Parameters<Retu
   return createBusinessDocumentBrandQuery({
     prepare: async () => { db = (await holdingResources(actor.holdingId)).write; },
     recordBranch: (kind, id) => recordBranchId(db, actor, kind, id),
-    document: scope => resolveDocumentBrand(db, actor, scope),
+    document: scope => resolveDocumentBrand(actor, scope),
   })(input);
 }

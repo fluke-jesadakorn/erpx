@@ -1,5 +1,4 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePlatformContext, requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
@@ -13,8 +12,9 @@ export async function POST(request:Request) {
     const {base}=z.object({base:z.string().max(512)}).parse(await request.json());
     const db=(await runtimeEnv()).CONTROL_DB;
     if(base==='/platform') {
-      const actor=await requirePlatformContext();
-      await rememberWorkspace(db,actor.userId,canonicalUiHref('/platform/home'));
+      await requirePlatformContext();
+      // The platform root is a selector-only destination; it has no Holding
+      // preference row. Persisting a Company-less workspace is not supported.
     } else {
       const parts=base.split('/').filter(Boolean);
       const parsed=parts[0]==='holdings' && parts[1] ? parseHoldingWorkspace(parts[1],parts.slice(2)) : null;

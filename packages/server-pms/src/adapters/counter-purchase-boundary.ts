@@ -1,4 +1,5 @@
 import { flushFinanceDeferredEffects } from "@erpx/server-finance/public/finance-transactions";
+import { nativeClearCommandAssertionsMany } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SqlDatabase, TransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -31,7 +32,7 @@ export async function withPmsCounterPurchasedTransaction<Result>(owner: Transact
       await flushFinanceDeferredEffects(transaction);
       if (input.actor) await assertPmsProviderAuthority(transaction, input.actor, input.permission);
       const observed = await transaction.batch([...boundaries.flatMap(boundary => boundary.after),
-        transaction.prepare(`DELETE FROM command_assertions WHERE command_id IN (${capabilities.map(() => "?").join(",")})`).bind(...capabilities.map((_, index) => `${key}:${index}`))]);
+        await nativeClearCommandAssertionsMany(transaction, input.companyId, capabilities.map((_, index) => `${key}:${index}`))]);
       boundaries[0]?.observe?.(observed);
       return result;
     });

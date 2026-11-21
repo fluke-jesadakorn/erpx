@@ -1,0 +1,29 @@
+{
+  "schema": "erpx.evidence/legal-native-enrollment/v1",
+  "recorded_at": "2026-11-10T05:45:00+07:00",
+  "head": "a52708aa5ec842a056c02e69163b9c0fb69748c7",
+  "status": "partial",
+  "scope": "Native Legal portal enrollment: Argon2id credential with issuer=local:credential, Legal share-token validation, verification-token handoff to the existing sandbox email adapter.",
+  "native_path": {
+    "application": "AccountCredentials.sign_up_legal hashes with the native Argon2id hasher, creates the native email-verification proof and returns the raw proof token to the trusted Legal enrollment caller.",
+    "repository": "PostgresAccountCredentials.sign_up_legal inserts user/account(issuer=local:credential)/principal and the native proof without a second mail outbox; the audit uses the existing invitation_credential_created action.",
+    "endpoint": "POST /api/v1/account/legal-enrollment on the private Account API verifies the HS256 erpx-legal-enrollment JWT, checks the exact Legal share email/expiry/revocation/enabled/destruction state, and calls sign_up_legal.",
+    "transport": "packages/native-sdk/src/session.ts allows the bounded /api/v1/account/legal-enrollment path; the private boundary allows it only on the exact Account host.",
+    "route": "packages/feature-account/src/routes/api/legal-portal/enroll/route.ts now calls the native endpoint and sends the verification link through the existing sandbox email adapter. It no longer calls createAuth sign-up.",
+    "test_harness": "tests/support/runtime-env.ts aligns process.env.BETTER_AUTH_SECRET with the fixture env secret so the native server verifies the Legal JWT."
+  },
+  "evidence": {
+    "legal.legal.integration": "51 passed / 1 failed",
+    "enrollment": "The invited Legal enrollment returns 200, creates usr_legal_<uuid> with emailVerified=false, no staff assignment, and the sandbox verification email contains the native /api/auth/verify-email link.",
+    "unverified_continuation": "The unverified native sign-in returns 200 and the Legal continuation returns 403 LEGAL_EMAIL_UNVERIFIED.",
+    "remaining_failure": "legal.test.ts fails after the verification link: the native verify response sets a new session token but the test's subsequent native get-session returns INVALID_SESSION_PROOF (central is undefined). The native verification/session device-cookie handoff still needs correction.",
+    "provider_gate": "legal.rust-worker-bootstrap.provider 1/1 pass in 88.43 s",
+    "support": "support.package-surfaces.integration 22/22 after rebuilding the Field held-provider example",
+    "checks": "cargo check private-field-api/existing-business and files-scan-worker/field-push-worker pass; tests/config typecheck pass; catalogue 33 modules / 1011 suites"
+  },
+  "not_certified": {
+    "owner": "legal",
+    "reason": "One Legal integration case remains on the native verify/session device-cookie handoff, and secondary TypeScript Legal views keep http/ssr partial. Legal is not owner 5/41."
+  },
+  "next": "Fix the native verify-link session/device-cookie handoff (the verify response must expose the exact device proof the native get-session needs), then rerun legal.legal.integration to 52/52, migrate the secondary TS views and certify Legal."
+}

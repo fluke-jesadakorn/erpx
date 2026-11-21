@@ -13,7 +13,7 @@ export async function pmsPresentationQueries(holdingId: string) {
   return {
     pmsDocumentQueries: (...args: ReadArguments<typeof pmsDocumentQueries>) => pmsDocumentQueries(write, ...args),
     loadPms: (...args: ReadArguments<typeof loadPms>) => loadPms(write, ...args),
-    resolveDocumentBrand: (...args: ReadArguments<typeof resolveDocumentBrand>) => resolveDocumentBrand(write, ...args),
+    resolveDocumentBrand: (...args: Parameters<typeof resolveDocumentBrand>) => resolveDocumentBrand(...args),
     pmsImportBatches: (...args: ReadArguments<typeof pmsImportBatches>) => pmsImportBatches(write, ...args),
   };
 }

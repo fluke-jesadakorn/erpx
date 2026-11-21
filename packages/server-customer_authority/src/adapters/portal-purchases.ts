@@ -1,10 +1,9 @@
 import 'server-only';
-import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
+import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
 import {finalRootOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/final-root-owner-projection-sources';
-import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
@@ -29,17 +28,6 @@ export async function customerAccessPurchaseControls(database:SqlDatabase,actor:
 }
 export async function requireCustomerAccessPurchasedRead(database:SqlDatabase,actor:WorkContext,id?:string){
  const mode=await commercePackageEnforcementMode();if(mode==='disabled')return;await current(database,actor);if(id)await source(database,actor,id);await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'sales.portal',purpose:'history'});
-}
-export async function withCustomerAccessPurchasedCommand<Result extends Record<string,unknown>>(actor:WorkContext,command:{key:string;operation:string;id:string;action:'request'|'approve'|'reject'|'revoke'|'invite'|'resend'},run:(database:SqlDatabase)=>Promise<Result>){
- const mode=await commercePackageEnforcementMode(),owner=(await holdingResources(actor.holdingId)).write,requiresTransaction=command.action==='invite'||command.action==='resend';if(mode==='disabled'&&!requiresTransaction)return run(owner);if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'CUSTOMER_ACCESS_TRANSACTION_REQUIRED','Customer access requires its complete owned Holding transaction.');
- try{return await owner.transaction(async database=>{
-  const locks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([locks[0],...commerceCompleteOwnerSourceReadLocks(database),...customerPortalSourceReadLocks(database)]);await lockQueuedCommandAuthority(database);await database.batch(locks.slice(1));
-  const before=command.action==='request'?null:await source(database,actor,command.id),review=command.action==='approve'||command.action==='reject'||(command.action==='revoke'||command.action==='invite'||command.action==='resend')&&before?.created_by!==actor.userId,bound=await current(database,actor,review),prior=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first(),scope={companyId:actor.companyId,capability:'sales.portal',purpose:prior?'history' as const:command.action==='request'||command.action==='approve'||command.action==='invite'?'new-work' as const:'settle-existing' as const},key=`portal-access:${randomUUID()}`,boundary=mode==='disabled'?null:purchaseCommandBoundary(database,mode,key,scope);
-  if(boundary){await checkPurchasedCapability(database,mode,scope);await database.batch(boundary.before);}const result=await run(database),after=await source(database,actor,command.id);
-  if(before&&before.identity!==after.identity||!prior&&(typeof result.version!=='number'||Number(after.version)!==result.version))throw new ApiError(409,'CUSTOMER_ACCESS_SOURCE_CHANGED','The original customer access source changed.');
-  await flushFinanceDeferredEffects(database);await current(database,bound,review);if((await source(database,actor,command.id)).image!==after.image)throw new ApiError(409,'CUSTOMER_ACCESS_SOURCE_CHANGED','The original customer access changed after its owner effects.');
-  if(boundary){const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);}return result;
- });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 /** Public accounts have no staff Company assignment. This short source unit
  * fences grant writes before its first query, then locks the actual native

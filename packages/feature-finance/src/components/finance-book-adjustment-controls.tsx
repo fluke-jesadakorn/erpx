@@ -5,7 +5,7 @@ import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-r
 import {FinanceEvidenceDocuments} from "@erpx/feature-finance/components/finance-evidence-documents";
 import { useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
-import { financeCommandFetch as workFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { financeCommandFetch as workFetch } from "@erpx/feature-finance/public/client";
 import { financeCsvRows } from "@erpx/feature-finance/lib/finance-csv";
 import {
   Button,

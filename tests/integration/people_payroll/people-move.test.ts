@@ -2,7 +2,8 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { loadPeopleMove, validatePeopleMoveTarget } from "@erpx/server-people_payroll/public/people-move";
-import {installStaffLevels} from '@erpx/server-organization/public/organization';
+
+import {installStaffLevels} from '../../support/helpers/organization-levels';
 import { createHash } from "node:crypto";
 import { placementBatchInput, previewPlacementBatch, submitPlacementBatch } from "@erpx/server-people_payroll/public/people-placement-batch";
 

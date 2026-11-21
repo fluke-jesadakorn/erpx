@@ -1,9 +1,7 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-/** Effects bind the caller's transaction; this owner is the only source of its table mutations. */
-export function betaOnboardingEffects(db:SqlDatabase){return {prepareBinding(holding_id:string,slug:string,company_name:string,writeBinding:string,read:string,files:string){return db
-      .prepare(
-        "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES(?,?,?,?,?,?,'active') ON CONFLICT(holding_id) DO NOTHING",
-      )
+import { nativeRuntimeStatement } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
+/** Effects bind the caller's transaction; the native axum executor is now the only source of this table mutation. No SQL remains in TypeScript. */
+export function betaOnboardingEffects(db:SqlDatabase){return {prepareBinding(holding_id:string,slug:string,company_name:string,writeBinding:string,read:string,files:string){return nativeRuntimeStatement('runtime_stmt_18', { companyId: '', now: Date.now(), actor: undefined })
       .bind(
         holding_id,
         slug,

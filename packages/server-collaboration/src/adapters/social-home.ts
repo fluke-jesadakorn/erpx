@@ -25,6 +25,7 @@ import { validateMentions, textStatements } from '@erpx/server-collaboration/pub
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { createSocialHomeApplication, type SocialHomeRepository } from '@erpx/server-collaboration/application/social-home';
+import { nativeOwnerWriteDescriptor } from '@erpx/server-collaboration/adapters/native-owner-write';
 import { collaborationHomeSources as pms } from '@erpx/server-pms/public/collaboration-home-sources';
 import { collaborationHomeSources as organization } from '@erpx/server-organization/public/collaboration-home-sources';
 import { collaborationHomeSources as projects } from '@erpx/server-projects/public/collaboration-home-sources';
@@ -35,7 +36,7 @@ import { collaborationHomeSources as agent } from '@erpx/server-agent/public/col
 import { collaborationHomeSources as operations } from '@erpx/server-operations/public/collaboration-home-sources';
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
-import {withWorkSocialCommand,withWorkSocialUploadCleanup} from '@erpx/server-collaboration/adapters/work-social-purchases';
+import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -66,25 +67,15 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             }>();
         }, guardTeamAudience(key: string, value: "audience-team", id: string, companyId: string, userId: string) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM messaging_teams t JOIN messaging_team_members m ON m.team_id=t.id WHERE t.id=? AND t.company_id=? AND NOT t.organization_managed AND m.user_id=?)", [id, companyId, userId]);
-        }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, prepareCommentDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string) {
-            return db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,comment_parent_post_id) VALUES(?,?,?,?, '',?,?,?)")
-                .bind(id, userId, companyId, branch_id, now, now2, postId);
-        }, guardCommentDraft(key: string, value: "draft", id: string, userId: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND published_comment_id IS NULL AND cancelled_at IS NULL)", [id, userId]); }, cancelCommentDraft(now: number, now2: number, id: string) { return db.prepare("UPDATE social_post_drafts SET cancelled_at=?,version=version+1,updated_at=? WHERE id=?").bind(now, now2, id); }, prepareEditDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string, expectedVersion: number) {
-            return db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,edit_post_id,edit_post_version) VALUES(?,?,?,?, '',?,?,?,?)")
-                .bind(id, userId, companyId, branch_id, now, now2, postId, expectedVersion);
-        }, async editDraft(id: string, companyId: string) {
+        }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, async editDraft(id: string, companyId: string) {
             return db.prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=?")
                 .bind(id, companyId).first<PostDraft>();
-        }, guardEditDraft(key: string, value: "draft", id: string, userId: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND edit_post_id IS NOT NULL AND edit_saved_version IS NULL AND cancelled_at IS NULL)", [id, userId]); }, cancelEditDraft(now: number, now2: number, id: string) { return db.prepare("UPDATE social_post_drafts SET cancelled_at=?,version=version+1,updated_at=? WHERE id=?").bind(now, now2, id); }, async commentDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND comment_parent_post_id IS NOT NULL").bind(id).first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND rich_content_json IS NOT NULL").bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
+        }, async commentDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND comment_parent_post_id IS NOT NULL").bind(id).first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND rich_content_json IS NOT NULL").bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)", [id, userId, expectedVersion]);
         }, updateDraft(body: string, branch: string | null, department: string | null, value: "company" | "branch" | "department" | "participants" | "team" | "project" | null, audienceId: string | null, value2: string, value3: string, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value4: string, value5: string | null, value6: string | null, now: number, id: string) {
-            return db
-                .prepare("UPDATE social_post_drafts SET body=?,branch_id=?,department_id=?,audience_kind=?,audience_id=?,participants_json=?,sources_json=?,purpose=?,mentions_json=?,content_json=?,rich_content_json=?,version=version+1,updated_at=? WHERE id=?")
-                .bind(body, branch, department, value, audienceId, value2, value3, purpose, value4, value5, value6, now, id);
+            return nativeOwnerWriteDescriptor(db, 'SH_DRAFT_UPDATE', [body, branch, department, value, audienceId, value2, value3, purpose, value4, value5, value6, now, id]);
         }, prepareDraft(recordId: string, userId: string, companyId: string, branch: string | null, body: string, now: number, now2: number, department: string | null, value: "company" | "branch" | "department" | "participants" | "team" | "project" | null, audienceId: string | null, value2: string, value3: string, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value4: string, value5: string | null, value6: string | null) {
-            return db
-                .prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,mentions_json,content_json,rich_content_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-                .bind(recordId, userId, companyId, branch, body, now, now2, department, value, audienceId, value2, value3, purpose, value4, value5, value6);
+            return nativeOwnerWriteDescriptor(db, 'SH_DRAFT_PREPARE', [recordId, userId, companyId, branch, body, now, now2, department, value, audienceId, value2, value3, purpose, value4, value5, value6]);
         }, async publishDraft(id: string, companyId: string, userId: string) {
             return db
                 .prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=? AND author_id=?")
@@ -93,20 +84,13 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         }, guardPublishDraft(key: string, value: "draft", id: string, userId: string, version: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)", [id, userId, version]);
         }, preparePost(postId: string, userId: string, name: string, companyId: string, branch_id: string | null, body: string, key: string, now: number, now2: number, department_id: string | null, audience_kind: "company" | "branch" | "department" | "participants" | "team" | "project", audience_id: string | null, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value: string, content_json: string | null, rich_content_json: string | null) {
-            return db
-                .prepare("INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,body,last_command_id,created_at,updated_at,department_id,audience_kind,audience_id,purpose,mentions_json,content_json,rich_content_json) VALUES(?,'team',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-                .bind(postId, userId, name, companyId, branch_id, body, key, now, now2, department_id, audience_kind, audience_id, purpose, value, content_json, rich_content_json);
-        }, prepareParticipant(postId: string, userId: string) { return db.prepare("INSERT INTO social_post_participants(post_id,user_id) VALUES(?,?)").bind(postId, userId); }, prepareSource(postId: string, ordinal: number, kind: "staff_task" | "staff_project" | "pms_record", id: string) {
-            return db.prepare("INSERT INTO social_post_sources(post_id,ordinal,source_kind,source_id) VALUES(?,?,?,?)")
-                .bind(postId, ordinal, kind, id);
+            return nativeOwnerWriteDescriptor(db, 'SH_POST_PREPARE', [postId, userId, name, companyId, branch_id, body, key, now, now2, department_id, audience_kind, audience_id, purpose, value, content_json, rich_content_json]);
+        }, prepareParticipant(postId: string, userId: string) { return nativeOwnerWriteDescriptor(db, 'SH_PARTICIPANT_PREPARE', [postId, userId]); }, prepareSource(postId: string, ordinal: number, kind: "staff_task" | "staff_project" | "pms_record", id: string) {
+            return nativeOwnerWriteDescriptor(db, 'SH_SOURCE_PREPARE', [postId, ordinal, kind, id]);
         }, bindPublishedDraft(postId: string, now: number, id: string) {
-            return db
-                .prepare("UPDATE social_post_drafts SET published_post_id=?,version=version+1,updated_at=? WHERE id=?")
-                .bind(postId, now, id);
+            return nativeOwnerWriteDescriptor(db, 'SH_DRAFT_BIND_PUBLISHED', [postId, now, id]);
         }, prepareAuthorFollow(userId: string, postId: string, now: number) {
-            return db
-                .prepare("INSERT INTO social_follows(principal_id,target_type,target_id,created_at) VALUES(?,'post',?,?) ON CONFLICT DO NOTHING")
-                .bind(userId, postId, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_FOLLOW_PREPARE', [userId, postId, now]);
         }, async ancestors(postId: string, ids: string[]) {
             return db.prepare(`WITH RECURSIVE ancestors AS (
       SELECT parent.* FROM social_comments child JOIN social_comments parent
@@ -239,50 +223,32 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             return db.prepare("SELECT 1 FROM social_agent_replies WHERE post_id=? AND actor_id=? AND ('reply-' || id)=? AND state='completed'").bind(id, userId, commentId).first();
         }, guardCommentAuthor(key: string, value: "comment-author", commentId: string, id: string, userId: string, version: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND author_id=? AND author_kind='person' AND state='published' AND version=?)", [commentId, id, userId, version]);
-        }, clearCommentMentions(commentId: string) { return db.prepare("DELETE FROM social_mentions WHERE owner_type='comment' AND owner_id=?").bind(commentId); }, clearCommentTopics(commentId: string) { return db.prepare("DELETE FROM social_comment_topics WHERE comment_id=?").bind(commentId); }, updateComment(body: string, value: string, value2: string, now: number, key: string, commentId: string, id: string, userId: string, version: number) {
-            return db.prepare("UPDATE social_comments SET body=?,rich_content_json=?,mentions_json=?,version=version+1,updated_at=?,last_command_id=? WHERE id=? AND post_id=? AND author_id=? AND state='published' AND version=?")
-                .bind(body, value, value2, now, key, commentId, id, userId, version);
+        }, clearCommentMentions(commentId: string) { return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_MENTIONS_CLEAR', [commentId]); }, clearCommentTopics(commentId: string) { return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_TOPICS_CLEAR', [commentId]); }, updateComment(body: string, value: string, value2: string, now: number, key: string, commentId: string, id: string, userId: string, version: number) {
+            return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_UPDATE', [body, value, value2, now, key, commentId, id, userId, version]);
         }, prepareAgentMention(commentId: string, kind: "record" | "person" | "agent", targetId: string, label: string, userId: string, now: number) {
-            return db.prepare("INSERT INTO social_mentions(owner_type,owner_id,target_kind,target_id,target_label,created_by,created_at) VALUES('comment',?,?,?,?,?,?)")
-                .bind(commentId, kind, targetId, label, userId, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_MENTION_PREPARE', [commentId, kind, targetId, label, userId, now]);
         }, guardCommentRemoval(key: string, value: "comment-author", commentId: string, id: string, version: number, userId: string, userId2: string) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_comments c WHERE c.id=? AND c.post_id=? AND c.state='published' AND c.version=? AND (c.author_id=? OR EXISTS(SELECT 1 FROM social_agent_replies r WHERE r.post_id=c.post_id AND r.actor_id=? AND ('reply-' || r.id)=c.id AND r.state='completed')))", [commentId, id, version, userId, userId2]);
         }, removeComment(now: number, key: string, commentId: string, id: string, version: number) {
-            return db.prepare("UPDATE social_comments SET state='tombstoned',version=version+1,updated_at=?,last_command_id=? WHERE id=? AND post_id=? AND state='published' AND version=?")
-                .bind(now, key, commentId, id, version);
+            return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_REMOVE', [now, key, commentId, id, version]);
         }, prepareRevision(value: string, id: string, version: number, action: "edit" | "retract", body: string, content_json: string | null, rich_content_json: string | null, mentions_json: string, userId: string, now: number) {
-            return db.prepare(`INSERT INTO social_post_revisions
-      (id,post_id,prior_version,action,body,content_json,rich_content_json,mentions_json,actor_id,created_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?)`)
-                .bind(value, id, version, action, body, content_json, rich_content_json, mentions_json, userId, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_REVISION_PREPARE', [value, id, version, action, body, content_json, rich_content_json, mentions_json, userId, now]);
         }, retract(now: number, now2: number, id: string, userId: string, version: number) {
-            return db.prepare("UPDATE social_posts SET state='archived',retracted_at=?,version=version+1,updated_at=? WHERE id=? AND author_id=? AND version=?")
-                .bind(now, now2, id, userId, version);
+            return nativeOwnerWriteDescriptor(db, 'SH_POST_RETRACT', [now, now2, id, userId, version]);
         }, guardEditUpload(key: string, value: "edit-upload-draft", editDraftId: string, userId: string, companyId: string, id: string, version: number) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND company_id=? AND edit_post_id=? AND edit_post_version=? AND edit_saved_version IS NULL AND cancelled_at IS NULL)", [editDraftId, userId, companyId, id, version]);
-        }, clearPostMentions(id: string) { return db.prepare("DELETE FROM social_mentions WHERE owner_type='post' AND owner_id=?").bind(id); }, clearPostTopics(id: string) { return db.prepare("DELETE FROM social_post_topics WHERE post_id=?").bind(id); }, updatePost(body: string, value: string, value2: string | null, value3: string, now: number, now2: number, id: string, userId: string, version: number) {
-            return db.prepare("UPDATE social_posts SET body=?,content_json=?,rich_content_json=?,mentions_json=?,edited_at=?,version=version+1,updated_at=? WHERE id=? AND author_id=? AND version=?")
-                .bind(body, value, value2, value3, now, now2, id, userId, version);
+        }, clearPostMentions(id: string) { return nativeOwnerWriteDescriptor(db, 'SH_POST_MENTIONS_CLEAR', [id]); }, clearPostTopics(id: string) { return nativeOwnerWriteDescriptor(db, 'SH_POST_TOPICS_CLEAR', [id]); }, updatePost(body: string, value: string, value2: string | null, value3: string, now: number, now2: number, id: string, userId: string, version: number) {
+            return nativeOwnerWriteDescriptor(db, 'SH_POST_UPDATE', [body, value, value2, value3, now, now2, id, userId, version]);
         }, bindEditUpload(value: number, now: number, editDraftId: string) {
-            return db.prepare("UPDATE social_post_drafts SET edit_saved_version=?,version=version+1,updated_at=? WHERE id=? AND edit_saved_version IS NULL AND cancelled_at IS NULL")
-                .bind(value, now, editDraftId);
+            return nativeOwnerWriteDescriptor(db, 'SH_EDIT_DRAFT_BIND', [value, now, editDraftId]);
         }, prepareMention(id: string, kind: "record" | "person" | "agent", targetId: string, label: string, userId: string, now: number) {
-            return db.prepare(`INSERT INTO social_mentions
-          (owner_type,owner_id,target_kind,target_id,target_label,created_by,created_at)
-          VALUES('post',?,?,?,?,?,?)`)
-                .bind(id, kind, targetId, label, userId, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_POST_MENTION_PREPARE', [id, kind, targetId, label, userId, now]);
         }, prepareTopic(tag: string, userId: string, now: number) {
-            return db.prepare("INSERT INTO social_topics(tag,created_by,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING")
-                .bind(tag, userId, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_TOPIC_PREPARE', [tag, userId, now]);
         }, preparePostTopic(id: string, tag: string) {
-            return db.prepare("INSERT INTO social_post_topics(post_id,tag) VALUES(?,?) ON CONFLICT DO NOTHING")
-                .bind(id, tag);
+            return nativeOwnerWriteDescriptor(db, 'SH_POST_TOPIC_PREPARE', [id, tag]);
         }, prepareEditNotification(value: string, user: string, now: number, id: string, user2: string, now2: number, now3: number) {
-            return db.prepare(`INSERT INTO staff_notifications
-          (id,company_id,user_id,record_type,record_id,record_version,message,created_at)
-          SELECT ?,p.company_id,?,'post',p.id,p.version,'You were mentioned in an edited conversation',?
-          FROM social_posts p WHERE p.id=? AND ${sourceAccessSql()}`)
-                .bind(value, user, now, id, user2, now2, now3);
+            return nativeOwnerWriteDescriptor(db, 'SH_EDIT_NOTIFICATION', [value, user, now, id, user2, now2, now3], { predicate: sourceAccessSql() });
         }, guardCommentUpload(key: string, value: "comment-upload", commentDraftId: string, userId: string, id: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND comment_parent_post_id=? AND published_comment_id IS NULL AND cancelled_at IS NULL)", [commentDraftId, userId, id]); }, async parentComment(parentCommentId: string, id: string) {
             return db.prepare("SELECT id,author_id,parent_comment_id FROM social_comments WHERE id=? AND post_id=? AND state='published'")
                 .bind(parentCommentId, id)
@@ -294,49 +260,30 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         }, guardParentComment(key: string, value: "reply-parent", id: string, id2: string) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND state='published')", [id, id2]);
         }, prepareComment(value: string, id: string, userId: string, name: string, body: string, key: string, now: number, now2: number, value2: string, value3: string | null, value4: string | null, value5: string | null) {
-            return db
-                .prepare("INSERT INTO social_comments(id,post_id,author_id,author_name,body,last_command_id,created_at,updated_at,mentions_json,parent_comment_id,rich_content_json,comment_upload_draft_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-                .bind(value, id, userId, name, body, key, now, now2, value2, value3, value4, value5);
+            return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_PREPARE', [value, id, userId, name, body, key, now, now2, value2, value3, value4, value5]);
         }, bindCommentDraft(value: string, now: number, commentDraftId: string) {
-            return db.prepare("UPDATE social_post_drafts SET published_comment_id=?,version=version+1,updated_at=? WHERE id=? AND published_comment_id IS NULL")
-                .bind(value, now, commentDraftId);
+            return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_DRAFT_BIND', [value, now, commentDraftId]);
         }, prepareReplyNotification(value: string, author_id: string, now: number, id: string, author_id2: string, now2: number, now3: number) {
-            return db.prepare(`INSERT INTO staff_notifications
-        (id,company_id,user_id,record_type,record_id,record_version,message,created_at)
-        SELECT ?,p.company_id,?,'post',p.id,p.version,'Someone replied to your comment',?
-        FROM social_posts p WHERE p.id=? AND ${sourceAccessSql()}`)
-                .bind(value, author_id, now, id, author_id2, now2, now3);
+            return nativeOwnerWriteDescriptor(db, 'SH_REPLY_NOTIFICATION', [value, author_id, now, id, author_id2, now2, now3], { predicate: sourceAccessSql() });
         }, prepareAppreciation(id: string, userId: string, now: number) {
-            return db
-                .prepare("INSERT INTO social_reactions(post_id,principal_id,kind,created_at) VALUES(?,?,'appreciate',?) ON CONFLICT DO NOTHING")
-                .bind(id, userId, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_REACTION_PREPARE', [id, userId, now]);
         }, removeAppreciation(id: string, userId: string) {
-            return db
-                .prepare("DELETE FROM social_reactions WHERE post_id=? AND principal_id=?")
-                .bind(id, userId);
+            return nativeOwnerWriteDescriptor(db, 'SH_REACTION_REMOVE', [id, userId]);
         }, prepareFollow(userId: string, id: string, now: number) {
-            return db
-                .prepare("INSERT INTO social_follows(principal_id,target_type,target_id,created_at) VALUES(?,'post',?,?) ON CONFLICT DO NOTHING")
-                .bind(userId, id, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_FOLLOW_PREPARE', [userId, id, now]);
         }, removeFollow(userId: string, id: string) {
-            return db
-                .prepare("DELETE FROM social_follows WHERE principal_id=? AND target_type='post' AND target_id=?")
-                .bind(userId, id);
+            return nativeOwnerWriteDescriptor(db, 'SH_FOLLOW_REMOVE', [userId, id]);
         }, prepareReport(value: string, id: string, userId: string, value2: string, now: number) {
-            return db
-                .prepare("INSERT INTO social_reports(id,post_id,reporter_id,reason,created_at) VALUES(?,?,?,?,?) ON CONFLICT(post_id,reporter_id) DO UPDATE SET reason=excluded.reason")
-                .bind(value, id, userId, value2, now);
+            return nativeOwnerWriteDescriptor(db, 'SH_REPORT_PREPARE', [value, id, userId, value2, now]);
         }, moderate(now: number, id: string) {
-            return db
-                .prepare("UPDATE social_posts SET state='moderated',version=version+1,updated_at=? WHERE id=?")
-                .bind(now, id);
+            return nativeOwnerWriteDescriptor(db, 'SH_POST_MODERATE', [now, id]);
         }, ...pms(db), ...organization(db), ...projects(db), ...identity_access(db), ...files(db), ...agent(db), ...operations(db),...(audienceProjects?{projects:async()=>({results:audienceProjects})}:{}) };
     return createSocialHomeApplication<SqlStatement>({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, commentsPage: (actor, id, cursor) => readListPage<CommentRow & {
             page_key: string;
         }>(db, {
             sql: "SELECT c.id,c.post_id,c.body,c.author_id,c.author_name,c.created_at,c.mentions_json,c.rich_content_json,c.author_kind,c.parent_comment_id,parent.author_name AS parent_author_name,c.created_at::text AS page_key FROM social_comments c LEFT JOIN social_comments parent ON parent.id=c.parent_comment_id AND parent.post_id=c.post_id WHERE c.post_id=? AND c.state='published'",
             args: [id], scope: [actor.companyId, actor.userId, id], cursor, limit: 20, descending: true,
-        }), getTask: (...args) => inward(() => getTask(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), readablePmsSource: (...args) => inward(() => readablePmsSource(db, ...args)), pmsSourceLink, readablePost: (...args) => inward(() => readablePost(db, ...args)), sourceGuard: (...args) => sourceGuard(db, ...args), notification: (...args) => notification(db, ...args), authorityGuard: (...args) => authorityGuard(db, ...args), requireCompanyAuthority: (...args) => inward(() => requireCompanyAuthority(db, ...args)), validateMentions: (...args) => inward(() => validateMentions(db, ...args)), textStatements: (...args) => textStatements(db, ...args) });
+        }), getTask: (...args) => inward(() => getTask(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), readablePmsSource: (...args) => inward(() => readablePmsSource(db, ...args)), pmsSourceLink, readablePost: (...args) => inward(() => readablePost(db, ...args)), sourceGuard: (...args) => sourceGuard(db, ...args), notification: async (...args) => await notification(db, ...args), authorityGuard: (...args) => authorityGuard(db, ...args), requireCompanyAuthority: (...args) => inward(() => requireCompanyAuthority(db, ...args)), validateMentions: (...args) => inward(() => validateMentions(db, ...args)), textStatements: (...args) => textStatements(db, ...args) });
 }
 export async function socialAudienceOptions(db: SqlDatabase, actor: Actor) {
   // Reauthorize actual Project rows before a cache hit; the exact current
@@ -347,10 +294,6 @@ export async function socialAudienceOptions(db: SqlDatabase, actor: Actor) {
     { complete: value => Array.isArray(value.audiences) && Array.isArray(value.branches) });
 }
 
-export function createCommentUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.comment.upload.create',type:'post',id:postId,purpose:'settle-existing'},tx=>exposed(() => application(tx).createCommentUploadDraft(actor, postId, key))); }
-export function cancelCommentUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return withWorkSocialUploadCleanup(db,actor,{key,id,kind:'comment'},tx=>exposed(() => application(tx).cancelCommentUploadDraft(actor, id, key))); }
-export function createPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, expectedVersion: number, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.post.edit-upload.create',type:'post',id:postId,purpose:'new-work'},tx=>exposed(() => application(tx).createPostEditUploadDraft(actor, postId, expectedVersion, key))); }
-export function cancelPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return withWorkSocialUploadCleanup(db,actor,{key,id,kind:'edit'},tx=>exposed(() => application(tx).cancelPostEditUploadDraft(actor, id, key))); }
 export function savePostDraft(db: SqlDatabase, actor: Actor, id: string | null, input: z.infer<typeof postDraftSchema>, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.draft.save',type:'draft',id:id??`post-draft-${key}`,sources:input.sources,audienceProjectId:input.audience?.kind==='project'?input.audience.id:null,purpose:'new-work'},tx=>exposed(() => application(tx).savePostDraft(actor, id, input, key))); }
 export function publishPost(db: SqlDatabase, actor: Actor, id: string, version: number, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.post.publish',type:'draft',id,purpose:'new-work',publishedDraftReplay:true},tx=>exposed(() => application(tx).publishPost(actor, id, version, key))); }
 export function postComments(db: SqlDatabase, actor: StaffActor, id: string, cursor?: string) { return exposed(async() => application(db,await workSocialReadScope(db,actor)).postComments(actor, id, cursor)); }

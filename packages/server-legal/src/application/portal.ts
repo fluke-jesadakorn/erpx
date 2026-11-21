@@ -4,7 +4,7 @@ import type {DocumentVersion} from "@erpx/server-legal/domain/model";
 import type {PortalActor} from "@erpx/server-legal/domain/portal";
 import {refuseLegalSigning} from "@erpx/server-legal/domain/signing";
 import type {PortalAttachment,PortalScope} from "@erpx/server-legal/domain/portal-attachments";
-import {legalPortalUploadFingerprintInput,type LegalPortalUploadNotApplied} from '@erpx/server-legal/domain/portal-upload-recovery';
+import {legalPortalUploadFingerprintInput,type LegalPortalUploadNotApplied} from '@erpx/contracts/legal-portal-upload';
 import type {PortalAttachmentStageScope,PortalAttachmentRecoverySource} from '@erpx/server-legal/application/portal-attachments';
 export type LegalPortalWrite={owner:"legal"};
 export type LegalPortalRows<Row>={results:Row[]};
@@ -19,31 +19,31 @@ retentionFrozen(facts:{item_id:string;}):Promise<Record<string, unknown> | null>
 documentSummary(facts:{document_id:string;}):Promise<Record<string, unknown> | null>;
 comments(facts:{item_id:string;document_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 envelopes(facts:{item_id:string;document_id:string;actorId:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-viewRead(facts:{identifier:string;item_id:string;document_id:string;actorId:string;fact4:"portal.view";now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+viewRead(facts:{companyId:string;identifier:string;item_id:string;document_id:string;actorId:string;fact4:"portal.view";now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 billing(facts:{item_id:string;actorId:string;}):Promise<LegalPortalRows<{id:string;title:string;state:string;data:unknown;version:number}>>;
 document(facts:{document_id:string;}):Promise<DocumentVersion | null>;
-downloadRead(facts:{identifier:string;item_id:string;id:string;actorId:string;fact4:"portal.download";now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+downloadRead(facts:{companyId:string;identifier:string;item_id:string;id:string;actorId:string;fact4:"portal.download";now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 receipt(facts:{key:string;}):Promise<{ user_id: string; request_hash: string; result_json: string; } | null>;
 enabled(facts:{company_id:string;}):Promise<Record<string, unknown> | null>;
-acceptShare(facts:{actorId:string;id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-externalComment(facts:{identifier:string;item_id:string;document_id:string;body:string;actorId:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-counselEntry(facts:{key:string;item_id:string;title:string;actorId:string;fact4:string;actorId2:string;actorId3:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-counselHistory(facts:{identifier:string;item_id:string;key:string;fact3:string;actorId:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-advanceItem(facts:{now:number;item_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+acceptShare(facts:{companyId:string;actorId:string;id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+externalComment(facts:{companyId:string;identifier:string;item_id:string;document_id:string;body:string;actorId:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+counselEntry(facts:{companyId:string;key:string;item_id:string;title:string;actorId:string;fact4:string;actorId2:string;actorId3:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+counselHistory(facts:{companyId:string;identifier:string;item_id:string;key:string;fact3:string;actorId:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+advanceItem(facts:{companyId:string;now:number;item_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 actionableEnvelope(facts:{envelopeId:string | undefined;item_id:string;document_id:string;actorId:string;now:number;}):Promise<{ id: string; ordinal: number; viewed_at: number | null; consent: string; document_hash: string; } | null>;
-viewEnvelope(facts:{now:number;id:string;actorId:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-interactionEvent(facts:{identifier:string;fact1:string;actorId:string;document_id:string;now:number;item_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-interactionReceipt(facts:{key:string;actorId:string;digest:string;fact3:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+viewEnvelope(facts:{companyId:string;now:number;id:string;actorId:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+interactionEvent(facts:{companyId:string;identifier:string;fact1:string;actorId:string;document_id:string;now:number;item_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+interactionReceipt(facts:{companyId:string;key:string;actorId:string;digest:string;fact3:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 uploadReceipt(facts:{key:string;actorId:string;}):Promise<{ request_hash: string; result_json: string; } | null>;
 uploadEnabled(facts:{company_id:string;}):Promise<Record<string, unknown> | null>;
 uploadReplay(facts:{key:string;actorId:string;}):Promise<{ request_hash: string; result_json: string; } | null>;
-externalUpload(facts:{key:string;shareId:string;objectKey:string;checksum:string;name:string;mediaType:string;bytes:number;actorId:string;now:number;linkId:string;sourceId:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-bindLink(facts:{now:number;key:string;linkId:string;sourceId:string;}):LegalPortalWrite;
-bindSet(facts:{now:number;key:string;now2:number;setId:string;expectedTargetVersion:number;}):LegalPortalWrite;
-advanceUploadItem(facts:{now:number;item_id:string;company_id:string;expectedTargetVersion:number;}):LegalPortalWrite;
-bindEvent(facts:{fact0:string;company_id:string;sourceId:string;linkId:string;setId:string;actorId:string;fact6:"set.bound";fact7:string;now:number;}):LegalPortalWrite;
-uploadEvent(facts:{identifier:string;actorId:string;fact2:string;now:number;item_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
-uploadCommandReceipt(facts:{key:string;actorId:string;digest:string;fact3:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+externalUpload(facts:{companyId:string;key:string;shareId:string;objectKey:string;checksum:string;name:string;mediaType:string;bytes:number;actorId:string;now:number;linkId:string;sourceId:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+bindLink(facts:{now:number;key:string;linkId:string;sourceId:string;companyId:string;}):Promise<LegalPortalWrite>;
+bindSet(facts:{now:number;key:string;now2:number;setId:string;expectedTargetVersion:number;companyId:string;}):Promise<LegalPortalWrite>;
+advanceUploadItem(facts:{now:number;item_id:string;company_id:string;expectedTargetVersion:number;}):Promise<LegalPortalWrite>;
+bindEvent(facts:{fact0:string;company_id:string;sourceId:string;linkId:string;setId:string;actorId:string;fact6:"set.bound";fact7:string;now:number;}):Promise<LegalPortalWrite>;
+uploadEvent(facts:{companyId:string;identifier:string;actorId:string;fact2:string;now:number;item_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
+uploadCommandReceipt(facts:{companyId:string;key:string;actorId:string;digest:string;fact3:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 item(facts:{itemId:string;}):Promise<{ company_id: string; branch_id: string | null; department_id: string | null; version: number; } | null>;
 audit(facts:{identifier:string;key:string;actorId:string;fact3:"external-share";action:string;fact5:"legal";itemId:string;version:number;fact8:"Shared document interaction";now:number;authority:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 outbox(facts:{identifier:string;key:string;fact2:string;fact3:"legal";itemId:string;version:number;fact6:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
@@ -82,7 +82,7 @@ async function portalDetail(
   const envelopes = (
     await ports.repository.envelopes({item_id:s.item_id,document_id:s.document_id,actorId:a.userId})
   ).results;
-  await ports.repository.viewRead({identifier:ports.identifiers.next(),item_id:s.item_id,document_id:s.document_id,actorId:a.userId,fact4:"portal.view",now:ports.clock.now()});
+  await ports.repository.viewRead({companyId:s.company_id,identifier:ports.identifiers.next(),item_id:s.item_id,document_id:s.document_id,actorId:a.userId,fact4:"portal.view",now:ports.clock.now()});
   const billing =
     s.kind === "counsel"
       ? (
@@ -123,7 +123,7 @@ async function portalDownload(
     );
   const bytes = canonical.bytes;
   await share(ports.repository,id);
-  await ports.repository.downloadRead({identifier:ports.identifiers.next(),item_id:s.item_id,id:d.id,actorId:a.userId,fact4:"portal.download",now:ports.clock.now()});
+  await ports.repository.downloadRead({companyId:s.company_id,identifier:ports.identifiers.next(),item_id:s.item_id,id:d.id,actorId:a.userId,fact4:"portal.download",now:ports.clock.now()});
   return {bytes:new Uint8Array(bytes),mediaType:canonical.mediaType,filename:d.name};
 }
 async function portalCommand(
@@ -168,10 +168,10 @@ async function portalCommand(
     )
       fail("Legal is currently read-only.");
     if (x.action === "accept")
-      await tx.acceptShare({actorId:a.userId,id:s.id});
+      await tx.acceptShare({companyId:s.company_id,actorId:a.userId,id:s.id});
     else if (x.action === "comment") {
       if (!x.body) fail("Enter a comment.");
-      await tx.externalComment({identifier:ports.identifiers.next(),item_id:s.item_id,document_id:s.document_id,body:x.body,actorId:a.userId,now:ports.clock.now()});
+      await tx.externalComment({companyId:s.company_id,identifier:ports.identifiers.next(),item_id:s.item_id,document_id:s.document_id,body:x.body,actorId:a.userId,now:ports.clock.now()});
     } else if (x.action === "billing.submit") {
       if (s.kind !== "counsel")
         fail("Billing submissions require a counsel engagement share.");
@@ -206,18 +206,18 @@ async function portalCommand(
         updated_by: a.userId,
         updated_at: ports.clock.now(),
       };
-      await tx.counselEntry({key:key,item_id:s.item_id,title:entry.title,actorId:a.userId,fact4:JSON.stringify(entry.data),actorId2:a.userId,actorId3:a.userId,now:ports.clock.now()});
-      await tx.counselHistory({identifier:ports.identifiers.next(),item_id:s.item_id,key:key,fact3:JSON.stringify(entry),actorId:a.userId,now:ports.clock.now()});
-      await tx.advanceItem({now:ports.clock.now(),item_id:s.item_id});
+      await tx.counselEntry({companyId:s.company_id,key:key,item_id:s.item_id,title:entry.title,actorId:a.userId,fact4:JSON.stringify(entry.data),actorId2:a.userId,actorId3:a.userId,now:ports.clock.now()});
+      await tx.counselHistory({companyId:s.company_id,identifier:ports.identifiers.next(),item_id:s.item_id,key:key,fact3:JSON.stringify(entry),actorId:a.userId,now:ports.clock.now()});
+      await tx.advanceItem({companyId:s.company_id,now:ports.clock.now(),item_id:s.item_id});
     } else {
       const e = await tx.actionableEnvelope({envelopeId:x.envelopeId,item_id:s.item_id,document_id:s.document_id,actorId:a.userId,now:ports.clock.now()});
       if (!e)
         fail("Envelope is no longer actionable.", "LEGAL_ENVELOPE_STATE", 409);
       if (x.action === "view")
-        await tx.viewEnvelope({now:ports.clock.now(),id:e.id,actorId:a.userId});
+        await tx.viewEnvelope({companyId:s.company_id,now:ports.clock.now(),id:e.id,actorId:a.userId});
     }
-    await tx.interactionEvent({identifier:ports.identifiers.next(),fact1:`portal.${x.action}`,actorId:a.userId,document_id:s.document_id,now:ports.clock.now(),item_id:s.item_id});
-    await tx.interactionReceipt({key:key,actorId:a.userId,digest:digest,fact3:JSON.stringify({ id: s.id }),now:ports.clock.now()});
+    await tx.interactionEvent({companyId:s.company_id,identifier:ports.identifiers.next(),fact1:`portal.${x.action}`,actorId:a.userId,document_id:s.document_id,now:ports.clock.now(),item_id:s.item_id});
+    await tx.interactionReceipt({companyId:s.company_id,key:key,actorId:a.userId,digest:digest,fact3:JSON.stringify({ id: s.id }),now:ports.clock.now()});
     await portalOutbox(tx, s.item_id, key, `portal.${x.action}`);
     return { id: s.id };
   });
@@ -325,22 +325,22 @@ async function portalUpload(shareId:string,name:string,mediaType:string,bytes:Ui
         "LEGAL_VERSION_CONFLICT",
         409,
       );
-    await tx.externalUpload({key:key,shareId:shareId,objectKey:canonical.objectKey,checksum:canonical.checksum,name:name,mediaType:canonical.mediaType,bytes:canonical.bytes,actorId:a.userId,now:ports.clock.now(),linkId:canonical.linkId,sourceId:canonical.sourceId});
+    await tx.externalUpload({companyId:s.company_id,key:key,shareId:shareId,objectKey:canonical.objectKey,checksum:canonical.checksum,name:name,mediaType:canonical.mediaType,bytes:canonical.bytes,actorId:a.userId,now:ports.clock.now(),linkId:canonical.linkId,sourceId:canonical.sourceId});
     {
       const now = ports.clock.now();
       await tx.batch([
-        tx.bindLink({now:now,key:key,linkId:canonical.linkId,sourceId:canonical.sourceId}),
-        tx.bindSet({now:now,key:key,now2:now,setId:canonical.setId,expectedTargetVersion:canonical.expectedTargetVersion}),
-        tx.advanceUploadItem({now:now,item_id:s.item_id,company_id:s.company_id,expectedTargetVersion:canonical.expectedTargetVersion}),
-        tx.bindEvent({fact0:`attachment-bind-${key}`,company_id:s.company_id,sourceId:canonical.sourceId,linkId:canonical.linkId,setId:canonical.setId,actorId:a.userId,fact6:"set.bound",fact7:JSON.stringify({
+        await tx.bindLink({now:now,key:key,linkId:canonical.linkId,sourceId:canonical.sourceId,companyId:s.company_id}),
+        await tx.bindSet({now:now,key:key,now2:now,setId:canonical.setId,expectedTargetVersion:canonical.expectedTargetVersion,companyId:s.company_id}),
+        await tx.advanceUploadItem({now:now,item_id:s.item_id,company_id:s.company_id,expectedTargetVersion:canonical.expectedTargetVersion}),
+        await tx.bindEvent({fact0:`attachment-bind-${key}`,company_id:s.company_id,sourceId:canonical.sourceId,linkId:canonical.linkId,setId:canonical.setId,actorId:a.userId,fact6:"set.bound",fact7:JSON.stringify({
               bindingType: "legal_portal_submission",
               bindingId: key,
               portalShareId: shareId,
             }),now:now}),
       ]);
     }
-    await tx.uploadEvent({identifier:ports.identifiers.next(),actorId:a.userId,fact2:`${name} · ${checksum}`,now:ports.clock.now(),item_id:s.item_id});
-    await tx.uploadCommandReceipt({key:key,actorId:a.userId,digest:digest,fact3:JSON.stringify({ id: key }),now:ports.clock.now()});
+    await tx.uploadEvent({companyId:s.company_id,identifier:ports.identifiers.next(),actorId:a.userId,fact2:`${name} · ${checksum}`,now:ports.clock.now(),item_id:s.item_id});
+    await tx.uploadCommandReceipt({companyId:s.company_id,key:key,actorId:a.userId,digest:digest,fact3:JSON.stringify({ id: key }),now:ports.clock.now()});
     await portalOutbox(tx, s.item_id, key, "portal.upload");
     return { id: key };
   });

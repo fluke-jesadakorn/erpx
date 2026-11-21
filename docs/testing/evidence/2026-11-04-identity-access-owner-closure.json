@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Identity Access now has a bounded native assignment slice: a Company/branch/department assignment workspace read and a reviewed assignment withdrawal command. The owner slice includes portable domain/application ports, a PostgreSQL adapter over the existing assignments/IAM tables, an owner-local HTTP router, a strict Next transport, and configured IAM workspace/command cutover. The owner remains foundation: access reviews, role publication, grant/proposal, Directory administration, invite/emergency administration, identity conflicts and browser acceptance remain open; the native router is not mounted in shared composition.",
+  "capability": "identity-access-assignment-withdrawal",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4c2ab63ea",
+  "verificationHead": "f3eb38eed",
+  "scope": {
+    "workflows": [
+      "identity_access/assignments"
+    ],
+    "workflowBoundary": "The qualified source slice is the current assignment workspace read used by the IAM overview/users/matrix/reviews pages and the existing `assignments/{id}/revoke` command used by the IAM assignment drawer and users table. Assignment grant/proposal, independent-review decisions, role publication, access-review campaigns, MFA, Directory connectors, identity conflicts, invitations and every other Identity Access workflow remain retained TypeScript.",
+    "domain": "Portable assignment policy: exact Company/selected Holding scope, `iam.read`/`iam.manage` requirements, selected-context expiry, branch/department exact-node withdrawal scope, bounded id/reason/version values, immutable role/source/status checks, self and same-Person refusal, last recovery administrator protection, last holding-owner protection, request-invalid and source-invalid failures.",
+    "application": "One assignment_workspace use case authorizes current read authority and validates bounded ordered Company-scoped rows and published role rows. One revoke_assignment use case authorizes current write authority, hashes the exact key/body/context, replays the committed receipt, locks the assignment, rechecks source/Company/scope/self/version/recovery/administrator guards, commits the revocation with receipt/audit/outbox, and reads back the revoked row plus cleared active work contexts. The application layer opens no transaction and reads no HTTP request.",
+    "adapters": "PostgreSQL SQL is Identity-owned (`assignments`, `iam_members`, `iam_identities`, `iam_connections`, `iam_mappings`, `iam_groups`, `iam_roles`, `iam_role_revisions`, `iam_audit`, `iam_revoked_sessions`, `active_work_contexts`) plus shared `command_receipts`, `audit_events` and `outbox_events`. No Organization, People, Finance, Directory or other owner row is mutated. The caller's serializable Holding transaction is mandatory; no transaction is started, committed or retried by the adapter.",
+    "http": "Owner-local GET `/api/v1/holdings/{holding_slug}/iam/assignments` and POST `/api/v1/holdings/{holding_slug}/iam/assignments/{assignment_id}/revoke`. The router requires exact registered Host/Holding targets, HTTPS origins, empty or strict JSON bodies, one valid Idempotency-Key, no query, bounded bodies, private/no-store, no-referrer and nosniff responses, and bounded BusinessError status mapping. The composition backend owns Account session resolution, current Company/branch/department scope, current IAM authority and the serializable owner unit.",
+    "transport": "`ERPX_NATIVE_IDENTITY_ACCESS_CONFIG` is strictly validated: literal loopback private base, reserved ports 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded Host/cookie/context headers, exact workspace/role/assignment/receipt/context shapes, row Company/scope coherence, unique ordered rows, and 2 MiB response bound. A configured failure never falls back to the retained reader or command.",
+    "ssr": "When the native configuration is present, `iamPresentationQueries.iamOverview` overlays the native assignment rows into the existing IAM overview for holding-scoped non-self pages; all other overview sections remain retained. The overview assignment rows therefore come from the native owner, while role grants, access reviews, Directory, MFA, invitations and sessions remain retained. A configured native read failure surfaces through the existing page/route error policy and never silently uses the retained assignment rows.",
+    "commandCutover": "In `packages/server-identity_access/src/adapters/iam-api.ts`, the existing `assignments/{id}/revoke` POST calls the native client when `ERPX_NATIVE_IDENTITY_ACCESS_CONFIG` is present and the actor is a Company/Holding actor. Without the configuration the retained TypeScript command remains the path; a configured malformed/failed native command is mapped to the existing ApiError surface and never falls back to the retained command.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, catalogue register update, role-grant proposal, access-review decision, MFA, Directory connector, identity-conflict, invitation, deployment, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    ".env.example",
+    "packages/server-identity_access/Cargo.toml",
+    "packages/server-identity_access/package.json",
+    "packages/server-identity_access/src/domain/assignment.rs",
+    "packages/server-identity_access/src/domain/mod.rs",
+    "packages/server-identity_access/src/application/assignment.rs",
+    "packages/server-identity_access/src/application/mod.rs",
+    "packages/server-identity_access/src/adapters/assignment_postgres.rs",
+    "packages/server-identity_access/src/adapters/assignment_http.rs",
+    "packages/server-identity_access/src/adapters/mod.rs",
+    "packages/server-identity_access/src/adapters/iam-api.ts",
+    "packages/server-identity_access/src/adapters/presentation-context-queries.ts",
+    "packages/server-identity_access/src/public/assignment.rs",
+    "packages/server-identity_access/src/public/assignment_http.rs",
+    "packages/server-identity_access/src/public/native-iam-assignments.ts",
+    "packages/server-identity_access/src/public/mod.rs",
+    "tests/unit/identity_access/rust-assignment.test.rs",
+    "tests/unit/identity_access/rust-assignment-http.test.rs",
+    "tests/integration/identity_access/rust-assignment-postgres.test.rs",
+    "tests/unit/identity_access/native-iam-assignments-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-identity-access-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "commands": [
+        "cargo test -p erpx-server-identity-access --locked --test assignment",
+        "cargo test -p erpx-server-identity-access --locked --test assignment_http",
+        "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-identity-access --locked --test assignment_postgres"
+      ],
+      "result": "19 passed, 0 failed, 0 ignored across the three new owner targets: assignment 8, assignment_http 3, assignment_postgres 8.",
+      "targets": {
+        "assignment": "8 passed: read/write permission and expired-context negatives; current-authority change; foreign Company/duplicate/unknown source/scope rejection; exact trimmed-reason plan; receipt replay and conflicting-body rejection; self/same-Person/stale/revoked/foreign-scope refusals; last recovery and last administrator refusals; malformed digest/missing id; duplicate role source and missing role fallback behaviour.",
+        "assignment_http": "3 passed: exact distinct targets and HTTPS origins; actual loopback GET/POST forwarding of workspace and withdrawal with Host, cookie, context, assignment id, body and key; private/no-store/no-referrer/nosniff headers; unknown holding/host, unknown query, GET body, missing/short key, text/plain, malformed/extra/missing JSON fields and invalid path boundaries; owner conflict mapped to 409.",
+        "assignment_postgres": "8 passed: Company-scoped workspace rows with active flags and published roles; persisted revocation with version CAS, cleared active work context, receipt/audit/outbox/iam_audit readback and sequential replay; concurrent same-key withdrawals commit once and replay after caller serialization retry; self/same-Person/foreign/stale/revoked refusals; last recovery and last administrator refusals; late outbox failure rolls back every effect and exact retry persists once; caller transaction/serializable/revoked-session guards; emergency membership requires a live bounded emergency session."
+      }
+    },
+    "fullCrate": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-identity-access --locked --no-fail-fast",
+      "observed": "227 passed, 2 failed, 0 ignored across discovered targets before the final two owner cases were added; the two failures are unrelated to this slice.",
+      "failures": [
+        "account_group_recovery_postgres::key_migration_backfills_only_original_native_digest_ids_and_is_idempotent expects one Control migration after 0043, but this branch has 0044_configured_account_environments.sql and the test observes applied=2; reproduced alone without this slice's code path.",
+        "account_invitation_activation_postgres::retained_control_proof_blocks_revocation_and_expiry_rolls_back_the_whole_holding_unit failed only in the parallel full run; it passes 1/1 alone."
+      ],
+      "note": "The final owner cases were then added and the assignment_postgres target re-ran green (8/8). No failing assertion was weakened and no test was skipped or marked ignored."
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-identity-access --all-targets --no-deps --locked -- -D warnings",
+      "result": "pass"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every new/changed Rust file",
+      "result": "pass"
+    },
+    "typescript": {
+      "unit": "vitest with the shared server-only alias: 19 passed across tests/unit/identity_access/native-iam-assignments-transport.test.ts (7) and tests/unit/shared.work/presentation-owner-queries.test.ts (12, the existing IAM presentation import/actor test). New transport cases cover workspace Host/cookie/context forwarding, exact withdrawal path/body/key, owner conflict, foreign/duplicate/extra/changed-context rejection, branch row containment, absent/malformed/reserved-port configuration and failure mapping.",
+      "typechecks": [
+        "node_modules/.bin/tsc --noEmit: pass (root)",
+        "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project packages/server-identity_access/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project apps/launcher/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed TypeScript files: pass; only the repository's pre-existing Next pages-directory warning was printed.",
+      "runnerLimit": "Bun 1.4.3 is not installed in this worktree; the transport test was executed with a temporary Vitest config outside the committed suite manifest because the catalogue/register files are outside this subagent's edit permission. No shared suite manifest was edited."
+    },
+    "browser": "not run. No Next dev server, authenticated page, browser session, public URL, staging, private production or Cloudflare route was accessed. No workflow is claimed browser-verified.",
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 1 on pre-existing owner/module-private import findings in legal, pos, supply, workplace, assets, maintenance and quality files outside this slice; no finding names a changed identity-access file",
+      "diffCheck": "git diff --check on changed tracked files: pass"
+    }
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "none; no root Cargo.toml, Cargo.lock or package lockfile change was authored by this subagent",
+    "compositionDelta": "No src/composition change and no router mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_identity_access::public::assignment::{AssignmentActor, AssignmentRepository, PgIdentityAssignments, assignment_workspace, revoke_assignment}",
+      "erpx_server_identity_access::public::assignment_http::{iam_assignment_http_router, IamAssignmentHttpTarget, IamAssignmentHttpBackend, IamAssignmentHttpRequest, IamAssignmentHttpResponse}"
+    ],
+    "backendRequired": "Implement IamAssignmentHttpBackend in src/composition: resolve the normal Account session and selected Holding Company/branch/department, build the current AssignmentActor from the sealed IAM/Work authority, run `assignment_workspace`/`revoke_assignment` with PgIdentityAssignments inside one serializable Holding transaction, map PgTransactionError to BusinessError, and return the exact owner data plus a validated current context.",
+    "privateDevelopmentApi": [
+      "Build one IamAssignmentHttpTarget per registered Holding with exact host, slug and HTTPS origin.",
+      "router = router.merge(erpx_server_identity_access::public::assignment_http::iam_assignment_http_router(targets).map_err(|_| \"PRIVATE_API_IDENTITY_ASSIGNMENT_CONFIGURATION_INVALID\")?);",
+      "Mount the `/iam/assignments` routes before the generic 404 fallback.",
+      "The current private-development API mount is not edited by this subagent."
+    ],
+    "rootWorkspace": "No change required: packages/server-identity_access is already a root Cargo workspace member and has a root dependency entry.",
+    "nextEnvironment": "Set ERPX_NATIVE_IDENTITY_ACCESS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app after the composition backend is mounted."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "When ERPX_NATIVE_IDENTITY_ACCESS_CONFIG is present, the IAM overview assignment rows used by the Users/Overview/Matrix/Reviews pages come from the native assignment read instead of the retained `iamOverview` assignments query.",
+      "When configured, the existing `assignments/{id}/revoke` POST uses native Identity Access instead of `revokeIamAssignment`.",
+      "No retained TypeScript source file was deleted by this slice."
+    ],
+    "retained": [
+      "`iamOverview` roles, users, people, nodes, decisions, access-review campaigns/items, Directory connections/groups/mappings/identities, MFA/session seeds, audit and invitation surfaces remain retained.",
+      "Assignment grant/proposal, independent review decisions, role publication, role/matrix/inspector reads, emergency and MFA administration, Directory connectors, identity conflicts, user suspension/restore and invitations remain retained.",
+      "The retained `revokeIamAssignment` path remains the unset-config command path and the platform-actor path.",
+      "The retained IAM UI and route shape continue to receive assignment rows with the same keys and semantics; only the source of those rows changes when configured."
+    ],
+    "cutover": "A configured native read/command failure is bounded and surfaced; it never silently reads or writes the retained assignment path. An unset configuration performs no native call and retains the existing TypeScript assignment path. Platform assignment administration is not part of this slice."
+  },
+  "concurrentWork": {
+    "preserved": "This shared worktree contains concurrent uncommitted Finance, Commerce, Platform Administration, Learning, Talent and other owner work. None of those files were edited or reverted by this slice. HEAD advanced from the mission base 4c2ab63ea to f3eb38eed through other owners' Learning commits while this slice remained uncommitted authored work.",
+    "rootManifests": "Root Cargo.toml and Cargo.lock were not modified by this subagent; packages/server-identity_access was already a workspace member.",
+    "excluded": "No docs/status register, contracts file, package lockfile or other owner implementation was edited.",
+    "sharedEnv": ".env.example already contained concurrent owner additions in this worktree; this slice appended only the commented ERPX_NATIVE_IDENTITY_ACCESS_CONFIG block."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements IamAssignmentHttpBackend or mounts iam_assignment_http_router, so configured SSR/command cutover is not runnable end-to-end.",
+      "No authenticated browser or deployment verification was performed.",
+      "The native SSR overlay is intentionally limited to holding-scoped non-self IAM overview pages; branch/department overview expansion still uses the retained assignment query.",
+      "The full crate run has the unrelated migration-count failure in account_group_recovery_postgres (0044 exists while the test expects one post-0043 migration) and a parallel-only invitation flake that passes alone.",
+      "The suite manifest was not updated because this subagent was instructed not to create registers or edit outside the owner slice."
+    ],
+    "nextAction": "Have the composition owner register the backend and mount the router, set ERPX_NATIVE_IDENTITY_ACCESS_CONFIG, then qualify the authenticated IAM Users/Overview page and the assignment withdrawal drawer on the real browser. After that, extend the owner with access-review decisions and role publication, followed by Directory connector reads and invitation/emergency administration. Browser acceptance remains deferred."
+  }
+}

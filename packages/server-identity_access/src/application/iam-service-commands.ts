@@ -1,105 +1,10 @@
 import { createIamGrantPolicy } from '@erpx/server-identity_access/application/iam-grants';
 import { z } from 'zod';
-import { roleInput, grantInput, reviewInput, accessReviewCampaignInput, accessReviewDecisionInput, type IamAssignmentFact, type IamRoleFact, type IamReviewPayload, type IamReviewFact, type IamReviewItemFact, type IamCampaignFact, type IamScopeNodeFact, type IamMemberFact, type RoleInput, type GrantInput, type ReviewInput, type CampaignInput, type CampaignDecisionInput } from '@erpx/server-identity_access/domain/iam-service';
+import { grantInput, reviewInput, type IamAssignmentFact, type IamRoleFact, type IamReviewPayload, type IamReviewFact, type IamReviewItemFact, type IamScopeNodeFact, type IamMemberFact, type GrantInput, type ReviewInput } from '@erpx/server-identity_access/domain/iam-service';
 import type { IamActor } from '@erpx/server-identity_access/domain/iam-actor';
 import { iamPermission } from '@erpx/server-identity_access/domain/iam-actor';
-import { permissionCatalog } from "@erpx/feature-identity_access/lib/permissions";
 import type { IdentityError } from '@erpx/server-identity_access/application/authorization';
 export interface IamServiceTransaction {
-    activeReviewAssignments(facts: {
-        observedNow: number;
-    }): Promise<IamAssignmentFact[]>;
-    insertReviewCampaign(facts: {
-        id: string;
-        input: CampaignInput;
-        now: number;
-    }): Promise<void>;
-    insertReviewItem(facts: {
-        key: string;
-        index: number;
-        id: string;
-        a: IamAssignmentFact;
-    }): Promise<void>;
-    insertCampaignStartedEvent(facts: {
-        key: string;
-        id: string;
-        input: CampaignInput;
-        assignments: IamAssignmentFact[];
-        now: number;
-    }): Promise<void>;
-    lockReviewItem(facts: {
-        itemId: string;
-    }): Promise<IamReviewItemFact | null>;
-    reviewerSamePerson(facts: {
-        item: IamReviewItemFact;
-    }): Promise<{
-        same?: boolean;
-        ok?: boolean;
-        allowed?: boolean;
-        active?: boolean;
-    }>;
-    lockReviewAssignment(facts: {
-        item: IamReviewItemFact;
-    }): Promise<IamAssignmentFact | null>;
-    reviewAssignmentActive(facts: {
-        item: IamReviewItemFact;
-        observedNow: number;
-    }): Promise<{
-        same?: boolean;
-        ok?: boolean;
-        allowed?: boolean;
-        active?: boolean;
-    }>;
-    reviewRecoveryMember(facts: {
-        item: IamReviewItemFact;
-    }): Promise<number | null>;
-    recordItemDecision(facts: {
-        input: CampaignDecisionInput;
-        now: number;
-        itemId: string;
-    }): Promise<void>;
-    insertDecisionEvent(facts: {
-        key: string;
-        item: IamReviewItemFact;
-        itemId: string;
-        input: CampaignDecisionInput;
-        now: number;
-    }): Promise<void>;
-    pendingReviewItems(facts: {
-        item: IamReviewItemFact;
-    }): Promise<{
-        n: number;
-    }>;
-    completeReviewCampaign(facts: {
-        remaining: number;
-        campaignVersion: number;
-        now: number;
-        item: IamReviewItemFact;
-    }): Promise<void>;
-    insertCampaignCompletedEvent(facts: {
-        key: string;
-        item: IamReviewItemFact;
-        now: number;
-    }): Promise<void>;
-    lockReviewCampaign(facts: {
-        id: string;
-    }): Promise<IamCampaignFact | null>;
-    decidedReviewItems(facts: {
-        id: string;
-    }): Promise<{
-        n: number;
-    }>;
-    cancelReviewCampaign(facts: {
-        version: number;
-        now: number;
-        id: string;
-    }): Promise<void>;
-    insertCampaignCancelledEvent(facts: {
-        key: string;
-        id: string;
-        reason: string;
-        now: number;
-    }): Promise<void>;
     insertIndependentReview(facts: {
         id: string;
         kind: string;
@@ -107,29 +12,6 @@ export interface IamServiceTransaction {
         observedNow: number;
         reason: string;
     }): Promise<void>;
-    lockProposedRole(facts: {
-        id: string;
-    }): Promise<IamRoleFact | null>;
-    createProposedRole(facts: {
-        id: string;
-        input: RoleInput;
-    }): Promise<void>;
-    nextRoleRevision(facts: {
-        id: string;
-    }): Promise<{
-        next: number;
-    }>;
-    appendRoleRevision(facts: {
-        id: string;
-        revision: number;
-        input: RoleInput;
-        observedNow: number;
-    }): Promise<void>;
-    affectedRoleUsers(facts: {
-        id: string;
-    }): Promise<{
-        user_id: string;
-    }[]>;
     grantSamePerson(facts: {
         input: GrantInput;
     }): Promise<{
@@ -283,82 +165,6 @@ export interface IamServiceCommandPorts {
 }
 export function createIamServiceCommands(ports: IamServiceCommandPorts) {
     function fail(code: string, message: string): never { throw ports.error(409, code, message); }
-    function requireHoldingAccessReview(actor: IamActor) {
-        if (actor.platform)
-            throw ports.error(422, "HOLDING_REVIEW_REQUIRED", "Run access certification inside a company workspace.");
-        ports.companyScope(actor);
-        ports.authorize(actor, iamPermission(actor, "iam.review"));
-    }
-    async function startAccessReviewCampaign(actor: IamActor, input: z.infer<typeof accessReviewCampaignInput>, key: string) {
-        requireHoldingAccessReview(actor);
-        await ports.fresh(actor);
-        if (input.dueAt <= ports.now() || input.dueAt > ports.now() + 366 * 86400000)
-            throw ports.error(422, "REVIEW_DUE_DATE_INVALID", "Choose a review due date within the next year.");
-        return ports.command(actor, key, "access-review.start", input, "iam.review", async (tx) => {
-            const assignments = (await tx.activeReviewAssignments({ observedNow: ports.now() }));
-            if (!assignments.length)
-                throw ports.error(409, "NO_ACTIVE_ASSIGNMENTS", "No active assignments are available for review.");
-            const id = `access-review-${key}`, now = ports.now();
-            (await tx.insertReviewCampaign({ id, input, now }));
-            for (const [index, a] of assignments.entries())
-                (await tx.insertReviewItem({ key, index, id, a }));
-            (await tx.insertCampaignStartedEvent({ key, id, input, assignments, now }));
-            return { id, status: "open", version: 1, itemCount: assignments.length };
-        });
-    }
-    async function decideAccessReviewItem(actor: IamActor, itemId: string, input: z.infer<typeof accessReviewDecisionInput>, key: string) {
-        requireHoldingAccessReview(actor);
-        await ports.fresh(actor);
-        return ports.command(actor, key, "access-review.decide", { itemId, ...input }, "iam.review", async (tx) => {
-            const item = (await tx.lockReviewItem({ itemId }));
-            if (!item)
-                throw ports.error(404, "ACCESS_REVIEW_ITEM_NOT_FOUND", "Access review item not found.");
-            if (item.campaign_status !== "open" || item.decision !== "pending")
-                fail("ACCESS_REVIEW_ITEM_CHANGED", "This access review item is no longer pending.");
-            if (Number(item.campaign_version) !== input.expectedCampaignVersion)
-                fail("ACCESS_REVIEW_CAMPAIGN_CHANGED", "The campaign changed. Reload before deciding.");
-            if (item.created_by === actor.userId)
-                throw ports.error(403, "INDEPENDENT_REVIEW_REQUIRED", "A different administrator must certify the campaign creator's access review.");
-            if (item.user_id === actor.userId || (await tx.reviewerSamePerson({ item })).same)
-                throw ports.error(403, "SELF_ACCESS_REVIEW", "Another administrator must review your access.");
-            const assignment = (await tx.lockReviewAssignment({ item }));
-            if (!assignment || Number(assignment.version) !== Number(item.assignment_version) || assignment.revoked_at !== null || !(await tx.reviewAssignmentActive({ item, observedNow: ports.now() })).active)
-                fail("REVIEW_SOURCE_CHANGED", "The assignment changed. Start a new access review for current evidence.");
-            if (input.decision === "revoke") {
-                const protectedMember = (await tx.reviewRecoveryMember({ item }));
-                if (protectedMember)
-                    ports.authorize(actor, iamPermission(actor, "iam.recovery"));
-                await applyIamRevocation(tx, actor, item.assignment_id, Number(item.assignment_version), input.reason, true);
-            }
-            const now = ports.now();
-            (await tx.recordItemDecision({ input, now, itemId }));
-            (await tx.insertDecisionEvent({ key, item, itemId, input, now }));
-            const remaining = Number((await tx.pendingReviewItems({ item })).n), campaignVersion = Number(item.campaign_version) + 1;
-            (await tx.completeReviewCampaign({ remaining, campaignVersion, now, item }));
-            if (!remaining)
-                (await tx.insertCampaignCompletedEvent({ key, item, now }));
-            return { id: itemId, campaignId: item.campaign_id, decision: input.decision, campaignStatus: remaining ? "open" : "completed", campaignVersion };
-        });
-    }
-    async function cancelAccessReviewCampaign(actor: IamActor, id: string, expectedVersion: number, reason: string, key: string) {
-        requireHoldingAccessReview(actor);
-        await ports.fresh(actor);
-        return ports.command(actor, key, "access-review.cancel", { id, expectedVersion, reason }, "iam.review", async (tx) => {
-            const campaign = (await tx.lockReviewCampaign({ id }));
-            if (!campaign)
-                throw ports.error(404, "ACCESS_REVIEW_CAMPAIGN_NOT_FOUND", "Access review campaign not found.");
-            if (campaign.created_by !== actor.userId)
-                throw ports.error(403, "CAMPAIGN_OWNER_REQUIRED", "Only the campaign creator can cancel it.");
-            if (campaign.status !== "open" || Number(campaign.version) !== expectedVersion)
-                fail("ACCESS_REVIEW_CAMPAIGN_CHANGED", "The campaign changed. Reload before cancelling.");
-            if (Number((await tx.decidedReviewItems({ id })).n))
-                throw ports.error(409, "CAMPAIGN_DECISIONS_EXIST", "A campaign with recorded decisions cannot be cancelled.");
-            const now = ports.now(), version = expectedVersion + 1;
-            (await tx.cancelReviewCampaign({ version, now, id }));
-            (await tx.insertCampaignCancelledEvent({ key, id, reason, now }));
-            return { id, status: "cancelled", version };
-        });
-    }
     async function review(tx: IamServiceTransaction, actor: IamActor, kind: string, payload: unknown, reason: string) {
         const id = ports.id();
         (await tx.insertIndependentReview({ id, kind, payload, observedNow: ports.now(), reason }));
@@ -367,49 +173,6 @@ export function createIamServiceCommands(ports: IamServiceCommandPorts) {
             status: "pending",
             message: "Submitted for independent review.",
         };
-    }
-    async function saveIamRole(actor: IamActor, input: z.infer<typeof roleInput>, key: string) {
-        ports.companyScope(actor);
-        await ports.fresh(actor);
-        const catalog = permissionCatalog
-            .filter((p) => (p.namespace === "platform") === actor.platform &&
-            p.availability === "live")
-            .map((p) => p.id);
-        if ([...input.permissions, ...input.grantablePermissions].some((p) => !catalog.includes(p) || !actor.iam?.grantablePermissions.includes(p)))
-            throw ports.error(403, "DELEGATION_EXCEEDED", "The role exceeds your delegated permission set.");
-        if (input.scopes.some((s) => actor.platform ? s !== "platform" : s === "platform"))
-            throw ports.error(422, "ROLE_SCOPE_INVALID", "Role scopes must remain inside their namespace.");
-        return ports.command(actor, key, "role.propose", input, "iam.roles.manage", async (tx) => {
-            if (input.id &&
-                !input.id.startsWith(actor.platform ? "platform_custom_" : "custom_"))
-                throw ports.error(403, "PROTECTED_ROLE", "Clone a built-in role instead of replacing it.");
-            const id = input.id ??
-                `${actor.platform ? "platform_custom_" : "custom_"}${ports.id()}`;
-            const existing = (await tx.lockProposedRole({ id }));
-            if (existing?.built_in)
-                fail("PROTECTED_ROLE", "Built-in roles are protected. Clone the role instead.");
-            if (Number(existing?.published_revision ?? 0) !== input.expectedVersion)
-                fail("ROLE_CHANGED", "The role changed. Review the latest revision.");
-            if (!existing)
-                (await tx.createProposedRole({ id, input }));
-            const revision = Number((await tx.nextRoleRevision({ id })).next);
-            (await tx.appendRoleRevision({ id, revision, input, observedNow: ports.now() }));
-            const affected = (await tx.affectedRoleUsers({ id })).map((r) => r.user_id);
-            return {
-                ...(await review(tx, actor, "role.publish", {
-                    id,
-                    name: input.name,
-                    revision,
-                    expectedVersion: input.expectedVersion,
-                    permissions: input.permissions,
-                    grantablePermissions: input.grantablePermissions,
-                    affected,
-                }, input.reason)),
-                roleId: id,
-                revision,
-                affected,
-            };
-        });
     }
     const {validateIamGrant,insertIamGrant} = createIamGrantPolicy(ports);
 
@@ -547,5 +310,5 @@ export function createIamServiceCommands(ports: IamServiceCommandPorts) {
             };
         });
     }
-    return { startAccessReviewCampaign, decideAccessReviewItem, cancelAccessReviewCampaign, review, saveIamRole, validateIamGrant, insertIamGrant, grantIamAccess, revokeIamAssignment, applyIamRevocation, decideIamReview };
+    return { review, validateIamGrant, insertIamGrant, grantIamAccess, revokeIamAssignment, applyIamRevocation, decideIamReview };
 }

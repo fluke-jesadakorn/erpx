@@ -2,6 +2,7 @@ vi.mock('server-only',()=>({}));
 const menuSources=vi.hoisted(()=>({products:vi.fn(),admin:vi.fn()}));
 vi.mock("@erpx/server-work_projection/public/product-launcher",()=>({productLaunchChoices:menuSources.products}));
 vi.mock("@erpx/server-work_projection/public/admin-launcher",()=>({adminLaunchChoices:menuSources.admin}));
+vi.mock("@erpx/server-identity_access/public/provider-entry",()=>({providerEntryOverview:async()=>null}));
 import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
 import { expect, it, vi } from "vitest";
 import { buildWorkspaceHoldingChoice, type WorkspaceChoice } from "@erpx/feature-work_projection/lib/workspace-choice";
@@ -13,6 +14,7 @@ import { productOfficeLanding, productDestinationAvailable } from "@erpx/server-
 import { commercialPackages } from "@erpx/server-commercial/domain/packages";
 import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-module-admission';
 import {productIds} from '@erpx/contracts/product-registry';
+import {products} from '@erpx/server-commercial/public/rules/product-registry';
 
 const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "Acme Holding", [
   { companyId: "c1", companyName: "Company One", scopeKind: "holding", scopeNodeId: null },
@@ -23,6 +25,12 @@ const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "A
   { id: "b2", kind: "branch", slug: "branch-two", label: "Branch Two", companyId: "c2", branchId: null, branchSlug: null },
   { id: "d2", kind: "department", slug: "department-two", label: "Department Two", companyId: "c2", branchId: "b2", branchSlug: "branch-two" },
 ], true)!];
+it('preserves exact scope and branch labels in authorized Company administration choices', async () => {
+ const {createAdminLauncher}=await import('@erpx/server-work_projection/application/admin-launcher');
+ const links=await createAdminLauncher({choices:async()=>choices(),available:async()=>true,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:()=>false})();
+ expect(links.map(link=>link.scope)).toEqual(productWorkspaceCandidates(choices()).map(candidate=>candidate.scope));
+ expect(links[3].branch).toBe('Branch Two');
+});
 const grant = (companyId: string, packageId = "finance"): CompanyPackageGrant => ({ companyId, packageId, packageVersion: 1, state: "active", startsAt: 0, endsAt: null, version: 1, reason: "Fixture", evidence: "fixture" });
 function fixture() {
   const access = vi.fn(async (scope, options) => ({ scope: { ...scope, holdingId: "h001", companyId: options.companyId, branchId: scope.kind !== "holding" ? scope.branchSlug === "branch-one" ? "b1" : "b2" : undefined, departmentId: scope.kind === "department" ? scope.departmentSlug === "department-one" ? "d1" : "d2" : undefined },
@@ -64,6 +72,42 @@ it("enumerates every Company and inherited Branch/Department without promoting a
   expect(candidates.map(candidate => `${candidate.companyId}/${candidate.scope.kind}`)).toEqual(["c1/holding", "c1/branch", "c1/department", "c2/department"]);
   expect(productWorkspaceCandidates([{ kind: "platform", label: "Platform", destination: "/platform" }])).toEqual([]);
 });
+it("enumerates every commercial base product across every authorized Company and inherited location", async () => {
+  const f = fixture();
+  const base = commercialPackages.filter(definition => definition.kind === "base");
+  const modules = [...new Set([...base.flatMap(definition => products.find(product => product.id === definition.productId)?.modules ?? []), "operations"])];
+  const permissions = [...new Set([...builtInPermissions("holding_owner"), ...base.flatMap(definition => [definition.productId + ".read", definition.productId + ".write"])])];
+  f.grants.mockImplementation(async access => base.map(definition => grant(access.scope.companyId, definition.id)));
+  f.moduleAccess.mockResolvedValue({
+    modulesByAssignment: new Map([["role", modules]]),
+    presentationModulesByAssignment: new Map([["role", modules]]),
+    permissionsByAssignment: new Map([["role", permissions]]),
+    beta: false,
+  });
+  const links = await f.launch();
+  const seen = new Set(links.map(link => link.productId));
+  for (const definition of base) expect(seen.has(definition.productId), definition.productId).toBe(true);
+  expect([...new Set(links.map(link => `${link.companyId}/${link.scope.kind}`))].sort()).toEqual([
+    "c1/branch", "c1/department", "c1/holding", "c2/department",
+  ]);
+});
+
+it("withdraws only the denied Company's default authority and restores it without a client hint", async () => {
+  const f = fixture();
+  const original = f.access.getMockImplementation()!;
+  f.access.mockImplementation(async (scope, options) => {
+    if (options.companyId === "c2") throw new Error("FORBIDDEN");
+    return original(scope, options);
+  });
+  const withdrawn = await f.launch();
+  expect(withdrawn).toHaveLength(3);
+  expect(new Set(withdrawn.map(link => link.companyId))).toEqual(new Set(["c1"]));
+  f.access.mockImplementation(original);
+  const restored = await f.launch();
+  expect(restored).toHaveLength(4);
+  expect(new Set(restored.map(link => link.companyId))).toEqual(new Set(["c1", "c2"]));
+});
+
 it("checks explicit Company authority for every scope and caches only the grant read per Company in one render", async () => {
   const f = fixture(), links = await f.launch();
   expect(links).toHaveLength(4);
@@ -144,7 +188,7 @@ it("keeps purchased personal Work available to an applicable role without granti
   const f = fixture(); f.grants.mockImplementation(async access => [grant(access.scope.companyId, "work")]);
   f.moduleAccess.mockResolvedValue({ modulesByAssignment: new Map([["role", []]]),
     presentationModulesByAssignment: new Map([["role", []]]), permissionsByAssignment: new Map([["role", []]]), beta: true });
-  const links = await f.launch(); expect(links).toHaveLength(4); expect(links.every(link => link.productId === "work")).toBe(true);
+  const links = await f.launch(); expect(links).toHaveLength(4); expect(links.every(link => link.productId === "apps")).toBe(true);
 });
 it("chooses owner menu landings for narrow roles rather than a forbidden default", () => {
   const capabilities = commercialPackages.flatMap(definition => [...definition.visibleCapabilities, ...definition.includedCapabilities]);
@@ -196,11 +240,24 @@ it('hides denied Company Admin and ERPX management scopes while surfacing unexpe
 });
 
 
-it('adds only the same current Company and location Admin foundation to the actual Office product picker',async()=>{
- const {OfficeProductMenus}=await import('@erpx/workplace/components/office-product-menus'),scope={kind:'holding' as const,holdingSlug:'acme'},base='/holdings/acme',link=(companyId:string,target:string)=>'https://admin-dev-erpx.jesadakorn.com/sso/start?'+new URLSearchParams({next:'/admin/launch?'+new URLSearchParams({companyId,next:target})});
- menuSources.products.mockResolvedValue([{holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',scope,productId:'assets',href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/',purchasePurpose:'new-work'},{holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',scope,productId:'assets',href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/other',purchasePurpose:'history'}]);
- menuSources.admin.mockResolvedValue([{holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',kind:'company',href:link('c1',base+'/administration')},{holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',kind:'company',href:link('c2',base+'/administration')},{holding:'Acme',company:'Current',companyId:'c1',workspace:'Branch',kind:'company',href:link('c1',base+'/branches/b1/administration')},{holding:'ERPX',company:'Current',companyId:'c1',workspace:'Current',kind:'management',href:link('c1','/holdings/erpx/erpx-management')}]);
- const view=await OfficeProductMenus({productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'en'});expect(view.props.products).toEqual([{href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/',label:'Assets & Maintenance',detail:undefined,current:true},{href:link('c1',base+'/administration'),label:'Company Admin'}]);expect(view.props.workspaces).toHaveLength(2);expect(JSON.stringify(view.props)).not.toMatch(/permissions|assignment|session|grants/);menuSources.admin.mockResolvedValue([]);expect((await OfficeProductMenus({productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'th'})).props.products).toHaveLength(1);
+it('projects all authorized companies and exact admin scopes into the shared Office modal',async()=>{
+ const {OfficeProductMenus}=await import('@erpx/workplace/components/office-product-menus');
+ const scope={kind:'holding' as const,holdingSlug:'acme'},base='/holdings/acme';
+ menuSources.products.mockResolvedValue([
+  {holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',scope,productId:'assets',href:'assets-current',purchasePurpose:'new-work'},
+  {holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',scope,productId:'assets',href:'assets-other',purchasePurpose:'history'}
+ ]);
+ menuSources.admin.mockResolvedValue([
+  {holding:'Acme',company:'Current',companyId:'c1',workspace:'Branch',scope:{kind:'branch',holdingSlug:'acme',branchSlug:'b1'},kind:'company',href:'branch-admin'},
+  {holding:'Acme',company:'Admin only',companyId:'c3',workspace:'Admin only',scope,kind:'company',href:'admin-only'}
+ ]);
+ const view=await OfficeProductMenus({accountId:'user-a',productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'en'});
+ expect(view.props.currentCompanyId).toBe(JSON.stringify(['acme','c1']));
+ expect(view.props.currentWorkspaceId).toBe(base);
+ expect(view.props.companies).toHaveLength(3);
+ expect(view.props.companies[0].workspaces[1]).toMatchObject({id:base+'/branches/b1',adminHref:'branch-admin',apps:[]});
+ expect(view.props.companies[2].workspaces[0]).toMatchObject({adminHref:'admin-only',apps:[]});
+ expect(JSON.stringify(view.props)).not.toMatch(/permissions|assignment|session|grants/);
 });
 
 it('discovers only the owner-proven included Stock entry for an existing Inventory role and keeps Department and read-only roles out',async()=>{

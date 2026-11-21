@@ -42,7 +42,6 @@
     "./public/marketing-public-form": "./src/public/marketing-public-form.ts",
     "./public/record-purchases": "./src/public/record-purchases.ts",
     "./public/analytics-sources": "./src/public/analytics-sources.ts",
-    "./public/purchases": "./src/public/purchases.ts",
     "./public/last-audit-owner-projection-sources": "./src/public/last-audit-owner-projection-sources.ts",
     "./public/attachments-policy-facts": "./src/public/attachments-policy-facts.ts",
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",
@@ -52,7 +51,6 @@
     "./public/attachments-operational-facts": "./src/public/attachments-operational-facts.ts",
     "./public/public-submission": "./src/public/public-submission.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
-    "./index": "./src/index.ts",
     "./application/campaigns": "./src/application/campaigns.ts",
     "./application/asset": "./src/application/asset.ts",
     "./application/marketing": "./src/application/marketing.ts",
@@ -85,6 +83,6 @@
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

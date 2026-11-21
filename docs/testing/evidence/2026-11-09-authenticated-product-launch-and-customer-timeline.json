@@ -1,0 +1,72 @@
+{
+  "schema": "erpx.evidence/authenticated-product-launch/v1",
+  "recorded_at": "2026-11-09T10:03:57.236415Z",
+  "head": "087fcab8c80b15914b8d302cbe6ef9048aa7923b",
+  "environment": {
+    "public_holding_origin": "https://acme.jesadakorn.com",
+    "development_gateway": "http://127.0.0.1:3100",
+    "native_account_api": "http://127.0.0.1:3199",
+    "account_origin": "https://account-dev-erpx.jesadakorn.com",
+    "account": "jesadakorn.kirtnu@gmail.com"
+  },
+  "steps": [
+    "Normal SSO sign-in at the development Account origin with the authorized development user.",
+    "Product entry chooser: Acme Group -> Acme Corporation -> Bangkok Operations -> Bangkok Accounting.",
+    "Finance app link -> /launch -> /choose-work-role -> finance preparer selection -> app page.",
+    "Sales app link -> /launch -> /choose-work-role -> holding owner selection -> app page.",
+    "Customer directory -> View details (record drawer) -> History tab."
+  ],
+  "observed": {
+    "desktop_finance": {
+      "viewport": "1440x900",
+      "final_url": "https://acme.jesadakorn.com/bangkok/accounting/finance/documents/sales/invoices",
+      "title": "ERPX \u00b7 Work connected",
+      "main_content": true,
+      "failed_requests": [],
+      "page_errors": []
+    },
+    "mobile_finance": {
+      "viewport": "390x844",
+      "final_url": "https://acme.jesadakorn.com/bangkok/accounting/finance/documents/sales/invoices",
+      "title": "ERPX \u00b7 Work connected",
+      "main_content": true,
+      "failed_requests": [],
+      "page_errors": []
+    },
+    "sales_customer_timeline": {
+      "final_url": "https://acme.jesadakorn.com/bangkok/accounting/sales/customers/directory/party_customer_demo/history?returnTo=%2Fbangkok%2Faccounting%2Fsales%2Fcustomers%2Fdirectory",
+      "heading": "Customer history",
+      "items": [
+        "Invoice \u00b7 INV-ACME-CO-0029 \u00b7 partially_paid",
+        "Invoice \u00b7 INV-ACME-CO-0027 \u00b7 posted",
+        "Invoice \u00b7 INV-ACME-CO-0025 \u00b7 paid"
+      ],
+      "business_failed_requests": [],
+      "dev_asset_failures": [
+        "/__nextjs_original-stack-frames 404",
+        "/__nextjs_font/geist-latin.woff2 404"
+      ],
+      "page_errors": [
+        "React hydration mismatch warning for record-link href/text"
+      ],
+      "transport": "retained TypeScript timeline (ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is unset)"
+    },
+    "launch_contract": {
+      "without_selected_role": "303 to /choose-work-role?companyId=acme-co&next=...",
+      "after_role_selection": "303 to /launch?companyId=acme-co&next=... then 303 to the holding app URL",
+      "app_not_applicable_to_selected_role": "307 to /choose-work-role (not 403)"
+    }
+  },
+  "screenshots": [
+    ".scratch/dev/native-account-finance.png",
+    ".scratch/dev/native-account-finance-mobile.png",
+    ".scratch/dev/native-account-timeline.png"
+  ],
+  "notes": [
+    "The earlier /launch 401 was an unauthenticated navigation; with the product session cookie the route redirects correctly.",
+    "The native work-role routes are now mounted independently of fieldServiceReads and admitted by the private API boundary for every configured holding.",
+    "The customer History tab in this run used the retained TypeScript timeline because the native timeline configuration is unset. Native timeline transport enablement and legacy TypeScript retirement remain open; this evidence does not claim them.",
+    "Legacy TypeScript consumers and owner certification remain open; this evidence qualifies the authenticated browser/SSO gate only."
+  ],
+  "run_note": "Browser run used the working tree whose work-role mount change was committed as 087fcab8c; the evidence was recorded before that commit."
+}

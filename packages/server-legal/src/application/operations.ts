@@ -7,9 +7,9 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 export type LegalRows<Row>={results:Row[]};
 export type LegalOperationUnit={
 registerRows(kind:LegalItem["kind"]):Promise<LegalRows<LegalItem>>;
-exportRead(facts:{identifier:string;id:string;null:null;actorId:string;fact4:"register.export";now:number;}):LegalWrite;
+exportRead(facts:{identifier:string;id:string;null:null;actorId:string;fact4:"register.export";now:number;}):Promise<LegalWrite>;
 savedViews(facts:{companyId:string;actorId:string;}):Promise<LegalRows<Record<string, unknown>>>;
-saveView(facts:{companyId:string;actorId:string;name:string;fact3:string;}):LegalWrite;
+saveView(facts:{companyId:string;actorId:string;name:string;fact3:string;}):Promise<LegalWrite>;
 derivedLink(facts:{id:string;id2:string;}):Promise<LegalRows<Record<string, unknown>>>;
 envelopes(facts:{id:string;}):Promise<LegalRows<Record<string, unknown>>>;
 documents(facts:{id:string;}):Promise<LegalRows<Record<string, unknown>>>;
@@ -21,9 +21,9 @@ retention(facts:{id:string;}):Promise<LegalRows<Record<string, unknown>>>;
 holdPreview(id:string):Promise<LegalRows<Record<string, unknown>>>;
 proposedAi(facts:{proposalId:string;id:string;actorId:string;}):Promise<{ source_version: number; source_hash: string; proposal: string; } | null>;
 nextDocumentVersion(facts:{id:string;}):Promise<{ n: number; } | null>;
-reviewedAiDocument(facts:{documentId:string;id:string;next:number;name:string;checksum:string;bytes:number;body:string;actorId:string;now:number;}):LegalWrite;
-acceptProposal(facts:{fact0:string;proposalId:string;}):LegalWrite;
-advanceItem(facts:{now:number;id:string;}):LegalWrite;
+reviewedAiDocument(facts:{documentId:string;id:string;next:number;name:string;checksum:string;bytes:number;body:string;actorId:string;now:number;}):Promise<LegalWrite>;
+acceptProposal(facts:{fact0:string;proposalId:string;}):Promise<LegalWrite>;
+advanceItem(facts:{now:number;id:string;}):Promise<LegalWrite>;
 ruleImpact(id:string):Promise<LegalRows<Record<string, unknown>>>;
 access(id:string,permission?:string):Promise<LegalItem>;
 command(raw:unknown,key:string):Promise<{id:string;version:number}>;
@@ -31,7 +31,7 @@ purchase(raw:unknown,key:string):Promise<{id:string}>;
 executedCopies(id:string):ReturnType<ReturnType<typeof import("@erpx/server-legal/application/executed-copies").createExecutedCopyApplication>["executedCopies"]>;
 batch(writes:LegalWrite[]):Promise<unknown>;
 guardChanges(id:string,version:number,key:string,edit?:boolean,allowFrozen?:boolean,preparation?:boolean):LegalWrite[];
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay<Result extends object=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -76,9 +76,9 @@ async function exportRegister(
     if (typeof r.data === "string") r.data = JSON.parse(r.data);
   }
   await ports.repository.batch(
-    rows.map((r) =>
-      ports.repository.exportRead({identifier:ports.identifiers.next(),id:r.id,null:null,actorId:a.userId,fact4:"register.export",now:ports.clock.now()}),
-    ),
+    await Promise.all(rows.map(async (r) =>
+      await ports.repository.exportRead({identifier:ports.identifiers.next(),id:r.id,null:null,actorId:a.userId,fact4:"register.export",now:ports.clock.now()}),
+    )),
   );
   return rows;
 }
@@ -113,7 +113,7 @@ async function saveView(
     1,
     { id: a.companyId, version: 1 },
     [
-      ports.repository.saveView({companyId:a.companyId,actorId:a.userId,name:x.name,fact3:JSON.stringify(x.query)}),
+      await ports.repository.saveView({companyId:a.companyId,actorId:a.userId,name:x.name,fact3:JSON.stringify(x.query)}),
     ],
   );
 }
@@ -276,8 +276,8 @@ async function applyAiDraft(
     { id: item.id, version: item.version + 1 },
     [
       ...ports.repository.guardChanges(item.id,item.version,key,true),
-      ports.repository.reviewedAiDocument({documentId:documentId,id:item.id,next:next,name:x.name,checksum:checksum,bytes:ports.byteLength(x.body),body:x.body,actorId:a.userId,now:now}),
-      ports.repository.acceptProposal({fact0:JSON.stringify({
+      await ports.repository.reviewedAiDocument({documentId:documentId,id:item.id,next:next,name:x.name,checksum:checksum,bytes:ports.byteLength(x.body),body:x.body,actorId:a.userId,now:now}),
+      await ports.repository.acceptProposal({fact0:JSON.stringify({
             acceptance: {
               documentId,
               checksum,
@@ -285,8 +285,8 @@ async function applyAiDraft(
               reviewedAt: now,
             },
           }),proposalId:x.proposalId}),
-      ports.repository.advanceItem({now:now,id:item.id}),
-      ports.repository.event(item.id,"ai.accepted",`Reviewed proposal ${x.proposalId}; document ${documentId}`,item.version + 1,ports.identifiers.next(),ports.clock.now()),
+      await ports.repository.advanceItem({now:now,id:item.id}),
+      await ports.repository.event(item.id,"ai.accepted",`Reviewed proposal ${x.proposalId}; document ${documentId}`,item.version + 1,ports.identifiers.next(),ports.clock.now()),
     ],
   );
 }

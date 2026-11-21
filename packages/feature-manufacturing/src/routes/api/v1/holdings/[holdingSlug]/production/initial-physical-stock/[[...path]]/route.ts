@@ -1,7 +1,8 @@
 import {requireWorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin';
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
-import {manufacturingInitialPhysicalStockCountWorkspace,prepareManufacturingInitialPhysicalStockCount,transitionManufacturingInitialPhysicalStockCount,manufacturingInitialPhysicalStockCountFlow,assignManufacturingInitialPhysicalStockCountFlow,manufacturingInitialPhysicalStockCountSchema,manufacturingInitialPhysicalStockCountActionSchema,manufacturingInitialPhysicalStockCountSelectionSchema,manufacturingInitialPhysicalStockCountFlowSchema,type ManufacturingInitialPhysicalStockCountAction} from '@erpx/server-inventory/public/manufacturing-initial-physical-stock-count';
+import {manufacturingInitialPhysicalStockCountWorkspace,manufacturingInitialPhysicalStockSeed,manufacturingInitialPhysicalStockCountFlow,assignManufacturingInitialPhysicalStockCountFlow,manufacturingInitialPhysicalStockCountSchema,manufacturingInitialPhysicalStockCountActionSchema,manufacturingInitialPhysicalStockCountSelectionSchema,manufacturingInitialPhysicalStockCountFlowSchema,type ManufacturingInitialPhysicalStockCountAction} from '@erpx/server-inventory/public/manufacturing-initial-physical-stock-count';
+import {nativeStockCountSave,nativeStockCountTransition} from '@erpx/feature-inventory/lib/native-stock-count-command';
 import {createManufacturingInitialPhysicalStockProduct,createManufacturingInitialPhysicalStockWarehouse,manufacturingInitialPhysicalStockProductSchema,manufacturingInitialPhysicalStockWarehouseSchema} from '@erpx/server-commerce/public/manufacturing-initial-physical-stock-masters';
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 const headers={'Cache-Control':'private, no-store'};
@@ -25,9 +26,9 @@ export async function POST(request:Request,context:Context){
   if(!(path.length===0||master||path[0]!=='masters'&&path.length===2&&(path[1]==='flow'||isAction(path[1]))))throw missing();
   const key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const input=await request.json();let data;
   if(master)data=path[1]==='products'?await createManufacturingInitialPhysicalStockProduct(actor,manufacturingInitialPhysicalStockProductSchema.parse(input),key):await createManufacturingInitialPhysicalStockWarehouse(actor,manufacturingInitialPhysicalStockWarehouseSchema.parse(input),key);
-  else if(path.length===0)data=await prepareManufacturingInitialPhysicalStockCount(actor,manufacturingInitialPhysicalStockCountSchema.parse(input),key);
+  else if(path.length===0){const seed=await manufacturingInitialPhysicalStockSeed(actor,manufacturingInitialPhysicalStockCountSchema.parse(input),key),native=await nativeStockCountSave(request,holdingSlug,null,seed.input,seed.seed);if(!native)throw new ApiError(503,'NATIVE_INVENTORY_COUNT_UNAVAILABLE','The native stock Count command is unavailable.');return native;}
   else if(path[1]==='flow')data=await assignManufacturingInitialPhysicalStockCountFlow(actor,path[0],manufacturingInitialPhysicalStockCountFlowSchema.parse(input),key);
-  else if(isAction(path[1]))data=await transitionManufacturingInitialPhysicalStockCount(actor,path[0],path[1],manufacturingInitialPhysicalStockCountActionSchema.parse(input),key);
-  else throw missing();return Response.json({data},{status:path.length===0||master?201:200,headers});
+  else if(isAction(path[1])){const native=await nativeStockCountTransition(request,holdingSlug,path[0],path[1],manufacturingInitialPhysicalStockCountActionSchema.parse(input));if(!native)throw new ApiError(503,'NATIVE_INVENTORY_COUNT_UNAVAILABLE','The native stock Count command is unavailable.');return native;}
+  else throw missing();return Response.json({data},{status:master?201:200,headers});
  }catch(error){return failure(error);}
 }

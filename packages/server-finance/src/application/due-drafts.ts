@@ -54,8 +54,8 @@ export interface FinanceDuePorts {
     prepareRecognition(actor: WorkContext, input: Record<string, unknown>, key: string): Promise<Record<string, unknown>>;
     prepareAsset(actor: WorkContext, id: string, input: Record<string, unknown>, key: string): Promise<Record<string, unknown>>;
     prepareInstrument(actor: WorkContext, id: string, input: Record<string, unknown>, key: string): Promise<Record<string, unknown>>;
-    complete(row: Row, result: Record<string, unknown>, time: number): Promise<void>;
-    block(id: string, code: string, message: string, time: number): Promise<void>;
+    complete(row: Row, result: Record<string, unknown>, time: number, holdingId: WorkContext['holdingId']): Promise<void>;
+    block(id: string, code: string, message: string, time: number, holdingId: WorkContext['holdingId']): Promise<void>;
 }
 export function createFinanceDueDrafts(ports: FinanceDuePorts) {
     function holding(actor: WorkContext, permission: string) { actor = ports.permission(actor, permission); if (actor.scope.kind !== 'holding' || actor.assignmentScope !== 'holding')
@@ -87,13 +87,13 @@ export function createFinanceDueDrafts(ports: FinanceDuePorts) {
                     result = await ports.prepareInstrument(actor, String(r.source_id), p, key);
                     break;
                 default: throw ports.error(422, 'FINANCE_SCHEDULE_KIND', 'Choose a supported draft workflow.');
-            } await ports.complete(r, result, time); return true; });
+            } await ports.complete(r, result, time, holdingId); return true; });
             if (done)
                 completed++;
         }
         catch (error) {
             const retained = ports.businessError(error);
-            await ports.block(candidate.id, retained?.code ?? 'FINANCE_SCHEDULE_RETRY', retained?.message ?? 'The draft could not be prepared. Check the source configuration and retry.', time);
+            await ports.block(candidate.id, retained?.code ?? 'FINANCE_SCHEDULE_RETRY', retained?.message ?? 'The draft could not be prepared. Check the source configuration and retry.', time, holdingId);
         }
     } return completed; }
     return { financeDueWorkspace, scheduleFinanceDraft, decideFinanceDueDraft, drainFinanceDueDrafts };

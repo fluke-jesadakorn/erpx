@@ -8,7 +8,7 @@ import {crmFinanceSourceReadLocks} from '@erpx/server-finance/public/crm-purchas
 import {crmHotelReservationSources,crmHotelSourceReadLocks} from '@erpx/server-pms/public/crm-purchase-sources';
 import {crmPurchaseLeadRows} from '@erpx/server-crm/adapters/purchases';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
-export async function lockMarketingCRMPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch([...crmFinanceSourceReadLocks(database),...crmHotelSourceReadLocks(database)]);await database.prepare('LOCK TABLE crm_leads,crm_accounts,crm_contacts,crm_opportunities,crm_guest_links,crm_case_events IN SHARE MODE').run();sources.set(database,companyId);}
+export async function lockMarketingCRMPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch([...crmFinanceSourceReadLocks(database),...crmHotelSourceReadLocks(database)]);await database.prepare('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_leads,crm_opportunities,crm_case_events IN SHARE MODE').run();sources.set(database,companyId);}
 /** Completed Marketing delivery belongs to base Sales thereafter. The exact
  * original parent/child receipts and captured creation event end this add-on's
  * obligation; an unrelated open Sales lead cannot block its withdrawal. */

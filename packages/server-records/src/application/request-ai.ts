@@ -51,12 +51,12 @@ export interface RequestAiRepository<Effect> {
     readRunRequestAiGrant(assignmentId: string, userId: string, companyId: string, role: string, value: number | null, value2: number | null): Promise<{
         role: string;
     } | null>;
-    stageRunRequestAiEffect(authorizationKey: string): Effect;
+    stageRunRequestAiEffect(authorizationKey: string, companyId: string): Promise<Effect>;
     guard13(command: string, value: "queued-assignment", assignmentId: string, userId: string, role: string, value2: number | null, value3: number | null, now: number, now2: number): Effect;
     guard14(command: string, value: "request-ai-lease", id: string, token: string): Effect;
     stageRunRequestAiEffect2(value: string, now: number, id: string, token: string): Effect;
     stageRunRequestAiEffect3(inputTokens: number, outputTokens: number, id: string): Effect;
-    stageRunRequestAiEffect4(command: string): Effect;
+    stageRunRequestAiEffect4(command: string, companyId: string): Promise<Effect>;
     readRunRequestAiChanged(value: "failed" | "stale", message: string, now: number, id: string, token: string): Promise<Record<string, unknown> | null>;
     stageRunRequestAiEffect5(id: string): Promise<{
         success: boolean;
@@ -242,7 +242,7 @@ export function createRequestAiApplication<Effect, Gateway>(ports: RequestAiPort
             if (!grant)
                 throw new BusinessRuleError(409, "AI_STALE", "Your access changed. Review the request before retrying.");
             const authorizationKey = ports.identifiers.next();
-            await ports.batch([...ports.iamMutationGuards(actor, authorizationKey), r.stageRunRequestAiEffect(authorizationKey)]);
+            await ports.batch([...ports.iamMutationGuards(actor, authorizationKey), await r.stageRunRequestAiEffect(authorizationKey, actor.companyId)]);
             const before = await allowed(actor, claimed.request_id);
             await ports.validateServiceScope(actor, before.request);
             provider = await ports.resolveAiProvider(actor.companyId, env, "text", actor.holdingSlug);
@@ -276,7 +276,7 @@ export function createRequestAiApplication<Effect, Gateway>(ports: RequestAiPort
                 JSON.stringify(latest.snapshot) !== claimed.provider_json)
                 throw new BusinessRuleError(409, "AI_STALE", "The request or provider changed while AI was preparing. Your edits are preserved.");
             const command = `request-ai-result-${token}`;
-            await ports.batch([
+            await ports.batch(await Promise.all([
                 ...ports.productionFeatureGuard(command, actor.companyId, "operations"),
                 ...ports.iamMutationGuards(actor, command), r.guard13(command, "queued-assignment", actor.assignmentId, actor.userId, actor.role, actor.authority?.assignmentVersion ?? null, actor.authority?.assignmentVersion ?? null, ports.clock.now(), ports.clock.now()),
                 ...snap(command),
@@ -286,8 +286,8 @@ export function createRequestAiApplication<Effect, Gateway>(ports: RequestAiPort
                 r.stageRunRequestAiEffect2(JSON.stringify(result), ports.clock.now(), id, token),
                 r.stageRunRequestAiEffect3(output.inputTokens, output.outputTokens, id),
                 ports.aiUsageStatement(`${id}:${claimed.attempts}`, provider.snapshot, "employee_request", "succeeded", output.inputTokens, output.outputTokens, actor.branchId),
-                r.stageRunRequestAiEffect4(command),
-            ]);
+                await r.stageRunRequestAiEffect4(command, actor.companyId),
+            ]));
         }
         catch (e) {
             const stale = e instanceof BusinessRuleError &&
@@ -305,7 +305,7 @@ export function createRequestAiApplication<Effect, Gateway>(ports: RequestAiPort
             if (changed) {
                 await r.stageRunRequestAiEffect5(id);
                 if (provider)
-                    await ports.runEffect(ports.aiUsageStatement(`${id}:${claimed.attempts}`, provider.snapshot, "employee_request", "failed", 0, 0, (JSON.parse(claimed.actor_json) as WorkContext).branchId));
+                    await ports.runEffect(await ports.aiUsageStatement(`${id}:${claimed.attempts}`, provider.snapshot, "employee_request", "failed", 0, 0, (JSON.parse(claimed.actor_json) as WorkContext).branchId));
             }
         }
     }

@@ -17,7 +17,6 @@ import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { canManagePeople, directoryOptions } from "@erpx/server-people_payroll/public/people-directory";
 import { peopleDirectoryPage } from "@erpx/server-people_payroll/public/people-directory-page";
 import { getPerson } from "@erpx/server-people_payroll/public/people-payroll";
-import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { forbidden, redirect } from "next/navigation";
 import directory from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/people/directory.module.css";
 import { PeopleOrganizationPage } from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/people/people-organization-page";
@@ -99,10 +98,6 @@ export default async function PeoplePage({ params, searchParams, }: {
       <div className={directory.directory}>
           {selectedMember && !selectedMember.personId && (<MemberProfile actor={actor} base={base} member={selectedMember}/>)}
           {editing && staffOptions && (<PeopleEditor appearance="standard" initialOpen initialPositionId={organization?.positions.some(p => p.id === search.position) ? search.position : undefined} base={base} nodes={nodes} levels={staffOptions.levels} people={staffOptions.people} organization={organization} gpoPositions={lifecycle?.positions}/>)}
-          <nav className={directory.viewTabs} data-feature-tabs aria-label="People directory status">
-            <Link href={canonicalUiHref(`${base}/people`)} aria-current={undefined}>Current</Link>
-            <Link href={canonicalUiHref(`${base}/people?status=archived`)} aria-current={"page"}>Archived</Link>
-          </nav>
           <WidgetGrid>
             {directoryPage && <FeatureWidget appearance="standard" id={"archived-profiles"} title={"Archived profiles"}>
               <PeopleDirectoryWorkspace base={base} lifecycle={null} selectedRow={directoryPage.selected} initialCaseId={search.case} initialMemberId={search.member} initialPositionId={search.position} rows={directoryPage.items} canManage={canManage} hasExplorer={false} editor={staffOptions && organization && directoryPage.selected && (selectedPersonData || !directoryPage.selected.personId) ? {

@@ -8,7 +8,7 @@ import type {ExecutiveWorkHostLease} from '../../../scripts/testing/executive-wo
 import {formsHostOrigin,readFormsHostLease} from '../../../scripts/testing/forms-host-cohort';
 
 const compiledOrigin='http://127.0.0.1:3104';
-const executiveWorkOrigin='https://work-dev-erpx.jesadakorn.com';
+const executiveWorkOrigin='https://apps-dev-erpx.jesadakorn.com';
 const browserEvidenceRoot='.scratch/dev/test-suites/browser';
 const coveragePath='docs/ux-ui/standard-coverage.json';
 const hash=(bytes:Uint8Array|string)=>createHash('sha256').update(bytes).digest('hex');

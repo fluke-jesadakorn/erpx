@@ -3,7 +3,6 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 import type { FlowView } from "@erpx/feature-shared/lib/flow";
 import { createQuickPreferenceService, type QuickPreferenceUnit } from "@erpx/server-work_projection/application/quick-access-preferences";
-import { createWorkRoleStore, type WorkRoleUnit } from "@erpx/server-work_projection/application/work-role-store";
 import { createDailyPlan, type DailyPlanUnit } from "@erpx/server-work_projection/application/daily-plan";
 import { createWorkCapabilities } from "@erpx/server-work_projection/application/work-capabilities";
 import { createWorkReports, type WorkReportUnit, type WorkReportProjection, workReportCsv } from "@erpx/server-work_projection/application/work-reports";
@@ -20,12 +19,8 @@ function transactional(tx: QuickPreferenceUnit) { return repository<QuickPrefere
 it("Shortcut save replays a lost response without opening the current preference or writing", async () => { const hash = JSON.stringify([quickInput.userId, quickInput.surface, quickInput.contextKey, { pinnedIds: ["expense"], expectedVersion: 2 }]), tx = repository<QuickPreferenceUnit>({ receipt: async () => ({ user_id: "reviewer", surface: "work", context_key: "company", request_hash: hash, result_json: JSON.stringify({ pinnedIds: ["expense"], version: 3 }) }) }); expect(await quick(transactional(tx)).saveQuickAccessPreferences(quickInput)).toEqual({ pinnedIds: ["expense"], version: 3 }); });
 it("Shortcut save refuses a stale preference before saving or recording a receipt", async () => { const tx = repository<QuickPreferenceUnit>({ receipt: async () => null, preference: async () => ({ pinned_ids_json: "[]", version: 3 }) }); await expect(quick(transactional(tx)).saveQuickAccessPreferences(quickInput)).rejects.toMatchObject({ code: "VERSION_CONFLICT" }); });
 it("Shortcut save refuses a newly revoked target under the transaction", async () => { const tx = repository<QuickPreferenceUnit>({ receipt: async () => null, preference: async () => ({ pinned_ids_json: "[]", version: 2 }) }); await expect(quick(transactional(tx)).saveQuickAccessPreferences({ ...quickInput, availableIds: [] })).rejects.toMatchObject({ status: 403, code: "SHORTCUT_UNAVAILABLE" }); });
-const roleStore = createWorkRoleStore({ clock: { now: () => 123 }, identifiers: { next: () => "identifier" }, error, errorCode: failure => failure instanceof Error && "code" in failure ? String(failure.code) : undefined });
-const selection = { session_id: "session", user_id: "reviewer", company_id: "company", assignment_id: "current", assignment_version: 2, revision: 4, expires_at: 1000 };
-const roleInput = { sessionId: "session", userId: "reviewer", companyId: "company", expiresAt: 1000 };
-it("Remembered work role never replaces the live authority selected by another device", async () => { const unit = repository<WorkRoleUnit>({ current: async () => selection }); expect(await roleStore.restoreWorkSelection(unit, roleInput, [{ id: "remembered", version: 1 }])).toEqual(selection); });
-it("Revoked saved assignment does not initialize a new role", async () => { const unit = repository<WorkRoleUnit>({ current: async () => null, preference: async () => ({ assignment_id: "revoked", assignment_version: 1 }) }); expect(await roleStore.restoreWorkSelection(unit, roleInput, [{ id: "available", version: 2 }])).toBeNull(); });
-it("Concurrent role restore returns the committed current authority on a guard conflict", async () => { let reads = 0; const unit = repository<WorkRoleUnit>({ current: async () => ++reads === 1 ? null : selection, preference: async () => ({ assignment_id: "available", assignment_version: 2 }), select: async () => { throw error(409, "WORK_CONTEXT_CHANGED", "changed"); } }); expect(await roleStore.restoreWorkSelection(unit, roleInput, [{ id: "available", version: 2 }])).toEqual(selection); });
+// Role restore/live-context/concurrent-restore assertions moved to native
+// rust-work-role-initialization and native_account_role_selection PostgreSQL cases.
 const item: WorkItem = { id: "task", type: "staff_task", title: "Task", detail: "Review task", href: "/task", status: "pending", updatedAt: 20, queue: "todo" };
 const daily = createDailyPlan<string>({ clock: { now: () => 123 }, error });
 const plan = { date: "2026-10-06", expectedVersion: 1, items: [{ type: "staff_task", id: "task", variant: "record", startMinute: null, plannedMinutes: null, sourceUpdatedAt: 10 }] };

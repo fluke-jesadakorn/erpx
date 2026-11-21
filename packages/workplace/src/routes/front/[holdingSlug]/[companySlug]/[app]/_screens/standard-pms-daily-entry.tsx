@@ -15,6 +15,9 @@ import { publicScope, requireWorkContext, currentSession } from "@erpx/server-id
 import { frontCompanyApp, frontCompanyBrand, frontCookieName, frontRouteForLocation, frontScopeFromLocation, ensureFrontRoleSnapshot, frontPmsSections, type FrontAppKind } from "@erpx/server-work_projection/public/front-app";
 import { pmsListSelection } from "@erpx/server-pms/public/rules/pms-read-selection";
 import { pmsWorkspace } from "../../../../../../../../../packages/server-pms/src/public/pms";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { pageError } from "@erpx/server-work_projection/public/page-error";
+import { nativePmsAvailable, nativePmsFailure, nativePmsFrontDeskFromSearch, nativePmsRoomBoardFromSearch } from "../../../../../../lib/native-pms";
 import { pmsCrossLinks } from "@erpx/server-pms/public/rules/pms-cross-links";
 import { companyFeatureCatalogue } from "@erpx/server-pms/public/hospitality-rollout";
 import type { Metadata } from "next";
@@ -195,10 +198,33 @@ export default async function StandardPmsDailyEntry({ params, searchParams, }: {
     }
     else {
         const section = explicitSection;
-        const data = await pmsWorkspace(actor, typeof query.property === "string" ? query.property : undefined, section === "night-audit", true, section === "dashboard" ? { view: "dashboard" } : pmsListSelection(section, Object.fromEntries(Object.entries(query).filter((item): item is [
-            string,
-            string
-        ] => typeof item[1] === 'string'))));
+        let data;
+        try {
+            if (section === "rooms" || section === "housekeeping") {
+                if (!nativePmsAvailable())
+                    throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel board is unavailable.");
+                data = await nativePmsRoomBoardFromSearch(actor, holdingSlug, section, query);
+                if (!data)
+                    throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel board is unavailable.");
+            }
+            else if (section === "front-desk") {
+                if (!nativePmsAvailable())
+                    throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel front desk is unavailable.");
+                data = await nativePmsFrontDeskFromSearch(actor, holdingSlug, query);
+                if (!data)
+                    throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel front desk is unavailable.");
+            }
+            else {
+                data = await pmsWorkspace(actor, typeof query.property === "string" ? query.property : undefined, section === "night-audit", true, section === "dashboard" ? { view: "dashboard" } : pmsListSelection(section, Object.fromEntries(Object.entries(query).filter((item): item is [
+                    string,
+                    string
+                ] => typeof item[1] === 'string'))));
+            }
+        }
+        catch (error) {
+            const failure = nativePmsFailure(error);
+            return pageError(failure ? new ApiError(failure.status, failure.code, failure.message) : error, holdingSlug);
+        }
         const sectionPermissions: Record<string, Array<(typeof data.permissions)[number]>> = {
             dashboard: ["pms.read"],
             reservations: ["pms.reservations"],
@@ -233,7 +259,7 @@ export default async function StandardPmsDailyEntry({ params, searchParams, }: {
             revision: actor.authority!.revision,
             options: frontRoles.options.map(option => ({ id: option.id, label: option.label ?? option.role.replaceAll("_", " ") })),
         }}>
-    <WorkContextBoundary base={workspace} userId={actor.userId} companyId={actor.companyId} assignmentId={actor.assignmentId} revision={actor.authority!.revision} frontApp={app} frontLocation={selectedLocation} frontRoleEndpoint={"/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app} initialCurrent={{version:1,base:workspace,userId:actor.userId,companyId:actor.companyId,assignmentId:actor.assignmentId,revision:actor.authority!.revision,checkedAt:frontRoles.checkedAt,frontApp:app,frontLocation:selectedLocation,frontRoleEndpoint:"/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app}}>
+    <WorkContextBoundary base={workspace} userId={actor.userId} companyId={actor.companyId} assignmentId={actor.assignmentId} revision={actor.authority!.revision} assignmentVersion={actor.authority!.assignmentVersion} frontApp={app} frontLocation={selectedLocation} frontRoleEndpoint={"/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app} initialCurrent={{version:2,base:workspace,userId:actor.userId,companyId:actor.companyId,assignmentId:actor.assignmentId,revision:actor.authority!.revision,assignmentVersion:actor.authority!.assignmentVersion,checkedAt:frontRoles.checkedAt,frontApp:app,frontLocation:selectedLocation,frontRoleEndpoint:"/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app}}>
       {content}
     </WorkContextBoundary>
   </FrontAppShell>;

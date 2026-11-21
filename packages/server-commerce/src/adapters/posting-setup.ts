@@ -1,4 +1,10 @@
 import 'server-only';
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
+  try { return await nativeCommerceOwnerWrite('settings.initialize', [actor.companyId, ...fields.map((f: string) => input[f])], actor.companyId, actor.userId, key); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 import {createHash,randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
@@ -23,6 +29,7 @@ import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/adapte
 import {commercePostingPrerequisiteState} from '@erpx/server-commerce/adapters/posting-prerequisite-sources';
 import {createCommercePostingSetup} from '@erpx/server-commerce/application/posting-setup';
 import {commercePostingSetupSchema,type CommercePostingSetupInput,type CommercePostingSetupConfiguration,type CommercePostingSetupResult,type CommercePostingSetupView} from '@erpx/server-commerce/domain/posting-setup';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const operation='commerce.posting-setup.initialize',capabilities=['supply.receiving','finance.inventory-valuation'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
@@ -71,9 +78,9 @@ export async function initializeCommercePostingSetup(actor:WorkContext,raw:unkno
   const run=createCommercePostingSetup({
    replay:(input,command)=>replayCommand<CommercePostingSetupResult>(database,actor,command,operation,actor.companyId,input),current:()=>current(database,actor.companyId),contextKey:async()=>contextKey(authority,references.image),
    validate:async input=>{await validateCommercePostingFinanceReferences(database,actor,input);},assertNoHistory:()=>assertNoHistory(database,actor.companyId),
-   commit:async(input,command)=>{applied=input;return executeCommand(database,actor,command,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
+   commit:async(input,command)=>{applied=input;await nativeSettingsWrite(actor, input, key, fields);
+   return executeCommand(database,actor,command,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
     assertion(database,command,'commerce-posting-absent','NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)',[actor.companyId]),
-    database.prepare(`INSERT INTO commerce_settings(company_id,${fields.map(field=>columns[field]).join(',')}) VALUES(${Array.from({length:fields.length+1},()=>'?').join(',')})`).bind(actor.companyId,...fields.map(field=>input[field])),
    ]);},
   });
   const result=await run(raw,key),input=applied??commercePostingSetupSchema.parse(raw);
@@ -81,7 +88,7 @@ export async function initializeCommercePostingSetup(actor:WorkContext,raw:unkno
   if(contextKey(finalAuthority,'')!==contextKey(authority,''))throw new ApiError(409,'COMMERCE_POSTING_CONTEXT_CHANGED','The selected Finance authority changed before configuration completed.');
   if(!sameMapping(await current(database,actor.companyId),mapping(input)))throw new ApiError(409,'COMMERCE_POSTING_SOURCE_CHANGED','The original Company posting mapping changed before completion.');
   if(applied){const after=await validateCommercePostingFinanceReferences(database,actor,input);if(after.image!==references.image)throw new ApiError(409,'COMMERCE_POSTING_SOURCE_CHANGED','The original accounting references changed before completion.');await assertNoHistory(database,actor.companyId);}
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
   return result;
  });}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

@@ -25,6 +25,7 @@ import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/co
 import {requireFinanceMoneyScale} from '@erpx/server-finance/adapters/finance-money-policy';
 import {expensePostingPrerequisiteConfirmationSchema,expensePostingPrerequisiteNativeStatusSchema,type ExpensePostingPrerequisitesView,type ExpensePostingPrerequisiteConfirmationResult} from '@erpx/server-finance/domain/expense-posting-prerequisites';
 import {expensePostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/domain/expense-posting-prerequisites-entry';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Kind='chart'|'account'|'period'|'rate';
 const operations={chart:'finance.chart.create',account:'finance.account.create',period:'finance.period.create',rate:'money.rate.confirm'} as const;
@@ -125,7 +126,7 @@ export async function withExpensePostingPrerequisiteCommand<Result extends {id:s
   else{if(request.contextKey!==contextKey(current,before))throw new ApiError(409,'EXPENSE_POSTING_CONTEXT_CHANGED','Refresh the current Company Expense and Finance prerequisites.');await validateFresh(database,actor,before,kind,request);result=await run(database);}
   const created=await references(database,actor);if(receipt?image(created)!==image(before):!createdReferenceMatches(created,kind,result.id,actor,request.input)||!unchangedBeforeCreation(before,created,kind,result.id))throw changed();
   const expectedReceipt=await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image');if(!expectedReceipt||receipt&&receipt.image!==expectedReceipt)throw changed();
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database,item.key)]));await flushFinanceDeferredEffects(database);
   if(image(created)!==image(await references(database,actor))||expectedReceipt!==await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image'))throw changed();
   const final=await authority(database,actor,permission);if(stamp(current)!==stamp(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original Company Finance authority changed.');for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}

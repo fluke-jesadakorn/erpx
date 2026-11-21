@@ -15,7 +15,8 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {createBookAdjustments,type BookAdjustmentRepository} from '@erpx/server-finance/application/book-adjustments';
 import type {BookAdjustmentRow as Row,bookAdjustmentSchema,bookAdjustmentReversalSchema} from '@erpx/server-finance/domain/book-adjustments';
-import {stageBookAdjustmentDecision} from '@erpx/server-workflow/public/finance-book-adjustment-effects';
+import {nativeWorkflowWrite} from '@erpx/server-workflow/public/native-workflow-evidence';
+import { financeBookAdjustments } from '@erpx/server-collaboration/adapters/native-finance-book-adjustments';
 export {bookAdjustmentSchema,bookAdjustmentReversalSchema} from '@erpx/server-finance/domain/book-adjustments';
 async function nativeBookAdjustmentWorkspace(write:SqlDatabase,actor:WorkContext){  return (
     await write
@@ -94,23 +95,7 @@ prepareCommit:async(facts)=>{const {actor,input,key,op,id,source,createdAt,updat
       1,
       { id, status: "draft", version: 1, sourceHash: source.hash },
       [
-        db
-          .prepare(
-            "INSERT INTO finance_book_adjustments(id,company_id,chart_id,primary_journal_id,source_version,content_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            id,
-            actor.companyId,
-            input.chartId,
-            input.primaryJournalId,
-            source.source.version,
-            JSON.stringify(input),
-            source.hash,
-            actor.userId,
-            input.reason,
-            createdAt,
-            updatedAt,
-          ),
+        await financeBookAdjustments(db, actor.companyId).create({ id, companyId: actor.companyId, chartId: input.chartId, primaryJournalId: input.primaryJournalId, sourceVersion: source.source.version, contentJson: JSON.stringify(input), sourceHash: source.hash, preparedBy: actor.userId, reason: input.reason, createdAt, updatedAt }),
       ],
     );},
 row:async(actor,id)=>db
@@ -134,7 +119,7 @@ preparePosting:async(actor,content,id,currency,key)=>{const journal=await prepar
             "posted",
           )
 ;journals.set(String(journal.result.id),journal);return String(journal.result.id);},
-decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journalId,updatedAt,evidenceId,inputHash,evidenceAt}=facts;const journal=journalId?journals.get(journalId):null;return executeCommand(
+decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journalId,updatedAt,evidenceId,inputHash,evidenceAt}=facts;const journal=journalId?journals.get(journalId):null; return executeCommand(
       db,
       actor,
       key,
@@ -152,19 +137,8 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journa
           [id, actor.companyId, input.expectedVersion],
         ),
         ...(journal?.steps ?? []),
-        db
-          .prepare(
-            "UPDATE finance_book_adjustments SET status=?,version=?,reviewed_by=?,journal_id=?,updated_at=? WHERE id=?",
-          )
-          .bind(
-            status,
-            version,
-            actor.userId,
-            journal?.result.id ?? null,
-            updatedAt,
-            id,
-          ),
-        stageBookAdjustmentDecision(db,{evidenceId,key,id,op,userId:actor.userId,assignmentId:actor.assignmentId,expectedVersion:input.expectedVersion,inputHash,evidenceAt}),
+        await financeBookAdjustments(db, actor.companyId).decide({ status, version, reviewedBy: actor.userId, journalId: journal?.result.id ?? null, updatedAt, id }),
+        nativeWorkflowWrite('wf_native_finance_book_adjustment_effects_4', [evidenceId, key, id, op, actor.userId, actor.assignmentId, input.expectedVersion, inputHash, evidenceAt]),
       ],
     );},
 rowForReversal:async(actor,id)=>db
@@ -205,11 +179,7 @@ reverseCommit:async(facts)=>{const {actor,id,input,key,op,reversalId,updatedAt}=
           [id, actor.companyId, input.expectedVersion],
         ),
         ...reversal.steps,
-        db
-          .prepare(
-            "UPDATE finance_book_adjustments SET status='reversed',version=version+1,reversal_journal_id=?,reason=?,updated_at=? WHERE id=?",
-          )
-          .bind(reversal.id, input.reason, updatedAt, id),
+        await financeBookAdjustments(db, actor.companyId).reverse({ reversalId: reversal.id, reason: input.reason, updatedAt, id }),
       ],
     );}}}
 function nativeAdjustments(provided?:SqlDatabase){let write:SqlDatabase;return createBookAdjustments({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},transaction:async(actor,run)=>provided?run(nativeAdjustmentRepository(provided)):financeTransaction((await holdingResources(actor.holdingId)).write,db=>run(nativeAdjustmentRepository(db))),workspace:actor=>nativeBookAdjustmentWorkspace(write,actor),console:actor=>nativeBookAdjustmentConsole(write,actor)})}

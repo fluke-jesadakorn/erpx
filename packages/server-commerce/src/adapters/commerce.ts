@@ -1,4 +1,11 @@
 import{commercePages,commerceSalesDocuments}from '@erpx/server-commerce/adapters/commerce-pages';
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+import { ApiError as NativeApiError } from "@erpx/server-runtime/public/http";
+async function nativeOrder(kind: any, values: readonly unknown[], recordId: string, key: string, actorId: string, companyId: string) {
+  try { await nativeCommerceOwnerWrite(kind, values, recordId, actorId, key, companyId); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new NativeApiError(error.status, error.code, error.message); throw error; }
+}
 export{commercePages,commerceSalesDocuments};
 
 import{getOrder,nativeCommerceOrderReadRepository}from '@erpx/server-commerce/adapters/commerce-order-read';
@@ -16,7 +23,7 @@ import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce
 
 import { commerceFinanceJoinedFacts } from "@erpx/server-finance/public/commerce-joined-facts";
 import { commerceInventoryJoinedFacts } from "@erpx/server-inventory/public/commerce-joined-facts";
-import { refundNotifications } from "@erpx/server-finance/public/refund-notifications";
+import { nativeRefundNotification } from "@erpx/server-finance/adapters/native-refund-notification";
 
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -54,6 +61,32 @@ import { CommerceFilesFacts } from "@erpx/server-files/public/commerce-facts";
 import { CommerceProcurementFacts } from "@erpx/server-procurement/public/commerce-facts";
 
 /** Sales lists do not require posting setup; preparing documents still does. */
+
+/** Native owner writes carry only positional values. Idempotency/actor/company
+ * metadata is read defensively from each caller's facts object so a migrated
+ * write never has to widen a typed facts contract with synthetic properties. */
+type OwnerWriteMeta = {
+    now?: number;
+    fact19?: number;
+    id?: string;
+    userId?: string;
+    actorId?: string;
+    companyId?: string;
+    record?: string;
+};
+const ownerWriteMeta = (facts: unknown): OwnerWriteMeta => (facts ?? {}) as OwnerWriteMeta;
+const ownerWriteNonce = (facts: unknown): number => {
+    const meta = ownerWriteMeta(facts);
+    return meta.now ?? meta.fact19 ?? 0;
+};
+const ownerWriteActor = (facts: unknown): string => {
+    const meta = ownerWriteMeta(facts);
+    return meta.userId ?? meta.actorId ?? 'system';
+};
+const ownerWriteCompany = (facts: unknown, actor?: WorkContext): string => {
+    const meta = ownerWriteMeta(facts);
+    return meta.companyId ?? actor?.companyId ?? meta.record ?? meta.id ?? 'system';
+};
 
 function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
     return {
@@ -107,10 +140,10 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         prepareInventoryOrderReservations1: facts => CommerceInventoryFacts(db).prepareInventoryOrderReservations1(facts),
         readInventoryOrderReservations2: facts => CommerceInventoryFacts(db).readInventoryOrderReservations2(facts),
         prepareInventoryOrderReservations2: facts => CommerceInventoryFacts(db).prepareInventoryOrderReservations2(facts),
-        prepareCommerceOrders1: (facts: {
+        prepareCommerceOrders1: async (facts: {
             now: number;
             id: string;
-        }) => db.prepare('UPDATE commerce_orders SET version=version+1,updated_at=? WHERE id=?').bind(facts.now, facts.id),
+        }) => { await nativeOrder('order.version-bump', [facts.now, facts.id], facts.id, `commerce:owner-write:order.version-bump:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         readCommerceFulfillments2: facts => commerceFinanceJoinedFacts(db).readCommerceFulfillments2(facts),
         readCommerceFulfillmentLines1: (facts: {
             lineId: string;
@@ -134,7 +167,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             value: number;
         }>(),
         readInventoryLotBalances1: facts => CommerceInventoryFacts(db).readInventoryLotBalances1(facts),
-        prepareCommerceReturns1: (facts: {
+        prepareCommerceReturns1: async (facts: {
             id: string;
             companyId: string;
             branch_id: string | number | null;
@@ -151,8 +184,8 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => db.prepare("INSERT INTO commerce_returns(id,company_id,branch_id,order_id,fulfillment_id,invoice_id,kind,number,return_date,reason,subtotal_minor,tax_minor,total_minor,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.id, facts.companyId, facts.branch_id, facts.order_id, facts.fulfillmentId, facts.invoice_id, facts.kind, facts.number, facts.date, facts.reason, facts.subtotal, facts.tax, facts.total, facts.userId, facts.now, facts.now2),
-        prepareCommerceReturnLines1: (facts: {
+        }) => { await nativeOrder('return.create', [facts.id, facts.companyId, facts.branch_id, facts.order_id, facts.fulfillmentId, facts.invoice_id, facts.kind, facts.number, facts.date, facts.reason, facts.subtotal, facts.tax, facts.total, facts.userId, facts.now, facts.now2], facts.id, `commerce:owner-write:return.create:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        prepareCommerceReturnLines1: async (facts: {
             returnLineId: string;
             id: string;
             id2: string | number | null;
@@ -166,8 +199,8 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact10: string | number | null;
             fact11: string | number | null;
             expectedSubtotal: string | number | null;
-        }) => db.prepare("INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal,condition_code,condition_note,quality_due_date,expected_subtotal_minor) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.returnLineId, facts.id, facts.id2, facts.product_id, facts.quantity, facts.returnValue, facts.returnSubtotal, facts.returnTax, facts.index, facts.condition, facts.fact10, facts.fact11, facts.expectedSubtotal),
-        prepareCommerceReturnLotAllocations1: (facts: {
+        }) => { await nativeOrder('return.line', [facts.returnLineId, facts.id, facts.id2, facts.product_id, facts.quantity, facts.returnValue, facts.returnSubtotal, facts.returnTax, facts.index, facts.condition, facts.fact10, facts.fact11, facts.expectedSubtotal], facts.returnLineId, `commerce:owner-write:return.line:${facts.returnLineId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        prepareCommerceReturnLotAllocations1: async (facts: {
             id: string;
             returnLineId: string;
             fulfillmentAllocationId: string;
@@ -177,18 +210,18 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             snapshotQuantity: number;
             snapshotValue: number;
             snapshotVersion: number;
-        }) => db.prepare("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.id, facts.returnLineId, facts.fulfillmentAllocationId, facts.lotId, facts.quantity, facts.value, facts.snapshotQuantity, facts.snapshotValue, facts.snapshotVersion),
-        prepareCommerceFulfillments1: (facts: {
+        }) => { await nativeOrder('return.lot-allocation', [facts.id, facts.returnLineId, facts.fulfillmentAllocationId, facts.lotId, facts.quantity, facts.value, facts.snapshotQuantity, facts.snapshotValue, facts.snapshotVersion], facts.id, `commerce:owner-write:return.lot-allocation:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        prepareCommerceFulfillments1: async (facts: {
             fulfillmentId: string;
             expectedVersion: number;
-        }) => db.prepare('UPDATE commerce_fulfillments SET version=version+1 WHERE id=? AND version=?').bind(facts.fulfillmentId, facts.expectedVersion),
+        }) => { await nativeOrder('fulfillment.version-guarded', [facts.fulfillmentId, facts.expectedVersion], facts.fulfillmentId, `commerce:owner-write:fulfillment.version-guarded:${facts.fulfillmentId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         readCommerceReturns2: facts => commerceFinanceJoinedFacts(db).readCommerceReturns2(facts),
-        prepareCommerceReturns2: (facts: {
+        prepareCommerceReturns2: async (facts: {
             userId: string;
             reason: string;
             fact2: number;
             returnId: string;
-        }) => db.prepare("UPDATE commerce_returns SET status='rejected',approved_by=?,reason=reason||E'\nRejected: '||?,version=version+1,updated_at=? WHERE id=?").bind(facts.userId, facts.reason, facts.fact2, facts.returnId),
+        }) => { await nativeOrder('return.reject', [facts.userId, facts.reason, facts.fact2, facts.returnId], facts.returnId, `commerce:owner-write:return.reject:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         readCommerceFulfillments3: facts => commerceFinanceJoinedFacts(db).readCommerceFulfillments3(facts),
         readFinanceJournalLines1: facts => CommerceFinanceFacts(db).readFinanceJournalLines1(facts),
         readCommerceReturnLines3: (facts: {
@@ -209,7 +242,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             warehouse_id: string | number | null;
             product_id: string | number | null;
         }) => commerceCommerceStockEffects(db).prepareCommerceStock1(facts),
-        prepareCommerceReturnStockMoves1: (facts: {
+        prepareCommerceReturnStockMoves1: async (facts: {
             fact0: string;
             returnId: string;
             warehouse_id: string | number | null;
@@ -218,14 +251,14 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact5: string | number | null;
             return_date: string | number | null;
             now: number;
-        }) => db.prepare("INSERT INTO commerce_return_stock_moves(id,return_id,warehouse_id,product_id,quantity_milli,value_minor,movement_date,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(facts.fact0, facts.returnId, facts.warehouse_id, facts.product_id, facts.fact4, facts.fact5, facts.return_date, facts.now),
+        }) => { await nativeOrder('return.stock-move', [facts.fact0, facts.returnId, facts.warehouse_id, facts.product_id, facts.fact4, facts.fact5, facts.return_date, facts.now], facts.fact0, `commerce:owner-write:return.stock-move:${facts.fact0}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         readCommerceReturnLotAllocations4: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations4(facts),
         prepareInventoryLotBalances1: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances1(facts),
         prepareInventoryLots1: facts => CommerceInventoryFacts(db).prepareInventoryLots1(facts),
         prepareInventoryLotBalances2: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances2(facts),
         prepareInventoryLots2: facts => CommerceInventoryFacts(db).prepareInventoryLots2(facts),
         prepareInventoryLotMoves1: facts => CommerceInventoryFacts(db).prepareInventoryLotMoves1(facts),
-        prepareCommerceReturns4: (facts: {
+        prepareCommerceReturns4: async (facts: {
             userId: string;
             stockJournal: string | null;
             creditJournal: string;
@@ -233,14 +266,14 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact4: string | null;
             now: number;
             returnId: string;
-        }) => db.prepare("UPDATE commerce_returns SET status='approved',approved_by=?,stock_journal_id=?,credit_journal_id=?,base_credit_minor=?,goods_fx_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(facts.userId, facts.stockJournal, facts.creditJournal, facts.baseCreditMinor, facts.fact4, facts.now, facts.returnId),
+        }) => { await nativeOrder('return.approve', [facts.userId, facts.stockJournal, facts.creditJournal, facts.baseCreditMinor, facts.fact4, facts.now, facts.returnId], facts.returnId, `commerce:owner-write:return.approve:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         readCommerceReturns3: facts => commerceFinanceJoinedFacts(db).readCommerceReturns3(facts),
         readFinanceJournalLines2: facts => CommerceFinanceFacts(db).readFinanceJournalLines2(facts),
         readFinanceCharts1: facts => CommerceFinanceFacts(db).readFinanceCharts1(facts),
         readFinanceAccounts1: facts => CommerceFinanceFacts(db).readFinanceAccounts1(facts),
         prepareFinanceInvoices2: facts => CommerceFinanceFacts(db).prepareFinanceInvoices2(facts),
         prepareFinanceInvoices3: facts => CommerceFinanceFacts(db).prepareFinanceInvoices3(facts),
-        prepareCommerceReturns5: (facts: {
+        prepareCommerceReturns5: async (facts: {
             credited: number;
             refund: number;
             carried: number;
@@ -249,7 +282,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact5: string | null;
             now: number;
             returnId: string;
-        }) => db.prepare("UPDATE commerce_returns SET status='posted',credited_minor=?,refund_minor=?,base_credit_minor=?,base_credited_minor=?,base_refund_minor=?,fx_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(facts.credited, facts.refund, facts.carried, facts.baseCreditedMinor, facts.baseRefundMinor, facts.fact5, facts.now, facts.returnId),
+        }) => { await nativeOrder('return.post', [facts.credited, facts.refund, facts.carried, facts.baseCreditedMinor, facts.baseRefundMinor, facts.fact5, facts.now, facts.returnId], facts.returnId, `commerce:owner-write:return.post:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         prepareFinanceRefundObligations1: facts => CommerceFinanceFacts(db).prepareFinanceRefundObligations1(facts),
         readEmployeeRequests1: (facts: {
             companyId: string;
@@ -268,7 +301,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             productId: string;
             companyId: string;
         }) => db.prepare("SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'").bind(facts.productId, facts.companyId).first<Row>(),
-        prepareCommerceOrders2: (facts: {
+        prepareCommerceOrders2: async (facts: {
             partyId: string;
             warehouseId: string | null;
             branch_id: string | number | null;
@@ -283,11 +316,11 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact11: 0 | 1;
             now: number;
             record: string;
-        }) => db.prepare("UPDATE commerce_orders SET party_id=?,warehouse_id=?,branch_id=?,order_date=?,due_date=?,note=?,subtotal_minor=?,tax_minor=?,price_list_id=?,price_list_version=?,discount_reason=?,discount_approval_required=?,discount_approved_by=NULL,discount_approved_at=NULL,version=version+1,updated_at=? WHERE id=?").bind(facts.partyId, facts.warehouseId, facts.branch_id, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact8, facts.fact9, facts.fact10, facts.fact11, facts.now, facts.record),
-        prepareCommerceOrderLines1: (facts: {
+        }) => { await nativeOrder('order.update-parties', [facts.partyId, facts.warehouseId, facts.branch_id, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact8, facts.fact9, facts.fact10, facts.fact11, facts.now, facts.record], facts.record, `commerce:owner-write:order.update-parties:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        prepareCommerceOrderLines1: async (facts: {
             record: string;
-        }) => db.prepare("DELETE FROM commerce_order_lines WHERE order_id=?").bind(facts.record),
-        prepareCommerceOrders3: (facts: {
+        }) => { await nativeOrder('order.lines-delete', [facts.record], facts.record, `commerce:owner-write:order.lines-delete:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        prepareCommerceOrders3: async (facts: {
             record: string;
             companyId: string;
             branch_id: string | number | null;
@@ -309,8 +342,8 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => db.prepare("INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,price_list_id,price_list_version,discount_reason,discount_approval_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,CASE WHEN ?='quote' THEN erpx_sales_document_number(?,'QT',?) ELSE ? END,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.record, facts.companyId, facts.branch_id, facts.departmentId, facts.kind, facts.kind, facts.companyId, facts.orderDate, facts.fact5, facts.partyId, facts.warehouseId, facts.currency, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact14, facts.fact15, facts.fact16, facts.fact17, facts.userId, facts.now, facts.now2),
-        prepareCommerceOrderLines2: (facts: {
+        }) => { await nativeOrder('order.create', [facts.record, facts.companyId, facts.branch_id, facts.departmentId, facts.kind, facts.kind, facts.companyId, facts.orderDate, facts.fact5, facts.partyId, facts.warehouseId, facts.currency, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact14, facts.fact15, facts.fact16, facts.fact17, facts.userId, facts.now, facts.now2], facts.record, `commerce:owner-write:order.create:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        prepareCommerceOrderLines2: async (facts: {
             id: string;
             record: string;
             productId: string;
@@ -324,12 +357,12 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             listPrice: number;
             discountBps: number;
             itemType: "stock" | "service";
-        }) => db.prepare("INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.id, facts.record, facts.productId, facts.name, facts.qty, facts.price, facts.taxBps, facts.subtotal, facts.tax, facts.index, facts.listPrice, facts.discountBps, facts.itemType),
+        }) => { await nativeOrder('order.lines-create', [facts.id, facts.record, facts.productId, facts.name, facts.qty, facts.price, facts.taxBps, facts.subtotal, facts.tax, facts.index, facts.listPrice, facts.discountBps, facts.itemType], facts.id, `commerce:owner-write:order.lines-create:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         readCommerceFulfillments4: (facts: {
             id: string;
         }) => db.prepare("SELECT id FROM commerce_fulfillments WHERE order_id=? LIMIT 1").bind(facts.id).first(),
         prepareInventoryOrderReservations3: facts => CommerceInventoryFacts(db).prepareInventoryOrderReservations3(facts),
-        prepareCommerceOrders4: (facts: {
+        prepareCommerceOrders4: async (facts: {
             state: "draft" | "confirmed" | "cancelled" | "submitted" | "converted";
             fact1: string | number | null;
             fact2: boolean;
@@ -340,80 +373,44 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact7: boolean;
             fact8: number;
             id: string;
-        }) => db.prepare("UPDATE commerce_orders SET state=?,approved_by=?,discount_approved_by=CASE WHEN ? AND discount_approval_required=1 THEN ? WHEN ? THEN NULL ELSE discount_approved_by END,discount_approved_at=CASE WHEN ? AND discount_approval_required=1 THEN ? WHEN ? THEN NULL ELSE discount_approved_at END,version=version+1,updated_at=? WHERE id=?").bind(facts.state, facts.fact1, facts.fact2, facts.userId, facts.fact4, facts.fact5, facts.fact6, facts.fact7, facts.fact8, facts.id),
+        }) => { await nativeOrder('order.transition', [facts.state, facts.fact1, facts.fact2, facts.userId, facts.fact4, facts.fact5, facts.fact6, facts.fact7, facts.fact8, facts.id], facts.id, `commerce:owner-write:order.transition:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         prepareFinanceParties1: facts => CommerceFinanceFacts(db).prepareFinanceParties1(facts),
-        prepareCommerceOrders5: (facts: {
+        prepareCommerceOrders5: async (facts: {
             salesId: string;
             fact1: string;
             userId: string;
             fact3: number;
             fact4: number;
             id: string;
-        }) => db.prepare("INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,source_id,price_list_id,price_list_version,discount_reason,discount_approval_required,discount_approved_by,discount_approved_at,created_by,created_at,updated_at) SELECT ?,company_id,branch_id,department_id,'sales',?,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,id,price_list_id,price_list_version,discount_reason,discount_approval_required,discount_approved_by,discount_approved_at,?,?,? FROM commerce_orders WHERE id=?").bind(facts.salesId, facts.fact1, facts.userId, facts.fact3, facts.fact4, facts.id),
-        prepareCommerceOrderLines3: (facts: {
+        }) => { await nativeOrder('order.convert', [facts.salesId, facts.fact1, facts.userId, facts.fact3, facts.fact4, facts.id], facts.salesId, `commerce:owner-write:order.convert:${facts.salesId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        prepareCommerceOrderLines3: async (facts: {
             salesId: string;
             salesId2: string;
             id: string;
-        }) => db.prepare("INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type) SELECT ?||'-'||ordinal,?,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type FROM commerce_order_lines WHERE order_id=?").bind(facts.salesId, facts.salesId2, facts.id),
+        }) => { await nativeOrder('order.lines-convert', [facts.salesId, facts.salesId2, facts.id], facts.salesId, `commerce:owner-write:order.lines-convert:${facts.salesId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         prepareFinanceJournals1: facts => CommerceFinanceFacts(db).prepareFinanceJournals1(facts),
         prepareFinanceJournalLines1: facts => CommerceFinanceFacts(db).prepareFinanceJournalLines1(facts),
         readAttachments2: facts => CommerceFilesFacts(db).readAttachments2(facts),
-        prepareCommerceFulfillments2: (facts: {
-            fulfillment: string;
-            id: string;
-            fact2: string;
-            date: string;
-            userId: string;
-            fact5: number;
-            fact6: string | null;
-            completionMode: "goods" | "service" | "mixed";
-        }) => db.prepare("INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,evidence_note,completion_kind,completion_note) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.fulfillment, facts.id, facts.fact2, facts.date, facts.userId, facts.fact5, facts.fact6, facts.completionMode, facts.fact6 ?? ""),
         readCommerceOrderLines2: (facts: {
             lineId: string;
             id: string;
         }) => db.prepare("SELECT l.*,p.tracking_mode,p.unit FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.id=? AND l.order_id=?").bind(facts.lineId, facts.id).first<Row>(),
-        readInventoryActiveReservations3: facts => CommerceInventoryFacts(db).readInventoryActiveReservations3(facts),
-        readInventoryOrderReservations3: facts => CommerceInventoryFacts(db).readInventoryOrderReservations3(facts),
         readCommerceFulfillmentLines2: (facts: {
             id: string | number | null;
         }) => db.prepare("SELECT COALESCE(SUM(subtotal_minor),0) subtotal,COALESCE(SUM(tax_minor),0) tax FROM commerce_fulfillment_lines WHERE order_line_id=?").bind(facts.id).first<{
             subtotal: number;
             tax: number;
         }>(),
-        readInventoryLots1: facts => CommerceInventoryFacts(db).readInventoryLots1(facts),
-        readInventoryQualityHolds3: facts => CommerceInventoryFacts(db).readInventoryQualityHolds3(facts),
         prepareCommerceStock2: (facts: {
             warehouse_id: string | number | null;
             product_id: string | number | null;
         }) => commerceCommerceStockEffects(db).prepareCommerceStock2(facts),
-        prepareInventoryOrderReservations4: facts => CommerceInventoryFacts(db).prepareInventoryOrderReservations4(facts),
         prepareCommerceStock3: (facts: {
             fact0: number;
             fact1: number;
             warehouse_id: string | number | null;
             product_id: string | number | null;
         }) => commerceCommerceStockEffects(db).prepareCommerceStock3(facts),
-        prepareCommerceFulfillmentLines1: (facts: {
-            fact0: string;
-            fulfillment: string;
-            id: string | number | null;
-            qty: number;
-            cost: number;
-            subtotal: number;
-            tax: number;
-            stockCurrency: string;
-        }) => db.prepare("INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor,stock_currency) VALUES(?,?,?,?,?,?,?,?)").bind(facts.fact0, facts.fulfillment, facts.id, facts.qty, facts.cost, facts.subtotal, facts.tax, facts.stockCurrency),
-        prepareInventoryLots3: facts => CommerceInventoryFacts(db).prepareInventoryLots3(facts),
-        prepareInventoryLots4: facts => CommerceInventoryFacts(db).prepareInventoryLots4(facts),
-        prepareInventoryLotBalances3: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances3(facts),
-        prepareInventoryLotBalances4: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances4(facts),
-        prepareInventoryLots5: facts => CommerceInventoryFacts(db).prepareInventoryLots5(facts),
-        prepareInventoryLotMoves2: facts => CommerceInventoryFacts(db).prepareInventoryLotMoves2(facts),
-        prepareInventoryFulfillmentLotAllocations1: facts => CommerceInventoryFacts(db).prepareInventoryFulfillmentLotAllocations1(facts),
-        prepareCommerceOrderLines4: (facts: {
-            qty: number;
-            id: string | number | null;
-        }) => db.prepare("UPDATE commerce_order_lines SET fulfilled_milli=fulfilled_milli+? WHERE id=?").bind(facts.qty, facts.id),
         prepareCommerceStockMoves1: (facts: {
             fact0: string;
             warehouse_id: string | number | null;
@@ -423,41 +420,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact5: number;
             fact6: number;
         }) => commerceCommerceStockEffects(db).prepareCommerceStockMoves1(facts),
-        prepareCommerceGoodsValuations1: (facts: {
-            fulfillment: string;
-            companyId: string;
-            chart_id: string | number | null;
-            journal: string;
-            fact4: string;
-            fact5: string;
-            stockCurrency: string;
-            date: string;
-            micros: number;
-            sourceRateId: string | null;
-            targetRateId: string | null;
-            usedLatestFallback: boolean;
-            documentSubtotal: number;
-            value: number;
-            userId: string;
-            fact15: number;
-        }) => db.prepare(`INSERT INTO commerce_goods_valuations(fulfillment_id,company_id,chart_id,journal_id,document_currency,journal_currency,stock_currency,
-    valuation_date,fx_rate_micros,source_rate_id,target_rate_id,used_latest_fallback,document_subtotal_minor,stock_value_minor,captured_by,captured_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(facts.fulfillment, facts.companyId, facts.chart_id, facts.journal, facts.fact4, facts.fact5, facts.stockCurrency, facts.date, facts.micros, facts.sourceRateId, facts.targetRateId, facts.usedLatestFallback, facts.documentSubtotal, facts.value, facts.userId, facts.fact15),
-        prepareCommerceFulfillmentEvidence1: (facts: {
-            fulfillment: string;
-            attachmentId: string;
-            userId: string;
-            fact3: number;
-        }) => db.prepare('INSERT INTO commerce_fulfillment_evidence(fulfillment_id,attachment_id,linked_by,linked_at) VALUES(?,?,?,?)').bind(facts.fulfillment, facts.attachmentId, facts.userId, facts.fact3),
-        prepareCommerceFulfillments3: (facts: {
-            journal: string;
-            fulfillment: string;
-        }) => db.prepare("UPDATE commerce_fulfillments SET journal_id=? WHERE id=?").bind(facts.journal, facts.fulfillment),
-        prepareCommerceOrders6: (facts: {
-            id: string;
-            fact1: number;
-            id2: string;
-        }) => db.prepare("UPDATE commerce_orders SET state=CASE WHEN EXISTS(SELECT 1 FROM commerce_order_lines WHERE order_id=? AND fulfilled_milli<quantity_milli) THEN 'partially_fulfilled' ELSE 'fulfilled' END,version=version+1,updated_at=? WHERE id=?").bind(facts.id, facts.fact1, facts.id2),
         readCommerceFulfillments5: (facts: {
             fulfillmentId: string;
         }) => db.prepare("SELECT * FROM commerce_fulfillments WHERE id=?").bind(facts.fulfillmentId).first<Row>(),
@@ -469,10 +431,10 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             tax: number;
         }>(),
         prepareFinanceInvoices4: facts => CommerceFinanceFacts(db).prepareFinanceInvoices4(facts),
-        prepareCommerceFulfillments4: (facts: {
+        prepareCommerceFulfillments4: async (facts: {
             invoice: string;
             fulfillmentId: string;
-        }) => db.prepare("UPDATE commerce_fulfillments SET invoice_id=?,version=version+1 WHERE id=?").bind(facts.invoice, facts.fulfillmentId),
+        }) => { await nativeOrder('fulfillment.invoice-link', [facts.invoice, facts.fulfillmentId], facts.fulfillmentId, `commerce:owner-write:fulfillment.invoice-link:${facts.fulfillmentId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
         readFinanceInvoices1: facts => CommerceFinanceFacts(db).readFinanceInvoices1(facts),
         readCommerceFulfillments6: (facts: {
             source_id: string | number | null;
@@ -487,45 +449,36 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         prepareFinanceAllocations1: facts => CommerceFinanceFacts(db).prepareFinanceAllocations1(facts),
         prepareFinanceInvoices5: facts => CommerceFinanceFacts(db).prepareFinanceInvoices5(facts),
         prepareFinanceExpenses1: facts => CommerceFinanceFacts(db).prepareFinanceExpenses1(facts),
-        prepareCommerceProducts1: (facts: {
-            sku: string;
-            name: string;
-            unit: string;
-            trackingMode: "none" | "serial" | "lot";
-            itemType: "stock" | "service";
-            fact4: number;
-            taxBps: number;
-            status: "active" | "archived";
-            id: string;
-        }) => db.prepare("UPDATE commerce_products SET sku=?,name=?,unit=?,tracking_mode=?,item_type=?,price_minor=?,tax_bps=?,status=?,version=version+1 WHERE id=?").bind(facts.sku, facts.name, facts.unit, facts.trackingMode, facts.itemType, facts.fact4, facts.taxBps, facts.status, facts.id),
-        prepareCommerceProducts2: (facts: {
-            record: string;
-            companyId: string;
-            sku: string;
-            name: string;
-            unit: string;
-            trackingMode: "none" | "serial" | "lot";
-            itemType: "stock" | "service";
-            fact6: number;
-            taxBps: number;
-            status: "active" | "archived";
-        }) => db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,unit,tracking_mode,item_type,price_minor,tax_bps,status) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(facts.record, facts.companyId, facts.sku, facts.name, facts.unit, facts.trackingMode, facts.itemType, facts.fact6, facts.taxBps, facts.status),
+        // Product writes are executed by the native Commerce axum command route.
+        prepareCommerceProducts1: (_facts: {
+            sku: string; name: string; unit: string; trackingMode: "none" | "serial" | "lot";
+            itemType: "stock" | "service"; fact4: number; taxBps: number;
+            status: "active" | "archived"; id: string;
+        }) => { throw new ApiError(503, 'COMMERCE_OWNER_WRITE_UNAVAILABLE', 'The native Commerce product service is unavailable.'); },
+        prepareCommerceProducts2: (_facts: {
+            record: string; companyId: string; sku: string; name: string; unit: string;
+            trackingMode: "none" | "serial" | "lot"; itemType: "stock" | "service";
+            fact6: number; taxBps: number; status: "active" | "archived";
+        }) => { throw new ApiError(503, 'COMMERCE_OWNER_WRITE_UNAVAILABLE', 'The native Commerce product service is unavailable.'); },
         prepareFinanceParties2: facts => CommerceFinanceFacts(db).prepareFinanceParties2(facts),
         prepareFinanceParties3: facts => CommerceFinanceFacts(db).prepareFinanceParties3(facts),
-        prepareCommerceWarehouses1: (facts: {
+        // Warehouse-master write authority is the native Commerce axum command
+        // route (see application/commerce.ts saveMaster). These retained effect
+        // slots fail closed: no TS SQL and no fallback writer remain.
+        prepareCommerceWarehouses1: (_facts: {
             code: string;
             name: string;
             status: "active" | "archived";
             id: string;
-        }) => db.prepare("UPDATE commerce_warehouses SET code=?,name=?,status=?,version=version+1 WHERE id=?").bind(facts.code, facts.name, facts.status, facts.id),
-        prepareCommerceWarehouses2: (facts: {
+        }) => { throw new ApiError(503, 'COMMERCE_WAVE2_UNAVAILABLE', 'The native Commerce warehouse service is unavailable.'); },
+        prepareCommerceWarehouses2: (_facts: {
             record: string;
             companyId: string;
             branchId: string;
             code: string;
             name: string;
             status: "active" | "archived";
-        }) => db.prepare("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status) VALUES(?,?,?,?,?,?)").bind(facts.record, facts.companyId, facts.branchId, facts.code, facts.name, facts.status),
+        }) => { throw new ApiError(503, 'COMMERCE_WAVE2_UNAVAILABLE', 'The native Commerce warehouse service is unavailable.'); },
         readInventoryInTransit1: facts => CommerceInventoryFacts(db).readInventoryInTransit1(facts),
         guardRule1: (facts: {
             key: string;
@@ -580,7 +533,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         guardRule21: facts => CommerceFinanceFacts(db).guardRule21(facts),
         guardRule22: facts => CommerceFinanceFacts(db).guardRule22(facts),
         guardRule23: facts => CommerceFilesFacts(db).guardRule23(facts),
-        guardRule24: facts => CommerceInventoryFacts(db).guardRule24(facts),
         guardRule25: (facts: {
             key: string;
             guardId: string;
@@ -591,9 +543,6 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             guardId: string;
             values: (string | number | null)[];
         }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, facts.values),
-        guardRule27: facts => CommerceInventoryFacts(db).guardRule27(facts),
-        guardRule28: facts => CommerceInventoryFacts(db).guardRule28(facts),
-        guardRule29: facts => CommerceInventoryFacts(db).guardRule29(facts),
         guardRule30: (facts: {
             key: string;
             guardId: string;
@@ -788,7 +737,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
                 credit: string;
             }[];
         }, arg2: string, arg3: "posted" | "draft") => prepareJournal(db, arg0, arg1, arg2, arg3),
-        refundNotifications: (arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string) => refundNotifications(db, arg0, arg1, arg2, arg3, arg4),
+        refundNotifications: (arg0: string, arg1: string, arg2: "approval", arg3: "Posted return requires independent refund approval", arg4: string) => nativeRefundNotification(db, actor!, arg0, arg1, arg2, arg3, arg4),
         getEmployeeRequest: (arg0: WorkContext, arg1: string) => getEmployeeRequest(db, arg0, arg1),
         prepareRequestOrderHandoff: (arg0: WorkContext, arg1: string, arg2: string, arg3: string, arg4: number | undefined, arg5: boolean, arg6: string | undefined) => prepareRequestOrderHandoff(db, arg0, arg1, arg2, arg3, arg4, arg5, arg6),
         resolveSalesPricing: (arg0: WorkContext, arg1: {
@@ -883,9 +832,6 @@ export function saveOrder(actor: WorkContext, id: string | null, input: z.infer<
 export function transitionOrder(actor: WorkContext, id: string, input: z.infer<typeof transitionSchema>, key: string, ownerWrite?: SqlDatabase) {
  return withCommercePurchasedCommand(actor,{operation:`commerce.order.${input.action}`,kindAuthority:true,key,target:{type:"order",id},purpose:["cancel","return"].includes(input.action)?"settle-existing":"new-work",permissions:input.action==="approve"?["commerce.approve"]:[],convert:input.action==="convert"},database=>applicationFor(database).transitionOrder(actor,id,input,key,unit(database)),ownerWrite);
 }
-export function fulfillOrder(actor: WorkContext, id: string, input: z.input<typeof fulfillmentSchema>, key: string) {
- return withCommercePurchasedCommand(actor,{operation:"commerce.order.fulfill",key,target:{type:"order",id},purpose:"settle-existing",permissions:input.completionMode==="service"?["commerce.sales"]:input.completionMode==="mixed"?["inventory.prepare","commerce.sales"]:["inventory.prepare"],transactional:true,stockLines:input.lines.map(line=>line.lineId),financial:true,receiving:true},database=>applicationFor(database).fulfillOrder(actor,id,input,key));
-}
 export function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) {
  return withCommercePurchasedCommand(actor,{operation:"commerce.invoice.create",key,target:{type:"fulfillment",id:fulfillmentId},purpose:"settle-existing",permissions:["finance.write"],transactional:true,financial:true},database=>applicationFor(database).invoiceFulfillment(actor,fulfillmentId,input,key));
 }
@@ -923,12 +869,6 @@ export async function createPosStartupMasterInTransaction(database:SqlDatabase,a
  const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'POS_STARTUP_SOURCE_CHANGED'};
  const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);
  return {result,money:capture.money};
-}
-
-/** Private Service-only bridge, preserving the original native master command. */
-export async function createServiceInitialPhysicalStockMasterInTransaction(database:SqlDatabase,actor:WorkContext,kind:'products'|'warehouses',input:unknown,key:string){
- const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED'};
- const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);return {result,money:capture.money};
 }
 
 /** Sales service catalogue joins the original product writer in its owned unit. */

@@ -4,8 +4,9 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import {incidentWorkspace} from '@erpx/server-support/public/support-incidents';
-import {getSupportTicket,supportRecipients} from '@erpx/server-support/public/support';
+import { createNativeSupportReader } from "@erpx/feature-support/lib/native-support-read";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { headers } from "next/headers";
 import { SupportIncidentConsole } from "@erpx/feature-support/components/support-incident-console";
 import { PageContent, FormLayout, Card } from "@erpx/ui/components/foundation";
 export const dynamic = "force-dynamic";
@@ -19,13 +20,17 @@ export default async function Page({
   const { holdingSlug } = await params,
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
-    data = await incidentWorkspace(a).catch((e) => pageError(e, holdingSlug)),
+    config = process.env.ERPX_NATIVE_SUPPORT_READ_CONFIG,
     { ticketId } = await searchParams;
-  const source =
+  if (!config) throw new ApiError(503, "NATIVE_SUPPORT_READ_UNAVAILABLE", "The native Support reader is unavailable.");
+  const reader = createNativeSupportReader(config),
+    incoming = await headers(),
+    data = await reader.incidents(incoming, holdingSlug).catch((e) => pageError(e, holdingSlug)),
+    source =
       ticketId && data.canManage
-        ? await getSupportTicket(a, ticketId).catch((e) => pageError(e, holdingSlug))
+        ? (await reader.detail(incoming, holdingSlug, ticketId)).row
         : null,
-    recipients = source ? await supportRecipients(a, String(source.order_id)) : [];
+    recipients = source ? await reader.recipients(incoming, holdingSlug, String(source.order_id)) : [];
   return (
     <PageContent as="div" className="ui-page-content">
       <Link href={canonicalUiHref(`${base}/support`)}>Support cases</Link>

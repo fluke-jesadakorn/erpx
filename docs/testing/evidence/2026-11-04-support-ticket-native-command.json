@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support ticket native writer and HTTP ingress proven on leased PostgreSQL; owner workflow remains open",
+  "capability": "support-tickets-native-command",
+  "base": "4857abf81c8ffdc1757799c51e07bfaf9b7fe22b",
+  "branch": "codex/support-tickets-owner-cutover",
+  "sourceCommit": "23514d3d5",
+  "scope": {
+    "workflow": "support/tickets",
+    "writer": "Support owns support_tickets, support_ticket_events and staff_notifications; Workflow owns the command receipt/audit/outbox; Commercial supplies the support.tickets purchase witness; Identity supplies current Account/Holding authority; Records/Assets/POS/PMS supply typed source witnesses.",
+    "excluded": [
+      "support/sla-watch",
+      "support/incidents",
+      "support/feature-support-sessions",
+      "support/feature-capabilities",
+      "support/feature-attachments"
+    ]
+  },
+  "coverage": {
+    "domainAndApplication": "10 Rust unit tests: typed create/change state machine, employee reports, independent confirmation, stale version, field-service handoff, Work items, application replay/change/authority.",
+    "postgres": [
+      "general report create and replay",
+      "manager triage, owner start, owner resolve, independent manager confirm-general",
+      "persisted ticket/event/receipt/audit/outbox counts",
+      "stale version rejection before write",
+      "manager owner-only rejection",
+      "resolving manager self-confirmation rejection",
+      "employee edit/add-information/withdraw with cancelled v4 history",
+      "order-backed create, start, resolve and independent customer-note confirmation (closed v4 with confirmation_note_id)",
+      "typed asset source create with the actual owner snapshot and assets.register purchase",
+      "two managers racing one triage: exactly one commits, one SUPPORT_STATE_CHANGED, one event"
+    ],
+    "http": [
+      "POST /api/v1/holdings/acme/support with the real __Host-erpx-product cookie and rendered-context CAS headers creates a triage ticket",
+      "wrong origin 403",
+      "missing Idempotency-Key 422",
+      "stale CAS assignment 409",
+      "unknown Company header 404",
+      "missing session 401",
+      "no rejected request persists a ticket"
+    ],
+    "nextTransport": "5 vitest cases: configured Holding forwarding with original cookie/CAS/key, unknown Holding/host rejection, 3101 only with production:true, native error status/code mapping, malformed envelope fail-closed."
+  },
+  "checks": {
+    "cargoTestSupport": "10/10",
+    "cargoTestSupportTicketPostgres": "2/2",
+    "cargoClippySupportTicketPostgres": "pass",
+    "cargoClippyExistingBusiness": "pass",
+    "typecheck": "pass",
+    "structure": "pass",
+    "architecture": "pass",
+    "docs": "pass",
+    "catalogue": "33 modules, 772 suites",
+    "rustArchitecture": "7/7"
+  },
+  "limits": [
+    "The Support owner is not closed: incidents, SLA watch, sessions, capabilities and attachments remain separate native workflows.",
+    "No desktop/mobile browser journey has run against the native Support writer. The only isolated native Account cohort is Field-only; the general browser simulation uses Better Auth and cannot mint the native Account session the writer requires.",
+    "The Support PR is not opened or merged because the owner is not closed; no workflow is marked verified or merged.",
+    "Finance production composition remains out of scope for the merged Field bundle and unchanged by this slice."
+  ],
+  "next": "Extend an isolated native Account cohort with the Support app and native config, or complete the remaining Support workflows, before the owner browser journey and scoped PR."
+}

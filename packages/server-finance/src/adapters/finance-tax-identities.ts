@@ -16,6 +16,7 @@ import { attachmentContent } from "@erpx/server-files/public/attachments/service
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export { taxIdentitySchema, taxIdentityDecisionSchema, type TaxIdentity } from '@erpx/server-finance/domain/tax-identities';
 import { taxIdentitySchema, taxIdentityDecisionSchema, type TaxIdentity } from '@erpx/server-finance/domain/tax-identities';
+import { financeTaxIdentities } from '@erpx/server-collaboration/adapters/native-finance-tax-identities';
 export function requireCompanyTaxAuthority(actor: WorkContext, permission: "finance.read" | "finance.write" | "finance.approve" | "finance.pay") { return identityService().requireCompanyTaxAuthority(actor, permission); }
 export function taxSourceDigest(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 export async function prepareTaxIdentity(actor: WorkContext, input: z.input<typeof taxIdentitySchema>, commandId: string, existingId?: string) { return withFinanceConfigurationCommand(actor,{key:commandId,operation:existingId?"finance.tax-identity.edit":"finance.tax-identity.prepare",purpose:existingId?"settle-existing":"new-work"},tx=>identityService(tx).prepareTaxIdentity(actor,input,commandId,existingId)); }
@@ -34,8 +35,7 @@ function identityService(provided?: SqlDatabase) {
             return executeCommand(write, actor, commandId, operation, input, id, existingId ? (input.expectedVersion ?? 0) + 1 : 1, { id, status: "draft", version: existingId ? (input.expectedVersion ?? 0) + 1 : 1 }, [
                 ...(existingId ? [assertion(write, commandId, "draft", "EXISTS(SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND status='draft' AND version=? AND created_by=?)", [id, actor.companyId, input.expectedVersion ?? 0, actor.userId])] : []),
                 ...(input.partyId ? [assertion(write, commandId, "party", "EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND status='active' AND person_id IS NULL)", [input.partyId, actor.companyId])] : []),
-                existingId ? write.prepare("UPDATE finance_tax_identities SET party_id=?,legal_name=?,tax_id=?,address=?,branch_code=?,entity_kind=?,vat_registered=?,vat_registration_evidence=?,effective_from=?,effective_to=?,previous_identity_id=?,signer_name=?,signer_authority=?,rule_pack_version=?,evidence_ref=?,version=version+1,updated_at=? WHERE id=?").bind(...values, now, id)
-                    : write.prepare("INSERT INTO finance_tax_identities(id,company_id,party_id,legal_name,tax_id,address,branch_code,entity_kind,vat_registered,vat_registration_evidence,effective_from,effective_to,previous_identity_id,signer_name,signer_authority,rule_pack_version,evidence_ref,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, ...values, actor.userId, now, now),
+                await financeTaxIdentities(write, actor.companyId).upsert({ id, companyId: actor.companyId, values, userId: actor.userId, now, isInsert: !existingId }),
             ]);
         }, commitDecision: async ({ actor, id, input, commandId, row, operation, signature, status, now }) => {
             const write = await db(actor), guards = signature ? taxSignatureGuard(write, actor, signature.linkId, id, signature.sha256, commandId, 'signature') : [];
@@ -43,10 +43,10 @@ function identityService(provided?: SqlDatabase) {
                 write.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(`finance-taxpayer:${actor.companyId}`),
                 assertion(write, commandId, "identity", "EXISTS(SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, input.expectedVersion]), ...guards,
                 ...(input.action === "approve" ? [
-                    ...(row.previous_identity_id ? [assertion(write, commandId, "previous", "EXISTS(SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND status='approved' AND party_id IS NOT DISTINCT FROM ?::text)", [row.previous_identity_id, actor.companyId, row.party_id]), write.prepare("UPDATE finance_tax_identities SET status='superseded',version=version+1,updated_at=? WHERE id=?").bind(now, row.previous_identity_id)] : []),
+                    ...(row.previous_identity_id ? [assertion(write, commandId, "previous", "EXISTS(SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND status='approved' AND party_id IS NOT DISTINCT FROM ?::text)", [row.previous_identity_id, actor.companyId, row.party_id]), await financeTaxIdentities(write, actor.companyId).supersede({ now, previousId: row.previous_identity_id })] : []),
                     assertion(write, commandId, "one-current", "NOT EXISTS(SELECT 1 FROM finance_tax_identities WHERE company_id=? AND party_id IS NOT DISTINCT FROM ?::text AND status='approved')", [actor.companyId, row.party_id]),
                 ] : []),
-                write.prepare("UPDATE finance_tax_identities SET status=?,reviewed_by=?,review_reason=?,reviewed_at=?,signature_link_id=?,signature_sha256=?,signature_media_type=?,signature_data_uri=?,version=version+1,updated_at=? WHERE id=?").bind(status, actor.userId, input.reason, now, signature?.linkId ?? null, signature?.sha256 ?? null, signature?.mediaType ?? null, signature?.dataUri ?? null, now, id),
+                await financeTaxIdentities(write, actor.companyId).decide({ status, userId: actor.userId, reason: input.reason, now, linkId: signature?.linkId ?? null, sha256: signature?.sha256 ?? null, mediaType: signature?.mediaType ?? null, dataUri: signature?.dataUri ?? null, id }),
             ]);
         } });
 }

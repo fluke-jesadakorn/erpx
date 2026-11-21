@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { financeGroupEditions } from '@erpx/server-collaboration/adapters/native-finance-group-editions';
 import { groupCompanyPurchases, groupEditionPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupEditionHistorySql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
 import {groupReportingPersonNames} from '@erpx/server-people_payroll/public/finance-group-person-facts';
 import { intercompanyPairSchema } from '@erpx/server-finance/public/finance-intercompany-pairs';
@@ -90,19 +91,16 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .first<Row>();
         },
         stagePrepareGroupReportEditionEffect(id: string, holdingId: string, companyId: string, value: string | number | null, value2: string | number, value3: number, startDate: string, endDate: string, currency: string, value4: string, value5: string, value6: string, hash: string, csv: string, exportHash: string, userId: string, reason: string, now: number, now2: number) {
-            return database.prepare("INSERT INTO finance_group_report_editions(id,holding_id,company_id,parent_id,root_id,edition,start_date,end_date,currency,content_json,source_json,result_json,source_hash,export_content,export_sha256,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-                .bind(id, holdingId, companyId, value, value2, value3, startDate, endDate, currency, value4, value5, value6, hash, csv, exportHash, userId, reason, now, now2);
+            return financeGroupEditions(database, companyId).prepare([id, holdingId, companyId, value, value2, value3, startDate, endDate, currency, value4, value5, value6, hash, csv, exportHash, userId, reason, now, now2]);
         },
-        stageDecideGroupReportEditionEffect(now: number, id: string | number | null) {
-            return database.prepare("UPDATE finance_group_report_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?")
-                .bind(now, id);
+        stageDecideGroupReportEditionEffect(now: number, id: string | number | null, holdingId: string) {
+            return financeGroupEditions(database, holdingId).supersede([now, id]);
         },
         guard14(key: string, value: "group-edition-version", id: string, holdingId: string, expectedVersion: number) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM finance_group_report_editions WHERE id=? AND holding_id=? AND status='draft' AND version=?)", [id, holdingId, expectedVersion]);
         },
-        stageDecideGroupReportEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string) {
-            return database.prepare("UPDATE finance_group_report_editions SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?")
-                .bind(value, userId, now, id);
+        stageDecideGroupReportEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string, holdingId: string) {
+            return financeGroupEditions(database, holdingId).decide([value, userId, now, id]);
         },
         readGroupReportEditionWorkspaceEffect(holdingId: string, companyId: string) {
             return database.prepare(groupSourceSql("SELECT * FROM finance_group_report_editions r WHERE holding_id=? AND company_id=? ORDER BY created_at DESC,id LIMIT 100", [groupEditionHistorySql("r",historySql)]))

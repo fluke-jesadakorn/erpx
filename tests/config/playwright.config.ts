@@ -19,7 +19,7 @@ if(developmentLease&&(productLeasePath||executiveWorkLeasePath||formsHostLeasePa
 if(productLeasePath&&executiveWorkLeasePath)throw Error("PRODUCT_AND_EXECUTIVE_WORK_HOST_MODES_ARE_EXCLUSIVE");
 if(formsHostLeasePath&&(productLeasePath||executiveWorkLeasePath))throw Error("FORMS_HOST_LEASE_MODE_IS_EXCLUSIVE");
 if(formsHostLeasePath&&process.env.ERPX_E2E_BASE_URL!==formsHostOrigin)throw Error("FORMS_HOST_EXACT_HTTPS_ORIGIN_REQUIRED");
-const baseURL = formsHostLeasePath ? formsHostOrigin : executiveWorkLeasePath ? "https://work-dev-erpx.jesadakorn.com" : process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100";
+const baseURL = formsHostLeasePath ? formsHostOrigin : executiveWorkLeasePath ? "https://apps-dev-erpx.jesadakorn.com" : process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100";
 const uatRouteSweep = Boolean(process.env.ERPX_UAT_AUTH_DIR);
 // Only the runner-produced exact case lease can select the private product-host proxy.
 const leasePath=productLeasePath;
@@ -32,7 +32,7 @@ if(lease){
 }
 const executiveWorkLease=executiveWorkLeasePath?JSON.parse(readFileSync(executiveWorkLeasePath,"utf8")):null;
 if(executiveWorkLease){
-  const expectedOrigins=["https://work-dev-erpx.jesadakorn.com","https://account-dev-erpx.jesadakorn.com"];
+  const expectedOrigins=["https://apps-dev-erpx.jesadakorn.com","https://account-dev-erpx.jesadakorn.com"];
   const expectedMethods=["initialize","notifications/initialized","tools/list","tools/call"];
   const expectedTools=["list_metrics","query_metric"];
   if(!executiveWorkLeasePath!.startsWith(join(root,".scratch/dev/test-suites/browser/"))||realpathSync(executiveWorkLeasePath!)!==executiveWorkLeasePath||!lstatSync(executiveWorkLeasePath!).isFile()||(lstatSync(executiveWorkLeasePath!).mode&0o077)!==0||executiveWorkLease.schema!=="erpx-owned-executive-work-host-browser/v1"||executiveWorkLease.run!==process.env.ERPX_DEMO_RUN||executiveWorkLease.port!==3102||executiveWorkLease.upstream!=="http://127.0.0.1:3104"||JSON.stringify(executiveWorkLease.origins)!==JSON.stringify(expectedOrigins)||executiveWorkLease.workOnly!==true||executiveWorkLease.accountOnlyForSso!==true||executiveWorkLease.commercialMfa!==false||executiveWorkLease.commercialApply!==false||executiveWorkLease.packageEnforcement!==false||executiveWorkLease.installedWrites!==false||executiveWorkLease.businessWrites!==false||JSON.stringify(executiveWorkLease.mcp?.methods)!==JSON.stringify(expectedMethods)||JSON.stringify(executiveWorkLease.mcp?.tools)!==JSON.stringify(expectedTools)||executiveWorkLease.mcp?.companyScope!==true||executiveWorkLease.mcp?.credentialBound!==true||executiveWorkLease.mcp?.businessReadOnly!==true||executiveWorkLease.denialProbe?.method!=="POST"||executiveWorkLease.denialProbe?.status!==403||executiveWorkLease.denialProbe?.count!==1||!/^[a-f0-9]{64}$/.test(executiveWorkLease.spki))throw Error("EXACT_EXECUTIVE_WORK_HOST_PLAYWRIGHT_LEASE_REQUIRED");

@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import type {CalendarPurchaseControls} from '@erpx/feature-work_projection/lib/calendar-purchases';
@@ -8,7 +9,7 @@ import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/re
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {lockQueuedCommandAuthority,requireQueuedAccountAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
-import {workPackageEnforcementMode,companyPurchaseReadLocks,readPurchasedAccess,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,companyPurchaseReadLocks,readPurchasedAccess,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {calendarPeopleProjectionSources} from '@erpx/server-people_payroll/public/calendar-people-projection-sources';
@@ -30,19 +31,19 @@ export function calendarCommandPurpose(input:CalendarCommand):CapabilityPurpose{
 async function current(database:SqlDatabase,actor:WorkContext,key:string,guards=false){
  const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');
  if(!await database.prepare(`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...scope.args).first())throw new ApiError(403,'CALENDAR_AUTHORITY_CHANGED','Choose a current Calendar account, Company and role.');
- if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);
+ if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 async function ready(database:SqlDatabase,actor:WorkContext){
  if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Manual Work Calendar is not released for this Company.');
 }
 export async function calendarPurchaseControls(database:SqlDatabase,actor:WorkContext):Promise<CalendarPurchaseControls|undefined>{
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return;
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
  await current(database,actor,`calendar-read:${randomUUID()}`);
  const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.calendar'});
  const released=!!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed');
  return {newWork:released&&access.newWork,settleExisting:released&&access.settleExisting,history:released&&access.history,revision:access.revision};
 }
-export async function requireCalendarCurrentActor(database:SqlDatabase,actor:WorkContext){if(await workPackageEnforcementMode()!=='disabled')await current(database,actor,`calendar-current:${randomUUID()}`);}
+export async function requireCalendarCurrentActor(database:SqlDatabase,actor:WorkContext){if(await appsPackageEnforcementMode()!=='disabled')await current(database,actor,`calendar-current:${randomUUID()}`);}
 export function calendarPurchasedItems(items:CalendarItem[],access:CalendarPurchaseControls|undefined){
  if(!access)return items;if(!access.history)return [];
  return items.map(item=>({...item,permittedActions:item.permittedActions.filter(action=>['appointment.save','announcement.save','announcement.published'].includes(action)?access.newWork:access.settleExisting)}));
@@ -84,7 +85,7 @@ export async function requireCalendarReminderRecordAuthority(database:SqlDatabas
  * and People preparation retain their existing named original owner units. */
 export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase,actor:WorkContext,input:CalendarCommand,key:string,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'CALENDAR_TRANSACTION_REQUIRED','Calendar requires its complete owned Holding transaction.');
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return owner.transaction(run);
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return owner.transaction(run);
  try{return await owner.transaction(async database=>{
   await calendarManualSourceReadLocks(database,actor.companyId);
   const id='id'in input&&input.id?input.id:`calendar-${key}`,operation=`calendar.${input.action}`,receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND actor_id=? AND operation=? AND record_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,actor.userId,operation,id,actor.companyId).first(),purpose=receipt?'history' as const:calendarCommandPurpose(input),scope={companyId:actor.companyId,capability:'work.calendar',purpose},guard=`calendar-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,guard,scope)!;
@@ -100,6 +101,6 @@ export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase
   if(await database.prepare(`SELECT version FROM ${kind(input)==='appointment'?'calendar_appointments':'calendar_announcements'} WHERE id=? AND company_id=?`).bind(resultId,actor.companyId).first<number>('version')!==result.version&&!receipt)throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The original Calendar acknowledgement no longer matches its source.');
   await flushFinanceDeferredEffects(database);
   for(let i=0;i<ids.length;i++)if(!completed[i]||await image(database,actor.companyId,kind(input),ids[i])!==completed[i])throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The completed Calendar source changed during deferred effects.');
-  await current(database,actor,guard,true);await ready(database,actor);await recordAuthority(database,actor,input,resultId,true);if(queued)await requireQueuedAccountAuthority(database,queued);const results=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(guard)]);boundary.observe?.(results);return result;
+  await current(database,actor,guard,true);await ready(database,actor);await recordAuthority(database,actor,input,resultId,true);if(queued)await requireQueuedAccountAuthority(database,queued);const results=await database.batch([...boundary.after,await nativeClearCommandAssertions(database, actor.companyId, guard)]);boundary.observe?.(results);return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}
 }

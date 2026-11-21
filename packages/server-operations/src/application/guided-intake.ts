@@ -37,7 +37,7 @@ type PortResult<Value, Effect> = Value extends Promise<infer Result> ? Promise<P
     [Key in keyof Value]: PortResult<Value[Key], Effect>;
 } : Value;
 export interface GuidedIntakeRepository<Effect> {
-    stageCheckAuthorityEffect(key: string): Effect;
+    stageCheckAuthorityEffect(key: string, companyId: string): Promise<Effect>;
     readPrepareGuidedIntakePrevious(id: string): Promise<{
         user_id: string;
         company_id: string;
@@ -53,10 +53,10 @@ export interface GuidedIntakeRepository<Effect> {
     } | null>;
     guard3(id: string, value: "assistant-rate", companyId: string, value2: number): Effect;
     guard4(id: string, value: "assistant-quota", companyId: string, value2: number, companyId2: string, month: string, companyId3: string, month2: string, companyId4: string, month3: string, companyId5: string): Effect;
-    stagePrepareGuidedIntakeEffect(id: string, companyId: string, userId: string, assignmentId: string, value: string, value2: string, message: string, value3: string, now: number, now2: number, sessionId: string): Effect;
-    stagePrepareGuidedIntakeEffect2(id: string): Effect;
-    stagePrepareGuidedIntakeEffect3(value: string, sourcesJson: string, now: number, id: string): Effect;
-    stagePrepareGuidedIntakeEffect4(value: string, now: number, id: string): Effect;
+    stagePrepareGuidedIntakeEffect(id: string, companyId: string, userId: string, assignmentId: string, value: string, value2: string, message: string, value3: string, now: number, now2: number, sessionId: string): Promise<Effect> | Effect;
+    stagePrepareGuidedIntakeEffect2(id: string, companyId: string): Promise<Effect>;
+    stagePrepareGuidedIntakeEffect3(value: string, sourcesJson: string, now: number, id: string): Promise<Effect> | Effect;
+    stagePrepareGuidedIntakeEffect4(value: string, now: number, id: string): Promise<Effect> | Effect;
 }
 export interface GuidedIntakePorts<Effect> {
     repository: GuidedIntakeRepository<Effect>;
@@ -106,7 +106,7 @@ export function createGuidedIntakeApplication<Effect>(ports: GuidedIntakePorts<E
     async function checkAuthority(actor: WorkContext) {
         const key = ports.identifiers.next();
         try {
-            await ports.batch([...ports.workContextGuards(actor, key), ...ports.iamMutationGuards(actor, key), r.stageCheckAuthorityEffect(key)]);
+            await ports.batch([...ports.workContextGuards(actor, key), ...ports.iamMutationGuards(actor, key), await r.stageCheckAuthorityEffect(key, actor.companyId)]);
         }
         catch {
             throw new BusinessRuleError(409, "WORK_CONTEXT_CHANGED", "Your access changed. Reload before using the assistant.");
@@ -163,8 +163,8 @@ export function createGuidedIntakeApplication<Effect>(ports: GuidedIntakePorts<E
             r.guard3(id, "assistant-rate", actor.companyId, now - 60000),
             ports.aiRequestQuotaLock(actor.companyId),
             r.guard4(id, "assistant-quota", actor.companyId, Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), 1), actor.companyId, month, actor.companyId, month, actor.companyId, month, actor.companyId),
-            r.stagePrepareGuidedIntakeEffect(id, actor.companyId, actor.userId, actor.assignmentId, scopeKey(actor), `intake:${context.path}`, input.message, JSON.stringify([context.path]), now, now, governance.sessionId),
-            r.stagePrepareGuidedIntakeEffect2(id),
+            await r.stagePrepareGuidedIntakeEffect(id, actor.companyId, actor.userId, actor.assignmentId, scopeKey(actor), `intake:${context.path}`, input.message, JSON.stringify([context.path]), now, now, governance.sessionId),
+            await r.stagePrepareGuidedIntakeEffect2(id, actor.companyId),
         ]);
         try {
             const generated = await generate({ ...ports.withAiGatewayScope(provider.endpoint, id, "guided-intake", actor.branchId), sessionId: await ports.sha256(governance.sessionId) }, [
@@ -191,18 +191,18 @@ export function createGuidedIntakeApplication<Effect>(ports: GuidedIntakePorts<E
                 throw new BusinessRuleError(409, "WORK_CONTEXT_CHANGED", "Available actions changed. Reload before continuing.");
             result.actions = latestActions;
             await ports.commands.commit(actor, `${id}:complete`, "assistant.intake.complete", { id }, id, 2, { id, state: "ready" }, [
-                ...ports.assistantGovernanceGuards(actor, `${id}:complete`, context.path, governance),
-                ports.aiSnapshotGuard(`${id}:complete`, provider.snapshot),
-                r.stagePrepareGuidedIntakeEffect3(JSON.stringify(result), sourcesJson, ports.clock.now(), id),
-                ports.aiUsageStatement(id, provider.snapshot, "guided-intake", "succeeded", generated.inputTokens, generated.outputTokens, actor.branchId),
+                ...(await Promise.all(ports.assistantGovernanceGuards(actor, `${id}:complete`, context.path, governance))),
+                await ports.aiSnapshotGuard(`${id}:complete`, provider.snapshot),
+                await r.stagePrepareGuidedIntakeEffect3(JSON.stringify(result), sourcesJson, ports.clock.now(), id),
+                await ports.aiUsageStatement(id, provider.snapshot, "guided-intake", "succeeded", generated.inputTokens, generated.outputTokens, actor.branchId),
             ]);
             await ports.recordAssistantInvocation(actor, { ...governance, turnId: id, question: input.message, sources: refs, provider: provider.snapshot, outcome: "succeeded", inputTokens: generated.inputTokens, outputTokens: generated.outputTokens });
             return result;
         }
         catch (error) {
             await ports.batch([
-                r.stagePrepareGuidedIntakeEffect4(error instanceof BusinessRuleError ? error.message : "AI could not prepare a suggestion. Continue with a form or retry.", ports.clock.now(), id),
-                ports.aiUsageStatement(id, provider.snapshot, "guided-intake", "failed", 0, 0, actor.branchId),
+                await r.stagePrepareGuidedIntakeEffect4(error instanceof BusinessRuleError ? error.message : "AI could not prepare a suggestion. Continue with a form or retry.", ports.clock.now(), id),
+                await ports.aiUsageStatement(id, provider.snapshot, "guided-intake", "failed", 0, 0, actor.branchId),
             ]);
             try {
                 await ports.recordAssistantInvocation(actor, { ...governance, turnId: id, question: input.message, sources: refs, provider: provider.snapshot, outcome: "failed", error: error instanceof Error ? error.message : "AI invocation failed" });

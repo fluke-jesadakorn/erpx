@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { Button } from "@erpx/ui/components/foundation";
 
 import {
@@ -127,7 +128,7 @@ export function ContextSwitchProvider({ appearance = "legacy", children }: ({ ch
         from ?? window.location.pathname + window.location.search + window.location.hash;
       const query = new URLSearchParams({ from: source });
       if (companyId) query.set("companyId", companyId);
-      const response = await fetch(`/api/v1/account/work-context?${query}`, { cache: "no-store" });
+      const response = await holdingFetch(`/api/v1/account/work-context?${query}`, { cache: "no-store" });
       if (response.status === 401) {
         window.location.replace(
           `/login?${new URLSearchParams({ reason: "expired", next: source })}`,

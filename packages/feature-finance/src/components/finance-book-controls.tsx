@@ -6,7 +6,7 @@ import {RecordLink} from "@erpx/feature-records/components/record-link";
 import {recordCanonicalHref} from "@erpx/feature-records/lib/record-drawer";
 import { useContext,useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
-import { financeCommandFetch as workFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { financeCommandFetch as workFetch } from "@erpx/feature-finance/public/client";
 import {
   Button,
   Card,

@@ -1,10 +1,10 @@
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { socialDraftFilesReadSql } from '@erpx/server-collaboration/public/social-draft-file-projection';
+import { nativeWrite } from './native-files-command';
 export function collaborationHomeSources(db: SqlDatabase) {
-    return { revokeCommentFiles(now: number, id: string) { return db.prepare("UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL").bind(now, id); }, expireCommentUploads(now: number, id: string) { return db.prepare("UPDATE upload_intents SET status='expired',updated_at=? WHERE owner_type='social_draft' AND owner_id=? AND status='ready'").bind(now, id); }, revokeEditFiles(now: number, id: string) { return db.prepare("UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL").bind(now, id); }, expireEditUploads(now: number, id: string) { return db.prepare("UPDATE upload_intents SET status='expired',updated_at=? WHERE owner_type='social_draft' AND owner_id=? AND status='ready'").bind(now, id); }, revokeUnusedDraftFiles(now: number, recordId: string, keptAttachmentIds: string[]) {
-            return db.prepare(`UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL${keptAttachmentIds.length ? ` AND id NOT IN (${keptAttachmentIds.map(() => "?").join(",")})` : ""}`)
-                .bind(now, recordId, ...keptAttachmentIds);
+    return { revokeUnusedDraftFiles(now: number, recordId: string, keptAttachmentIds: string[]) {
+            return nativeWrite('SF_REVOKE_DRAFT', [now, recordId, JSON.stringify(keptAttachmentIds)]);
         }, expireUnusedDraftUploads(now: number, recordId: string) {
             return db.prepare("UPDATE upload_intents u SET status='expired',updated_at=? WHERE u.owner_type='social_draft' AND u.owner_id=? AND u.status='ready' AND NOT EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND a.revoked_at IS NULL)")
                 .bind(now, recordId);
@@ -60,10 +60,7 @@ export function collaborationHomeSources(db: SqlDatabase) {
         }, guardUploadedImage(key: string, value: string, attachmentId: string | null, value2: string, userId: string, companyId: string, id: string, version: number) {
             return assertion(db, key, value, `EXISTS(SELECT 1 FROM attachments a JOIN upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.author_id=? AND d.company_id=? AND d.edit_post_id=? AND d.edit_post_version=? AND d.edit_saved_version IS NULL AND d.cancelled_at IS NULL AND a.revoked_at IS NULL AND u.owner_type='social_draft' AND u.owner_id=d.id AND u.status='ready')`, [attachmentId, value2, userId, companyId, id, version]);
         }, revokeUnusedPostFiles(now: number, id: string, id2: string, value: (string | null)[]) {
-            return db.prepare(`UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND revoked_at IS NULL
-          AND owner_id IN (SELECT id FROM (${socialDraftFilesReadSql}) drafts WHERE published_post_id=? OR edit_post_id=?)
-          ${value.length ? `AND id NOT IN (${value.map(() => "?").join(",")})` : ""}`)
-                .bind(now, id, id2, ...value);
+            return nativeWrite('SF_REVOKE_POST', [now, id, id2, JSON.stringify(value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0))]);
         }, expireUnusedPostUploads(now: number, id: string, id2: string) {
             return db.prepare(`UPDATE upload_intents u SET status='expired',updated_at=? WHERE u.owner_type='social_draft' AND u.status='ready'
           AND u.owner_id IN (SELECT id FROM (${socialDraftFilesReadSql}) drafts WHERE published_post_id=? OR edit_post_id=?)
@@ -75,7 +72,6 @@ export function collaborationHomeSources(db: SqlDatabase) {
                 id: string;
             }>();
         }, guardCommentImage(key: string, value: string, attachmentId: string | null, commentDraftId: string, companyId: string) { return assertion(db, key, value, `EXISTS(SELECT 1 FROM attachments a JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.company_id=? AND a.revoked_at IS NULL)`, [attachmentId, commentDraftId, companyId]); }, revokeUnusedCommentFiles(now: number, commentDraftId: string, value: (string | null)[]) {
-            return db.prepare(`UPDATE attachments SET revoked_at=? WHERE owner_type='social_draft' AND owner_id=? AND revoked_at IS NULL${value.length ? ` AND id NOT IN (${value.map(() => "?").join(",")})` : ""}`)
-                .bind(now, commentDraftId, ...value);
+            return nativeWrite('SF_REVOKE_COMMENT', [now, commentDraftId, JSON.stringify(value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0))]);
         } };
 }

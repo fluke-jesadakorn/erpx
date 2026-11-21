@@ -1,0 +1,34 @@
+# Scoped native capability runtime; PostgreSQL and Next remain explicit peers.
+# Always invoke with COMPOSE_DISABLE_ENV_FILE=1 and an explicit project name.
+# Both entries share an explicitly selected isolated PostgreSQL network namespace
+# so validated private development connections remain exactly loopback:5432.
+x-native: &native
+  image: ${ERPX_COUNT_IMAGE:?Set the exact locally verified image ID or immutable reference}
+  init: true
+  user: "65532:65532"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  network_mode: "container:${ERPX_COUNT_NETWORK_CONTAINER:?Set the owned isolated database container}"
+  volumes:
+    - type: bind
+      source: ${ERPX_COUNT_CONFIG_DIR:?Set the isolated private configuration directory}
+      target: /run/erpx-count
+      read_only: true
+      bind:
+        create_host_path: false
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16777216,uid=65532,gid=65532,mode=0700
+  stop_grace_period: 20s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+services:
+  api:
+    <<: *native
+    command: [private-api, --development-config, /run/erpx-count/private-api.json]
+  worker:
+    <<: *native
+    command: [service-count-worker, --development-config, /run/erpx-count/worker.json]

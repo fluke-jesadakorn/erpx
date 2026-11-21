@@ -1,6 +1,6 @@
 import {HandbookNewArticleDrawer} from '@erpx/workplace/components/handbook-new-article-drawer';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import { collaborationPresentationQueries } from "@erpx/server-collaboration/public/presentation-queries";
+import { handbookReads } from "@erpx/feature-collaboration/lib/native-handbook-page";
 import {handbookPresentationContext} from '@erpx/server-collaboration/public/handbook-purchases';
 
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
@@ -25,7 +25,7 @@ export default async function Article({
   const { holdingSlug, id } = await params,
     actor = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(actor)),
-    presentation = await collaborationPresentationQueries(actor.holdingId),
+    presentation = await handbookReads(actor, holdingSlug),
     query = await searchParams,
     editing = query.edit === "1",
     historyView = query.revision !== undefined;

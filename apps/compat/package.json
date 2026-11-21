@@ -30,11 +30,11 @@
     "@erpx/feature-service": "workspace:*",
     "@erpx/feature-supply": "workspace:*",
     "@erpx/feature-support": "workspace:*",
-    "@erpx/feature-work": "workspace:*",
+    "@erpx/feature-apps": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "@erpx/contracts": "workspace:*"
   }
 }

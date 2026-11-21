@@ -1,9 +1,14 @@
+import {headers} from 'next/headers';
+import {AttachmentFeatureProvider} from '@erpx/feature-files/components/attachment-feature-context';
+import {nativeFieldFamilyVisible} from '../../../../../../lib/native-field-family';
+import {serviceDetailRouteId} from '@erpx/feature-field_service/lib/workspace';
+import {nativeServiceDetail,NativeServiceWorkspaceError} from '@erpx/feature-field_service/public/native-workspace';
+import {ApiError} from '@erpx/server-runtime/public/http';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { fieldServiceDetail } from "@erpx/server-field_service/public/field-service";
 import { FieldServiceConsole } from "@erpx/feature-records/components/loaders/modules--field-service-console";
 import { RecordDocumentPanel } from "@erpx/feature-records/components/loaders/attachments--record-document-panel";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
@@ -15,23 +20,24 @@ export default async function Page({
 }: {
   params: Promise<{ holdingSlug: string; id: string }>;
 }) {
-  const { holdingSlug, id } = await params,
+  const { holdingSlug, id: routeId } = await params,
+    id = serviceDetailRouteId(routeId),
     a = await requireWorkContext(holdingSlug),
-    base = workspaceBase(publicScope(a)),
-    data = await fieldServiceDetail(a, id).catch((e) =>
-      pageError(e, holdingSlug),
-    ),
-    x = data.order;
-  return (
-    <PageContent as="div" className="ui-page-content">
-      <Link href={canonicalUiHref(`${base}/field-service`)}>Field service</Link>
-      <h1>{String(x.ticket_title)}</h1>
-      <p>
-        {String(x.customer_name)} · {String(x.site)} · {String(x.status)} ·
-        technician {String(x.technician_name ?? x.technician_id)}
-      </p>
-      <FieldServiceConsole base={base} detail={data} />
-      <RecordDocumentPanel appearance="standard"
+    base = workspaceBase(publicScope(a));
+  const context=a.authority && a.iam ? {
+    userId:a.userId,holdingId:a.holdingId,companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,
+    branchSlug:a.scope.kind==='holding'?null:a.scope.branchSlug??null,departmentSlug:a.scope.kind==='department'?a.scope.departmentSlug:null,
+    assignmentId:a.assignmentId,assignmentVersion:a.authority.assignmentVersion,revision:a.authority.revision,
+    role:a.role,assignmentScopeKind:a.assignmentScope,modules:[...a.modules],permissions:[...a.iam.permissions],
+  }:undefined;
+  const data=await (async()=>await nativeServiceDetail(holdingSlug,id,context)??(()=>{throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","The native Service workspace is unavailable.");})())().catch(e=>{
+    if(e instanceof NativeServiceWorkspaceError && [401,403,404,409].includes(e.status??0))return pageError(new ApiError(e.status!,e.code,'The Service order is unavailable.'),holdingSlug);
+    if(e instanceof NativeServiceWorkspaceError)throw e;
+    return pageError(e,holdingSlug);
+  });
+  const x=data.order;
+  const nativeFiles=nativeFieldFamilyVisible(holdingSlug,a.holdingId,(await headers()).get('host'));
+  const panel=(<RecordDocumentPanel appearance="standard"
         base={base}
         targetType="field_service_visit"
         targetId={String(x.id)}
@@ -44,7 +50,17 @@ export default async function Page({
           {key:"signed_job_sheet",label:"Signed job sheet",description:"Attach the customer-confirmed or signed job sheet."},
           {key:"exception_evidence",label:"Exception evidence",description:"Attach evidence supporting an access, safety, scope, or service exception."},
         ]}
-      />
+      />);
+  return (
+    <PageContent as="div" className="ui-page-content">
+      <Link href={canonicalUiHref(`${base}/field-service`)}>Field service</Link>
+      <h1>{String(x.ticket_title)}</h1>
+      <p>
+        {String(x.customer_name)} · {String(x.site)} · {String(x.status)} ·
+        technician {String(x.technician_name ?? x.technician_id)}
+      </p>
+      <FieldServiceConsole base={base} detail={data} nativeReserve={process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG === undefined && process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG === undefined ? undefined : {billing:process.env.ERPX_NATIVE_FIELD_SERVICE_BILLING_CONFIG !== undefined,cancel:process.env.ERPX_NATIVE_FIELD_SERVICE_CANCEL_CONFIG !== undefined,visitRecovery:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_RECOVERY_CONFIG !== undefined,visitCompletion:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_COMPLETION_CONFIG !== undefined,visit:process.env.ERPX_NATIVE_FIELD_SERVICE_VISIT_CONFIG !== undefined,reserve:process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG !== undefined,issue:process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG !== undefined,context}} />
+      {nativeFiles?<AttachmentFeatureProvider mode="enabled">{panel}</AttachmentFeatureProvider>:panel}
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Parts</h2>
         {data.parts.map((p) => (

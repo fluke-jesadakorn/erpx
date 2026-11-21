@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The native Commerce fulfillment slice now writes service completion and Finance-owned per-fulfillment-line Money in one serializable unit. Goods delivery, lot/serial allocation, Inventory stock movement, goods journal, invoicing, settlement and returns remain retained, so sales/orders and sales/fulfillment stay partial. The recorded sales/quotes demotion from the concurrent review is preserved: its save/conversion error precedence must still be reconciled before it returns to verified.",
+  "capability": "commerce-service-completion-and-fulfillment-money",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "d55f8001f9e7715a509078d123c7b21710678efc",
+  "commit": "af556efa6",
+  "scope": {
+    "domain": "ServiceCompletionCommand/Plan/Receipt validate an exact bounded command: service-only lines, unique line ids, positive three-decimal quantity, no over-fulfillment, completion date not before the order date, confirmed/partially_fulfilled sales order, exact expected version and a mandatory evidence note. Amounts use integer half-up math; a fully completed remaining quantity uses the exact original remainder so rounding never drifts.",
+    "application": "fulfill_service_order locks the command key, resolves the canonical receipt before writes, validates the work context, locks the order, reads each service line and prior fulfillment subtotal/tax, writes one fulfillment header and line rows, increments fulfilled_milli with a remaining-quantity guard, refreshes the order state/version, writes receipt/audit/outbox and validates persisted readback. A replay returns the original receipt with created=false and never duplicates effects.",
+    "adapter": "PgCommerceOrders implements the fulfillment repository on the caller's serializable connection: service line facts with prior fulfillment sums, completion header/line inserts, guarded line increment, CAS state refresh and persisted readback.",
+    "finance": "Finance owns snapshot_commerce_fulfillment_money: the same stable Finance locks/unit verification, configured two-decimal scale, effective-date confirmed rate/fallback, exact USD conversion, and per fulfillment line subtotal/tax/total rows under source_type commerce_fulfillment_line. Rows are re-read and revalidated before the caller continues.",
+    "composition": "The composed Commerce backend locks Finance sources before the owner write via CommerceSources{money:true}, runs fulfill_service_order, then writes Finance Money rows only when the command created a new fulfillment. Any late failure rolls fulfillment, order state, receipt/audit/outbox and Money back together.",
+    "httpAndFrontend": "POST /api/v1/holdings/{slug}/commerce/orders/{id}/fulfill accepts only completionMode=service with an exact body, verifies the response, and is selected by the Next route only for service completion. The sales page offers the native action only for confirmed/partially fulfilled sales orders with remaining service lines. The TS transport validates and sends the exact body/key."
+  },
+  "changedFiles": [
+    "packages/server-commerce/src/domain/fulfillment.rs",
+    "packages/server-commerce/src/application/fulfillment.rs",
+    "packages/server-commerce/src/adapters/order.rs",
+    "packages/server-commerce/src/adapters/order_http.rs",
+    "packages/server-commerce/src/domain/legacy_fulfillment.rs",
+    "packages/server-finance/src/adapters/commerce_order_money.rs",
+    "src/composition/src/commerce.rs",
+    "packages/feature-commerce/src/public/native-commerce-orders.ts",
+    "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts"
+  ],
+  "verification": {
+    "commerce": "cargo test -p erpx-server-commerce --locked (worktree with installed node_modules and pinned Node/Bun): 69/69 pass across 5 unit, 8 PostgreSQL, 31 order policy/oracle, 8 HTTP, 16 order PostgreSQL and 1 service-count suites.",
+    "serviceCompletionPostgres": "service_completion_writes_fulfillment_receipt_money_and_replay proves: fulfillment delivery-<key>, state fulfilled, version 4, fulfilled_milli 1000, completion_kind service, exact note, line quantity 1000/value 0/subtotal 10000/tax 700; replay returns the same receipt; exactly 3 commerce_fulfillment_line Money rows; one receipt, audit and outbox row; a second completion on the same order fails closed; a stock line is rejected with SERVICE_COMPLETION_REQUIRED.",
+    "http": "actual_router_forwards_one_service_completion_exactly proves the exact path/body/key reaches the backend and the receipt is validated; goods mode, unknown keys and empty lines are 422.",
+    "transport": "native-commerce-orders-transport.test.ts 8/8 pass; the new case asserts the exact JSON body, Idempotency-Key and path for fulfill and rejects empty lines before the wire.",
+    "cleanArchive": "git archive of the staged tree (tree 691ed7de005f5323844b9f110642305aa71e52e2) passes cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business.",
+    "checks": "tsc --noEmit and rustfmt --check pass. Commerce clippy --lib -D warnings passes; Finance clippy still reports only the pre-existing external errors in bank_reconciliation.rs, period_close.rs and pos_sources.rs (unchanged by this slice).",
+    "browserDesktop": "Desktop 1440x1600 on SO-FED8FDEE8134BAB04A02AF8E (order-service-completion-browser-0001, confirmed v2): the sales record drawer rendered Complete services, the Confirm completed services disclosure accepted completion date 2026-11-13 and the note, and POST /__erpx/sales/api/v1/holdings/acme/commerce/orders/order-service-completion-browser-0001/fulfill returned 200 {fulfillmentId: delivery-611680e9-..., state: fulfilled, version: 3}. The refreshed record showed fulfilled, Delivered 2 each, delivery DN-6DC576E7FECBC727104449A3 2026-11-13 and the exact completion note.",
+    "browserMobile": "Mobile 390x844 on SO-5845A12DC50023AEB23A118E (order-service-completion-mobile-0001, confirmed v2): the record drawer completed 1 of 2 service units with date 2026-11-13 and note \"Mobile acceptance: one service unit completed\"; POST /fulfill returned 200 {fulfillmentId: delivery-cd71b3bf-..., state: partially_fulfilled, version: 3}. The refreshed record showed partially fulfilled, Delivered 1 each, and kept the remaining service action available.",
+    "persistedBrowserRows": "Desktop: order state fulfilled version 3, fulfilled_milli 2000/2000, completion_kind service, exact note; fulfillment line quantity 2000, value 0, subtotal 5000, tax 0; three commerce_fulfillment_line Money rows (subtotal/tax/total 5000/0/5000 USD) with currency_scale 2. Mobile: order state partially_fulfilled version 3, fulfilled_milli 1000/2000; fulfillment line quantity 1000, subtotal 2500; three Money rows (subtotal/tax/total 2500/0/2500 USD). Command receipts exist for both fulfill calls with operation commerce.order.fulfill and the exact persisted result JSON.",
+    "browserPrecondition": "Each sales order was created and submitted through the native Next route, then set to confirmed with an approved_by fixture and a flow-primary assignment for the browser actor so the record action was actionable. No order, fulfillment, Money, receipt, audit or outbox row was written by SQL; all command effects came from the selected Next route and were read back from PostgreSQL."
+  },
+  "limitations": [
+    "Only service completion is native. Goods delivery, lot/serial allocation, Inventory stock movement, goods journal, invoicing, settlement and returns remain retained, so sales/fulfillment and sales/orders stay partial.",
+    "The concurrent review demoted sales/quotes to partial for save/conversion error-precedence differences against the full TypeScript/PostgreSQL oracle. That finding is preserved and must be fixed before sales/quotes returns to verified.",
+    "Desktop and mobile completion used an independent order fixture for the confirmed/flow-primary precondition; the completion command itself and every persisted effect went through the selected Next route."
+  ],
+  "counts": {
+    "verified": 83,
+    "partial": 39,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "0 verified / 4 partial / 1 unstarted of 5"
+  },
+  "nextAction": "Reconcile the Commerce save/conversion error precedence against the full TypeScript oracle and restore sales/quotes, then browser-verify service completion through the selected route and continue goods fulfillment/invoicing/settlement/returns."
+}

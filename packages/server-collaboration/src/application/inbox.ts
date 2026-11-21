@@ -53,7 +53,7 @@ export interface InboxRepository {
         id: string;
     } | null>;
     deliverNotice(value: string, id: string, company_id: string, user_id: string, now: number): Promise<unknown>;
-    completeNoticeTarget(now: number, notice_id: string, user_id: string): Promise<unknown>;
+    completeNoticeTarget(now: number, notice_id: string, user_id: string, companyId: string): Promise<unknown>;
     pendingMetrics(): Promise<{
         count: number;
         oldest: number | null;
@@ -97,6 +97,9 @@ export function createInboxApplication<Effect>(ports: InboxPorts<Effect>) {
         return event.id;
     }
     async function resolveCandidate(actor: WorkContext, row: Candidate): Promise<InboxItem | null> {
+        if(row.native_field_item)return row.native_field_item;
+        if(row.source_type==='field_service_order')throw new BusinessRuleError(503,'NATIVE_FIELD_INBOX_REQUIRED','This Field Inbox operation requires its native owner.');
+
         let href: string | null = null;
         let source: SourceRecordReference | undefined;
         if (row.source_type === "notice") {
@@ -141,7 +144,7 @@ export function createInboxApplication<Effect>(ports: InboxPorts<Effect>) {
                 at: number;
                 id: string;
             };
-            if (!Number.isSafeInteger(v.at) || typeof v.id !== "string" || v.id.length > 180)
+            if (!Number.isSafeInteger(v.at) || typeof v.id !== "string" || v.id.length > 512)
                 throw Error();
             return v;
         }
@@ -265,7 +268,7 @@ export function createInboxApplication<Effect>(ports: InboxPorts<Effect>) {
                 if (event)
                     await r.deliverNotice(ports.identifiers.next(), event.id, target.company_id, target.user_id, ports.clock.now());
             }
-            await r.completeNoticeTarget(ports.clock.now(), target.notice_id, target.user_id);
+            await r.completeNoticeTarget(ports.clock.now(), target.notice_id, target.user_id, target.company_id);
         }
         return targets.length;
     }

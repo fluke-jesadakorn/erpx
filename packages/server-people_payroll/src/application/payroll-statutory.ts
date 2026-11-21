@@ -18,12 +18,12 @@ export interface PayrollStatutoryRepository<Effect> {
         frequency: string;
     } | null>;
     guardEmployeeEngagement(key: string, value: "engagement", engagementId: string, companyId: string, expectedEngagementVersion: number): Effect;
-    insertProfile(id: string, companyId: string, engagementId: string, taxYear: number, effectiveFrom: string, effectiveTo: string, verifiedAnnualDeductionsMinor: number, scheduledPaysInYear: number, socialSecurityEligible: boolean, value: string | null, openingThroughDate: string, openingTaxableMinor: number, openingIrregularMinor: number, openingWithheldMinor: number, priorIncomeComplete: boolean, evidenceRef: string, userId: string, now: number, now2: number): Effect;
+    insertProfile(id: string, companyId: string, engagementId: string, taxYear: number, effectiveFrom: string, effectiveTo: string, verifiedAnnualDeductionsMinor: number, scheduledPaysInYear: number, socialSecurityEligible: boolean, value: string | null, openingThroughDate: string, openingTaxableMinor: number, openingIrregularMinor: number, openingWithheldMinor: number, priorIncomeComplete: boolean, evidenceRef: string, userId: string, now: number, now2: number): Promise<Effect>;
     profile(id: string, companyId: string): Promise<Profile | null>;
     lockProfile(value: string): Effect;
     guardProfileVersion(key: string, value: "profile", id: string, companyId: string, status: "draft" | "approved", version: number): Effect;
     guardNonOverlappingApproval(key: string, value: "overlap", engagement_id: string, companyId: string, tax_year: number, effective_to: string, effective_from: string): Effect;
-    decideProfile(status: "approved" | "superseded", status2: "approved" | "superseded", userId: string, now: number, id: string): Effect;
+    decideProfile(status: "approved" | "superseded", status2: "approved" | "superseded", userId: string, now: number, id: string, companyId: string): Promise<Effect>;
     decisionEvidence(value: string, key: string, id: string, value2: string, userId: string, assignmentId: string, version: number, value3: string, now: number): Effect;
     profiles(companyId: string, value: string | null, value2: string | null): Promise<{
         results: Record<string, unknown>[];
@@ -102,7 +102,7 @@ export function createPayrollStatutoryApplication<Effect>(ports: PayrollStatutor
         const now = ports.clock.now();
         return ports.commands.commit(actor, key, "people.thai-profile.create", input, id, 1, { id, status: "draft", version: 1 }, [
             repository.guardEmployeeEngagement(key, "engagement", input.engagementId, actor.companyId, input.expectedEngagementVersion),
-            repository.insertProfile(id, actor.companyId, input.engagementId, input.taxYear, input.effectiveFrom, input.effectiveTo, input.verifiedAnnualDeductionsMinor, input.scheduledPaysInYear, input.socialSecurityEligible, input.socialSecurityExemptionEvidence ?? null, input.openingThroughDate, input.openingTaxableMinor, input.openingIrregularMinor, input.openingWithheldMinor, input.priorIncomeComplete, input.evidenceRef, actor.userId, now, now),
+            await repository.insertProfile(id, actor.companyId, input.engagementId, input.taxYear, input.effectiveFrom, input.effectiveTo, input.verifiedAnnualDeductionsMinor, input.scheduledPaysInYear, input.socialSecurityEligible, input.socialSecurityExemptionEvidence ?? null, input.openingThroughDate, input.openingTaxableMinor, input.openingIrregularMinor, input.openingWithheldMinor, input.priorIncomeComplete, input.evidenceRef, actor.userId, now, now),
         ]);
     }
     async function decideThaiPayrollProfile(actor: WorkContext, id: string, input: z.infer<typeof thaiPayrollProfileDecisionSchema>, key: string) {
@@ -124,7 +124,7 @@ export function createPayrollStatutoryApplication<Effect>(ports: PayrollStatutor
             repository.lockProfile(`thai-payroll-profile:${actor.companyId}:${row.engagement_id}:${row.tax_year}`),
             repository.guardProfileVersion(key, "profile", id, actor.companyId, row.status, row.version),
             ...(input.action === "approve" ? [repository.guardNonOverlappingApproval(key, "overlap", row.engagement_id, actor.companyId, row.tax_year, row.effective_to, row.effective_from)] : []),
-            repository.decideProfile(status, status, actor.userId, now, id),
+            await repository.decideProfile(status, status, actor.userId, now, id, actor.companyId),
             repository.decisionEvidence(ports.identifiers.next(), key, id, `people.thai-profile.${input.action}`, actor.userId, actor.assignmentId, row.version, await ports.hash(canonical({ row, reason: input.reason })), now),
         ]);
     }

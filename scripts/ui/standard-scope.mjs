@@ -12,7 +12,7 @@ export const deferredPrefixes = [
   "src/app/holdings/[holdingSlug]/_presenters/hospitality/",
 ];
 export const frozenFiles = [
-  "packages/feature-work/src/routes/holdings/[holdingSlug]/calendar/page.tsx",
+  "packages/feature-apps/src/routes/holdings/[holdingSlug]/calendar/page.tsx",
   "packages/feature-organization/src/components/organization-chart.tsx", "packages/feature-organization/src/components/organization-team-view.tsx",
   "packages/feature-organization/src/components/organization-person-card.tsx", "packages/feature-organization/src/components/organization-person-details.tsx",
   "packages/feature-people_payroll/src/components/people-organization-workspace.tsx", "packages/feature-people_payroll/src/components/people-team-schedule.tsx",

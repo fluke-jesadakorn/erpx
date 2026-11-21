@@ -1,4 +1,10 @@
 import "server-only";
+
+import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
+async function nativeReviewEvidence(values: readonly unknown[], recordId: string, key: string, actorId: string) {
+  try { return await nativeCommercialOwnerWrite('review.evidence', values, recordId, actorId, key); }
+  catch (error) { if (error instanceof NativeCommercialOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 import { randomUUID } from "node:crypto";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -56,10 +62,10 @@ export function legacyGrantMigration(db: PostgresDatabase, holdingId: string, le
             now: now(), reason: reviewed.reason, evidence: reviewed.evidence });
           if (current.blockers.length || packageReviewHash(JSON.stringify(packageReviewRequest({ ...request, changes: current.changes }))) !== claims.requestHash)
             throw new ApiError(409, "STALE_LEGACY_PREVIEW", "Legacy coverage changed. Preview this Company again.");
-          await transaction.prepare(`INSERT INTO company_package_review_evidence(change_set_id,company_id,actor_id,assignment_id,role_id,role_revision,
-          authority_revision,catalogue_hash,review_hash,reviewed_at,applied_at,comparison_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?::jsonb)`)
-          .bind(request.idempotencyKey, request.companyId, lease.actor.userId, lease.actor.assignmentId, lease.actor.role, lease.actor.roleRevision,
-            claims.authorityRevision, claims.catalogueHash, packageReviewHash(token), claims.issuedAt, now(), JSON.stringify({ source: source.facts, before: preview.before, after: preview.after })).run();
+          await nativeReviewEvidence(
+            [request.idempotencyKey, request.companyId, lease.actor.userId, lease.actor.assignmentId, lease.actor.role, lease.actor.roleRevision,
+              claims.authorityRevision, claims.catalogueHash, packageReviewHash(token), claims.issuedAt, now(), JSON.stringify({ source: source.facts, before: preview.before, after: preview.after })],
+            request.companyId, request.idempotencyKey, lease.actor.userId);
         });
         // These checks run after every grant, audit and batch receipt but before
         // the Holding commit. A committed replay needs current provider authority,

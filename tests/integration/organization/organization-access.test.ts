@@ -3,7 +3,9 @@ import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
 import { getPerson, listPeople } from "@erpx/server-people_payroll/public/people-payroll";
-import {installStaffLevels,positionSchema,savePosition} from '@erpx/server-organization/public/organization';
+import {positionSchema} from '@erpx/server-organization/public/organization';
+import {savePosition} from '../../support/helpers/organization-positions';
+import {installStaffLevels} from '../../support/helpers/organization-levels';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));

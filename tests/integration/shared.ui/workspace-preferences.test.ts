@@ -1,6 +1,6 @@
 import {beforeAll,expect,it} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
-import {readWorkspacePreference,readCompanyPreference,rememberWorkspace,rememberPlatformRole} from "@erpx/server-work_projection/public/workspace-preferences";
+import {readWorkspacePreference,readCompanyPreference,rememberWorkspace} from "@erpx/server-work_projection/public/workspace-preferences";
 beforeAll(()=>applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS));
 it('stores workspace and company by account independently of browser/session',async()=>{
  const db=env.CONTROL_DB,user=crypto.randomUUID(),other=crypto.randomUUID();
@@ -11,7 +11,9 @@ it('stores workspace and company by account independently of browser/session',as
  expect((await readCompanyPreference(db,user,'h002'))?.company_id).toBe('northstar-co');
  expect(await readWorkspacePreference(db,other)).toBeNull();
  expect(await readCompanyPreference(db,other,'h001')).toBeNull();
- await rememberPlatformRole(db,user,'platform-role');await rememberWorkspace(db,user,'/platform/home');
- expect(await readWorkspacePreference(db,user)).toMatchObject({workspace_path:'/platform/home',platform_assignment_id:'platform-role'});
+ // Platform assignment persistence is owned by the Provider context store;
+ // a Company-less workspace path is selector-only and must not overwrite it.
+ await rememberWorkspace(db,user,'/platform/home');
+ expect((await readWorkspacePreference(db,user))?.workspace_path).toBe('/holdings/northstar/home');
  expect((await readCompanyPreference(db,user,'h001'))?.company_id).toBe('beacon-co');
 });

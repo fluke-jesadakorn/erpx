@@ -46,7 +46,8 @@ await cp(join(work,'ops/macos/clamav'),join(release,'ops/macos/clamav'),{recursi
 await cp(join(work,'ops/macos/install-attachment-runtime.py'),join(release,'ops/macos/install-attachment-runtime.py'));
 await cp(join(work,'ops/macos/attachment-rollout.md'),join(release,'ops/macos/attachment-rollout.md'));
 for(const name of ['erpxctl.py','offsite.py','recovery_status.py'])await cp(join(work,'ops/macos',name),join(release,'ops/macos',name));
-await cp(join(work,'scripts/legal'),join(release,'scripts/legal'),{recursive:true});
+// Only the compiled DOCX extractor enters the release. The Python conformance
+// oracle and its setup tooling remain development-only under tests/scripts.
 // Disabled unless the isolated booking launcher attests an exact fictional cohort.
 await mkdir(join(release,'tools'),{recursive:true});
 await cp(join(work,'scripts/local/pms-provider-fixture.mjs'),join(release,'tools/pms-provider-fixture.mjs'));

@@ -12,9 +12,9 @@ guard11(key:string,value:"hire-email-reconcile",companyId:string,email:string,pe
 guard12(key:string,value:"hire-group",payGroupId:string,companyId:string,currency:string):Effect;
 guard13(key:string,value:"hire-placement",branch_id:string,companyId:string,department_id:string | null,department_id2:string | null,companyId2:string,branch_id2:string):Effect;
 guard14(key:string,value:"hire-person",id:string,companyId:string,version:number):Effect;
-stageConsumeHireHandoffEffect3(personId:string,companyId:string,legal_name:string,email:string,phone:string | null,countryCode:string,userId:string,now:number,now2:number):Effect;
-stageConsumeHireHandoffEffect4(engagementId:string,personId:string,companyId:string,branch_id:string,department_id:string | null,start_date:string,job_title:string,currency:string,payGroupId:string,userId:string,now:number,now2:number):Effect;
-stageConsumeHireHandoffEffect5(compensationId:string,engagementId:string,start_date:string,frequency:string,base_amount_minor:number,currency:string,userId:string,now:number,now2:number):Effect;
+stageConsumeHireHandoffEffect3(personId:string,companyId:string,legal_name:string,email:string,phone:string | null,countryCode:string,userId:string,now:number,now2:number):Promise<Effect>;
+stageConsumeHireHandoffEffect4(engagementId:string,personId:string,companyId:string,branch_id:string,department_id:string | null,start_date:string,job_title:string,currency:string,payGroupId:string,userId:string,now:number,now2:number):Promise<Effect>;
+stageConsumeHireHandoffEffect5(compensationId:string,engagementId:string,start_date:string,frequency:string,base_amount_minor:number,currency:string,userId:string,now:number,now2:number,companyId:string):Promise<Effect>;
 stageConsumeHireHandoffEffect6(id:string,id2:string,companyId:string,personId:string,engagementId:string,compensationId:string,offer_version:number,candidate_version:number,digest:string,evidenceRef:string,userId:string,key:string,now:number):Effect;
 readChangeCandidatePrivacyRow(candidateId:string,companyId:string):Promise<{id:string;status:string;privacy_hold:boolean;privacy_requested_by:string|null;version:number;retention_until:string}|null>;
 stageChangeCandidatePrivacyEffect(candidateId:string):Effect;
@@ -49,9 +49,9 @@ async function consumeHireHandoff(actor:WorkContext,input:z.infer<typeof hireCon
     repository.guard11(key,"hire-email-reconcile",actor.companyId,source.email,personId),
     repository.guard12(key,"hire-group",input.payGroupId,actor.companyId,source.currency),
     repository.guard13(key,"hire-placement",source.branch_id,actor.companyId,source.department_id,source.department_id,actor.companyId,source.branch_id),
-    ...(person?[repository.guard14(key,"hire-person",person.id,actor.companyId,person.version)]:[repository.stageConsumeHireHandoffEffect3(personId,actor.companyId,source.legal_name,source.email,source.phone,input.countryCode,actor.userId,now,now)]),
-    repository.stageConsumeHireHandoffEffect4(engagementId,personId,actor.companyId,source.branch_id,source.department_id,source.start_date,source.job_title,source.currency,input.payGroupId,actor.userId,now,now),
-    repository.stageConsumeHireHandoffEffect5(compensationId,engagementId,source.start_date,group.frequency,source.base_amount_minor,source.currency,actor.userId,now,now),
+    ...(person?[repository.guard14(key,"hire-person",person.id,actor.companyId,person.version)]:[await repository.stageConsumeHireHandoffEffect3(personId,actor.companyId,source.legal_name,source.email,source.phone,input.countryCode,actor.userId,now,now)]),
+    await repository.stageConsumeHireHandoffEffect4(engagementId,personId,actor.companyId,source.branch_id,source.department_id,source.start_date,source.job_title,source.currency,input.payGroupId,actor.userId,now,now),
+    await repository.stageConsumeHireHandoffEffect5(compensationId,engagementId,source.start_date,group.frequency,source.base_amount_minor,source.currency,actor.userId,now,now,actor.companyId),
     money.statement,repository.stageConsumeHireHandoffEffect6(id,source.id,actor.companyId,personId,engagementId,compensationId,source.offer_version,source.candidate_version,digest,input.evidenceRef,actor.userId,key,now),
   ]);
 }

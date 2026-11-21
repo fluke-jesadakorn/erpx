@@ -1,3 +1,4 @@
+import {requireLegacyFinanceInvoiceFlow} from '@erpx/server-finance/public/document-purchases';
 import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { StaffActor } from '@erpx/server-operations/public/staff-policy';
 import type { FlowKind, FlowView } from '@erpx/feature-shared/lib/flow';
@@ -17,4 +18,4 @@ export async function prepareFlowCommand(db: SqlDatabase, actor: StaffActor, key
     before: SqlStatement[];
     after: SqlStatement[];
     view: FlowView;
-}> { return invoke(() => createFlowPlanningApplication(nativeFlowPlanningPorts(db)).prepareFlowCommand(actor, key, kind, id, action, input, version)); }
+}> { if(kind==='invoice')await requireLegacyFinanceInvoiceFlow(db,actor,id);return invoke(() => createFlowPlanningApplication(nativeFlowPlanningPorts(db)).prepareFlowCommand(actor, key, kind, id, action, input, version)); }

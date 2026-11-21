@@ -1,0 +1,82 @@
+# Explicit isolated namespace and private configuration; never use the implicit .env.
+# Both processes probe the same real scanner and preview provider.
+x-native: &native
+  init: true
+  user: "65532:65532"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  network_mode: "container:${ERPX_FILES_NETWORK_CONTAINER:?Set the owned isolated database container}"
+  depends_on:
+    scanner: {condition: service_healthy}
+  volumes:
+    - type: bind
+      source: ${ERPX_FILES_CONFIG_DIR:?Set the private configuration directory}
+      target: /run/erpx-files
+      read_only: true
+      bind: {create_host_path: false}
+    - type: bind
+      source: ${ERPX_FILES_STORE_DIR:?Set the owned private file store}
+      target: /var/lib/erpx-files
+      bind: {create_host_path: false}
+    - type: bind
+      source: ${ERPX_FILES_TEMP_DIR:?Set the owned private temporary directory}
+      target: /var/tmp/erpx-files
+      bind: {create_host_path: false}
+    - type: bind
+      source: ${ERPX_CLAMD_SOCKET_DIR:?Set the scanner socket directory}
+      target: /run/erpx-scanner
+      read_only: true
+      bind: {create_host_path: false}
+    - type: bind
+      source: ${ERPX_CLAMAV_DEFINITIONS_DIR:?Set the scanner definitions directory}
+      target: /var/lib/clamav
+      read_only: true
+      bind: {create_host_path: false}
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16777216,uid=65532,gid=65532,mode=0700
+  stop_grace_period: 20s
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+services:
+  scanner:
+    image: clamav/clamav:1.5.4-debian13-slim@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b
+    entrypoint: [clamd]
+    command: ["--foreground=true", "--config-file=/run/erpx-scanner-config/clamd.conf"]
+    healthcheck:
+      test: [CMD, clamdscan, "--config-file=/run/erpx-scanner-config/clamd.conf", "--ping=1:1"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+    network_mode: none
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - type: bind
+        source: ${ERPX_FILES_CONFIG_DIR:?Set the private configuration directory}/clamd.conf
+        target: /run/erpx-scanner-config/clamd.conf
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ERPX_CLAMD_SOCKET_DIR:?Set the scanner socket directory}
+        target: /run/erpx-scanner
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ERPX_CLAMAV_DEFINITIONS_DIR:?Set the scanner definitions directory}
+        target: /var/lib/clamav
+        read_only: true
+        bind: {create_host_path: false}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16777216,uid=65532,gid=65532,mode=0700
+  api:
+    <<: *native
+    image: ${ERPX_FILES_API_IMAGE:?Set the verified API image}
+    command: [private-api, --development-config, /run/erpx-files/private-api.json]
+  worker:
+    <<: *native
+    image: ${ERPX_FILES_WORKER_IMAGE:?Set the verified worker image}
+    command: [field-files-worker, --development-config, /run/erpx-files/private-api.json]

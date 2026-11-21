@@ -24,7 +24,7 @@ export interface SocialAgentRepository<Effect> {
     requestReply(id: string, companyId: string, userId: string): Promise<Reply | null>;
     triggerComment(owner_id: string, post_id: string): Promise<Record<string, unknown> | null>;
     guardFailedReply(key: string, value: "failed", id: string): Effect;
-    prepareRetry(value: string, now: number, id: string): Effect;
+    prepareRetry(value: string, now: number, id: string): Promise<Effect>;
     expireLeases(now: number, now2: number): Promise<unknown>;
     claimReply(value: string, value2: number, now: number, value3: string | null, value4: string | null): Promise<Reply | null>;
     recentComments(post_id: string, now: number): Promise<{
@@ -48,9 +48,9 @@ export interface SocialAgentRepository<Effect> {
     } | null>;
     lockSocialQuota(value: string): Effect;
     guardQuota(usageId: string, value: "quota", companyId: string, value2: string, companyId2: string, value3: string, companyId3: string, value4: string, companyId4: string, companyId5: string, now: number, userId: string, value5: number, maxConcurrent: number, maxPerMinute: number): Effect;
-    prepareReplyDraft(usageId: string, post_id: string, userId: string, version: number, hash: string, value: string, value2: string, value3: string, now: number, value4: number, value5: string | null): Effect;
-    reserveUsage(usageId: string, companyId: string, userId: string, value: string, value2: number, now: number): Effect;
-    clearReserveAssertions(usageId: string): Effect;
+    prepareReplyDraft(usageId: string, post_id: string, userId: string, version: number, hash: string, value: string, value2: string, value3: string, now: number, value4: number, value5: string | null): Promise<Effect>;
+    reserveUsage(usageId: string, companyId: string, userId: string, value: string, value2: number, now: number): Promise<Effect>;
+    clearReserveAssertions(usageId: string, companyId: string): Promise<Effect>;
     imageSource(id: string, companyId: string, post_id: string, post_id2: string, post_id3: string, value: string | null): Promise<{
         object_key: string;
         checksum_sha256: string;
@@ -64,15 +64,15 @@ export interface SocialAgentRepository<Effect> {
         id: string;
     } | null>;
     guardCurrentLease(usageId: string, value: "lease", id: string, lease_token: string, finish: number): Effect;
-    prepareReplyComment(value: string, post_id: string, ASSISTANT_ID: "erpx-assistant", aiName: string, body: string, value2: string, usageId: string, finish: number, finish2: number, value3: string | null): Effect;
-    finishReply(finish: number, id: string): Effect;
-    finishDraft(value: string, usageId: string): Effect;
-    finishUsage(inputTokens: number, outputTokens: number, usageId: string): Effect;
-    clearFinishAssertions(usageId: string): Effect;
-    failReply(explanation: string, code: string, now: number, id: string, lease_token: string,actorJson:string,ownerType:"post"|"comment",ownerId:string): Effect;
-    failDraft(usageId: string): Effect;
-    failUsage(usageId: string): Effect;
-    clearFailureAssertions(usageId: string): Effect;
+    prepareReplyComment(value: string, post_id: string, ASSISTANT_ID: "erpx-assistant", aiName: string, body: string, value2: string, usageId: string, finish: number, finish2: number, value3: string | null): Promise<Effect>;
+    finishReply(finish: number, id: string): Promise<Effect>;
+    finishDraft(value: string, usageId: string): Promise<Effect>;
+    finishUsage(inputTokens: number, outputTokens: number, usageId: string): Promise<Effect>;
+    clearFinishAssertions(usageId: string, companyId: string): Promise<Effect>;
+    failReply(explanation: string, code: string, now: number, id: string, lease_token: string,actorJson:string,ownerType:"post"|"comment",ownerId:string): Promise<Effect>;
+    failDraft(usageId: string): Promise<Effect>;
+    failUsage(usageId: string): Promise<Effect>;
+    clearFailureAssertions(usageId: string, companyId: string): Promise<Effect>;
 }
 export interface SocialAgentPorts<Effect> {
     repository: SocialAgentRepository<Effect>;
@@ -103,7 +103,7 @@ export interface SocialAgentPorts<Effect> {
     sourceGuard(...args: Tail<Parameters<typeof sourceGuard>>): Effect;
     resolveAiProvider(company: string, environment: BetaEnvironment, kind: "text" | "image", holdingSlug?: string, holdingId?: string): Promise<ResolvedSocialProvider>;
     aiSnapshotGuard(...args: Tail<Parameters<typeof aiSnapshotGuard>>): Effect;
-    aiUsageStatement(...args: Tail<Parameters<typeof aiUsageStatement>>): Effect;
+    aiUsageStatement(...args: Tail<Parameters<typeof aiUsageStatement>>): Promise<Effect>;
     generateProviderJson: SocialReplyProvider;
     withAiGatewayScope(endpoint: AiEndpoint, id: string, feature: string, branch: string | null, usageId?: string): AiEndpoint;
     assertProductionModuleEnabled(...args: Tail<Parameters<typeof assertProductionModuleEnabled>>): ReturnType<typeof assertProductionModuleEnabled>;
@@ -128,7 +128,7 @@ export function createSocialAgentApplication<Effect>(ports: SocialAgentPorts<Eff
         return ports.commands.commit(actor, key, "social.agent.retry", { id }, row.post_id, post.version, { id }, [
             ports.sourceGuard(key, post, actor.userId, "source"),
             r.guardFailedReply(key, "failed", id),
-            r.prepareRetry(JSON.stringify({ userId: actor.userId, assignmentId: actor.assignmentId, role: actor.role, companyId: actor.companyId, branchId: actor.branchId, departmentId: actor.departmentId, iam: actor.iam, authority: actor.authority }), ports.clock.now(), id),
+            await r.prepareRetry(JSON.stringify({ userId: actor.userId, assignmentId: actor.assignmentId, role: actor.role, companyId: actor.companyId, branchId: actor.branchId, departmentId: actor.departmentId, iam: actor.iam, authority: actor.authority }), ports.clock.now(), id),
         ]);
     }
     async function drainSocialAgent(env: BetaEnvironment, postId?: string, provider: SocialReplyProvider = ports.generateProviderJson, holdingId?: string, useConfiguredProvider = false) {
@@ -158,15 +158,15 @@ export function createSocialAgentApplication<Effect>(ports: SocialAgentPorts<Eff
             const quota = await r.quotaAllowed(actor.companyId, month, actor.companyId, month, actor.companyId, month, actor.companyId, actor.companyId, now, actor.userId, now - socialAiLimits.rateWindowMs, socialAiLimits.concurrent, socialAiLimits.perMinute);
             if (!quota?.allowed)
                 throw new BusinessRuleError(429, "AI_LIMIT", "AI quota or rate limit is exhausted.");
-            await ports.writePhase(actor,{phase:"reserve",reservationId:usageId,postId:row.post_id,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{}),reply:{id:row.id,leaseToken:row.lease_token,actorJson:row.actor_json,ownerType:row.owner_type,ownerId:row.owner_id}},()=>[
+            await ports.writePhase(actor,{phase:"reserve",reservationId:usageId,postId:row.post_id,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{}),reply:{id:row.id,leaseToken:row.lease_token,actorJson:row.actor_json,ownerType:row.owner_type,ownerId:row.owner_id}},async()=>[
                 ...ports.replyFeatureGuards(usageId, row.company_id),
                 r.lockSocialQuota(`social-ai:${actor.companyId}`),
                 ...ports.iamMutationGuards(actor, usageId), ports.assignmentGuard(usageId, actor), ports.sourceGuard(usageId, source.post, actor.userId, "source"),
                 ports.aiRequestQuotaLock(actor.companyId),
                 r.guardQuota(usageId, "quota", actor.companyId, new Date(now).toISOString().slice(0, 7), actor.companyId, new Date(now).toISOString().slice(0, 7), actor.companyId, new Date(now).toISOString().slice(0, 7), actor.companyId, actor.companyId, now, actor.userId, now - socialAiLimits.rateWindowMs, socialAiLimits.concurrent, socialAiLimits.perMinute),
-                r.prepareReplyDraft(usageId, row.post_id, actor.userId, source.post.version, source.hash, JSON.stringify(ids), JSON.stringify(source.sources), configured?.snapshot.model ?? env.AI_MODEL ?? "test", now, now + 86400000, configured ? JSON.stringify(configured.snapshot) : null),
-                r.reserveUsage(usageId, actor.companyId, actor.userId, new Date(now).toISOString().slice(0, 7), now + 180000, now),
-                r.clearReserveAssertions(usageId),
+                await r.prepareReplyDraft(usageId, row.post_id, actor.userId, source.post.version, source.hash, JSON.stringify(ids), JSON.stringify(source.sources), configured?.snapshot.model ?? env.AI_MODEL ?? "test", now, now + 86400000, configured ? JSON.stringify(configured.snapshot) : null),
+                await r.reserveUsage(usageId, actor.companyId, actor.userId, new Date(now).toISOString().slice(0, 7), now + 180000, now),
+                await r.clearReserveAssertions(usageId, actor.companyId),
             ]);
             const imageParts = imageIds.length ? await ports.readImagePhase(actor,{phase:"images",reservationId:usageId,postId:row.post_id,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{}),reply:{id:row.id,leaseToken:row.lease_token,actorJson:row.actor_json,ownerType:row.owner_type,ownerId:row.owner_id},images:{ids:imageIds,commentId:row.owner_type==="comment"?row.owner_id:null}},async()=>{const imageParts: Array<{
                 type: "image_url";
@@ -209,16 +209,16 @@ export function createSocialAgentApplication<Effect>(ports: SocialAgentPorts<Eff
             if (configured && JSON.stringify((await ports.resolveAiProvider(actor.companyId, env, imageIds.length ? "image" : "text", undefined, holdingId)).snapshot) !== JSON.stringify(configured.snapshot))
                 throw new Error("PROVIDER_CHANGED");
             const finish = ports.clock.now();
-            await ports.writePhase(actor,{phase:"finish",reservationId:usageId,postId:row.post_id,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{}),reply:{id:row.id,leaseToken:row.lease_token,actorJson:row.actor_json,ownerType:row.owner_type,ownerId:row.owner_id}},()=>[
+            await ports.writePhase(actor,{phase:"finish",reservationId:usageId,postId:row.post_id,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{}),reply:{id:row.id,leaseToken:row.lease_token,actorJson:row.actor_json,ownerType:row.owner_type,ownerId:row.owner_id}},async()=>[
                 ...ports.replyFeatureGuards(usageId, row.company_id),
                 ...ports.iamMutationGuards(actor, usageId), ports.assignmentGuard(usageId, actor), ports.sourceGuard(usageId, refreshed.post, actor.userId, "source-finish"), ...(configured ? [ports.aiSnapshotGuard(usageId, configured.snapshot)] : []),
                 r.guardCurrentLease(usageId, "lease", row.id, row.lease_token, finish),
-                r.prepareReplyComment(`reply-${row.id}`, row.post_id, ASSISTANT_ID, aiName, formatted.body, JSON.stringify(formatted.content), usageId, finish, finish, parent?.id ?? null),
-                r.finishReply(finish, row.id),
-                r.finishDraft(JSON.stringify(result), usageId),
-                r.finishUsage(output.inputTokens, output.outputTokens, usageId),
-                ...(configured ? [ports.aiUsageStatement(usageId, configured.snapshot, "social", "succeeded", output.inputTokens, output.outputTokens, actor.branchId)] : []),
-                r.clearFinishAssertions(usageId),
+                await r.prepareReplyComment(`reply-${row.id}`, row.post_id, ASSISTANT_ID, aiName, formatted.body, JSON.stringify(formatted.content), usageId, finish, finish, parent?.id ?? null),
+                await r.finishReply(finish, row.id),
+                await r.finishDraft(JSON.stringify(result), usageId),
+                await r.finishUsage(output.inputTokens, output.outputTokens, usageId),
+                ...(configured ? [await ports.aiUsageStatement(usageId, configured.snapshot, "social", "succeeded", output.inputTokens, output.outputTokens, actor.branchId)] : []),
+                await r.clearFinishAssertions(usageId, actor.companyId),
             ]);
         }
         catch (error) {
@@ -227,13 +227,13 @@ export function createSocialAgentApplication<Effect>(ports: SocialAgentPorts<Eff
             const unavailable = error instanceof BusinessRuleError && [403, 404].includes(error.status);
             const code = unavailable ? "ACCESS_CHANGED" : error instanceof BusinessRuleError && /rate limit|account quota/i.test(error.message) ? "AI_PROVIDER_QUOTA" : error instanceof BusinessRuleError ? error.code : "PROVIDER_ERROR";
             const explanation = code === "AI_LIMIT" || code === "AI_PROVIDER_QUOTA" ? "AI quota is exhausted. Ask the owner to check usage, then try again." : code.includes("IMAGE") ? "AI cannot read this image. Ask the owner to configure a tested image model." : code.includes("TIMEOUT") ? "AI timed out. Try again." : code === "AI_INCOMPLETE" ? "The AI response was cut off. Try again or choose a model with a larger output limit." : error instanceof BusinessRuleError && code === "AI_PROVIDER_ERROR" ? error.message : unavailable ? "The conversation or your access is no longer available." : code.includes("UNAVAILABLE") || code.includes("DISABLED") ? "AI is unavailable. Ask the owner to check AI settings." : "The AI service could not reply. Try again.";
-            await ports.writePhase(actor,{phase:"failure",reservationId:usageId,postId:row.post_id,sourceHash,reply:{id:row.id,leaseToken:row.lease_token,actorJson:row.actor_json,ownerType:row.owner_type,ownerId:row.owner_id}},()=>[
+            await ports.writePhase(actor,{phase:"failure",reservationId:usageId,postId:row.post_id,sourceHash,reply:{id:row.id,leaseToken:row.lease_token,actorJson:row.actor_json,ownerType:row.owner_type,ownerId:row.owner_id}},async()=>[
                 ...ports.replyFeatureGuards(usageId, row.company_id),
-                r.failReply(explanation, code, ports.clock.now(), row.id, row.lease_token,row.actor_json,row.owner_type,row.owner_id),
-                r.failDraft(usageId),
-                r.failUsage(usageId),
-                ...(configured ? [ports.aiUsageStatement(usageId, configured.snapshot, "social", "failed", 0, 0, actor.branchId)] : []),
-                r.clearFailureAssertions(usageId),
+                await r.failReply(explanation, code, ports.clock.now(), row.id, row.lease_token,row.actor_json,row.owner_type,row.owner_id),
+                await r.failDraft(usageId),
+                await r.failUsage(usageId),
+                ...(configured ? [await ports.aiUsageStatement(usageId, configured.snapshot, "social", "failed", 0, 0, actor.branchId)] : []),
+                await r.clearFailureAssertions(usageId, actor.companyId),
             ]);
         }
         return true;

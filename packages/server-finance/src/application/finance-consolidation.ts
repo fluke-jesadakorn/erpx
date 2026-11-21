@@ -57,8 +57,8 @@ export interface FinanceConsolidationRepository<Effect> {
         target_company_id: string;
     } | null>;
     guard11(key: string, value: "elimination-unique-source", runId: string, sourceTransactionId: string): Effect;
-    stageCreateConsolidationEliminationEffect(id: string, runId: string, description: string, debitAccountId: string, creditAccountId: string, amount: number, sourceTransactionId: string, userId: string, now: number, now2: number, value: string): Effect;
-    stageCreateConsolidationEliminationEffect2(value: string, id: string, runId: string, holdingId: string, value2: "proposed", value3: null, value4: "proposed", userId: string, value5: 1, value6: "Elimination account pair prepared from a settled intercompany source.", value7: string, now: number): Effect;
+    stageCreateConsolidationEliminationEffect(id: string, runId: string, description: string, debitAccountId: string, creditAccountId: string, amount: number, sourceTransactionId: string, userId: string, now: number, now2: number, value: string): Promise<Effect>;
+    stageCreateConsolidationEliminationEffect2(value: string, id: string, runId: string, holdingId: string, value2: "proposed", value3: null, value4: "proposed", userId: string, value5: 1, value6: "Elimination account pair prepared from a settled intercompany source.", value7: string, now: number): Promise<Effect>;
     readDecideConsolidationEliminationRow(eliminationId: string, holdingId: string): Promise<ConsolidationElimination & {
         run_status: string;
         as_of_date: string;
@@ -67,29 +67,29 @@ export interface FinanceConsolidationRepository<Effect> {
         source_snapshot_json: string;
     } | null>;
     guard15(key: string, value: "elimination-version", eliminationId: string, expectedVersion: number, from: "proposed" | "approved"): Effect;
-    stageDecideConsolidationEliminationEffect(userId: string, now: number, now2: number, eliminationId: string, expectedVersion: number): Effect;
+    stageDecideConsolidationEliminationEffect(userId: string, now: number, now2: number, eliminationId: string, expectedVersion: number): Promise<Effect>;
     readDecideConsolidationEliminationLineCount(journalId: string): Promise<{
         count: number;
     } | null>;
     guard18(key: string, value: "elimination-journal-not-reversed", journalId: string): Effect;
     guard19(key: string, value: "elimination-lines-unique", value2: string): Effect;
-    stageDecideConsolidationEliminationEffect2(journalId: string, run_id: string, holdingId: string, journalNumber: string, as_of_date: string, presentation_currency: string, value: "Controlled Group Finance elimination journal", source_hash: string, created_by: string | number | null, userId: string, now: number, now2: number, now3: number): Effect;
-    stageDecideConsolidationEliminationEffect3(value: string, journalId: string, debit_account_id: string, description: string, amount_minor: number, ordinal: number): Effect;
-    stageDecideConsolidationEliminationEffect4(value: string, journalId: string, credit_account_id: string, description: string, amount_minor: number, value2: number): Effect;
-    stageDecideConsolidationEliminationEffect5(userId: string, now: number, now2: number, journalId: string, run_id: string): Effect;
-    stageDecideConsolidationEliminationEffect6(journalId: string, userId: string, now: number, now2: number, eliminationId: string, expectedVersion: number): Effect;
-    stageDecideConsolidationEliminationEffect7(value: string, eliminationId: string, run_id: string, holdingId: string, event: "approved" | "posted", status: "proposed" | "approved", to: "approved" | "posted", userId: string, version: number, reason: string, value2: string, now: number): Effect;
+    stageDecideConsolidationEliminationEffect2(journalId: string, run_id: string, holdingId: string, journalNumber: string, as_of_date: string, presentation_currency: string, value: "Controlled Group Finance elimination journal", source_hash: string, created_by: string | number | null, userId: string, now: number, now2: number, now3: number): Promise<Effect>;
+    stageDecideConsolidationEliminationEffect3(value: string, journalId: string, debit_account_id: string, description: string, amount_minor: number, ordinal: number): Promise<Effect>;
+    stageDecideConsolidationEliminationEffect4(value: string, journalId: string, credit_account_id: string, description: string, amount_minor: number, value2: number): Promise<Effect>;
+    stageDecideConsolidationEliminationEffect5(userId: string, now: number, now2: number, journalId: string, run_id: string): Promise<Effect>;
+    stageDecideConsolidationEliminationEffect6(journalId: string, userId: string, now: number, now2: number, eliminationId: string, expectedVersion: number): Promise<Effect>;
+    stageDecideConsolidationEliminationEffect7(value: string, eliminationId: string, run_id: string, holdingId: string, event: "approved" | "posted", status: "proposed" | "approved", to: "approved" | "posted", userId: string, version: number, reason: string, value2: string, now: number): Promise<Effect>;
     readCreateConsolidationRunDuplicate(holdingId: string, asOfDate: string, presentationCurrency: string): Promise<{
         id: string;
     } | null>;
     guard27(key: string, value: "consolidation-unique", holdingId: string, asOfDate: string, presentationCurrency: string): Effect;
-    stageCreateConsolidationRunEffect(id: string, holdingId: string, presentationCurrency: string, asOfDate: string, value: string, sourceHash: string, userId: string, now: number, now2: number): Effect;
-    stageCreateConsolidationRunEffect2(value: string, id: string, holdingId: string, value2: "prepared", value3: null, value4: "draft", userId: string, value5: 1, value6: "Consolidation snapshot prepared from closed company periods.", value7: string, now: number): Effect;
+    stageCreateConsolidationRunEffect(id: string, holdingId: string, presentationCurrency: string, asOfDate: string, value: string, sourceHash: string, userId: string, now: number, now2: number): Promise<Effect>;
+    stageCreateConsolidationRunEffect2(value: string, id: string, holdingId: string, value2: "prepared", value3: null, value4: "draft", userId: string, value5: 1, value6: "Consolidation snapshot prepared from closed company periods.", value7: string, now: number): Promise<Effect>;
     readDecideConsolidationRunRun(runId: string, holdingId: string): Promise<ConsolidationRun | null>;
     readDecideConsolidationRunPending(runId: string): Promise<Record<string, unknown> | null>;
     readDecideConsolidationRunPending2(runId: string): Promise<Record<string, unknown> | null>;
-    stageDecideConsolidationRunUpdate(action: keyof typeof transition, userId: string, now: number, runId: string, holdingId: string, expectedVersion: number): Effect;
-    stageDecideConsolidationRunEvent(value: string, runId: string, holdingId: string, event: "approved" | "reviewed" | "published", status: "approved" | "draft" | "review", to: "approved" | "review" | "published", userId: string, version: number, reason: string, value2: string, now: number): Effect;
+    stageDecideConsolidationRunUpdate(action: keyof typeof transition, userId: string, now: number, runId: string, holdingId: string, expectedVersion: number): Promise<Effect>;
+    stageDecideConsolidationRunEvent(value: string, runId: string, holdingId: string, event: "approved" | "reviewed" | "published", status: "approved" | "draft" | "review", to: "approved" | "review" | "published", userId: string, version: number, reason: string, value2: string, now: number): Promise<Effect>;
     guard35(key: string, value: "consolidation-version", runId: string, holdingId: string, from: "approved" | "draft" | "review", expectedVersion: number): Effect;
     readConsolidationDetailRow(id: string, holdingId: string): Promise<ConsolidationRun | null>;
     readConsolidationDetailEffect(id: string): Promise<{
@@ -212,8 +212,8 @@ export function createFinanceConsolidationApplication<Effect>(ports: FinanceCons
         const now = ports.clock.now();
         return ports.commands.commit(actor, key, "finance.consolidation.elimination.propose", { runId, ...input }, id, 1, { id, runId, status: "proposed", version: 1, amountMinor: amount }, [
             repository.guard11(key, "elimination-unique-source", runId, input.sourceTransactionId),
-            repository.stageCreateConsolidationEliminationEffect(id, runId, input.description, input.debitAccountId, input.creditAccountId, amount, input.sourceTransactionId, actor.userId, now, now, JSON.stringify({ sourceTransactionId: transaction.id, sourceStatus: transaction.status, sourceAmountMinor: transaction.amount_minor, debitAccount: accounts.get(input.debitAccountId)?.code, creditAccount: accounts.get(input.creditAccountId)?.code, sourceHash: run.source_hash })),
-            repository.stageCreateConsolidationEliminationEffect2(`elimination-event-${key}`, id, runId, actor.holdingId, "proposed", null, "proposed", actor.userId, 1, "Elimination account pair prepared from a settled intercompany source.", JSON.stringify({ sourceTransactionId: input.sourceTransactionId, sourceHash: run.source_hash }), now),
+            await repository.stageCreateConsolidationEliminationEffect(id, runId, input.description, input.debitAccountId, input.creditAccountId, amount, input.sourceTransactionId, actor.userId, now, now, JSON.stringify({ sourceTransactionId: transaction.id, sourceStatus: transaction.status, sourceAmountMinor: transaction.amount_minor, debitAccount: accounts.get(input.debitAccountId)?.code, creditAccount: accounts.get(input.creditAccountId)?.code, sourceHash: run.source_hash })),
+            await repository.stageCreateConsolidationEliminationEffect2(`elimination-event-${key}`, id, runId, actor.holdingId, "proposed", null, "proposed", actor.userId, 1, "Elimination account pair prepared from a settled intercompany source.", JSON.stringify({ sourceTransactionId: input.sourceTransactionId, sourceHash: run.source_hash }), now),
         ]);
     }
     async function decideConsolidationElimination(actor: WorkContext, eliminationId: string, action: EliminationAction, input: z.infer<typeof consolidationEliminationDecisionSchema>, key: string) {
@@ -247,17 +247,17 @@ export function createFinanceConsolidationApplication<Effect>(ports: FinanceCons
         const steps: Effect[] = [repository.guard15(key, "elimination-version", eliminationId, input.expectedVersion, rule.from)];
         let result: Record<string, unknown> = { id: eliminationId, status: rule.to, version };
         if (action === "approve") {
-            steps.push(repository.stageDecideConsolidationEliminationEffect(actor.userId, now, now, eliminationId, input.expectedVersion));
+            steps.push(await repository.stageDecideConsolidationEliminationEffect(actor.userId, now, now, eliminationId, input.expectedVersion));
         }
         else {
             const journalId = `consolidation-journal-${row.run_id}`;
             const journalNumber = `CONSOLIDATION-${row.run_id}`;
             const lineCount = await repository.readDecideConsolidationEliminationLineCount(journalId);
             const ordinal = Number(lineCount?.count ?? 0);
-            steps.push(repository.guard18(key, "elimination-journal-not-reversed", journalId), repository.guard19(key, "elimination-lines-unique", `${eliminationId}-debit`), repository.stageDecideConsolidationEliminationEffect2(journalId, row.run_id, actor.holdingId, journalNumber, row.as_of_date, row.presentation_currency, "Controlled Group Finance elimination journal", row.source_hash, row.created_by, actor.userId, now, now, now), repository.stageDecideConsolidationEliminationEffect3(`${eliminationId}-debit`, journalId, row.debit_account_id, row.description, row.amount_minor, ordinal), repository.stageDecideConsolidationEliminationEffect4(`${eliminationId}-credit`, journalId, row.credit_account_id, row.description, row.amount_minor, ordinal + 1), repository.stageDecideConsolidationEliminationEffect5(actor.userId, now, now, journalId, row.run_id), repository.stageDecideConsolidationEliminationEffect6(journalId, actor.userId, now, now, eliminationId, input.expectedVersion));
+            steps.push(repository.guard18(key, "elimination-journal-not-reversed", journalId), repository.guard19(key, "elimination-lines-unique", `${eliminationId}-debit`), await repository.stageDecideConsolidationEliminationEffect2(journalId, row.run_id, actor.holdingId, journalNumber, row.as_of_date, row.presentation_currency, "Controlled Group Finance elimination journal", row.source_hash, row.created_by, actor.userId, now, now, now), await repository.stageDecideConsolidationEliminationEffect3(`${eliminationId}-debit`, journalId, row.debit_account_id, row.description, row.amount_minor, ordinal), await repository.stageDecideConsolidationEliminationEffect4(`${eliminationId}-credit`, journalId, row.credit_account_id, row.description, row.amount_minor, ordinal + 1), await repository.stageDecideConsolidationEliminationEffect5(actor.userId, now, now, journalId, row.run_id), await repository.stageDecideConsolidationEliminationEffect6(journalId, actor.userId, now, now, eliminationId, input.expectedVersion));
             result = { ...result, journalId };
         }
-        steps.push(repository.stageDecideConsolidationEliminationEffect7(`elimination-event-${key}`, eliminationId, row.run_id, actor.holdingId, rule.event, row.status, rule.to, actor.userId, version, input.reason, JSON.stringify({ sourceHash: row.source_hash, debitAccount: accounts.get(row.debit_account_id)?.code, creditAccount: accounts.get(row.credit_account_id)?.code, amountMinor: row.amount_minor }), now));
+        steps.push(await repository.stageDecideConsolidationEliminationEffect7(`elimination-event-${key}`, eliminationId, row.run_id, actor.holdingId, rule.event, row.status, rule.to, actor.userId, version, input.reason, JSON.stringify({ sourceHash: row.source_hash, debitAccount: accounts.get(row.debit_account_id)?.code, creditAccount: accounts.get(row.credit_account_id)?.code, amountMinor: row.amount_minor }), now));
         return ports.commands.commit(actor, key, rule.operation, input, eliminationId, version, result, steps);
     }
     async function createConsolidationRun(actor: WorkContext, input: z.infer<typeof consolidationRunSchema>, key: string) {
@@ -274,8 +274,8 @@ export function createFinanceConsolidationApplication<Effect>(ports: FinanceCons
         const now = ports.clock.now();
         return ports.commands.commit(actor, key, "finance.consolidation.prepare", input, id, 1, { id, status: "draft", version: 1, sourceHash, companyCount: source.companies.length }, [
             repository.guard27(key, "consolidation-unique", actor.holdingId, input.asOfDate, input.presentationCurrency),
-            repository.stageCreateConsolidationRunEffect(id, actor.holdingId, input.presentationCurrency, input.asOfDate, JSON.stringify(source), sourceHash, actor.userId, now, now),
-            repository.stageCreateConsolidationRunEffect2(`consolidation-event-${key}`, id, actor.holdingId, "prepared", null, "draft", actor.userId, 1, "Consolidation snapshot prepared from closed company periods.", JSON.stringify({ sourceHash, companyCount: source.companies.length }), now),
+            await repository.stageCreateConsolidationRunEffect(id, actor.holdingId, input.presentationCurrency, input.asOfDate, JSON.stringify(source), sourceHash, actor.userId, now, now),
+            await repository.stageCreateConsolidationRunEffect2(`consolidation-event-${key}`, id, actor.holdingId, "prepared", null, "draft", actor.userId, 1, "Consolidation snapshot prepared from closed company periods.", JSON.stringify({ sourceHash, companyCount: source.companies.length }), now),
         ]);
     }
     async function decideConsolidationRun(actor: WorkContext, runId: string, action: keyof typeof transition, input: z.infer<typeof consolidationDecisionSchema>, key: string) {
@@ -309,8 +309,8 @@ export function createFinanceConsolidationApplication<Effect>(ports: FinanceCons
         if (current.sourceHash !== run.source_hash)
             throw new BusinessRuleError(409, "CONSOLIDATION_SNAPSHOT_STALE", "Closed periods or intercompany evidence changed. Prepare a fresh consolidation snapshot.");
         const version = input.expectedVersion + 1, now = ports.clock.now();
-        const update = repository.stageDecideConsolidationRunUpdate(action, actor.userId, now, runId, actor.holdingId, input.expectedVersion);
-        const event = repository.stageDecideConsolidationRunEvent(`consolidation-event-${key}`, runId, actor.holdingId, rule.event, run.status, rule.to, actor.userId, version, input.reason, JSON.stringify({ sourceHash: run.source_hash, previousVersion: input.expectedVersion }), now);
+        const update = await repository.stageDecideConsolidationRunUpdate(action, actor.userId, now, runId, actor.holdingId, input.expectedVersion);
+        const event = await repository.stageDecideConsolidationRunEvent(`consolidation-event-${key}`, runId, actor.holdingId, rule.event, run.status, rule.to, actor.userId, version, input.reason, JSON.stringify({ sourceHash: run.source_hash, previousVersion: input.expectedVersion }), now);
         const steps: Effect[] = [
             repository.guard35(key, "consolidation-version", runId, actor.holdingId, rule.from, input.expectedVersion),
             update,

@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "scope": "Optional native OIDC public-verification dependency provenance; exact unmodified upstream license texts. Not a security audit, full owner acceptance, public-release clearance or runtime activation.",
+  "packages": [
+    {
+      "crate": "ml-dsa",
+      "version": "0.1.1",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.85",
+      "archiveUrl": "https://static.crates.io/crates/ml-dsa/ml-dsa-0.1.1.crate",
+      "archiveSha256": "add6b9d92e496f16f4526d68ff29da1483aba4b119baeab8bed3b9e3544a6f3d",
+      "registryUrl": "https://crates.io/crates/ml-dsa/0.1.1",
+      "upstreamSourceUrl": "https://github.com/RustCrypto/signatures/tree/f75d5b829948988f18d9463f286805fb9410bcdd/ml-dsa",
+      "archiveSourceCommit": "f75d5b829948988f18d9463f286805fb9410bcdd",
+      "modifiedUpstreamSource": false,
+      "optionalFeature": "directory-oidc",
+      "useScope": "Planned native OIDC public-signature verification only; no canonical OIDC authentication acceptance or service activation established by dependency metadata.",
+      "licenses": [
+        {
+          "path": "packages/server-identity_access/licenses/ml-dsa-0.1.1-APACHE-2.0.txt",
+          "upstreamPath": "ml-dsa-0.1.1/LICENSE-APACHE",
+          "sha256": "391a7404ef6f0ad2b21e5270dd0b95c69ed09dc03be45252442542c010c9a9f6"
+        },
+        {
+          "path": "packages/server-identity_access/licenses/ml-dsa-0.1.1-MIT.txt",
+          "upstreamPath": "ml-dsa-0.1.1/LICENSE-MIT",
+          "sha256": "4621bda86773a67b5645bbd25cf1bf8b6820d4fcec3885b23b9ceec612007f63"
+        }
+      ]
+    },
+    {
+      "crate": "rsa",
+      "version": "0.9.10",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.65",
+      "archiveUrl": "https://static.crates.io/crates/rsa/rsa-0.9.10.crate",
+      "archiveSha256": "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d",
+      "registryUrl": "https://crates.io/crates/rsa/0.9.10",
+      "upstreamSourceUrl": "https://github.com/RustCrypto/RSA/tree/da2af9a0ff814762957c428460e4098720f394a6",
+      "archiveSourceCommit": "da2af9a0ff814762957c428460e4098720f394a6",
+      "modifiedUpstreamSource": false,
+      "optionalFeature": "directory-oidc",
+      "useScope": "Planned native OIDC public-signature verification only; no canonical OIDC authentication acceptance or service activation established by dependency metadata.",
+      "licenses": [
+        {
+          "path": "packages/server-identity_access/licenses/rsa-0.9.10-APACHE-2.0.txt",
+          "upstreamPath": "rsa-0.9.10/LICENSE-APACHE",
+          "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+        },
+        {
+          "path": "packages/server-identity_access/licenses/rsa-0.9.10-MIT.txt",
+          "upstreamPath": "rsa-0.9.10/LICENSE-MIT",
+          "sha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652"
+        }
+      ]
+    }
+  ],
+  "transitiveAddedPackages": [
+    {
+      "name": "keccak",
+      "version": "0.2.2",
+      "checksum": "d8f198d1db720e4940b5a493201d199d9f24f568f8f746bd13706243a2f71598",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.85",
+      "repository": "https://github.com/RustCrypto/sponges"
+    },
+    {
+      "name": "lazy_static",
+      "version": "1.5.1",
+      "checksum": "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": null,
+      "repository": "https://github.com/rust-lang-nursery/lazy-static.rs"
+    },
+    {
+      "name": "libm",
+      "version": "0.2.16",
+      "checksum": "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981",
+      "license": "MIT",
+      "rustVersion": "1.63",
+      "repository": "https://github.com/rust-lang/compiler-builtins"
+    },
+    {
+      "name": "ml-dsa",
+      "version": "0.1.1",
+      "checksum": "add6b9d92e496f16f4526d68ff29da1483aba4b119baeab8bed3b9e3544a6f3d",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.85",
+      "repository": "https://github.com/RustCrypto/signatures"
+    },
+    {
+      "name": "module-lattice",
+      "version": "0.2.3",
+      "checksum": "0c61b87c9683ab7cb1c6871d261ad5479b6b10ceb52c4352aaca3b5d35a8febe",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.85",
+      "repository": "https://github.com/RustCrypto/KEMs"
+    },
+    {
+      "name": "num-bigint-dig",
+      "version": "0.8.6",
+      "checksum": "e661dda6640fad38e827a6d4a310ff4763082116fe217f279885c97f511bb0b7",
+      "license": "MIT/Apache-2.0",
+      "rustVersion": "1.56",
+      "repository": "https://github.com/dignifiedquire/num-bigint"
+    },
+    {
+      "name": "num-iter",
+      "version": "0.1.46",
+      "checksum": "c92800bd69a1eac91786bcfe9da64a897eb72911b8dc3095decbd07429e8048b",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.31",
+      "repository": "https://github.com/rust-num/num-iter"
+    },
+    {
+      "name": "pkcs1",
+      "version": "0.7.5",
+      "checksum": "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.60",
+      "repository": "https://github.com/RustCrypto/formats/tree/master/pkcs1"
+    },
+    {
+      "name": "pkcs8",
+      "version": "0.10.2",
+      "checksum": "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.65",
+      "repository": "https://github.com/RustCrypto/formats/tree/master/pkcs8"
+    },
+    {
+      "name": "ppv-lite86",
+      "version": "0.2.21",
+      "checksum": "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.61",
+      "repository": "https://github.com/cryptocorrosion/cryptocorrosion"
+    },
+    {
+      "name": "rand",
+      "version": "0.8.8",
+      "checksum": "e058c7de0b26af77780c769414d6257830bb240f3c38477dbc2c16e5f54d6d4c",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": null,
+      "repository": "https://github.com/rust-random/rand"
+    },
+    {
+      "name": "rand_chacha",
+      "version": "0.3.1",
+      "checksum": "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": null,
+      "repository": "https://github.com/rust-random/rand"
+    },
+    {
+      "name": "rand_core",
+      "version": "0.6.4",
+      "checksum": "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": null,
+      "repository": "https://github.com/rust-random/rand"
+    },
+    {
+      "name": "rsa",
+      "version": "0.9.10",
+      "checksum": "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.65",
+      "repository": "https://github.com/RustCrypto/RSA"
+    },
+    {
+      "name": "shake",
+      "version": "0.1.0",
+      "checksum": "09057cb2149ad4cbd2da1e26b351f9a4c354219421229c69c3063e6f61947c4a",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.85",
+      "repository": "https://github.com/RustCrypto/XOFs"
+    },
+    {
+      "name": "signature",
+      "version": "2.2.0",
+      "checksum": "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de",
+      "license": "Apache-2.0 OR MIT",
+      "rustVersion": "1.60",
+      "repository": "https://github.com/RustCrypto/traits/tree/master/signature"
+    },
+    {
+      "name": "sponge-cursor",
+      "version": "0.1.0",
+      "checksum": "3a0219bd7d979d58245a4f41f695e1ac9f8befdffadd7f61f1bae9e39abc6620",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.85",
+      "repository": "https://github.com/RustCrypto/utils"
+    },
+    {
+      "name": "zerocopy",
+      "version": "0.8.63",
+      "checksum": "e5fe1f8f1b06191a00962174c61aa5005e0bb391a6d80d07e24d115c01a92ed8",
+      "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+      "rustVersion": "1.56.0",
+      "repository": "https://github.com/google/zerocopy"
+    },
+    {
+      "name": "zerocopy-derive",
+      "version": "0.8.63",
+      "checksum": "863ad3ac83293fb4d740aedbfdc9240dd8d1a50c1099acd76ce80ce7c7230c7f",
+      "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+      "rustVersion": null,
+      "repository": "https://github.com/google/zerocopy"
+    }
+  ],
+  "advisoryReview": {
+    "mlDsa": {
+      "source": "https://github.com/RustCrypto/signatures/security/advisories/GHSA-5x2r-hc65-25f9",
+      "patchedFrom": "0.1.0-rc.4",
+      "selectedVersion": "0.1.1",
+      "upstreamAuditStatus": "Upstream does not claim an independent security audit; patched version selection does not establish an audit."
+    },
+    "rsa": {
+      "source": "https://github.com/RustCrypto/RSA#security-warning",
+      "limitation": "Upstream discloses private-key timing/Marvin concerns. Planned use is public-signature verification only; no blanket advisory waiver or independent audit is claimed."
+    }
+  }
+}

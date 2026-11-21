@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Organization node/business-unit/sharing reads and lifecycle commands are PostgreSQL/HTTP qualified with an opt-in Next command transport; the page GET and browser journey remain open",
+  "capability": "organization-native-nodes",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Bounded node-change parsing, reserved slugs, branch/department placement, lifecycle transitions, relocation fences, independent review, business-unit visibility and channel audience rules.",
+    "application": "Workspace read, save/preview/review/cancel use cases with replay-before-validation ordering and retained error codes.",
+    "adapters": "Company-scoped node tree/changes/channels, CAS guards, current-IAM recheck, receipts/audit/outbox, immutable events, channel provisioning and relocation effects across organization/authority/messaging rows.",
+    "http": "Registered-Holding GET /people/organization and POST /people/organization/changes, /changes/preview, /changes/{id}/review and /changes/{id}/cancel with normal Account session, origin, idempotency and current context.",
+    "frontend": "Opt-in native Next command transport for node-change selectors; missing configuration keeps the retained TypeScript writer as an explicit fallback. The page GET remains on the retained owner read because it also supplies People roster/position data owned elsewhere."
+  },
+  "tests": [
+    "organization.rust-organization-nodes.unit: 7 passed",
+    "organization.rust-organization-nodes-postgres.integration: 4 passed (lifecycle/replay/immutability, Company isolation/scope/stale/revocation, relocation/authority/channels, children/rollback)",
+    "organization.rust-organization-http-postgres.integration: 2 passed (normal session read/review, foreign origin/missing key/foreign Company)",
+    "cargo test -p erpx-server-organization: all registered targets pass",
+    "feature-organization/workplace typechecks: pass",
+    "tests/unit/organization/organization-services.test.ts: 52 passed including 5 native transport cases"
+  ],
+  "limits": [
+    "No authenticated browser journey; the four organization workflows are not claimed verified.",
+    "Page GET remains on the retained TypeScript overview because it also includes People roster/position data not yet native.",
+    "Attachment proof binding for organization-change review is not ported; native review rejects non-empty attachment sets with 503.",
+    "Position/template/draft/position-move workflows remain on TypeScript and are outside this slice.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

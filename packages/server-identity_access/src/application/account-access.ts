@@ -1,5 +1,5 @@
 import type { WorkContext } from '@erpx/server-identity_access/domain/authorization';
-import { assertGrantScope, type Invitation, type PersonFact, type PersonGrant, type InvitationAcceptance } from '@erpx/server-identity_access/domain/account-access';
+import { assertGrantScope, type Invitation, type PersonFact, type PersonGrant } from '@erpx/server-identity_access/domain/account-access';
 import type { IdentityError } from '@erpx/server-identity_access/application/authorization';
 import type { BusinessRole } from "@erpx/feature-identity_access/lib/business-roles";
 export type PersonGrantRequest = {
@@ -15,7 +15,6 @@ export interface AccountAccessPorts {
     person(actor: WorkContext, id: string): Promise<PersonFact>;
     error: IdentityError;
     now(): number;
-    throttleActivation?(row: Invitation, userId: string): Promise<void>;
     digest(value: string): Promise<string>;
     token(id: string): Promise<string>;
     emailExists(email: string): Promise<boolean>;
@@ -36,23 +35,6 @@ export interface AccountAccessPorts {
     invitationStatus(actor: WorkContext, personId: string, id: string): Promise<string | null>;
     cancelDelivery(id: string): Promise<void>;
     invitation(tokenHash: string, now: number): Promise<Invitation | null>;
-    reviewed(row: Invitation): Promise<{
-        id: string;
-    } | null>;
-    prepareActivation(row: Invitation): Promise<void>;
-    eligible(row: Invitation, userId: string, now: number): Promise<{
-        role: string;
-    } | null>;
-    credential(userId: string): Promise<{
-        password: string;
-    } | null>;
-    verify(password: string, hash: string): Promise<boolean>;
-    createAccount(row: Invitation, userId: string, password: string, now: number): Promise<void>;
-    activate(row: Invitation, reviewId: string, userId: string, now: number, grant: {
-        role: BusinessRole;
-        expires: number;
-    }, role: string): Promise<void>;
-    accepted(row: Invitation, userId: string): Promise<void>;
 }
 const requested = (person: PersonFact, input: PersonGrant, userId: string, reason: string): PersonGrantRequest => ({ userId, roleId: input.role, scopeKind: input.scope, scopeNodeId: (input.scope === 'holding' ? null : input.scope === 'branch' ? person.branch_id : person.department_id) as string | null, validUntil: Date.parse(input.expiresAt) + 86400000, reason });
 export function createAccountAccessService(ports: AccountAccessPorts) {
@@ -75,13 +57,5 @@ export function createAccountAccessService(ports: AccountAccessPorts) {
         revokeInvitation: async (actor: WorkContext, personId: string, invitationId: string, key: string) => { actor = ports.owner(actor); await ports.person(actor, personId); await ports.fresh(actor); await ports.prepare(actor); await ports.reserve(actor, key, 'invitation.revoke', { personId, invitationId }, invitationId); if (!await ports.revokeInvitation(actor, personId, invitationId) && await ports.invitationStatus(actor, personId, invitationId) !== 'revoked')
             throw ports.error(409, 'INVITATION_CHANGED', 'Only a pending invitation can be revoked.'); await ports.cancelDelivery(invitationId); return { id: invitationId, status: 'revoked' }; },
         inspectInvitation: async (token: string) => { const row = await invitation(token); return { name: row.name, email: row.email, existingAccount: Boolean(JSON.parse(row.role).existingUserId) }; },
-        acceptInvitation: async (input: InvitationAcceptance) => { const row = await invitation(input.token), reviewed = await ports.reviewed(row); if (!reviewed)
-            throw ports.error(409, 'INVITATION_REVIEW_REQUIRED', 'An independent administrator must approve this invitation before activation.'); await ports.prepareActivation(row); const existingUserId = JSON.parse(row.role).direct === true ? JSON.parse(row.role).existingUserId as string | undefined : undefined; if (!existingUserId && input.password.length < 12) throw ports.error(422, 'PASSWORD_TOO_SHORT', 'Use at least 12 characters for a new account.'); const userId = existingUserId ?? 'usr_invite_' + row.id, now = ports.now(), grant = JSON.parse(row.role) as {
-            role: BusinessRole;
-            expires: number;
-        }, eligible = await ports.eligible(row, userId, now); if (!eligible || grant.expires <= now)
-            throw ports.error(409, 'INVITATION_NO_LONGER_ELIGIBLE', 'The employee or authorizing assignment is no longer active.'); await ports.throttleActivation?.(row,userId); const account = await ports.credential(userId); if (existingUserId && !account) throw ports.error(409, 'ACCOUNT_VERIFICATION_REQUIRED', 'Use the verified account sign-in method.'); if (account && !await ports.verify(input.password, account.password))
-            throw ports.error(409, 'ACTIVATION_RETRY_PASSWORD', existingUserId ? 'Verify the existing account password.' : 'Use the password from your first activation attempt.'); if (!account)
-            await ports.createAccount(row, userId, input.password, now); await ports.activate(row, reviewed.id, userId, now, grant, eligible.role); await ports.accepted(row, userId); return { activated: true }; }
     };
 }

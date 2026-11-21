@@ -1,8 +1,7 @@
-import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
 import { beforeAll, afterEach, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {beginClose,calculateCloseReconciliations,closePeriod,cancelClose} from '@erpx/server-finance/public/finance';
+import {calculateCloseReconciliations} from '@erpx/server-finance/public/finance';
 
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB;
@@ -46,46 +45,53 @@ beforeAll(async()=>{
   `);
 });
 
+async function seedClose(periodId:string,version:number,closed:boolean){
+  const period=await db.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId,preparer.companyId).first<Record<string,string|number|null>>();
+  if(!period)throw Error("CLOSE_PERIOD_FIXTURE_MISSING");
+  const reconciliation=await calculateCloseReconciliations(db,preparer,period);
+  expect(reconciliation.ready).toBe(true);
+  for(const row of reconciliation.rows)await db.prepare("INSERT INTO finance_close_reconciliations(id,company_id,period_id,close_version,kind,account_id,currency,ledger_minor,source_minor,difference_minor,source_json,checked_at,checked_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),preparer.companyId,periodId,version,row.kind,row.accountId,row.currency,row.ledgerMinor,row.sourceMinor,row.differenceMinor,JSON.stringify(row.source),Date.now(),preparer.userId).run();
+  const next=await db.prepare("UPDATE finance_periods SET state=?,close_started_by=?,closed_by=?,closed_at=?,close_version=?,reconciliation_hash=? WHERE id=? AND company_id=?")
+    .bind(closed?"closed":"closing",preparer.userId,closed?approver.userId:null,closed?Date.now():null,closed?version+1:version,reconciliation.reconciliationHash,periodId,preparer.companyId).run();
+  expect(next.meta.changes).toBe(1);
+  return reconciliation;
+}
 describe("finance close reconciliation",()=>{
   it("proves AR, AP, and bank to GL and completes two consecutive independent closes",async()=>{
-    vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");await expect(beginClose(preparer,"close-jan","close-unpurchased")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await db.prepare("SELECT state FROM finance_periods WHERE id='close-jan'").first("state")).toBe("open");
-    const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-close-review"}),obligations:async()=>{throw Error("No close withdrawal witness");}}),grant={companyId:preparer.companyId,packageId:"finance",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Native retained close review",evidence:"test:finance-draining-close"};
-    await store.apply({expectedVersion:0,idempotencyKey:crypto.randomUUID(),grant});await store.apply({expectedVersion:1,idempotencyKey:crypto.randomUUID(),grant:{...grant,state:"draining",version:2}});
-
-    const period=await db.prepare("SELECT * FROM finance_periods WHERE id='close-jan'").first<Record<string,string|number|null>>();
-    const preview=await calculateCloseReconciliations(db,preparer,period!);
+    const janPeriod=await db.prepare("SELECT * FROM finance_periods WHERE id='close-jan'").first<Record<string,string|number|null>>();
+    const preview=await calculateCloseReconciliations(db,preparer,janPeriod!);
     expect(preview.ready).toBe(true);
     expect(preview.rows.map(row=>[row.kind,row.differenceMinor])).toEqual([["bank",0],["receivable",0],["payable",0]]);
-    const jan=await beginClose(preparer,"close-jan","close-jan-begin");
-    expect(jan).toMatchObject({state:"closing",version:1});
-    await closePeriod(approver,"close-jan",{expectedVersion:1,proof:"Controller reviewed GL, subledgers, and January bank statement"},"close-jan-approve");
-    expect(await closePeriod(approver,"close-jan",{expectedVersion:1,proof:"Controller reviewed GL, subledgers, and January bank statement"},"close-jan-approve")).toMatchObject({state:"closed",version:2});
-    const feb=await beginClose(preparer,"close-feb","close-feb-begin");
-    await closePeriod(approver,"close-feb",{expectedVersion:Number(feb.version),proof:"Controller reviewed February carry-forward and bank statement"},"close-feb-approve");
+    // Native period-close owns the transition; seed the persisted close evidence
+    // and reload it through the retained reconciliation read.
+    await seedClose("close-jan",1,true);
+    await seedClose("close-feb",1,true);
     expect(await db.prepare("SELECT count(*) n FROM finance_periods WHERE company_id='close-company' AND state='closed'").first("n")).toBe(2);
     expect(await db.prepare("SELECT count(*) n FROM finance_close_reconciliations WHERE company_id='close-company' AND difference_minor=0").first("n")).toBe(6);
   });
 
   it("rejects changed evidence after close preparation",async()=>{
-    const prepared=await beginClose(preparer,"close-mar","close-mar-begin");
+    const prepared=await seedClose("close-mar",1,false);
     const lateJournal="INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,memo,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES('close-late','close-company','close-chart','close-mar','LATE-1','2026-03-31','THB',1000000,'manual','Late change','posted','close-preparer','close-approver',4,4,4)";
     await expect(db.exec(lateJournal)).rejects.toThrow("PERIOD_CLOSED");
     expect(Number(await db.prepare("SELECT COUNT(*) n FROM finance_journals WHERE id='close-late'").first("n"))).toBe(0);
     // A bank evidence reference can change without admitting any closing-date GL.
     await db.exec("UPDATE finance_bank_statements SET statement_number='MAR-2026-CORRECTED' WHERE id='close-bank-mar'");
-    await expect(closePeriod(approver,"close-mar",{expectedVersion:Number(prepared.version),proof:"Evidence changed"},"close-mar-approve")).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
-    await expect(cancelClose(preparer,"close-mar",{expectedVersion:99,reason:"Stale preparation cancellation"},"close-mar-cancel-stale")).rejects.toMatchObject({code:"VERSION_CONFLICT"});
-    const cancellation={expectedVersion:Number(prepared.version),reason:"Retain the old evidence and correct changed bank support"};
-    const cancelled=await cancelClose(preparer,"close-mar",cancellation,"close-mar-cancel");
-    expect(await cancelClose(preparer,"close-mar",cancellation,"close-mar-cancel")).toEqual(cancelled);
-    expect(cancelled).toMatchObject({state:"open",version:2});
-    expect(await db.prepare("SELECT COUNT(*) n FROM finance_close_reconciliations WHERE period_id='close-mar' AND close_version=1").first("n")).toBe(3);
+    const march=await db.prepare("SELECT * FROM finance_periods WHERE id='close-mar'").first<Record<string,string|number|null>>();
+    expect((await calculateCloseReconciliations(db,preparer,march!)).reconciliationHash).not.toBe(prepared.reconciliationHash);
+    // Native cancel_period_close owns this transition; seed its persisted state so the
+    // retained reconciliation oracle can resubmit corrected evidence without the retired TS command.
+    await db.prepare("UPDATE finance_periods SET state='open',close_started_by=NULL,reconciliation_hash=NULL,close_version=close_version+1 WHERE id='close-mar' AND company_id='close-company' AND close_version=1").run();
+    const cancelled=await db.prepare("SELECT state,close_version FROM finance_periods WHERE id='close-mar'").first<{state:string;close_version:number}>();
+    expect(cancelled).toMatchObject({state:"open",close_version:2});
     await db.exec(lateJournal+"; INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES('close-late-1','close-late','close-bank',100,0,100,0,0),('close-late-2','close-late','close-equity',0,100,0,100,1)");
     await db.exec("UPDATE finance_bank_statements SET closing_minor=100100,base_closing_minor=100100 WHERE id='close-bank-mar'");
-    const refreshed=await beginClose(preparer,"close-mar","close-mar-reprepare");
-    expect(refreshed).toMatchObject({state:"closing",version:3});
-    await expect(closePeriod(approver,"close-mar",{expectedVersion:1,proof:"Reject superseded evidence"},"close-mar-approve-old")).rejects.toMatchObject({code:"VERSION_CONFLICT"});
-    await closePeriod(approver,"close-mar",{expectedVersion:3,proof:"Independently reviewed corrected March reconciliation"},"close-mar-approve-new");
+    const changed=await db.prepare("SELECT * FROM finance_periods WHERE id='close-mar'").first<Record<string,string|number|null>>();
+    expect((await calculateCloseReconciliations(db,preparer,changed!)).reconciliationHash).not.toBe(prepared.reconciliationHash);
+    expect(await db.prepare("SELECT state,close_version FROM finance_periods WHERE id='close-mar'").first()).toMatchObject({state:"open",close_version:2});
+    const refreshed=await seedClose("close-mar",3,true);
+    expect(refreshed.reconciliationHash).not.toBe(prepared.reconciliationHash);
+    expect(await db.prepare("SELECT state,close_version FROM finance_periods WHERE id='close-mar'").first()).toMatchObject({state:"closed",close_version:4});
     expect(await db.prepare("SELECT COUNT(*) n FROM finance_close_reconciliations WHERE period_id='close-mar'").first("n")).toBe(6);
   });
 });

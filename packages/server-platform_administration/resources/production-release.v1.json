@@ -1,0 +1,25 @@
+{
+  "schema": "erpx-production-release/v1",
+  "source": {
+    "path": "packages/catalogue/src/production-scope.ts",
+    "sha256": "d67d9c7bdb16a59fa4119e27e1a6a170242beae4995eff6ae4258c77da21faf3"
+  },
+  "scopeVersion": "thai-hotel-v1-crm-analytics",
+  "criteria": [
+    { "id": "documentation", "permission": "organization.manage" },
+    { "id": "hotel", "permission": "pms.approve" },
+    { "id": "crm_analytics", "permission": "commerce.approve" },
+    { "id": "marketing_analytics", "permission": "records.write" },
+    { "id": "restaurant", "permission": "pos.approve" },
+    { "id": "procurement", "permission": "organization.manage" },
+    { "id": "hr", "permission": "people.manage" },
+    { "id": "thai_payroll", "permission": "payroll.approve" },
+    { "id": "ai", "permission": "organization.manage" },
+    { "id": "money_access", "permission": "finance.approve" },
+    { "id": "release", "permission": "organization.manage" },
+    { "id": "operations", "permission": "organization.manage" },
+    { "id": "hotel_signoff", "permission": "pms.approve" },
+    { "id": "payroll_signoff", "permission": "payroll.approve" },
+    { "id": "finance_signoff", "permission": "finance.approve" }
+  ]
+}

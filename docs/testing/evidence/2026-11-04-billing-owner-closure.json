@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Billing now has a bounded native Holding billing workspace read, native Platform actual-cost review commands, an owner-local HTTP router and a configured Next SSR read cutover. The owner remains pending/partial: the full five-workflow catalogue, Stripe subscription/checkout mutations, background jobs, shared composition mounting, root workspace membership and browser acceptance remain open.",
+  "capability": "billing-owner-workspace-cost-review-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "810caef39",
+  "observedWorktreeHead": "9ef6f44e0",
+  "scope": {
+    "workflows": [
+      "commercial/invoices",
+      "manage_erpx/billing"
+    ],
+    "workflowBoundary": "The qualified read returns one current Holding's billing account, latest enrollment, plan revisions, service periods, metered costs, invoices, audit, pending jobs and retained legacy beta-billing status. The qualified commands record or remove one unissued metered cost and set the explicit period cost-review flag. Entitlement enforcement, plan publication/subscription changes, Stripe customer/checkout/portal changes, invoice issue/void, payment mode, provider verification, target rating/rollout, background jobs, evidence intake and every other billing workflow command remain on the retained TypeScript owner. No whole workflow is claimed verified.",
+    "domain": "Platform read roles platform_admin/platform_auditor; Platform write role platform_admin only; exact Holding-owner read for the target Holding; optional work-context expiry; no Company dimension widening. Exact 500-row workspace bounds, 100-row audit bound, unique ids, descending period month/invoice/audit order, plan revision order, month/status/category/money/date validation, period and invoice reference integrity, and fail-closed source validation. Command facts cover 3..1000-character reasons, 1..2000-character notes, category/negative-cost policy, adjustment original-invoice requirement, actual-evidence requirement, simulated label, service-date period containment, exact expected account version and deterministic owner receipt identity.",
+    "application": "billing_workspace checks the actor before any repository call, loads only the target Holding rows, validates the complete bounded projection and returns the exact retained Billing view shape. execute_cost_command checks the Platform administrator, validates the command, locks the Holding and command key, replays an exact canonical receipt or rejects a different digest, checks Holding/account existence and exact account-version CAS, applies one record/delete/complete effect, increments the account version with CAS, writes audit and the command receipt in the same caller transaction and validates persisted cost/period/receipt readback.",
+    "adapters": "PostgreSQL SQL is Billing-owned Control SQL: billing_accounts, billing_enrollments, billing_plans, billing_periods, billing_costs, billing_invoices, billing_audit, billing_jobs, billing_evidence, billing_receipts and the retained Billing legacy beta_billing/stripe_inbox sources, plus the existing holding_bindings existence check. No cross-owner Holding SQL, Stripe request, invoice issue, job dispatch or commit is performed. The read and command adapters require the caller's serializable Control transaction.",
+    "http": "Owner-local axum router: GET /api/v1/holdings/{holding_slug}/billing; POST /api/v1/holdings/{holding_slug}/billing/costs/{record|delete|complete}. It enforces exact registered Host/Holding target, exact origin when present, no query, application/json, bounded body, Idempotency-Key, exact camelCase JSON keys, owner domain validation and BusinessError-to-HTTP mapping. Private/no-store, no-referrer and nosniff headers are retained.",
+    "ssr": "packages/server-billing/src/adapters/billing-presentation.ts now reads the selected Billing view through the native owner transport for the server-render initial data when ERPX_NATIVE_BILLING_CONFIG is present, forwarding the current Host/cookie/context headers. A configured but unavailable or malformed native read fails closed. Without the configuration the retained TypeScript view remains the declared fallback. Platform account selection and the retained BillingConsole 15-second poll still use the TypeScript API route; only the selected Holding initial server-render view is native.",
+    "outboxNote": "The retained Billing command boundary has no Billing outbox table and writes one billing_audit row plus one billing_receipts row in the same transaction; the native command preserves exactly those owner effects. No new outbox or cross-owner effect was invented."
+  },
+  "filesChanged": {
+    "rust": [
+      "packages/server-billing/Cargo.toml",
+      "packages/server-billing/src/lib.rs",
+      "packages/server-billing/src/domain/mod.rs",
+      "packages/server-billing/src/domain/actor.rs",
+      "packages/server-billing/src/domain/workspace.rs",
+      "packages/server-billing/src/domain/command.rs",
+      "packages/server-billing/src/application/mod.rs",
+      "packages/server-billing/src/application/workspace.rs",
+      "packages/server-billing/src/application/cost.rs",
+      "packages/server-billing/src/adapters/mod.rs",
+      "packages/server-billing/src/adapters/workspace.rs",
+      "packages/server-billing/src/adapters/cost.rs",
+      "packages/server-billing/src/adapters/billing_http.rs",
+      "packages/server-billing/src/public/mod.rs",
+      "packages/server-billing/src/public/workspace.rs",
+      "packages/server-billing/src/public/cost.rs",
+      "packages/server-billing/src/public/billing_http.rs"
+    ],
+    "rustTests": [
+      "tests/unit/billing/rust-billing-workspace.test.rs",
+      "tests/unit/billing/rust-billing-commands.test.rs",
+      "tests/unit/billing/rust-billing-http.test.rs",
+      "tests/integration/billing/rust-billing-postgres.test.rs"
+    ],
+    "typescript": [
+      "packages/server-billing/package.json",
+      "packages/server-billing/src/adapters/native-billing.ts",
+      "packages/server-billing/src/adapters/billing-presentation.ts",
+      "packages/server-billing/src/adapters/server/next-native-billing.ts",
+      "packages/server-billing/src/public/native-billing.ts",
+      "packages/server-billing/src/public/native-billing-page.ts",
+      "tests/unit/billing/native-billing-transport.test.ts",
+      "tests/catalogue/suite-manifest.json"
+    ]
+  },
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-billing --locked -- --test-threads=1",
+      "result": "21 passed, 0 failed, 0 ignored across 4 test targets plus empty lib/doc targets (commands 9, http 5, workspace 3, postgres 4, lib 0, doc 0)",
+      "workspaceNote": "The crate is not listed in the root workspace members, which this subagent is prohibited from editing. The exact --locked command was run with a transient local member entry and the transient Cargo.lock package entry; Cargo.toml and Cargo.lock were restored to the exact session-start/HEAD SHA-256 values and are absent from the final owned diff. A fresh checkout must add packages/server-billing to [workspace] members and regenerate Cargo.lock before the command is reproducible.",
+      "targets": {
+        "billing_commands": "9 passed: Platform administrator/owner denial before repository access; exact replay and digest conflict; command identity coverage for version/reason/normalized fields; missing Holding/account/stale version; negative non-adjustment, evidence-required, adjustment-original, invalid original, service dates, invalid evidence and simulated cost; frozen cost and missing period; exact insert/mark/readback/increment/audit/receipt sequencing and note trim; complete/delete sequencing; readback, audit and receipt loss fail-closed.",
+        "billing_http": "5 passed: exact target/origin/session forwarding and private headers; unknown Host/slug, foreign origin, query and malformed backend data negatives; exact record body and malformed body/header/category/negative-money negatives; delete/complete exact bodies and extra-field negatives; conflict mapping, bad receipt rejection and duplicate/invalid target configuration.",
+        "billing_workspace": "3 passed: Platform read-role and exact owner-Holding authority with expiry, foreign/invalid account/plan/period/cost/invoice/job rejection and exact bounded view fields.",
+        "billing_postgres": "4 passed: Control migrations, foreign Holding row isolation, Platform/owner reads; record/replay/complete/delete with persisted cost/period/audit/receipt/version readback; stale version, missing/foreign evidence and late audit-collision rollback with no cost/receipt/version effect; missing-transaction and non-serializable guards."
+      }
+    },
+    "postgres": {
+      "suite": "billing_postgres (migrated Control PostgreSQL in a disposable leased erpx_dev_rust_* database on 127.0.0.1:5432)",
+      "fixture": "Real Control migrations plus synthetic Holding bindings, billing account/enrollment/period/cost/invoice/audit/job/evidence/legacy rows and foreign-Holding rows. No cross-owner row is written by the qualified commands and no staging/private-production database was accessed."
+    },
+    "httpRouter": {
+      "limit": "Tests call the exact owner dispatch functions with HeaderMap/body inputs and inspect the axum Response; they do not open a socket or prove Router mounting in src/composition. Router construction, target validation and error mapping are covered."
+    },
+    "typescript": {
+      "transportTest": "tests/unit/billing/native-billing-transport.test.ts: 6 passed via vendored vitest 5.0.5 with the repository unit config.",
+      "existingBillingTests": "tests/unit/billing/billing-owner-services.test.ts: 53 passed.",
+      "typechecks": [
+        "tsc --noEmit -p packages/server-billing/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "eslint on the six changed TypeScript files and the new transport test: pass; existing Pages directory warning only.",
+      "rustfmt": "cargo fmt -p erpx-server-billing -- --check: pass.",
+      "clippy": "cargo clippy -p erpx-server-billing --all-targets --locked -- -D warnings: pass (run before restoring the transient root membership)."
+    }
+  },
+  "sharedCompositionAndSchemaDelta": {
+    "composition": "None. src/composition/** was not edited and the owner router is not mounted there. Composition must supply the normal Account/Platform session, current Holding authority and serializable Control transaction through BillingHttpBackend.",
+    "schema": "None. The new code reads/writes existing Control billing tables and the retained billing audit/receipt sources. No migration, lockfile, contract or docs/status file was added or changed."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": "No legacy Billing source removed. The native read path replaces the selected Holding view only when the native configuration is present.",
+    "retained": [
+      "Stripe customer, checkout, portal, payment-method and webhook adapters",
+      "Plan publication and subscription enroll/change/cancel/withdraw commands",
+      "Invoice approve/void/issue, payment mode, target rating/rollout, provider verification and extra approval commands",
+      "Billing jobs/dispatcher, evidence intake/scanning and storage reconciliation",
+      "Retained TypeScript API/route handlers and BillingConsole command client",
+      "Platform account-list billingHoldingFacts read"
+    ],
+    "removalCondition": "Each retained command/provider/job can be removed only after its own native slice, shared composition mounting, normal-session browser journey, rollback/readback evidence and consumer inventory pass."
+  },
+  "blockers": [
+    "packages/server-billing is not a root workspace member because root Cargo.toml and Cargo.lock are outside this subagent's allowed edits; add the member and regenerate the lock in integration.",
+    "The owner-local HTTP router is not mounted in src/composition; the normal Account/Platform session and serializable Control unit are not yet supplied by a production composition adapter.",
+    "The retained BillingConsole poll and all POST commands still call the TypeScript API route, so the native SSR initial view is replaced by retained reads on the next poll; full client/API cutover is not claimed.",
+    "The SSR read cutover requires ERPX_NATIVE_BILLING_CONFIG; no browser or normal-session acceptance was attempted, so the actual page appearance and navigation are unverified.",
+    "Native command transport is not wired to the BillingConsole POST client; the retained TypeScript API route still owns browser commands.",
+    "Platform account selection, Stripe/provider behavior, jobs, entitlement enforcement and the other Billing workflows remain retained.",
+    "No claim is made that the Billing owner is complete; docs/status/rust-backend-migration.json was not updated (forbidden) and owner surfaces remain recorded as pending."
+  ],
+  "nextAction": "Integrate packages/server-billing into the root workspace, add a composition backend that resolves the normal Account/Platform session and opens the serializable Control unit, mount the owner router, then cut over the retained Billing GET/POST clients and run the real Holding/Platform browser journeys before claiming any workflow or owner acceptance."
+}

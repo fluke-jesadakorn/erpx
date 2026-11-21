@@ -1,3 +1,4 @@
+import {rejectNativeServiceInvoicePaymentEvidence} from './native-service-invoice-payment-evidence';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
@@ -10,6 +11,11 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
 
 export async function invoicePaymentOwner(db:SqlDatabase,actor:WorkContext,id:string,editable=false) {
+  // This source marker only chooses the authoritative runtime. It grants no
+  // permission and never becomes an HTTP success guard in this transaction.
+  const marker=await db.prepare("SELECT EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND source_type='field_service') native").bind(id).first<{native:boolean}>();
+  if(!marker||typeof marker.native!=='boolean')throw new ApiError(503,'INVOICE_OWNER_UNAVAILABLE','The invoice owner could not be verified.');
+  if(marker.native)return rejectNativeServiceInvoicePaymentEvidence(actor,id);
   const {invoice}=await getInvoice(actor,id,db);
   if(invoice.kind!=="payable")throw new ApiError(422,"PAYABLE_REQUIRED","Payment slips belong to supplier bills.");
   if(editable){

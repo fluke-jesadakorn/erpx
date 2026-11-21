@@ -27,11 +27,12 @@ import { createEmployeeRequestsApplication, type EmployeeRequestsRepository } fr
 import { BusinessRuleError } from '@erpx/server-shared/index';
 
 import { EmployeeRequestsIdentityAccessFacts } from '@erpx/server-identity_access/public/records-employee-requests-facts';
+import { nativeRecordsStatement } from '@erpx/feature-records/adapters/server/native-records-command';
 export { employeeRequestSchema } from '@erpx/server-records/domain/employee-requests';
 export { requestActionSchema } from '@erpx/server-records/domain/employee-requests';
 export type { EmployeeRequest } from '@erpx/server-records/domain/employee-requests';
 export type { SavedApproval } from '@erpx/server-records/domain/employee-requests';
-function application(provided?: SqlDatabase) {
+function application(provided?: SqlDatabase, actor?: WorkContext) {
     let database = provided!;
     const repository: EmployeeRequestsRepository<SqlStatement> = { guard1(key: string, value: "request-version", id: string, company_id: string, version: number, state: string, evidence_version: number) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM employee_requests WHERE id=? AND company_id=? AND version=? AND state=? AND evidence_version=?)", [id, company_id, version, state, evidence_version]);
@@ -43,18 +44,18 @@ function application(provided?: SqlDatabase) {
         readEmployeeRequestDetailTeam(...args){return nativeEmployeeRequestReadRepository(database).readEmployeeRequestDetailTeam(...args);},
         readEmployeeRequestDetailChildren(...args){return nativeEmployeeRequestReadRepository(database).readEmployeeRequestDetailChildren(...args);},
         stageEventEffect(value: string, company_id: string, id: string, version: number, action: string, userId: string, note: string, value2: string, now: number) {
-            return database.prepare("INSERT INTO employee_request_events(id,company_id,request_id,request_version,action,actor_id,note,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+            return nativeRecordsStatement('records_stmt_12', { companyId: actor?.companyId, actor, now: Date.now() })
                 .bind(value, company_id, id, version, action, userId, note, value2, now);
         },
         stageSaveEmployeeRequestStatements(values: (string | null)[], version: number, now: number, recordId: string, companyId: string) {
-            return database.prepare("UPDATE employee_requests SET branch_id=?,department_id=?,category=?,title=?,description=?,location=?,impact=?,needed_date=?,items_json=?,currency=?,state='draft',blocked_reason=NULL,approval_json='{}',version=?,updated_at=? WHERE id=? AND company_id=?")
+            return nativeRecordsStatement('records_stmt_13', { companyId: actor?.companyId, actor, now: Date.now() })
                 .bind(...values, version, now, recordId, companyId);
         },
         stageSaveEmployeeRequestStatements2(recordId: string, companyId: string, value: string | null, values: (string | null)[], kind: "service" | "equipment" | "purchase", requester: string, userId: string, parentRequestId: string | null, version: number, now: number, now2: number) {
-            return database.prepare("INSERT INTO employee_requests(id,company_id,engagement_id,branch_id,department_id,category,title,description,location,impact,needed_date,items_json,currency,kind,requester_user_id,created_by,parent_request_id,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            return nativeRecordsStatement('records_stmt_14', { companyId: actor?.companyId, actor, now: Date.now() })
                 .bind(recordId, companyId, value, ...values, kind, requester, userId, parentRequestId, version, now, now2);
         },
-        stageActOnEmployeeRequestEffect(engagement_id: string, id: string, company_id: string) { return database.prepare('UPDATE employee_requests SET engagement_id=? WHERE id=? AND company_id=?').bind(engagement_id, id, company_id); },
+        stageActOnEmployeeRequestEffect(engagement_id: string, id: string, company_id: string) { return nativeRecordsStatement('records_stmt_15', { companyId: actor?.companyId, actor, now: Date.now() }).bind(engagement_id, id, company_id); },
         readActOnEmployeeRequestAllocations(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readActOnEmployeeRequestAllocations(...args); },
         readActOnEmployeeRequestOrders(...args) { return EmployeeRequestsCommerceOwnedFacts(database).readActOnEmployeeRequestOrders(...args); },
         guard15(...args) { return EmployeeRequestsCommerceOwnedFacts(database).guard15(...args); },
@@ -66,14 +67,14 @@ function application(provided?: SqlDatabase) {
         stageActOnEmployeeRequestEffect2(...args) { return EmployeeRequestsProcurementOwnedFacts(database).stageActOnEmployeeRequestEffect2(...args); },
         readActOnEmployeeRequestEffect(...args) { return EmployeeRequestsIdentityAccessFacts(database).readActOnEmployeeRequestEffect(...args); },
         stageActOnEmployeeRequestEffect3(state: string, team_id: string | null, assignee_user_id: string | null, routing_json: string, approval_json: string, blocked_reason: string | null, resolution: string, purchase_order_id: string | null, handover_json: string, version: number, updated_at: number, id: string, company_id: string) {
-            return database.prepare("UPDATE employee_requests SET state=?,team_id=?,assignee_user_id=?,routing_json=?,approval_json=?,blocked_reason=?,resolution=?,purchase_order_id=?,handover_json=?,version=?,updated_at=? WHERE id=? AND company_id=?")
+            return nativeRecordsStatement('records_stmt_16', { companyId: actor?.companyId, actor, now: Date.now() })
                 .bind(state, team_id, assignee_user_id, routing_json, approval_json, blocked_reason, resolution, purchase_order_id, handover_json, version, updated_at, id, company_id);
         },
         readListEmployeeRequestsRows(...args) { return EmployeeRequestsIdentityAccessFacts(database).readListEmployeeRequestsRows(...args); },
         readPrepareRequestOrderHandoffQuotation(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readPrepareRequestOrderHandoffQuotation(...args); },
         readPrepareRequestOrderHandoffActiveQuotationCount(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readPrepareRequestOrderHandoffActiveQuotationCount(...args); },
         readPrepareRequestOrderHandoffExistingLink(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readPrepareRequestOrderHandoffExistingLink(...args); },
-        stagePrepareRequestOrderHandoffEffect(orderId: string, now: number, id: string, company_id: string) { return database.prepare("UPDATE employee_requests SET purchase_order_id=COALESCE(purchase_order_id,?),version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(orderId, now, id, company_id); },
+        stagePrepareRequestOrderHandoffEffect(orderId: string, now: number, id: string, company_id: string) { return nativeRecordsStatement('records_stmt_17', { companyId: actor?.companyId, actor, now: Date.now() }).bind(orderId, now, id, company_id); },
         stagePrepareRequestOrderHandoffEffect2(...args) { return EmployeeRequestsProcurementOwnedFacts(database).stagePrepareRequestOrderHandoffEffect2(...args); },
         readRequestQuotationSourceAllocated(...args) { return EmployeeRequestsProcurementOwnedFacts(database).readRequestQuotationSourceAllocated(...args); } };
     return createEmployeeRequestsApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
@@ -114,14 +115,14 @@ function invokeSync<Result>(run: () => Result) {
 export function requestVersionGuard(db: SqlDatabase, key: string, row: EmployeeRequest) { return invokeSync(() => application(db).requestVersionGuard(key, row)); }
 export function requestOwn(actor: WorkContext, row: EmployeeRequest) { return invokeSync(() => purerequestOwn(actor, row)); }
 
-export async function saveEmployeeRequest(db: SqlDatabase, actor: WorkContext, id: string | null, input: z.infer<typeof employeeRequestSchema>, key: string) { return invoke(() => application(db).saveEmployeeRequest(actor, id, input, key)); }
-export async function actOnEmployeeRequest(db: SqlDatabase, actor: WorkContext, id: string, input: z.infer<typeof requestActionSchema>, key: string) { return invoke(() => application(db).actOnEmployeeRequest(actor, id, input, key)); }
-export async function listEmployeeRequests(db: SqlDatabase, actor: WorkContext) { return invoke(() => application(db).listEmployeeRequests(actor)); }
-export async function employeeRequestWork(db: SqlDatabase, actor: WorkContext): Promise<WorkItem[]> { return invoke(() => application(db).employeeRequestWork(actor)); }
+export async function saveEmployeeRequest(db: SqlDatabase, actor: WorkContext, id: string | null, input: z.infer<typeof employeeRequestSchema>, key: string) { return invoke(() => application(db, actor).saveEmployeeRequest(actor, id, input, key)); }
+export async function actOnEmployeeRequest(db: SqlDatabase, actor: WorkContext, id: string, input: z.infer<typeof requestActionSchema>, key: string) { return invoke(() => application(db, actor).actOnEmployeeRequest(actor, id, input, key)); }
+export async function listEmployeeRequests(db: SqlDatabase, actor: WorkContext) { return invoke(() => application(db, actor).listEmployeeRequests(actor)); }
+export async function employeeRequestWork(db: SqlDatabase, actor: WorkContext): Promise<WorkItem[]> { return invoke(() => application(db, actor).employeeRequestWork(actor)); }
 
-export async function prepareRequestOrderHandoff(db: SqlDatabase, actor: WorkContext, requestId: string, orderId: string, key: string, expectedVersion?: number, editing = false, rfqId?: string) { return invoke(() => application(db).prepareRequestOrderHandoff(actor, requestId, orderId, key, expectedVersion, editing, rfqId)); }
-export async function requestQuotationSource(db: SqlDatabase, actor: WorkContext, id: string) { return invoke(() => application(db).requestQuotationSource(actor, id)); }
-export async function previewEmployeeRequest(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof employeeRequestSchema>, id?: string) { return invoke(() => application(db).previewEmployeeRequest(actor, input, id)); }
+export async function prepareRequestOrderHandoff(db: SqlDatabase, actor: WorkContext, requestId: string, orderId: string, key: string, expectedVersion?: number, editing = false, rfqId?: string) { return invoke(() => application(db, actor).prepareRequestOrderHandoff(actor, requestId, orderId, key, expectedVersion, editing, rfqId)); }
+export async function requestQuotationSource(db: SqlDatabase, actor: WorkContext, id: string) { return invoke(() => application(db, actor).requestQuotationSource(actor, id)); }
+export async function previewEmployeeRequest(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof employeeRequestSchema>, id?: string) { return invoke(() => application(db, actor).previewEmployeeRequest(actor, input, id)); }
 function fromNativeSync<Result>(run: () => Result) {
     try {
         return run();

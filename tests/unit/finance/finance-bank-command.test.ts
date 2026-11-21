@@ -1388,7 +1388,7 @@ async function mountedBankImport(options: {
     compiledSource = options.realCommands
       ? `${commandSource!.replace("function useBankCommand(", "function useBankCommandImpl(")}\n${componentSource.replaceAll("useBankCommand(", "useBankCommandImpl(")}`
       : componentSource,
-    compiled = ts.transpileModule(compiledSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, jsxFactory: "createElement" } }).outputText,
+    compiled = ts.transpileModule(compiledSource, { compilerOptions: {esModuleInterop: false,  target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, jsxFactory: "createElement" } }).outputText,
     cells: { value: unknown }[] = [], effects = new Map<number, { deps: unknown[]; cleanup?: () => void }>(),
     callbacks = new Map<number, { deps: unknown[]; value: unknown }>(),
     router = { refresh: vi.fn(), push: vi.fn() }, formScope = "bank-import-test-scope";

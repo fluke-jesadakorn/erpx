@@ -1,1 +1,1 @@
-export {followupCreateSchema,followupChangeSchema,getCustomerFollowup,customerFollowupEvidenceRow,customerFollowupWorkspace,customerFollowupDetail,createCustomerFollowup,changeCustomerFollowup,customerFollowupWork} from '@erpx/server-sales/adapters/followups';
+export {getCustomerFollowup,customerFollowupEvidenceRow,customerFollowupWorkspace,customerFollowupDetail,customerFollowupWork} from '@erpx/server-sales/adapters/followups';

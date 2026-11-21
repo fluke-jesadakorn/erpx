@@ -11,7 +11,7 @@ The canonical entry is the existing scoped /people/access page. People, Groups, 
 - The matching /save operation also requires previewToken, Idempotency-Key, expected resource versions and rendered work-context headers. The token binds the change to the visible snapshot; drift requires a fresh preview. All authorization is rechecked by the server.
 - Reviews remain POST .../iam/reviews/{id}. A policy.grant review represents one beneficiary and one scoped role, even when the interface selects several reviews.
 
-The shared schemas live in src/lib/identity_access/user-management.ts. Holding migrations 0023/0024 add Company-owned metadata, immutable history and derived-grant provenance without modifying existing directory objects. No fixtures are added by normal seeding.
+The shared schemas live in [the IAM feature contracts](../../../packages/feature-identity_access/src/lib/user-management.ts). Holding migrations 0023/0024 add Company-owned metadata, immutable history and derived-grant provenance without modifying existing directory objects. No fixtures are added by normal seeding.
 
 ## Membership and policy semantics
 

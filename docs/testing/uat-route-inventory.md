@@ -1,8 +1,8 @@
 # ERPX UAT route inventory
 
-Generated from `apps/compat/src/app` compatibility page files on 2026-10-23. The route source fingerprint is `e371ccf8cdda6cd03abcb1421376f4ec22cb3ec3db638ee5ce7cf640cf0c02d2`. This inventories implemented page files and is not a capability-catalog acceptance claim.
+Generated from `apps/compat/src/app` compatibility page files on 2026-11-10. The route source fingerprint is `571b4fa0a60bda59c83ee5fce2359bbf039f85c22d7950dbe57d8d759d3c0755`. This inventories implemented page files and is not a capability-catalog acceptance claim.
 
-- 942 page routes in source (current source count)
+- 944 page routes in source (current source count)
 - Desktop Chrome and Pixel 7 emulation
 - Anonymous, intended-role and explicit-denial access checks are recorded separately in Playwright results.
 - Holding routes are exercised at holding, branch, department, and branch-plus-department scopes.
@@ -843,6 +843,7 @@ Generated from `apps/compat/src/app` compatibility page files on 2026-10-23. The
 | `/holdings/[holdingSlug]/purchasing/suppliers` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/record-details/[kind]/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/record-details` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/requests` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/services/assets/accounting/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/services/assets/accounting` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/services/assets/maintenance/[id]/[recordSection]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
@@ -913,6 +914,7 @@ Generated from `apps/compat/src/app` compatibility page files on 2026-10-23. The
 | `/holdings/[holdingSlug]/services/legal/template` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/services/legal/thailand` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/services` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
+| `/holdings/[holdingSlug]/staff-tasks` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/tasks` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | page route |
 | `/holdings/[holdingSlug]/tasks/people_payroll/[id]/[recordSection]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |
 | `/holdings/[holdingSlug]/tasks/people_payroll/[id]` | Holding workspace | login-or-explicit-denial | holding_owner | holding, branch, department, branch-department | sample record + invalid ID |

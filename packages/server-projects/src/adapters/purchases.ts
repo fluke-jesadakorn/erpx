@@ -15,6 +15,7 @@ import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/
 import {projectsPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 export type ProjectCapability="projects.wbs"|"projects.tasks"|"projects.time"|"projects.handover"|"projects.costs";
 export type ProjectPurchaseTarget={kind:"milestone"|"work_log"|"allocation"|"handoff";id:string}|{kind:"work_date";date:string}|{kind:"cost_line";id:string};
@@ -45,7 +46,7 @@ async function current(database:SqlDatabase,actor:StaffActor,key:string,permissi
  (SELECT ?::text company_id,?::text branch_id,?::text department_id) project_scope`)
   .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
  if(!found?.allowed)throw new ApiError(403,"PROJECT_ACCESS_CHANGED","Choose a current Project assignment.");
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 export async function projectPurchaseControls(database:SqlDatabase,actor:StaffActor,options?:{strictProduct:true}){
  const mode=options?.strictProduct?'enforced':await projectsPackageEnforcementMode();if(mode==="disabled")return undefined;
@@ -110,7 +111,7 @@ export async function withProjectPurchasedCommand<Result>(owner:SqlDatabase,acto
    if(before&&Object.keys(before).some(field=>before[field as keyof Source]!==after[field as keyof Source]))throw new ApiError(409,"PROJECT_SOURCE_CHANGED","The original Project owner or workspace changed.");
    if(command.target){const childAfter=await targetImage(database,actor,command.projectId,command.target);if(!childAfter||childBefore&&JSON.stringify(childBefore)!==JSON.stringify(childAfter))throw new ApiError(409,'PROJECT_SOURCE_CHANGED','The original Project source changed.');}
    await current(database,actor,key,permission);
-   const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));
+   const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
    boundaries[0]?.boundary.observe?.(observations);
   });
   return run(database);

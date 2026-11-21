@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { Button } from "@erpx/ui/components/foundation";
 
 import { useEffect, useRef, useState } from "react";
@@ -8,12 +9,13 @@ import { type UiAppearance } from "@erpx/ui/components/foundation";
 /** Minimal public SSR identity for deduplicating this mount only. It is never
  * command authority, a session token, IAM data or a cross-request cache. */
 export type InitialWorkContextSnapshot = {
-  version: 1;
+  version: 2;
   base: string;
   userId: string;
   companyId: string;
   assignmentId: string;
   revision: number;
+  assignmentVersion: number;
   checkedAt: number;
   frontApp?: "pos" | "pms";
   frontLocation?: string;
@@ -27,6 +29,7 @@ export function WorkContextBoundary({ appearance = "legacy",
   companyId,
   assignmentId,
   revision,
+  assignmentVersion,
   frontApp,
   frontLocation,
   frontRoleEndpoint,
@@ -38,6 +41,7 @@ export function WorkContextBoundary({ appearance = "legacy",
   companyId: string;
   assignmentId: string;
   revision: number;
+  assignmentVersion: number;
   frontApp?: "pos" | "pms";
   frontLocation?: string;
   frontRoleEndpoint?: string;
@@ -54,7 +58,7 @@ export function WorkContextBoundary({ appearance = "legacy",
       typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("erpx-work-context");
     async function check() {
       try {
-        const response = await fetch(
+        const response = await holdingFetch(
           frontRoleEndpoint ? `${frontRoleEndpoint}/roles` : `/api/v1${base}/assignments/active`,
           {
             cache: "no-store",
@@ -65,6 +69,10 @@ export function WorkContextBoundary({ appearance = "legacy",
         );
         if (!active) return;
         if (response.status === 401) {
+          if (document.documentElement.dataset.deviceAccounts === 'true') {
+            window.dispatchEvent(new Event('erpx:device-account-stale'));
+            return;
+          }
           window.location.replace(
             "/login?reason=expired&next=" +
               encodeURIComponent(
@@ -82,6 +90,7 @@ export function WorkContextBoundary({ appearance = "legacy",
           active &&
           (!data.valid ||
             data.revision !== revision ||
+            data.assignmentVersion !== assignmentVersion ||
             data.assignmentId !== assignmentId ||
             data.companyId !== companyId ||
             (userId && data.userId !== userId))
@@ -97,10 +106,11 @@ export function WorkContextBoundary({ appearance = "legacy",
     // Only the original mount snapshot may suppress a duplicate read. Later
     // SSR props cannot clear stale state or reset the live dirty form tracking.
     const initial = initialSnapshot.current, now = Date.now();
-    const matchesInitial = initial?.version === 1 && !!userId &&
+    const matchesInitial = initial?.version === 2 && !!userId &&
       initial.base === base && initial.userId === userId &&
       initial.companyId === companyId && initial.assignmentId === assignmentId &&
-      initial.revision === revision && initial.frontApp === frontApp &&
+      initial.revision === revision && initial.assignmentVersion === assignmentVersion &&
+      Number.isSafeInteger(assignmentVersion) && assignmentVersion > 0 && initial.frontApp === frontApp &&
       initial.frontLocation === frontLocation && initial.frontRoleEndpoint === frontRoleEndpoint &&
       Number.isSafeInteger(initial.checkedAt) && initial.checkedAt > 0 &&
       now >= initial.checkedAt && now - initial.checkedAt <= initialSnapshotMaxAgeMs;
@@ -153,7 +163,7 @@ export function WorkContextBoundary({ appearance = "legacy",
       removedForms.disconnect();
       window.removeEventListener("erpx:record-command-saved", saved);
     };
-  }, [base, userId, companyId, assignmentId, revision, frontApp, frontRoleEndpoint, frontLocation]);
+  }, [base, userId, companyId, assignmentId, revision, assignmentVersion, frontApp, frontRoleEndpoint, frontLocation]);
   return (
     <div data-ui-appearance={appearance}
       ref={root}
@@ -161,6 +171,7 @@ export function WorkContextBoundary({ appearance = "legacy",
       data-work-company={companyId}
       data-work-assignment={assignmentId}
       data-work-revision={revision}
+      data-work-assignment-version={assignmentVersion}
       data-work-stale={String(stale)}
       data-front-app={frontApp}
       data-front-location={frontLocation}

@@ -1,0 +1,178 @@
+{
+  "schema": "erpx.evidence/brand-owner-certification/v1",
+  "recorded_at": "2026-11-09T15:42:51.129396Z",
+  "head": "b580224b87b12ffcd452760321752f1970b2a46f",
+  "owner": "brand",
+  "package": "erpx-server-brand",
+  "workflows": [
+    "brand/feature-draft-workspace",
+    "brand/feature-category-locks",
+    "brand/feature-published-identity"
+  ],
+  "workflow_counts": {
+    "total": 3,
+    "verified": 3,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "not-applicable",
+    "providers": "not-applicable"
+  },
+  "environment": {
+    "public_holding_origin": "https://erpx-internal.jesadakorn.com",
+    "development_gateway": "http://127.0.0.1:3100",
+    "native_api": "http://127.0.0.1:3198",
+    "native_account_api": "http://127.0.0.1:3199",
+    "account": "jesadakorn.kirtnu@gmail.com",
+    "h003": "Mounted in the native Account session, work-role transport and private API (clone erpx_dev_rust_948564c388df9294b99595ba25f05dd1, 412 migrations, holding_bindings h003 active)",
+    "branding_config": "ERPX_NATIVE_BRANDING_CONFIG -> 127.0.0.1:3198 for erpx/h003",
+    "identity_config": "ERPX_NATIVE_BRAND_IDENTITY_CONFIG -> 127.0.0.1:3198 for erpx/h003"
+  },
+  "native_reads": {
+    "branding": {
+      "endpoint": "GET /api/v1/holdings/erpx/branding",
+      "status": 200,
+      "storefront": "company erpx-co, companyName ERPX, companySlug erpx, holdingId h003"
+    },
+    "identity": {
+      "endpoint": "GET /api/v1/holdings/erpx/brand",
+      "status": 200,
+      "drafts": 2,
+      "canManage": true,
+      "canLock": true
+    }
+  },
+  "browser": {
+    "identity_desktop": {
+      "viewport": "1440x900",
+      "status": 200,
+      "draft_post": {
+        "status": 200,
+        "id": "brand-draft-775c66ea-dff4-45a0-9a91-5d5009b4c8ea",
+        "version": 1,
+        "state": "draft"
+      },
+      "draft_visible": true,
+      "reload_persisted": true,
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "identity_mobile": {
+      "viewport": "390x844",
+      "status": 200,
+      "draft_post": {
+        "status": 200,
+        "id": "brand-draft-7d397f50-5d49-49d9-ae35-3dce238f8356",
+        "version": 1,
+        "state": "draft"
+      },
+      "draft_visible": true,
+      "reload_persisted": true,
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "media_desktop": {
+      "viewport": "1440x900",
+      "status": 200,
+      "workspace_branding": true,
+      "storefront_command": {
+        "status": 200,
+        "shortName": "ERPX6523"
+      },
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "media_mobile": {
+      "viewport": "390x844",
+      "status": 200,
+      "workspace_branding": true,
+      "failed_business_requests": [],
+      "page_errors": []
+    }
+  },
+  "gates": [
+    {
+      "name": "brand.brand-application.unit",
+      "result": "10/10 pass"
+    },
+    {
+      "name": "brand.brand-identity.integration",
+      "result": "5/5 pass"
+    },
+    {
+      "name": "brand.branding.integration",
+      "result": "7/7 pass"
+    },
+    {
+      "name": "brand.front-logo.integration",
+      "result": "1/1 pass"
+    },
+    {
+      "name": "brand.rust-brand-identity-policy.unit",
+      "result": "8/8 pass"
+    },
+    {
+      "name": "brand.rust-brand-identity-postgres.integration",
+      "result": "4/4 pass"
+    },
+    {
+      "name": "brand.rust-branding-postgres.integration",
+      "result": "2/2 pass"
+    },
+    {
+      "name": "brand.rust-brand-identity-http-postgres.integration",
+      "result": "4/4 pass"
+    },
+    {
+      "name": "brand.rust-branding-http.integration",
+      "result": "2/2 pass"
+    },
+    {
+      "name": "cargo check",
+      "result": "private-field-api,existing-business and files-scan-worker/field-push-worker variants pass"
+    },
+    {
+      "name": "tests/config typecheck",
+      "result": "pass"
+    },
+    {
+      "name": "test catalogue",
+      "result": "33 modules, 1009 suites"
+    }
+  ],
+  "legacy": {
+    "identity_writers": "No TypeScript Brand identity writer remains; the identity page reads and commands through the native /brand and /branding private APIs.",
+    "branding_writers": "packages/server-brand/src/public/branding.ts exports reads and pure normalization only. completeBrandUpload, completeStorefrontBrandUpload, updateStorefrontAppBrand and updateBrandProfile are absent from source; the media page PATCH goes through the native /branding command.",
+    "retained_reads": "presentation.listBrandProfiles and BrandAdministration still read the retained TypeScript workspace profile projection for labels/URLs; the command path is native. Named removal condition: replace the media-page profile read with the native BrandingWorkspace adapter once the frontend consumes the native attachment/publication URLs.",
+    "known_clone_split": "The media page server read uses the development H003 database while the native branding command targets the disposable clone; in production both target the same Company database. This is a verification-environment split, not a writer fallback.",
+    "media_attachment_dependency": "Resolved: the development h003 database is migrated to the current holding-write schema; attachment-set/media-publication reads return 200. The remaining media reads are retained TypeScript presentation reads, not a writer fallback."
+  },
+  "fixes": [
+    "Added the native /api/v1/holdings/{holding_slug}/branding GET/POST router and composition backend over the existing PgBranding application ports.",
+    "Mounted h003/erpx in the native Account session, work-role transport and private API; activated the h003 holding binding; relaxed the development holding/resource gates to admit 2 or 3 public holdings while preserving exact h001/h002/h003 identities.",
+    "Registered the branding HTTP cargo suite and fixed the brand identity media fixture to use distinct attachment-set expected_target_version values so it respects attachment_sets_active_identity.",
+    "Cleared the stale apps/admin .next cache that caused a Turbopack HMR restart loop and blocked hydration of the Brand drawer."
+  ],
+  "screenshots": [
+    ".scratch/dev/brand-draft-desktop.png",
+    ".scratch/dev/brand-draft-mobile.png",
+    ".scratch/dev/brand-media-desktop.png",
+    ".scratch/dev/brand-media-mobile.png"
+  ],
+  "notes": [
+    "The Brand identity draft was created, saved and reloaded through the real drawer on desktop and mobile; the native API returned the same draft id/version and the clone persisted it.",
+    "The Brand media page renders the workspace branding surface and the storefront PATCH returned 200 from the native branding command.",
+    "Category-lock and published-identity workflows retain their prior browser evidence; the native identity command/HTTP paths are unchanged by this bundle.",
+    "The Brand media attachment-set/media-publication 500s were an unmigrated development h003 schema, not a Brand writer defect; the databases were migrated and the media page now renders cleanly on desktop and mobile."
+  ],
+  "media_fix": {
+    "at": "2d5a3d4d1995484b1b74799e191bc81a4f908975",
+    "action": "Applied the pending holding-write/read migrations to the development h003 databases with the installed development migration identities.",
+    "result": "The Brand media page's attachment-set and media-publication reads now return 200 for h003; desktop/mobile render the workspace branding surface with no failed requests or page errors."
+  }
+}

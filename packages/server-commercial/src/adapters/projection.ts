@@ -1,4 +1,10 @@
 import {commercialSeatProjectionAccounts} from '@erpx/server-identity_access/public/commercial-seat-facts';
+
+import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
+async function ownerWrite(kind: any, values: readonly unknown[], recordId: string, key: string) {
+  try { return await nativeCommercialOwnerWrite(kind, values, recordId, 'system', key); }
+  catch (error) { if (error instanceof NativeCommercialOwnerWriteError) throw new Error(error.code + ': ' + error.message); throw error; }
+}
 import {commercialEarliestOriginal} from '@erpx/server-files/public/commercial-usage-facts';
 import {commercialEarliestAIUsage} from '@erpx/server-agent/public/commercial-usage-facts';
 import 'server-only';
@@ -16,53 +22,23 @@ function transaction(tx:SqlDatabase):UsageProjectionTransaction{return {
     ORDER BY user_id,effective_at,id`)
     .bind(end,...billableIds)
     .all<{id:number;user_id:string;status:string;effective_at:number}>()).results;},
- async ensureHeader(plan){const {binding,month,snapshotId,observedAt,coverage,activeSeat}=plan;await tx.prepare(`INSERT INTO billing_usage_snapshots(holding_id,month,snapshot_id,refreshed_at,source_count,
-      ai_coverage,storage_coverage,seat_coverage,seat_source_count,unreconciled_originals,
-      active_seat_count,active_seat_observed_at)
-      VALUES(?,?,?,?,0,?,?,?,0,?,?,?) ON CONFLICT(holding_id,month) DO NOTHING`)
-      .bind(binding.id, month, snapshotId, observedAt, coverage.ai, coverage.storage,"unavailable",
-        coverage.unreconciledOriginals,activeSeat?.count??null,activeSeat?.asOf??null).run();},lockHeader:(holdingId,month)=>{const binding={id:holdingId};return tx.prepare(`SELECT refreshed_at FROM billing_usage_snapshots
-      WHERE holding_id=? AND month=? FOR UPDATE`).bind(binding.id, month).first<{refreshed_at:number}>();},async meter(plan,row){const {snapshotId}=plan;await tx.prepare(`INSERT INTO billing_usage_meters(
-        holding_id,month,source_key,company_id,company_name,branch_id,branch_name,meter_kind,
-        funding_source,pricing_status,quantity,input_tokens,output_tokens,average_daily_bytes,
-        active_at_period_end,snapshot_id,request_status,gateway_status,provider,model,
-        units_json,cost_status,verified_cost_satang,cost_evidence_key,cost_reconciled_at,
-        active_from,active_until,byte_milliseconds
-      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?)
-      ON CONFLICT(holding_id,month,source_key) DO UPDATE SET
-        company_id=excluded.company_id, company_name=excluded.company_name,
-        branch_id=excluded.branch_id, branch_name=excluded.branch_name,
-        meter_kind=excluded.meter_kind, funding_source=excluded.funding_source,
-        pricing_status=excluded.pricing_status, quantity=excluded.quantity,
-        input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens,
-        average_daily_bytes=excluded.average_daily_bytes,
-        active_at_period_end=excluded.active_at_period_end, snapshot_id=excluded.snapshot_id,
-        request_status=excluded.request_status,gateway_status=excluded.gateway_status,
-        provider=excluded.provider,model=excluded.model,units_json=excluded.units_json,
-        cost_status=excluded.cost_status,verified_cost_satang=excluded.verified_cost_satang,
-        cost_evidence_key=excluded.cost_evidence_key,cost_reconciled_at=excluded.cost_reconciled_at,
-        active_from=excluded.active_from,active_until=excluded.active_until,
-        byte_milliseconds=excluded.byte_milliseconds`)
-        .bind(row.holding_id,row.month,row.source_key,row.company_id,row.company_name,
-          row.branch_id,row.branch_name,row.meter_kind,row.funding_source,row.pricing_status,
-          row.quantity,row.input_tokens,row.output_tokens,row.average_daily_bytes,
-          row.active_at_period_end,snapshotId,row.request_status,row.gateway_status,row.provider,
-          row.model,row.units_json,row.cost_status,row.verified_cost_satang,
-          row.cost_evidence_key,row.cost_reconciled_at,row.active_from,row.active_until,
-          row.byte_milliseconds).run();},async pruneMeters(plan){const {binding,month,snapshotId}=plan;await tx.prepare(`DELETE FROM billing_usage_meters
-      WHERE holding_id=? AND month=? AND snapshot_id<>?`)
-      .bind(binding.id, month, snapshotId).run();},async seat(plan,seat){const {binding,month,snapshotId}=plan;await tx.prepare(`INSERT INTO billing_seat_usage(holding_id,month,user_key,intervals_json,snapshot_id)
-        VALUES(?,?,?,?::jsonb,?) ON CONFLICT(holding_id,month,user_key) DO UPDATE SET
-        intervals_json=excluded.intervals_json,snapshot_id=excluded.snapshot_id`)
-        .bind(binding.id,month,seat.userKey,JSON.stringify(seat.intervals),snapshotId).run();},async pruneSeats(plan){const {binding,month,snapshotId}=plan;await tx.prepare("DELETE FROM billing_seat_usage WHERE holding_id=? AND month=? AND snapshot_id<>?")
-      .bind(binding.id,month,snapshotId).run();},async finish(plan,sourceCount,seatProjection){const {binding,month,snapshotId,observedAt,coverage,activeSeat}=plan,meters={size:sourceCount};await tx.prepare(`UPDATE billing_usage_snapshots
-      SET snapshot_id=?,refreshed_at=?,source_count=?,ai_coverage=?,storage_coverage=?,seat_coverage=?,seat_source_count=?,unreconciled_originals=?,
-        active_seat_count=?,active_seat_observed_at=?
-      WHERE holding_id=? AND month=?`)
-      .bind(snapshotId, observedAt, meters.size, coverage.ai, coverage.storage,
-        seatProjection.coverage,seatProjection.rows.length,
-        coverage.unreconciledOriginals,activeSeat?.count??null,activeSeat?.asOf??null,
-        binding.id, month).run();},
+ async ensureHeader(plan){const {binding,month,snapshotId,observedAt,coverage,activeSeat}=plan;
+   await ownerWrite('usage.snapshot-ensure', [binding.id, month, snapshotId, observedAt, coverage.ai, coverage.storage,
+     coverage.unreconciledOriginals,activeSeat?.count??null,activeSeat?.asOf??null], binding.id, `usage:${snapshotId}:ensure`);},lockHeader:(holdingId,month)=>{const binding={id:holdingId};return tx.prepare(`SELECT refreshed_at FROM billing_usage_snapshots
+      WHERE holding_id=? AND month=? FOR UPDATE`).bind(binding.id, month).first<{refreshed_at:number}>();},async meter(plan,row){const {snapshotId}=plan;
+   await ownerWrite('usage.meter', [row.holding_id,row.month,row.source_key,row.company_id,row.company_name,
+     row.branch_id,row.branch_name,row.meter_kind,row.funding_source,row.pricing_status,
+     row.quantity,row.input_tokens,row.output_tokens,row.average_daily_bytes,
+     row.active_at_period_end,snapshotId,row.request_status,row.gateway_status,row.provider,
+     row.model,row.units_json,row.cost_status,row.verified_cost_satang,
+     row.cost_evidence_key,row.cost_reconciled_at,row.active_from,row.active_until,
+     row.byte_milliseconds], row.holding_id, `usage:${snapshotId}:meter:${row.source_key}`);},async pruneMeters(plan){const {binding,month,snapshotId}=plan;
+   await ownerWrite('usage.meter-prune', [binding.id, month, snapshotId], binding.id, `usage:${snapshotId}:meter-prune`);},async seat(plan,seat){const {binding,month,snapshotId}=plan;
+   await ownerWrite('usage.seat', [binding.id,month,seat.userKey,JSON.stringify(seat.intervals),snapshotId], binding.id, `usage:${snapshotId}:seat:${seat.userKey}`);},async pruneSeats(plan){const {binding,month,snapshotId}=plan;
+   await ownerWrite('usage.seat-prune', [binding.id,month,snapshotId], binding.id, `usage:${snapshotId}:seat-prune`);},async finish(plan,sourceCount,seatProjection){const {binding,month,snapshotId,observedAt,coverage,activeSeat}=plan,meters={size:sourceCount};
+   await ownerWrite('usage.snapshot-finish', [snapshotId, observedAt, meters.size, coverage.ai, coverage.storage,
+     seatProjection.coverage,seatProjection.rows.length, coverage.unreconciledOriginals,activeSeat?.count??null,
+     activeSeat?.asOf??null,binding.id,month], binding.id, `usage:${snapshotId}:finish`);},
 };}
 function repository(control:SqlDatabase):UsageProjectionRepository{return {async projectionFacts(month,currentMonth){const [snapshots, sourceRows, currentSnapshots] = await Promise.all([
     control.prepare(`SELECT holding_id,ai_coverage,storage_coverage,seat_coverage,seat_source_count,unreconciled_originals,

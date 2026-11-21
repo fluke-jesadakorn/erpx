@@ -1,8 +1,8 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { deviceSessionSelected } from '@erpx/server-identity_access/adapters/device-account-store';
 import { bindingIsCurrent, type SsoSessionBinding } from "@erpx/server-identity_access/domain/product-sso";
+import {deviceSessionSelected} from '@erpx/server-identity_access/adapters/device-account-store';
 
 type Binding = { session_id: string; audience: string; environment: string; parent_session_id: string | null; authenticated_at: number; absolute_expires_at: number };
 const binding = (row: Binding): SsoSessionBinding => ({ sessionId: row.session_id, audience: row.audience, environment: row.environment,
@@ -39,5 +39,5 @@ export async function assertAccountPreferenceSession(transaction: SqlDatabase,
   if (new Date(session.expires_at).getTime() <= now || !bindingIsCurrent(binding(current), actor.audience, "development", now) ||
     !parent || parent.parent_session_id || parent.user_id !== actor.userId || new Date(parent.expires_at).getTime() <= now ||
     !bindingIsCurrent(binding(parent), "account", "development", now) || Number(parent.authenticated_at) !== Number(current.authenticated_at) ||
-    Number(parent.absolute_expires_at) < Number(current.absolute_expires_at)) throw invalid();
+    Number(parent.absolute_expires_at) < Number(current.absolute_expires_at) || !await deviceSessionSelected(transaction, parentId)) throw invalid();
 }

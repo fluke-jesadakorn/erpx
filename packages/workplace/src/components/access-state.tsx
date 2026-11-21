@@ -1,4 +1,5 @@
 "use client";
+import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import { Card } from "@erpx/ui/components/card";
 
 import { useMainLandmark } from "@erpx/ui/components/main";
@@ -6,7 +7,6 @@ import { ActionAnchor as UiActionAnchor } from "@erpx/ui/components/action-ancho
 
 import { Button } from "@erpx/ui/components/button";
 
-/* eslint-disable @next/next/no-html-link-for-pages -- Recovery needs document navigation to re-read access cookies and leave failed route boundaries. */
 import { useSyncExternalStore, useTransition } from "react";
 import {
   ArrowRight,
@@ -83,9 +83,9 @@ export function AccessState({
         aria-labelledby="access-state-title"
         data-access-reason={reason}
       >
-        <a className={styles.brand} href="/" aria-label="ERPX home">
+        <AppsHomeLink className={styles.brand}>
           <ProductBrand appearance="standard" />
-        </a>
+        </AppsHomeLink>
         <div className={styles.icon}>
           <Icon size={26} aria-hidden="true" />
         </div>

@@ -7,7 +7,7 @@ export function anonymousAccountAuthPath(path: string) {
   return /^\/api\/auth\/(?:sign-in\/(?:email|social)|directory\/sign-in|callback\/directory-[a-f0-9-]{36}|forget-password|request-password-reset|reset-password(?:\/[A-Za-z0-9_-]+)?|send-verification-email|verify-email)\/?$/i.test(path);
 }
 
-export { safeProductReturnPath } from '@erpx/contracts/account-navigation';
+export {safeProductReturnPath} from '@erpx/contracts/product-return-path';
 
 export type SsoSessionBinding = {
   sessionId: string;

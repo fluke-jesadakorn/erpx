@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { copyFile, lstat, mkdir, readdir, readlink, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { relative, resolve, sep } from 'node:path';
-const privateDirectories = new Set(['.next', '.build', '.cache', '.turbo', '.scratch', '.runtime', '.git']);
+const privateDirectories = new Set(['.next', '.build', '.cache', '.turbo', '.scratch', '.runtime', '.git', 'target']);
 /** Source snapshots never inherit local configuration, state or generated output. */
 export function workspaceCopyInput(root: string, path: string) {
   const base = resolve(root), target = resolve(path);
@@ -31,11 +31,4 @@ export async function copyWorkspaceSnapshot(source:string,target:string,filter:(
   }
  }));
  const failed=copied.find(result=>result.status==='rejected');if(failed?.status==='rejected')throw failed.reason;
-}
-
-/** Inputs needed by the browser case; Next generates declarations in each app. */
-export const browserWorkspaceInputs = ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','postcss.config.mjs','node_modules'] as const;
-export async function copyBrowserWorkspaceSnapshot(root:string,target:string){
- await mkdir(target,{recursive:true});
- for(const name of browserWorkspaceInputs)await copyWorkspaceSnapshot(join(root,name),join(target,name),path=>workspaceCopyInput(root,path));
 }

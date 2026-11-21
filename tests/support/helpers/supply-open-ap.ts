@@ -3,7 +3,8 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {captureSupplierBill,decideSupplierBill} from "@erpx/server-procurement/public/supplier-bill-matching";
 import {invoiceFulfillment} from '@erpx/server-commerce/public/commerce';
-import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
+import {postInvoice} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from "./finance-journal-seed";
 
 /** Seed distinct reviewed functional Inventory and goods-clearing references
  * before any receipt is created. A clearing/payable alias is not a valid AP
@@ -25,7 +26,7 @@ export async function openOriginalSupplyPayable(database:PostgresDatabase,actors
  if(!receipt?.journal_id)throw Error("ORIGINAL_SUPPLY_RECEIPT_JOURNAL_REQUIRED");
  async function assign(kind:"order"|"invoice"|"journal",id:string,stepKey="draft",userId=actors.reviewer.userId){const flow=await resolveFlow(database,actors.owner,kind,id);await assignFlowPrimary(database,actors.owner,kind,id,{stepKey,userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:"Original independent reviewer for retained Supply payable",saveDefault:false},key());}
  const status=await database.prepare("SELECT status FROM finance_journals WHERE id=?").bind(receipt.journal_id).first<string>("status");
- if(status==="draft"){await assign("journal",receipt.journal_id);await postJournal(actors.reviewer,receipt.journal_id,key(),{expectedVersion:1});}
+ if(status==="draft"){await markFinanceJournalPosted(database,receipt.journal_id,actors.reviewer.userId);}
  const version=Number(await database.prepare("SELECT version FROM commerce_fulfillments WHERE id=?").bind(fulfillmentId).first("version")),lines=(await database.prepare("SELECT id FROM commerce_fulfillment_lines WHERE fulfillment_id=?").bind(fulfillmentId).all<{id:string}>()).results;
  if(lines.length!==1)throw Error("ORIGINAL_TWO_UNIT_RECEIPT_LINE_REQUIRED");
  const bill=await captureSupplierBill(actors.preparer,{fulfillmentId,expectedVersion:version,reference:`ORIGINAL-AP-${key()}`,invoiceDate:"2026-09-03",dueDate:"2026-09-10",evidence:"Actual two-unit supplier bill remains unpaid during separate addon withdrawal",lines:[{fulfillmentLineId:lines[0].id,quantity:"2",price:"10",taxBps:0}]},key());

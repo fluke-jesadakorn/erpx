@@ -22,8 +22,9 @@ import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDoc
 import {announceWorkChange} from "@erpx/feature-work_projection/lib/work-refresh";
 type Row = Record<string, string | number | null>;
 type Options = { charts: Row[]; accounts: Row[]; parties: Row[]; periods: Row[] };
-type InvoiceCommandAttempt = { value: string; base: string; path: string; body: string; key: string; context: string; completion: ReturnType<typeof captureFinanceForm>; uncertain: boolean };
-function useInvoiceCommand(base: string, purpose: "new-work" | "settle-existing", post?: FinanceDocumentPostControl) {
+type InvoiceDocument = "invoices" | "payables";
+type InvoiceCommandAttempt = { value: string; base: string; document: InvoiceDocument; path: string; body: string; key: string; context: string; completion: ReturnType<typeof captureFinanceForm>; uncertain: boolean };
+function useInvoiceCommand(base: string, purpose: "new-work" | "settle-existing", post?: FinanceDocumentPostControl, document: InvoiceDocument = "invoices") {
   const allowed = useFinanceActionAllowed(purpose);
   const trackCommandPending=useFinanceDraftCommandPending();
   const router = useRouter(), attempt = useRef<InvoiceCommandAttempt | null>(null);
@@ -40,7 +41,7 @@ function useInvoiceCommand(base: string, purpose: "new-work" | "settle-existing"
     }
     pendingRef.current = true; setNotice(""); setError(""); setBusy(true);
     try {
-      const r = await workFetch(`/api/v1${captured.base}/finance/invoices${captured.path}`, {
+      const r = await workFetch(`/api/v1${captured.base}/finance/${captured.document}${captured.path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": captured.key },
         body: captured.body,
@@ -67,15 +68,16 @@ function useInvoiceCommand(base: string, purpose: "new-work" | "settle-existing"
       return false;
     } finally { pendingRef.current = false; setBusy(false); }
   }
-  async function send(path: string, input: unknown) {
+  async function send(path: string, input: unknown, documentOverride?: InvoiceDocument) {
     if (pendingRef.current) return false;
-    const body = JSON.stringify(input), context = financeDocumentCommandContext(), identity = JSON.stringify([base, context, path, body]);
+    const selected = documentOverride ?? document;
+    const body = JSON.stringify(input), context = financeDocumentCommandContext(), identity = JSON.stringify([base, context, selected, path, body]);
     if (attempt.current) {
       if (attempt.current.value !== identity) { setError("Confirm the original Finance request first. Your newer draft is retained."); return false; }
       return run(attempt.current);
     }
     if (!financeDocumentCommandAllowed(allowed, path, post)) { setError("This Finance action is unavailable. Your draft is retained."); return false; }
-    const captured: InvoiceCommandAttempt = { value: identity, base, path, body, key: crypto.randomUUID(), context, completion: captureFinanceForm(), uncertain: false };
+    const captured: InvoiceCommandAttempt = { value: identity, base, document: selected, path, body, key: crypto.randomUUID(), context, completion: captureFinanceForm(), uncertain: false };
     attempt.current = captured;trackCommandPending(pendingIdentity.current,captured.completion,true);setHasAttempt(true); setUnresolved(true);
     return run(captured);
   }
@@ -105,11 +107,16 @@ export function InvoiceEditor({
   initialChartId?: string;
 }) {
   const draftScope = useFinanceDraftScope();
-  const selected = useCurrency(),
-    { send, retryOriginal, error, busy, unresolved, notice, canSend } = useInvoiceCommand(base, "new-work");
+  const selected = useCurrency();
   const [open, setOpen] = useState(initialOpen),
-    [kind, setKind] = useState(String(invoice?.kind ?? initialKind)),
-    [chartId, setChartId] = useState(
+    [kind, setKind] = useState(String(invoice?.kind ?? initialKind));
+  const { send, retryOriginal, error, busy, unresolved, notice, canSend } = useInvoiceCommand(
+    base,
+    "new-work",
+    undefined,
+    kind === "payable" ? "payables" : "invoices",
+  );
+  const [chartId, setChartId] = useState(
       String(
         options.accounts.find((a) => a.id === invoice?.debit_account_id)?.chart_id ??
           initialChartId ??
@@ -365,7 +372,12 @@ export function InvoiceActions({
   fxAccounts?: Row[];
 }) {
   const draftScope = useFinanceDraftScope();
-  const { send, retryOriginal, error, busy, unresolved, notice, canSend, canPostSend } = useInvoiceCommand(base, "settle-existing", {path:`/${invoice.id}/post`,canPost:sourceCanPost});
+  const { send, retryOriginal, error, busy, unresolved, notice, canSend, canPostSend } = useInvoiceCommand(
+    base,
+    "settle-existing",
+    {path:`/${invoice.id}/post`,canPost:sourceCanPost},
+    invoice.kind === "payable" ? "payables" : "invoices",
+  );
   const [reviewEvidence,setReviewEvidence]=useState<AttachmentPanelChange|null>(null);
   const [generation,setGeneration]=useState(0);
   return (
@@ -422,21 +434,69 @@ export function InvoiceActions({
           </Button>
         </FormLayout></FormDisclosure>
       ) : null}
-      {canVoid && invoice.source_type === "standalone" && (
+      {canVoid && (invoice.source_type === "standalone" || invoice.source_type === "commerce_fulfillment") && invoice.status === "draft" && (
         <>
           <Button appearance="standard"
             type="button"
             variant="secondary"
             disabled={busy || unresolved || !canSend}
-            onClick={() => send(`/${invoice.id}/void`, { expectedVersion: invoice.version })}
+            onClick={() => send(`/${invoice.id}/void`, { expectedVersion: invoice.version }, invoice.kind === "payable" ? "payables" : "invoices")}
           >
             Void draft
           </Button>
           <p className="muted">
-            Voided drafts retain their audit history. Posted invoices require a credit-note
-            workflow.
+            Voided drafts retain their audit history.
           </p>
         </>
+      )}
+      {canVoid && (invoice.source_type === "standalone" || invoice.source_type === "commerce_fulfillment") && invoice.kind === "payable" && invoice.status === "posted" && (
+        <FormDisclosure appearance="standard" drawerTitle="Void posted bill" error={error || undefined} dismissDisabled={busy || unresolved}>
+          <summary>Void posted bill</summary>
+          <FormLayout data-finance-draft={draftScope} className="ui-form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              void send(`/${invoice.id}/void`, {
+                expectedVersion: invoice.version,
+                periodId: f.get("period"),
+                entryDate: f.get("date"),
+                ...(String(f.get("memo") ?? "").trim() ? { memo: String(f.get("memo")).trim() } : {}),
+              }, invoice.kind === "payable" ? "payables" : "invoices");
+            }}
+          >
+            <p className="muted">
+              A posted bill is voided by an exact reversing journal. A different Finance approver
+              must sign this correction.
+            </p>
+            <Field appearance="standard">
+              Reversal period
+              <Select appearance="standard" name="period" required>
+                <option value="">Select open period</option>
+                {periods.map((p) => (
+                  <option key={String(p.id)} value={String(p.id)}>
+                    {String(p.name)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field appearance="standard">
+              Reversal date
+              <TextInput appearance="standard" name="date" type="date" required defaultValue={String(invoice.invoice_date)} />
+            </Field>
+            <Field appearance="standard">
+              Reason
+              <TextInput appearance="standard" name="memo" maxLength={500} placeholder="Why is this posted bill reversed?" />
+            </Field>
+            <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy || unresolved || !canSend}>
+              Post reversing journal
+            </Button>
+          </FormLayout>
+        </FormDisclosure>
+      )}
+      {canVoid && invoice.source_type === "standalone" && invoice.kind !== "payable" && invoice.status === "posted" && (
+        <p className="muted">
+          Posted invoices require a credit-note workflow.
+        </p>
       )}
     </Card>
   );

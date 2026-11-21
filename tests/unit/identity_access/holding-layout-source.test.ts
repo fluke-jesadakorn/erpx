@@ -21,11 +21,12 @@ vi.mock("@erpx/server-pms/public/hospitality-rollout",()=>({companyFeatureCatalo
 vi.mock("@erpx/server-organization/public/workspace-choices",()=>({workspaceChoices:reads.workspaceChoices}));
 vi.mock("@erpx/server-work_projection/public/product-launcher",()=>({productLaunchChoices:reads.products}));
 vi.mock("@erpx/server-work_projection/public/admin-launcher",()=>({adminLaunchChoices:reads.adminProducts}));
+vi.mock("@erpx/server-identity_access/public/provider-entry",()=>({providerEntryOverview:async()=>null}));
 vi.mock("@erpx/server-work_projection/public/home-cache",()=>({homeContextKey:()=> 'opaque-render-context'}));
 vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
 vi.mock("@erpx/server-runtime/public/runtime/read-metrics",()=>({measureReadPhase:async<Result>(_name:string,read:()=>Promise<Result>)=>read()}));
 vi.mock("@erpx/server-identity_access/public/account-preference-snapshot",()=>({preferredAccountLanguage:async()=>state.language,preferredAccountAppearance:async()=> 'system'}));
-vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({productHostForHost:(host:string)=>host.startsWith('finance-')?'finance':host.startsWith('work-')?'work':host.startsWith('sales-')?'sales':host.startsWith('admin-')?'admin':null,configuredProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`,configuredProductHandoff:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com/`,configuredDevelopmentProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`}));
+vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({productHostForHost:(host:string)=>host.startsWith('finance-')?'finance':host.startsWith('apps-')?'apps':host.startsWith('sales-')?'sales':host.startsWith('admin-')?'admin':null,requestProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`,configuredProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`,configuredProductHandoff:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com/`,configuredDevelopmentProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`}));
 
 import WorkplaceLayout from '@erpx/workplace/routes/holdings/[holdingSlug]/layout';
 import {OfficeProductMenus} from '@erpx/workplace/components/office-product-menus';
@@ -95,14 +96,14 @@ it.each([
  {name:'Sales posting setup',host:'sales',path:'customers-sales/sales/settings/posting',label:'Sales posting setup',language:'en'},
  {name:'Sales posting setup in Thai',host:'sales',path:'customers-sales/sales/settings/posting',label:'ตั้งค่าบัญชีงานขาย',language:'th'},
  {name:'included Finance journal',host:'finance',path:'finance/accounting/records/journal/included/overview',label:'Included Finance work',language:'en'},
- {name:'included Project task on Work',host:'work',path:'projects-routines/tasks/actual-project-task/overview',label:'Project task',language:'en'},
- {name:'source notification on Work',host:'work',path:'inbox/notifications',label:'Notifications',language:'en'},
- {name:'included published conversation on Work',host:'work',path:'posts/actual-source-post',label:'บทสนทนาของรายการต้นทาง',language:'th'},
- {name:'original personal request on Work',host:'work',path:'leave',label:'My requests',language:'en'},
+ {name:'included Project task on Work',host:'apps',path:'projects-routines/tasks/actual-project-task/overview',label:'Project task',language:'en'},
+ {name:'source notification on Work',host:'apps',path:'inbox/notifications',label:'Notifications',language:'en'},
+ {name:'included published conversation on Work',host:'apps',path:'posts/actual-source-post',label:'บทสนทนาของรายการต้นทาง',language:'th'},
+ {name:'original personal request on Work',host:'apps',path:'leave',label:'My requests',language:'en'},
 ] as const)('renders actual $name initial owner content without any workspace discovery, counts or Client authority snapshots',async entry=>{
  state.host=`${entry.host}-dev-erpx.jesadakorn.com`;state.path=`/holdings/acme/${entry.path}`;state.language=entry.language;
  const page=await layout();assertRestricted(page);const markup=await sourceMarkup(page);
- const recoveryLabel=entry.language==='th'?'เลือกผลิตภัณฑ์ใน Apps':'Choose a product in Apps',recovery=find<ComponentProps<typeof WorkspaceLink>>(page,WorkspaceLink,props=>props['aria-label']===recoveryLabel);
+ const recoveryLabel=entry.language==='th'?'เลือกแอปและพื้นที่ทำงาน':'Choose apps and workspace',recovery=find<ComponentProps<typeof WorkspaceLink>>(page,WorkspaceLink,props=>props['aria-label']===recoveryLabel);
  expect(recovery).toBeDefined();expect(recovery!.props.href).toBe('https://apps-dev-erpx.jesadakorn.com/');expect(markup).toContain(`aria-label="${recoveryLabel}"`);
  expect(markup).toContain('Owner record initial content');expect(markup).toContain('Original record drawer content');expect(markup).toContain(entry.label);expect(markup).toContain('Actual Company');expect(markup).toContain('https://apps-dev-erpx.jesadakorn.com/');
  for(const read of discoveries)expect(read).not.toHaveBeenCalled();expect(reads.restricted).toHaveBeenCalledExactlyOnceWith('acme');expect(reads.identity).toHaveBeenCalledExactlyOnceWith('company');expect(reads.brand).toHaveBeenCalledTimes(1);expect(reads.money).toHaveBeenCalledTimes(1);expect(fetch).not.toHaveBeenCalled();
@@ -152,7 +153,7 @@ function breadcrumbAnchors(markup:string){return [...markup.matchAll(/<a\b([^>]*
 it.each([
  {host:'admin',route:'administration/technology/directory/objects',landing:'administration'},
  {host:'finance',route:'finance/accounting/journals',landing:'finance/documents'},
- {host:'work',route:'calendar/mine',landing:'home'},
+ {host:'apps',route:'calendar/mine',landing:'home'},
  {host:'console',route:'administration/technology/directory/objects',landing:'home'},
 ] as const)('keeps authorized $host ancestors in the current owner landing with document navigation',async entry=>{
  state.host=`${entry.host}-dev-erpx.jesadakorn.com`;state.path=`${breadcrumbDepartment}/${entry.route}`;const context=breadcrumbContext();useBreadcrumbWorkspace(context);
@@ -189,9 +190,9 @@ it('uses the ERPX Management root for the actual Admin management layout instead
 function expandableBreadcrumb(props:ComponentProps<typeof WorkspaceBreadcrumb>){
  const require=breadcrumbRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=breadcrumbRead(breadcrumbResolve('packages/workplace/src/components/workspace-breadcrumb.tsx'),'utf8'),tree=ts.createSourceFile('actual-breadcrumb.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declarations:import('typescript').FunctionDeclaration[]=[];
  ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='WorkspaceBreadcrumb')declarations.push(node);});expect(declarations).toHaveLength(1);const declaration=declarations[0];if(!declaration)throw Error('Actual breadcrumb declaration missing');
- const code=ts.transpileModule(declaration.getText(tree).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,jsxFactory:'breadcrumbElement'}}).outputText;
- let open=false;const evaluate=new Function('ports',`const {breadcrumbElement,Button,Link,usePathname,useSearchParams,ChevronRight,MoreHorizontal,useEffect,useRef,useState,navigationTrail,workplaceNavigation,styles}=ports;\n${code}\nreturn WorkspaceBreadcrumb;`) as (ports:Record<string,unknown>)=>typeof WorkspaceBreadcrumb;
- const component=evaluate({breadcrumbElement:h,Button:BreadcrumbButton,Link:WorkspaceLink,usePathname:()=>new URL(state.path,'https://entry.invalid').pathname,useSearchParams:()=>new URL(state.path,'https://entry.invalid').searchParams,ChevronRight:BreadcrumbChevron,MoreHorizontal:BreadcrumbMore,useEffect:()=>{},useRef:()=>({current:null}),useState:()=>[open,(next:boolean|((value:boolean)=>boolean))=>{open=typeof next==='function'?next(open):next;}],navigationTrail:breadcrumbTrail,workplaceNavigation:breadcrumbNavigation,styles:new Proxy({}, {get:(_target,key)=>String(key)})});
+ const code=ts.transpileModule(declaration.getText(tree).replace(/^export\s+/,''),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,jsxFactory:'breadcrumbElement'}}).outputText;
+ let open=false;const evaluate=new Function('ports',`const {breadcrumbElement,Button,Link,useProductPathname,useProductNavigationScope,productNavigationHref,workspacePathParts,useSearchParams,ChevronRight,MoreHorizontal,useEffect,useRef,useState,navigationTrail,workplaceNavigation,styles}=ports;\n${code}\nreturn WorkspaceBreadcrumb;`) as (ports:Record<string,unknown>)=>typeof WorkspaceBreadcrumb;
+ const component=evaluate({breadcrumbElement:h,Button:BreadcrumbButton,Link:WorkspaceLink,useProductNavigationScope:()=>({audience:null}),productNavigationHref:(href:string)=>({href,handoff:false}),workspacePathParts:()=>null,useProductPathname:()=>new URL(state.path,'https://entry.invalid').pathname,useSearchParams:()=>new URL(state.path,'https://entry.invalid').searchParams,ChevronRight:BreadcrumbChevron,MoreHorizontal:BreadcrumbMore,useEffect:()=>{},useRef:()=>({current:null}),useState:()=>[open,(next:boolean|((value:boolean)=>boolean))=>{open=typeof next==='function'?next(open):next;}],navigationTrail:breadcrumbTrail,workplaceNavigation:breadcrumbNavigation,styles:new Proxy({}, {get:(_target,key)=>String(key)})});
  return {render:()=>component(props),open(){const trigger=find<{onClick:()=>void;'aria-label'?:string}>(component(props),BreadcrumbButton,value=>value['aria-label']==='Show breadcrumb path');expect(trigger).toBeDefined();if(!trigger)throw Error('Actual breadcrumb overflow trigger missing');trigger.props.onClick();}};
 }
 it('renders the authorized product ancestor as a full navigation anchor in both desktop and opened overflow breadcrumbs',async()=>{
@@ -207,7 +208,7 @@ import {WorkContextBoundary as InitialContextBoundary} from '@erpx/workplace/com
 it.each([true,false])('passes only the current public SSR identity to the actual layout boundary (source-only=%s)',async sourceOnly=>{
  const started=Date.now(),context=actor();reads.access.mockImplementation(async()=>({sourceRecord:sourceOnly,target:state.path,chooseRole:'/choose-work-role'}));
  if(!sourceOnly)useBreadcrumbWorkspace(context);
- const page=await layout(),boundary=find<ComponentProps<typeof InitialContextBoundary>>(page,InitialContextBoundary);expect(boundary).toBeDefined();const initial=boundary!.props.initialCurrent;expect(initial).toEqual({version:1,base:'/holdings/acme',userId:context.userId,companyId:context.companyId,assignmentId:context.assignmentId,revision:context.authority!.revision,checkedAt:expect.any(Number)});expect(initial!.checkedAt).toBeGreaterThanOrEqual(started);expect(initial!.checkedAt).toBeLessThanOrEqual(Date.now());expect(Object.keys(initial!).sort()).toEqual(['assignmentId','base','checkedAt','companyId','revision','userId','version']);expect(JSON.stringify(initial)).not.toContain('private-session-marker');expect(JSON.stringify(initial)).not.toContain('private-permission-marker');expect(fetch).not.toHaveBeenCalled();
+ const page=await layout(),boundary=find<ComponentProps<typeof InitialContextBoundary>>(page,InitialContextBoundary);expect(boundary).toBeDefined();const initial=boundary!.props.initialCurrent;expect(initial).toEqual({version:2,base:'/holdings/acme',userId:context.userId,companyId:context.companyId,assignmentId:context.assignmentId,revision:context.authority!.revision,assignmentVersion:context.authority!.assignmentVersion,checkedAt:expect.any(Number)});expect(initial!.checkedAt).toBeGreaterThanOrEqual(started);expect(initial!.checkedAt).toBeLessThanOrEqual(Date.now());expect(Object.keys(initial!).sort()).toEqual(['assignmentId','assignmentVersion','base','checkedAt','companyId','revision','userId','version']);expect(JSON.stringify(initial)).not.toContain('private-session-marker');expect(JSON.stringify(initial)).not.toContain('private-permission-marker');expect(fetch).not.toHaveBeenCalled();
 });
 
 

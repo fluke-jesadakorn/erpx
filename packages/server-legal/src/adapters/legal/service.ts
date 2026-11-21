@@ -5,7 +5,7 @@ import {legalReadScope,withLegalPurchasedCommand,inLegalOwnerUnit} from '@erpx/s
 import {parseItem} from '@erpx/server-legal/domain/model';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
-import {legalHoldNotificationInsert} from "@erpx/server-collaboration/public/legal-hold-notifications";
+import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
 import {createHash} from "node:crypto";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
@@ -21,8 +21,9 @@ import {tables,access,enabled,visibility,guards,lock,eligible,personGuard} from 
 import {legalPeople} from "@erpx/server-legal/adapters/legal/assignees";
 import type {LegalItem,LegalDetail,DocumentVersion} from "@erpx/server-legal/domain/model";
 import {createLegalRegisterApplication,type LegalWrite,type LegalListQuery} from "@erpx/server-legal/application/service";
+import { legalService } from '@erpx/server-collaboration/adapters/native-legal-service';
 export const hash=(value:string|Uint8Array)=>createHash("sha256").update(value).digest("hex");
-function application(db:SqlDatabase,a:WorkContext,readScope?:Promise<Awaited<ReturnType<typeof legalReadScope>>>){
+function application(db:SqlDatabase,a:WorkContext,readScope?:Promise<Awaited<ReturnType<typeof legalReadScope>>>){const nativeSvc=legalService(db,a.companyId,a.userId,identity_accessProjectionSources.assignments,tables);
  let readObservation=readScope;const purchasedRead=()=>readObservation??=legalReadScope(db,a);
 const v=visibility(a),linkScope=visibility(a,"t"),holdScope=visibility(a,"source"),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();
 const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
@@ -105,7 +106,7 @@ signers:(envelopeId:string)=>{return db
           )
           .bind(envelopeId)
           .all<LegalDetail["envelopes"][number]["signers"][number]>();},
-recordRead:async (id:string,identifier:string,now:number)=>{await db.prepare("INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)").bind(identifier,id,null,a.userId,"record.read",now).run();},
+recordRead:async(id,identifier,now)=>{await (await nativeSvc.accessEvent({identifier,id,now})).run();},
 shares:(id:string)=>{return db
           .prepare(
             "SELECT id,email,document_id,user_id,expires_at,revoked_at FROM legal_shares WHERE item_id=? ORDER BY created_at DESC LIMIT 100",
@@ -118,53 +119,18 @@ submissions:(id:string)=>{return db
       )
       .bind(id)
       .all<LegalDetail["submissions"][number]>();},
-configure:(facts:{companyId:string;enabled:boolean;aiEnabled:boolean;reminderDaysJson:string | null;reminderDaysJson2:string | null;})=>{return stage(db.prepare("INSERT INTO legal_settings(company_id,enabled,ai_enabled,reminder_days) VALUES(?,?,?,coalesce(?::jsonb,'[90,60,30,7,1]'::jsonb)) ON CONFLICT(company_id) DO UPDATE SET enabled=excluded.enabled,ai_enabled=excluded.ai_enabled,reminder_days=coalesce(?::jsonb,legal_settings.reminder_days),version=legal_settings.version+1").bind(facts.companyId,facts.enabled,facts.aiEnabled,facts.reminderDaysJson,facts.reminderDaysJson2));},
+configure:async facts=>stage(await nativeSvc.configure(facts)),
 managerAvailable:(facts:{companyId:string;branchId:string | null;departmentId:string | null;})=>{return db.prepare(`SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') LIMIT 1`).bind(facts.companyId,facts.branchId,facts.departmentId).first();},
-createRecord:(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;kind:"request" | "matter" | "contract" | "obligation" | "compliance" | "license" | "corporate" | "ip" | "privacy" | "counsel" | "template" | "rule";title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;actorId:string;now:number;now2:number;})=>{return stage(db.prepare("INSERT INTO legal_items(id,company_id,branch_id,department_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,due_date,owner_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(facts.id,facts.companyId,facts.branchId,facts.departmentId,facts.kind,facts.title,facts.description,facts.classification,facts.country,facts.jurisdiction,facts.language,facts.currency,facts.timezone,facts.priority,facts.dueDate,facts.ownerId,facts.actorId,facts.now,facts.now2));},
-createSubtype:(facts:{id:string;dataJson:string;recordKind:LegalItem["kind"];})=>{return stage(db.prepare(`INSERT INTO ${tables[facts.recordKind]} VALUES(?,?::jsonb)`).bind(facts.id,facts.dataJson));},
-addInitialMember:(facts:{id:string;u:string;})=>{return stage(db.prepare("INSERT INTO legal_members VALUES(?,?,'edit')").bind(facts.id,facts.u));},
-routeRequester:(facts:{id:string;companyId:string;branchId:string | null;departmentId:string | null;})=>{return stage(db.prepare(`INSERT INTO legal_members(item_id,user_id,access) SELECT DISTINCT ?,user_id,'edit' FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') ON CONFLICT DO NOTHING`).bind(facts.id,facts.companyId,facts.branchId,facts.departmentId));},
-lastAuthor:(facts:{id:string;})=>{return db.prepare("SELECT actor_id FROM legal_events WHERE item_id=? AND action IN ('created','update','document','document.upload','ai.accepted') ORDER BY version DESC,created_at DESC LIMIT 1").bind(facts.id).first<{ actor_id: string }>();},
-updateRecord:(facts:{title:string;description:string;classification:"internal" | "confidential" | "restricted";country:string;jurisdiction:string;language:string;currency:string;timezone:string;priority:"normal" | "high" | "urgent";dueDate:string | null;ownerId:string;id:string;})=>{return stage(db.prepare("UPDATE legal_items SET title=?,description=?,classification=?,country=?,jurisdiction=?,language=?,currency=?,timezone=?,priority=?,due_date=?,owner_id=? WHERE id=?").bind(facts.title,facts.description,facts.classification,facts.country,facts.jurisdiction,facts.language,facts.currency,facts.timezone,facts.priority,facts.dueDate,facts.ownerId,facts.id));},
-updateSubtype:(facts:{dataJson:string;id:string;recordKind:LegalItem["kind"];})=>{return stage(db.prepare(`UPDATE ${tables[facts.recordKind]} SET data=?::jsonb WHERE item_id=?`).bind(facts.dataJson,facts.id));},
-retainOwnerMembership:(facts:{id:string;ownerId:string;})=>{return stage(db.prepare("INSERT INTO legal_members VALUES(?,?,'edit') ON CONFLICT(item_id,user_id) DO UPDATE SET access='edit'").bind(facts.id,facts.ownerId));},
-assignOwner:(facts:{ownerId:string;id:string;})=>{return stage(db.prepare("UPDATE legal_items SET owner_id=? WHERE id=?").bind(facts.ownerId,facts.id));},
-retainAssignedMembership:(facts:{id:string;ownerId:string;})=>{return stage(db.prepare("INSERT INTO legal_members VALUES(?,?,'edit') ON CONFLICT(item_id,user_id) DO UPDATE SET access='edit'").bind(facts.id,facts.ownerId));},
-executedContract:(facts:{id:string;id2:string;id3:string;})=>{return db.prepare("SELECT 1 FROM legal_envelopes WHERE item_id=? AND state='completed' UNION ALL SELECT 1 FROM legal_executed_copies WHERE item_id=? AND state='confirmed' AND approved_cycle=(SELECT max(cycle) FROM legal_approvals WHERE item_id=?)").bind(facts.id,facts.id2,facts.id3).first();},
-cancelEnvelopes:(facts:{id:string;})=>{return stage(db.prepare("UPDATE legal_envelopes SET state='cancelled' WHERE item_id=? AND state='sent'").bind(facts.id));},
-removeMember:(facts:{id:string;userId:string;})=>{return stage(db.prepare("DELETE FROM legal_members WHERE item_id=? AND user_id=?").bind(facts.id,facts.userId));},
-setMember:(facts:{id:string;userId:string;access:"read" | "edit";})=>{return stage(db.prepare("INSERT INTO legal_members VALUES(?,?,?) ON CONFLICT(item_id,user_id) DO UPDATE SET access=excluded.access").bind(facts.id,facts.userId,facts.access));},
-documentBelongs:(facts:{documentId:string;id:string;})=>{return db.prepare("SELECT 1 FROM legal_documents WHERE id=? AND item_id=?").bind(facts.documentId,facts.id).first();},
-addComment:(facts:{identifier:string;id:string;section:string;body:string;visibility:"internal" | "external";actorId:string;timestamp:number;documentId:string | null;})=>{return stage(db.prepare("INSERT INTO legal_comments(id,item_id,section,body,visibility,created_by,created_at,document_id) VALUES(?,?,?,?,?,?,?,?)").bind(facts.identifier,facts.id,facts.section,facts.body,facts.visibility,facts.actorId,facts.timestamp,facts.documentId));},
-nextDocumentVersion:(facts:{id:string;})=>{return db.prepare("SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?").bind(facts.id).first<{ n: number }>();},
-addAuthoredDocument:(facts:{identifier:string;id:string;next:number;name:string;checksum:string;byteLength:number;body:string;actorId:string;timestamp:number;})=>{return stage(db.prepare("INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at) VALUES(?,?,?,?,'text/plain',?,?,?,?,?)").bind(facts.identifier,facts.id,facts.next,facts.name,facts.checksum,facts.byteLength,facts.body,facts.actorId,facts.timestamp));},
-approvalPending:(facts:{id:string;})=>{return db.prepare(`SELECT 1 FROM (${workflowProjectionSources.approval_instances}) approval_instances WHERE record_type='legal' AND record_id=? AND state='pending'`).bind(facts.id).first();},
-approvalDocument:(facts:{documentId:string;id:string;})=>{return db.prepare("SELECT * FROM legal_documents WHERE id=? AND item_id=?").bind(facts.documentId,facts.id).first<DocumentVersion>();},
-isExecutedCopy:(facts:{documentId:string;})=>{return db.prepare("SELECT 1 FROM legal_executed_copies WHERE document_id=?").bind(facts.documentId).first();},
-internalSigner:(facts:{id:string;signer:string;})=>{return db.prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?").bind(facts.id,facts.signer).first();},
-externalSigner:(facts:{id:string;documentId:string;signer:string;timestamp:number;})=>{return db.prepare("SELECT 1 FROM legal_shares WHERE item_id=? AND document_id=? AND user_id=? AND revoked_at IS NULL AND expires_at>?").bind(facts.id,facts.documentId,facts.signer,facts.timestamp).first();},
-lockApprovedDocument:(facts:{documentId:string;})=>{return stage(db.prepare("UPDATE legal_documents SET locked=true WHERE id=?").bind(facts.documentId));},
-recordApproval:(facts:{id:string;nextVersion:number;documentId:string;documentChecksum:string;signerIdsJson:string;actorId:string;timestamp:number;})=>{return stage(db.prepare("INSERT INTO legal_approvals VALUES(?,?,?,?,?::jsonb,?,'approved',?)").bind(facts.id,facts.nextVersion,facts.documentId,facts.documentChecksum,facts.signerIdsJson,facts.actorId,facts.timestamp));},
-linkRecord:(facts:{id:string;targetId:string;relation:"obligation" | "related" | "evidence" | "amends" | "derived";})=>{return stage(db.prepare("INSERT INTO legal_links VALUES(?,?,?) ON CONFLICT DO NOTHING").bind(facts.id,facts.targetId,facts.relation));},
-preservationNotice:(facts:{holdId:string;id:string;actorId:string;})=>{return db.prepare("SELECT 1 FROM legal_hold_notices WHERE hold_id=? AND item_id=? AND user_id=?").bind(facts.holdId,facts.id,facts.actorId).first();},
-acknowledgeNotice:(facts:{timestamp:number;note:string;holdId:string;id:string;actorId:string;})=>{return stage(db.prepare("UPDATE legal_hold_notices SET acknowledged_at=?,statement=? WHERE hold_id=? AND item_id=? AND user_id=?").bind(facts.timestamp,facts.note,facts.holdId,facts.id,facts.actorId));},
-createHold:(facts:{hold:string;id:string;note:string;actorId:string;timestamp:number;})=>{return stage(db.prepare("INSERT INTO legal_holds(id,item_id,reason,state,created_by,created_at) VALUES(?,?,?,'active',?,?)").bind(facts.hold,facts.id,facts.note,facts.actorId,facts.timestamp));},
-includeHoldTarget:(facts:{hold:string;id:string;})=>{return stage(db.prepare("INSERT INTO legal_hold_targets VALUES(?,?)").bind(facts.hold,facts.id));},
-hold:(facts:{requestedId:string;id:string;})=>{return db.prepare("SELECT * FROM legal_holds WHERE id=? AND item_id=?").bind(facts.requestedId,facts.id).first<{
-        id: string;
-        state: string;
-        created_by: string;
-        release_requested_by: string | null;
-      }>();},
-requestHoldRelease:(facts:{actorId:string;holdId:string;})=>{return stage(db.prepare("UPDATE legal_holds SET state='release_requested',release_requested_by=? WHERE id=?").bind(facts.actorId,facts.holdId));},
-releaseHold:(facts:{actorId:string;timestamp:number;holdId:string;})=>{return stage(db.prepare("UPDATE legal_holds SET state='released',released_by=?,released_at=? WHERE id=?").bind(facts.actorId,facts.timestamp,facts.holdId));},
-shareDocumentBelongs:(facts:{id:string;documentId:string;})=>{return db.prepare("SELECT 1 FROM legal_documents WHERE item_id=? AND id=?").bind(facts.id,facts.documentId).first();},
-shareDocument:(facts:{shareId:string;id:string;documentId:string;value3:string;expiresAt:number;actorId:string;timestamp:number;})=>{return stage(db.prepare("INSERT INTO legal_shares(id,item_id,document_id,email,expires_at,created_by,created_at) VALUES(?,?,?,?,?,?,?)").bind(facts.shareId,facts.id,facts.documentId,facts.value3,facts.expiresAt,facts.actorId,facts.timestamp));},
-queueInvitation:(facts:{identifier:string;shareId:string;holdingSlug:string;timestamp:number;})=>{return stage(db.prepare("INSERT INTO legal_invitation_jobs(id,share_id,holding_slug,state,created_at) VALUES(?,?,?,'queued',?)").bind(facts.identifier,facts.shareId,facts.holdingSlug,facts.timestamp));},
-revokeShare:(facts:{timestamp:number;share:string;id:string;})=>{return stage(db.prepare("UPDATE legal_shares SET revoked_at=?,version=version+1 WHERE id=? AND item_id=?").bind(facts.timestamp,facts.share,facts.id));},
-advanceRecord:(facts:{state:string;timestamp:number;id:string;})=>{return stage(db.prepare("UPDATE legal_items SET state=?,version=version+1,updated_at=? WHERE id=?").bind(facts.state,facts.timestamp,facts.id));},
-expandHoldTargets:()=>{return stage(db.prepare("WITH RECURSIVE targets(hold_id,item_id) AS (SELECT id,item_id FROM legal_holds WHERE state!='released' UNION SELECT t.hold_id,l.target_id FROM targets t JOIN legal_links l ON l.source_id=t.item_id WHERE l.relation IN ('evidence','derived','amends','obligation')) INSERT INTO legal_hold_targets SELECT * FROM targets ON CONFLICT DO NOTHING"));},
-notifyHoldTargets:(facts:{timestamp:number;companyId:string;})=>{return stage(db.prepare(`WITH added AS (INSERT INTO legal_hold_notices(hold_id,item_id,user_id,notified_at) SELECT h.id,t.item_id,m.user_id,? FROM legal_holds h JOIN legal_hold_targets t ON t.hold_id=h.id JOIN legal_members m ON m.item_id=t.item_id WHERE h.state!='released' AND t.item_id IN (SELECT id FROM legal_items WHERE company_id=?) ON CONFLICT DO NOTHING RETURNING *) ${legalHoldNotificationInsert()}`).bind(facts.timestamp,facts.companyId));},
+createRecord:async facts=>stage(await nativeSvc.createRecord(facts)),
+createSubtype:async facts=>stage(await nativeSvc.createSubtype(facts)),
+addInitialMember:async facts=>stage(await nativeSvc.addInitialMember({id:facts.id,u:facts.u})),
+routeRequester:async facts=>stage(await nativeSvc.routeRequester(facts)),
+updateRecord:async facts=>stage(await nativeSvc.updateRecord(facts)),
+updateSubtype:async facts=>stage(await nativeSvc.updateSubtype(facts)),
+retainOwnerMembership:async facts=>stage(await nativeSvc.retainOwnerMembership({id:facts.id,ownerId:facts.ownerId})),
+advanceRecord:async facts=>stage(await nativeSvc.advanceRecord(facts)),
+expandHoldTargets:async ()=>stage(await nativeSvc.expandHoldTargets()),
+notifyHoldTargets:async(facts:{timestamp:number;companyId:string;})=>{return stage(await nativeLegalHoldNotice(db,a,facts.timestamp));},
 requireEnabled:(key:string)=>stage(assertion(
           db,
           key,
@@ -188,7 +154,7 @@ requireHoldSourcesPreservable:(key:string,id:string)=>stage(assertion(
         [id, id],
       )),
 enabled:()=>enabled(db,a),companyLock:()=>stage(lock(db,a.companyId)),guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),personGuard:(key,id,scope,permission)=>stage(personGuard(db,a,key,id,scope,permission)),featureGuard:key=>productionFeatureGuard(db,key,a.companyId,"legal").map(stage),
-event:(id,action,note,version,identifier,now)=>stage(db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)").bind(identifier,id,action,a.userId,note,version,now)),
+event:async(id,action,note,version,identifier,now)=>stage(await nativeSvc.event({id,action,note,version,identifier,now})),
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_WRITE_REPOSITORY_MISMATCH");return statement;})),
 }});}

@@ -1,4 +1,6 @@
 "use client";
+import {publicHoldingPath} from '@erpx/feature-runtime/lib/holding-paths';
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 
 import {useEffect,useState} from "react";
 import {FrontLocalizedTree} from "@erpx/front/components/front-language";
@@ -22,7 +24,7 @@ export function BookingPaymentReturn({slug,propertyId,attempt,initial}:{slug:str
   const timer=window.setInterval(async()=>{
    if(pending)return;pending=true;
    try{
-    const response=await fetch(`/api/public/booking/${encodeURIComponent(slug)}/reservations?`+new URLSearchParams({attempt}),{cache:"no-store",signal:controller.signal}),body=await response.json();
+    const response=await holdingFetch(`/api/public/booking/${encodeURIComponent(slug)}/reservations?`+new URLSearchParams({attempt}),{cache:"no-store",signal:controller.signal}),body=await response.json();
     if(!response.ok)throw Error("Payment status unavailable");
     const next=body?.data as PaymentStatus|undefined;
     if(!next||next.attemptToken!==attempt||next.hotel?.id!==propertyId||next.number!==initial.number||typeof next.state!=="string")throw Error("Payment status unavailable");
@@ -36,7 +38,7 @@ export function BookingPaymentReturn({slug,propertyId,attempt,initial}:{slug:str
  return <FrontLocalizedTree><section data-ui-appearance="standard" className={styles.notice} aria-label="Booking payment status">
   <div role="status"><h1>{heading} · {status.number}</h1><p>{status.state==="payment_pending"?"Your room is held for 30 minutes. Complete payment in Stripe Checkout.":status.state==="confirmed"?status.paymentState==="received"?"Payment confirmed. A confirmation email and private management link are on the way.":"Your room is reserved. Pay the balance at the hotel.":status.state==="refund_review"?"The hold expired before payment confirmation. Finance will review a refund.":"The reservation is no longer held."}</p></div>
   {status.state==="payment_pending"&&status.checkoutUrl&&<ActionAnchor appearance="standard" variant="secondary" href={status.checkoutUrl}>Continue to secure payment</ActionAnchor>}
-  {status.managementToken&&<ActionAnchor appearance="standard" variant="secondary" href={`/book/${encodeURIComponent(slug)}/manage#token=${encodeURIComponent(status.managementToken)}`}>Manage booking</ActionAnchor>}
+  {status.managementToken&&<ActionAnchor appearance="standard" variant="secondary" href={`${publicHoldingPath(slug,'book')}/manage#token=${encodeURIComponent(status.managementToken)}`}>Manage booking</ActionAnchor>}
   {status.refundState&&<p>Refund: {status.refundState}</p>}
   {error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
  </section></FrontLocalizedTree>;

@@ -35,3 +35,10 @@ export function errorResponse(error: unknown) {
         : new ApiError(500, "INTERNAL_ERROR", "The request could not be completed.");
   return Response.json(canonicalDestinationLinks({ error: { code: mapped.code, message: mapped.message } }), { status: mapped.status });
 }
+
+/** Stream-bounded command bytes, before parsing or choosing a business owner. */
+export async function boundedCommandBody(request:Request):Promise<string>{
+ const reader=request.body?.getReader();if(!reader)return '';const chunks:Uint8Array[]=[];let length=0;
+ try{for(;;){const part=await reader.read();if(part.done)break;length+=part.value.byteLength;if(length>65536){await reader.cancel();throw new ApiError(422,'VALIDATION_FAILED','The command exceeds its bounded input.');}chunks.push(part.value);}}finally{reader.releaseLock();}
+ const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return new TextDecoder().decode(bytes);
+}

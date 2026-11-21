@@ -15,7 +15,7 @@ export const posPostingAccountFields=['receivableAccountId','payableAccountId','
 const row=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 const text=(value:unknown):value is string=>typeof value==='string'&&value.length>0;
 const context=(value:unknown)=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
-const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':'):'server';};
+const work=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';};
 export function validPosPostingSetup(value:unknown,companyId:string):value is PosPostingSetupView{
  if(!row(value)||value.companyId!==companyId||typeof value.available!=='boolean'||typeof value.canConfigure!=='boolean'||typeof value.unsupportedExistingMapping!=='boolean'||typeof value.requiresApprovedDefaults!=='boolean'||!Array.isArray(value.charts)||!Array.isArray(value.accounts))return false;
  if(!value.charts.every(item=>row(item)&&['id','name','baseCurrency'].every(field=>text(item[field])))||!value.accounts.every(item=>row(item)&&['id','chartId','code','name','category','currency','controlKind'].every(field=>text(item[field]))))return false;

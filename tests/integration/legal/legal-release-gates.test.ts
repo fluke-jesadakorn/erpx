@@ -88,7 +88,7 @@ it('gates production claims per Company and keeps paused AI queued without provi
       if (company===paused) await db.prepare(`INSERT INTO legal_ai_proposals(id,item_id,source_version,source_hash,question,state,created_by,created_at,actor_json)
         VALUES(?,?,1,?,'Synthetic AI question','queued',?,1,?)`).bind(`ai-${id}`,id,'a'.repeat(64),company.owner.userId,JSON.stringify(company.owner)).run();
     }
-    await legalReminders(db); await legalReminders(db);
+    await legalReminders(db, "h001"); await legalReminders(db, "h001");
     expect(await db.prepare("SELECT count(*) count FROM staff_notifications WHERE company_id=? AND record_type='legal'").bind(f.company).first()).toEqual({count:1});
     expect(await db.prepare("SELECT count(*) count FROM staff_notifications WHERE company_id=? AND record_type='legal'").bind(paused.company).first()).toEqual({count:0});
     const generate = vi.fn(); await drainLegalAi(db,{},generate);

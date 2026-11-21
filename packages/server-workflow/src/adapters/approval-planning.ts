@@ -1,11 +1,12 @@
 
 import {workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections} from "@erpx/server-people_payroll/public/workflow-final-owner-projections";
+import {nativeWorkflowWrite} from './native-workflow-write';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import { createApprovalsSourceRepository as organization_approvals } from '@erpx/server-organization/public/workflow-approvals-facts';
 import { createApprovalsSourceRepository as identity_access_approvals } from '@erpx/server-identity_access/public/workflow-approvals-facts';
 import { createApprovalsSourceRepository as people_payroll_approvals } from '@erpx/server-people_payroll/public/workflow-approvals-facts';
 import { createApprovalsSourceRepository as files_approvals } from '@erpx/server-files/public/workflow-approvals-facts';
 import { legacyApprovalRecord, stageLegacyApprovalScope, stagePeopleApprovalRevision } from '@erpx/server-people_payroll/public/workflow-approval-effects';
-import { stageTaskApprovalRevision } from '@erpx/server-operations/public/workflow-approval-effects';
 import {departmentRoute} from '@erpx/server-organization/public/department-authority-reads';
 import { personIdentityIds, currentPersonPrincipals } from "@erpx/server-identity_access/public/iam-person";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -22,6 +23,7 @@ import { type ApprovalKind, type ApprovalPhase, type ApprovalInstance, type Appr
 import { type ApprovalsRepository } from '@erpx/server-workflow/application/approvals';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx/server-workflow/application/approvals';
+import {workflowWave3Statement} from './native-workflow-wave3';
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
@@ -55,18 +57,15 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
             }>();
         },
         guard9(key: string, value: string, check: NonNullable<ApprovalRoute["checks"]>[number]) { return assertion(database, key, value, check.query, check.args); },
-        stageOpenApprovalStatements(now: number, kind: ApprovalKind, id: string) {
-            return database.prepare("UPDATE approval_instances SET state='superseded',version=version+1,updated_at=? WHERE record_type=? AND record_id=? AND state IN ('pending','blocked')")
-                .bind(now, kind, id);
+        async stageOpenApprovalStatements(now: number, kind: ApprovalKind, id: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_openapproval', [now, kind, id], String(now).slice(0,180), now);
         },
-        stageOpenApprovalStatements2(instanceId: string, company_id: string, branch_id: string | null, department_id: string | null, kind: ApprovalKind, id: string, phase: ApprovalPhase, cycle: number, requester: string, assignee: string | null, value: "pending" | "approved", now: number, now2: number) {
-            return database.prepare("INSERT INTO approval_instances(id,company_id,branch_id,department_id,record_type,record_id,phase,cycle,requester_user_id,assignee_user_id,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?, ?,?)")
-                .bind(instanceId, company_id, branch_id, department_id, kind, id, phase, cycle, requester, assignee, value, now, now2);
+        async stageOpenApprovalStatements2(instanceId: string, company_id: string, branch_id: string | null, department_id: string | null, kind: ApprovalKind, id: string, phase: ApprovalPhase, cycle: number, requester: string, assignee: string | null, value: "pending" | "approved", now: number, now2: number) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_openapproval2', [instanceId, company_id, branch_id, department_id, kind, id, phase, cycle, requester, assignee, value, now, now2], String(instanceId).slice(0,180), now);
         },
         guard12(key: string, value: string, company_id: string, appointedPersonId: string, userId: string) { return organization_approvals(database).guard12(key, value, company_id, appointedPersonId, userId); },
-        stageOpenApprovalStatements3(value: string, instanceId: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, value3: string | null, value4: string | null, value5: string | null) {
-            return database.prepare("INSERT INTO approval_steps(id,instance_id,ordinal,approver_user_id,authority,approver_pool_json,required_role,stage,route_snapshot_json) VALUES(?,?,?,?,?,?,?,?,?)")
-                .bind(value, instanceId, ordinal, userId, authority, value2, value3, value4, value5);
+        async stageOpenApprovalStatements3(value: string, instanceId: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, value3: string | null, value4: string | null, value5: string | null) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_openapproval3', [value, instanceId, ordinal, userId, authority, value2, value3, value4, value5], String(value).slice(0,180), Date.now());
         },
         readInitializeLegacyApprovalExpense(record_id: string, company_id: string) { return people_payroll_approvals(database).readInitializeLegacyApprovalExpense(record_id, company_id); },
         readInitializeLegacyApprovalRecord(recordId: string, companyId: string, pendingState: 'pending_approval' | 'in_review', kind: ApprovalKind) { return legacyApprovalRecord(database, kind, recordId, companyId, pendingState); },
@@ -78,28 +77,23 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
             return assertion(database, key, value, `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${column}=? AND version=?)`, [record_id, company_id, pendingState, version]);
         },
         guard18(key: string, value: string, check: NonNullable<ApprovalRoute["checks"]>[number]) { return assertion(database, key, value, check.query, check.args); },
-        stageInitializeLegacyApprovalEffect(value: string, id: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner") {
-            return database.prepare("INSERT INTO approval_steps(id,instance_id,ordinal,approver_user_id,authority) VALUES(?,?,?,?,?)")
-                .bind(value, id, ordinal, userId, authority);
+        async stageInitializeLegacyApprovalEffect(value: string, id: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner") {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_initializelegacyapproval', [value, id, ordinal, userId, authority], String(value).slice(0,180), Date.now());
         },
-        stageInitializeLegacyApprovalEffect2(branch_id: string | null, department_id: string | null, now: number, id: string) {
-            return database.prepare("UPDATE approval_instances SET state='pending',branch_id=?,department_id=?,blocked_reason=NULL,version=version+1,updated_at=? WHERE id=?")
-                .bind(branch_id, department_id, now, id);
+        async stageInitializeLegacyApprovalEffect2(branch_id: string | null, department_id: string | null, now: number, id: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_initializelegacyapproval2', [branch_id, department_id, now, id], String(branch_id).slice(0,180), now);
         },
         stageInitializeLegacyApprovalEffect3(branchId: string | null, departmentId: string | null, now: number, recordId: string, kind: ApprovalKind) { return stageLegacyApprovalScope(database, kind, branchId, departmentId, now, recordId); },
-        stageInitializeLegacyApprovalEffect4(key: string, id: string, version: number, key2: string, now: number) {
-            return database.prepare("INSERT INTO approval_decisions(id,instance_id,action,actor_user_id,reason,reviewed_version,command_id,created_at) VALUES(?,?,'initialize','system','Initialize pending request under department routing',?,?,?)")
-                .bind(key, id, version, key2, now);
+        async stageInitializeLegacyApprovalEffect4(key: string, id: string, version: number, key2: string, now: number) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_initializelegacyapproval4', [key, id, version, key2, now], String(key).slice(0,180), now);
         },
-        stageInitializeLegacyApprovalEffect5(key: string, key2: string, value: "system", value2: "system", value3: "approval.initialize", record_type: ApprovalKind, record_id: string, value4: number, value5: "Initialize route; no historical approval inferred", now: number) {
-            return database.prepare("INSERT INTO audit_events VALUES(?,?,?,?,?,?,?,?,?,?)")
-                .bind(key, key2, value, value2, value3, record_type, record_id, value4, value5, now);
+        async stageInitializeLegacyApprovalEffect5(key: string, key2: string, value: "system", value2: "system", value3: "approval.initialize", record_type: ApprovalKind, record_id: string, value4: number, value5: "Initialize route; no historical approval inferred", now: number) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_initializelegacyapproval5', [key, key2, value, value2, value3, record_type, record_id, value4, value5, now], String(key).slice(0,180), now);
         },
-        stageInitializeLegacyApprovalEffect6(key: string, key2: string, value: string, record_type: ApprovalKind, record_id: string, value2: number, value3: string, now: number) {
-            return database.prepare("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES(?,?,?,?,?,?,?,?)")
-                .bind(key, key2, value, record_type, record_id, value2, value3, now);
+        async stageInitializeLegacyApprovalEffect6(key: string, key2: string, value: string, record_type: ApprovalKind, record_id: string, value2: number, value3: string, now: number) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_initializelegacyapproval6', [key, key2, value, record_type, record_id, value2, value3, now], String(key).slice(0,180), now);
         },
-        stageInitializeLegacyApprovalEffect7(key: string) { return database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key); },
+        stageInitializeLegacyApprovalEffect7(key: string, companyId: string) { return nativeClearCommandAssertions(database, companyId, key); },
         guard26(key: string, label: string, approver_user_id: string, company_id: string, authority: "named" | "department" | "hr_admin" | "holding_owner", now: number, now2: number, authority2: "named" | "department" | "hr_admin" | "holding_owner", branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard26(key, label, approver_user_id, company_id, authority, now, now2, authority2, branch_id, department_id); },
         readApprovalViewActiveScope(assignmentId: string, userId: string, companyId: string, role: string, now: number, now2: number, policyStep: boolean, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).readApprovalViewActiveScope(assignmentId, userId, companyId, role, now, now2, policyStep, branch_id, department_id); },
         readApprovalViewHistory(kind: "expense" | "leave" | "leave_cancellation" | "overtime" | "task", id: string, companyId: string) {
@@ -122,25 +116,20 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         guard37(key: string, value: "override-expense-preparer", id: string, company_id: string, userId: string, userId2: string) { return people_payroll_approvals(database).guard37(key, value, id, company_id, userId, userId2); },
         guard38(key: string, value: "expense-separation", id: string, userId: string, userId2: string, id2: string, ordinal: number, userId3: string) { return people_payroll_approvals(database).guard38(key, value, id, userId, userId2, id2, ordinal, userId3); },
         guard39(key: string, value: "expense-role", company_id: string, assignmentId: string, required_role: string, now: number, now2: number, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard39(key, value, company_id, assignmentId, required_role, now, now2, branch_id, department_id); },
-        stagePrepareDecisionStatements(value: "approved" | "rejected", userId: string, id: string) {
-            return database.prepare("UPDATE approval_steps SET state=?,approver_user_id=? WHERE id=?")
-                .bind(value, userId, id);
+        async stagePrepareDecisionStatements(value: "approved" | "rejected", userId: string, id: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_preparedecision', [value, userId, id], String(value).slice(0,180), Date.now());
         },
-        stagePrepareDecisionStatements2(value: "pending" | "approved" | "rejected", value2: number, now: number, id: string) {
-            return database.prepare("UPDATE approval_instances SET state=?,current_step=?,version=version+1,updated_at=? WHERE id=?")
-                .bind(value, value2, now, id);
+        async stagePrepareDecisionStatements2(value: "pending" | "approved" | "rejected", value2: number, now: number, id: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_preparedecision2', [value, value2, now, id], String(value).slice(0,180), now);
         },
-        stagePrepareDecisionStatements3(value: string, id: string, id2: string, value2: "override" | "approve" | "reject", userId: string, value3: string | null, userId2: string, reason: string, version: number, key: string, now: number, decisionEvidence: string) {
-            return database.prepare("INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,previous_approver_user_id,approver_user_id,reason,reviewed_version,command_id,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-                .bind(value, id, id2, value2, userId, value3, userId2, reason, version, key, now, decisionEvidence);
+        async stagePrepareDecisionStatements3(value: string, id: string, id2: string, value2: "override" | "approve" | "reject", userId: string, value3: string | null, userId2: string, reason: string, version: number, key: string, now: number, decisionEvidence: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_preparedecision3', [value, id, id2, value2, userId, value3, userId2, reason, version, key, now, decisionEvidence], String(key).slice(0,180), now);
         },
         stageCloseApprovalsEffect(key: string, action: "cancel" | "revise", actorId: string, reason: string, version: number, key2: string, now: number, kind: ApprovalKind, id: string) {
-            return database.prepare("INSERT INTO approval_decisions(id,instance_id,action,actor_user_id,reason,reviewed_version,command_id,created_at) SELECT ?||'-'||id,id,?,?,?,?,?,? FROM approval_instances WHERE record_type=? AND record_id=? AND state IN ('pending','blocked','approved')")
-                .bind(key, action, actorId, reason, version, key2, now, kind, id);
+            return nativeWorkflowWrite('wf_native_approval_planning_0', [key, action, actorId, reason, version, key2, now, kind, id]);
         },
         stageCloseApprovalsEffect2(value: "cancelled" | "superseded", now: number, kind: ApprovalKind, id: string) {
-            return database.prepare("UPDATE approval_instances SET state=?,version=version+1,updated_at=? WHERE record_type=? AND record_id=? AND state IN ('pending','blocked','approved')")
-                .bind(value, now, kind, id);
+            return nativeWorkflowWrite('wf_native_approval_planning_1', [value, now, kind, id]);
         },
         readRerouteApprovalInstance(id: string, companyId: string) {
             return database.prepare("SELECT * FROM approval_instances WHERE id=? AND company_id=?")
@@ -149,9 +138,8 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         },
         readRerouteApprovalEffect(record_id: string, approverUserId: string, approverUserId2: string) { return people_payroll_approvals(database).readRerouteApprovalEffect(record_id, approverUserId, approverUserId2); },
         readRerouteApprovalClaim(record_id: string, company_id: string) { return people_payroll_approvals(database).readRerouteApprovalClaim(record_id, company_id); },
-        stageRerouteApprovalEffect(value: string, approverUserId: string, companyId: string, value2: "expense" | "leave" | "staff_task" | "leave_cancellation" | "overtime", record_id: string) {
-            return database.prepare("UPDATE flow_routes SET steps_json=jsonb_set(steps_json::jsonb,ARRAY[?::text,'primaryUserId'],to_jsonb(?::text),true)::text,version=version+1 WHERE company_id=? AND kind=? AND record_id=?")
-                .bind(value, approverUserId, companyId, value2, record_id);
+        async stageRerouteApprovalEffect(value: string, approverUserId: string, companyId: string, value2: "expense" | "leave" | "staff_task" | "leave_cancellation" | "overtime", record_id: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_rerouteapproval', [value, approverUserId, companyId, value2, record_id], String(value).slice(0,180), Date.now());
         },
         guard49(key: string, value: "route-version", id: string, instanceVersion: number, current_step: number, record_id: string, companyId: string, expectedVersion: number, state: "approved" | "pending_approval" | "in_review" | "pending_authorization" | "pending_hr" | "pending_verification" | "start_approval" | "completion_approval", kind: ApprovalKind) {
             const { table, column } = nativeApprovalRecord(kind);
@@ -165,19 +153,16 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
                 state,
             ]);
         },
-        stageRerouteApprovalEffect2(approverUserId: string, value: string | null, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, id: string) {
-            return database.prepare("UPDATE approval_steps SET approver_user_id=?,approver_pool_json=?,authority=?,route_snapshot_json=? WHERE id=? AND state='pending'")
-                .bind(approverUserId, value, authority, value2, id);
+        async stageRerouteApprovalEffect2(approverUserId: string, value: string | null, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, id: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_rerouteapproval2', [approverUserId, value, authority, value2, id], String(approverUserId).slice(0,180), Date.now());
         },
-        stageRerouteApprovalEffect3(now: number, id: string) {
-            return database.prepare("UPDATE approval_instances SET blocked_reason=NULL,version=version+1,updated_at=? WHERE id=?")
-                .bind(now, id);
+        async stageRerouteApprovalEffect3(now: number, id: string) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_rerouteapproval3', [now, id], String(now).slice(0,180), now);
         },
-        stageRerouteApprovalEffect4(value: string, id: string, id2: string, userId: string, approver_user_id: string, approverUserId: string, reason: string, expectedVersion: number, key: string, now: number) {
-            return database.prepare("INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,previous_approver_user_id,approver_user_id,reason,reviewed_version,command_id,created_at) VALUES(?,?,?,'reroute',?,?,?,?,?,?,?)")
-                .bind(value, id, id2, userId, approver_user_id, approverUserId, reason, expectedVersion, key, now);
+        async stageRerouteApprovalEffect4(value: string, id: string, id2: string, userId: string, approver_user_id: string, approverUserId: string, reason: string, expectedVersion: number, key: string, now: number) {
+            return workflowWave3Statement(database, {kind:'system'}, 'wf_rerouteapproval4', [value, id, id2, userId, approver_user_id, approverUserId, reason, expectedVersion, key, now], String(key).slice(0,180), now);
         },
-        stageRerouteApprovalEffect5(now: number, recordId: string, kind: ApprovalKind) { return kind === 'expense' || kind === 'leave' || kind === 'leave_cancellation' || kind === 'overtime' ? stagePeopleApprovalRevision(database, kind, now, recordId) : stageTaskApprovalRevision(database, now, recordId); } };
+        stageRerouteApprovalEffect5(now: number, recordId: string, kind: ApprovalKind) { if (kind === 'expense' || kind === 'leave' || kind === 'leave_cancellation' || kind === 'overtime') return stagePeopleApprovalRevision(database, kind, now, recordId); throw new Error('NATIVE_APPROVAL_REVISION_REQUIRED'); } };
     Object.assign(repository, readOverrides);
     return { repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async () => {}, production: process.env.NODE_ENV === 'production', reportRouteBlocked: event => console.warn(JSON.stringify(event)), batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, departmentRoute: (...args) => fromNative(() => departmentRoute(database, ...args)), personIdentityIds: (...args) => fromNative(() => personIdentityIds(database, ...args)), currentPersonPrincipals: (...args) => fromNative(() => currentPersonPrincipals(database, ...args)), appointedHrEligible: (...args) => fromNative(() => appointedHrEligible(database, ...args)), departmentStepEligible: (...args) => fromNative(() => departmentStepEligible(database, ...args)), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), expensePoolCandidates: (...args) => fromNative(() => expensePoolCandidates(database, ...args)), expenseAuthoritySnapshot: (...args) => fromNative(() => expenseAuthoritySnapshot(database, ...args)), legacyExpenseRoute: (...args) => fromNative(() => legacyExpenseRoute(database, ...args)), activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), staffPeople: (...args) => fromNative(() => staffPeople(database, ...args)), reportingChain: (...args) => reportingChain(...args), authorityGuard: (...args) => authorityGuard(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), eligibleRoleUsers: (...args) => fromNative(() => eligibleRoleUsers(database, ...args)), notification: (...args) => notification(database, ...args), requestRoute: (...args) => fromNative(() => requestRoute(database, ...args)), staffGuard: (...args) => staffGuard(database, ...args) };
 }

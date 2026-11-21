@@ -19,3 +19,7 @@ export type StaffNotification = {
     href: string;
     source?: import("@erpx/feature-records/lib/source-record").SourceRecordReference;
 };
+
+/** Transport-projected target; constructed only after the native read model has
+ * matched the current session and Work frame. Never loaded from a stored row. */
+export type StaffNotificationCandidate=Omit<StaffNotification,'href'>&{native_target?:{href:string}};

@@ -1,4 +1,5 @@
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
+import { nativePeopleBatchC } from '@erpx/server-collaboration/adapters/native-people-batch-c';
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -34,9 +35,7 @@ function application(provided?: SqlDatabase) {
         guard9(...args) { return payrollRemittanceSources(database).guard9(...args); },
         guard10(...args) { return payrollRemittanceSources(database).guard10(...args); },
         insertRemittance(remittanceId: string, companyId: string, runId: string, kind: "withholding_tax" | "social_security", amountMinor: number, accountId: string, bankAccountId: string, bankTransactionId: string, id: string, bankReference: string, userId: string, now: number) {
-            return database.prepare(`INSERT INTO hr_payroll_statutory_remittances(id,company_id,run_id,kind,amount_minor,liability_account_id,
-      bank_account_id,bank_transaction_id,journal_id,bank_reference,recorded_by,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
-                .bind(remittanceId, companyId, runId, kind, amountMinor, accountId, bankAccountId, bankTransactionId, id, bankReference, userId, now);
+            return nativePeopleBatchC(database).remittance({companyId,values:[remittanceId, companyId, runId, kind, amountMinor, accountId, bankAccountId, bankTransactionId, id, bankReference, userId, now]});
         },
         matchBank(...args) { return payrollRemittanceSources(database).matchBank(...args); } };
     const ports = { repository, clock: { now: Date.now }, production: async () => (await runtimeEnv()).ERPX_ENVIRONMENT === 'production', authorize: requirePermission, prepare: async (holding: string) => { database = provided ?? (await holdingResources(holding)).write; }, commands: { replay: <Result = Record<string, unknown>>(...args: Parameters<import("@erpx/server-people_payroll/application/payroll-statutory").PayrollStatutoryCommands<SqlStatement>['replay']>) => replayCommand<Result>(database, ...args), commit: <Result>(actor: WorkContext, key: string, operation: string, input: unknown, id: string, version: number, result: Result, effects: SqlStatement[]) => executeCommand(database, actor, key, operation, input, id, version, result, effects) }, statutoryReady: (id: string) => assertStatutoryRunReady(database, id), journal: (...args: Parameters<import("@erpx/server-people_payroll/application/payroll-remittance").PayrollRemittancePorts<SqlStatement>['journal']>) => prepareJournal(database, ...args) };

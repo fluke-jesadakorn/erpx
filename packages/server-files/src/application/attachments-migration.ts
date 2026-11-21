@@ -11,9 +11,9 @@ stageBackfillSpecializedAttachmentsEffect6(attachmentId:string,linkId:string):Ef
 stageBackfillSpecializedAttachmentsEffect7(scanId:string,attachmentId:string,now:number):Effect;
 stageBackfillSpecializedAttachmentsEffect8(value:string,companyId:string,attachmentId:string,objectKey:string,bytes:number,createdAt:number):Effect;
 stageBackfillSpecializedAttachmentsEffect9(value:string,companyId:string,attachmentId:string,linkId:string,setId:string,value2:string,now:number):Effect;
-stageBackfillSpecializedAttachmentsEffect10(setId:string,linkId:string,attachmentId:string,id:string):Effect;
-stageBackfillSpecializedAttachmentsEffect11(linkId:string,attachmentId:string,id:string):Effect;
-stageBackfillSpecializedAttachmentsEffect12(linkId:string,attachmentId:string,id:string):Effect;
+stageBackfillSpecializedAttachmentsEffect10(setId:string,linkId:string,attachmentId:string,id:string,companyId:string):Promise<Effect>;
+stageBackfillSpecializedAttachmentsEffect11(linkId:string,attachmentId:string,id:string,companyId:string):Promise<Effect>;
+stageBackfillSpecializedAttachmentsEffect12(linkId:string,attachmentId:string,id:string,companyId:string):Promise<Effect>;
 stageBackfillSpecializedAttachmentsEffect13(setId:string,linkId:string,attachmentId:string,checksum:string,id:string):Effect;
 stageBackfillSpecializedAttachmentsEffect14(value:string,attachmentId:string,companyId:string,objectKey:string,checksum:string,checksum2:string,bytes:number,createdBy:string,createdAt:number):Effect;
 stageBackfillSpecializedAttachmentsEffect15(value:string,companyId:string,attachmentId:string,objectKey:string,bytes:number,createdAt:number):Effect;
@@ -92,11 +92,11 @@ readReconcileAttachmentStorageEffect8():Promise<unknown>;}export interface Attac
       r.stageBackfillSpecializedAttachmentsEffect8(`attachment-storage-specialized-${digest}`,source.companyId,attachmentId,source.objectKey,source.bytes,source.createdAt),
       r.stageBackfillSpecializedAttachmentsEffect9(`attachment-event-specialized-${digest}`,source.companyId,attachmentId,linkId,setId,JSON.stringify({kind:source.kind,legacyId:source.id}),now),
       source.kind==="messaging"
-        ?r.stageBackfillSpecializedAttachmentsEffect10(setId,linkId,attachmentId,source.id)
+        ?await r.stageBackfillSpecializedAttachmentsEffect10(setId,linkId,attachmentId,source.id,source.companyId)
         :source.kind==="legal_document"
-          ?r.stageBackfillSpecializedAttachmentsEffect11(linkId,attachmentId,source.id)
+          ?await r.stageBackfillSpecializedAttachmentsEffect11(linkId,attachmentId,source.id,source.companyId)
           :source.kind==="legal_external"
-            ?r.stageBackfillSpecializedAttachmentsEffect12(linkId,attachmentId,source.id)
+            ?await r.stageBackfillSpecializedAttachmentsEffect12(linkId,attachmentId,source.id,source.companyId)
             :r.stageBackfillSpecializedAttachmentsEffect13(setId,linkId,attachmentId,source.thumbnail!.checksum,source.id),
       ...(source.thumbnail?[
         r.stageBackfillSpecializedAttachmentsEffect14(`attachment-thumbnail-${digest}`,attachmentId,source.companyId,source.thumbnail.objectKey,source.thumbnail.checksum,source.checksum,source.thumbnail.bytes,source.createdBy,source.createdAt),

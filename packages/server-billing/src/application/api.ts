@@ -6,8 +6,29 @@ import {billingMonth} from "@erpx/feature-billing/lib/billing";
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {BillingEvidenceSource} from '@erpx/server-billing/domain/evidence';
 import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
+/**
+ * Billing command actions whose native owner command is the only authority.
+ * `cost`, `delete-cost` and `complete-costs` use the native
+ * `require_cost_command` gate, which requires exactly the platform
+ * `platform_admin` actor the retained command required, so dispatching them
+ * natively preserves the authorized actor set.
+ *
+ * The target-evidence/provider/rollout/rate actions and `retry` are
+ * deliberately absent: their native commands use `require_target_command`,
+ * which authorizes the selected `holding_owner` and rejects platform
+ * administrators — the inverse of the retained contract. They stay on the
+ * TypeScript command until the owner decides that policy.
+ *
+ * For every action in this set the TypeScript command is never an alternative
+ * authority, so a missing or unavailable native transport fails closed.
+ */
+const nativeBillingCommandActions = new Set<BillingInput["action"]>([
+  "cost",
+  "delete-cost",
+  "complete-costs",
+]);
 export interface BillingApiRepository {platformAccounts():Promise<{rows:Record<string,unknown>[]}>;holdingSlug(id:string):Promise<{rows:{slug:string}[]}>;scopedEvidence(id:string,holdingId:string):Promise<{rows:BillingEvidenceSource[]}>;deniedUnavailable(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;deniedMissingFile(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;allowedEvidence(id:string,evidenceId:string,holdingId:string,actorId:string,now:number):Promise<unknown>;existingEvidence(id:string):Promise<{rows:BillingEvidenceSource[]}>;billingAccountExists(holdingId:string):Promise<{rowCount:number|null}>;retainQuarantine(facts:{id:string;holdingId:string;filename:string;mime:string;size:number;sha:string;actorId:string;now:number;objectKey:string;detected:string}):Promise<void>;}
-export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(holdingId:string):Promise<BillingView>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;}
+export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string;assignmentId?:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(holdingId:string):Promise<BillingView>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;nativeCostCommand?(actor:BillingActor,holdingId:string,input:BillingInput,key:string):Promise<{ok:boolean;url?:string}>;nativeInvoiceCommand?(actor:BillingActor,holdingId:string,route:string,body:unknown,key:string):Promise<{ok:boolean}>;}
 function concatBytes(chunks:Uint8Array[],size:number){const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return bytes;}
 export function createBillingApi(ports:BillingApiPorts){
 function billingHandler(platform: boolean) {
@@ -35,7 +56,13 @@ function billingHandler(platform: boolean) {
             "FORBIDDEN",
             "Platform billing permission required.",
           );
-        actor = { userId: a.userId, email: a.email, platform: true };
+        actor = {
+          userId: a.userId,
+          email: a.email,
+          platform: true,
+          assignmentId: a.assignmentId,
+          role: a.role,
+        };
         holdingId = url.searchParams.get("holdingId") ?? undefined;
       } else {
         const a = await ports.workActor(slug!);
@@ -52,6 +79,8 @@ function billingHandler(platform: boolean) {
           email: a.email,
           platform: false,
           holdingId,
+          assignmentId: a.assignmentId,
+          role: a.role,
         };
       }
       if (platform && !holdingId && request.method === "GET" && !path.length)
@@ -208,6 +237,95 @@ function billingHandler(platform: boolean) {
           return Response.json(canonicalDestinationLinks({ data: { id,state:"quarantined" } }),{status:202});
         }
       }
+      const invoicePath =
+        path.length === 3 &&
+        path[0] === "invoices" &&
+        typeof path[1] === "string" &&
+        path[2] === "void";
+      if (request.method === "POST" && (path.length === 0 || invoicePath)) {
+        const input = billingInput.parse(await ports.body(request));
+        const key = request.headers.get("Idempotency-Key") ?? "";
+        const invoiceRoute = invoicePath
+          ? `/${path[1]}/void`
+          : input.action === "approve"
+            ? ""
+            : input.action === "void"
+              ? input.invoiceId
+                ? `/${input.invoiceId}/void`
+                : "missing"
+              : null;
+        if (invoiceRoute !== null) {
+          if (invoiceRoute === "missing")
+            throw ports.error(
+              422,
+              "INVOICE_REQUIRED",
+              "Choose the invoice to void.",
+            );
+          if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
+            throw ports.error(
+              422,
+              "COMMAND_KEY_REQUIRED",
+              "Idempotency-Key required.",
+            );
+          const nativeInvoiceCommand = ports.nativeInvoiceCommand;
+          if (!nativeInvoiceCommand)
+            throw ports.error(
+              503,
+              "NATIVE_BILLING_UNAVAILABLE",
+              "The native Billing invoice command is unavailable.",
+            );
+          const data = await nativeInvoiceCommand(
+            actor,
+            holdingId,
+            invoiceRoute,
+            input,
+            key,
+          );
+          if (!data)
+            throw ports.error(
+              503,
+              "NATIVE_BILLING_UNAVAILABLE",
+              "The native Billing invoice command is unavailable.",
+            );
+          return Response.json(canonicalDestinationLinks({ data }), {
+            headers: { "Cache-Control": "private, no-store" },
+          });
+        }
+        if (nativeBillingCommandActions.has(input.action)) {
+          if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
+            throw ports.error(
+              422,
+              "COMMAND_KEY_REQUIRED",
+              "Idempotency-Key required.",
+            );
+          const nativeCostCommand = ports.nativeCostCommand;
+          if (!nativeCostCommand)
+            throw ports.error(
+              503,
+              "NATIVE_BILLING_UNAVAILABLE",
+              "The native Billing command is unavailable.",
+            );
+          const data = await nativeCostCommand(actor, holdingId, input, key);
+          if (!data)
+            throw ports.error(
+              503,
+              "NATIVE_BILLING_UNAVAILABLE",
+              "The native Billing command is unavailable.",
+            );
+          return Response.json(canonicalDestinationLinks({ data }), {
+            headers: { "Cache-Control": "private, no-store" },
+          });
+        }
+        const data = await ports.command(
+          actor,
+          holdingId,
+          input,
+          key,
+          new URL(canonicalUiHref(`/holdings/${slug}/settings?section=usage`), ports.origin())
+            .href,
+        );
+        return Response.json(canonicalDestinationLinks({ data }));
+      }
       if (path.length)
         throw ports.error(404, "NOT_FOUND", "Billing route not found.");
       if (request.method === "GET")
@@ -215,16 +333,7 @@ function billingHandler(platform: boolean) {
           canonicalDestinationLinks({ data: await ports.view(holdingId) }),
           { headers: { "Cache-Control": "private, no-store" } },
         );
-      const input = billingInput.parse(await ports.body(request));
-      const data = await ports.command(
-        actor,
-        holdingId,
-        input,
-        request.headers.get("Idempotency-Key") ?? "",
-        new URL(canonicalUiHref(`/holdings/${slug}/settings?section=usage`), ports.origin())
-          .href,
-      );
-      return Response.json(canonicalDestinationLinks({ data }));
+      throw ports.error(404, "NOT_FOUND", "Billing route not found.");
     } catch (error) {
       return ports.errorResponse(error);
     }

@@ -1,4 +1,5 @@
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
+import { nativePeopleBatchC } from '@erpx/server-collaboration/adapters/native-people-batch-c';
 const organizationFinalSources=organizationFinalOwnerProjections();
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -34,8 +35,7 @@ export function StaffSettingsPeoplePayrollFacts(database: SqlDatabase) {
         guard11(key: string, value: "engagement-version", id: string, companyId: string, expectedVersion: number) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=?)", [id, companyId, expectedVersion]);
         },
-        stageAssignLevelEffect(levelId: string, now: number, id: string) {
-            return database.prepare("UPDATE hr_engagements SET level_id=?,version=version+1,updated_at=? WHERE id=?")
-                .bind(levelId, now, id);
+        stageAssignLevelEffect(levelId: string, now: number, id: string, companyId: string) {
+            return nativePeopleBatchC(database).assignLevel({ companyId, levelId, now, id });
         } };
 }

@@ -153,7 +153,7 @@ for(const target of foundationTargets){
   const code=target.startsWith('organization_')?'ORGANIZATION_FILE_READ_CHANGED':target.startsWith('iam_')?'IAM_FILE_READ_CHANGED':target==='company_release_acceptance'?'COMPANY_RELEASE_FILE_READ_CHANGED':'COMPANY_PROVISIONING_FILE_READ_CHANGED',transactionCode=code.replace('_CHANGED','_TRANSACTION_REQUIRED');
   try{
    for(const mode of ['disabled','enforced']){
-    for(const flag of ['ERPX_WORK_PACKAGE_ENFORCEMENT','ERPX_PEOPLE_PACKAGE_ENFORCEMENT','ERPX_FINANCE_PACKAGE_ENFORCEMENT'])vi.stubEnv(flag,mode);
+    for(const flag of ['ERPX_APPS_PACKAGE_ENFORCEMENT','ERPX_PEOPLE_PACKAGE_ENFORCEMENT','ERPX_FINANCE_PACKAGE_ENFORCEMENT'])vi.stubEnv(flag,mode);
     expect(Buffer.from(await(await attachmentContent(db,files,actor,file.linkId,'original')).object.arrayBuffer())).toEqual(png);
     await expect(db.transaction(transaction=>attachmentContent(transaction,files,actor,file.linkId,'original'))).rejects.toMatchObject({code:transactionCode});
     for(const fault of ['native','iam'] as const){

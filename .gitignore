@@ -18,6 +18,8 @@ node_modules/
 
 # next.js
 .next/
+# Isolated Next development/verification output directories
+.next-*/
 /out/
 /.open-next/
 /.wrangler/

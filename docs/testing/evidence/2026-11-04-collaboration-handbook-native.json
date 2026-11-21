@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Collaboration handbook lifecycle and editor-appointment owner effects are PostgreSQL-qualified; HTTP/Next/SSR mounting, real IAM/Workflow/Commercial composition and browser acceptance remain open",
+  "capability": "collaboration-native-handbook",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Handbook article create/update with immutable revisions and optimistic versions, publish/archive/restore, editor appointment/removal with settings-version CAS.",
+    "application": "Owner use cases and public reads for published/draft lists, article and revision history, and editor options.",
+    "adapters": "Company isolation, editor/owner read guards, exact replay, serializable transaction requirement, late-effect revalidation and rollback.",
+    "frontend": "No native HTTP/Next/SSR cutover yet; the existing TS handbook route remains authoritative for transport and purchase/membership wiring."
+  },
+  "tests": [
+    "collaboration.rust-handbook.unit: 8 passed",
+    "collaboration.rust-handbook-postgres.integration: 4 passed",
+    "cargo test -p erpx-server-collaboration: all targets pass; clippy clean",
+    "Coverage: Company isolation, editor/owner denial, revocation, stale-version conflict, concurrent single commit, exact replay, tamper rollback, receipt/audit/outbox counts and persisted readback"
+  ],
+  "limits": [
+    "The slice is not mounted in native HTTP/Next/SSR; the integration test uses synthetic authority and an owner-local receipt/audit/outbox harness, not the real IAM/Workflow/Commercial composition.",
+    "Messaging/threads, social feed, comments/moderation, mentions, following/reactions, attachments, teams/channels, announcements and inbox notifications remain pending.",
+    "No browser acceptance; no Collaboration workflow is claimed verified.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

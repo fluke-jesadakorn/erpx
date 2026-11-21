@@ -1,0 +1,851 @@
+//! Native Commerce quotation/sales-order read and lifecycle use cases.
+//!
+//! The caller owns the retained serializable Holding transaction. Reads resolve
+//! the current IAM assignment before owner rows. Commands resolve the canonical
+//! receipt before a fresh write, lock the scoped order, apply one exact
+//! expected-version transition, write receipt/audit/outbox in the same unit and
+//! validate persisted readback before returning.
+use crate::domain::order::{
+    CommerceOrderActor, CommerceOrderReceipt, ConvertedReadback, OrderCommandReceipt, OrderState,
+    SalesOrderDocument, SalesOrderLineRow, SalesOrderRow, SaveOrderCommand, SaveOrderLinePlan,
+    SaveOrderPlan, SaveOrderPriceList, SaveOrderProduct, SaveOrderReceipt, SaveOrderWarehouse,
+    TransitionCommand, TransitionGuardMode, TransitionPlan, authorize_transition_with_guard_mode,
+    build_save_plan_deferred, idempotency_conflict, not_found, order_reversal_required,
+    permission_required, readback_invalid, replay, replay_save, request_invalid,
+    sales_approval_finance_guard, sales_credit_limit_exceeded, save_identity, transition_conflict,
+    transition_identity, validate_conversion_readback, validate_document, validate_hash,
+    validate_readback, validate_save_readback, validate_transition_actor,
+    validate_transition_approval_reason, version_conflict,
+};
+use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
+use std::future::Future;
+
+pub type CommerceOrderFuture<'a, T, E> =
+    std::pin::Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
+
+pub struct AuditEntry<'a> {
+    pub key: &'a str,
+    pub operation: &'a str,
+    pub record_type: &'a str,
+    pub record_id: &'a str,
+    pub version: i64,
+    pub authority_json: &'a str,
+}
+
+pub struct OutboxEntry<'a> {
+    pub key: &'a str,
+    pub operation: &'a str,
+    pub record_type: &'a str,
+    pub record_id: &'a str,
+    pub version: i64,
+    pub state: &'a str,
+    pub sales_id: Option<&'a str>,
+    pub authority_json: &'a str,
+}
+
+pub struct ReceiptEntry<'a> {
+    pub key: &'a str,
+    pub operation: &'a str,
+    pub actor: &'a CommerceOrderActor,
+    pub request_hash: &'a str,
+    pub record_id: &'a str,
+    pub result_json: &'a str,
+}
+
+pub trait CommerceOrderReadRepository: Send {
+    type Error: From<BusinessError> + Send;
+
+    fn current_authority<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        write: bool,
+        approve: bool,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn order<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SalesOrderRow>, Self::Error>;
+
+    fn lines<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error>;
+}
+
+pub trait CommerceOrderCommandRepository: Send {
+    type Error: From<BusinessError> + Send;
+
+    fn current_authority<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        write: bool,
+        approve: bool,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn lock_command<'a>(&'a mut self, key: &'a str) -> CommerceOrderFuture<'a, (), Self::Error>;
+
+    fn digest<'a>(&'a mut self, value: &'a str) -> CommerceOrderFuture<'a, String, Self::Error>;
+
+    fn receipt<'a>(
+        &'a mut self,
+        key: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<OrderCommandReceipt>, Self::Error>;
+
+    fn lock_order<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SalesOrderRow>, Self::Error>;
+
+    fn count_fulfillments<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, i64, Self::Error>;
+
+    fn transition<'a>(
+        &'a mut self,
+        plan: &'a TransitionPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn insert_converted_order<'a>(
+        &'a mut self,
+        plan: &'a TransitionPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn copy_converted_lines<'a>(
+        &'a mut self,
+        quote_id: &'a str,
+        sales_id: &'a str,
+    ) -> CommerceOrderFuture<'a, u64, Self::Error>;
+
+    fn converted_readback<'a>(
+        &'a mut self,
+        sales_id: &'a str,
+        company: &'a CompanyId,
+    ) -> CommerceOrderFuture<'a, Option<ConvertedReadback>, Self::Error>;
+
+    fn readback_order<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SalesOrderRow>, Self::Error>;
+
+    /// Finance-owned approval guard. The default fails closed so a repository
+    /// without the Finance port cannot approve a sales order.
+    fn sales_order_credit_allows<'a>(
+        &'a mut self,
+        _company: &'a CompanyId,
+        _party_id: &'a str,
+        _order_total_minor: i64,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        Box::pin(async { Err(sales_approval_finance_guard().into()) })
+    }
+
+    /// Inventory-owned confirmed-cancellation reservation release. The default
+    /// fails closed with the retained reversal guidance.
+    fn release_confirmed_sales_reservations<'a>(
+        &'a mut self,
+        _company: &'a CompanyId,
+        _order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async { Err(order_reversal_required().into()) })
+    }
+
+    /// Prepare the Finance quote for this exact conversion in the caller's
+    /// transaction. Implementations must retain it for the later consuming
+    /// snapshot call; a repository without the Finance port fails closed.
+    fn prepare_converted_order_money<'a>(
+        &'a mut self,
+        _actor: &'a CommerceOrderActor,
+        _command: &'a TransitionCommand,
+        _order: &'a SalesOrderRow,
+        _now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_CONVERSION_MONEY_REQUIRED",
+                "The Finance conversion Money source is unavailable.",
+            )
+            .into())
+        })
+    }
+
+    /// Finance-owned order-revision Money for the sales order created by a
+    /// quotation conversion. Implementations must consume the exact prepared
+    /// quote after the quote state update and before the sales row. A missing
+    /// port fails closed.
+    fn apply_converted_order_money<'a>(
+        &'a mut self,
+        _sales_id: &'a str,
+        _now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_CONVERSION_MONEY_REQUIRED",
+                "The Finance conversion Money source is unavailable.",
+            )
+            .into())
+        })
+    }
+
+    fn insert_receipt<'a>(
+        &'a mut self,
+        entry: &'a ReceiptEntry<'a>,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn audit<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        entry: &'a AuditEntry<'a>,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error>;
+
+    fn outbox<'a>(
+        &'a mut self,
+        entry: &'a OutboxEntry<'a>,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error>;
+}
+
+/// Read one Company/branch/department-scoped quotation or sales-order document.
+/// The current IAM assignment is re-read before the owner rows.
+pub async fn order_detail<R: CommerceOrderReadRepository>(
+    actor: &CommerceOrderActor,
+    id: &str,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<SalesOrderDocument, R::Error> {
+    actor.require_read(now)?;
+    if !repository
+        .current_authority(actor, false, false, now)
+        .await?
+    {
+        return Err(permission_required().into());
+    }
+    let order = repository.order(actor, id).await?.ok_or_else(not_found)?;
+    let lines = repository.lines(&actor.company_id, id).await?;
+    validate_document(actor, order, lines, now).map_err(Into::into)
+}
+
+/// Apply one safe owner-local order transition.
+///
+/// `approve` is quotation-only and refuses a sales-order approval because the
+/// retained Finance credit-limit guard is not available to this slice. A
+/// confirmed sales-order cancellation is refused for the same reason: its
+/// retained Inventory reservation/reversal guard cannot be bypassed.
+pub async fn transition_order<R: CommerceOrderCommandRepository>(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<CommerceOrderReceipt, R::Error> {
+    transition_order_with_guard_mode(
+        actor,
+        command,
+        repository,
+        now,
+        TransitionGuardMode::Retained,
+    )
+    .await
+}
+
+/// Apply one transition with the native Finance/Inventory cross-owner guards.
+/// The repository must provide the real ports; the default trait methods fail
+/// closed. The caller owns the serializable unit.
+pub async fn transition_order_guarded<R: CommerceOrderCommandRepository>(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<CommerceOrderReceipt, R::Error> {
+    transition_order_with_guard_mode(actor, command, repository, now, TransitionGuardMode::Native)
+        .await
+}
+
+async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+    guard_mode: TransitionGuardMode,
+) -> Result<CommerceOrderReceipt, R::Error> {
+    actor.require_write(now)?;
+    command.validate()?;
+    repository.lock_command(command.key.as_str()).await?;
+    let identity = transition_identity(actor, command);
+    let request_hash = repository.digest(&identity).await?;
+    validate_hash(&request_hash)?;
+    if let Some(prior) = replay(
+        repository.receipt(command.key.as_str()).await?,
+        &request_hash,
+        command.order_id.as_str(),
+        command.expected_version,
+        command.action,
+    )? {
+        return Ok(prior);
+    }
+    if !repository
+        .current_authority(actor, true, false, now)
+        .await?
+    {
+        return Err(permission_required().into());
+    }
+    let order = repository
+        .lock_order(actor, command.order_id.as_str())
+        .await?
+        .ok_or_else(not_found)?;
+    validate_transition_actor(actor, command, &order)?;
+    let needs_approver = command.action.needs_approver()
+        || (command.action == crate::domain::order::OrderAction::Cancel
+            && matches!(
+                order.state(),
+                Some(
+                    OrderState::Confirmed | OrderState::PartiallyFulfilled | OrderState::Fulfilled
+                )
+            ));
+    if needs_approver && !repository.current_authority(actor, true, true, now).await? {
+        return Err(crate::domain::order::approval_required().into());
+    }
+    validate_transition_approval_reason(command, &order)?;
+    if guard_mode == TransitionGuardMode::Native
+        && command.action == crate::domain::order::OrderAction::Convert
+    {
+        if order.kind() != Some(crate::domain::order::OrderKind::Quote) {
+            return Err(crate::domain::order::quote_required().into());
+        }
+        repository
+            .prepare_converted_order_money(actor, command, &order, now)
+            .await?;
+    }
+    if guard_mode == TransitionGuardMode::Native
+        && command.action == crate::domain::order::OrderAction::Approve
+        && order.kind() == Some(crate::domain::order::OrderKind::Sales)
+        && !repository
+            .sales_order_credit_allows(
+                &actor.company_id,
+                &order.party_id,
+                order
+                    .subtotal_minor
+                    .checked_add(order.tax_minor)
+                    .ok_or_else(crate::domain::order::source_invalid)?,
+            )
+            .await?
+    {
+        return Err(sales_credit_limit_exceeded().into());
+    }
+    let fulfillment_count = if command.action == crate::domain::order::OrderAction::Cancel {
+        repository
+            .count_fulfillments(command.order_id.as_str())
+            .await?
+    } else {
+        0
+    };
+    let plan = authorize_transition_with_guard_mode(
+        actor,
+        command,
+        &order,
+        fulfillment_count,
+        &request_hash,
+        now,
+        guard_mode,
+    )?;
+    if guard_mode == TransitionGuardMode::Native
+        && command.action == crate::domain::order::OrderAction::Cancel
+    {
+        repository
+            .release_confirmed_sales_reservations(&actor.company_id, &order.id)
+            .await?;
+    }
+    if !repository.transition(&plan).await? {
+        return Err(transition_conflict().into());
+    }
+    if let Some(sales_id) = &plan.sales_id {
+        // The original TS effect order is quote update -> Money INSERT ->
+        // sales-order insert -> line copy.
+        if guard_mode == TransitionGuardMode::Native {
+            repository
+                .apply_converted_order_money(sales_id, now)
+                .await?;
+        }
+        if !repository.insert_converted_order(&plan).await? {
+            return Err(readback_invalid().into());
+        }
+        let copied = repository
+            .copy_converted_lines(plan.order_id.as_str(), sales_id)
+            .await?;
+        let converted = repository
+            .converted_readback(sales_id, &actor.company_id)
+            .await?
+            .ok_or_else(readback_invalid)?;
+        validate_conversion_readback(&plan, &order, &converted, copied)?;
+    }
+    let receipt = plan.receipt.clone();
+    let result_json = serde_json::to_string(&receipt.to_wire()).map_err(|_| request_invalid())?;
+    if !repository
+        .insert_receipt(
+            &ReceiptEntry {
+                key: command.key.as_str(),
+                operation: plan.action.operation(),
+                actor,
+                request_hash: &request_hash,
+                record_id: &plan.order_id,
+                result_json: &result_json,
+            },
+            now,
+        )
+        .await?
+    {
+        return Err(idempotency_conflict().into());
+    }
+    let authority = actor.authority_json();
+    repository
+        .audit(
+            actor,
+            &AuditEntry {
+                key: command.key.as_str(),
+                operation: plan.action.operation(),
+                record_type: "commerce_order",
+                record_id: &plan.order_id,
+                version: receipt.version,
+                authority_json: &authority,
+            },
+            now,
+        )
+        .await?;
+    repository
+        .outbox(
+            &OutboxEntry {
+                key: command.key.as_str(),
+                operation: plan.action.operation(),
+                record_type: "commerce_order",
+                record_id: &plan.order_id,
+                version: receipt.version,
+                state: &receipt.state,
+                sales_id: receipt.sales_id.as_deref(),
+                authority_json: &authority,
+            },
+            now,
+        )
+        .await?;
+    let readback = repository
+        .readback_order(actor, &plan.order_id)
+        .await?
+        .ok_or_else(readback_invalid)?;
+    validate_readback(&plan, &readback)?;
+    Ok(receipt)
+}
+
+/// Repository facts required by the native draft create/update slice. All
+/// source reads happen in the same caller-owned serializable transaction as
+/// the owner write.
+pub trait CommerceOrderSaveRepository: CommerceOrderCommandRepository {
+    fn setup_currency<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+    ) -> CommerceOrderFuture<'a, Option<String>, Self::Error>;
+
+    fn next_quote_number<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        date: &'a str,
+    ) -> CommerceOrderFuture<'a, String, Self::Error>;
+
+    fn save_warehouse<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderWarehouse>, Self::Error>;
+
+    fn save_product<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderProduct>, Self::Error>;
+
+    fn save_party_valid<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        kind: crate::domain::order::OrderKind,
+        currency: &'a str,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn save_price_list<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        date: &'a str,
+        selected: Option<&'a str>,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderPriceList>, Self::Error>;
+
+    fn insert_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn update_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn delete_order_lines<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error>;
+
+    fn insert_order_line<'a>(
+        &'a mut self,
+        line: &'a SaveOrderLinePlan,
+    ) -> CommerceOrderFuture<'a, (), Self::Error>;
+
+    fn readback_lines<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error>;
+
+    /// Write and retain Finance order-revision Money before the party/version
+    /// assertions. The default keeps retained owner-local saves unchanged.
+    fn save_order_money<'a>(
+        &'a mut self,
+        _actor: &'a CommerceOrderActor,
+        _command: &'a SaveOrderCommand,
+        _plan: &'a SaveOrderPlan,
+        _now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_SAVE_MONEY_REQUIRED",
+                "The Finance order Money source is unavailable.",
+            )
+            .into())
+        })
+    }
+
+    /// Revalidate the retained save Money after deferred effects.
+    fn require_save_money<'a>(&'a mut self) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_SAVE_MONEY_REQUIRED",
+                "The Finance order Money source is unavailable.",
+            )
+            .into())
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderOutcome {
+    pub receipt: SaveOrderReceipt,
+    /// `None` when the command replayed an existing receipt; the Finance
+    /// evidence was already written by the winning invocation.
+    pub plan: Option<SaveOrderPlan>,
+}
+
+/// Replay-only save check used before opening the locked write unit. It reads
+/// the canonical receipt and digest without locking any owner source, so an
+/// exact retry returns even while another writer holds the Money/Sales locks.
+pub async fn save_order_replay<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<Option<SaveOrderReceipt>, R::Error> {
+    actor.require_write(now)?;
+    let identity = save_identity(actor, command);
+    let request_hash = repository.digest(&identity).await?;
+    validate_hash(&request_hash)?;
+    Ok(replay_save(
+        repository.receipt(command.key.as_str()).await?,
+        &request_hash,
+        command,
+    )?)
+}
+
+/// Replay-only transition check with the same no-lock contract.
+pub async fn transition_order_replay<R: CommerceOrderCommandRepository>(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<Option<CommerceOrderReceipt>, R::Error> {
+    actor.require_write(now)?;
+    let identity = transition_identity(actor, command);
+    let request_hash = repository.digest(&identity).await?;
+    validate_hash(&request_hash)?;
+    Ok(replay(
+        repository.receipt(command.key.as_str()).await?,
+        &request_hash,
+        command.order_id.as_str(),
+        command.expected_version,
+        command.action,
+    )?)
+}
+
+/// Create or update one exact draft quotation/sales order and return the
+/// receipt plus the admitted owner plan. Composition uses the plan to write
+/// Finance-owned order-revision Money evidence in the same transaction.
+pub async fn save_order_outcome<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<SaveOrderOutcome, R::Error> {
+    save_order_outcome_inner(actor, command, repository, now, false).await
+}
+
+/// Native save with the original TypeScript evidence order: Finance Money is
+/// written before the party and version assertions, then retained through the
+/// deferred-effects revalidation performed by composition.
+pub async fn save_order_outcome_native<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<SaveOrderOutcome, R::Error> {
+    save_order_outcome_inner(actor, command, repository, now, true).await
+}
+
+async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+    defer_guards: bool,
+) -> Result<SaveOrderOutcome, R::Error> {
+    actor.require_write(now)?;
+    repository.lock_command(command.key.as_str()).await?;
+    let identity = save_identity(actor, command);
+    let request_hash = repository.digest(&identity).await?;
+    validate_hash(&request_hash)?;
+    if let Some(prior) = replay_save(
+        repository.receipt(command.key.as_str()).await?,
+        &request_hash,
+        command,
+    )? {
+        return Ok(SaveOrderOutcome {
+            receipt: prior,
+            plan: None,
+        });
+    }
+    // The original save replays before its semantic validations, so an exact
+    // retry returns its receipt even if a referenced source later changed.
+    if defer_guards {
+        command.validate_native_shape()?;
+    } else {
+        command.validate()?;
+    }
+    if !repository
+        .current_authority(actor, true, false, now)
+        .await?
+    {
+        return Err(permission_required().into());
+    }
+    let currency = repository
+        .setup_currency(&actor.company_id)
+        .await?
+        .ok_or_else(crate::domain::order::save_setup_required)?;
+    let existing = match &command.order_id {
+        Some(id) => {
+            let row = repository
+                .lock_order(actor, id.as_str())
+                .await?
+                .ok_or_else(not_found)?;
+            if defer_guards && row.kind() != Some(command.input.kind) {
+                return Err(crate::domain::order::order_kind_locked().into());
+            }
+            if !defer_guards && row.version != command.expected_version().unwrap_or(0) {
+                return Err(version_conflict().into());
+            }
+            Some(row)
+        }
+        None => None,
+    };
+    if defer_guards {
+        command.validate_native_semantics()?;
+    }
+    let party_valid = repository
+        .save_party_valid(
+            &actor.company_id,
+            &command.input.party_id,
+            command.input.kind,
+            &currency,
+        )
+        .await?;
+    let warehouse = match command.input.warehouse_id.as_deref() {
+        Some(id) => repository.save_warehouse(actor, id).await?,
+        None => None,
+    };
+    if command.input.warehouse_id.is_some() && warehouse.is_none() {
+        return Err(crate::domain::order::warehouse_invalid().into());
+    }
+    let price_list = if command.input.kind == crate::domain::order::OrderKind::Purchase {
+        None
+    } else {
+        repository
+            .save_price_list(
+                &actor.company_id,
+                &command.input.party_id,
+                &command.input.order_date,
+                command.input.price_list_id.as_deref(),
+            )
+            .await?
+    };
+    if command.input.price_list_id.is_some() && price_list.is_none() {
+        return Err(crate::domain::order::price_list_invalid().into());
+    }
+    crate::domain::order::validate_save_pricing(command, &price_list)?;
+    let mut products = Vec::with_capacity(command.input.lines.len());
+    for line in &command.input.lines {
+        products.push(
+            repository
+                .save_product(&actor.company_id, &line.product_id)
+                .await?,
+        );
+    }
+    let number = if command.order_id.is_none() {
+        match command.input.kind {
+            crate::domain::order::OrderKind::Quote => {
+                repository
+                    .next_quote_number(&actor.company_id, &command.input.order_date)
+                    .await?
+            }
+            crate::domain::order::OrderKind::Sales => {
+                crate::domain::order::sales_order_number(&command.key)
+            }
+            crate::domain::order::OrderKind::Purchase => {
+                crate::domain::order::purchase_order_number(&command.key)
+            }
+        }
+    } else {
+        String::new()
+    };
+    let plan = if defer_guards {
+        build_save_plan_deferred(
+            actor,
+            command,
+            currency,
+            existing,
+            warehouse,
+            party_valid,
+            &products,
+            price_list,
+            number,
+            now,
+        )?
+    } else {
+        crate::domain::order::build_save_plan(
+            actor,
+            command,
+            currency,
+            existing,
+            warehouse,
+            party_valid,
+            &products,
+            price_list,
+            number,
+            now,
+        )?
+    };
+    if defer_guards {
+        repository
+            .save_order_money(actor, command, &plan, now)
+            .await?;
+    }
+    if plan.create {
+        if !repository.insert_order(&plan).await? {
+            return Err(crate::domain::order::order_conflict().into());
+        }
+    } else {
+        if !repository.update_order(&plan).await? {
+            return Err(version_conflict().into());
+        }
+        repository.delete_order_lines(&plan.id).await?;
+    }
+    for line in &plan.lines {
+        repository.insert_order_line(line).await?;
+    }
+    let receipt = SaveOrderReceipt {
+        id: plan.id.clone(),
+        version: plan.version,
+    };
+    let result_json = serde_json::to_string(&receipt.to_wire()).map_err(|_| request_invalid())?;
+    if !repository
+        .insert_receipt(
+            &ReceiptEntry {
+                key: command.key.as_str(),
+                operation: command.operation(),
+                actor,
+                request_hash: &request_hash,
+                record_id: &plan.id,
+                result_json: &result_json,
+            },
+            now,
+        )
+        .await?
+    {
+        return Err(idempotency_conflict().into());
+    }
+    let authority = actor.authority_json();
+    repository
+        .audit(
+            actor,
+            &AuditEntry {
+                key: command.key.as_str(),
+                operation: command.operation(),
+                record_type: "commerce_order",
+                record_id: &plan.id,
+                version: plan.version,
+                authority_json: &authority,
+            },
+            now,
+        )
+        .await?;
+    repository
+        .outbox(
+            &OutboxEntry {
+                key: command.key.as_str(),
+                operation: command.operation(),
+                record_type: "commerce_order",
+                record_id: &plan.id,
+                version: plan.version,
+                state: "draft",
+                sales_id: None,
+                authority_json: &authority,
+            },
+            now,
+        )
+        .await?;
+    let readback = repository
+        .readback_order(actor, &plan.id)
+        .await?
+        .ok_or_else(readback_invalid)?;
+    let lines = repository.readback_lines(actor, &plan.id).await?;
+    validate_save_readback(&plan, &readback, &lines)?;
+    Ok(SaveOrderOutcome {
+        receipt,
+        plan: Some(plan),
+    })
+}
+
+/// Receipt-only wrapper for callers that do not own Finance Money evidence.
+pub async fn save_order<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<SaveOrderReceipt, R::Error> {
+    save_order_outcome(actor, command, repository, now)
+        .await
+        .map(|outcome| outcome.receipt)
+}

@@ -3,7 +3,8 @@ import {requireWorkContext} from '@erpx/server-identity_access/public/authorizat
 import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin';
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
 import {manufacturingPostingPrerequisites,createManufacturingPostingChart,createManufacturingPostingAccount,createManufacturingPostingPeriod,confirmManufacturingPostingRate,manufacturingPostingChartSchema,manufacturingPostingAccountSchema,manufacturingPostingPeriodSchema,manufacturingPostingRateSchema} from '@erpx/server-finance/public/manufacturing-posting-prerequisites';
-import {manufacturingPostingProfiles,prepareManufacturingPostingProfile,decideManufacturingPostingProfile,manufacturingPostingProfileSchema,manufacturingPostingProfileDecisionSchema} from '@erpx/server-manufacturing/public/posting-profiles';
+import {manufacturingPostingProfiles,manufacturingPostingProfileSchema,manufacturingPostingProfileDecisionSchema} from '@erpx/server-manufacturing/public/posting-profiles';
+import {nativeAccountingProfileCommand,nativeManufacturingWave3Available} from '@erpx/feature-manufacturing/adapters/server/native-manufacturing-wave3';
 type Context={params:Promise<{holdingSlug:string;path:string[]}>};
 const headers={'Cache-Control':'private, no-store'};
 const missing=()=>new ApiError(404,'NOT_FOUND','Manufacturing setup action not found.');
@@ -21,8 +22,17 @@ export async function POST(request:Request,context:Context){
   else if(path[0]==='accounts')data=await createManufacturingPostingAccount(actor,manufacturingPostingAccountSchema.parse(input),key);
   else if(path[0]==='periods')data=await createManufacturingPostingPeriod(actor,manufacturingPostingPeriodSchema.parse(input),key);
   else if(path[0]==='rates')data=await confirmManufacturingPostingRate(actor,manufacturingPostingRateSchema.parse(input),key);
-  else if(path.length===1)data=await prepareManufacturingPostingProfile(actor,manufacturingPostingProfileSchema.parse(input),key);
-  else data=await decideManufacturingPostingProfile(actor,path[1],manufacturingPostingProfileDecisionSchema.parse(input),key);
+  else if(path.length===1||path.length===3){
+   // Wave 3: the axum accounting-profile route is the only writer. No TS SQL fallback.
+   if(!nativeManufacturingWave3Available())throw new ApiError(503,'NATIVE_MANUFACTURING_UNAVAILABLE','The native Manufacturing profile command is unavailable.');
+   const review=path.length===3?manufacturingPostingProfileDecisionSchema.safeParse(input):null;
+   const parsed=manufacturingPostingProfileSchema.safeParse(input);
+   const profileInput=review?.success?review.data.input:parsed.success?parsed.data.input:undefined;
+   if(!profileInput)throw new ApiError(422,'MANUFACTURING_ACCOUNTING_REQUEST_INVALID','Review the accounting profile details.');
+   const result=await nativeAccountingProfileCommand(request.headers,actor,holdingSlug,path.length===3?{review:path[1]}:{create:true},profileInput as Record<string,unknown>,key);
+   if(!result)throw new ApiError(503,'NATIVE_MANUFACTURING_UNAVAILABLE','The native Manufacturing profile command is unavailable.');
+   data=result;
+  }
   return Response.json({data},{status:path.length===3?200:201,headers});
  }catch(error){return failure(error);}
 }

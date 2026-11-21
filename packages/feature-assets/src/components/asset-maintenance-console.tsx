@@ -8,7 +8,7 @@ import {assetCommandAllowed} from "@erpx/feature-assets/lib/command";
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/time/preferred-date-time-field";
 import { ServiceSpareForm } from "@erpx/feature-field_service/components/service-spare-form";
-import type {assetDetail,assetWorkspace} from "@erpx/server-assets/public/asset-maintenance";
+import type {AssetDetailView,AssetWorkspaceView} from "@erpx/feature-assets/lib/asset-view";
 import type {maintenanceDetail,maintenanceWorkspace} from "@erpx/server-maintenance/public/asset-maintenance";
 import { FormLayout } from "@erpx/ui/components/foundation";
 import {useAccountPreferences} from "@erpx/feature-identity_access/components/account-preferences-context";
@@ -22,8 +22,8 @@ export function AssetConsole({
   detail,
 }: {
   base: string;
-  data?: Awaited<ReturnType<typeof assetWorkspace>>;
-  detail?: Awaited<ReturnType<typeof assetDetail>>;
+  data?: AssetWorkspaceView;
+  detail?: AssetDetailView;
 }) {
   const language=useAccountPreferences()?.preference?.language,retirementReview=language==="th"?retirementReviewCopy.th:retirementReviewCopy.en;
   const purchases=detail?.purchases??data?.purchases,{send,retry,busy,error,notice,saved,uncertain}=useAssetCommand(base,"assets",purchases,detail?.asset),

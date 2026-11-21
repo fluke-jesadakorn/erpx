@@ -16,6 +16,7 @@ import { ProjectMilestoneConsole } from "@erpx/feature-records/components/loader
 import { ProjectActualsConsole } from "@erpx/feature-records/components/loaders/modules--project-actuals";
 import { ProjectStructureConsole } from "@erpx/feature-records/components/loaders/modules--project-structure-console";
 import {projectGraph,projectHandoffs} from "@erpx/server-projects/public/project-structure";
+import { ownedProjectWbs } from "@erpx/feature-projects/public/native-project-wbs-owned";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 
 
@@ -37,11 +38,10 @@ export default async function Project({
   const { holdingSlug, id } = await params,
     { actor, queries, base, options } = await staffPresentationQueries(holdingSlug),
     purchases=await queries.projectPurchases(),
-    project = await queries.getProject(actor, id).catch((e) => {
-      return pageError(e, holdingSlug);
-    }),
+    nativeWbs = await ownedProjectWbs(actor, holdingSlug, id).catch((e) => pageError(e, holdingSlug));
+  const project = nativeWbs?.project ?? await queries.getProject(actor, id).catch((e) => pageError(e, holdingSlug)),
     tasks = view==="tasks"&&projectPurchased(purchases,"projects.tasks","history")?await queries.listTasks(actor, id):[],
-    milestones = view==="structure"?await queries.listProjectMilestones(actor, id):[],
+    milestones = view==="structure"?(nativeWbs?.milestones ?? await queries.listProjectMilestones(actor, id)):[],
     workLogs = ["actuals","structure","handoff"].includes(view)&&projectPurchased(purchases,"projects.time","history")?await queries.listProjectWorkLogs(actor, id):[],
     members = (
       await queries.projectMemberIds(id)

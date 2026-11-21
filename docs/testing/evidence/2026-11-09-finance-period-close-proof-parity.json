@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The Finance-owned close/reopen proof-length check now matches the installed TypeScript closeProofSchema: a trimmed one-character proof is accepted and a blank proof is rejected. The remaining period-close parity gaps are Common-owned: the shared EvidencePolicyFact DTO has no policy version and the Files business-evidence port collapses the TypeScript attachment error codes into ATTACHMENT_BINDING_CHANGED. No owner or workflow is promoted.",
+  "capability": "finance-period-close-proof-parity",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commit": "56de953a3cc33cb8804dc2c5739c4cad51350b3c",
+  "scope": {
+    "finance": "packages/server-finance/src/adapters/period_close.rs close_period_with_evidence and reopen_period now accept proof.trim() of one character (and reject empty), matching z.string().trim().min(1).max(2000) in packages/server-finance/src/domain/finance.ts.",
+    "test": "tests/integration/finance/rust-period-close-postgres.test.rs adds period_close_proof_length_matches_the_typescript_schema: one-character proof closes, blank proof returns INVALID_CLOSE_PROOF."
+  },
+  "verification": {
+    "exactArchive": "git archive 56de953a3 -> .scratch/dev/rust-migration/current/verify-period-proof",
+    "cargoCheck": "PASS: cargo check -p erpx-service --locked (37.11s), .scratch/dev/rust-migration/current/verify-period-proof-check.log.",
+    "periodClose": "PASS: period_close_postgres 7 passed, 0 failed, 0 ignored (29.96s), including period_close_proof_length_matches_the_typescript_schema. Log: .scratch/dev/rust-migration/current/verify-period-proof-close.log.",
+    "filesEvidence": "PASS: business_evidence_postgres 3 passed, 0 failed, 0 ignored (3.58s), .scratch/dev/rust-migration/current/verify-period-proof-files.log.",
+    "staticGates": "PASS: architecture:check, test:catalogue (1005 suites), docs:check on the exact archive. Logs: .scratch/dev/rust-migration/current/verify-period-proof-{architecture,catalogue,docs}.log."
+  },
+  "remaining": [
+    "The shared Records EvidencePolicyFact DTO needs a policy version and the Files business-evidence port must compare attachment_sets.policy_version to the registered owner policy version. Both are Common-owned.",
+    "The Files business-evidence port must preserve the TypeScript attachment error codes (ATTACHMENT_SET_TARGET, ATTACHMENT_SET_STALE, ATTACHMENT_SCAN_PENDING, ATTACHMENT_REQUIRED, ATTACHMENT_TARGET_CHANGED, ATTACHMENT_POLICY_UNKNOWN) instead of collapsing them to ATTACHMENT_BINDING_CHANGED. Common-owned.",
+    "Authenticated desktop/mobile browser and global lock-order proof remain; acme public root returns 500 because ERPX_NATIVE_ACCOUNT_SESSION_CONFIG is undefined.",
+    "Field Files link-existing still needs the Common-owned native write port."
+  ],
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "Only the Finance-owned proof-length parity is closed. The shared policy-version and exact attachment error-code checks require Common-owned Records/Files changes; browser/SSO and the Field Files link-existing port also remain open."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Obtain a written Common assignment to add the EvidencePolicyFact policy version and exact attachment error-code mapping in packages/server-records and packages/server-files, or have Common deliver that frozen port extension. Then rerun the exact-tree period-close/Files suites and authenticated browser proof."
+}

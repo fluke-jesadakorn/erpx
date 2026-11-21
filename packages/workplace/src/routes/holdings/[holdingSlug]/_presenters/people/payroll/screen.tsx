@@ -10,7 +10,9 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { listPayrollRuns, payrollRunsPage, payrollSummary } from "@erpx/server-people_payroll/public/people-payroll";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
+import type { NativePayrollSummaryRow } from "@erpx/feature-people_payroll/public/native-payroll-summary";
 import { payrollReadiness } from "@erpx/server-people_payroll/public/payroll-readiness";
 import {Table,TableFrame} from "@erpx/ui/components/foundation";
 import {minorToDecimal} from "@erpx/feature-finance/lib/finance-money";
@@ -28,10 +30,17 @@ export default async function PayrollPage({
   const purchase = await payrollPurchaseControls(actor);
   const financialSource = await peopleFinancialSourcePresentation(actor,"payroll");
   const redacted = !hasPermission(actor, "payroll.read");
-  const summary=!redacted&&!actor.branchId&&!actor.departmentId?await payrollSummary(actor):[];
+  let summary: NativePayrollSummaryRow[] = [];
   let runs;
   try {
-    runs = redacted ? await listPayrollRuns(actor) : (await payrollRunsPage(actor)).items;
+    const summaryRead = !redacted && !actor.branchId && !actor.departmentId
+      ? await ownedPeoplePayrollSummary(actor, holdingSlug)
+      : [];
+    const runsRead = await ownedPeoplePayrollRuns(actor, holdingSlug);
+    if (summaryRead === undefined || runsRead === undefined)
+      throw new ApiError(503, "NATIVE_PEOPLE_PAYROLL_UNAVAILABLE", "The native People Payroll reader is unavailable.");
+    summary = summaryRead;
+    runs = runsRead;
   } catch (error) {
     return pageError(error, actor.holdingSlug);
   }

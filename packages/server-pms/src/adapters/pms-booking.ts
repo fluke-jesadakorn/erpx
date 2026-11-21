@@ -1,4 +1,5 @@
 import {hydratePmsReceiptAllocationCredits} from "../../../../packages/server-pms/src/adapters/pms";
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
 import {publicSurfaceOrigin} from '@erpx/server-identity_access/public/public-surface-entry';
@@ -25,11 +26,13 @@ import { pmsBookingPosFacts } from "@erpx/server-pos/public/pms-booking-facts";
 import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
 import { pmsPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { purchasedCapabilityPredicate, packageClockSql } from "@erpx/server-commercial/public/purchased-capability-sql";
+import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
 export async function bookingEnv(): Promise<BookingEnv> {
     const env = await runtimeEnv();
     return {
         secret: env.BETTER_AUTH_SECRET,
         origin: publicSurfaceOrigin('booking',env.ERPX_PUBLIC_ORIGIN),
+        ...(holdingRoutingEnabled(process.env)?{holdingOrigins:Object.fromEntries(holdingHosts.map(host=>[host.holdingSlug,`https://${host.hostname}`]))}:{}),
         apiKey: env.RESEND_API_KEY,
         from: env.RESEND_FROM,
     };
@@ -69,7 +72,8 @@ const rows = async <T>(db: SqlDatabase, sql: string, ...v: unknown[]) => (await 
     .prepare(sql)
     .bind(...v)
     .all<T>()).results;
-function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit<SqlStatement> {
+function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = ''): PmsBookingUnit<SqlStatement> {
+        const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     return {
         hydrateReceiptAllocationCredits: snapshot => hydratePmsReceiptAllocationCredits(db,snapshot),
         purchaseAllowed: (propertyId, purpose) => pmsPropertyPurchaseAllowed(db, propertyId, purpose),
@@ -92,7 +96,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             version: number;
             fact1: number;
             id: string;
-        }) => db.prepare("UPDATE pms_properties SET version=?,updated_at=? WHERE id=?").bind(facts.version, facts.fact1, facts.id).run(),
+        }) => write('pms_w025', [facts.version, facts.fact1, facts.id]),
         writePmsBookingTokens1: (facts: {
             id: `${string}-${string}-${string}-${string}-${string}`;
             propertyId: string;
@@ -100,7 +104,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             fact3: string;
             fact4: number;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_tokens(id,property_id,reservation_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?,?)').bind(facts.id, facts.propertyId, facts.reservationId, facts.fact3, facts.fact4, facts.now).run(),
+        }) => write('pms_w026', [facts.id, facts.propertyId, facts.reservationId, facts.fact3, facts.fact4, facts.now]),
         writePmsBookingEmails1: (facts: {
             mailId: `${string}-${string}-${string}-${string}-${string}`;
             id: string;
@@ -111,7 +115,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             fact6: string;
             now: number;
             now2: number;
-        }) => db.prepare("INSERT INTO pms_booking_emails(id,property_id,reservation_id,token_id,holding_slug,kind,payload_json,next_attempt_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(facts.mailId, facts.id, facts.reservationId, facts.id2, facts.slug, facts.kind, facts.fact6, facts.now, facts.now2).run(),
+        }) => write('pms_w027', [facts.mailId, facts.id, facts.reservationId, facts.id2, facts.slug, facts.kind, facts.fact6, facts.now, facts.now2]),
         readPmsBookingReceipts1: (facts: {
             key: string;
         }) => db.prepare("SELECT * FROM pms_booking_receipts WHERE id=?").bind(facts.key).first<{
@@ -127,7 +131,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             id2: string;
             now: number;
             fact5: string;
-        }) => db.prepare("INSERT INTO pms_booking_receipts(id,property_id,body_hash,reservation_id,created_at,response_json) VALUES(?,?,?,?,?,?)").bind(facts.key, facts.id, facts.digest, facts.id2, facts.now, facts.fact5).run(),
+        }) => write('pms_w028', [facts.key, facts.id, facts.digest, facts.id2, facts.now, facts.fact5]),
         readPosSettings1: facts => pmsBookingPosFacts(db).readPosSettings1(facts),
         writePmsBookingPayments1: (facts: {
             attemptId: `${string}-${string}-${string}-${string}-${string}`;
@@ -144,7 +148,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             fact11: string;
             fact12: string;
             clearing: unknown;
-        }) => db.prepare("INSERT INTO pms_booking_payments(id,property_id,reservation_id,company_id,holding_slug,account_id,livemode,amount_minor,currency,status,expires_at,created_at,updated_at,allocation_json,methods_json,clearing_account) VALUES(?,?,?,?,?,?,?,?,'THB','payment_pending',?,?,?,?,?,?)").bind(facts.attemptId, facts.id, facts.id2, facts.companyId, facts.slug, facts.fact5, facts.fact6, facts.dueNow, facts.expiresAt, facts.now, facts.now2, facts.fact11, facts.fact12, facts.clearing).run(),
+        }) => write('pms_w029', [facts.attemptId, facts.id, facts.id2, facts.companyId, facts.slug, facts.fact5, facts.fact6, facts.dueNow, facts.expiresAt, facts.now, facts.now2, facts.fact11, facts.fact12, facts.clearing]),
         writePmsBookingReceipts2: (facts: {
             key: string;
             id: string;
@@ -152,7 +156,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             id2: string;
             now: number;
             fact5: string;
-        }) => db.prepare("INSERT INTO pms_booking_receipts(id,property_id,body_hash,reservation_id,created_at,response_json) VALUES(?,?,?,?,?,?)").bind(facts.key, facts.id, facts.digest, facts.id2, facts.now, facts.fact5).run(),
+        }) => write('pms_w030', [facts.key, facts.id, facts.digest, facts.id2, facts.now, facts.fact5]),
         readPmsBookingPayments1: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(facts.id).first<BookingPaymentRow>(),
@@ -167,7 +171,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             url: string;
             fact2: number;
             id2: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET checkout_id=?,checkout_url=?,updated_at=? WHERE id=? AND checkout_id IS NULL AND status='payment_pending'").bind(facts.id, facts.url, facts.fact2, facts.id2).run(),
+        }) => write('pms_w031', [facts.id, facts.url, facts.fact2, facts.id2]),
         readPmsBookingPayments2: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(facts.id).first<BookingPaymentRow>(),
@@ -184,13 +188,13 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             paymentIntentId: string;
             now: number;
             id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET payment_intent_id=?,paid_at=COALESCE(paid_at,?) WHERE id=?').bind(facts.paymentIntentId, facts.now, facts.id).run(),
+        }) => write('pms_w032', [facts.paymentIntentId, facts.now, facts.id]),
         writePmsBookingPayments4: (facts: {
             paymentIntentId: string | null;
             providerSucceededAt: number | null;
             fact2: number;
             id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET payment_intent_id=?,provider_succeeded_at=COALESCE(provider_succeeded_at,?),paid_at=? WHERE id=?').bind(facts.paymentIntentId, facts.providerSucceededAt, facts.fact2, facts.id).run(),
+        }) => write('pms_w033', [facts.paymentIntentId, facts.providerSucceededAt, facts.fact2, facts.id]),
         readContext1: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
         readPmsBookingPayments4: (facts: {
             id: string;
@@ -200,7 +204,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             providerSucceededAt: number | null;
             fact2: number;
             id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET payment_intent_id=?,provider_succeeded_at=?,paid_at=? WHERE id=?').bind(facts.paymentIntentId, facts.providerSucceededAt, facts.fact2, facts.id).run(),
+        }) => write('pms_w034', [facts.paymentIntentId, facts.providerSucceededAt, facts.fact2, facts.id]),
         writePmsBookingAllocations1: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             id: string;
@@ -209,53 +213,39 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             id2: string;
             amount: number;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,guest_account_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now).run(),
+        }) => write('pms_w035', [facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now]),
         writePmsBookingPayments6: (facts: {
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET status='confirmed',updated_at=? WHERE id=?").bind(facts.now, facts.id).run(),
+        }) => write('pms_w036', [facts.now, facts.id]),
         writePmsBookingRefundRequests1: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             id: string;
             amount_minor: number;
             now: number;
             now2: number;
-        }) => db.prepare("INSERT INTO pms_booking_refund_requests(id,payment_id,amount_minor,allocations_json,reason,requested_by,state,created_at,updated_at) VALUES(?,?,?,'[]','Payment cannot be assigned','system:stripe','requested',?,?)").bind(facts.fact0, facts.id, facts.amount_minor, facts.now, facts.now2).run(),
+        }) => write('pms_w037', [facts.fact0, facts.id, facts.amount_minor, facts.now, facts.now2]),
         writePmsBookingPayments7: (facts: {
             fact0: "expired" | "refund_review";
             fact1: "requested" | null;
             fact2: number | null;
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET status=?,refund_state=?,refund_requested_at=?,updated_at=? WHERE id=?").bind(facts.fact0, facts.fact1, facts.fact2, facts.now, facts.id).run(),
+        }) => write('pms_w038', [facts.fact0, facts.fact1, facts.fact2, facts.now, facts.id]),
         writePmsBookingPayments8: (facts: {
             now: number;
             id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET last_error=NULL,updated_at=? WHERE id=?').bind(facts.now, facts.id).run(),
+        }) => write('pms_w039', [facts.now, facts.id]),
         writePmsBookingPayments9: (facts: {
             fact0: string;
             now: number;
             id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET last_error=?,updated_at=? WHERE id=?').bind(facts.fact0, facts.now, facts.id).run(),
+        }) => write('pms_w040', [facts.fact0, facts.now, facts.id]),
         writePmsBookingRefundRequests2: (facts: {
             fact0: string;
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET last_error=?,updated_at=? WHERE payment_id=? AND state IN ('approved','processing','requires_action')").bind(facts.fact0, facts.now, facts.id).run(),
-        writePmsBookingPayments10: (facts: {
-            now: number;
-            id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET last_error=NULL,updated_at=? WHERE id=?').bind(facts.now, facts.id).run(),
-        writePmsBookingPayments11: (facts: {
-            fact0: string;
-            now: number;
-            id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET last_error=?,updated_at=? WHERE id=?').bind(facts.fact0, facts.now, facts.id).run(),
-        writePmsBookingRefundRequests3: (facts: {
-            fact0: string;
-            now: number;
-            id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET last_error=?,updated_at=? WHERE payment_id=? AND state IN ('approved','processing','requires_action')").bind(facts.fact0, facts.now, facts.id).run(),
+        }) => write('pms_w041', [facts.fact0, facts.now, facts.id]),
         readPmsBookingTokens1: (facts: {
             fact0: string;
             now: number;
@@ -289,9 +279,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
         readPmsBookingLimits1: (facts: {
             fact0: string;
             bucket: number;
-        }) => db.prepare("INSERT INTO pms_booking_limits(key,bucket,count) VALUES(?,?,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN pms_booking_limits.bucket=excluded.bucket THEN pms_booking_limits.count+1 ELSE 1 END,bucket=excluded.bucket RETURNING count").bind(facts.fact0, facts.bucket).first<{
-            count: number;
-        }>(),
+        }) => write('pms_w042', [facts.fact0, facts.bucket]).then((r: any) => r.row as { count: number } | null),
         readPmsProperties2: (facts: {
             propertyId: string;
             companyId: string;
@@ -300,12 +288,12 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
         }) => db.prepare(`SELECT id FROM pms_properties WHERE id=? AND company_id=?${facts.actor.branchId ? " AND branch_id=?" : ""}`).bind(facts.propertyId, facts.companyId, ...facts.fact2).first(),
         writePmsBookingLimits1: (facts: {
             fact0: number;
-        }) => db.prepare("DELETE FROM pms_booking_limits WHERE bucket<?").bind(facts.fact0).run(),
+        }) => write('pms_w043', [facts.fact0]),
         readPmsBookingEmails1: (facts: {
             fact0: number;
             now: number;
             now2: number;
-        }) => db.prepare("UPDATE pms_booking_emails SET state='sending',attempts=attempts+1,lease_until=? WHERE id=(SELECT id FROM pms_booking_emails WHERE (state='pending' OR (state='sending' AND lease_until<?)) AND next_attempt_at<=? ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *").bind(facts.fact0, facts.now, facts.now2).first<{
+        }) => write('pms_w044', [facts.fact0, facts.now, facts.now2]).then((r: any) => r.row as {
             id: string;
             property_id: string;
             reservation_id: string;
@@ -314,22 +302,21 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             kind: string;
             attempts: number;
             payload_json: string;
-        }>(),
+        } | null),
         writePmsBookingTokens2: (facts: {
             fact0: number;
             token_id: string;
-        }) => db.prepare("UPDATE pms_booking_tokens SET expires_at=? WHERE id=?").bind(facts.fact0, facts.token_id).run(),
-        writePmsBookingEmailsBlocked: facts => db.prepare("UPDATE pms_booking_emails SET state='pending',attempts=GREATEST(0,attempts-1),lease_until=NULL,next_attempt_at=?,last_error=? WHERE id=?")
-          .bind(facts.nextAt, facts.code, facts.id).run(),
+        }) => write('pms_w045', [facts.fact0, facts.token_id]),
+        writePmsBookingEmailsBlocked: facts => write('pms_w046', [facts.nextAt, facts.code, facts.id]),
         writePmsBookingEmails2: (facts: {
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_emails SET state='sent',sent_at=?,lease_until=NULL,last_error=NULL WHERE id=?").bind(facts.now, facts.id).run(),
+        }) => write('pms_w047', [facts.now, facts.id]),
         writePmsBookingEmails3: (facts: {
             fact0: "pending" | "failed";
             fact1: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_emails SET state=?,next_attempt_at=?,lease_until=NULL,last_error='EMAIL_DELIVERY_FAILED' WHERE id=?").bind(facts.fact0, facts.fact1, facts.id).run(),
+        }) => write('pms_w048', [facts.fact0, facts.fact1, facts.id]),
         readPmsRecords2: (facts: {
             propertyId: string;
             fact1: Array<string>;
@@ -386,10 +373,10 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
         confirmBookingChange: (...args) => confirmBookingChange(requireWhole(whole), ...args)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsBookingRepository<SqlStatement> { return { ...unit(db, db), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db)), purchase) }; }
+function repository(db: TransactionalSqlDatabase, companyId = ''): PmsBookingRepository<SqlStatement> { return { ...unit(db, db, companyId), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db, companyId)), purchase) }; }
 function requireWhole(db: TransactionalSqlDatabase | undefined): TransactionalSqlDatabase { if (!db)
     throw new Error("A booking command requires the original transaction-capable connection"); return db; }
-const application = createPmsBooking<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash, sign, same, protectMail, unprotectMail, encode: value => Buffer.from(value).toString("base64url"), decode: value => Buffer.from(value, "base64url").toString(), bookingEnv: (...args) => bookingEnv(...args), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write), error: (status, code, message) => new ApiError(status, code, message), isBusinessError: (error): error is ApiError => error instanceof ApiError, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), sendMail: fetch, timeout: () => AbortSignal.timeout(10000) });
+const application = createPmsBooking<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash, sign, same, protectMail, unprotectMail, encode: value => Buffer.from(value).toString("base64url"), decode: value => Buffer.from(value, "base64url").toString(), bookingEnv: (...args) => bookingEnv(...args), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write, undefined, actor.companyId), error: (status, code, message) => new ApiError(status, code, message), isBusinessError: (error): error is ApiError => error instanceof ApiError, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), sendMail: fetch, timeout: () => AbortSignal.timeout(10000) });
 export function bookingSnapshot(db: SqlDatabase, propertyId: string, search?: BookingSearch, lock = false) { return application.bookingSnapshot(unit(db), propertyId, search, lock); }
 export function bookingCatalog(db: SqlDatabase) { return application.bookingCatalog(unit(db)); }
 export function publicOffers(db: TransactionalSqlDatabase, input: unknown, propertyId?: string) { return application.publicOffers(repository(db), input, propertyId); }

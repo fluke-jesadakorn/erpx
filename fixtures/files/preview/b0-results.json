@@ -1,0 +1,624 @@
+{
+  "version": 1,
+  "scope": "Exact B0 provider on synthetic/owned inputs; direct renderer result and prior media admission are separate",
+  "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "source": {
+    "path": "packages/server-files/src/adapters/attachments/preview.ts",
+    "sha256": "8b7b5fdeb6621771a00557b5f9b9e05d205a10a275951015c95146825a5f2b29"
+  },
+  "node": "v26.11.1",
+  "sharp": {
+    "aom": "3.15.1",
+    "archive": "3.8.9",
+    "cairo": "1.18.6",
+    "cgif": "0.5.4",
+    "exif": "0.6.26",
+    "expat": "2.8.5",
+    "ffi": "3.8.0",
+    "fontconfig": "2.18.3",
+    "freetype": "2.14.3",
+    "fribidi": "1.0.17",
+    "glib": "2.90.0",
+    "harfbuzz": "14.5.0",
+    "heif": "1.23.5",
+    "highway": "1.4.0",
+    "imagequant": "2.4.1",
+    "lcms": "2.19.1",
+    "mozjpeg": "0826579",
+    "pango": "1.58.2",
+    "pixman": "0.46.4",
+    "png": "1.6.58",
+    "proxy-libintl": "0.5",
+    "rsvg": "2.63.2",
+    "tiff": "4.7.2",
+    "uhdr": "2.0.2",
+    "vips": "8.18.7",
+    "webp": "1.6.0",
+    "xml2": "2.15.4",
+    "zlib-ng": "2.3.3",
+    "sharp": "0.35.5"
+  },
+  "outcomes": [
+    {
+      "id": "png-exif",
+      "mime": "image/png",
+      "input": {
+        "file": "png-exif.input",
+        "bytes": 772,
+        "sha256": "e4178bd69787448b4eb2d657589f17ef26c965874d2691adf9ee2a2da1d3a7f1"
+      },
+      "detected": "image/png",
+      "preview": {
+        "kind": "rendered",
+        "file": "png-exif.webp",
+        "bytes": 88,
+        "sha256": "4425a4cc52aa7c6ee605d5cb4b6dfd4c7b8e1a9a616882461b6d46468a017e13",
+        "mediaType": "image/webp",
+        "width": 80,
+        "height": 40,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          27,
+          116,
+          213
+        ]
+      }
+    },
+    {
+      "id": "jpeg-orientation-six",
+      "mime": "image/jpeg",
+      "input": {
+        "file": "jpeg-orientation-six.input",
+        "bytes": 1028,
+        "sha256": "dd31adc869396fc554539db240ec130abe46c7b02b198cd9917ce1f954811432"
+      },
+      "detected": "image/jpeg",
+      "preview": {
+        "kind": "rendered",
+        "file": "jpeg-orientation-six.webp",
+        "bytes": 88,
+        "sha256": "15f848d9ff2adf0130ddc70c3d5c3b9d4525c9ca5463316f5045c7f3bab259b6",
+        "mediaType": "image/webp",
+        "width": 40,
+        "height": 80,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          27,
+          116,
+          213
+        ]
+      }
+    },
+    {
+      "id": "webp-orientation-six",
+      "mime": "image/webp",
+      "input": {
+        "file": "webp-orientation-six.input",
+        "bytes": 790,
+        "sha256": "04bd99b966a013760c221c79a71b677f192148ca9337eaf861786336021d3a74"
+      },
+      "detected": "image/webp",
+      "preview": {
+        "kind": "rendered",
+        "file": "webp-orientation-six.webp",
+        "bytes": 94,
+        "sha256": "628248a34b42306fbfb7d1f1dcd4d641150bc8f09bc2f7cfe8d7f109022c5e42",
+        "mediaType": "image/webp",
+        "width": 40,
+        "height": 80,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          26.92,
+          115.97625,
+          212.84
+        ]
+      }
+    },
+    {
+      "id": "png-downsize",
+      "mime": "image/png",
+      "input": {
+        "file": "png-downsize.input",
+        "bytes": 1914,
+        "sha256": "412a13efaa8ad523325b1f2ad172ac5b6b4a3716413425081564d9b43434194d"
+      },
+      "detected": "image/png",
+      "preview": {
+        "kind": "rendered",
+        "file": "png-downsize.webp",
+        "bytes": 222,
+        "sha256": "518401821c78c6978a1c93e7c8756881b9f22f094ae6affc38ced8e6eaa812aa",
+        "mediaType": "image/webp",
+        "width": 2400,
+        "height": 30,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          254.99863888888888,
+          0.9978194444444445,
+          0
+        ]
+      }
+    },
+    {
+      "id": "png-alpha",
+      "mime": "image/png",
+      "input": {
+        "file": "png-alpha.input",
+        "bytes": 182,
+        "sha256": "303f6be4e58ac7834b4562e620bb8df8e6bd84643f4839fff062c21616e3697a"
+      },
+      "detected": "image/png",
+      "preview": {
+        "kind": "rendered",
+        "file": "png-alpha.webp",
+        "bytes": 126,
+        "sha256": "58b0e36454f60bbe6b34578824b2c83c15066fbc3ce43c87915467b5da320760",
+        "mediaType": "image/webp",
+        "width": 64,
+        "height": 32,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": true,
+        "means": [
+          254.9521484375,
+          0.92333984375,
+          0,
+          128
+        ]
+      }
+    },
+    {
+      "id": "jpeg-cmyk",
+      "mime": "image/jpeg",
+      "input": {
+        "file": "jpeg-cmyk.input",
+        "bytes": 980,
+        "sha256": "f70da66aa412e7d4ce08c08fa0b96157abf46967226006ba93e30b3272c97665"
+      },
+      "detected": "image/jpeg",
+      "preview": {
+        "kind": "rendered",
+        "file": "jpeg-cmyk.webp",
+        "bytes": 88,
+        "sha256": "cf5338799f6856aef1967189b0fdf6cde08b4a3fafe706de46b129a71f86357f",
+        "mediaType": "image/webp",
+        "width": 80,
+        "height": 40,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          7.069375,
+          117.97875,
+          181
+        ]
+      }
+    },
+    {
+      "id": "heic-rotated",
+      "mime": "image/heic",
+      "input": {
+        "file": "heic-rotated.input",
+        "bytes": 1218,
+        "sha256": "b0a87bf0a8628bc3d4b2a5fb4339b80cae23d113f151f830511b99e2793f8f8c"
+      },
+      "detected": "image/heic",
+      "preview": {
+        "kind": "rendered",
+        "file": "heic-rotated.webp",
+        "bytes": 90,
+        "sha256": "d0f32678b1a1de0366491f1872ea96b4b4ed628b65138686e96c694373c3999d",
+        "mediaType": "image/webp",
+        "width": 40,
+        "height": 80,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          26.92,
+          116.02,
+          211
+        ]
+      }
+    },
+    {
+      "id": "pdf-first-page",
+      "mime": "application/pdf",
+      "input": {
+        "file": "pdf-first-page.input",
+        "bytes": 1586,
+        "sha256": "05524cffa3a57eba3e01a19d571bf21f2d66b22225d58ce3dd836971346587d9"
+      },
+      "detected": "application/pdf",
+      "preview": {
+        "kind": "rendered",
+        "file": "pdf-first-page.jpg",
+        "bytes": 45629,
+        "sha256": "e8b394e51d54ac044bd7b64a1156550e886206f354d32edbf6008ca03db4a92e",
+        "mediaType": "image/jpeg",
+        "width": 2400,
+        "height": 1200,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          254,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "csv-no-preview",
+      "mime": "text/csv",
+      "input": {
+        "file": "csv-no-preview.input",
+        "bytes": 8,
+        "sha256": "492d5ea496056f1a6a6592241032fab764c321596317930b4fa0e1e8bc3b7470"
+      },
+      "detected": "text/csv",
+      "preview": {
+        "kind": "none"
+      }
+    },
+    {
+      "id": "invalid-png",
+      "mime": "image/png",
+      "input": {
+        "file": "invalid-png.input",
+        "bytes": 40,
+        "sha256": "765218b9adf459349d9f5681e551b4047d12b515f39524dc473a8e56a18f1e5f"
+      },
+      "detected": null,
+      "preview": {
+        "kind": "failed",
+        "classification": "decoder-rejected"
+      }
+    },
+    {
+      "id": "invalid-heic",
+      "mime": "image/heic",
+      "input": {
+        "file": "invalid-heic.input",
+        "bytes": 32,
+        "sha256": "4e84aebbcb8b90272d07fac1c9ac5a7da45d6c8c3ee2d2bf7991112da9215851"
+      },
+      "detected": null,
+      "preview": {
+        "kind": "failed",
+        "classification": "decoder-rejected"
+      }
+    },
+    {
+      "id": "invalid-pdf",
+      "mime": "application/pdf",
+      "input": {
+        "file": "invalid-pdf.input",
+        "bytes": 23,
+        "sha256": "7bb2006319048bf48b9e6be13a297b27f524626768abd6209946bd68303d9946"
+      },
+      "detected": "application/pdf",
+      "preview": {
+        "kind": "failed",
+        "classification": "decoder-rejected"
+      }
+    },
+    {
+      "id": "jpeg-appended-zip",
+      "mime": "image/jpeg",
+      "input": {
+        "file": "jpeg-appended-zip.input",
+        "bytes": 1036,
+        "sha256": "2d403fef98c7a77daf29a9a469245ec7371c3d1a19fcf9c3ecd0f6051324effe"
+      },
+      "detected": null,
+      "preview": {
+        "kind": "rendered",
+        "file": "jpeg-appended-zip.webp",
+        "bytes": 88,
+        "sha256": "15f848d9ff2adf0130ddc70c3d5c3b9d4525c9ca5463316f5045c7f3bab259b6",
+        "mediaType": "image/webp",
+        "width": 40,
+        "height": 80,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          27,
+          116,
+          213
+        ]
+      }
+    },
+    {
+      "id": "png-over-40mp",
+      "mime": "image/png",
+      "input": {
+        "file": "png-over-40mp.input",
+        "bytes": 541614,
+        "sha256": "d905a7f7bae2b189ed9f63a6a92c2cbcee7f32bb56138499e89bac58e3de15df"
+      },
+      "detected": "image/png",
+      "preview": {
+        "kind": "failed",
+        "classification": "pixel-limit"
+      }
+    },
+    {
+      "id": "png-pattern-downsize",
+      "mime": "image/png",
+      "input": {
+        "file": "png-pattern-downsize.input",
+        "bytes": 550199,
+        "sha256": "d9a65d08689462b10ed3c9f5747992283fcd234dfaf037e63c6114adc0dad709"
+      },
+      "detected": "image/png",
+      "preview": {
+        "kind": "rendered",
+        "file": "png-pattern-downsize.webp",
+        "bytes": 97288,
+        "sha256": "5c52d0da58a8b8c3d79ee163ce73607cd2aa5570fae04262c4928cd283c0130f",
+        "mediaType": "image/webp",
+        "width": 2400,
+        "height": 76,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          127.31700109649123,
+          127.57904605263158,
+          126.96280701754387
+        ]
+      }
+    },
+    {
+      "id": "jpeg-p3-orientation-eight",
+      "mime": "image/jpeg",
+      "input": {
+        "file": "jpeg-p3-orientation-eight.input",
+        "bytes": 204707,
+        "sha256": "91a0fa273416a7298a60bebd28dadde097ace1d690726014556ce52ad43f2a80"
+      },
+      "detected": "image/jpeg",
+      "preview": {
+        "kind": "rendered",
+        "file": "jpeg-p3-orientation-eight.webp",
+        "bytes": 91318,
+        "sha256": "f44f6847fd8af0e02ef10d47da43e29327aaaa98b03a5d36c4ebe9b03425e49a",
+        "mediaType": "image/webp",
+        "width": 76,
+        "height": 2400,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          131.65798245614036,
+          128.7593092105263,
+          130.75341557017543
+        ]
+      }
+    },
+    {
+      "id": "jpeg-cmyk-no-icc",
+      "mime": "image/jpeg",
+      "input": {
+        "file": "jpeg-cmyk-no-icc.input",
+        "bytes": 229,
+        "sha256": "2bf536fe1082fc0659145da247405e4c337a92fdbfc75b7340220da821e44ef5"
+      },
+      "detected": "image/jpeg",
+      "preview": {
+        "kind": "rendered",
+        "file": "jpeg-cmyk-no-icc.webp",
+        "bytes": 88,
+        "sha256": "cf5338799f6856aef1967189b0fdf6cde08b4a3fafe706de46b129a71f86357f",
+        "mediaType": "image/webp",
+        "width": 80,
+        "height": 40,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          7.069375,
+          117.97875,
+          181
+        ]
+      }
+    },
+    {
+      "id": "png-rgb16-p3",
+      "mime": "image/png",
+      "input": {
+        "file": "png-rgb16-p3.input",
+        "bytes": 1099760,
+        "sha256": "97736bdc222fd83c7d56fb4ddf09574d969822bd9fa37484ebbe66ed0ca615d5"
+      },
+      "detected": "image/png",
+      "preview": {
+        "kind": "rendered",
+        "file": "png-rgb16-p3.webp",
+        "bytes": 90404,
+        "sha256": "4a3e433a33be3a7d5c6ab7fab4fd9ca21e9c019d576accc3c79072822dc40341",
+        "mediaType": "image/webp",
+        "width": 2400,
+        "height": 76,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          136.2764144736842,
+          130.24197368421054,
+          133.20759868421052
+        ]
+      }
+    },
+    {
+      "id": "png-alpha-pattern-downsize",
+      "mime": "image/png",
+      "input": {
+        "file": "png-alpha-pattern-downsize.input",
+        "bytes": 733320,
+        "sha256": "7890d9eb4c7ca3fbc2ff773d2342f6072a6647e779636b201f5f04a43602285a"
+      },
+      "detected": "image/png",
+      "preview": {
+        "kind": "rendered",
+        "file": "png-alpha-pattern-downsize.webp",
+        "bytes": 102566,
+        "sha256": "f24a09d6886d918218317f336d92d58a411227204ef0209900733e491be1d1ce",
+        "mediaType": "image/webp",
+        "width": 2400,
+        "height": 76,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": true,
+        "means": [
+          126.10872807017545,
+          126.37959429824562,
+          125.99090460526315,
+          127.41022478070175
+        ]
+      }
+    },
+    {
+      "id": "jpeg-shrink-pattern",
+      "mime": "image/jpeg",
+      "input": {
+        "file": "jpeg-shrink-pattern.input",
+        "bytes": 64795,
+        "sha256": "56f9661f332ad674fc5a131bb68224e9ef907cf63bdeddc87882870956ceef5c"
+      },
+      "detected": "image/jpeg",
+      "preview": {
+        "kind": "rendered",
+        "file": "jpeg-shrink-pattern.webp",
+        "bytes": 6708,
+        "sha256": "82aaa9fa698c929f36b49c64a68526bf3a35704eb7f9096fbb8c1382fcfa4f2e",
+        "mediaType": "image/webp",
+        "width": 2400,
+        "height": 10,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          129.00808333333333,
+          130.32191666666668,
+          133.97570833333333
+        ]
+      }
+    },
+    {
+      "id": "webp-shrink-pattern",
+      "mime": "image/webp",
+      "input": {
+        "file": "webp-shrink-pattern.input",
+        "bytes": 163906,
+        "sha256": "4510b84c5562c0acba9064a34369f521f8784de9e06c7d7a939322fec3f1f6e6"
+      },
+      "detected": "image/webp",
+      "preview": {
+        "kind": "rendered",
+        "file": "webp-shrink-pattern.webp",
+        "bytes": 87130,
+        "sha256": "1dea3cf583173f8927cfb87a4147533b99ba68f869d5dd62a029de46e40e4ba4",
+        "mediaType": "image/webp",
+        "width": 2400,
+        "height": 76,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          127.04919407894737,
+          127.75921600877193,
+          127.08429276315789
+        ]
+      }
+    },
+    {
+      "id": "jpeg-invalid-icc",
+      "mime": "image/jpeg",
+      "input": {
+        "file": "jpeg-invalid-icc.input",
+        "bytes": 204707,
+        "sha256": "da7ce1023188d1bac226321fe59d33b6c918f894de948f971cceca677c3cfa69"
+      },
+      "detected": "image/jpeg",
+      "preview": {
+        "kind": "rendered",
+        "file": "jpeg-invalid-icc.webp",
+        "bytes": 86838,
+        "sha256": "7c88d59fe557f4fcfae1661842ecbeb11029e9c5c940bf40ae623597c26d7374",
+        "mediaType": "image/webp",
+        "width": 76,
+        "height": 2400,
+        "space": "srgb",
+        "hasExif": false,
+        "hasIptc": false,
+        "hasXmp": false,
+        "hasIcc": false,
+        "hasAlpha": false,
+        "means": [
+          136.18979166666668,
+          130.39285087719298,
+          133.5204221491228
+        ]
+      }
+    }
+  ]
+}

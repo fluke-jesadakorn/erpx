@@ -6,7 +6,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 import { useState } from "react";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import type { qualityDetail, qualityWorkspace } from "@erpx/server-quality/public/quality";
+import type { NativeQualityDetailCore, NativeQualityWorkspace } from "@erpx/feature-quality/public/native-quality";
 import type { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import styles from "@erpx/feature-quality/components/quality-console.module.css";
 import {
@@ -24,8 +24,8 @@ export function QualityConsole({
   alerts = [],
 }: {
   base: string;
-  data?: Awaited<ReturnType<typeof qualityWorkspace>>;
-  detail?: Awaited<ReturnType<typeof qualityDetail>>;
+  data?: NativeQualityWorkspace;
+  detail?: NativeQualityDetailCore;
   alerts?: Awaited<ReturnType<typeof qualityAlerts>>;
 }) {
   const command=useQualityCommand(base),scope=useQualityPurchaseScope(),{pending,error:commandError,notice,uncertain,retry,canPrepare,canSettle}=command,
@@ -52,14 +52,14 @@ export function QualityConsole({
       ? data.stock.map((stock, index) => ({
           stock,
           index,
-          sku: String(data.products.find((product) => product.id === stock.product_id)?.sku ?? ""),
+          sku: String(data.products.find((product) => product.id === stock.productId)?.sku ?? ""),
         }))
       : [],
     stockNeedle = stockSearch.trim().toLocaleLowerCase(),
     visibleStock = stockChoices.filter(
       ({ stock, sku }) =>
         !stockNeedle ||
-        `${String(stock.warehouse_name)} ${sku} ${String(stock.product_name)}`
+        `${String(stock.warehouseName)} ${sku} ${String(stock.productName)}`
           .toLocaleLowerCase()
           .includes(stockNeedle),
     );
@@ -176,7 +176,7 @@ export function QualityConsole({
       )}
 
       {notice&&<p role="status">{notice}</p>}{uncertain&&<Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={()=>void retry()}>Retry submitted Quality change</Button>}
-      {!detail?.canDisposition && alertsPanel}
+      {!detail?.hold.decision.canDisposition && alertsPanel}
       {data?.canManageSpecs && (canPrepare||canSettle) && (
         <>
           {canPrepare&&<QualityTool pending={busy} title="Prepare product inspection specification" onDiscard={()=>{setProductSearch("");setSpecProduct("");}}
@@ -294,22 +294,22 @@ export function QualityConsole({
                 {data.specifications.map((spec) => (
                   <article className={styles.specItem} key={String(spec.id)}>
                     <h3>
-                      {String(spec.product_name)} · {String(spec.name)}
+                      {String(spec.productName)} · {String(spec.name)}
                     </h3>
                     <p>
                       <span className={styles.status}>{String(spec.status)}</span> · version{" "}
                       {String(spec.version)}
                       {data.specMetrics
-                        .filter((m) => m.spec_id === spec.id)
+                        .filter((m) => m.specId === spec.id)
                         .map(
                           (m) =>
-                            `${String(m.label)} ${m.minimum_value ?? "–"}–${m.maximum_value ?? "–"} ${String(m.unit)}`,
+                            `${String(m.label)} ${m.minimum ?? "–"}–${m.maximum ?? "–"} ${String(m.unit)}`,
                         ).length
                         ? ` · ${data.specMetrics
-                            .filter((m) => m.spec_id === spec.id)
+                            .filter((m) => m.specId === spec.id)
                             .map(
                               (m) =>
-                                `${String(m.label)} ${m.minimum_value ?? "–"}–${m.maximum_value ?? "–"} ${String(m.unit)}`,
+                                `${String(m.label)} ${m.minimum ?? "–"}–${m.maximum ?? "–"} ${String(m.unit)}`,
                             )
                             .join("; ")}`
                         : ""}
@@ -367,15 +367,15 @@ export function QualityConsole({
               stock = lot
                 ? data.stock.find(
                     (item) =>
-                      item.warehouse_id === lot.warehouse_id && item.product_id === lot.product_id,
+                      item.warehouseId === lot.warehouseId && item.productId === lot.productId,
                   )
                 : data.stock[Number(target.slice(6))];
             if (!stock) return setError("Select stock to quarantine.");
             void send("", {
-              warehouseId: stock.warehouse_id,
-              productId: stock.product_id,
+              warehouseId: stock.warehouseId,
+              productId: stock.productId,
               expectedStockVersion: Number(stock.version),
-              ...(lot ? { lotId: lot.id, expectedLotVersion: Number(lot.balance_version) } : {}),
+              ...(lot ? { lotId: lot.id, expectedLotVersion: Number(lot.balanceVersion) } : {}),
               dueDate: form.get("dueDate"),
               reason: form.get("reason"),
             });
@@ -419,29 +419,29 @@ export function QualityConsole({
                   {visibleStock.length ? (
                     visibleStock.map(({ stock, index, sku }) => (
                       <optgroup
-                        key={`${stock.warehouse_id}:${stock.product_id}`}
-                        label={`${String(stock.warehouse_name)} · ${sku} · ${String(stock.product_name)}`}
+                        key={`${stock.warehouseId}:${stock.productId}`}
+                        label={`${String(stock.warehouseName)} · ${sku} · ${String(stock.productName)}`}
                       >
                         <option value={`stock:${index}`}>
-                          Entire product · {Number(stock.quantity_milli) / 1000} on hand
+                          Entire product · {Number(stock.quantityMilli) / 1000} on hand
                         </option>
                         {data.lots
                           .filter(
                             (lot) =>
-                              lot.warehouse_id === stock.warehouse_id &&
-                              lot.product_id === stock.product_id,
+                              lot.warehouseId === stock.warehouseId &&
+                              lot.productId === stock.productId,
                           )
                           .map((lot) => (
                             <option
                               key={String(lot.id)}
                               value={`lot:${lot.id}`}
-                              disabled={Boolean(Number(lot.quality_held))}
+                              disabled={Boolean(lot.qualityHeld)}
                             >
-                              {lot.serial_number
-                                ? `Serial ${String(lot.serial_number)}`
-                                : `Lot ${String(lot.lot_code)}`}{" "}
-                              · {Number(lot.quantity_milli) / 1000}
-                              {Number(lot.quality_held) ? " · already quarantined" : ""}
+                              {lot.serialNumber
+                                ? `Serial ${String(lot.serialNumber)}`
+                                : `Lot ${String(lot.lotCode)}`}{" "}
+                              · {Number(lot.quantityMilli) / 1000}
+                              {lot.qualityHeld ? " · already quarantined" : ""}
                             </option>
                           ))}
                       </optgroup>
@@ -481,7 +481,7 @@ export function QualityConsole({
           </div>
         </QualityTool>
       )}
-      {detail?.canDisposition && canSettle && (
+      {detail?.hold.decision.canDisposition && canSettle && (
         <QualityTool pending={busy} title="Request controlled scrap" version={recordVersion} onDiscard={()=>setDispositionSet(null)}
           className={`business-form ${styles.detailAction} ${styles.primaryAction}`}
           onSubmit={(e) => {
@@ -511,13 +511,13 @@ export function QualityConsole({
             <TextInput appearance="standard" type="date" name="dispositionDate" required />
           </Field>
           <Field appearance="standard">
-            Quantity to scrap · {String(detail.hold.product_unit ?? "units")}
+            Quantity to scrap · {String(detail.hold.productUnit ?? "units")}
             <TextInput appearance="standard"
               type="number"
               name="quantity"
               min="0.001"
-              max={Number(detail.hold.held_quantity_milli) / 1000}
-              defaultValue={Number(detail.hold.held_quantity_milli) / 1000}
+              max={Number(detail.hold.heldQuantityMilli) / 1000}
+              defaultValue={Number(detail.hold.heldQuantityMilli) / 1000}
               step="0.001"
               required
             />
@@ -544,8 +544,8 @@ export function QualityConsole({
           </Button>
         </QualityTool>
       )}
-      {detail?.canDisposition && alertsPanel}
-      {detail?.canInspect && canSettle && (
+      {detail?.hold.decision.canDisposition && alertsPanel}
+      {detail?.hold.decision.canInspect && canSettle && (
         <QualityTool pending={busy} title="Record inspection" version={recordVersion} onDiscard={()=>{setUploaded([]);setInspectionSet(null);}}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
@@ -573,7 +573,7 @@ export function QualityConsole({
           }}
         >
           <h2>Record inspection</h2>
-          {detail.hold.last_result === "fail" && (
+          {detail.hold.lastResult === "fail" && (
             <p>
               The latest independent inspection failed. Record another inspection only after the
               stock has been checked again.
@@ -583,8 +583,8 @@ export function QualityConsole({
             <>
               {detail.specMetrics.map((m) => (
                 <Field appearance="standard" key={String(m.id)}>
-                  {String(m.label)} ({String(m.unit)}) · accepted {m.minimum_value ?? "–"} to{" "}
-                  {m.maximum_value ?? "–"}
+                  {String(m.label)} ({String(m.unit)}) · accepted {m.minimum ?? "–"} to{" "}
+                  {m.maximum ?? "–"}
                   <TextInput appearance="standard" type="number" step="any" name={`metric:${m.id}`} required />
                 </Field>
               ))}
@@ -645,7 +645,7 @@ export function QualityConsole({
           </Button>
         </QualityTool>
       )}
-      {detail?.canRelease && canSettle && (
+      {detail?.hold.decision.canRelease && canSettle && (
         <QualityTool pending={busy} title="Approve release" version={recordVersion}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
@@ -671,7 +671,7 @@ export function QualityConsole({
         </QualityTool>
       )}
 
-      {detail?.canCancel && canSettle && (
+      {detail?.hold.decision.canCancel && canSettle && (
         <QualityTool pending={busy} title="Request cancellation" version={recordVersion}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
@@ -697,7 +697,7 @@ export function QualityConsole({
           </Button>
         </QualityTool>
       )}
-      {detail?.canReviewCancellation && canSettle && (
+      {detail?.hold.decision.canReviewCancellation && canSettle && (
         <QualityTool pending={busy} title="Review cancellation" version={recordVersion}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
@@ -711,7 +711,7 @@ export function QualityConsole({
           }}
         >
           <h2>Review cancellation</h2>
-          <p>{String(detail.hold.cancel_reason)}</p>
+          <p>{String(detail.hold.cancelReason)}</p>
           <p>Approval removes this hold only; other holds and reservations remain in force.</p>
           <Field appearance="standard">
             Decision
@@ -729,39 +729,28 @@ export function QualityConsole({
           </Button>
         </QualityTool>
       )}
-      {detail?.hold.disposition_count_id && (
+      {detail?.hold.dispositionCountId && (
         <section>
           <h2>Disposition handoff</h2>
           <p>
             Status: {String(detail.hold.status)} ·{" "}
-            <a href={canonicalUiHref(`${base}/stock-counts/${detail.hold.disposition_count_id}`)}>
+            <a href={canonicalUiHref(`${base}/stock-counts/${detail.hold.dispositionCountId}`)}>
               Open controlled stock and accounting adjustment
             </a>
           </p>
           {detail.dispositions.map((event) => (
             <p key={String(event.id)}>
-              {String(event.action)} · {String(event.actor_id)} · {String(event.reason)}
-            </p>
-          ))}
-        </section>
-      )}
-      {detail && detail.cancellations.length > 0 && (
-        <section>
-          <h2>Cancellation history</h2>
-          {detail.cancellations.map((c) => (
-            <p key={String(c.id)}>
-              Version {String(c.version)} · {String(c.action)} · {String(c.actor_id)} ·{" "}
-              {String(c.reason)}
+              {String(event.action)} · {String(event.actorId)} · {String(event.reason)}
             </p>
           ))}
         </section>
       )}
       {detail &&
-        !detail.canCancel &&
-        !detail.canReviewCancellation &&
-        !detail.canInspect &&
-        !detail.canRelease &&
-        !detail.canDisposition && (
+        !detail.hold.decision.canCancel &&
+        !detail.hold.decision.canReviewCancellation &&
+        !detail.hold.decision.canInspect &&
+        !detail.hold.decision.canRelease &&
+        !detail.hold.decision.canDisposition && (
           <p>
             {detail.hold.status === "disposed"
               ? "This failed stock was scrapped through an independently posted inventory and accounting adjustment."

@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceEngines } from '@erpx/server-collaboration/adapters/native-finance-engines';
 import {financeCloseManufacturingSource} from "@erpx/server-manufacturing/public/finance-close-source";
 import { createFinanceEngines } from '@erpx/server-finance/application/engines';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -50,8 +51,8 @@ function engineService(provided?: SqlDatabase) {
             const { actor, key, parsed, runId, output, sourceHash, result, explanation, now } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, "finance.calculation.prepare", parsed, runId, 1, output, [
-                write.prepare("INSERT INTO finance_calculation_runs(id,company_id,holding_id,kind,policy_id,policy_version,period_id,currency,currency_scale,source_hash,input_json,result_json,explanation_json,status,version,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'prepared',1,?,?,?)").bind(runId, actor.companyId, actor.holdingId, parsed.kind, parsed.policyId ?? null, parsed.policyVersion, parsed.periodId ?? null, parsed.currency, parsed.currencyScale, sourceHash, JSON.stringify(parsed.input), JSON.stringify(result), JSON.stringify(explanation), actor.userId, now, now),
-                write.prepare("INSERT INTO finance_calculation_events VALUES(?,?,1,'prepare',?,'Prepared deterministic calculation',?,?)").bind(crypto.randomUUID(), runId, actor.userId, await digest(result), now),
+                await nativeFinanceEngines(write, actor.companyId).runPrepare([runId, actor.companyId, actor.holdingId, parsed.kind, parsed.policyId ?? null, parsed.policyVersion, parsed.periodId ?? null, parsed.currency, parsed.currencyScale, sourceHash, JSON.stringify(parsed.input), JSON.stringify(result), JSON.stringify(explanation), actor.userId, now, now]),
+                await nativeFinanceEngines(write, actor.companyId).eventPrepare([crypto.randomUUID(), runId, actor.userId, await digest(result), now]),
             ]);
         },
         run: async (facts) => { const { runId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?").bind(runId, actor.companyId).first<Row>(); },
@@ -60,12 +61,12 @@ function engineService(provided?: SqlDatabase) {
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, runId, version, output, [
                 assertion(write, key, "run-version", "EXISTS(SELECT 1 FROM finance_calculation_runs WHERE id=? AND company_id=? AND status=? AND version=?)", [runId, actor.companyId, run.status, run.version]),
-                write.prepare(`UPDATE finance_calculation_runs SET status=?,version=version+1,updated_at=?,${action === "review" ? "reviewed_by" : "approved_by"}=? WHERE id=?`).bind(next, now, actor.userId, runId),
-                write.prepare("INSERT INTO finance_calculation_events VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), runId, version, action, actor.userId, input.reason, await digest(JSON.parse(String(run.result_json))), now),
+                await nativeFinanceEngines(write, actor.companyId).runDecide([next, now, actor.userId, runId], action === "review" ? "reviewed_by" : "approved_by"),
+                await nativeFinanceEngines(write, actor.companyId).eventDecide([crypto.randomUUID(), runId, version, action, actor.userId, input.reason, await digest(JSON.parse(String(run.result_json))), now]),
             ]);
         },
         runDetail: async (facts) => { const { runId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?").bind(runId, actor.companyId).first<Row>(); },
         events: async (facts) => { const { runId, actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_calculation_events WHERE run_id=? ORDER BY version").bind(runId).all<Row>()).results; },
         period: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<Row>(); },
-        commitCloseSnapshot: async (facts) => { const { actor, key, periodId, period, output, values, sourceVersion, now } = facts; const write = await db(actor); return executeCommand(write, actor, key, "finance.close.check", { periodId }, periodId, Number(period.close_version), output, values.map(check => write.prepare("INSERT INTO finance_close_checks(id,company_id,period_id,check_key,source_version,status,count_value,detail_json,checked_at,checked_by) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(period_id,check_key,source_version) DO NOTHING").bind(crypto.randomUUID(), actor.companyId, periodId, check.key, sourceVersion, check.status, check.count, JSON.stringify(check), now, actor.userId))); } });
+        commitCloseSnapshot: async (facts) => { const { actor, key, periodId, period, output, values, sourceVersion, now } = facts; const write = await db(actor); return executeCommand(write, actor, key, "finance.close.check", { periodId }, periodId, Number(period.close_version), output, await Promise.all(values.map(async check => await nativeFinanceEngines(write, actor.companyId).closeCheck([crypto.randomUUID(), actor.companyId, periodId, check.key, sourceVersion, check.status, check.count, JSON.stringify(check), now, actor.userId])))); } });
 }

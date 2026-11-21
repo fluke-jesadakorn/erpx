@@ -5,6 +5,7 @@ import { pmsAccountKeys, type Snapshot } from "@erpx/server-pms/public/rules/pms
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { financeHotelAccount } from '@erpx/server-collaboration/adapters/native-finance-hotel-account';
 
 export const pmsAccountCategory = (key: string) => ['revenue','service'].includes(key) ? 'revenue' : ['advance','deposit','tax'].includes(key) ? 'liability' : ['consumption','commission','cashDifference'].includes(key) ? 'expense' : 'asset';
 export const pmsAccountCode = (key: string) => `PMS-${key.replace(/[A-Z]/g, c => `-${c}`).toUpperCase()}`;
@@ -34,8 +35,7 @@ export async function preparePmsAccounting(db: SqlDatabase, actor: WorkContext, 
       accounts[key] = existing.id;
     } else {
       const id = randomUUID(), now = Date.now();
-      await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',?,?,?,?)")
-        .bind(id,v.chartId,actor.companyId,code,`Hotel ${key}`,category,key==='bank'?1:0,key==='bank'?'bank':'none',now,now).run();
+      await financeHotelAccount(db).create({ id, companyId: actor.companyId, chartId: v.chartId, code, name: `Hotel ${key}`, category, isControl: key==='bank'?1:0, controlKind: key==='bank'?'bank':'none', now });
       accounts[key] = id;
     }
   }

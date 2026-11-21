@@ -1,0 +1,57 @@
+[package]
+name = "erpx-server-talent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "talent_requisition"
+path = "../../tests/unit/talent/rust-talent-requisition.test.rs"
+
+[[test]]
+name = "talent_requisition_http"
+path = "../../tests/unit/talent/rust-talent-requisition-http.test.rs"
+
+[[test]]
+name = "talent_requisition_postgres"
+path = "../../tests/integration/talent/rust-talent-requisition-postgres.test.rs"
+
+[[test]]
+name = "talent_candidate_privacy"
+path = "../../tests/unit/talent/rust-talent-candidate-privacy.test.rs"
+
+[[test]]
+name = "talent_application_proposal"
+path = "../../tests/unit/talent/rust-talent-application-proposal.test.rs"
+
+[[test]]
+name = "talent_offer_handoff"
+path = "../../tests/unit/talent/rust-talent-offer-handoff.test.rs"
+
+[[test]]
+name = "talent_lifecycle_http"
+path = "../../tests/unit/talent/rust-talent-lifecycle-http.test.rs"
+
+[[test]]
+name = "talent_lifecycle_postgres"
+path = "../../tests/integration/talent/rust-talent-lifecycle-postgres.test.rs"
+
+[lints]
+workspace = true

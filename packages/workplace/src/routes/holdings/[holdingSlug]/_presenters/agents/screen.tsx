@@ -7,8 +7,10 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { agentWorkspace } from "@erpx/server-agent/public/agent-governance";
+import { nativeAgentEvidence, nativeAgentEvidenceFailure } from "@erpx/workplace/lib/native-agent-evidence";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { AgentGovernanceConsole } from "@erpx/feature-agent/components/agent-governance-console";
-import { PageContent, Card } from "@erpx/ui/components/foundation";
+import { PageContent, Card, InlineNotice } from "@erpx/ui/components/foundation";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -18,7 +20,20 @@ export default async function Page({
   const { holdingSlug } = await params,
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
-    data = await agentWorkspace(a).catch((e) => pageError(e, holdingSlug));
+    workspace = await agentWorkspace(a, false).catch((e) => pageError(e, holdingSlug));
+  let evidence;
+  try {
+    evidence = await nativeAgentEvidence(a, holdingSlug);
+  } catch (error) {
+    const failure = nativeAgentEvidenceFailure(error);
+    return pageError(
+      failure ? new ApiError(failure.status, failure.code, failure.message) : error,
+      holdingSlug,
+    );
+  }
+  const data = evidence
+    ? { ...workspace, invocations: evidence.invocations, sessions: evidence.sessions }
+    : { ...workspace, invocations: [], sessions: [] };
   return (
     <PageContent as="div" className="ui-page-content">
       <Link href={canonicalUiHref(`${base}/settings?section=ai`)}>AI settings</Link>
@@ -27,7 +42,7 @@ export default async function Page({
         Approve read-only agent versions, route them to users or pools and
         inspect immutable private-session invocation evidence.
       </p>
-      <AgentGovernanceConsole base={base} data={data} />
+      <AgentGovernanceConsole base={base} data={data} evidenceUnavailable={!evidence} />
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Assignments</h2>
         {data.assignments.map((x) => (
@@ -39,12 +54,18 @@ export default async function Page({
       </Card>
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Recent invocation evidence</h2>
-        {data.invocations.map((x) => (
-          <p key={String(x.id)}>
-            <Link href={recordCanonicalHref(base,{kind:"agent_invocation",id:String(x.id)})}>{String(x.outcome)} · {String(x.turn_id)}</Link> ·{" "}
-            <TimeText appearance="standard" value={Number(x.created_at)} />
-          </p>
-        ))}
+        {!evidence ? (
+          <InlineNotice tone="danger" role="alert">
+            Native invocation evidence is unavailable.
+          </InlineNotice>
+        ) : (
+          data.invocations.map((x) => (
+            <p key={String(x.id)}>
+              <Link href={recordCanonicalHref(base,{kind:"agent_invocation",id:String(x.id)})}>{String(x.outcome)} · {String(x.turn_id)}</Link> ·{" "}
+              <TimeText appearance="standard" value={Number(x.created_at)} />
+            </p>
+          ))
+        )}
       </Card>
     <RecordCatalog base={base} kind="agent_pool" title="Agent pools" rows={data.pools} label="name"/><RecordCatalog base={base} kind="agent_version" title="Agent versions" rows={data.versions} label="agent_name"/></PageContent>
   );

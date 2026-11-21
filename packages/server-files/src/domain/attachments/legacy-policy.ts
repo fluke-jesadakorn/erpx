@@ -19,9 +19,9 @@ export function legacyAttachmentPolicy(
   switch (ownerType) {
     case "support_ticket":
       if (purpose === "support_evidence" || purpose === "internal_evidence")
-        return { purposeKey: "internal_evidence", componentKind: "action", componentRef: "support-evidence:internal_evidence", completion: "bind_immediately" };
+        return { purposeKey: "internal_evidence", componentKind: "action", componentRef: "support-evidence:internal_evidence", completion: "stage_for_domain" };
       if (purpose === "customer_shareable")
-        return { purposeKey: "customer_shareable", componentKind: "action", componentRef: "support-evidence:customer_shareable", completion: "bind_immediately" };
+        return { purposeKey: "customer_shareable", componentKind: "action", componentRef: "support-evidence:customer_shareable", completion: "stage_for_domain" };
       return null;
     case "employee_request":
       return ["request_evidence", "it_request_evidence", "fulfillment"].includes(purpose)

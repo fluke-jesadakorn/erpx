@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import type {PoolClient} from 'pg';
 import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
 import type {IamGrantTransaction} from '@erpx/server-identity_access/application/iam-grants';
@@ -49,7 +50,7 @@ grantModulePermissions: async (facts) => {
         },
 insertPlatformGrant: async (facts) => {
             const { id, input, modules, observedNow, parentId, source, sourceId } = facts;
-            return void await c.query("INSERT INTO platform_assignments(id,user_id,role,modules_json,valid_from,valid_until,parent_id,source,source_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", [
+            return void await nativeIdentityWrite("w_4c188dafc6ad", [
                 id,
                 input.userId,
                 input.roleId,
@@ -63,7 +64,7 @@ insertPlatformGrant: async (facts) => {
         },
 insertCompanyGrant: async (facts) => {
             const { id, input, modules, observedNow, parentId, source, sourceId } = facts;
-            return void await c.query(`INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,scope_kind,scope_node_id,parent_id,source,source_id) VALUES($1,$2,$3,$4,$5,(SELECT CASE WHEN kind='branch' THEN id ELSE branch_id END ${organizationSources.iam_service_organization_nodes_from} WHERE id=$6),$7,$8,$9,$6,$10,$11,$12)`, [
+            return void await nativeIdentityWrite("w_iam_grant_insert_nodes", [
                 id,
                 input.userId,
                 input.roleId,

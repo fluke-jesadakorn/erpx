@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "Field bundle merged; owner surfaces remain partial",
+  "capability": "field-service-bundle-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 17,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/17",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T16:49:03Z",
+    "base": "a8bcd2b9a298cc0aa9bb3e51b579dbd76093e6da",
+    "head": "8a5dae0593bf51297871549dc8f24a12fcfc90b9",
+    "mergeCommit": "2e0090832d85eb3c171672dd28729f8445d42802",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "changedFiles": 884,
+    "declaredCargoClosure": 23,
+    "changedServerPackages": 20,
+    "outsideClosureImportConsumers": [
+      "erpx-server-customer-360",
+      "erpx-server-legal"
+    ],
+    "classificationEvidence": "docs/testing/evidence/2026-11-03-field-bundle-scope-classification.json"
+  },
+  "checklist": {
+    "complete": 18,
+    "total": 18,
+    "narrowed": {
+      "item": 13,
+      "decision": "Field production runtime is complete; Finance production release/Company acceptance is a Finance-owner dependency outside this bundle and the production parser fails closed with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE."
+    }
+  },
+  "workflows": {
+    "verified": 6,
+    "merged": 6,
+    "partialDependencyOwners": 7,
+    "total": 206,
+    "mergedIds": [
+      "field_service/service-orders",
+      "field_service/feature-agreements",
+      "field_service/feature-dispatch",
+      "field_service/feature-visits",
+      "field_service/feature-exceptions",
+      "field_service/feature-billing-release"
+    ]
+  },
+  "verification": {
+    "localGates": [
+      "cargo check --all-targets",
+      "cargo clippy --locked -p erpx-service --all-targets --features files-scan-worker,contracts -- -D warnings",
+      "bun run typecheck",
+      "bun run structure:check",
+      "bun run architecture:check",
+      "bun run docs:check",
+      "bun run test:catalogue (33 modules, 770 suites)",
+      "native-worker-plan.ts --base=a8bcd2b9a --head=549e9540d"
+    ],
+    "architecture": "rust-architecture 7/7, architecture-boundaries 38/38, rust-module-assembly 5/5, ui-module-registration 2/2, rust-runtime-foundation 6/6, rust-composition/frontend-boundaries",
+    "fieldRuntime": "field_service.rust-private-field-only-postgres 4/4; identity_access.rust-private-development-api 11/11; files.rust-field-files-private-api.provider 2/2; files.rust-system-scan 12/12; shared.persistence.rust-migration-inventory-postgres 2/2",
+    "fieldBehaviour": "field_service.field-service 8/8; rust-parts-command 35/35; rust-http-parity 40/41 + single pass; collaboration 29/29; executive policy 3/3; invoice posting 10/10",
+    "typescript": "native-session-server, native-attachment-intake-sdk, native-count-next-entry, shared.attachments.client, field_service.application 258/258",
+    "browserJourney": {
+      "codeHead": "b9d40aea5",
+      "cleanupCommit": "549e9540d",
+      "result": "six Field workflows, invoice post, receipt create/approve/release, bank import, confirm settled v4 (journal 5983fdde...), one allocation 10000, invoice paid/outstanding 0, matched bank row v2, balanced journal, Work 200 with 15 Field rows and orderLinked, Support owner page 200",
+      "pageErrors": 0,
+      "consoleErrors": "2 transient reviewer/manager work-role 503 console errors; the journey retried and all functional steps passed",
+      "persistedReadback": "payment pay-34a8c524 settled v4; allocation 1 x 10000; journal journal-5983fdde posted, debit 10000 = credit 10000"
+    }
+  },
+  "limits": [
+    "The Field owner remains partial in the 41-owner runtime register; this merge closes the bundle, not the owner.",
+    "Finance production billing/receipts remain unavailable; the production parser fails closed and the Finance production release/Company acceptance ports remain a Finance-owner dependency.",
+    "The exact browser journey ran on code head b9d40aea5; 549e9540d is a behaviour-preserving Clippy/workspace-plan cleanup covered by the affected unit suites.",
+    "The Support owner page returns 200 but the native Support read is 403 PACKAGE_REQUIRED because the fixture Company has no Support package purchase.",
+    "Staging and private production were not touched."
+  ],
+  "next": "Continue with the next owner from the dependency-ready backlog; the Field bundle is merged on codex/rust-backend-migration at 2e0090832."
+}

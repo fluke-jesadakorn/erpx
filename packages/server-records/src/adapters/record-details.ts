@@ -20,7 +20,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import {bankWorkspace,bankStatementDetail,listCharts,listAccounts,aging,reportDateSchema,trialBalance,statements} from '@erpx/server-finance/public/finance';
 import { marketingWorkspace } from "@erpx/server-marketing/public/marketing";
-import { payrollSummary } from "@erpx/server-people_payroll/public/people-payroll";
+import { ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { calculationRunDetail } from "@erpx/server-finance/public/finance-engines";
 import { accrualRecordDetail } from "@erpx/server-finance/public/finance-accruals";
 import { intercompanyDetail } from "@erpx/server-finance/public/finance-intercompany";
@@ -36,6 +36,7 @@ import { holdingResources as nativeHoldingResources } from '../../../../packages
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
 
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
+import { createNativeRecordDetailsClient, nativeRecordDetailsConfiguration, nativeRecordDetailsFailure } from '../public/native-record-context';
 import { drilldownPage as puredrilldownPage } from '@erpx/server-records/domain/record-details';
 import { createRecordDetailsApplication, type RecordDetailsRepository } from '@erpx/server-records/application/record-details';
 import { BusinessRuleError } from '@erpx/server-shared/index';
@@ -59,7 +60,12 @@ function application(provided?: SqlDatabase) {
     return createRecordDetailsApplication<SqlStatement>({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, reportDates: value => reportDateSchema.parse(value), agentEvidenceRecord: (...args) => fromNative(() => agentEvidenceRecord(...args)), isFinanceExpansionKind: isFinanceExpansionKind, financeExpansionRecord: (...args) => fromNative(() => financeExpansionRecord(...args)), groupExpansionRecord: (...args) => fromNative(() => groupExpansionRecord(...args)), groupEditionSourceJournal: (...args) => fromNative(() => groupEditionSourceJournal(...args)), groupEditionAccountSources: (...args) => fromNative(() => groupEditionAccountSources(...args)), financeCompanyTools: (...args) => fromNative(() => financeCompanyTools(...args)), financeExtraRecord: (...args) => fromNative(() => financeExtraRecord(...args)), isFinanceExtraKind: isFinanceExtraKind, pmsRefundRecord: (...args) => fromNative(() => pmsRefundRecord(...args)), pmsSnapshotEntry: (...args) => fromNative(() => pmsSnapshotEntry(...args)), pmsControlSources: (...args) => fromNative(() => pmsControlSources(...args)), queryMetric: (...args) => fromNative(() => queryMetric(database, ...args)), isDomainRecordKind: isDomainRecordKind, recordDomainData: (...args) => fromNative(() => recordDomainData(...args)), commerceOverview: (...args) => fromNative(() => commerceOverview(...args)), commercePermissions: (...args) => commercePermissions(...args), requirePermission: (actor, permission) => fromNativeSync(() => requirePermission(actor, permission)), bankWorkspace: (...args) => fromNative(() => bankWorkspace(...args)), bankStatementDetail: (...args) => fromNative(() => bankStatementDetail(...args)), listCharts: (...args) => fromNative(() => listCharts(...args)), listAccounts: (...args) => fromNative(() => listAccounts(...args)), aging: (...args) => fromNative(() => aging(...args)), trialBalance: (...args) => fromNative(() => trialBalance(...args)), statements: (...args) => fromNative(() => statements(...args)), marketingWorkspace: (...args) => fromNative(() => marketingWorkspace(...args)), payrollSummary: (...args) => fromNative(() => payrollSummary(...args)), calculationRunDetail: (...args) => fromNative(() => calculationRunDetail(...args)), accrualRecordDetail: (...args) => fromNative(() => accrualRecordDetail(...args)), intercompanyDetail: (...args) => fromNative(() => intercompanyDetail(...args)), consolidationDetail: (...args) => fromNative(() => consolidationDetail(...args)), consolidationEliminationDetail: (...args) => fromNative(() => consolidationEliminationDetail(...args)), pricingWorkspace: (...args) => fromNative(() => pricingWorkspace(...args)), listInventoryReorderPolicies: (...args) => fromNative(() => listInventoryReorderPolicies(...args)), posReportReceipts: (...args) => fromNative(() => posReportReceipts(...args)), statementSourceAccounts: (...args) => fromNative(() => statementSourceAccounts(...args)), financePlanRecord: (...args) => fromNative(() => financePlanRecord(...args)), budgetSourceRecords: (...args) => fromNative(() => budgetSourceRecords(...args)), financialReportSourceRecords: (...args) => fromNative(() => financialReportSourceRecords(...args)), financeBookRecord: (...args) => fromNative(() => financeBookRecord(...args))});
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, reportDates: value => reportDateSchema.parse(value), agentEvidenceRecord: (...args) => fromNative(() => agentEvidenceRecord(...args)), isFinanceExpansionKind: isFinanceExpansionKind, financeExpansionRecord: (...args) => fromNative(() => financeExpansionRecord(...args)), groupExpansionRecord: (...args) => fromNative(() => groupExpansionRecord(...args)), groupEditionSourceJournal: (...args) => fromNative(() => groupEditionSourceJournal(...args)), groupEditionAccountSources: (...args) => fromNative(() => groupEditionAccountSources(...args)), financeCompanyTools: (...args) => fromNative(() => financeCompanyTools(...args)), financeExtraRecord: (...args) => fromNative(() => financeExtraRecord(...args)), isFinanceExtraKind: isFinanceExtraKind, pmsRefundRecord: (...args) => fromNative(() => pmsRefundRecord(...args)), pmsSnapshotEntry: (...args) => fromNative(() => pmsSnapshotEntry(...args)), pmsControlSources: (...args) => fromNative(() => pmsControlSources(...args)), queryMetric: (...args) => fromNative(() => queryMetric(database, ...args)), isDomainRecordKind: isDomainRecordKind, recordDomainData: (...args) => fromNative(() => recordDomainData(...args)), commerceOverview: (...args) => fromNative(() => commerceOverview(...args)), commercePermissions: (...args) => commercePermissions(...args), requirePermission: (actor, permission) => fromNativeSync(() => requirePermission(actor, permission)), bankWorkspace: (...args) => fromNative(() => bankWorkspace(...args)), bankStatementDetail: (...args) => fromNative(() => bankStatementDetail(...args)), listCharts: (...args) => fromNative(() => listCharts(...args)), listAccounts: (...args) => fromNative(() => listAccounts(...args)), aging: (...args) => fromNative(() => aging(...args)), trialBalance: (...args) => fromNative(() => trialBalance(...args)), statements: (...args) => fromNative(() => statements(...args)), marketingWorkspace: (...args) => fromNative(() => marketingWorkspace(...args)), payrollSummary: (actor, payMonth) => fromNative(async () => {
+            const rows = await ownedPeoplePayrollSummary(actor, actor.holdingSlug, payMonth);
+            if (rows === undefined)
+                throw new NativeApiError(503, "NATIVE_PEOPLE_PAYROLL_UNAVAILABLE", "The native People Payroll reader is unavailable.");
+            return rows;
+        }), calculationRunDetail: (...args) => fromNative(() => calculationRunDetail(...args)), accrualRecordDetail: (...args) => fromNative(() => accrualRecordDetail(...args)), intercompanyDetail: (...args) => fromNative(() => intercompanyDetail(...args)), consolidationDetail: (...args) => fromNative(() => consolidationDetail(...args)), consolidationEliminationDetail: (...args) => fromNative(() => consolidationEliminationDetail(...args)), pricingWorkspace: (...args) => fromNative(() => pricingWorkspace(...args)), listInventoryReorderPolicies: (...args) => fromNative(() => listInventoryReorderPolicies(...args)), posReportReceipts: (...args) => fromNative(() => posReportReceipts(...args)), statementSourceAccounts: (...args) => fromNative(() => statementSourceAccounts(...args)), financePlanRecord: (...args) => fromNative(() => financePlanRecord(...args)), budgetSourceRecords: (...args) => fromNative(() => budgetSourceRecords(...args)), financialReportSourceRecords: (...args) => fromNative(() => financialReportSourceRecords(...args)), financeBookRecord: (...args) => fromNative(() => financeBookRecord(...args))});
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
@@ -93,7 +99,50 @@ function invokeSync<Result>(run: () => Result) {
 }
 export async function commerceMasterDetail(actor: WorkContext, kind: "product" | "party" | "warehouse", id: string) { return invoke(() => application().commerceMasterDetail(actor, kind, id)); }
 export function drilldownPage(value?: string) { return invokeSync(() => puredrilldownPage(value)); }
-export async function recordSupplementData(actor: WorkContext, target: RecordTarget, args: Record<string, string>) { return invoke(() => application().recordSupplementData(actor, target, args)); }
+export async function recordSupplementData(actor: WorkContext, target: RecordTarget, args: Record<string, string>) {
+    if (target.kind === 'workspace_record')
+        return supplementWorkspaceRecord(actor, target, args);
+    return invoke(() => application().recordSupplementData(actor, target, args));
+}
+/** Native detail for a Records-owned workspace record. Never falls back to TS SQL. */
+async function supplementWorkspaceRecord(actor: WorkContext, target: RecordTarget, args: Record<string, string>) {
+    if (!actor.authority || !actor.iam)
+        throw new NativeApiError(409, "WORK_CONTEXT_CHANGED", "Your work role changed. Reload and review before retrying.");
+    const moduleId = args.module;
+    if (!moduleId)
+        throw new NativeApiError(422, "RECORD_TARGET_REQUIRED", "Choose a valid source record.");
+    const raw = process.env.ERPX_NATIVE_RECORDS_CONFIG;
+    if (raw === undefined)
+        throw new NativeApiError(503, "NATIVE_RECORD_DETAILS_UNAVAILABLE", "The native Records detail reader is unavailable.");
+    const scope = actor.scope;
+    const page = args.detailPage === undefined ? 1 : /^\d+$/.test(args.detailPage) ? Number(args.detailPage) : Number.NaN;
+    try {
+        const client = createNativeRecordDetailsClient(nativeRecordDetailsConfiguration(raw));
+        const { headers: requestHeaders } = await import('next/headers');
+        return await client.supplement(await requestHeaders(), {
+            userId: actor.userId,
+            holdingId: actor.holdingId,
+            holdingSlug: actor.holdingSlug,
+            companyId: actor.companyId,
+            branchId: actor.branchId,
+            departmentId: actor.departmentId,
+            branchSlug: scope.kind === "branch" || scope.kind === "department" ? (scope.branchSlug ?? null) : null,
+            departmentSlug: scope.kind === "department" ? scope.departmentSlug : null,
+            assignmentId: actor.assignmentId,
+            role: actor.role,
+            assignmentScope: actor.assignmentScope,
+            modules: actor.modules,
+            authority: actor.authority,
+            iam: { permissions: actor.iam.permissions },
+        }, { holdingSlug: actor.holdingSlug, moduleId, recordId: target.id, page });
+    }
+    catch (error) {
+        const mapped = nativeRecordDetailsFailure(error);
+        if (!mapped)
+            throw error;
+        throw new NativeApiError(mapped.status, mapped.code, mapped.message);
+    }
+}
 function fromNativeSync<Result>(run: () => Result) {
     try {
         return run();

@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -39,7 +40,7 @@ export function assertAttachmentReadRoute(selected:AttachmentReadRoute|null,actu
 }
 export async function requirePrivateAttachmentReaderCurrent(database:SqlDatabase,actor:WorkContext){
  const key=`private-file-byte-read:${randomUUID()}`;
- try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);}
+ try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);}
  catch(error){let cause=error;for(let depth=0;depth<5&&cause&&typeof cause==='object';depth++){const item=cause as {code?:string;cause?:unknown};if(item.code==='23514')throw attachmentReadChanged();cause=item.cause;}throw error;}
 }
 /** Called only after a lazy FileStore object was consumed inside the owned

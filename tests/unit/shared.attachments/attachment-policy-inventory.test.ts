@@ -34,7 +34,7 @@ it("keeps a closed exact policy inventory",()=>{
     expect(attachmentPolicy("production_run","qc_evidence","action").classification).toBe("confidential");
     expect(attachmentPolicy("planning_scenario","capacity_source","record").maxFiles).toBe(50);
     expect(attachmentRetentionSnapshot(attachmentPolicy("legal_item","legal_document","record"))).toEqual({key:"legal-managed",version:1,retainUntil:null,destructionMode:"review"});
-    expect(legacyAttachmentPolicy("support_ticket","support_evidence")).toEqual({purposeKey:"internal_evidence",componentKind:"action",componentRef:"support-evidence:internal_evidence",completion:"bind_immediately"});
+    expect(legacyAttachmentPolicy("support_ticket","support_evidence")).toEqual({purposeKey:"internal_evidence",componentKind:"action",componentRef:"support-evidence:internal_evidence",completion:"stage_for_domain"});
     expect(legacyAttachmentPolicy("leave_request","evidence")).toEqual({purposeKey:"leave_supporting_photo",componentKind:"record",componentRef:"leave-evidence:leave_supporting_photo",completion:"stage_for_domain"});
     expect(legacyAttachmentPolicy("leave_request","leave evidence")).toBeNull();
     expect(attachmentPolicy("staff_task","task_evidence","action").mediaTypes).not.toContain("text/csv");

@@ -1,62 +1,19 @@
-import { errorResponse } from "@erpx/server-runtime/public/http";
-import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { createAuth } from "@erpx/server-identity_access/public/auth";
-import { frontAppForHost, safeFrontReturnPath } from "@erpx/feature-shared/lib/front-host";
-import { productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
-import { productSignOut } from "@erpx/server-identity_access/public/product-sso";
-import { anonymousAccountAuthPath } from "@erpx/server-identity_access/public/product-sso";
-import { accountEmailSignIn, accountAuthenticationRequest, synchronizeAccountAuth } from '@erpx/server-identity_access/public/device-accounts';
-
-import { isLegacyMultiSessionPath, nodeAccountSignInResponse, nodeAccountSignUpResponse } from './node-account-sign-in';
-
-export const dynamic = "force-dynamic";
-
-async function accountSessionDenied(request: Request) {
-  if (productHostForHost(request.headers.get("host")) !== "account" || anonymousAccountAuthPath(new URL(request.url).pathname)) return null;
-  const session = await (await createAuth(requestPublicOrigin(request))).api.getSession({ headers: request.headers });
-  return session ? null : Response.json({ error: { code: "UNAUTHENTICATED", message: "Sign in to ERPX Account." } }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
+import {nativeAccountHttp} from '@erpx/server-identity_access/public/native-account-http';
+import {createAuth} from '@erpx/server-identity_access/public/auth';
+export const dynamic='force-dynamic';
+// Rust owns endpoint admission, sessions, cookies, redirects and all writes.
+// These two declared installed consumer endpoints remain on the original
+// Better Auth handler until their native commands are migrated; a copied or
+// native-only cookie therefore stays unauthenticated instead of being upgraded.
+const legacy=new Set(['/api/auth/list-sessions','/api/auth/update-user']);
+async function handler(request:Request){
+ const url=new URL(request.url);
+ if(!legacy.has(url.pathname))return nativeAccountHttp(request);
+ const cookie=request.headers.get('cookie')??'';
+ if(!/(?:^|;\s*)(?:(?:__Secure-)?better-auth|erpx-[a-z0-9_-]+)\.session_token/.test(cookie))
+  return Response.json({error:{code:'UNAUTHORIZED',message:'Sign in to continue.'}},{status:401,headers:{'cache-control':'private, no-store'}});
+ const origin=request.headers.get('origin')??`https://${request.headers.get('host')??url.host}`;
+ return (await createAuth(origin)).handler(request);
 }
-
-async function frontCallbackAllowed(request: Request) {
-  if (!frontAppForHost(request.headers.get("host"))) return true;
-  const url = new URL(request.url);
-  const values = [url.searchParams.get("callbackURL"), url.searchParams.get("redirectTo")];
-  if (request.method === "POST") {
-    const body = await request.clone().json().catch(() => null);
-    if (body && typeof body === "object") for (const key of ["callbackURL", "redirectTo", "newUserCallbackURL", "errorCallbackURL"])
-      if (typeof body[key] === "string") values.push(body[key]);
-  }
-  return values.every((value) => value === null || (value.startsWith("/") && safeFrontReturnPath(value) === value));
-}
-
-export async function GET(request: Request) {
-  if (isLegacyMultiSessionPath(new URL(request.url).pathname)) return new Response("Not found", {status:404, headers:{"Cache-Control":"private, no-store"}});
-  const audience = productHostForHost(request.headers.get("host"));
-  if (audience && new URL(request.url).pathname === "/api/auth/get-session") {
-    const session = await (await createAuth(requestPublicOrigin(request))).api.getSession({ headers: request.headers });
-    return Response.json(session ? { ...session, session: { ...session.session, token: undefined } } : null, { headers: { "Cache-Control": "private, no-store" } });
-  }
-  if (audience && audience !== "account") return new Response("Not found", { status: 404 });
-  const denied = await accountSessionDenied(request);
-  if (denied) return denied;
-  if (!await frontCallbackAllowed(request)) return new Response("Invalid return path", { status: 400 });
-  const callback = new URL(request.url).pathname.match(/\/callback\/directory-([a-f0-9-]{36})$/i);
-  try{const response=await (await createAuth(requestPublicOrigin(request),callback?.[1])).handler(audience==='account'?await accountAuthenticationRequest(request):request);return audience==='account'?await synchronizeAccountAuth(request,response):response;}catch(e){return errorResponse(e);}
-}
-
-export async function POST(request: Request) {
-  if (isLegacyMultiSessionPath(new URL(request.url).pathname)) return new Response("Not found", {status:404, headers:{"Cache-Control":"private, no-store"}});
-  const audience = productHostForHost(request.headers.get("host"));
-  if (audience && new URL(request.url).pathname === "/api/auth/sign-out") return (await productSignOut(request))!;
-  if (audience && audience !== "account") return new Response("Not found", { status: 404 });
-  if (audience === 'account' && new URL(request.url).pathname === '/api/auth/sign-in/email') {
-    if(request.headers.get('origin')!==requestPublicOrigin(request)) return new Response('Invalid origin',{status:403});
-    try{return await nodeAccountSignInResponse(await accountEmailSignIn(request));}catch(error){return errorResponse(error);}
-  }
-  const denied = await accountSessionDenied(request);
-  if (denied) return denied;
-  if (!await frontCallbackAllowed(request)) return new Response("Invalid return path", { status: 400 });
-  let directoryId: string | undefined;
-  if(new URL(request.url).pathname.endsWith("/sign-in/social")){const body=await request.clone().json().catch(()=>null);const provider=body?.provider; if(typeof provider==="string"&&/^directory-[a-f0-9-]{36}$/i.test(provider))directoryId=provider.slice(10);}
-  try{const response=await (await createAuth(requestPublicOrigin(request),directoryId)).handler(audience==='account'?await accountAuthenticationRequest(request):request); const synced=audience==='account'?await synchronizeAccountAuth(request,response):response; return audience==='account'&&new URL(request.url).pathname==='/api/auth/sign-up/email'?await nodeAccountSignUpResponse(synced):synced;}catch(e){return errorResponse(e);}
-}
+export const GET=handler;
+export const POST=handler;

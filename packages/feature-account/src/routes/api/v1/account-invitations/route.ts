@@ -1,7 +1,13 @@
-import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { z } from "zod";
-import { acceptInvitation,acceptInvitationSchema,inspectInvitation } from "@erpx/server-identity_access/public/account-access";
-import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
-export async function GET(request:Request){try{return Response.json(canonicalDestinationLinks({data:await inspectInvitation(new URL(request.url).searchParams.get("token")??"")}),{headers:{"Cache-Control":"no-store"}});}catch(e){return errorResponse(e);}}
-export async function POST(request:Request){try{if(request.headers.get("origin")&&request.headers.get("origin")!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");return Response.json(canonicalDestinationLinks({data:await acceptInvitation(acceptInvitationSchema.parse(await request.json()))}));}catch(e){if(e instanceof z.ZodError)return errorResponse(new ApiError(422,"VALIDATION_FAILED",e.issues[0]?.message??"Invalid invitation."));return errorResponse(e);}}
+import "server-only";
+import { nativeAccountHttp } from "@erpx/server-identity_access/public/native-account-http";
+// Native Account invitation inspection and acceptance. The owner route enforces
+// the Account origin, the single-use invitation proof and the reviewed or
+// directly authorized activation; an unconfigured runtime fails closed with
+// 503 NATIVE_ACCOUNT_CONFIGURATION_REQUIRED.
+export const dynamic = "force-dynamic";
+export function GET(request: Request) {
+  return nativeAccountHttp(request);
+}
+export function POST(request: Request) {
+  return nativeAccountHttp(request);
+}

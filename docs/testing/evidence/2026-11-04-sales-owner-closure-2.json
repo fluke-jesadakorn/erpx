@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Sales now has a bounded native price-list lifecycle that governs quotation preparation: draft create, draft replacement with expected-version CAS, and independent activate/cancel. It writes only Sales-owned price-list rows plus shared command receipts, audit and outbox. The Sales owner remains partial because quote/order draft create/update is Commerce-owned, sales-order approval still requires the Finance credit guard, confirmed sales cancellation still requires the Inventory reversal guard, shared composition is not mounted and no browser journey was run.",
+  "capability": "sales-owner-price-list-lifecycle-closure-2",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "c6863a12b",
+  "branch": "codex/rust-backend-migration",
+  "scope": {
+    "workflows": [
+      "sales/quotes"
+    ],
+    "workflowBoundary": "The qualified slice is the Sales-owned price-list lifecycle that the Quotes catalogue flow requires before a quotation is prepared: create a dated Company/customer draft, edit that draft under an expected version, then activate it by an independent Company sales manager or cancel it. It is not the quotation/sales-order document itself. Quote/order draft create/update remains Commerce-owned; quote/order transitions, fulfillment, cancellation, revenue handoff and customer notifications remain retained.",
+    "domain": "Current Sales actor policy (sales module, selected-context expiry, commerce.read + commerce.sales, commerce.approve for decisions, Company scope only), bounded name/currency/customer/date/discount/item facts, exact two-decimal minor-unit prices, one line per product, 1..500 lines, draft-only edit/decision matrix, expected-version CAS, independent activation against both creator and latest preparer, and exact receipt `{id,status,version}` plus persisted readback validation.",
+    "application": "Every command serializes its idempotency key, resolves the exact prior receipt before a fresh write, rechecks current IAM, verifies the Company currency and active customer/product sources before the write, applies one expected-version write, rechecks currency/customer/product sources after the write, validates the persisted list and item rows, then inserts the shared receipt, audit and outbox records in the same caller-owned serializable Holding transaction. No transaction is opened, committed or retried here.",
+    "adapters": "SQL ownership is explicit. `sales_price_lists` and `sales_price_list_items` are Sales-owned and the only business rows mutated. `commerce_settings`, `finance_parties` and `commerce_products` are read-only same-transaction source facts used by the retained owner flow. `command_receipts`, `audit_events` and `outbox_events` are shared Workflow records. No Commerce, Finance or Inventory mutation SQL is introduced.",
+    "http": "Owner-local POST /api/v1/holdings/{holding_slug}/sales/pricing, /sales/pricing/{price_list_id}/edit and /sales/pricing/{price_list_id}. Exact registered Host/Holding targets, exact HTTPS Origin when supplied, Idempotency-Key (8..100 chars), application/json, bounded 256 KiB body, strict exact JSON keys, decimal-price parsing to minor units, bounded business-error mapping, private/no-store, no-referrer and nosniff responses. The composition backend receives transport facts only and must supply the normal Account session, current Company scope, feature/module admission and serializable owner unit.",
+    "transport": "ERPX_NATIVE_SALES_PRICING_CONFIG is strictly validated by the client: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context headers, exact receipt shape, context CAS coherence and a 64 KiB response bound. A configured failure never falls back to the retained TypeScript command.",
+    "routeCutover": "The retained Commerce pricing POST branch selects the native command when the selector is configured and otherwise keeps savePriceList/updatePriceList/decidePriceList. The existing production module admission remains in front of the branch; once the native command is selected, a configured failure is surfaced rather than replaced.",
+    "notClaimed": "No browser/authenticated page render, shared composition mount, deployment, catalogue acceptance update, quote/order document draft create/update, quote/order transition, sales approval, confirmed sales cancellation, fulfillment, invoicing, settlement, return, notification job or production/staging verification. No workflow is marked verified or merged."
+  },
+  "changedFiles": [
+    ".env.example",
+    "packages/server-sales/Cargo.toml",
+    "packages/server-sales/src/lib.rs",
+    "packages/server-sales/src/domain/mod.rs",
+    "packages/server-sales/src/domain/price_lists.rs",
+    "packages/server-sales/src/application/mod.rs",
+    "packages/server-sales/src/application/price_lists.rs",
+    "packages/server-sales/src/adapters/mod.rs",
+    "packages/server-sales/src/adapters/price_lists.rs",
+    "packages/server-sales/src/adapters/price_lists_http.rs",
+    "packages/server-sales/src/public/mod.rs",
+    "packages/server-sales/src/public/sales_price_lists.rs",
+    "packages/server-sales/src/public/sales_price_lists_http.rs",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/public/native-sales-pricing.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+    "tests/unit/sales/rust-sales-price-lists.test.rs",
+    "tests/unit/sales/rust-sales-price-lists-http.test.rs",
+    "tests/integration/sales/rust-sales-price-lists-postgres.test.rs",
+    "tests/unit/sales/native-sales-pricing-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-sales-owner-closure-2.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local .env.local> cargo test -p erpx-server-sales --locked",
+      "result": "33 passed, 0 failed, 0 ignored across 7 test targets plus empty doc-tests",
+      "breakdown": "lib 4, sales_documents 7, sales_documents_http 3, sales_documents_postgres 4, sales_price_lists 6, sales_price_lists_http 4, sales_price_lists_postgres 5, doc-tests 0",
+      "targets": {
+        "lib": "4 passed: exact date/note bounds, name trim and currency normalization, duplicate-product/reversed-date denial, exact three-field receipt parsing.",
+        "sales_price_lists": "6 passed: authority before source reads; create/replay/idempotency conflict; currency/customer/product/duplicate/date/empty-line negatives before write; expected-version update and draft item replacement; approval and independent latest-preparer activation plus cancel; late product drift and readback mismatch fail closed; module/expiry/Company-scope denials.",
+        "sales_price_lists_http": "4 passed: distinct exact targets and HTTPS origins; actual loopback create/update/decide forwarding including decimal-to-minor price conversion; missing key, wrong content type, unknown query/body keys, over-precision price, invalid tax/action, oversized key and Origin negatives; owner conflict plus private/no-store/no-referrer/nosniff headers.",
+        "sales_price_lists_postgres": "5 passed: create/update/activate/cancel with exact persisted rows and items, one receipt/audit/outbox per command and byte-identical replay; foreign Company/foreign customer/foreign product/inactive customer/inactive product/branch scope/revoked IAM no-write negatives; latest-preparer independence and post-write source drift rollback; late outbox trigger rollback then exact retry; missing transaction and read-committed serializable denial."
+      },
+      "workspaceNote": "erpx-server-sales was already a root workspace member and locked dependency graph. No root Cargo.toml, Cargo.lock or package lockfile was authored by this subagent."
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-sales --all-targets --locked --no-deps -- -D warnings",
+      "result": "pass",
+      "note": "The targeted --no-deps build avoids unrelated concurrent owner crates; no erpx-server-sales warning remains."
+    },
+    "rustfmt": {
+      "command": "cargo fmt -p erpx-server-sales -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "sales_price_lists_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with Company/foreign organization nodes, holding/branch/revoked IAM assignments, Company and foreign currency settings, active/inactive/foreign customers and active/archived/foreign products. The owner writes only Sales price-list rows plus shared receipt/audit/outbox rows.",
+      "limit": "The HTTP router test uses a recording backend. No shared composition backend or PostgreSQL-backed HTTP request is proven here."
+    },
+    "typescript": {
+      "unit": "node_modules/.bin/vitest run with a temporary ignored config: tests/unit/sales/native-sales-pricing-transport.test.ts 7 passed; all tests/unit/sales 136 passed across 4 files.",
+      "newCases": [
+        "configured Host/Holding, cookie, CAS context, Idempotency-Key and exact create body forwarding",
+        "exact update-edit and decision paths",
+        "wrong Host, branch scope, short/invalid key, invalid price-list id and oversized body before transport",
+        "partial receipt, foreign context, changed revision, invalid status/version and malformed response denial",
+        "loopback/reserved-port/timeout/origin/duplicate-Holding configuration denial",
+        "owner 409/422/503/context error mapping",
+        "unset selector retains the TypeScript owner; configured branch scope maps to 403 and never falls back"
+      ],
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-sales/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "targeted tsc --noEmit on tests/unit/sales/native-sales-pricing-transport.test.ts: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: only one pre-existing unrelated error remains in tests/unit/pms/native-pms-transport.test.ts; no Sales file is reported"
+      ],
+      "eslint": "eslint on the changed TypeScript files: pass; existing Pages-directory configuration warning only",
+      "runner": "Bun is not installed in this worktree. The unit run used an equivalent temporary Vitest config under ignored .scratch/sales-pricing because shared catalogue/runtime files are concurrently modified by other owners. No shared catalogue or suite manifest was edited."
+    },
+    "static": {
+      "diffCheck": "git diff --check on the changed Sales-owned paths: pass",
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0",
+      "architecture": "scripts/architecture/check.ts reported only pre-existing owner/module-private findings in Legal, POS, Supply/Quality, Workplace/PMS and Workplace/Assets; no Sales pricing file was reported."
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL, staging or private production access was performed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_sales::public::sales_price_lists::{PriceListActor, PriceListCommandRepository, PgPriceLists, PriceListInput, PriceListUpdate, PriceListDecision, PriceListDecisionAction, PriceListReceipt, create_price_list, update_price_list, decide_price_list}",
+      "erpx_server_sales::public::sales_price_lists_http::{sales_price_lists_router, PriceListHttpTarget, PriceListHttpBackend, PriceListHttpRequest, PriceListHttpResponse, PriceListHttpCommand}"
+    ],
+    "backendRequired": "Implement PriceListHttpBackend in src/composition: parse the normal Account/Holding request and rendered context, require the selected Company and no branch/department scope, require the configured Sales module/feature admission, build PriceListActor from current authority, call create_price_list/update_price_list/decide_price_list with PgPriceLists inside one serializable Holding transaction, and map PgTransactionError to BusinessError. The Next transport context is not authority and must be repeated.",
+    "privateDevelopmentApi": [
+      "Build one PriceListHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_sales::public::sales_price_lists_http::sales_price_lists_router(targets).map_err(|_| \"PRIVATE_API_SALES_PRICING_CONFIGURATION_INVALID\")?);",
+      "Mount /sales/pricing, /sales/pricing/{id}/edit and /sales/pricing/{id} before the generic 404 fallback."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_SALES_PRICING_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "schema": "No PostgreSQL schema or migration change. The slice reuses existing sales_price_lists, sales_price_list_items, commerce_settings, finance_parties, commerce_products, command_receipts, audit_events and outbox_events.",
+    "rootWorkspace": "erpx-server-sales was already registered in the root Cargo.toml [workspace] members and Cargo.lock. This subagent did not author a root workspace or lockfile change.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, packages/contracts/**, docs/status/** and other owners' implementation."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "When ERPX_NATIVE_SALES_PRICING_CONFIG is present, the Commerce pricing POST branches no longer call the retained TypeScript savePriceList/updatePriceList/decidePriceList commands; the native Sales command replaces them.",
+      "No retained TypeScript Sales source file was deleted."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-sales/src/adapters/pricing.ts keeps savePriceList/updatePriceList/decidePriceList for the unset selector, non-native callers and the retained pricingWorkspace read.",
+      "packages/server-sales/src/adapters/pricing.ts also keeps pricingWorkspace, resolveSalesPricing, product/customer/currency lookups and the retained Commerce/Finance projection sources.",
+      "Quotation/sales-order draft create/update remains with Commerce-owned saveOrder; the native Sales crate does not write commerce_orders.",
+      "Sales-order approval remains retained behind the Finance credit-limit guard; confirmed sales-order cancellation remains retained behind the Inventory reservation/reversal guard. Neither guard is weakened or reimplemented.",
+      "Fulfillment, invoicing, settlement, returns, customer notifications, posting setup and all other Sales/Commerce paths remain on their existing owner paths."
+    ],
+    "cutover": "Only the price-list create/update/decide POST branch switches to the native owner when configured. An unset selector retains TypeScript. A configured invalid or failed native command throws through the retained route error policy and never reads the TypeScript path as a fallback."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements PriceListHttpBackend or mounts sales_price_lists_router; the native route therefore returns 503 until composition wiring and the selector exist.",
+      "Quotation/sales-order draft create/update needs a Commerce-owned public draft port (and Commerce's own product/warehouse/party/Money source checks). Writing commerce_orders from server-sales would be cross-owner SQL and was not done.",
+      "Sales-order approval still needs a Finance credit-limit public guard; confirmed sales-order cancellation still needs an Inventory reservation/reversal public guard.",
+      "No browser or deployment verification was performed; no workflow status or owner completion flag was changed."
+    ],
+    "nextAction": "Have the composition owner implement the Account/Company/feature backend and mount the Sales pricing router; then qualify the real browser price-list draft/activate journey and, in a Commerce-owned slice, order draft create/update through public product/warehouse/party/Money ports. Sales approval and confirmed cancellation remain retained until the Finance and Inventory guards are exposed."
+  },
+  "concurrentWork": {
+    "preserved": "This shared worktree contains concurrent Inventory, Learning, Organization, PMS, Records, Platform Administration and other uncommitted owner work. Those files, manifests, tests and evidence were not edited, reverted or included in the Sales changed-file inventory.",
+    "rootManifests": "Root Cargo.toml, Cargo.lock, package lockfiles, packages/contracts/**, docs/status/** and src/composition/** were not edited by this subagent. No staging, private production or Cloudflare access was performed."
+  },
+  "limits": [
+    "The native owner router is not mounted in shared composition. The HTTP test backend is a recording fake.",
+    "The route cutover is typechecked and transport-tested, not browser-qualified; an unset selector retains the previous TypeScript behavior.",
+    "Price lists are Company-scoped only; a branch/department work context is refused rather than narrowed.",
+    "Activation is independent against both the creator and the latest draft preparer, matching the existing database constraint and the retained owner policy.",
+    "No quote/order document, fulfillment, invoice, journal, stock, reservation, return, notification or job row is created or changed by this slice.",
+    "No browser, authenticated page, Next dev server, staging, private production or Cloudflare verification was run.",
+    "No workflow is marked verified or merged; docs/status was intentionally not edited."
+  ]
+}

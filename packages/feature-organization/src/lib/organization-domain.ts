@@ -42,6 +42,7 @@ export type OrganizationOverview = {
   actorId: string;
   canManage: boolean;
   authorizedChannelNodes?:string[];
+  channels?: {node_id:string;room_id:string;name:string;kind:string;status:string}[];
   spendingTemplate?: SpendingTemplate;
   canManageSpending?: boolean;
 };

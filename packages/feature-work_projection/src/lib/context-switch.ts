@@ -1,14 +1,12 @@
 "use client";
 
+import { hasRegisteredUnsavedChanges, registerUnsavedChanges } from "@erpx/ui/lib/unsaved-changes";
+
 let generation = 0;
 let switching = false;
-const dirtyChecks = new Set<() => boolean>();
 const contextSwitchBlockers = new Set<() => string | null>();
 
-export function registerUnsavedWork(check: () => boolean) {
-  dirtyChecks.add(check);
-  return () => { dirtyChecks.delete(check); };
-}
+export const registerUnsavedWork = registerUnsavedChanges;
 
 export function registerContextSwitchBlocker(reason: () => string | null) {
   contextSwitchBlockers.add(reason);
@@ -24,7 +22,7 @@ export function contextSwitchBlockReason() {
 }
 
 export function hasUnsavedWork() {
-  return [...dirtyChecks].some(check => check()) ||
+  return hasRegisteredUnsavedChanges() ||
     !!document.querySelector('[data-work-dirty="true"]');
 }
 

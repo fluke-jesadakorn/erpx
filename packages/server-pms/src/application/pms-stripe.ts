@@ -124,9 +124,6 @@ export type PmsCounterPaymentUnit = {
     readPmsStripePayments8(facts: Record<string, never>): Promise<PmsProviderRows<{
         id: string;
     }>>;
-    updatePmsStripePayments10(facts: {
-        id: string;
-    }): Promise<PmsProviderRows<Record<string, unknown>>>;
     updatePmsStripePayments11(facts: {
         fact0: string;
         id: string;

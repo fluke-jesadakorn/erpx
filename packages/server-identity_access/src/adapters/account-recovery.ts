@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, } from "node:crypto";
 import type { User } from "better-auth";
@@ -35,29 +36,29 @@ function open(secret: string, value: string) {
     return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
 }
 function repository(control: SqlDatabase): AccountRecoveryRepository {
-    const event = (id: string, userId: string, jobId: string | null, action: string, evidence: Record<string, unknown>, now: number) => control.prepare('INSERT INTO account_recovery_events(id,user_id,job_id,action,evidence,created_at) VALUES(?,?,?,?,?::jsonb,?)').bind(id, userId, jobId, action, JSON.stringify(evidence), now);
+    const event = (id: string, userId: string, jobId: string | null, action: string, evidence: Record<string, unknown>, now: number) => nativePrepare("w_c26b534670da").bind(id, userId, jobId, action, JSON.stringify(evidence), now);
     return {
         async queue(input) {
             const { id, userId, verificationIdentifier, urlCiphertext, now, expiresAt, eventId } = input;
-            await control.batch([
-                control.prepare("DELETE FROM verification WHERE value=? AND identifier LIKE 'reset-password:%' AND identifier!=?").bind(userId, verificationIdentifier),
-                control.prepare("UPDATE account_recovery_delivery_jobs SET state='cancelled',error='SUPERSEDED',lease_token=NULL,lease_until=NULL,updated_at=? WHERE user_id=? AND state IN ('queued','running','failed')").bind(now, userId),
-                control.prepare("INSERT INTO account_recovery_delivery_jobs(id,user_id,verification_identifier,url_ciphertext,state,next_attempt_at,expires_at,created_at,updated_at) VALUES(?,?,?,?,'queued',?,?,?,?)").bind(id, userId, verificationIdentifier, urlCiphertext, now, expiresAt, now, now), event(eventId, userId, id, 'requested', { expiresAt }, now)
+            await Promise.all([
+                nativePrepare("w_b72d2bff48d2").bind(userId, verificationIdentifier),
+                nativePrepare("w_ab573fab46e3").bind(now, userId),
+                nativePrepare("w_aec55ca072d1").bind(id, userId, verificationIdentifier, urlCiphertext, now, expiresAt, now, now), event(eventId, userId, id, 'requested', { expiresAt }, now)
             ]);
         },
-        async recoverInterrupted(now) { await control.prepare("UPDATE account_recovery_delivery_jobs SET state=CASE WHEN attempts<6 THEN 'queued' ELSE 'failed' END,lease_token=NULL,lease_until=NULL,error='DELIVERY_INTERRUPTED',next_attempt_at=?,updated_at=? WHERE state='running' AND lease_until<?").bind(now, now, now).run(); },
-        claim: (lease, now) => control.prepare("UPDATE account_recovery_delivery_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=?,updated_at=? WHERE id=(SELECT id FROM account_recovery_delivery_jobs WHERE state='queued' AND next_attempt_at<=? ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id,user_id,url_ciphertext,attempts,expires_at").bind(lease, now + 30000, now, now).first<RecoveryDeliveryJob>(),
+        async recoverInterrupted(now) { await nativePrepare("w_77aad90d676e").bind(now, now, now).run(); },
+        claim: (lease, now) => nativePrepare("w_b56d93903546").bind(lease, now + 30000, now, now).first<RecoveryDeliveryJob>(),
         account: userId => control.prepare('SELECT email FROM "user" WHERE id=?').bind(userId).first<{
             email: string;
         }>(),
-        async cancel(job, lease, reason, now, eventId) { await control.batch([control.prepare("UPDATE account_recovery_delivery_jobs SET state='cancelled',error=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE id=? AND lease_token=?").bind(reason, now, job.id, lease), event(eventId, job.user_id, job.id, 'cancelled', { reason }, now)]); },
-        async sent(job, lease, providerId, now, eventId) { await control.batch([control.prepare("UPDATE account_recovery_delivery_jobs SET state='sent',sent_at=?,provider_id=?,lease_token=NULL,lease_until=NULL,error=NULL,updated_at=? WHERE id=? AND lease_token=?").bind(now, providerId ?? job.id, now, job.id, lease), event(eventId, job.user_id, job.id, 'sent', { providerId }, now)]); },
-        async failed(job, lease, failure, now, eventId) { await control.batch([control.prepare("UPDATE account_recovery_delivery_jobs SET state=?,error=?,next_attempt_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE id=? AND lease_token=?").bind(failure.state, failure.code, failure.nextAttemptAt, now, job.id, lease), event(eventId, job.user_id, job.id, 'delivery_failed', { attempt: job.attempts, terminal: failure.terminal, error: failure.code }, now)]); },
+        async cancel(job, lease, reason, now, eventId) { await Promise.all([nativePrepare("w_af917c230df0").bind(reason, now, job.id, lease), event(eventId, job.user_id, job.id, 'cancelled', { reason }, now)]); },
+        async sent(job, lease, providerId, now, eventId) { await Promise.all([nativePrepare("w_f77801fb504a").bind(now, providerId ?? job.id, now, job.id, lease), event(eventId, job.user_id, job.id, 'sent', { providerId }, now)]); },
+        async failed(job, lease, failure, now, eventId) { await Promise.all([nativePrepare("w_75e34d6665ef").bind(failure.state, failure.code, failure.nextAttemptAt, now, job.id, lease), event(eventId, job.user_id, job.id, 'delivery_failed', { attempt: job.attempts, terminal: failure.terminal, error: failure.code }, now)]); },
         async complete(userId, now, eventId) {
             const latest = await control.prepare('SELECT id FROM account_recovery_delivery_jobs WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 1').bind(userId).first<string>('id');
-            await control.batch([
-                control.prepare('DELETE FROM session WHERE "userId"=?').bind(userId),
-                control.prepare("UPDATE account_recovery_delivery_jobs SET state='cancelled',error='PASSWORD_ALREADY_RESET',lease_token=NULL,lease_until=NULL,updated_at=? WHERE user_id=? AND state IN ('queued','running','failed')").bind(now, userId), event(eventId, userId, latest ?? null, 'completed', { sessionsRevoked: true }, now)
+            await Promise.all([
+                nativePrepare("w_13a241f7e1ff").bind(userId),
+                nativePrepare("w_6d14d44114fd").bind(now, userId), event(eventId, userId, latest ?? null, 'completed', { sessionsRevoked: true }, now)
             ]);
         },
     };

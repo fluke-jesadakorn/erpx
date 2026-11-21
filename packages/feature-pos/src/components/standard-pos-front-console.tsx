@@ -6,7 +6,7 @@ import { PosRecordDetail } from "@erpx/feature-records/components/pos-record-det
 import { RecordDrawer } from "@erpx/feature-records/components/record-drawer";
 import { Button as UiButton, Card } from "@erpx/ui/components/foundation";
 import { PageHeader } from "@erpx/ui/components/primitives";
-import { WorkspaceSections } from "@erpx/ui/components/workspace";
+import { HospitalityGroupedNavigation } from "@erpx/feature-shared/components/hospitality/grouped-navigation";
 import { usePosController } from "@erpx/feature-pos/components/pos-controller";
 import type { PosInitialRead } from "@erpx/feature-pos/lib/pos-read-identity";
 import type { PosWorkspace } from "@erpx/server-pos/public/pos";
@@ -81,6 +81,7 @@ function useFrontPosDailyState({
   money,
   can,
   approvalHref,
+  shiftApprovalHref,
   erpBase,
   api,
   recovery,
@@ -101,6 +102,7 @@ function useFrontPosDailyState({
   money: (value: number, recordCurrency?: string | null, date?: string) => string;
   can: (permission: string) => boolean;
   approvalHref: string;
+  shiftApprovalHref: string;
   erpBase: string;
   api: string;
   recovery: ReactNode;
@@ -140,7 +142,7 @@ function useFrontPosDailyState({
     setRegisterId(s(row, "register_id"));
     window.history.pushState(null,"",posReceiptHref(window.location.href,s(row,"id")));
   };
-  return {data, tab, setTab, busy, error, notice, send, refresh, registerId, setSelected, setRegisterId, money, can, approvalHref, erpBase, api, recovery, loading, online, language, tr, kitchenStation, setKitchenStation, sale, activeRegisterId, register, openingDraft, setOpeningDraft, ready, tabs, pick};
+  return {data, tab, setTab, busy, error, notice, send, refresh, registerId, setSelected, setRegisterId, money, can, approvalHref, shiftApprovalHref, erpBase, api, recovery, loading, online, language, tr, kitchenStation, setKitchenStation, sale, activeRegisterId, register, openingDraft, setOpeningDraft, ready, tabs, pick};
 }
 export type StandardFrontPosDailyContext = ReturnType<typeof useFrontPosDailyState>;
 function FrontPosDaily(props: {
@@ -158,6 +160,7 @@ function FrontPosDaily(props: {
   money: (value: number, recordCurrency?: string | null, date?: string) => string;
   can: (permission: string) => boolean;
   approvalHref: string;
+  shiftApprovalHref: string;
   erpBase: string;
   api: string;
   recovery: ReactNode;
@@ -178,10 +181,9 @@ function FrontPosDaily(props: {
           action={<Button secondary onClick={() => void refresh().catch(() => {})}>{tr("Refresh")}</Button>}
         />
         <div className={styles.navigation}>
-          <WorkspaceSections
-            label={tr("Point of sale")}
-            selected={tab}
-            items={posMenu(language).filter((item) => tabs.some(([id]) => id === item.id)).map(item => ({id: item.id, title: item.label, description: item.description}))}
+          <HospitalityGroupedNavigation app="pos" language={language}
+            label={tr("Point of sale")} current={tab}
+            items={posMenu(language).filter((item) => tabs.some(([id]) => id === item.id))}
             onSelect={setTab}
           />
         </div>
@@ -336,7 +338,8 @@ export function StandardFrontPosConsole({
         can={can}
         api={api}
         recovery={receiptDrawer ? null : recovery}
-        approvalHref={canonicalUiHref(`${erpBase}/pos?tab=history&queue=approval`)}
+        approvalHref={canonicalUiHref(`${erpBase}/pos/approvals?tab=history`)}
+        shiftApprovalHref={canonicalUiHref(`${erpBase}/pos/approvals/shifts`)}
         erpBase={erpBase}
       /></>
     );

@@ -22,6 +22,12 @@ import {commercePackageEnforcementMode} from '@erpx/server-commercial/public/pur
 import {channelSchema} from '@erpx/server-ecommerce/domain/channel';
 import {listingSchema,cartSchema,lineSchema,checkoutSchema,actionSchema} from '@erpx/server-ecommerce/domain/commerce';
 import {requireEcommercePurchasedRead,ecommercePurchaseControls,withEcommercePurchasedCommand,type EcommercePurchaseCommand} from '@erpx/server-ecommerce/adapters/purchase-boundary';
+import {nativeEcommerceOwnerWrite,NativeEcommerceWave2Error,type EcommerceOwnerWriteKind} from '@erpx/server-ecommerce/adapters/native-wave2';
+/** Single fail-closed bridge to the owner axum command router. No SQL, no fallback. */
+async function nativeWrite(kind:EcommerceOwnerWriteKind,values:readonly unknown[],recordId:string,actorId:string,key:string){
+ try{return await nativeEcommerceOwnerWrite(kind,values,recordId,actorId,key);}
+ catch(error){if(error instanceof NativeEcommerceWave2Error)throw new ApiError(error.status,error.code,error.message);throw error;}
+}
 function access(a: WorkContext, write = false) {
   requirePermission(a, write ? "commerce.sales" : "commerce.read");
   if (!hasModuleAccess(a.modules, "ecommerce"))
@@ -81,9 +87,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   };
   },
   async createChannel(command, now) {
-   return executeCommand(write, a, command.key, command.operation, command.input, command.id, 1, { id: command.id, status: "draft", version: 1 }, [
-    write.prepare("INSERT INTO ecommerce_channels VALUES(?,?,?,?,?,'draft',?,NULL,1,?,?)").bind(command.id, a.companyId, command.input.name, command.input.channelType, JSON.stringify(command.input.configuration), a.userId, now, now),
-   ]);
+   // The INSERT is executed by the native owner axum command route; no TS SQL.
+   await nativeWrite('channel.create', [command.id, a.companyId, command.input.name, command.input.channelType, JSON.stringify(command.input.configuration), a.userId, now, now], command.id, a.userId, command.key);
+   return executeCommand(write, a, command.key, command.operation, command.input, command.id, 1, { id: command.id, status: "draft", version: 1 }, []);
   },
   functionalCurrency: () => ecommerceCurrencyConfiguration(write, a.companyId),
   async prepareMoney(input) { money = await snapshotMoney(write, a, input); },
@@ -115,23 +121,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         `EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_products}) commerce_products WHERE id=? AND company_id=? AND status='active')`,
         [i.productId, a.companyId],
       ),
-      write
-        .prepare(
-          "INSERT INTO ecommerce_listings VALUES(?,?,?,?,?,?,'draft',?,NULL,1,?,?)",
-        )
-        .bind(
-          id,
-          i.channelId,
-          i.productId,
-          i.title,
-          i.currency,
-          decimalToMinor(i.price),
-          a.userId,
-          now,
-          now,
-        ),
     ],
   );
+  await nativeWrite('listing.create', [id, i.channelId, i.productId, i.title, i.currency, decimalToMinor(i.price), a.userId, now, now], id, a.userId, key);
   },
   warehouse: id => ecommerceWarehouse(write, a, id),
   async createCart(command, warehouse, now) {
@@ -160,25 +152,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_parties}) finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active')`,
         [i.partyId, a.companyId],
       ),
-      write
-        .prepare(
-          "INSERT INTO ecommerce_carts VALUES(?,?,?,?,?,?,?,?,'open',?,1,?,?)",
-        )
-        .bind(
-          id,
-          a.companyId,
-          warehouse.branch_id,
-          a.departmentId,
-          i.channelId,
-          i.partyId,
-          i.warehouseId,
-          i.currency,
-          a.userId,
-          now,
-          now,
-        ),
     ],
   );
+  await nativeWrite('cart.create', [id, a.companyId, warehouse.branch_id, a.departmentId, i.channelId, i.partyId, i.warehouseId, i.currency, a.userId, now, now], id, a.userId, key);
   },
   cart: (id, lock) => write.prepare(`SELECT c.* FROM ecommerce_carts c WHERE c.id=? AND ${cartScope}${lock ? " FOR UPDATE" : ""}`).bind(id, ...scopeValues(a)).first<Row>(),
   async listing(id) {
@@ -213,33 +189,14 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         "EXISTS(SELECT 1 FROM ecommerce_carts WHERE id=? AND version=? AND status='open')",
         [i.cartId, i.expectedVersion],
       ),
-      write
-        .prepare(
-          "INSERT INTO ecommerce_cart_lines VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(cart_id,listing_id) DO UPDATE SET quantity_milli=ecommerce_cart_lines.quantity_milli+excluded.quantity_milli",
-        )
-        .bind(
-          lineId,
-          i.cartId,
-          i.listingId,
-          i.listingVersion,
-          listing.product_id,
-          decimalToMinor(i.quantity, 3),
-          listing.price_minor,
-          lineCreatedAt,
-        ),
-      write
-        .prepare(
-          "UPDATE ecommerce_carts SET version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(now, i.cartId),
     ],
   );
+  await nativeWrite('cart.add-line', [lineId, i.cartId, i.listingId, i.listingVersion, listing.product_id, decimalToMinor(i.quantity, 3), listing.price_minor, lineCreatedAt], i.cartId, a.userId, key);
+  await nativeWrite('cart.version-bump', [now, i.cartId], i.cartId, a.userId, key);
   },
   cartLines: async id => (await write.prepare("SELECT * FROM ecommerce_cart_lines WHERE cart_id=? ORDER BY ordinal").bind(id).all<Row>()).results,
-  async abandonCart(command,now){const {key,operation,input,id}=command;return executeCommand(write,a,key,operation,input,id,input.expectedVersion+1,{id,status:'abandoned',version:input.expectedVersion+1},[
-    assertion(write,key,'cart-abandon',"EXISTS(SELECT 1 FROM ecommerce_carts c WHERE c.id=? AND c.version=? AND c.status='open' AND NOT EXISTS(SELECT 1 FROM ecommerce_checkouts checkout WHERE checkout.cart_id=c.id))",[id,input.expectedVersion]),
-    write.prepare("UPDATE ecommerce_carts SET status='abandoned',version=version+1,updated_at=? WHERE id=?").bind(now,id),
-  ]);},
+  async abandonCart(command,now){const {key,input,id}=command;
+   return nativeWrite('cart.abandon',[now,id,input.expectedVersion],id,a.userId,key);},
   saveSalesOrder: (actor, input, key) => saveOrder(actor, null, orderSchema.parse(input), key, write),
   transitionSalesOrder: (actor, id, input, key) => transitionOrder(actor, id, input, key, write),
   async checkout(command, cart, orderId, now) {
@@ -253,26 +210,8 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
       "EXISTS(SELECT 1 FROM ecommerce_carts WHERE id=? AND version=? AND status='open')",
       [i.cartId, i.expectedVersion],
     ),
-    write
-      .prepare(
-        "UPDATE ecommerce_carts SET status='checked_out',version=version+1,updated_at=? WHERE id=?",
-      )
-      .bind(now, i.cartId),
-    write
-      .prepare(
-        "INSERT INTO ecommerce_checkouts VALUES(?,?,?,?,?,'submitted',?,1,?,?)",
-      )
-      .bind(
-        checkoutId,
-        i.cartId,
-        i.expectedVersion,
-        String(order.id),
-        2,
-        a.userId,
-        now,
-        now,
-      ),
   ]);
+  await nativeWrite('checkout.create', [now, i.cartId, checkoutId, i.cartId, i.expectedVersion, String(order.id), 2, a.userId, now, now], checkoutId, a.userId, key);
   },
   async reviewRecord(kind, id) {
    const table = kind === "channel" ? "ecommerce_channels" : "ecommerce_listings";
@@ -297,13 +236,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
           `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND version=? AND status=? AND (?='retire' OR created_by<>?))`,
           [id,i.expectedVersion,expected,i.action,a.userId],
         ),
-        write
-          .prepare(
-            `UPDATE ${table} SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?`,
-          )
-          .bind(status, a.userId, now, id),
       ],
     );
+    await nativeWrite(kind === 'channel' ? 'channel.review' : 'listing.review', [status, a.userId, now, id], id, a.userId, key);
   },
   async checkoutRecord(id, detail) {
    if (detail) {
@@ -326,51 +261,14 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   salesOrder: (actor, id) => getOrder(actor, id, write),
   reserveSalesOrder: (actor, id, input, key) => changeOrderReservation(actor, id, input, key, write),
   async confirmCheckout(command, v, now) {
-   const { input: i, id, operation: op, key } = command;
-    return executeCommand(
-      write,
-      a,
-      key,
-      op,
-      i,
-      id,
-      i.expectedVersion + 1,
-      {
-        id,
-        status: "confirmed",
-        version: i.expectedVersion + 1,
-        salesOrderVersion: v,
-      },
-      [
-        assertion(
-          write,
-          key,
-          "checkout",
-          "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=? AND status='submitted')",
-          [id, i.expectedVersion],
-        ),
-        write
-          .prepare(
-            "UPDATE ecommerce_checkouts SET status='confirmed',sales_order_version=?,version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(v, now, id),
-      ],
-    );
+   const { input: i, id, key } = command;
+   return nativeWrite('checkout.confirm',[Number(v),now,id,i.expectedVersion],id,a.userId,key);
   },
   async syncFulfillment(command, order, now) {
    const { input: i, id, operation: op, key } = command;
-    const links=order.fulfillments.map(f=>write
-        .prepare(
-          "INSERT INTO ecommerce_fulfillment_links VALUES(?,?,?,?,?,?) ON CONFLICT(fulfillment_id) DO NOTHING",
-        )
-        .bind(
-          `ecommerce-fulfillment-${f.id}`,
-          id,
-          f.id,
-          order.order.version,
-          order.order.state,
-          now,
-        ));
+    const linkValues=order.fulfillments.map(f=>[
+      `ecommerce-fulfillment-${f.id}`, id, f.id, order.order.version, order.order.state, now,
+    ]);
     return executeCommand(
       write,
       a,
@@ -385,7 +283,6 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         version: i.expectedVersion + 1,
       },
       [
-        ...links,
         assertion(
           write,
           key,
@@ -393,13 +290,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
           "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=?)",
           [id, i.expectedVersion],
         ),
-        write
-          .prepare(
-            "UPDATE ecommerce_checkouts SET status=?,sales_order_version=?,version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(order.order.state, order.order.version, now, id),
       ],
     );
+  await nativeWrite('checkout.fulfillment',[order.order.state, order.order.version, now, id, JSON.stringify(linkValues)],id,a.userId,key);
   },
   fulfillmentCurrent: (id, orderId, version) => ecommerceFulfillmentCurrent(write, id, orderId, version),
   requestReturn: (actor, id, input, key) => requestCommerceReturn(actor, id, returnRequestSchema.parse(input), key, write),
@@ -427,24 +320,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
           "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=?)",
           [id, i.expectedVersion],
         ),
-        write
-          .prepare("INSERT INTO ecommerce_return_links VALUES(?,?,?,?,?,?,?)")
-          .bind(
-            `ecommerce-return-${key}`,
-            id,
-            i.fulfillmentId,
-            ret.id,
-            i.fulfillmentVersion,
-            ret.status,
-            now,
-          ),
-        write
-          .prepare(
-            "UPDATE ecommerce_checkouts SET version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(now, id),
       ],
     );
+  await nativeWrite('checkout.return',[`ecommerce-return-${key}`,id,i.fulfillmentId,ret.id,i.fulfillmentVersion,ret.status,now,now,id],id,a.userId,key);
   },
   fulfillmentLinks: async id => (await write.prepare("SELECT * FROM ecommerce_fulfillment_links WHERE checkout_id=?").bind(id).all<Row>()).results,
   returnLinks: async id => (await write.prepare(`SELECT l.*,r.status current_return_status,r.version current_return_version FROM ecommerce_return_links l JOIN (${commerceProjectionSources.commerce_returns}) r ON r.id=l.commerce_return_id WHERE l.checkout_id=?`).bind(id).all<Row>()).results,

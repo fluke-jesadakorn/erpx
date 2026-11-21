@@ -1,5 +1,11 @@
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import {
+    createNativeAttachmentCommandClient,
+    nativeAttachmentCommandConfiguration,
+    nativeAttachmentCommandFailure,
+    type NativeAttachmentPageContext,
+} from "@erpx/server-files/public/native-attachments";
 type DropDatabase<Fn> = Fn extends (database: infer _Database, ...args: infer Args) => infer Result ? (...args: Args) => Result : never;
 type DropStorage<Fn> = Fn extends (database: infer _Database, storage: infer _Storage, ...args: infer Args) => infer Result ? (...args: Args) => Result : never;
 export type FrontPmsFileContent = Awaited<ReturnType<typeof import("@erpx/server-files/public/attachments/service").attachmentContent>>;
@@ -22,7 +28,6 @@ export type FrontPmsAttachmentRepository = {
     createAttachmentSet: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").createAttachmentSet>;
     listAttachmentSets: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").listAttachmentSets>;
     reserveAttachmentFile: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").reserveAttachmentFile>;
-    withdrawAttachmentLink: DropDatabase<typeof import("@erpx/server-files/public/attachments/service").withdrawAttachmentLink>;
 };
 export function createFrontPmsAttachments<Reply>(ports: {
     repository(actor: WorkContext): Promise<FrontPmsAttachmentRepository>;
@@ -36,16 +41,37 @@ export function createFrontPmsAttachments<Reply>(ports: {
     const target = z.enum(['pms_task', 'pms_guest', 'pms_reservation', 'pms_stay', 'pms_lost_property']);
     const create = z.object({ targetType: target, targetId: z.string().min(1).max(180), componentKind: z.enum(['record', 'action']), componentRef: z.string().max(180).optional(), purposeKey: z.string().min(1).max(80), expectedTargetVersion: z.number().int().positive() });
     const frontPmsAttachmentPaths = new Set(['attachment-sets', 'attachment-links', 'uploads']);
+    function nativePageContext(actor: WorkContext): NativeAttachmentPageContext {
+        if (!actor.authority || !actor.iam)
+            throw ports.error(409, 'WORK_CONTEXT_CHANGED', 'Your work role changed. Reload before withdrawing files.');
+        const scope = actor.scope.kind === 'holding' ? { kind: 'holding' as const } : actor.scope.kind === 'branch' ? { kind: 'branch' as const, branchSlug: actor.scope.branchSlug } : { kind: 'department' as const, branchSlug: actor.scope.branchSlug, departmentSlug: actor.scope.departmentSlug };
+        return { userId: actor.userId, holdingId: String(actor.holdingId), holdingSlug: actor.holdingSlug, companyId: actor.companyId, branchId: actor.branchId, departmentId: actor.departmentId, assignmentId: actor.assignmentId, role: actor.role, assignmentScope: actor.assignmentScope, scope, authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion }, modules: actor.modules, iam: { permissions: actor.iam.permissions } };
+    }
+    async function nativeWithdraw(request: Request, actor: WorkContext, linkId: string, reason: string, key: string) {
+        const raw = process.env.ERPX_NATIVE_ATTACHMENT_COMMAND_CONFIG;
+        if (raw === undefined) throw ports.error(503, 'NATIVE_ATTACHMENT_WRITER_UNAVAILABLE', 'The native file writer is unavailable.');
+        try {
+            const client = createNativeAttachmentCommandClient(nativeAttachmentCommandConfiguration(raw));
+            return await client.withdraw(request.headers, nativePageContext(actor), actor.holdingSlug, linkId, { reason, key });
+        } catch (error) {
+            const mapped = nativeAttachmentCommandFailure(error);
+            if (mapped) throw ports.error(mapped.status, mapped.code, mapped.message);
+            throw error;
+        }
+    }
     /** Narrow Front adapter. All target, revision, file and branch guards remain with Files. */
     async function frontPmsAttachmentRequest(request: Request, actor: WorkContext, path: string[]) {
         ports.require(actor, 'pms.read');
-        const write = await ports.repository(actor), [kind, id, action] = path;
+        const [kind, id, action] = path;
         const query = new URL(request.url).searchParams;
         const reply = (data: unknown, status = 200) => ports.reply(data, status);
         const key = () => { const value = request.headers.get('Idempotency-Key'); if (!value || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(value))
             throw ports.error(422, 'COMMAND_KEY_REQUIRED', 'A valid Idempotency-Key is required.'); return value; };
         if (request.method !== 'GET' && request.headers.get('origin') !== ports.origin(request))
             throw ports.error(403, 'ORIGIN_FORBIDDEN', 'Use the application origin.');
+        if (kind === 'attachment-links' && id && path.length === 3 && action === 'withdraw' && request.method === 'POST')
+            return reply(await nativeWithdraw(request, actor, id, z.object({ reason: z.string().min(3).max(1000) }).parse(await request.json()).reason, key()));
+        const write = await ports.repository(actor);
         async function setAllowed(setId: string) {
             const row = await write.setTarget(setId, actor.companyId);
             if (!row || !target.safeParse(row.target_type).success)
@@ -81,8 +107,6 @@ export function createFrontPmsAttachments<Reply>(ports: {
             await setAllowed(row.set_id);
             if (action === 'status' && request.method === 'GET')
                 return reply(await write.attachmentLinkStatus(actor, id));
-            if (action === 'withdraw' && request.method === 'POST')
-                return reply(await write.withdrawAttachmentLink(actor, id, z.object({ reason: z.string().min(3).max(1000) }).parse(await request.json()).reason, key()));
             if (action === 'content' && request.method === 'GET') {
                 const variant = z.enum(['original', 'preview']).parse(query.get('variant') ?? 'original');
                 const result = await write.attachmentContent(actor, id, variant);

@@ -1,7 +1,7 @@
-import {supportTicketPortalEntry} from '@erpx/contracts/ticket-portal-entry';
-import {holdingHostForHost,parseHoldingRoute} from '@erpx/contracts/holding-hosts';
+import {supportTicketPortalEntry} from '@erpx/server-support/public/rules/ticket-portal-entry';
+import {holdingHostForHost,parseHoldingRoute,contributorExactOrigin} from '@erpx/contracts/holding-hosts';
 import { recordRoutes,recordBasePath,defaultRecordSection,type RecordKind } from "@erpx/feature-records/lib/record-route-definitions";
-import {talentHireSourceEntry,talentCandidatePrivacySourceEntry} from "@erpx/contracts/talent-product-entry";
+import {talentHireSourceEntry,talentCandidatePrivacySourceEntry} from "@erpx/server-talent/public/rules/product-entry";
 /** UI routes only. API resources and command contracts keep their owner paths. */
 export type Destination = {
   path: string;
@@ -83,6 +83,8 @@ for(const [source,path,label] of [['expenses','finance/documents/expenses','Empl
 add('finance/setup/expenses','finance/setup/expenses','Expense posting setup');
 views('finance/setup','finance/setup','step',[['checklist','Readiness'],['chart','Charts & accounts'],['profile','Company accounting policy'],['opening','Opening balances'],['books','Books & dimensions'],['tools','Company tools'],['policy','Go-live review'],['ai','AI preparation']]);
 add('pos','pos/approvals','Approvals',{tab:'history',queue:'approval'});
+add('pos','pos/receipts','Receipts',{tab:'history'});
+add('pos','pos/approvals/shifts','Cash shift reviews',{tab:'shifts',queue:'approval'});
 add('pos','pos/settings/startup','POS startup',{tab:'settings',setup:'startup'});
 add('pos','pos/settings/initial-stock','POS initial physical stock',{tab:'settings',setup:'initial-stock'});
 views('pos','pos','tab',[['reports','Reports'],['settings','Settings']]);
@@ -125,7 +127,7 @@ export function sourcePath(path:string) {
 }
 export function workspacePathParts(pathname:string,holdingSlug?:string|null) {
  if(!pathname.startsWith('/holdings/')&&holdingSlug!==null){
-  const holding=holdingSlug??(typeof window==='undefined'?undefined:holdingHostForHost(window.location.host)?.holdingSlug);
+  const holding=holdingSlug??(typeof window==='undefined'?undefined:holdingHostForHost(window.location.host,contributorExactOrigin(window.location.host,'contributor')===window.location.origin?'contributor':'public')?.holdingSlug);
   const route=holding?parseHoldingRoute(holding,pathname):null;
   if(route?.internalPath.startsWith('/holdings/'))return workspacePathParts(route.internalPath,null);
  }

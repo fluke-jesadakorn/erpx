@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Platform Administration native Holding migration-run command and Next operations ingress cutover implemented and PostgreSQL-qualified; the owner remains partial because the shared composition router assembly, native configuration and browser verification are outside this slice.",
+  "capability": "platform-administration-owner-closure-2",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "f3eb38eed",
+  "branch": "codex/rust-backend-migration",
+  "scope": {
+    "workflow": "platform_administration/feature-migration-runs",
+    "command": "Run the shipped Holding write migrations through the runtime locked runner, persist a Control receipt with actor, assignment, Holding, reason, applied counts, result and CAS version, and replay the retained result by idempotency key.",
+    "reads": "The owner operations snapshot continues to read each configured Holding migration state through inspect_migrations; no cross-Holding SQL or fallback was added.",
+    "ingress": "Owner-local POST /api/v1/platform/operations/migrate plus the existing operations read, provision and recover routes now delegate to the native Platform Administration transport. Every route fails closed with 503 when ERPX_NATIVE_PLATFORM_ADMIN_CONFIG is unset.",
+    "excluded": [
+      "src/composition router assembly (hard constraint)",
+      "connectors, projections/events and platform-audit workflows",
+      "backup and restore execution",
+      "browser verification"
+    ]
+  },
+  "files": [
+    "packages/server-platform_administration/src/domain/platform_operations.rs",
+    "packages/server-platform_administration/src/application/platform_operations.rs",
+    "packages/server-platform_administration/src/adapters/platform_postgres.rs",
+    "packages/server-platform_administration/src/adapters/platform_http.rs",
+    "packages/server-platform_administration/src/public/platform_operations.rs",
+    "packages/feature-platform_administration/src/adapters/server/native-platform-administration.ts",
+    "packages/feature-platform_administration/src/lib/native-platform-administration.ts",
+    "packages/feature-admin/src/routes/api/v1/platform/operations/route.ts",
+    "packages/feature-admin/src/routes/api/v1/platform/operations/provision/route.ts",
+    "packages/feature-admin/src/routes/api/v1/platform/operations/recover/route.ts",
+    "packages/feature-admin/src/routes/api/v1/platform/operations/migrate/route.ts",
+    "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs",
+    "tests/unit/platform_administration/native-platform-administration-transport.test.ts"
+  ],
+  "coverage": {
+    "domainAndApplication": "20 Rust lib tests passed. Six new cases cover migration authority/track/Holding identity, digest binding, replay of succeeded receipts, fail-closed running/failed/incomplete receipts, and no store call before validation.",
+    "postgres": [
+      "holding_migrations_run_once_with_control_receipt_and_holdings_isolation: applied_before=0, applied_after>0, pending empty, persisted result_json/version=2, replay returns the same result without a second row, changed reason returns IDEMPOTENCY_CONFLICT, auditor FORBIDDEN, invalid track VALIDATION_FAILED, unknown Holding NOT_FOUND, h002 stays unmigrated, and the operations snapshot reads the applied state back.",
+      "a_failed_holding_migration_is_retained_as_failed_without_a_success_result: an injected failing migration file leaves status=failed, result_json NULL, a bounded non-empty error, applied_after>0, version=2 and a MIGRATION_FAILED replay.",
+      "a_rolled_back_migration_finalize_never_claims_success: a Control trigger aborts the succeeded CAS update; the receipt remains running at version=1 with no result/error/finished_at, the command returns Unavailable and the replay returns MIGRATION_IN_PROGRESS.",
+      "actual_router_reads_and_provisions_over_postgres_with_target_and_key_negatives now posts the native migrate route and verifies 200 with appliedBefore==appliedAfter for an already-migrated Holding; the foreign-origin request remains 403."
+    ],
+    "http": "The owner router adds /api/v1/platform/operations/migrate with the same exact Host/Origin, Idempotency-Key, JSON content type, 64 KiB body limit and bounded business-error mapping. The request envelope carries holdingId separately from the recovery domain input so existing recovery receipt digests remain replayable.",
+    "nextTransport": "9 vitest cases passed. Two new cases cover the keyed migrate command path/origin/key/body and invalid applied counts, plus absence of ERPX_NATIVE_PLATFORM_ADMIN_CONFIG returning undefined (fail closed) and an invalid configuration rejecting.",
+    "typechecks": [
+      "packages/feature-platform_administration/tsconfig.json",
+      "packages/feature-admin/tsconfig.json",
+      "apps/admin/tsconfig.json",
+      "apps/compat/tsconfig.json",
+      "packages/workplace/tsconfig.json",
+      "tests/config/tsconfig.json"
+    ]
+  },
+  "checks": {
+    "cargoTestPlatformAdministration": {
+      "command": "ERPX_TEST_ADMIN_URL=<local .env.local> cargo test -p erpx-server-platform-administration --locked",
+      "result": "47 passed, 0 failed, 0 ignored",
+      "breakdown": "lib 20, agent evidence unit 10, agent evidence http 6, agent evidence postgres 3, legal release 2, platform administration postgres 6"
+    },
+    "cargoClippy": {
+      "command": "cargo clippy -p erpx-server-platform-administration --all-targets --locked --no-deps -- -D warnings",
+      "result": "pass",
+      "note": "A full --no-deps is required because concurrent uncommitted erpx-server-organization code currently fails clippy with four unrelated lints; this slice did not modify that owner."
+    },
+    "typescript": "Six affected tsconfig typechecks passed.",
+    "vitest": "tests/unit/platform_administration/native-platform-administration-transport.test.ts 9 passed; platform-administration-application.test.ts 18 passed.",
+    "structure": "blocked by concurrent uncommitted customer_360.rust-customer-timeline.unit catalogue verification input; no Platform Administration layout error was reported.",
+    "browser": "not run"
+  },
+  "sharedCompositionSchemaDelta": {
+    "composition": "none; the owner router and typed public ports are exported for the main agent to assemble in src/composition",
+    "schema": "none; the command reuses migrations/postgres/control/0015_platform_migration_runs.sql and its existing version/result/error columns"
+  },
+  "legacy": {
+    "removedFromRuntime": "The four Platform operations Next routes no longer import the retained TypeScript summarizePlatformOperations, provisionHolding, recoverDeadLetterJob or runHoldingMigrations implementations.",
+    "retained": "packages/server-platform_administration/src/adapters/operations.ts keeps the TypeScript implementations and the public platform-operations export for non-native integration tests and the executive presentation helper. Removal is gated on composition wiring and replacing those retained test/oracle consumers."
+  },
+  "limits": [
+    "The shared Rust composition backend is not wired because src/composition is outside this subagent's allowed scope. The Next routes therefore return 503 until ERPX_NATIVE_PLATFORM_ADMIN_CONFIG and a serving owner router exist.",
+    "No browser journey was run. The route cutover is typechecked and transport-tested only.",
+    "Migration execution is atomic per migration file, not atomic across the whole run. A failure records the persisted failed receipt with the actual applied count and a bounded error; earlier committed files are not rolled back.",
+    "No schema change was made; the existing platform_migration_runs row is the durable audit/receipt record. The Control database has no outbox table and the command does not invent cross-owner Holding audit writes.",
+    "The feature-admin routes consume the existing @erpx/feature-platform_administration public lib subpath. No package manifest or lockfile was changed because dependency updates are prohibited in this slice; Bun workspace resolution and all affected typechecks pass.",
+    "No workflow is marked verified or merged; docs/status was intentionally not edited."
+  ],
+  "next": "Assemble platform_router with the real Account session/Platform assignment/Holding resolver in src/composition, provide ERPX_NATIVE_PLATFORM_ADMIN_CONFIG, then run the authorized browser journey and update the owner register/acceptance evidence."
+}

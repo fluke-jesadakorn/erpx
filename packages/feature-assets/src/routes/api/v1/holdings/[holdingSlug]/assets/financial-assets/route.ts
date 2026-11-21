@@ -1,3 +1,12 @@
+/**
+ * Finance-owned Assets accounting seam.
+ *
+ * This handler is exposed under the Assets application for the separate
+ * /assets/accounting page. The catalogue asset-register workflow uses the
+ * native `/assets` command route and never calls this handler. Owner:
+ * packages/server-finance; accounting/disposal commands are not part of the
+ * Assets account-register owner unit.
+ */
 import {z} from 'zod';
 import {requireWorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assetsFinancialWorkspace,createAssetsFinancialAsset,assetsFinancialCreateSchema} from '@erpx/server-finance/public/assets-financial-workflow';

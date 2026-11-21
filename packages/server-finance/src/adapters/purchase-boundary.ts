@@ -14,6 +14,7 @@ import type { CapabilityPurpose } from "@erpx/server-commercial/public/rules/pac
 import type { FinancePurchaseControls } from "@erpx/server-finance/domain/purchase-controls";
 import { flushFinanceDeferredEffects } from "@erpx/server-finance/adapters/finance-transactions";
 import {inFinanceSignatureParent,isFinanceSignatureOperation,requireFinanceSignatureParent} from '@erpx/server-finance/adapters/tax-signature-read-parent';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 type CompanyPurchase = { companyId: string; capability: string; purpose: CapabilityPurpose };
 type Command = { key: string; operation: string; purpose: CapabilityPurpose; capability?: string; sharedConfiguration?: boolean; alternativeCapabilities?: readonly string[];
@@ -27,7 +28,7 @@ export async function requireFinanceCurrentAuthority(database: SqlDatabase, acto
     AND valid_from<=? AND valid_until>? AND revoked_at IS NULL AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) FOR SHARE`)
     .bind(actor.assignmentId, actor.userId, actor.role, actor.companyId, Date.now(), Date.now(), actor.branchId, actor.branchId).first();
   if (!row) throw new ApiError(403, "FINANCE_ACCESS_CHANGED", "Choose a current Finance assignment.");
-  await database.batch([...workContextGuards(database, actor, key), ...iamMutationGuards(database, actor, key), database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+  await database.batch([...workContextGuards(database, actor, key), ...iamMutationGuards(database, actor, key), clearWorkflowCommandAssertions(database,key)]);
 }
 export async function requireFinancePurchasedRead(database: SqlDatabase, actor: WorkContext, capability = "finance.accounting") {
   const mode = await financePackageEnforcementMode();
@@ -123,7 +124,7 @@ export async function withFinancePurchasedCommand<Result>(actor: WorkContext, co
       const result = await run(transaction);
       await flushFinanceDeferredEffects(transaction);
       await requireFinanceCurrentAuthority(transaction, actor, key);
-      const observed = await transaction.batch(boundaries.flatMap(item => [...item.boundary.after, transaction.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));
+      const observed = await transaction.batch(boundaries.flatMap(item => [...item.boundary.after, clearWorkflowCommandAssertions(transaction,item.key)]));
       boundaries[0]?.boundary.observe?.(observed);
       return result;
     };

@@ -1,5 +1,7 @@
 import { forbidden, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { iamPresentationQueries } from "@erpx/server-identity_access/public/presentation-context-queries";
+import { nativeOrganizationAccessPage } from "@erpx/feature-organization/lib/native-organization";
 import { StandardOrganizationAccessWorkspace } from "@erpx/feature-identity_access/components/technology/standard-organization-access-workspace";
 import { TechnologySectionWorkspace } from "@erpx/feature-identity_access/components/technology/section-workspace";
 import { PageHeader } from "@erpx/ui/components/primitives";
@@ -22,7 +24,7 @@ export default async function TechnologyPage(props: TechnologyPageProps) {
   return TechnologyContent(props).catch(error => pageError(error, holdingSlug));
 }
 async function TechnologyContent({params, searchParams}: TechnologyPageProps) {
-  const { holdingSlug } = await params, query = await searchParams;
+  const { holdingSlug } = await params, query = await searchParams, incoming = await headers();
   const local = await requireWorkContext(holdingSlug), scope = publicScope(local), base = workspaceBase(scope);
   if (query.view === "directory" && !query.section && !query.object && ["position","person","employee","department","branch","level"].some(key => query[key])) redirect(technologyHref(base, query, "organization"));
   if (query.view === "attributes") redirect(technologyHref(base, query, "settings", "attributes"));
@@ -33,7 +35,7 @@ async function TechnologyContent({params, searchParams}: TechnologyPageProps) {
   if (view === "directory" && !canReadDirectory || view !== "organization" && !hasPermission(actor,"iam.read")) forbidden();
     if (view === "organization") {
       const [organization, lifecycle, automation, technology, gpoRules] = await Promise.all([
-        queries.organizationAccessData(local), queries.peopleLifecycleData(local),
+        nativeOrganizationAccessPage(local,holdingSlug,incoming,()=>queries.organizationAccessData(local)), queries.peopleLifecycleData(local),
         canReadDirectory ? queries.directoryAutomationData(actor) : Promise.resolve({ cases: [], connections: [], jobs: [], canApply: false, canManage: false, canReview: false }),
         canReadDirectory ? queries.technologyData(actor) : Promise.resolve({ applications: [], operations: [] }),
         queries.gpoRulesOverview(local),

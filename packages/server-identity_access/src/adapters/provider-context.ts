@@ -9,7 +9,7 @@ import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin
 import {runtimeEnv} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
-import {sessionFromRequest} from '@erpx/server-identity_access/adapters/auth';
+import {sessionFromRequest} from '@erpx/server-identity_access/public/account-session';
 import {currentSession} from '@erpx/server-identity_access/adapters/authorization';
 import {cookieValue} from '@erpx/server-identity_access/domain/authorization';
 import {providerContextStore} from '@erpx/server-identity_access/adapters/provider-context-store';

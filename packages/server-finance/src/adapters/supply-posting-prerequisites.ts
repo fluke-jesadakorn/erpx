@@ -18,6 +18,7 @@ import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import type {SupplyPostingPrerequisitesView} from '@erpx/server-finance/domain/supply-posting-prerequisites';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Kind='chart'|'account'|'period'|'rate';
 const operations={chart:'finance.chart.create',account:'finance.account.create',period:'finance.period.create',rate:'money.rate.confirm'} as const;
@@ -109,6 +110,6 @@ export async function withSupplyPostingPrerequisiteCommand<Result extends {id:st
   await flushFinanceDeferredEffects(database);const final=await authority(database,actor,permission),after=await references(database,actor),finalState=await commercePostingPrerequisiteState(database,actor.companyId);
   if(authorityImage(current)!==authorityImage(final))throw new ApiError(409,'COMMERCE_POSTING_CONTEXT_CHANGED','The selected Finance authority changed before prerequisite completion.');
   if(image(created)!==image(after)||JSON.stringify(state)!==JSON.stringify(finalState))throw new ApiError(409,'COMMERCE_POSTING_SOURCE_CHANGED','The original posting references changed before prerequisite completion.');
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));return result;
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database,item.key)]));return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

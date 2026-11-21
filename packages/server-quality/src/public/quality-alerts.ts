@@ -1,1 +1,1 @@
-export {drainQualityAlerts,qualityAlerts,getQualityAlert,acknowledgeQualityAlert,qualityAlertWork} from '@erpx/server-quality/adapters/alerts';
+export {qualityAlerts,getQualityAlert,qualityAlertWork} from '@erpx/server-quality/adapters/alerts';

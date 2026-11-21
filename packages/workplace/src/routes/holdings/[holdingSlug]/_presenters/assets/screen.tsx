@@ -9,9 +9,9 @@ import {StatusBadge} from "@erpx/ui/components/primitives";
 import {AssetConsole,MaintenanceConsole} from "@erpx/feature-assets/components/asset-maintenance-console";
 import {MaintenancePreventiveConsole} from "@erpx/feature-maintenance/components/maintenance-preventive-console";
 import {requireWorkContext,publicScope} from "@erpx/server-identity_access/public/authorization";
-import {assetWorkspace} from "@erpx/server-assets/public/asset-maintenance";
-import {maintenanceWorkspace} from "@erpx/server-maintenance/public/asset-maintenance";
-import {preventivePlans} from "@erpx/server-maintenance/public/maintenance-preventive";
+import {ownedAssetWorkspace} from "@erpx/feature-assets/public/native-assets";
+import {ApiError} from "@erpx/server-runtime/public/http";
+import {ownedMaintenancePlans,ownedMaintenanceWorkspace} from "@erpx/feature-assets/public/native-assets";
 import {pageError} from "@erpx/server-work_projection/public/page-error";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
@@ -23,9 +23,9 @@ export default async function Assets({params,searchParams}:{params:Promise<{hold
  const canRead=hasPermission(actor,'records.read'),topics=assetTopicsFor(actor.modules,canRead);
  const view=typeof query.view==='string'?query.view:topics[0]?.id;
  if(!view||!topics.some(topic=>topic.id===view)){if(view&&!sectionWorkspaceTopics.assets.some(topic=>topic.id===view))notFound();forbidden();}
- const assetData=view==='register'?await assetWorkspace(actor).catch(error=>pageError(error,holdingSlug)):null;
- const workData=view!=='register'?await maintenanceWorkspace(actor).catch(error=>pageError(error,holdingSlug)):null;
- const plans=view==='plans'?await preventivePlans(actor).catch(error=>pageError(error,holdingSlug)):[];
+ const assetData=view==='register'?await ownedAssetWorkspace(actor,holdingSlug).then(data=>{if(!data)throw new ApiError(503,'NATIVE_ASSETS_UNAVAILABLE','The native Assets reader is unavailable.');return data;}).catch(error=>pageError(error,holdingSlug)):null;
+ const workData=view!=='register'?await ownedMaintenanceWorkspace(actor,holdingSlug).then(data=>{if(!data)throw new ApiError(503,'NATIVE_MAINTENANCE_UNAVAILABLE','The native Maintenance reader is unavailable.');return data;}).catch(error=>pageError(error,holdingSlug)):null;
+ const plans=view==='plans'?await ownedMaintenancePlans(actor,holdingSlug).then(data=>{if(!data)throw new ApiError(503,'NATIVE_MAINTENANCE_UNAVAILABLE','The native Maintenance reader is unavailable.');return data;}).catch(error=>pageError(error,holdingSlug)):[];
  const term=typeof query.q==='string'?query.q.toLocaleLowerCase():'',unit=typeof query.unit==='string'?query.unit:null,category=typeof query.category==='string'?query.category:null,status=typeof query.status==='string'?query.status:null;
  const scopeNodes=(assetData?.nodes??workData?.nodes??[]).filter(node=>(!actor.branchId||node.id===actor.branchId||node.branch_id===actor.branchId)&&(!actor.departmentId||node.id===actor.departmentId));
  const nodeIds=new Set(unit?[unit]:[]);let growing=true;while(growing){growing=false;for(const node of scopeNodes){if(node.branch_id&&nodeIds.has(String(node.branch_id))&&!nodeIds.has(String(node.id))){nodeIds.add(String(node.id));growing=true;}}}

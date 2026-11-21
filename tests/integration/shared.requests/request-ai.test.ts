@@ -15,14 +15,12 @@ import {
   drainRequestAi,
 } from "@erpx/server-records/public/request-ai";
 import {
-  activateAiConnection,
-  aiConnectionSchema,
-  saveAiConnection,
-  selectAiProviders,
-  testAiConnection,
-  aiSelectionSchema,
-  disableAiConnection,
+  aiSnapshotGuard,
+  aiUsageStatement,
+  type AiProviderSnapshot,
+  resolveAiProvider,
 } from "@erpx/server-agent/public/ai-providers";
+import { seedAiProvider, seedAiSelection } from "../agent/ai-provider-seed";
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -54,36 +52,12 @@ beforeEach(async () => {
   generate.mockClear();
 });
 async function provider() {
-  const c = await saveAiConnection(
-    db,
-    f.it,
-    aiEnv,
-    null,
-    aiConnectionSchema.parse({
-      name: "Service suggestions",
-      baseUrl: "https://opencode.ai/zen/v1",
-      apiKey: "synthetic-private-key",
-      textModel: "gpt-5.6-luna",
-    }),
-    key(),
-  );
-  await testAiConnection(db, f.it, aiEnv, c.id, 1, key(), async () => ({
-    result: { ok: true },
-    inputTokens: 5,
-    outputTokens: 2,
-  }));
-  await activateAiConnection(db, f.it, c.id, 2, key());
-  await selectAiProviders(
-    db,
-    f.it,
-    aiSelectionSchema.parse({
-      expectedVersion: 0,
-      mode: "custom",
-      textConnectionId: c.id,
-    }),
-    key(),
-  );
-  return c;
+  return seedAiProvider(db, aiEnv, f.it, {
+    name: "Service suggestions",
+    baseUrl: "https://opencode.ai/zen/v1",
+    apiKey: "synthetic-private-key",
+    textModel: "gpt-5.6-luna",
+  });
 }
 async function request() {
   return saveEmployeeRequest(
@@ -207,8 +181,8 @@ it("deduplicates queued preparation, records usage and never transitions or over
   expect(JSON.stringify(stored)).not.toContain("synthetic-private-key");
 });
 it("rejects stale preparation after human changes and after provider revisions change", async () => {
-  const c = await provider(),
-    r = await request(),
+  await provider();
+  const r = await request(),
     queued = await queue(r.id);
   await runRequestAi(db, aiEnv, queued.proposalId, async () => {
     await db
@@ -226,13 +200,7 @@ it("rejects stale preparation after human changes and after provider revisions c
     "Human correction",
   );
   const fresh = await queue(r.id, 2);
-  await disableAiConnection(
-    db,
-    f.it,
-    c.id,
-    { expectedVersion: 3, disableUses: true, remove: false },
-    key(),
-  );
+  await seedAiSelection(db, f.it, { mode: "disabled", version: 2 });
   await runRequestAi(db, aiEnv, fresh.proposalId, generate);
   expect(generate).not.toHaveBeenCalled();
   expect(

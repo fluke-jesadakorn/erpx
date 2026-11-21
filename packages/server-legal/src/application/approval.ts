@@ -11,8 +11,8 @@ contractDocument(facts:{documentId:string;itemId:string;}):Promise<DocumentVersi
 executedDocument(facts:{id:string;}):Promise<Record<string, unknown> | null>;
 latestAuthor(facts:{itemId:string;}):Promise<{ actor_id: string; } | null>;
 signerAccess(facts:{itemId:string;u:string;itemId2:string;id:string;u2:string;now:number;}):Promise<Record<string, unknown> | null>;
-lockDocument(facts:{id:string;}):LegalWrite;
-retainRoute(facts:{itemId:string;instanceId:string;id:string;checksum:string;signerIdsJson:string;nextVersion:number;actorId:string;sourceHash:string;}):LegalWrite;
+lockDocument(facts:{id:string;}):Promise<LegalWrite>;
+retainRoute(facts:{itemId:string;instanceId:string;id:string;checksum:string;signerIdsJson:string;nextVersion:number;actorId:string;sourceHash:string;}):Promise<LegalWrite>;
 currentStep(facts:{instanceId:string;currentStep:number;}):Promise<ApprovalStep | null>;
 routeSnapshot(facts:{itemId:string;instanceId:string;}):Promise<{ document_id: string; document_hash: string; signers: string; source_hash: string; } | null>;
 documentAuthor(facts:{document_id:string;}):Promise<{ created_by: string; } | null>;
@@ -24,10 +24,10 @@ recordDecision(facts:{key:string;instanceId:string;id:string;decision:"approve" 
 nextReviewer(facts:{instanceId:string;nextStep:number;}):Promise<{ approver_user_id: string; } | null>;
 cancelRoute(facts:{value0:"rejected" | "cancelled";now:number;instanceId:string;}):LegalWrite;
 advanceStep(facts:{now:number;instanceId:string;}):LegalWrite;
-notifyReviewer(facts:{identifier:string;companyId:string;approver_user_id:string;itemId:string;nextVersion:number;now:number;}):LegalWrite;
+notifyReviewer(facts:{identifier:string;companyId:string;approver_user_id:string;itemId:string;nextVersion:number;now:number;}):Promise<LegalWrite>;
 approveRoute(facts:{now:number;instanceId:string;}):LegalWrite;
-recordApproval(facts:{itemId:string;nextVersion:number;document_id:string;document_hash:string;signerIdsJson:string;actorId:string;now:number;}):LegalWrite;
-advanceContract(facts:{state:string;now:number;itemId:string;}):LegalWrite;
+recordApproval(facts:{itemId:string;nextVersion:number;document_id:string;document_hash:string;signerIdsJson:string;actorId:string;now:number;}):Promise<LegalWrite>;
+advanceContract(facts:{state:string;now:number;itemId:string;}):Promise<LegalWrite>;
 reviewerMembership(facts:{company_id:string;itemId:string;id:string;now:number;now2:number;}):Promise<Record<string, unknown> | null>;
 sameAuthor(facts:{user:string;author:string;company:string;}):Promise<Record<string, unknown> | null>;
 requireReviewerMembership(key:string,reviewerId:string,itemId:string):LegalWrite;
@@ -38,7 +38,7 @@ currentApproval(id:string,companyId:string):Promise<ApprovalInstance|null>;
 openApproval(key:string,recordType:"legal",id:string,policyKey:"request",requesterId:string,subjectId:string|null,route:{scope:{company_id:string;branch_id:string|null;department_id:string|null};steps:{userId:string;authority:"named";snapshot:{documentId:string;checksum:string;signers:string[]}}[];blockedReason:null},version:number):Promise<{instanceId:string;statements:LegalWrite[]}>;
 guardChanges(id:string,version:number,key:string,edit?:boolean):LegalWrite[];
 personGuard(key:string,userId:string,scope:LegalItem,permission:string):LegalWrite;
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay(key:string,operation:string,id:string,input:unknown):Promise<Record<string,unknown>|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -151,8 +151,8 @@ async function legalApprovalCommand(
     const after = { ...item, state: "approval" };
     steps.push(
       ...opened.statements,
-      ports.repository.lockDocument({id:d.id}),
-      ports.repository.retainRoute({itemId:item.id,instanceId:opened.instanceId,id:d.id,checksum:d.checksum,signerIdsJson:JSON.stringify(p.signerIds),nextVersion:item.version + 1,actorId:a.userId,sourceHash:approvalDigest(after, d.id, d.checksum, p.signerIds)}),
+      await ports.repository.lockDocument({id:d.id}),
+      await ports.repository.retainRoute({itemId:item.id,instanceId:opened.instanceId,id:d.id,checksum:d.checksum,signerIdsJson:JSON.stringify(p.signerIds),nextVersion:item.version + 1,actorId:a.userId,sourceHash:approvalDigest(after, d.id, d.checksum, p.signerIds)}),
     );
     state = "approval";
   } else {
@@ -193,9 +193,9 @@ async function legalApprovalCommand(
       )
         fail("The replacement must be independent.");
       steps.push(
-        ports.repository.advanceRoute({now:ports.clock.now(),instanceId:instance.id}),
-        ports.repository.replaceReviewer({approverId:p.approverId,id:current.id}),
-        ports.repository.recordReroute({key:key,instanceId:instance.id,id:current.id,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),approver_user_id:current.approver_user_id,approverId:p.approverId}),
+        await ports.repository.advanceRoute({now:ports.clock.now(),instanceId:instance.id}),
+        await ports.repository.replaceReviewer({approverId:p.approverId,id:current.id}),
+        await ports.repository.recordReroute({key:key,instanceId:instance.id,id:current.id,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),approver_user_id:current.approver_user_id,approverId:p.approverId}),
       );
     } else {
       const decision = z
@@ -219,8 +219,8 @@ async function legalApprovalCommand(
           403,
         );
       steps.push(
-        ports.repository.decideStep({value0:decision === "approve" ? "approved" : "rejected",id:current.id}),
-        ports.repository.recordDecision({key:key,instanceId:instance.id,id:current.id,decision:decision,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),value9:JSON.stringify({
+        await ports.repository.decideStep({value0:decision === "approve" ? "approved" : "rejected",id:current.id}),
+        await ports.repository.recordDecision({key:key,instanceId:instance.id,id:current.id,decision:decision,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),value9:JSON.stringify({
               role: a.role,
               assignmentId: a.assignmentId,
               documentId: route.document_id,
@@ -231,25 +231,25 @@ async function legalApprovalCommand(
       if (decision !== "approve") {
         state = decision === "revise" ? "draft" : "rejected";
         steps.push(
-          ports.repository.cancelRoute({value0:decision === "revise" ? "cancelled" : "rejected",now:ports.clock.now(),instanceId:instance.id}),
+          await ports.repository.cancelRoute({value0:decision === "revise" ? "cancelled" : "rejected",now:ports.clock.now(),instanceId:instance.id}),
         );
       } else if (next) {
         steps.push(
-          ports.repository.advanceStep({now:ports.clock.now(),instanceId:instance.id}),
-          ports.repository.notifyReviewer({identifier:ports.identifiers.next(),companyId:a.companyId,approver_user_id:next.approver_user_id,itemId:item.id,nextVersion:item.version + 1,now:ports.clock.now()}),
+          await ports.repository.advanceStep({now:ports.clock.now(),instanceId:instance.id}),
+          await ports.repository.notifyReviewer({identifier:ports.identifiers.next(),companyId:a.companyId,approver_user_id:next.approver_user_id,itemId:item.id,nextVersion:item.version + 1,now:ports.clock.now()}),
         );
       } else {
         state = "approved";
         steps.push(
-          ports.repository.approveRoute({now:ports.clock.now(),instanceId:instance.id}),
-          ports.repository.recordApproval({itemId:item.id,nextVersion:item.version + 1,document_id:route.document_id,document_hash:route.document_hash,signerIdsJson:JSON.stringify(signers),actorId:a.userId,now:ports.clock.now()}),
+          await ports.repository.approveRoute({now:ports.clock.now(),instanceId:instance.id}),
+          await ports.repository.recordApproval({itemId:item.id,nextVersion:item.version + 1,document_id:route.document_id,document_hash:route.document_hash,signerIdsJson:JSON.stringify(signers),actorId:a.userId,now:ports.clock.now()}),
         );
       }
     }
   }
   steps.push(
-    ports.repository.advanceContract({state:state,now:ports.clock.now(),itemId:item.id}),
-    ports.repository.event(item.id,x.action,x.reason,item.version + 1,ports.identifiers.next(),ports.clock.now()),
+    await ports.repository.advanceContract({state:state,now:ports.clock.now(),itemId:item.id}),
+    await ports.repository.event(item.id,x.action,x.reason,item.version + 1,ports.identifiers.next(),ports.clock.now()),
   );
   return ports.repository.commit(key,x.action,raw,item.id,item.version + 1,{ id: item.id, version: item.version + 1, state },steps);
 }

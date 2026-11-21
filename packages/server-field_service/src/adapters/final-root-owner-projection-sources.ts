@@ -1,5 +1,11 @@
 import "server-only";
-/** Closed native projections for Legal, Asset, Maintenance and Customer joins. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller. */
+/** Closed native projections for Legal, Asset, Maintenance and Customer joins. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller.
+ *
+ * Retained shared consumer: Customer 360 timeline and Customer Authority
+ * duplicate review still compose their joins from these owner-owned Field
+ * source statements. Removal condition: move both consumer owners to their
+ * own owner public interfaces or native composition; do not delete these
+ * statements while a persisted/history read still references them. */
 export const finalRootOwnerProjectionSources = {
   field_service_agreement_events: "SELECT \"id\",\"agreement_id\",\"version\",\"action\",\"actor_id\",\"reason\",\"status\",\"created_at\" FROM field_service_agreement_events",
   field_service_agreements: "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"customer_id\",\"asset_id\",\"title\",\"start_date\",\"end_date\",\"currency\",\"visit_rate_minor\",\"status\",\"created_by\",\"reviewed_by\",\"reviewed_at\",\"version\",\"created_at\",\"updated_at\",\"warranty_discount_bps\" FROM field_service_agreements",

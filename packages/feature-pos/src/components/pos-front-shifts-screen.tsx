@@ -118,7 +118,7 @@ function Button({
   );
 }
 export function FrontPosDailyShiftsScreen({context}: {context: FrontPosDailyContext}) {
-  const {tr, can, openingDraft, send, activeRegisterId, setOpeningDraft, data, busy, online, money, language, approvalHref} = context;
+  const {tr, can, openingDraft, send, activeRegisterId, setOpeningDraft, data, busy, online, money, language, shiftApprovalHref} = context;
   return <FrontLocalizedTree>{(
               <section className={styles.panel}>
                 <h2>{tr("Cash shifts")}</h2>
@@ -256,7 +256,7 @@ export function FrontPosDailyShiftsScreen({context}: {context: FrontPosDailyCont
                       <UiActionLink
                         variant="primary"
                         className={styles.button}
-                        href={approvalHref.replace("tab=history", "tab=shifts")}
+                        href={shiftApprovalHref}
                       >
                         {tr("Review in ERPX")}
                       </UiActionLink>
@@ -276,7 +276,7 @@ export function FrontPosDailyShiftsScreen({context}: {context: FrontPosDailyCont
                               <UiActionLink
                                 variant="secondary"
                                 className={`${styles.button} ${styles.secondary}`}
-                                href={approvalHref.replace("tab=history", "tab=shifts")}
+                                href={shiftApprovalHref}
                               >
                                 {tr("Review in ERPX")}
                               </UiActionLink>

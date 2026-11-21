@@ -18,7 +18,7 @@ function snapshot(value: unknown): value is ManagementSnapshot {
 }
 function workOwner() {
   const node = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]");
-  return node ? JSON.stringify([node.dataset.workUser, node.dataset.workCompany, node.dataset.workAssignment]) : "server";
+  return node ? JSON.stringify([node.dataset.workUser, node.dataset.workCompany, node.dataset.workAssignment,node.dataset.workAssignmentVersion]) : "server";
 }
 function changed() { return Object.assign(Error("Your current account, role or management source changed. Recover the original request after reviewing this owner; your newer draft is retained."), {code: "WORK_CONTEXT_CHANGED"}); }
 function completionUnchanged(completion?: WorkCommandCompletion) { return !completion || completion.form.isConnected && completion.form.getAttribute("data-erpx-edit-version") === completion.formEditVersion; }

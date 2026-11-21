@@ -1,4 +1,5 @@
 import "server-only";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
@@ -27,7 +28,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  (SELECT ?::text company_id,?::text branch_id,?::text department_id) learning_scope`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"LEARNING_ACCESS_CHANGED","Choose a current Learning assignment.");
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 export async function learningPurchaseControls(database:SqlDatabase,actor:WorkContext):Promise<LearningPurchaseControls|undefined>{
  const mode=await learningPackageEnforcementMode();if(mode==="disabled")return undefined;
@@ -103,7 +104,7 @@ export async function withLearningPurchasedCommand<Result>(owner:SqlDatabase,act
   const final=await image(database,actor,command.target);
   if(JSON.stringify(actor)!==context||JSON.stringify(expected)!==JSON.stringify(final)||command.sourceWitness&&witness!==await command.sourceWitness(database)||command.readOnlySourceWitness&&readOnlyWitness!==await command.readOnlySourceWitness(database))throw new ApiError(409,"LEARNING_SOURCE_CHANGED","The Learning source changed after its owner effects.");
   await current(database,actor,key,"records.write");if(permission!=="records.write")await current(database,actor,key,permission);
-  const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));
+  const observations=await database.batch((await Promise.all(boundaries.map(async item=>[...item.boundary.after, await nativeClearCommandAssertions(database, actor.companyId, item.key)]))).flat());
   boundaries[0]?.boundary.observe?.(observations);return result;
   }finally{commands.delete(database);}
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}

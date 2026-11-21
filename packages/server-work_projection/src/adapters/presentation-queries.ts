@@ -22,7 +22,7 @@ export async function workProjectionPresentationQueries(holdingId: string) {
     calendarAccounts: (...args: ReadArguments<typeof messagingPeople>) => messagingPeople(write, ...args),
     activeCompanySlug: (...args: ReadArguments<typeof activeCompanySlug>) => activeCompanySlug(write, ...args),
     activeCompanyIdentity: (...args: ReadArguments<typeof activeCompanyIdentity>) => activeCompanyIdentity(write, ...args),
-    resolveWorkspaceBrand: (...args: ReadArguments<typeof resolveWorkspaceBrand>) => resolveWorkspaceBrand(write, ...args),
+    resolveWorkspaceBrand: (...args: Parameters<typeof resolveWorkspaceBrand>) => resolveWorkspaceBrand(...args),
     getWorkCapabilities: (...args: ReadArguments<typeof getWorkCapabilities>) => getWorkCapabilities(write, ...args),
     executiveVisible: (...args: ReadArguments<typeof executiveVisible>) => executiveVisible(write, ...args),
     activeCompanyName: (...args: ReadArguments<typeof activeCompanyName>) => activeCompanyName(write, ...args),

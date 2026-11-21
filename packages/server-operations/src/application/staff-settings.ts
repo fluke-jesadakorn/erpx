@@ -19,10 +19,10 @@ readStaffSettingsLevelspeopledepartmentscanManage(companyId:string):Promise<{res
 readSaveLevelPrevious(id:string,companyId:string):Promise<{level_number:number|null}|null>;
 readSaveLevelEffect(id:string,id2:string):Promise<Record<string,unknown>|null>;
 guard5(key:string,value:"level-version",id:string,companyId:string,expectedVersion:number):Effect;
-stageSaveLevelEffect(code:string,name:string,rank:number,value:0 | 1,value2:number | null,now:number,id:string):Effect;
-stageSaveLevelEffect2(recordId:string,companyId:string,code:string,name:string,rank:number,value:0 | 1,value2:number | null,now:number,now2:number):Effect;
+stageSaveLevelEffect(code:string,name:string,rank:number,value:0 | 1,value2:number | null,now:number,id:string):Promise<Effect> | Effect;
+stageSaveLevelEffect2(recordId:string,companyId:string,code:string,name:string,rank:number,value:0 | 1,value2:number | null,now:number,now2:number):Promise<Effect> | Effect;
 guard8(key:string,value:"level-active",levelId:string,companyId:string):Effect;
-stageLevelChangeStatementsEffect(value:string,engagementId:string,previous:string | null,levelId:string,userId:string,reason:string,key:string,now:number):Effect;
+stageLevelChangeStatementsEffect(value:string,engagementId:string,previous:string | null,levelId:string,userId:string,reason:string,key:string,now:number):Promise<Effect> | Effect;
 readAssignLevelEngagement(id:string,companyId:string):Promise<{
       person_id:string;position_id:string|null;manager_person_id:string|null;status:string;
       level_id: string | null;
@@ -32,11 +32,11 @@ readAssignLevelEngagement(id:string,companyId:string):Promise<{
       department_id: string | null;
     }|null>;
 guard11(key:string,value:"engagement-version",id:string,companyId:string,expectedVersion:number):Effect;
-stageAssignLevelEffect(levelId:string,now:number,id:string):Effect;
+stageAssignLevelEffect(levelId:string,now:number,id:string,companyId:string):Promise<Effect>;
 readSetDepartmentHeadDepartment(id:string,companyId:string):Promise<{ branch_id: string | null }|null>;
 guard14(key:string,value:"department",id:string,companyId:string):Effect;
 guard15(key:string,value:"head-version",expectedVersion:number,id:string,id2:string,expectedVersion2:number):Effect;
-stageSetDepartmentHeadEffect(id:string,companyId:string,personId:string,value:number,userId:string,now:number):Effect;}export interface StaffSettingsPorts<Effect>{repository:StaffSettingsRepository<Effect>;clock:Clock;identifiers:IdentifierSource;commands:OperationsCommands<Effect>;prepare(holdingId:string):Promise<void>;production:boolean;batch(effects:Effect[]):Promise<unknown>;policyRead<Result>(key:string,read:()=>Promise<Result>):Promise<Result>;policyNow():number;organizationGuard(...args:Tail<Parameters<typeof organizationGuard>>):PortResult<ReturnType<typeof organizationGuard>,Effect>;validateStaffOrganization(...args:Tail<Parameters<typeof validateStaffOrganization>>) :PortResult<ReturnType<typeof validateStaffOrganization>,Effect>;recommendationStatements(...args:Tail<Parameters<typeof recommendationStatements>>) :PortResult<ReturnType<typeof recommendationStatements>,Effect>;activeStaff(...args:Tail<Parameters<typeof activeStaff>>):PortResult<ReturnType<typeof activeStaff>,Effect>;authorityGuard(...args:Tail<Parameters<typeof authorityGuard>>):PortResult<ReturnType<typeof authorityGuard>,Effect>;companyAuthority(...args:Tail<Parameters<typeof companyAuthority>>):PortResult<ReturnType<typeof companyAuthority>,Effect>;requireCompanyAuthority(...args:Tail<Parameters<typeof requireCompanyAuthority>>):PortResult<ReturnType<typeof requireCompanyAuthority>,Effect>;staffPeople(...args:Tail<Parameters<typeof staffPeople>>):PortResult<ReturnType<typeof staffPeople>,Effect>;staffGuard(...args:Tail<Parameters<typeof staffGuard>>):PortResult<ReturnType<typeof staffGuard>,Effect>;}export function createStaffSettingsApplication<Effect>(ports:StaffSettingsPorts<Effect>){const r=ports.repository;async function listLevels(companyId: string) {
+stageSetDepartmentHeadEffect(id:string,companyId:string,personId:string,value:number,userId:string,now:number):Promise<Effect> | Effect;}export interface StaffSettingsPorts<Effect>{repository:StaffSettingsRepository<Effect>;clock:Clock;identifiers:IdentifierSource;commands:OperationsCommands<Effect>;prepare(holdingId:string):Promise<void>;production:boolean;batch(effects:Effect[]):Promise<unknown>;policyRead<Result>(key:string,read:()=>Promise<Result>):Promise<Result>;policyNow():number;organizationGuard(...args:Tail<Parameters<typeof organizationGuard>>):PortResult<ReturnType<typeof organizationGuard>,Effect>;validateStaffOrganization(...args:Tail<Parameters<typeof validateStaffOrganization>>) :PortResult<ReturnType<typeof validateStaffOrganization>,Effect>;recommendationStatements(...args:Tail<Parameters<typeof recommendationStatements>>) :PortResult<ReturnType<typeof recommendationStatements>,Effect>;activeStaff(...args:Tail<Parameters<typeof activeStaff>>):PortResult<ReturnType<typeof activeStaff>,Effect>;authorityGuard(...args:Tail<Parameters<typeof authorityGuard>>):PortResult<ReturnType<typeof authorityGuard>,Effect>;companyAuthority(...args:Tail<Parameters<typeof companyAuthority>>):PortResult<ReturnType<typeof companyAuthority>,Effect>;requireCompanyAuthority(...args:Tail<Parameters<typeof requireCompanyAuthority>>):PortResult<ReturnType<typeof requireCompanyAuthority>,Effect>;staffPeople(...args:Tail<Parameters<typeof staffPeople>>):PortResult<ReturnType<typeof staffPeople>,Effect>;staffGuard(...args:Tail<Parameters<typeof staffGuard>>):PortResult<ReturnType<typeof staffGuard>,Effect>;}export function createStaffSettingsApplication<Effect>(ports:StaffSettingsPorts<Effect>){const r=ports.repository;async function listLevels(companyId: string) {
   return (
     await r.readListLevelsEffect(companyId)
   ).results;
@@ -83,13 +83,13 @@ async function saveLevel(
           ]
         : []),
       id
-        ? r.stageSaveLevelEffect(input.code,input.name,input.rank,input.active ? 1 : 0,input.levelNumber ?? null,now,id)
-        : r.stageSaveLevelEffect2(recordId,actor.companyId,input.code,input.name,input.rank,input.active ? 1 : 0,input.levelNumber ?? null,now,now),
+        ? await r.stageSaveLevelEffect(input.code,input.name,input.rank,input.active ? 1 : 0,input.levelNumber ?? null,now,id)
+        : await r.stageSaveLevelEffect2(recordId,actor.companyId,input.code,input.name,input.rank,input.active ? 1 : 0,input.levelNumber ?? null,now,now),
     ],
     { companyId: actor.companyId, branchId: null, departmentId: null },
   );
 }
-function levelChangeStatements(
+async function levelChangeStatements(
   key: string,
   actor: StaffActor,
   engagementId: string,
@@ -102,7 +102,7 @@ function levelChangeStatements(
     ...(levelId === previous
       ? []
       : [
-          r.stageLevelChangeStatementsEffect(`level-history-${key}`,engagementId,previous,levelId,actor.userId,reason,key,ports.clock.now()),
+          await r.stageLevelChangeStatementsEffect(`level-history-${key}`,engagementId,previous,levelId,actor.userId,reason,key,ports.clock.now()),
         ]),
   ];
 }
@@ -136,14 +136,14 @@ async function assignLevel(
       guard,
       ports.authorityGuard(key, actor),
       r.guard11(key,"engagement-version",id,actor.companyId,input.expectedVersion),
-      ...levelChangeStatements(key,
+      ...await levelChangeStatements(key,
         actor,
         id,
         input.levelId,
         engagement.level_id,
         input.reason,
       ),
-      r.stageAssignLevelEffect(input.levelId,ports.clock.now(),id),
+      await r.stageAssignLevelEffect(input.levelId,ports.clock.now(),id,actor.companyId),
       ...await ports.recommendationStatements(actor as WorkContext,{
         engagementId:id,positionId:engagement.position_id,levelId:input.levelId,
         priorLevelId:engagement.level_id,startDate:new Date(ports.clock.now()).toISOString().slice(0,10),currency:engagement.currency,
@@ -193,7 +193,7 @@ async function setDepartmentHead(
       ports.staffGuard(key, actor.companyId, person.user_id),
       r.guard14(key,"department",id,actor.companyId),
       r.guard15(key,"head-version",input.expectedVersion,id,id,input.expectedVersion),
-      r.stageSetDepartmentHeadEffect(id,actor.companyId,input.personId,input.expectedVersion + 1,actor.userId,ports.clock.now()),
+      await r.stageSetDepartmentHeadEffect(id,actor.companyId,input.personId,input.expectedVersion + 1,actor.userId,ports.clock.now()),
     ],
     {
       companyId: actor.companyId,

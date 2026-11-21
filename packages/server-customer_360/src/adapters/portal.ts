@@ -1,4 +1,5 @@
 import "server-only";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {createHash} from 'node:crypto';
 import type { SqlDatabase, TransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -6,7 +7,8 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { hash } from "@erpx/server-legal/public/legal/service";
 import { projectCustomerPortalAccess, lockCustomerPortalBinding, customerPortalIdentityExists, prepareCustomerPortalEvidenceChange } from "@erpx/server-customer_authority/public/portal-access";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { notifyCustomerPortalStaff } from "@erpx/server-collaboration/public/customer-portal-notifications";
+import { notifyCustomerPortalStaff } from "@erpx/server-collaboration/adapters/native-customer-portal-notification";
+import { customerPortalWorkContext } from "@erpx/server-customer_360/domain/portal";
 import { auditCustomerPortalCommand, enqueueCustomerPortalCommand, clearCustomerPortalAssertions } from "@erpx/server-workflow/public/customer-portal-events";
 import { createCustomerPortalApplication, type PortalRepository } from "@erpx/server-customer_360/application/portal";
 import type { CustomerPortalSessionActor, PortalActionRow } from "@erpx/server-customer_360/domain/portal";
@@ -18,6 +20,7 @@ import {customerPortalOwnedUnit} from '@erpx/server-customer_authority/public/po
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
+import { customerPortalActions } from '@erpx/server-collaboration/adapters/native-customer-portal-actions';
 
 function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()=>Promise<void>): PortalRepository {
   const action = (predicate: string, values: string[]) => db.prepare(`SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE ${predicate}`).bind(...values).first<PortalActionRow>();
@@ -55,20 +58,30 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
         const current=await lockCustomerPortalBinding(db,binding.binding_id,actor.email.toLowerCase());
         if(!current||current.company_id!==binding.company_id||current.order_id!==binding.order_id||current.customer_id!==binding.customer_id||current.email!==binding.email||current.order_version!==binding.order_version||current.state!==binding.state||current.status!=='approved'||Number(current.expires_at)<=Date.now()||!await customerPortalIdentityExists(db,binding.binding_id,actor))throw new ApiError(403,'CUSTOMER_PORTAL_BINDING_UNAVAILABLE','The original customer binding or document changed before commit.');
         await release();
-        const observed=await db.batch([...boundary.after,db.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);
+        const observed=await db.batch([...boundary.after,await nativeClearCommandAssertions(db, binding.company_id, key)]);boundary.observe?.(observed);
       };
     },
     evidence: async (command, actor) => {
       const { input, binding, key, id, now } = command;
       const prepared = await prepareAttachmentBinding(db, actor, { attachmentSetIds: input.attachmentSetIds, bindingContract: { targetType: "customer_access_binding", bindingType: "customer_portal_support_request", contexts: [{ purposeKey: "customer_support_evidence", componentKind: "action", componentRef: "request_support" }] }, targetId: binding.binding_id, expectedTargetVersion: Number(binding.binding_version), commandId: key, bindingId: id });
-      return { manifest: prepared.manifest, commit: async () => { await db.batch([...prepared.guards, ...prepareCustomerPortalEvidenceChange(db, { now, bindingId: binding.binding_id, companyId: binding.company_id, version: Number(binding.binding_version), actorId: actor.userId, key }), ...prepared.steps, clearCustomerPortalAssertions(db, key)]); } };
+      return { manifest: prepared.manifest, commit: async () => { await db.batch([...prepared.guards, ...(await prepareCustomerPortalEvidenceChange(db, { now, bindingId: binding.binding_id, companyId: binding.company_id, version: Number(binding.binding_version), actorId: actor.userId, key })), ...prepared.steps, await clearCustomerPortalAssertions(db, key, binding.company_id)]); } };
     },
     record: async (command, evidence) => {
       const { id, input, binding, actor, key, requestHash, now } = command;
-      await db.prepare(`INSERT INTO customer_portal_actions(id,company_id,binding_id,order_id,customer_id,user_id,action,note,source_version,request_key,request_hash,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'recorded',?)`).bind(id, binding.company_id, binding.binding_id, binding.order_id, binding.customer_id, actor.userId, input.action, input.note, Number(binding.order_version), key, requestHash, now).run();
+      await customerPortalActions(db).record({ id, companyId: binding.company_id, bindingId: binding.binding_id, orderId: binding.order_id, customerId: binding.customer_id, userId: actor.userId, action: input.action, note: input.note, sourceVersion: Number(binding.order_version), requestKey: key, requestHash, now });
       if (evidence) await evidence.commit();
     },
-    notify: (command, message) => notifyCustomerPortalStaff(db, { id: command.id, message, now: command.now, orderId: command.binding.order_id, companyId: command.binding.company_id }),
+    notify: (command, message) => notifyCustomerPortalStaff(
+      db,
+      customerPortalWorkContext(command.actor as Required<CustomerPortalSessionActor>, {
+        id: command.binding.binding_id,
+        company_id: command.binding.company_id,
+        branch_id: null,
+        department_id: null,
+        version: Number(command.binding.binding_version),
+      }),
+      { id: command.id, message, now: command.now, orderId: command.binding.order_id, companyId: command.binding.company_id },
+    ),
     audit: (command, eventId) => auditCustomerPortalCommand(db, command, eventId),
     outbox: (command, eventId, manifest) => enqueueCustomerPortalCommand(db, command, eventId, manifest),
     uniqueConflict: error => (error as { code?: string })?.code === "23505",

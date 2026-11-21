@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, type ReactNode } from "react";
 import { InlineNotice } from "@erpx/ui/components/foundation";
-import { financeActionAllowed, type FinancePurchaseControls } from "@erpx/server-finance/public/rules/purchase-controls";
+import { financeActionAllowed, type FinancePurchaseControls } from "@erpx/contracts/finance-purchase-controls";
 import { FinanceDraftBoundary } from "@erpx/feature-finance/components/finance-draft-boundary";
 const Context = createContext<FinancePurchaseControls | undefined>(undefined);
 export function FinancePurchaseProvider({ purchases, sourceHistory, children }: { purchases?: FinancePurchaseControls; sourceHistory?:boolean; children: ReactNode }) {

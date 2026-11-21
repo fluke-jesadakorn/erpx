@@ -1,4 +1,10 @@
 import 'server-only';
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
+  try { return await nativeCommerceOwnerWrite('settings.initialize', [actor.companyId, ...fields.map((f: string) => input[f])], actor.companyId, actor.userId, key); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 import {createHash,randomUUID} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -22,6 +28,7 @@ import {manufacturingPostingDocumentState} from '@erpx/server-commerce/adapters/
 import {createManufacturingPostingSetup} from '@erpx/server-commerce/application/manufacturing-posting-setup';
 import {manufacturingPostingSetupSchema,type ManufacturingPostingSetupInput,type ManufacturingPostingSetupResult,type ManufacturingPostingSetupView} from '@erpx/server-commerce/domain/manufacturing-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const operation='commerce.manufacturing-posting-setup.initialize',capabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
@@ -69,15 +76,15 @@ export async function initializeManufacturingPostingSetup(actor:WorkContext,raw:
    replay:(body,command)=>replayCommand<ManufacturingPostingSetupResult>(database,actor,command,operation,actor.companyId,body),configured:async()=>!!configuration,contextKey:()=>contextKey(authority,before,configuration),
    assertNoEconomics:async()=>{if(refusal(before)==='history-requires-review')throw new ApiError(409,'MANUFACTURING_POSTING_HISTORY_REQUIRES_REVIEW','Original Stock/production economics or invalid financial lineage require their original owner reconciliation. Initial setup cannot rebind them.');},
    validate:body=>validateManufacturingPostingFinanceState(database,actor,body,before.documents.history).then(()=>undefined),
-   commit:async(body,command)=>{applied=true;return executeCommand(database,actor,command,operation,body,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
+   commit:async(body,command)=>{applied=true;await nativeSettingsWrite(actor, body, key, fields);
+   return executeCommand(database,actor,command,operation,body,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
     assertion(database,command,'manufacturing-posting-absent','NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)',[actor.companyId]),
-    database.prepare(`INSERT INTO commerce_settings(company_id,${fields.map(field=>columns[field]).join(',')}) VALUES(${Array.from({length:fields.length+1},()=>'?').join(',')})`).bind(actor.companyId,...fields.map(field=>body[field])),
    ]);},
   });
   const result=await run(input,key);
   // Original boundary effects/cleanup and every deferred owner write finish
   // before the final source/current-authority/purchase reads; no later writes.
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);
   if(authorityImage(authority)!==authorityImage(await requireManufacturingPostingFinanceAuthority(database,actor)))throw new ApiError(409,'MANUFACTURING_POSTING_CONTEXT_CHANGED','Current Company Finance authority changed before initial posting setup completed.');
   if(JSON.stringify(await current(database,actor.companyId))!==JSON.stringify(mapping(input)))throw new ApiError(409,'MANUFACTURING_POSTING_SOURCE_CHANGED','The original Company posting mapping changed before completion.');
   if(applied){const after=await sources(database,actor);if(after.image!==before.image||refusal(after)==='history-requires-review')throw new ApiError(409,'MANUFACTURING_POSTING_SOURCE_CHANGED','Original production/Stock/Finance sources changed after initial setup effects.');await validateManufacturingPostingFinanceState(database,actor,input,before.documents.history);

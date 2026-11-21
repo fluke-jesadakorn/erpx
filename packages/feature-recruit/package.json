@@ -35,7 +35,7 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/server-talent": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "zod": "4.5.4"
+    "next": "16.4.3",
+    "zod": "4.6.7"
   }
 }

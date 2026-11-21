@@ -2,6 +2,8 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import {pmsListSelection} from "@erpx/server-pms/public/rules/pms-read-selection";
 import { pmsWorkspace } from "../../../../../../../../../packages/server-pms/src/public/pms";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativePmsAvailable, nativePmsFailure, nativePmsFrontDeskFromSearch, nativePmsRoomBoardFromSearch } from "@erpx/workplace/lib/native-pms";
 import { PmsVisualPrototype } from "@erpx/feature-pms/components/visual-prototype";
 import { PmsWorkspaceView } from "@erpx/feature-pms/components/workspace";
 import { pmsSections } from "@erpx/server-pms/public/rules/pms-model";
@@ -43,10 +45,25 @@ export default async function PmsPage({
   }
   let data;
   try {
-    data = await pmsWorkspace(actor, search.property, section?.[0] === "night-audit", false,
-      requestedSection === "dashboard" ? { view: "dashboard" } : pmsListSelection(requestedSection,search));
+    if (requestedSection === "rooms" || requestedSection === "housekeeping") {
+      if (!nativePmsAvailable())
+        throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel board is unavailable.");
+      data = await nativePmsRoomBoardFromSearch(actor, holdingSlug, requestedSection, search);
+      if (!data)
+        throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel board is unavailable.");
+    } else if (requestedSection === "front-desk") {
+      if (!nativePmsAvailable())
+        throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel front desk is unavailable.");
+      data = await nativePmsFrontDeskFromSearch(actor, holdingSlug, search);
+      if (!data)
+        throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel front desk is unavailable.");
+    } else {
+      data = await pmsWorkspace(actor, search.property, section?.[0] === "night-audit", false,
+        requestedSection === "dashboard" ? { view: "dashboard" } : pmsListSelection(requestedSection,search));
+    }
   } catch (error) {
-    return pageError(error, actor.holdingSlug);
+    const failure = nativePmsFailure(error);
+    return pageError(failure ? new ApiError(failure.status, failure.code, failure.message) : error, actor.holdingSlug);
   }
   const enabled = process.env.NODE_ENV === "production"
     ? new Set((await companyFeatureCatalogue(actor))

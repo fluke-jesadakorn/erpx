@@ -7,6 +7,7 @@ import {projectsPackageEnforcementMode,readPurchasedAccesses,companyPurchaseRead
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const capabilities=['projects.wbs','projects.tasks'];
 export async function projectTaskAlertReadScope(now:number){
  if(await projectsPackageEnforcementMode()!=='enforced')return 'TRUE';
@@ -41,6 +42,6 @@ export async function withProjectTaskAlert<Result>(owner:SqlDatabase,selected:Ta
   const result=await run(database);await flushFinanceDeferredEffects(database);
   if(!before||before!==await database.prepare(imageSql).bind(target.id,target.companyId).first<string>('image'))throw new ApiError(409,'PROJECT_ALERT_SOURCE_CHANGED','The queued Project task source changed before alert commit.');
   if(assignment&&!await database.prepare(await authoritySql()).bind(assignment.id,target.userId,target.companyId,assignment.version,target.id,target.companyId).first('allowed'))throw new ApiError(403,'PROJECT_ALERT_AUTHORITY_CHANGED','The current Project alert recipient authority changed.');
-  const observations=await database.batch(boundaries.flatMap(({key,boundary})=>[...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]));boundaries[0]?.boundary.observe?.(observations);return result;
+  const observations=await database.batch(boundaries.flatMap(({key,boundary})=>[...boundary.after,clearWorkflowCommandAssertions(database, key)]));boundaries[0]?.boundary.observe?.(observations);return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}
 }

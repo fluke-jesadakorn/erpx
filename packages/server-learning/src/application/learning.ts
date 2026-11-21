@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { hasModuleAccess } from "@erpx/catalogue/module-access";
-import { courseActionSchema, learningAssignSchema, learningActionSchema, learningActionStatus, learningActionAllowed, learningWorkItems, type LearningRow, type LearningAssignment, type LearningCourseAction, type LearningAssignInput, type LearningActionInput } from "@erpx/server-learning/domain/learning";
+import { courseActionSchema, learningActionSchema, learningActionStatus, learningActionAllowed, learningWorkItems, type LearningRow, type LearningAssignment, type LearningCourseAction, type LearningActionInput } from "@erpx/server-learning/domain/learning";
 
 export type LearningViolation = { status: number; code: string; message: string };
 export type LearningMutation = { readonly native: unknown };
@@ -34,16 +34,6 @@ export function createChangeLearningCourse(ports: LearningCommandPorts & { cours
     const prior = await ports.replay(actor, key, operation, id, input); if (prior) return prior;
     const command: LearningCommand = { actor, key, operation, id, input, version: input.expectedVersion + 1, result: { id, version: input.expectedVersion + 1, status }, now: ports.now() };
     return ports.commit(command, await ports.prepare(command, input, expected, status));
-  };
-}
-export function createLearningAssignment(ports: LearningCommandPorts & { person(actor: WorkContext, learnerId: string): Promise<LearningRow | null>; prepare(command: LearningCommand, input: LearningAssignInput, person: LearningRow): Promise<LearningMutation> }) {
-  return async (actor: WorkContext, raw: unknown, key: string) => {
-    ports.authorize(actor, true); ports.reviewer(actor);
-    const input = learningAssignSchema.parse(raw), person = await ports.person(actor, input.learnerId);
-    if (!person) throw ports.error({ status: 422, code: "LEARNING_LEARNER_INELIGIBLE", message: "Choose an active worker." });
-    const id = `learning-assignment-${key}`, operation = "learning.assignment.create", prior = await ports.replay(actor, key, operation, id, input); if (prior) return prior;
-    const command: LearningCommand = { actor, key, operation, id, input, version: 1, result: { id, version: 1, status: "assigned" }, now: ports.now() };
-    return ports.commit(command, await ports.prepare(command, input, person));
   };
 }
 export type LearningActionFacts = { row: LearningAssignment & { required_for: string | null }; status: string; attendance: string | number | null; score: string | number | null; evidence: string | number | null; completion: string | null; certificateFrom: string; certificateEnd: string | null; issueCertificate: boolean; attachment: unknown };

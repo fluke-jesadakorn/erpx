@@ -31,7 +31,7 @@ function scope(source:PmsImportSource|null){
   const node=typeof document==="undefined"?null:document.querySelector<HTMLElement>("[data-work-revision]");
   if(!node||node.isConnected===false||!node.dataset.workCompany||!node.dataset.workAssignment||!node.dataset.workRevision)throw changed();
   if(source.companyId&&node?.dataset.workCompany&&source.companyId!==node.dataset.workCompany)throw changed();
-  return JSON.stringify([source.api,source.propertyId,source.companyId??node?.dataset.workCompany,node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment]:null]);
+  return JSON.stringify([source.api,source.propertyId,source.companyId??node?.dataset.workCompany,node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]:null]);
 }
 function changed(){return Object.assign(new Error("Your account, Company, role or hotel changed. Return to the original work context before retrying."),{code:"WORK_CONTEXT_CHANGED"});}
 function captureForm():WorkCommandCompletion|undefined{

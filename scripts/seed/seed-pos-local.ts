@@ -36,17 +36,17 @@ if(mode==='preview'){
 }
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
 const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
-const {posCommand}=await import("@erpx/server-pos/public/pos-core");
+const {posSeedCommand}=await import("../../tests/support/helpers/pos-native-seed");
 const {one,all,run}=await import("@erpx/server-runtime/public/runtime/sql");
 const {posDayReport}=await import("@erpx/server-pos/public/pos-daily");
 const {savePosProductImage}=await import("@erpx/server-pos/public/pos-images");
 const {saveMaster}=await import("@erpx/server-commerce/public/commerce");
-const {countSchema,saveCount,transitionCount}=await import("@erpx/server-inventory/public/inventory-counts");
-const {resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
+const {seedOpeningStock}=await import("../../tests/support/helpers/inventory-opening-stock-seed");
 const {confirmManualRate,manualRateSchema}=await import("@erpx/server-finance/public/company-money");
 const {importBankStatement}=await import("@erpx/server-finance/public/finance");
 const {pmsCommand,loadPms}=await import("../../packages/server-pms/src/public/pms");
 const env=getRuntime(),db=new PostgresDatabase({connectionString:jobsManifest.databases.H001_DB,max:3}),control=env.CONTROL_DB;
+const seedPos=posSeedCommand(db);
 const roleSpecs=[['admin','holding_owner'],['cashier','pos_cashier'],['kitchen','pos_kitchen'],['manager','pos_manager'],['finance','finance_approver'],['housekeeper','pms_housekeeping'],['inspector','pms_supervisor']] as const;
 const actors:Record<string,WorkContext>={};
 for(const [label,role] of roleSpecs){const userId=`${namespace}-${label}`,modules=role==='holding_owner'?['pos','pms','finance','inventory','commerce','organization','iam','people']:[...businessRoles[role]];
@@ -60,7 +60,7 @@ async function step(label:string,input:unknown,fn:(input:unknown,key:string)=>Pr
  if(!state.steps[label]){state.steps[label]={input};await persist();}
  const result=await fn(state.steps[label].input,keyFor(label)) as Result;state.steps[label].result=result;await persist();return result;
 }
-const pos=(label:string,op:string,input:unknown,actor=admin)=>step(label,input,(body,key)=>posCommand(db,actor,op,body,key));
+const pos=(label:string,op:string,input:unknown,actor=admin)=>step(label,input,(body,key)=>seedPos(actor,op,body,key));
 async function change(label:string,op:string,id:string,extra:Record<string,unknown>={},actor=cashier,table='pos_sales'){
  const row=await one(db,`SELECT version FROM ${table} WHERE id=?`,id);
  if(!row)throw new Error(`SEED_RECORD_MISSING:${label}`);
@@ -120,19 +120,14 @@ try{
  await step('prepaid-tax-category',{},async()=>{await run(db,"UPDATE finance_accounts SET category='asset',version=version+1 WHERE id=? AND version=1 AND category='liability'",hotelAccounts.prepaidTax);return {id:hotelAccounts.prepaidTax};});
  await run(db,"INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,output_tax_account_id,input_tax_account_id,cash_account_id) VALUES(?,?,'THB',?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",company,chart,accounts.receivable,`${company}-payable`,accounts.revenue,accounts.inventory,`${company}-payable`,accounts.cogs,accounts.outputTax,hotelAccounts.prepaidTax,accounts.cash);
  await pos('pos-settings','settings.save',{enabled:true,currency:'THB',timezone:'Asia/Bangkok',cashierDiscountBps:500,accounts:{...accounts,chartId:chart},expectedVersion:0});
- await step('pos-accounting-review',{},async(_input,key)=>{const settings=await one(db,'SELECT version FROM pos_settings WHERE company_id=?',company);return posCommand(db,finance,'accounting.approve',{expectedVersion:Number(settings!.version)},key);});
+ await step('pos-accounting-review',{},async(_input,key)=>{const settings=await one(db,'SELECT version FROM pos_settings WHERE company_id=?',company);return seedPos(finance,'accounting.approve',{expectedVersion:Number(settings!.version)},key);});
  const products:Record<string,string>={},warehouses:Record<string,string>={},registers:Record<string,string>={},tables:string[]=[],customers:string[]=[];
  for(const [sku,name,unit] of posIngredients)products[sku]=(await step(`product:${sku}`,{sku,name,unit,price:'0',taxBps:0},(input,key)=>saveMaster(admin,'products',null,input,key))).id;
  for(const p of allProducts)products[p.sku]=(await step(`product:${p.sku}`,{sku:p.sku,name:p.name,unit:'each',price:(p.priceMinor/100).toFixed(2),taxBps:700},(input,key)=>saveMaster(admin,'products',null,input,key))).id;
  for(const [kind,branchId] of Object.entries(branches)){
   warehouses[kind]=(await step(`warehouse:${kind}`,{code:`POS-${kind.toUpperCase()}`,name:kind==='restaurant'?'คลังครัวตัวอย่าง':'คลังร้านค้าตัวอย่าง',branchId},(input,key)=>saveMaster(admin,'warehouses',null,input,key))).id;
   const lines=kind==='restaurant'?[...posIngredients.map(([sku,,,qty,cost])=>({productId:products[sku],countedQuantity:String(qty/1000),unitCost:(cost/100).toFixed(2)})),{productId:products['MENU-WATER'],countedQuantity:'600',unitCost:'7'}]:retail.map(p=>({productId:products[p.sku],countedQuantity:'200',unitCost:(Math.round(p.priceMinor*0.55)/100).toFixed(2)}));
-  const count=(await step(`count:${kind}`,countSchema.parse({warehouseId:warehouses[kind],countDate:first,reason:'เปิดสต็อกตัวอย่างด้วยราคาทุน ตรวจนับโดยคนละคน',lines}),(input,key)=>saveCount(admin,null,countSchema.parse(input),key))).id;
-  for(const [action,version] of [['submit',1],['approve',2],['post',3]] as const){
-   const label=`count:${kind}:${action}`;if(state.steps[label]?.result)continue;const who=action==='submit'?admin:finance,flow=await resolveFlow(db,who,'stock_count',count);
-   if(!flow.canAct){if(!flow.current)throw new Error('POS_COUNT_ROUTING_REQUIRED');await step(`${label}:route`,{stepKey:flow.current.key,userId:who.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'ผู้ตรวจสต็อกตัวอย่างอิสระ',saveDefault:false},(input,key)=>assignFlowPrimary(db,admin,'stock_count',count,input as Parameters<typeof assignFlowPrimary>[4],key));}
-   await step(label,{expectedVersion:version,attachmentSetIds:[],reason:'ตรวจและลงบัญชีสต็อกตั้งต้นตัวอย่าง'},(input,key)=>transitionCount(who,count,action,input as Parameters<typeof transitionCount>[3],key));
-  }
+  await step(`count:${kind}`,{warehouseId:warehouses[kind],lines},()=>seedOpeningStock(db,warehouses[kind],lines));
   registers[kind]=(await pos(`register:${kind}`,'register.save',{name:kind==='restaurant'?'ร้านอาหารตัวอย่าง':'ร้านค้าปลีกตัวอย่าง',warehouseId:warehouses[kind],mode:kind})).id;
  }
  for(let i=1;i<=12;i++)tables.push((await pos(`table:${i}`,'table.create',{registerId:registers.restaurant,name:`โต๊ะ ${String(i).padStart(2,'0')}`,seats:i>8?6:4})).id);

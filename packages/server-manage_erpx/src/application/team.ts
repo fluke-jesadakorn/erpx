@@ -40,11 +40,11 @@ guardCapacity(key:string,value:"capacity",company_id:string,company_id2:string):
 guardReviewedParent(key:string,value:"reviewed-parent",parentId:string,now:number,id:string,company_id:string,now2:number):Effect;
 guardReviewedRole(key:string,value:string,roleId:string,company_id:string,expectedRoleRevision:number):Effect;
 prepareItAssignment(value:string,id:string,company_id:string,now:number,validUntil:number,parentId:string):Effect;
-prepareAcceptedInvitation(id:string,now:number,id2:string):Effect;
+prepareAcceptedInvitation(id:string,now:number,id2:string):Promise<Effect>;
 prepareAcceptanceAudit(value:string,key:string,id:string,value2:string,id2:string,now:number):Effect;
-clearAcceptanceAssertions(key:string):Effect;
+clearAcceptanceAssertions(key:string,companyId:string):Promise<Effect>;
 acceptedUser(id:string):Promise<{ accepted_user_id: string }|null>;
-guardBranchCapacity(key:string,value:"branch-capacity",companyId:string,companyId2:string):Effect;batch(effects:Effect[]):Promise<void>;commit<Result>(actor:StaffActor,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[]):Promise<Result>;authorityGuard(key:string,actor:StaffActor,roles:string[]):Effect;memberStatements(company:string,branch:string,user:BetaUser,owner:boolean,invitation:string|null,grant?:{parentId:string;validUntil:number}):Effect[];branchStatements(company:string,id:string,name:string,slug:string):Effect[];}
+guardBranchCapacity(key:string,value:"branch-capacity",companyId:string,companyId2:string):Effect;batch(effects:Effect[]):Promise<void>;commit<Result>(actor:StaffActor,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[]):Promise<Result>;authorityGuard(key:string,actor:StaffActor,roles:string[]):Effect;memberStatements(company:string,branch:string,user:BetaUser,owner:boolean,invitation:string|null,grant?:{parentId:string;validUntil:number}):Promise<Effect[]>;branchStatements(company:string,id:string,name:string,slug:string):Effect[];}
 export interface BetaTeamPorts<Effect>{parseGrant(input:unknown):GrantInput;repository:BetaTeamRepository<Effect>;clock:Clock;identifiers:IdentifierSource;hash(value:string):Promise<string>;requireCompanyAuthority(actor:StaffActor,roles:string[]):Promise<void>;requireFreshMfa(actor:IamActor):Promise<void>;invitationCommand<Result>(actor:IamActor,key:string,operation:string,input:unknown,permission:string,action:(repository:BetaInvitationRepository)=>Promise<Result>):Promise<Result>;}
 export function createBetaTeamApplication<Effect>(ports:BetaTeamPorts<Effect>){const r=ports.repository;async function inviteMember(
   actor: StaffActor,
@@ -187,7 +187,7 @@ async function acceptMember(
       ...authorization.grants.map((grant, index) =>
         r.guardReviewedRole(key,"reviewed-role-" + index,grant.roleId,branch.company_id,grant.expectedRoleRevision),
       ),
-      ...r.memberStatements(branch.company_id,
+      ...await r.memberStatements(branch.company_id,
         row.branch_id,
         user,
         false,
@@ -203,9 +203,9 @@ async function acceptMember(
                   .validUntil,authorization.parentId),
           ]
         : []),
-      r.prepareAcceptedInvitation(user.id,now,row.id),
+      await r.prepareAcceptedInvitation(user.id,now,row.id),
       r.prepareAcceptanceAudit(ports.identifiers.next(),key,user.id,`beta-assignment-${user.id}`,user.id,now),
-      r.clearAcceptanceAssertions(key),
+      await r.clearAcceptanceAssertions(key, branch.company_id),
     ]);
   } catch {
     if (

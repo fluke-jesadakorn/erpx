@@ -1,3 +1,10 @@
+/**
+ * Finance-owned Assets accounting seam.
+ *
+ * Reference setup, recognition, depreciation and disposal actions belong to
+ * packages/server-finance. The Assets asset-register workflow uses the native
+ * `/assets` route; this handler is not part of that owner unit.
+ */
 import {z} from 'zod';
 import {requireWorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assetsFinancialWorkspace,editAssetsFinancialAsset,cancelAssetsFinancialAsset,recognizeAssetsFinancialAsset,prepareAssetsFinancialDisposal,decideAssetsFinancialDisposal,assetsFinancialEditSchema,assetsFinancialRecognitionSchema,assetsFinancialDecisionSchema,assetsFinancialDisposalSchema} from '@erpx/server-finance/public/assets-financial-workflow';

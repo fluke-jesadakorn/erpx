@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Dirty product-switch guard merged",
+  "capability": "apps-dirty-product-switch-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 40,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/40",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T22:38:03Z",
+    "base": "0c5f8520734cbcb98925aab99c02c0cae03739aa",
+    "head": "07488c1c155c51f18b2ddacb13cfea1cd850c8db",
+    "mergeCommit": "834e38e7b834ca680277c5b5358155c149b5e15c",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "apps:dirty-product-switch",
+    "component": "packages/workplace/src/components/product-navigation-boundary.tsx",
+    "noCodeChange": true
+  },
+  "verification": {
+    "browser": "Desktop normal-auth journal editor: data-work-dirty=true after memo edit; Feed product switch shows Leave unsaved work?; Keep editing closes the dialog and keeps the URL.",
+    "unit": "shared.work.calendar-services.unit 40/40; shortcut-readiness 40/41 with one pre-existing mock gap."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 18,
+    "workflowsPartial": 1,
+    "workflowsMerged": 18,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "The guard is client-side; no Rust writer is involved.",
+    "Mobile is not claimed; the 390px sidebar keeps the link inside the collapsed dialog.",
+    "The unrelated shortcut-readiness mock gap is unchanged."
+  ]
+}

@@ -1,3 +1,4 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
@@ -15,7 +16,7 @@ import {portalSnapshot} from '@erpx/server-legal/adapters/legal/portal';
 async function withPortalSession<Result>(holdingSlug:string,read:(input:{database:SqlDatabase;actor:PortalActor;holdingId:string;assertCurrent:()=>Promise<void>})=>Promise<Result>){
  const {session,requestHeaders}=await currentSession(),actor=legalPortalActor(session.user,session.session.id,(status,code,message)=>new ApiError(status,code,message));
  const image=()=>JSON.stringify({session,headers:[...requestHeaders.entries()]}),captured=image();
- return withCurrentPrivateSessionRead({userId:actor.userId,email:actor.email,sessionId:actor.sessionId,audience:productHostForHost(requestHeaders.get('host'))},async assertSession=>{
+ return withCurrentPrivateSessionRead({userId:actor.userId,email:actor.email,sessionId:actor.sessionId,audience:ssoAudienceForHost(requestHeaders.get('host'))},async assertSession=>{
   const assertCurrent=async()=>{if(image()!==captured)throw new ApiError(401,'SESSION_REVOKED','The shared Legal sign-in changed.');await assertSession();};
   const binding=await holdingBindingBySlug(holdingSlug),resources=await holdingResources(binding.id);
   return read({database:resources.write,actor,holdingId:binding.id,assertCurrent});

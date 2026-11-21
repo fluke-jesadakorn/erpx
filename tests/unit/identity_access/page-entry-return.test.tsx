@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({ host: 'account-dev-erpx.jesadakorn.com' }));
 const reads = vi.hoisted(() => ({ session: vi.fn(), centralSession: vi.fn(), choices: vi.fn(), preferences: vi.fn(), access: vi.fn(), security: vi.fn(), profile: vi.fn(), products: vi.fn(), existing: vi.fn(), admin: vi.fn(), provider: vi.fn() }));
 vi.mock('next/headers', () => ({ headers: async () => new Headers({ host: state.host }), cookies: async () => ({ get: () => undefined }) }));
 vi.mock("@erpx/feature-runtime/lib/product-hosts", () => ({
-  configuredProductOrigin: (key: string) => `https://${key}-dev-erpx.jesadakorn.com`,
+  requestProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`,configuredProductOrigin: (key: string) => `https://${key}-dev-erpx.jesadakorn.com`,
   configuredProductHandoff: (key: string) => `https://${key}-dev-erpx.jesadakorn.com/`,
   productHostForHost: (host: string | null) => ['apps', 'account', 'admin', 'finance', 'portal', 'legal-portal', 'forms', 'booking'].find(key => host === `${key}-dev-erpx.jesadakorn.com`) ?? null,
 }));
@@ -22,6 +22,7 @@ vi.mock("@erpx/server-organization/public/workspace-choices", () => ({ workspace
 vi.mock("@erpx/server-work_projection/public/quick-access-preferences", () => ({ readQuickAccessPreferences: reads.preferences }));
 vi.mock("@erpx/server-work_projection/public/product-launcher", () => ({ productLaunchChoices: reads.products, existingWorkspaceLaunchChoices: reads.existing }));
 vi.mock("@erpx/server-work_projection/public/admin-launcher", () => ({ adminLaunchChoices: reads.admin }));
+vi.mock("@erpx/server-work_projection/public/workspace-entry-presentation-query", () => ({ savedAppsWorkspaceForPresentation: async () => null }));
 vi.mock("@erpx/server-identity_access/public/provider-entry", () => ({ providerEntryOverview: reads.provider }));
 vi.mock("@erpx/server-identity_access/public/account-preference-snapshot", () => ({ preferredAccountLanguage: async () => 'en' }));
 vi.mock("@erpx/server-identity_access/public/directory-lookup", () => ({ routedConnection: vi.fn() }));
@@ -120,4 +121,54 @@ it('passes the preserved real widget target through the actual central Login Ser
   const bridge = new URL(node.props.next, origin);
   expect(bridge.pathname).toBe('/account/launch');
   assertQuery(bridge.searchParams.get('next')!, '/security', 'account-security-controls');
+});
+
+function component(node: ReactNode, name: string): ReactElement<Record<string, unknown>> | undefined {
+  if (Array.isArray(node)) { for (const child of node) { const result = component(child, name); if (result) return result; } return; }
+  if (!isValidElement<{ children?: ReactNode }>(node)) return;
+  if (typeof node.type === 'function' && node.type.name === name) return node as ReactElement<Record<string, unknown>>;
+  return component(node.props.children, name);
+}
+it('keeps Feed home and includes other-product and Admin-only discovery in its Navbar modal', async () => {
+  state.host = 'apps-dev-erpx.jesadakorn.com';
+  reads.centralSession.mockResolvedValue({ user: { id: 'feed-account', name: 'Feed user' } });
+  const scope = { kind: 'holding', holdingSlug: 'group' };
+  const common = { companyId: 'company-one', company: 'Company One', holding: 'Group', workspace: 'Company One', scope, purchasePurpose: 'new-work' };
+  const feed = { ...common, productId: 'apps', href: 'https://apps-dev-erpx.jesadakorn.com/sso/start?next=authorized-feed' };
+  const finance = { ...common, productId: 'finance', href: 'https://finance-dev-erpx.jesadakorn.com/sso/start?next=authorized-finance' };
+  const admin = { ...common, kind: 'company', href: 'https://admin-dev-erpx.jesadakorn.com/sso/start?next=authorized-admin' };
+  reads.products.mockResolvedValue([feed, finance]); reads.admin.mockResolvedValue([admin]); reads.existing.mockResolvedValue([]); reads.provider.mockResolvedValue(null);
+  const { default: Page } = await import('@erpx/workplace/entries/workspace');
+  const root = component(await Page({}), 'AppsLauncher');
+  expect(root?.props).toMatchObject({ accountId: 'feed-account', entry: true, companies: [{ workspaces: [{ adminHref: admin.href, apps: [{ productId: 'apps', label: 'Feed', href: feed.href }, { productId: 'finance' }] }] }] });
+  expect(await redirectFrom(() => Page({ applications: true }))).toBe('/?launcher=open');
+  reads.products.mockResolvedValue([]);
+  expect(component(await Page({}), 'AppsLauncher')?.props.companies).toMatchObject([{ workspaces: [{ apps: [], adminHref: admin.href }] }]);
+});
+it('redirects an old applications bookmark to the Apps modal before discovery', async () => {
+  state.host = 'apps-dev-erpx.jesadakorn.com';
+  const { default: Page } = await import('@erpx/workplace/entries/workspace');
+  expect(await redirectFrom(() => Page({ applications: true }))).toBe('/?launcher=open');
+  for (const read of deniedReads) expect(read).not.toHaveBeenCalled();
+});
+it.each(['apps', 'admin', 'finance'])('isolates the new Apps selector from the actual %s shared Server entry', async host => {
+  state.host = `${host}-dev-erpx.jesadakorn.com`;
+  reads.centralSession.mockResolvedValue({ user: { id: 'account-one', name: 'One' } });
+  const choice = { companyId: 'company-one', company: 'Company One', holding: 'Group', workspace: 'Company One', scope: { kind: 'holding', holdingSlug: 'group' }, productId: 'finance', href: 'https://finance-dev-erpx.jesadakorn.com/sso/start?next=current', purchasePurpose: 'new-work' };
+  reads.products.mockResolvedValue([choice]); reads.admin.mockResolvedValue([]); reads.existing.mockResolvedValue([]); reads.provider.mockResolvedValue(null);
+  const { default: Page } = await import('@erpx/workplace/entries/workspace');
+  if (host === 'finance') {
+    expect(await redirectFrom(() => Page({}))).toBe(choice.href);
+    expect(reads.products).toHaveBeenCalledWith('finance');
+    expect(reads.admin).not.toHaveBeenCalled(); return;
+  }
+  const node = await Page({});
+  const selector = component(node, 'AppsLauncher');
+  if (host === 'apps') {
+    expect(selector?.props.accountId).toBe('account-one');
+    expect(selector?.props.companies).toMatchObject([{ label: 'Company One', workspaces: [{ apps: [{ productId: 'finance', href: choice.href }] }] }]);
+    expect(component(node, 'AppsSidebar')).toBeUndefined();
+  } else {
+    expect(selector).toBeUndefined(); expect(component(node, 'AppsSidebar')).toBeDefined();
+  }
 });

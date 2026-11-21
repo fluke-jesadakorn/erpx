@@ -1,8 +1,10 @@
+import {AttachmentFeatureProvider} from '@erpx/feature-files/components/attachment-feature-context';
+import {nativeServicePaymentWorkspace} from '@erpx/feature-finance/public/server';
 import {financeProductPresentationOptions} from "@erpx/server-finance/public/product-presentation-request";
 import {ServicePaymentBankEvidence} from "@erpx/feature-finance/components/service-payment-bank-evidence";
 import {financeDocumentPresentationAccess} from "@erpx/server-finance/public/record-presentation";
 import { financePurchaseControls } from "@erpx/server-finance/public/purchases";
-import {financeActionAllowed} from "@erpx/server-finance/public/rules/purchase-controls";
+import {financeActionAllowed} from "@erpx/contracts/finance-purchase-controls";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@erpx/feature-records/components/loaders/finance--finance-record-workspace";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
@@ -29,17 +31,17 @@ export default async function PaymentDetail({ params, searchParams }: { params: 
   const { holdingSlug, id } = await params;
   const actor = await requireWorkContext(holdingSlug);
   const query = await searchParams, printing = query.print === "1";
-  let data;
-  try { data = await getPayment(actor, id); } catch (error) { return pageError(error, actor.holdingSlug); }
+  let data,nativeFilesMode,nativeSourceOnly,nativePurchaseControls;
+  try { const native=await nativeServicePaymentWorkspace(actor,holdingSlug,id);nativeFilesMode=native?.nativeFilesMode;nativeSourceOnly=native?.nativeSourceOnly;nativePurchaseControls=native?.nativePurchaseControls;data=native ?? await getPayment(actor,id); } catch (error) { return pageError(error, actor.holdingSlug); }
   const base = workspaceBase(publicScope(actor));
   const payment = data.payment;
-  const purchases=await financePurchaseControls(actor);
+  const purchases=nativePurchaseControls??await financePurchaseControls(actor);
   const companyScope=!actor.branchId&&!actor.departmentId;
   const withholding=companyScope&&payment.kind==="payment"&&financeActionAllowed(purchases,"history","finance.tax")?await withholdingWorkspace(actor,id).catch(error=>pageError(error,actor.holdingSlug)):null;
   const lifecycleAction=payment.status==="draft"&&companyScope&&hasPermission(actor,"finance.approve")&&payment.created_by!==actor.userId?"approve":payment.status==="approved"&&companyScope&&hasPermission(actor,"finance.pay")&&payment.created_by!==actor.userId&&payment.approved_by!==actor.userId?"release":payment.status==="released"&&companyScope&&hasPermission(actor,"finance.pay")&&payment.created_by!==actor.userId&&payment.approved_by!==actor.userId&&payment.released_by===actor.userId?"confirm":null;
   return (
     <FeaturePage className="ui-page-content" data-source="live" data-module="finance" data-print-document={printing || undefined}>
-      <FinanceRecordWorkspace sourceHistory={(await financeDocumentPresentationAccess(actor,"payment",id,await financeProductPresentationOptions())).sourceOnly} purchases={purchases} base={base} active="cash" title={String(payment.payment_number)} description={`${payment.party_name ?? "Unassigned party"} · ${payment.kind} · ${payment.currency}`} actions={<StatusBadge appearance="standard" status={String(payment.status)}/>}> 
+      <FinanceRecordWorkspace sourceHistory={nativeSourceOnly??(await financeDocumentPresentationAccess(actor,"payment",id,await financeProductPresentationOptions())).sourceOnly} purchases={purchases} base={base} active="cash" title={String(payment.payment_number)} description={`${payment.party_name ?? "Unassigned party"} · ${payment.kind} · ${payment.currency}`} actions={<StatusBadge appearance="standard" status={String(payment.status)}/>}>
       <BusinessDocumentBranding actor={actor} kind="payment" recordId={id} requestedMode={query.brand} title="Payment" reference={String(payment.payment_number)} printing={printing}/>
 <FinanceLegacyHeading>      <Link className="back-link" href={canonicalUiHref(`${base}/finance`)}><ArrowLeft size={14} /> Back to finance</Link>
       <div className="ui-section-header">
@@ -57,7 +59,7 @@ export default async function PaymentDetail({ params, searchParams }: { params: 
       </FeatureWidget>
       {payment.journal_id&&<FeatureWidget appearance="standard" id="finance-payments-detail-accounting" title="Accounting evidence"><Link href={canonicalUiHref(`${base}/finance/journals/${payment.journal_id}`)}>Open posted payment journal <ArrowUpRight size={14}/></Link></FeatureWidget>}
       {payment.fx_journal_id&&<FeatureWidget appearance="standard" id="finance-payments-detail-fx-accounting" title="Realized currency result"><p>Settlement rate: {Number(payment.fx_rate_micros)/1_000_000} · Functional amount: {minorToDecimal(Number(payment.base_amount_minor))}</p><Link href={canonicalUiHref(`${base}/finance/journals/${payment.fx_journal_id}`)}>Open realized FX journal <ArrowUpRight size={14}/></Link></FeatureWidget>}
-      {lifecycleAction&&<FeatureWidget appearance="standard" id="finance-payments-detail-lifecycle" title="Controlled payment workflow"><PaymentLifecycle base={base} payment={payment} periods={data.periods} invoices={data.invoices} bankTransactions={data.bankTransactions} fxAccounts={data.fxAccounts} action={lifecycleAction} sourcePurchase={data.sourcePurchase}/></FeatureWidget>}
+      {lifecycleAction&&<FeatureWidget appearance="standard" id="finance-payments-detail-lifecycle" title="Controlled payment workflow">{nativeFilesMode?<AttachmentFeatureProvider mode={nativeFilesMode}><PaymentLifecycle base={base} payment={payment} periods={data.periods} invoices={data.invoices} bankTransactions={data.bankTransactions} fxAccounts={data.fxAccounts} action={lifecycleAction} sourcePurchase={data.sourcePurchase}/></AttachmentFeatureProvider>:<PaymentLifecycle base={base} payment={payment} periods={data.periods} invoices={data.invoices} bankTransactions={data.bankTransactions} fxAccounts={data.fxAccounts} action={lifecycleAction} sourcePurchase={data.sourcePurchase}/>}</FeatureWidget>}
       {data.sourcePurchase?.capability==="finance.service-invoice"&&payment.status==="released"&&companyScope&&hasPermission(actor,"finance.write")&&<FeatureWidget appearance="standard" id="finance-payments-detail-service-bank-evidence" title="Service receipt bank evidence"><ServicePaymentBankEvidence base={base} payment={payment} sourcePurchase={data.sourcePurchase}/></FeatureWidget>}
       {payment.status==="settled"&&hasPermission(actor,"finance.approve")&&payment.created_by!==actor.userId&&<FeatureWidget appearance="standard" id="finance-payments-detail-payment-correction" title="Payment correction"><PaymentCorrection base={base} payment={payment} periods={data.periods} sourcePurchase={data.sourcePurchase}/></FeatureWidget>}
       {data.reversal&&<FeatureWidget appearance="standard" id="finance-payments-detail-correction-evidence" title="Correction evidence"><Card as="section" appearance="standard" className="ui-panel"><p><strong>{String(data.reversal.reason)}</strong></p><p className="muted">Reversed by {String(data.reversal.reversed_by)} · {<TimeText appearance="standard" value={Number(data.reversal.reversed_at)} />}</p><Link href={canonicalUiHref(`${base}/finance/journals/${data.reversal.reversal_journal_id}`)}>Open reversing journal</Link></Card></FeatureWidget>}

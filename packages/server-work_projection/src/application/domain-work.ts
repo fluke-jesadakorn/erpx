@@ -15,7 +15,7 @@ import type {
   listTransfers,
   canEditTransfer,
   canReviewTransfer,
-} from "@erpx/server-inventory/public/inventory-transfers";
+} from "@erpx/server-inventory/public/inventory-transfer-read";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {minorToDecimal} from "@erpx/feature-finance/lib/finance-money";

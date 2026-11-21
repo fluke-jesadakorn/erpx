@@ -4,12 +4,12 @@ import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';
 import {invitationSchema} from '@erpx/server-manage_erpx/domain/team';
 import type {mentionsSchema,textSuggestions} from "@erpx/server-collaboration/public/social-text";
 import type {retryAgentReply} from "@erpx/server-collaboration/public/social-agent";
-import type {homePosts,postAction,postDraftSchema,postView,postContentSchema,publishPost,savePostDraft,socialAudienceOptions,createCommentUploadDraft,cancelCommentUploadDraft,createPostEditUploadDraft,cancelPostEditUploadDraft} from '@erpx/server-collaboration/public/social-home';
+import type {homePosts,postAction,postDraftSchema,postView,postContentSchema,publishPost,savePostDraft,socialAudienceOptions} from '@erpx/server-collaboration/public/social-home';
 import type {sourceSnapshot,readablePost} from '@erpx/server-collaboration/public/social-source';
 import type {aiRequestSchema} from "@erpx/server-collaboration/public/social-ai";
 import type {taskSourceSchema} from "@erpx/server-collaboration/public/social-task";
 import type {getTask} from '@erpx/server-operations/public/staff-task-read';
-import type {saveTask,taskSchema,listTasks} from '@erpx/server-operations/public/staff-tasks';
+import type {taskSchema,listTasks} from '@erpx/server-operations/public/staff-tasks';
 import type {staffPeople} from "@erpx/server-operations/public/staff-policy";
 import type {addBetaBranch,inviteMember} from "@erpx/server-manage_erpx/public/beta-team";
 type WithoutDatabase<F> = F extends (...args:infer Args)=>infer Result ? Args extends [unknown,...infer Rest] ? (...args:Rest)=>Result : never : never;
@@ -24,25 +24,21 @@ reports(companyId:string):Promise<(Record<string,unknown>)[]>;
 billing(holdingId:string):Promise<Record<string,unknown>|null>;
 postTask(id:string | undefined):Promise<{ task_id: string }|null>;
 recoverPostTask(id:string | undefined):Promise<{ task_id: string }|null>;
-prepareFeedback(key:string,companyId:string,userId:string,body:string,month:number):Effect;
+prepareFeedback(key:string,companyId:string,userId:string,body:string,month:number):Promise<Effect>;
 prepareRevocations(month:number,user:string,companyId:string):Effect;
-prepareMembershipRemoval(user:string):Effect;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[]):Promise<Result>;authorityGuard(key:string,actor:WorkContext,roles:string[]):Effect;}
+prepareMembershipRemoval(user:string):Promise<Effect>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[]):Promise<Result>;authorityGuard(key:string,actor:WorkContext,roles:string[]):Effect;}
 export interface BetaApiPorts<Effect>{repository:BetaApiRepository<Effect>;clock:Clock;schemas:{postDraftSchema:typeof postDraftSchema;postContentSchema:typeof postContentSchema;mentionsSchema:typeof mentionsSchema;taskSourceSchema:typeof taskSourceSchema;taskSchema:typeof taskSchema;aiRequest:typeof aiRequestSchema};services:{homePosts:WithoutDatabase<typeof homePosts>;
 postAction:WithoutDatabase<typeof postAction>;
 postView:WithoutDatabase<typeof postView>;
 publishPost:WithoutDatabase<typeof publishPost>;
 savePostDraft:WithoutDatabase<typeof savePostDraft>;
 socialAudienceOptions:WithoutDatabase<typeof socialAudienceOptions>;
-createCommentUploadDraft:WithoutDatabase<typeof createCommentUploadDraft>;
-cancelCommentUploadDraft:WithoutDatabase<typeof cancelCommentUploadDraft>;
-createPostEditUploadDraft:WithoutDatabase<typeof createPostEditUploadDraft>;
-cancelPostEditUploadDraft:WithoutDatabase<typeof cancelPostEditUploadDraft>;
 sourceSnapshot:WithoutDatabase<typeof sourceSnapshot>;
 readablePost:WithoutDatabase<typeof readablePost>;
 textSuggestions:WithoutDatabase<typeof textSuggestions>;
 retryAgentReply:WithoutDatabase<typeof retryAgentReply>;
 getTask:WithoutDatabase<typeof getTask>;
-saveTask:WithoutDatabase<typeof saveTask>;
+saveTask:(actor:WorkContext,task:z.infer<typeof taskSchema>,key:string,source:z.infer<typeof taskSourceSchema>)=>Promise<unknown>;
 listTasks:WithoutDatabase<typeof listTasks>;
 staffPeople:WithoutDatabase<typeof staffPeople>;
 addBetaBranch:WithoutDatabase<typeof addBetaBranch>;
@@ -133,13 +129,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
               }),
               taskInput = ports.schemas.taskSchema.parse(input.task);
             try {
-              data = await ports.services.saveTask(actor,
-                null,
-                taskInput,
-                key,
-                false,
-                source,
-              );
+              data = await ports.services.saveTask(actor, taskInput, key, source);
             } catch (e) {
               const other = await r.recoverPostTask(id);
               if (!other) throw e;
@@ -178,13 +168,6 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
           data = await ports.services.postAction(actor, id!, command, key);
         }
         else if (path[0] === "agent-replies") data = await ports.services.retryAgentReply(actor, path[1], key);
-        else if (path[0] === "comment-uploads") data = path[1]
-          ? await ports.services.cancelCommentUploadDraft(actor,path[1],key)
-          : await ports.services.createCommentUploadDraft(actor,z.string().min(1).max(160).parse(input.postId),key);
-        else if (path[0] === "post-edit-uploads") data = path[1]
-          ? await ports.services.cancelPostEditUploadDraft(actor,path[1],key)
-          : await ports.services.createPostEditUploadDraft(actor,z.string().min(1).max(160).parse(input.postId),
-              z.number().int().positive().parse(input.expectedVersion),key);
         else if (path[0] === "drafts")
           data =
             path[2] === "publish"
@@ -208,7 +191,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
             1,
             { id: key },
             [
-              r.prepareFeedback(key,actor.companyId,actor.userId,body,ports.clock.now()),
+              await r.prepareFeedback(key,actor.companyId,actor.userId,body,ports.clock.now()),
             ],
           );
         } else if (path[0] === "branches")
@@ -237,7 +220,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
             [
               r.authorityGuard(key, actor, ["holding_owner"]),
               r.prepareRevocations(ports.clock.now(),user,actor.companyId),
-              r.prepareMembershipRemoval(user),
+              await r.prepareMembershipRemoval(user),
             ],
           );
         } else if (path[0] === "billing") {

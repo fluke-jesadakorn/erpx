@@ -1,4 +1,5 @@
 import 'server-only';
+import { payrollFinalPayCancellation } from '@erpx/server-collaboration/adapters/native-payroll-final-pay-cancellation';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -20,6 +21,7 @@ import {recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/
 import {finalPayCancellationTerminal} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
 import {readFinalPayCancellationSource,finalPayCancellationSchemaAvailable} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-sources';
 import type {FinalPayCancellationInput,FinalPayCancellationResult,FinalPayCancellationSource} from '@erpx/server-people_payroll/domain/final-pay-cancellation';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const operation='people.payroll.final-pay.cancel';
 const changed=()=>new ApiError(409,'FINAL_PAY_CANCELLATION_SOURCE_CHANGED','The original final-pay preparation, cancelled case/task or money evidence changed. Reload its current source.');
 const authorityImage=(actor:WorkContext)=>JSON.stringify([actor.holdingId,actor.companyId,actor.userId,actor.assignmentId,actor.role,actor.branchId,actor.departmentId,actor.scope,actor.authority,actor.iam]);
@@ -53,7 +55,7 @@ async function owned<Result>(actor:WorkContext,runId:string,key:string|undefined
   let captured:FinalPayCancellationSource|null|undefined,expected:string|undefined;
   const source=async()=>{if(captured===undefined){captured=await readFinalPayCancellationSource(database,actor,runId);expected=captured?.image;}return captured;};
   const result=await run(database,schemaAvailable,source,image=>{expected=image;});
-  if(boundary){const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(fence)]);boundary.observe?.(observed);}
+  if(boundary){const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database, fence)]);boundary.observe?.(observed);}
   if(key)await flushFinanceDeferredEffects(database);
   const final=await currentAuthority(database,actor);if(authorityImage(authorized)!==authorityImage(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original Payroll preparation authority changed.');
   if(captured!==undefined&&(await readFinalPayCancellationSource(database,actor,runId))?.image!==expected)throw changed();
@@ -65,9 +67,9 @@ export function cancelFinalPayPreparation(actor:WorkContext,runId:string,raw:unk
  const s=m.source,evidence=JSON.stringify({preparation:JSON.parse(s.preparationImage),run:JSON.parse(s.runImage),task:JSON.parse(s.taskImage),case:JSON.parse(s.caseImage),reason:m.input.reason});
  const result=await executeCommand(database,actor,key,operation,m.input,s.id,m.result.version,m.result,[
   assertion(database,key,'final-pay-cancellation-source',`EXISTS(SELECT 1 FROM hr_payroll_final_pay_preparations p JOIN hr_payroll_runs r ON r.id=p.run_id AND r.company_id=p.company_id JOIN people_preparation_tasks t ON t.id=p.task_id AND t.company_id=p.company_id JOIN people_lifecycle_cases c ON c.id=p.case_id AND c.company_id=p.company_id WHERE p.id=? AND p.company_id=? AND to_jsonb(p)=?::jsonb AND to_jsonb(r)=?::jsonb AND to_jsonb(t)=?::jsonb AND to_jsonb(c)=?::jsonb)`,[s.id,actor.companyId,s.preparationImage,s.runImage,s.taskImage,s.caseImage]),
-  database.prepare("INSERT INTO hr_payroll_final_pay_events(id,preparation_id,task_id,run_id,company_id,action,actor_id,task_version,evidence_json,created_at) VALUES(?,?,?,?,?,'cancelled',?,?,?,?)").bind(m.result.cancellationId,s.id,s.taskId,s.runId,actor.companyId,actor.userId,s.taskVersion,evidence,m.now),
-  database.prepare("UPDATE hr_payroll_runs SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(m.now,s.runId,actor.companyId,s.runVersion),
-  database.prepare("UPDATE hr_payroll_final_pay_preparations SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(m.now,s.id,actor.companyId,s.version),
+  await payrollFinalPayCancellation(database, actor.companyId).event({ cancellationId: m.result.cancellationId, prepId: s.id, taskId: s.taskId, runId: s.runId, companyId: actor.companyId, userId: actor.userId, taskVersion: s.taskVersion, evidenceJson: evidence, now: m.now }),
+  await payrollFinalPayCancellation(database, actor.companyId).cancelRun({ now: m.now, runId: s.runId, companyId: actor.companyId, runVersion: s.runVersion }),
+  await payrollFinalPayCancellation(database, actor.companyId).cancelPrep({ now: m.now, prepId: s.id, companyId: actor.companyId, version: s.version }),
  ]);
  post((await assertOwnTransition(database,actor,m)).image);return result;
 }}).cancelFinalPayPreparation(actor,runId,raw,key));}

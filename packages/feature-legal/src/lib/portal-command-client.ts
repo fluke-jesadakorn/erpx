@@ -1,4 +1,5 @@
-import {legalPortalUploadFingerprintInput} from '@erpx/server-legal/public/rules/portal-upload-recovery';
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
+import {legalPortalUploadFingerprintInput} from '@erpx/contracts/legal-portal-upload';
 export type PortalCommandSource={shareId:string;version:number;checksum:string};
 type Command={kind:'command';path:string;key:string;source:PortalCommandSource;body:string;uncertain:boolean};
 type Upload={kind:'upload';path:string;key:string;source:PortalCommandSource;name:string;mediaType:string;size:number;checksum:string;uncertain:boolean};
@@ -22,7 +23,7 @@ export function createLegalPortalCommandClient(base:string,scope:string){
  async function transmit(current:Attempt,file?:File):Promise<PortalCommandResult>{
   attempt=current;persist();
   try{
-   const response=await fetch(current.path,{method:'POST',headers:current.kind==='command'?{'Content-Type':'application/json','Idempotency-Key':current.key}:{'Content-Type':current.mediaType,'X-File-Name':encodeURIComponent(current.name),'Idempotency-Key':current.key,'X-Legal-Upload-Recovery':'status-v1'},body:current.kind==='command'?current.body:file});
+   const response=await holdingFetch(current.path,{method:'POST',headers:current.kind==='command'?{'Content-Type':'application/json','Idempotency-Key':current.key}:{'Content-Type':current.mediaType,'X-File-Name':encodeURIComponent(current.name),'Idempotency-Key':current.key,'X-Legal-Upload-Recovery':'status-v1'},body:current.kind==='command'?current.body:file});
    const definitive=response.status>=400&&response.status<500&&![408,429].includes(response.status),keepUnknown=current.uncertain&&[401,403,404,409].includes(response.status);
    if(definitive&&!keepUnknown){attempt=null;persist();}
    const payload=await response.json().catch(()=>{throw Error(definitive&&!keepUnknown?'The request was rejected. Review the retained draft.':'The result could not be read. Check the previous result before sending another action.');});

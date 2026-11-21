@@ -1,4 +1,10 @@
 import { flushFinanceDeferredEffects } from "@erpx/server-finance/public/finance-transactions";
+
+import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
+async function nativeReviewEvidence(values: readonly unknown[], recordId: string, key: string, actorId: string) {
+  try { return await nativeCommercialOwnerWrite('review.evidence', values, recordId, actorId, key); }
+  catch (error) { if (error instanceof NativeCommercialOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 import "server-only";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -73,11 +79,11 @@ export function companyPackageLifecycle(owner: PostgresDatabase, holdingId: stri
           signer.assertFresh(claims);
           if (packageGrantRevision(input.companyId, comparison.before) !== claims.authorityRevision)
             throw new ApiError(409, "PACKAGE_REVIEW_CHANGED", "Company packages changed. Preview them again.");
-          await transaction.prepare(`INSERT INTO company_package_review_evidence(change_set_id,company_id,actor_id,assignment_id,role_id,role_revision,
-            authority_revision,catalogue_hash,review_hash,reviewed_at,applied_at,comparison_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?::jsonb)`)
-            .bind(input.idempotencyKey, input.companyId, lease.actor.userId, lease.actor.assignmentId, lease.actor.role, lease.actor.roleRevision,
+          await nativeReviewEvidence(
+            [input.idempotencyKey, input.companyId, lease.actor.userId, lease.actor.assignmentId, lease.actor.role, lease.actor.roleRevision,
               claims.authorityRevision, claims.catalogueHash, packageReviewHash(token), claims.issuedAt, now(),
-              JSON.stringify({ source: { kind: "package-lifecycle", revision: claims.authorityRevision }, before: comparison.before, after: comparison.after })).run();
+              JSON.stringify({ source: { kind: "package-lifecycle", revision: claims.authorityRevision }, before: comparison.before, after: comparison.after })],
+            input.companyId, input.idempotencyKey, lease.actor.userId);
           wrote = true;
         });
         await flushFinanceDeferredEffects(transaction);

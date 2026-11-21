@@ -9,7 +9,8 @@ import {uploadDocument,documentAccess} from "@erpx/server-legal/public/legal/doc
 import {retentionCommand,retentionView,drainLegalDestruction} from "@erpx/server-legal/public/legal/retention";
 import {legalDestructionManifest} from "@erpx/server-legal/public/legal/destruction-sources";
 import {LocalFileStore} from "@erpx/server-runtime/adapters/runtime/filesystem";
-import {createAttachmentSet,linkExistingAttachment,withdrawAttachmentLink} from "@erpx/server-files/public/attachments/service";
+import {createAttachmentSet,linkExistingAttachment} from "@erpx/server-files/public/attachments/service";
+import {withdrawSeededAttachment} from "../../support/helpers/attachment-v2";
 import {packageGrantStore,readCompanyPackageGrants,packageGrantRevision} from '@erpx/server-commercial/public/package-grants';
 import {withOwnerPackageObligations,ownerPackageObligations} from '@erpx/server-commercial/public/owner-package-obligations';
 import {migrateDatabase} from '@erpx/server-runtime/adapters/runtime/migrations';
@@ -50,7 +51,7 @@ it('refuses destruction of an original reused by another native owner until the 
  const r=await original(),other=await legalCommand(db,f.manager,{action:'create',item:{kind:'matter',title:'Another live evidence owner',ownerId:f.manager.userId,data:{parties:'Synthetic Company A parties'}}},key());
  const set=await createAttachmentSet(db,f.manager,{targetType:'legal_item',targetId:other.id,componentKind:'record',purposeKey:'legal_document',expectedTargetVersion:1},key());const linked=await linkExistingAttachment(db,f.manager,set.id,{sourceLinkId:r.document.attachment_link_id!},key());
  await eligible(r.id);await expect(retain(r.id,'retention.request')).rejects.toThrow('LEGAL_DESTRUCTION_SOURCE_SHARED');expect(await files.head(r.source.object_key)).toBeTruthy();
- await withdrawAttachmentLink(db,f.manager,linked.attachmentLinkId,'Synthetic evidence reuse withdrawn before retention',key());await retain(r.id,'retention.request');expect((await retentionView(db,f.manager,r.id)).requests).toHaveLength(1);
+ await withdrawSeededAttachment(db,f.manager,linked.attachmentLinkId,'Synthetic evidence reuse withdrawn before retention',key());await retain(r.id,'retention.request');expect((await retentionView(db,f.manager,r.id)).requests).toHaveLength(1);
 });
 it('retains immutable approved manifests and refuses keys or original checksums outside the selected Legal owner',async()=>{
  const r=await original();await eligible(r.id);await retain(r.id,'retention.request');const request=(await retentionView(db,f.manager,r.id)).requests[0];await expect(db.prepare("UPDATE legal_destructions SET manifest='{}'::jsonb WHERE id=?").bind(request.id).run()).rejects.toThrow('LEGAL_DESTRUCTION_EVIDENCE_IMMUTABLE');

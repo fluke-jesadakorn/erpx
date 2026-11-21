@@ -3,27 +3,51 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
-  agentWorkspace,
-  changeAgentRecord,
-  changeAgentPool,
-  changePrivateSession,
-  createAgent,
-  createAgentAssignment,
-  createAgentPool,
-  createAgentVersion,
-} from "@erpx/server-agent/public/agent-governance";
+  nativeAgentEvidenceAvailable,
+  nativeAgentEvidenceFailure,
+  nativeAgentEvidenceFromHeaders,
+} from "@erpx/server-agent/public/native-agent-evidence-page";
+import { nativeAgentCommand, nativeAgentGovernanceAvailable } from "@erpx/server-agent/public/native-agent-governance";
+import {agentWorkspace} from "@erpx/server-agent/public/agent-governance";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
-export async function GET(_: Request, c: C) {
+export async function GET(request: Request, c: C) {
   try {
-    return Response.json(
-      canonicalDestinationLinks({
-        data: await agentWorkspace(
-          await requireWorkContext((await c.params).holdingSlug),
-        ),
-      }),
-      { headers },
-    );
+    const holdingSlug = (await c.params).holdingSlug,
+      actor = await requireWorkContext(holdingSlug),
+      evidenceView = new URL(request.url).searchParams.get("view") === "evidence";
+    let evidence;
+    if (nativeAgentEvidenceAvailable()) {
+      try {
+        evidence = await nativeAgentEvidenceFromHeaders(actor, holdingSlug, request.headers);
+      } catch (error) {
+        const failure = nativeAgentEvidenceFailure(error);
+        throw failure ? new ApiError(failure.status, failure.code, failure.message) : error;
+      }
+    }
+    if (evidenceView) {
+      if (!evidence)
+        throw new ApiError(
+          503,
+          "NATIVE_AGENT_UNAVAILABLE",
+          "The native Agent evidence is unavailable.",
+        );
+      return Response.json(
+        canonicalDestinationLinks({
+          data: {
+            now: evidence.now,
+            invocations: evidence.invocations,
+            sessions: evidence.sessions,
+          },
+        }),
+        { headers },
+      );
+    }
+    const workspace = await agentWorkspace(actor, false),
+      data = evidence
+        ? { ...workspace, invocations: evidence.invocations, sessions: evidence.sessions }
+        : { ...workspace, invocations: [], sessions: [] };
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);
   }
@@ -46,18 +70,13 @@ export async function POST(r: Request, c: C) {
         "COMMAND_KEY_REQUIRED",
         "Idempotency-Key is required.",
       );
-    const a = await requireWorkContext((await c.params).holdingSlug),
-      i = await r.json();
-    let data;
-    if (typeof i.id === "string" && i.entity === "pool") data = await changeAgentPool(a,i.id,i,key);
-    else if (typeof i.id === "string" && i.entity === "session") data = await changePrivateSession(a,i.id,i,key);
-    else if (typeof i.id === "string" && ["agent","version","assignment"].includes(i.entity))
-      data = await changeAgentRecord(a, i.entity, i.id, i, key);
-    else if (i.entity === "agent") data = await createAgent(a, i, key);
-    else if (i.entity === "version") data = await createAgentVersion(a, i, key);
-    else if (i.entity === "pool") data = await createAgentPool(a, i, key);
-    else if (i.entity === "assignment") data = await createAgentAssignment(a, i, key);
-    else throw new ApiError(422,"AGENT_ENTITY_REQUIRED","Choose an Agent governance command.");
+    await requireWorkContext((await c.params).holdingSlug);
+    const i = await r.json();
+    if (!["agent", "version", "pool", "assignment", "session"].includes(i?.entity))
+      throw new ApiError(422, "AGENT_ENTITY_REQUIRED", "Choose an Agent governance command.");
+    if (!nativeAgentGovernanceAvailable())
+      throw new ApiError(503, "NATIVE_AGENT_UNAVAILABLE", "The native Agent governance command is unavailable.");
+    const data = await nativeAgentCommand(r, (await c.params).holdingSlug, i, key);
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);

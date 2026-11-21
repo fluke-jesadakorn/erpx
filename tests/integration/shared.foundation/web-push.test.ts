@@ -1,3 +1,4 @@
+import {holdingHosts} from '@erpx/contracts/holding-hosts';
 import { afterAll,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { createECDH } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
@@ -343,18 +344,22 @@ it("cleans only the normally authenticated user and session across Companies whi
 });
 
 
+// Work/POS/Hotel now share their registered Holding origin; retain the original case identity.
 it("uses Work/POS/Hotel owner origins and stops old Console Push at retirement without consuming Inbox history", async () => {
-  const keys=["ERPX_ENVIRONMENT","ERPX_PUBLIC_ORIGIN","ERPX_PRODUCT_ENVIRONMENT","ERPX_PRODUCT_ROUTING","ERPX_PRODUCT_SSO","ERPX_CONSOLE_RETIRED"],previous=keys.map(key=>process.env[key]);
+  const keys=["ERPX_ENVIRONMENT","ERPX_PUBLIC_ORIGIN","ERPX_PRODUCT_ENVIRONMENT","ERPX_PRODUCT_ROUTING","ERPX_PRODUCT_SSO","ERPX_CONSOLE_RETIRED","ERPX_HOLDING_ROUTING"],previous=keys.map(key=>process.env[key]);
   try {
     for(const [key,value] of Object.entries({ERPX_ENVIRONMENT:"local",ERPX_PUBLIC_ORIGIN:"https://console-dev-erpx.jesadakorn.com",ERPX_PRODUCT_ENVIRONMENT:"development",ERPX_PRODUCT_ROUTING:"enabled",ERPX_PRODUCT_SSO:"enabled",ERPX_CONSOLE_RETIRED:"disabled"}))vi.stubEnv(key,value);
-    for(const owner of ["work","pos","pms"])expect(allowedPushOrigin(`https://${owner}-dev-erpx.jesadakorn.com`)).toBe(true);
-    for(const owner of ["account","apps","booking","portal","legal-portal","forms"])expect(allowedPushOrigin(`https://${owner}-dev-erpx.jesadakorn.com`)).toBe(false);
-    expect(allowedPushOrigin("https://work-dev-erpx.jesadakorn.com.foreign.example")).toBe(false);
+    vi.stubEnv('ERPX_HOLDING_ROUTING','disabled');
     const retiredDevice={...subscription,endpoint:subscription.endpoint+"-retirement-"+crypto.randomUUID()};
     await registerPush(db,actor,"https://console-dev-erpx.jesadakorn.com","/holdings/test/inbox?tab=updates",retiredDevice);
     await publishInboxEvent(db,{key:`retired-push:${crypto.randomUUID()}`,companyId:actor.companyId,sourceType:"task",sourceId:"retained-task",sourceVersion:1,category:"work",preview:"Retained private update",recipientIds:[actor.userId]});
     const before=(await db.prepare("SELECT * FROM inbox_deliveries WHERE company_id=? AND user_id=? ORDER BY id").bind(actor.companyId,actor.userId).all()).results;
+    vi.stubEnv("ERPX_HOLDING_ROUTING","enabled");
     vi.stubEnv("ERPX_CONSOLE_RETIRED","enabled");
+    for(const holding of holdingHosts)expect(allowedPushOrigin(`https://${holding.hostname}`)).toBe(true);
+    for(const owner of ["work","pos","pms","account","apps","booking","portal","legal-portal","forms"])
+      expect(allowedPushOrigin(`https://${owner}-dev-erpx.jesadakorn.com`)).toBe(false);
+    expect(allowedPushOrigin("https://acme.jesadakorn.com.foreign.example")).toBe(false);
     expect(allowedPushOrigin("https://console-dev-erpx.jesadakorn.com")).toBe(false);
     const sentEndpoints:string[]=[];
     const send=vi.fn(async(device:{endpoint:string})=>{sentEndpoints.push(device.endpoint);return {statusCode:201};});

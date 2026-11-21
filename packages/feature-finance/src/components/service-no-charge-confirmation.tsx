@@ -7,7 +7,7 @@ import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/comma
 import {useRouter} from '@erpx/feature-shared/lib/destination-router';
 import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
 import {financeDocumentCommandContext,financeDocumentFormUnchanged} from '@erpx/feature-finance/lib/document-post-control';
-import {captureServiceNoChargeAttempt,serviceNoChargeAcknowledged,serviceNoChargeView,type ServiceNoChargeAttempt,type ServiceNoChargeControls} from '@erpx/server-finance/public/rules/service-no-charge';
+import {captureServiceNoChargeAttempt,serviceNoChargeAcknowledged,serviceNoChargeView,type ServiceNoChargeAttempt,type ServiceNoChargeControls} from '@erpx/feature-finance/public/service-no-charge';
 import {captureFinanceForm,acknowledgeFinanceForm,useFinanceDraftScope} from '@erpx/feature-finance/components/finance-draft-boundary';
 /** A no-charge confirmation fulfills one retained covered billing source. It
  * creates neither a payment nor a ledger posting or invoice cancellation. */

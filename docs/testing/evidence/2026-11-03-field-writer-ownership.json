@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "local scoped Rust candidate qualified; PR integration pending",
+  "capability": "field-writer-ownership",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "d8047f53a",
+  "scope": "One active native writer per Field bundle command on the product route; no legacy fallback and no uncontrolled dual writer.",
+  "route": {
+    "entry": "apps/service/src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
+    "entryReexports": "@erpx/feature-service/routes/api/v1/holdings/[holdingSlug]/field-service/route",
+    "post": "The route calls nativeReservePost(original, holdingSlug, input); when the native capability is unconfigured it throws 503 NATIVE_SERVICE_UNAVAILABLE. There is no legacy command fallback.",
+    "legacyProductImports": "grep -rn @erpx/server-field_service apps/service/src packages/feature-service/src packages/workplace/src returned no product route import."
+  },
+  "nativeDispatch": [
+    "isAgreementCreateCommand",
+    "isAgreementReviewCommand",
+    "isRequestCommand",
+    "isOrderCreateCommand",
+    "isVisitOrderCommand (schedule/dispatch/start)",
+    "isVisitRecoveryCommand (exception/resume)",
+    "isVisitCompletionCommand (complete)",
+    "isCancelOrderCommand",
+    "isBillingOrderCommand (release-billing)",
+    "isReserveOrderCommand",
+    "isIssueOrderCommand"
+  ],
+  "checks": [
+    {
+      "suite": "field_service.application.unit",
+      "result": "170 passed / 0 failed",
+      "criticalCase": "shared Service route preserves key, authentication and dispatch identity without legacy fallback"
+    },
+    {
+      "suite": "field_service.field-service.integration",
+      "result": "8 passed / 0 failed, including the registered full workflow case"
+    },
+    {
+      "suite": "field_service.rust-parts-command-postgres.integration",
+      "result": "35 passed / 0 failed for reserve/issue/replay/rollback"
+    },
+    {
+      "suite": "browser journey v2",
+      "result": "six Field workflows, invoice post, controlled receipt, Work/Support readback; 0 page errors"
+    }
+  ],
+  "otherWriters": [
+    "Field Files routes dispatch through fieldFileWriterOwner; generic Files throws FIELD_FILES_NATIVE_REQUIRED for Field sources.",
+    "Generic Field Records mutations throw FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED.",
+    "Support source_record_json is immutable (SUPPORT_SOURCE_IMMUTABLE).",
+    "apps/compat is retained non-product compatibility source and cannot be a product backend."
+  ],
+  "limits": [
+    "Local scoped evidence, not owner/workflow acceptance.",
+    "Production bootstrap/runtime and default production writer withdrawal remain checklist 13 work; this evidence closes the bundle command writer fence, not the deployable runtime."
+  ]
+}

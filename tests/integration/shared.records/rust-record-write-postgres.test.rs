@@ -1,0 +1,1354 @@
+//! Native generic Records create through the Workflow command ledger on a
+//! disposable Holding database with current Account/IAM authority.
+#![allow(dead_code)]
+#[path = "../../support/finance/review-composition.rs"]
+mod review;
+
+use erpx_server_records::public::record_registry_http::{
+    RecordsRegistryHttpTarget, records_registry_http_router,
+};
+use erpx_server_records::public::record_write::{
+    ArchiveRecordInput, CreateRecordInput, RecordFieldInput, ReferenceRecordInput,
+    TransitionRecordInput, UpdateRecordInput,
+};
+use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, HoldingId};
+use erpx_server_workflow::public::commands::CommandJson;
+use erpx_service::finance_journal_detail_http::FinanceJournalReadScopeHeaders;
+use erpx_service::records::{RecordsBackend, RecordsConfiguration, RecordsService};
+use erpx_service::records_command::RecordsCommandService;
+use serde_json::json;
+use std::sync::Arc;
+
+#[derive(Clone)]
+struct TestClock(Arc<review::account::fixture::MutableClock>);
+
+impl Clock for TestClock {
+    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+        self.0.now()
+    }
+}
+
+fn key(value: &str) -> CommandKey {
+    CommandKey::new(value).unwrap()
+}
+
+fn input(title: &str) -> CreateRecordInput {
+    CreateRecordInput {
+        section_id: "tickets".into(),
+        title: title.into(),
+        description: "  Native support record  ".into(),
+        fields: vec![RecordFieldInput {
+            key: "priority".into(),
+            label: "Priority".into(),
+            field_type: "text".into(),
+            value: json!("high"),
+            options: None,
+        }],
+    }
+}
+
+fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        other => panic!("expected an owner business failure, got {other:?}"),
+    }
+}
+
+async fn records_setup(
+    system: review::account::System,
+) -> (
+    review::Prepared,
+    RecordsCommandService<TestClock>,
+    Arc<RecordsBackend<TestClock>>,
+) {
+    let p = review::setup_without_finance_references(system).await;
+    let pool = &p.system.holdings[0];
+    let now = p.system.scenario.clock.now().get();
+    let expires = now + 3_600_000;
+    sqlx::query("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','custom_records_writer','Synthetic Records writer',false,1,'active') ON CONFLICT DO NOTHING").execute(pool.raw()).await.unwrap();
+    sqlx::query("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_records_writer',1,'[\"records.read\",\"records.write\",\"module.support.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING").execute(pool.raw()).await.unwrap();
+    sqlx::query("UPDATE assignments SET role='custom_records_writer',modules_json='[\"support\"]',valid_until=$1 WHERE user_id='fixture-a' AND company_id='company'").bind(expires).execute(pool.raw()).await.unwrap();
+    let clock = Arc::new(TestClock(p.system.scenario.clock.clone()));
+    let configuration = RecordsConfiguration::new(
+        HoldingId::new("h001").unwrap(),
+        CompanyId::new("company").unwrap(),
+    );
+    let command =
+        RecordsCommandService::new(p.authorizer.clone(), configuration.clone(), clock.clone());
+    let backend = Arc::new(RecordsBackend::new(
+        Arc::new(review::account::fixture::account::policy()),
+        Arc::new(FinanceJournalReadScopeHeaders),
+        Arc::new(RecordsService::new(
+            p.authorizer.clone(),
+            configuration,
+            clock,
+        )),
+        Arc::new(command),
+    ));
+    let service = RecordsCommandService::new(
+        p.authorizer.clone(),
+        RecordsConfiguration::new(
+            HoldingId::new("h001").unwrap(),
+            CompanyId::new("company").unwrap(),
+        ),
+        Arc::new(TestClock(p.system.scenario.clock.clone())),
+    );
+    (p, service, backend)
+}
+
+#[tokio::test]
+async fn creates_one_record_with_receipt_audit_outbox_and_replay() {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let create = input("  Native support record  ");
+        let result = service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                { let selection = p.maker_selection.clone(); move || Ok(selection) },
+                "support".into(),
+                create.clone(),
+                key("records:create-1"),
+            )
+            .await
+            .unwrap();
+        let id = format!("rec-support-records:create-1");
+        assert_eq!(result.as_str(), CommandJson::from_serializable(&json!({"id": id})).unwrap().as_str());
+        let row: (String, String, String, String, String, String, i64, String) = sqlx::query_as(
+            "SELECT section_id,title,description,fields_json,company_id,created_by,version,status \
+             FROM workspace_records WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row.0, "tickets");
+        assert_eq!(row.1, "Native support record");
+        assert_eq!(row.2, "Native support record");
+        assert_eq!(row.3, json!([{"key":"priority","label":"Priority","type":"text","value":"high"}]).to_string());
+        assert_eq!(row.4, "company");
+        assert_eq!(row.5, "fixture-a");
+        assert_eq!(row.6, 1);
+        assert_eq!(row.7, "draft");
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts WHERE command_id='records:create-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.create");
+        assert_eq!(receipt.1, json!({"id":id}).to_string());
+        let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM audit_events WHERE command_id='records:create-1' AND record_type='record_create' AND record_id=$1").bind(&id).fetch_one(pool.raw()).await.unwrap();
+        let outbox: i64 = sqlx::query_scalar("SELECT count(*) FROM outbox_events WHERE command_id='records:create-1' AND event_type='record.create' AND aggregate_id=$1").bind(&id).fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(audit, 1);
+        assert_eq!(outbox, 1);
+        // Exact replay returns the same receipt and writes no second row/effect.
+        let replay = service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                { let selection = p.maker_selection.clone(); move || Ok(selection) },
+                "support".into(),
+                create,
+                key("records:create-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), result.as_str());
+        let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM workspace_records WHERE module_id='support' AND id=$1").bind(&id).fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(rows, 1);
+        let audits: i64 = sqlx::query_scalar("SELECT count(*) FROM audit_events WHERE command_id='records:create-1'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(audits, 1);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn rejects_changed_replay_unauthorized_scope_and_invalid_module() {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let first = service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                { let selection = p.maker_selection.clone(); move || Ok(selection) },
+                "support".into(),
+                input("First native record"),
+                key("records:create-2"),
+            )
+            .await
+            .unwrap();
+        assert!(first.as_str().contains("rec-support-records:create-2"));
+        // A changed payload under the same key conflicts before a second row.
+        let conflict = service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                { let selection = p.maker_selection.clone(); move || Ok(selection) },
+                "support".into(),
+                input("Changed native record"),
+                key("records:create-2"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(conflict).code, "IDEMPOTENCY_CONFLICT");
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM workspace_records WHERE module_id='support' AND id='rec-support-records:create-2'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(count, 1);
+        // The reviewer fixture has no records.write permission and no support module.
+        let denied = service
+            .create(
+                "acme.example.test",
+                p.reviewer.clone(),
+                { let selection = p.reviewer_selection.clone(); move || Ok(selection) },
+                "support".into(),
+                input("Denied native record"),
+                key("records:create-3"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(denied).kind, erpx_server_shared::public::FailureKind::Forbidden);
+        // Only the bounded support module is accepted by this first slice.
+        let unsupported = service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                { let selection = p.maker_selection.clone(); move || Ok(selection) },
+                "crm".into(),
+                input("Unsupported module"),
+                key("records:create-4"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(unsupported).code, "RECORD_MODULE_UNSUPPORTED");
+        let invalid_section = service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                { let selection = p.maker_selection.clone(); move || Ok(selection) },
+                "support".into(),
+                CreateRecordInput {
+                    section_id: "not-a-section".into(),
+                    title: "Invalid section".into(),
+                    description: String::new(),
+                    fields: vec![RecordFieldInput {
+                        key: "priority".into(),
+                        label: "Priority".into(),
+                        field_type: "text".into(),
+                        value: json!("high"),
+                        options: None,
+                    }],
+                },
+                key("records:create-5"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(invalid_section).code, "INVALID_SECTION");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn native_http_create_accepts_real_session_and_returns_context_and_view() {
+    use axum::{
+        body::{Body, to_bytes},
+        http::Request,
+    };
+    use tower::ServiceExt;
+    review::account::with_system(|system| async move {
+        let (p, _, backend) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let router = records_registry_http_router(vec![RecordsRegistryHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend,
+        }])
+        .unwrap();
+        let body = serde_json::json!({
+            "sectionId": "tickets",
+            "title": "HTTPS native record",
+            "description": "",
+            "fields": [{"key":"priority","label":"Priority","type":"text","value":"high"}]
+        })
+        .to_string();
+        let request = || {
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/holdings/acme/records/support")
+                .header("host", "acme.example.test")
+                .header(
+                    "cookie",
+                    format!("__Host-erpx-product={}", p.maker_token.expose()),
+                )
+                .header("origin", "https://acme.example.test")
+                .header("idempotency-key", "records:http-create")
+                .header("x-erpx-context-company", "company")
+                .header("x-erpx-context-assignment", "finance-fixture-a")
+                .header("x-erpx-context-revision", "7")
+                .header("x-erpx-context-assignment-version", "3")
+                .header("content-type", "application/json")
+                .body(Body::from(body.clone()))
+                .unwrap()
+        };
+        let response = router.clone().oneshot(request()).await.unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(status, 200, "{value}");
+        assert_eq!(value["data"]["id"], "rec-support-records:http-create");
+        assert_eq!(value["data"]["title"], "HTTPS native record");
+        assert_eq!(value["data"]["status"], "draft");
+        assert_eq!(value["data"]["version"], 1);
+        assert_eq!(value["context"]["scopeKind"], "holding");
+        assert_eq!(value["context"].as_object().unwrap().len(), 13);
+        let replay = router.clone().oneshot(request()).await.unwrap();
+        assert_eq!(replay.status(), 200);
+        let replay_bytes = to_bytes(replay.into_body(), 64 * 1024).await.unwrap();
+        let replay_value: serde_json::Value = serde_json::from_slice(&replay_bytes).unwrap();
+        assert_eq!(replay_value["data"], value["data"]);
+        let rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM workspace_records WHERE module_id='support' AND id='rec-support-records:http-create'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(rows, 1);
+        // Missing rendered context headers must fail before the command.
+        let missing = Request::builder()
+            .method("POST")
+            .uri("/api/v1/holdings/acme/records/support")
+            .header("host", "acme.example.test")
+            .header(
+                "cookie",
+                format!("__Host-erpx-product={}", p.maker_token.expose()),
+            )
+            .header("origin", "https://acme.example.test")
+            .header("idempotency-key", "records:http-missing-context")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let denied = router.clone().oneshot(missing).await.unwrap();
+        assert_eq!(denied.status(), 403);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn updates_record_fields_with_version_cas_receipt_audit_outbox_and_replay() {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let id = "rec-support-records:update-seed".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Seed record"),
+                key("records:update-seed"),
+            )
+            .await
+            .unwrap();
+        let update = UpdateRecordInput {
+            expected_version: 1,
+            fields: std::collections::BTreeMap::from([("priority".into(), json!("low"))]),
+        };
+        let result = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                update.clone(),
+                key("records:update-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            result.as_str(),
+            CommandJson::from_serializable(&json!({"id": id}))
+                .unwrap()
+                .as_str()
+        );
+        let row: (String, i64, String) = sqlx::query_as(
+            "SELECT fields_json,version,updated_by FROM workspace_records \
+             WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            row.0,
+            json!([{"key":"priority","label":"Priority","type":"text","value":"low"}]).to_string()
+        );
+        assert_eq!(row.1, 2);
+        assert_eq!(row.2, "fixture-a");
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts \
+             WHERE command_id='records:update-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.update");
+        assert_eq!(receipt.1, json!({"id": id}).to_string());
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:update-1' \
+             AND record_type='record_update' AND record_version=1 AND record_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='records:update-1' \
+             AND event_type='record.update' AND aggregate_version=1 AND aggregate_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((audit, outbox), (1, 1));
+        // Exact replay returns the same receipt and writes no second update.
+        let replay = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                update,
+                key("records:update-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), result.as_str());
+        let version: i64 = sqlx::query_scalar(
+            "SELECT version FROM workspace_records WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(version, 2);
+        let audits: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:update-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(audits, 1);
+        // The stale expected version is refused before any new receipt.
+        let conflict = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                UpdateRecordInput {
+                    expected_version: 1,
+                    fields: std::collections::BTreeMap::from([(
+                        "priority".into(),
+                        json!("urgent"),
+                    )]),
+                },
+                key("records:update-2"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(conflict).code, "VERSION_CONFLICT");
+        // Unknown fields are refused rather than silently added.
+        let unknown = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                UpdateRecordInput {
+                    expected_version: 2,
+                    fields: std::collections::BTreeMap::from([("missing".into(), json!(true))]),
+                },
+                key("records:update-3"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(unknown).code, "UNKNOWN_FIELD");
+        // A reviewer without records.write cannot update the record.
+        let denied = service
+            .update(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                UpdateRecordInput {
+                    expected_version: 2,
+                    fields: std::collections::BTreeMap::from([("priority".into(), json!("low"))]),
+                },
+                key("records:update-4"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(denied).kind,
+            erpx_server_shared::public::FailureKind::Forbidden
+        );
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:update-%'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 2); // seed create + accepted update; failures add none
+        let version: i64 = sqlx::query_scalar(
+            "SELECT version FROM workspace_records WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(version, 2);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn archives_record_with_version_cas_receipt_audit_outbox_and_replay() {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let id = "rec-support-records:archive-seed".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Archive seed"),
+                key("records:archive-seed"),
+            )
+            .await
+            .unwrap();
+        let stale = service
+            .archive(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                ArchiveRecordInput {
+                    expected_version: 9,
+                },
+                key("records:archive-0"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        let result = service
+            .archive(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                ArchiveRecordInput {
+                    expected_version: 1,
+                },
+                key("records:archive-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            result.as_str(),
+            CommandJson::from_serializable(&json!({"id": id}))
+                .unwrap()
+                .as_str()
+        );
+        let row: (Option<i64>, i64, String) = sqlx::query_as(
+            "SELECT archived_at,version,updated_by FROM workspace_records \
+             WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert!(row.0.is_some());
+        assert_eq!(row.1, 2);
+        assert_eq!(row.2, "fixture-a");
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts \
+             WHERE command_id='records:archive-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.archive");
+        assert_eq!(receipt.1, json!({"id": id}).to_string());
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:archive-1' \
+             AND record_type='record_archive' AND record_version=1 AND record_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='records:archive-1' \
+             AND event_type='record.archive' AND aggregate_version=1 AND aggregate_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((audit, outbox), (1, 1));
+        // Exact replay returns the same receipt and does not archive twice.
+        let replay = service
+            .archive(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                ArchiveRecordInput {
+                    expected_version: 1,
+                },
+                key("records:archive-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), result.as_str());
+        let version: i64 = sqlx::query_scalar(
+            "SELECT version FROM workspace_records WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(version, 2);
+        let audits: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:archive-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(audits, 1);
+        // An archived record is no longer readable for another archive.
+        let archived = service
+            .archive(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                ArchiveRecordInput {
+                    expected_version: 1,
+                },
+                key("records:archive-2"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(archived).kind,
+            erpx_server_shared::public::FailureKind::NotFound
+        );
+        // A reviewer without records.write cannot archive the record.
+        let denied = service
+            .archive(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                ArchiveRecordInput {
+                    expected_version: 2,
+                },
+                key("records:archive-4"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(denied).kind,
+            erpx_server_shared::public::FailureKind::Forbidden
+        );
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:archive-%'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 2); // seed create + accepted archive; failures add none
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn adds_record_reference_with_edge_receipt_audit_outbox_replay_and_limit() {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let host = "rec-support-records:ref-host".to_owned();
+        let target = "rec-support-records:ref-target".to_owned();
+        for (key_value, title) in [
+            ("records:ref-host", "Reference host"),
+            ("records:ref-target", "Reference target"),
+        ] {
+            service
+                .create(
+                    "acme.example.test",
+                    p.maker.clone(),
+                    {
+                        let selection = p.maker_selection.clone();
+                        move || Ok(selection)
+                    },
+                    "support".into(),
+                    input(title),
+                    key(key_value),
+                )
+                .await
+                .unwrap();
+        }
+        let reference = ReferenceRecordInput {
+            target_module: "support".into(),
+            target_id: target.clone(),
+            kind: "dependsOn".into(),
+        };
+        let result = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            result.as_str(),
+            CommandJson::from_serializable(&json!({"id": host}))
+                .unwrap()
+                .as_str()
+        );
+        let edge: (String, String, String, i64, String) = sqlx::query_as(
+            "SELECT target_module,target_id,kind,ordinal,created_by FROM record_reference_edges \
+             WHERE host_module='support' AND host_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(edge, ("support".into(), target.clone(), "dependsOn".into(), 0, "fixture-a".into()));
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts \
+             WHERE command_id='records:reference-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.reference");
+        assert_eq!(receipt.1, json!({"id": host}).to_string());
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:reference-1' \
+             AND record_type='record_reference' AND record_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='records:reference-1' \
+             AND event_type='record.reference' AND aggregate_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((audit, outbox), (1, 1));
+        // Exact replay returns the same receipt and keeps one edge.
+        let replay = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), result.as_str());
+        // A different key for the same edge is accepted without duplicating it.
+        service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-2"),
+            )
+            .await
+            .unwrap();
+        let edges: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM record_reference_edges WHERE host_module='support' AND host_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(edges, 1);
+        // A record cannot reference itself.
+        let self_reference = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                ReferenceRecordInput {
+                    target_module: "support".into(),
+                    target_id: host.clone(),
+                    kind: "dependsOn".into(),
+                },
+                key("records:reference-3"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(self_reference).code, "SELF_REFERENCE");
+        // A missing target is refused rather than leaving a dangling edge.
+        let missing = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                ReferenceRecordInput {
+                    target_module: "support".into(),
+                    target_id: "rec-support-missing".into(),
+                    kind: "dependsOn".into(),
+                },
+                key("records:reference-4"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(missing).kind,
+            erpx_server_shared::public::FailureKind::NotFound
+        );
+        // The 50-edge cap is enforced before another insert.
+        sqlx::query(
+            "INSERT INTO workspace_records(module_id,id,section_id,title,description,status,\
+             fields_json,company_id,version,created_by,updated_by,created_at,updated_at) \
+             SELECT 'support','rec-support-limit-'||g,'tickets','Limit '||g,'','draft','[]',\
+             'company',1,'fixture-a','fixture-a',1,1 FROM generate_series(1,50) g",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO record_reference_edges(host_module,host_id,target_module,target_id,kind,\
+             ordinal,created_by,created_at) SELECT 'support',$1,'support',\
+             'rec-support-limit-'||g,'dependsOn',g-1,'fixture-a',1 FROM generate_series(1,50) g",
+        )
+        .bind(&host)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let limit = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-5"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(limit).code, "REFERENCE_LIMIT");
+        // A reviewer without records.write cannot add references.
+        let denied = service
+            .reference(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference,
+                key("records:reference-6"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(denied).kind,
+            erpx_server_shared::public::FailureKind::Forbidden
+        );
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:reference-%'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 2); // accepted reference + same-edge command; failures add none
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn transitions_record_with_state_machine_review_guard_history_receipt_audit_outbox_and_replay()
+ {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let now = p.system.scenario.clock.now().get();
+        let expires = now + 3_600_000;
+        sqlx::query("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','custom_records_reviewer','Synthetic Records reviewer',false,1,'active') ON CONFLICT DO NOTHING").execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_records_reviewer',1,'[\"records.read\",\"records.write\",\"records.review\",\"module.support.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING").execute(pool.raw()).await.unwrap();
+        sqlx::query("UPDATE assignments SET role='custom_records_reviewer',modules_json='[\"support\"]',valid_until=$1 WHERE user_id='fixture-b' AND company_id='company'").bind(expires).execute(pool.raw()).await.unwrap();
+        let id = "rec-support-records:transition-host".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Transition host"),
+                key("records:transition-host"),
+            )
+            .await
+            .unwrap();
+        let submit = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "submit".into(),
+                    note: "Ready for review".into(),
+                },
+                key("records:transition-submit"),
+            )
+            .await
+            .unwrap();
+        let submitted: serde_json::Value = serde_json::from_str(submit.as_str()).unwrap();
+        assert_eq!(
+            submitted,
+            json!({"id": id, "status": "in_review", "version": 2})
+        );
+        let history: (String, String, String, String, i64, String) = sqlx::query_as(
+            "SELECT from_status,to_status,action,note,record_version,actor_id \
+             FROM workspace_record_transitions WHERE id='records:transition-submit'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            history,
+            (
+                "draft".into(),
+                "in_review".into(),
+                "submit".into(),
+                "Ready for review".into(),
+                2,
+                "fixture-a".into()
+            )
+        );
+        let approve = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: "Reviewed".into(),
+                },
+                key("records:transition-approve"),
+            )
+            .await
+            .unwrap();
+        let approved: serde_json::Value = serde_json::from_str(approve.as_str()).unwrap();
+        assert_eq!(
+            approved,
+            json!({"id": id, "status": "approved", "version": 3})
+        );
+        let reviewer: String = sqlx::query_scalar(
+            "SELECT actor_id FROM workspace_record_transitions \
+             WHERE id='records:transition-approve' AND from_status='in_review' \
+             AND to_status='approved' AND record_version=3",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(reviewer, "fixture-b");
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts \
+             WHERE command_id='records:transition-approve'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.approve");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&receipt.1).unwrap(),
+            approved
+        );
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:transition-approve' \
+             AND record_type='record_approve' AND record_version=3 AND record_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='records:transition-approve' \
+             AND event_type='record.approve' AND aggregate_version=3 AND aggregate_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((audit, outbox), (1, 1));
+        // Exact replay returns the same receipt and does not append history twice.
+        let replay = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: "Reviewed".into(),
+                },
+                key("records:transition-approve"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), approve.as_str());
+        let approvals: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM workspace_record_transitions \
+             WHERE id='records:transition-approve'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(approvals, 1);
+        // Completion and reopen stay on the same documented state machine.
+        let complete = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 3,
+                    action: "complete".into(),
+                    note: String::new(),
+                },
+                key("records:transition-complete"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(complete.as_str()).unwrap(),
+            json!({"id": id, "status": "completed", "version": 4})
+        );
+        let reopen = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 4,
+                    action: "reopen".into(),
+                    note: "Reopened".into(),
+                },
+                key("records:transition-reopen"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(reopen.as_str()).unwrap(),
+            json!({"id": id, "status": "draft", "version": 5})
+        );
+        // Draft records cannot approve directly.
+        let invalid_id = "rec-support-records:transition-invalid".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Invalid transition"),
+                key("records:transition-invalid"),
+            )
+            .await
+            .unwrap();
+        let invalid = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                invalid_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "approve".into(),
+                    note: String::new(),
+                },
+                key("records:transition-invalid-approve"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(invalid).code, "INVALID_TRANSITION");
+        let stale = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                invalid_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 9,
+                    action: "submit".into(),
+                    note: String::new(),
+                },
+                key("records:transition-stale"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        // The creator cannot approve their own record even with review permission.
+        let self_id = "rec-support-records:transition-self".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Self review"),
+                key("records:transition-self"),
+            )
+            .await
+            .unwrap();
+        service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                self_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "submit".into(),
+                    note: String::new(),
+                },
+                key("records:transition-self-submit"),
+            )
+            .await
+            .unwrap();
+        let self_review = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                self_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: String::new(),
+                },
+                key("records:transition-self-approve"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(self_review).code, "SELF_REVIEW_FORBIDDEN");
+        // A writer without review permission cannot approve or reject.
+        let no_review_id = "rec-support-records:transition-no-review".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("No review permission"),
+                key("records:transition-no-review"),
+            )
+            .await
+            .unwrap();
+        service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                no_review_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "submit".into(),
+                    note: String::new(),
+                },
+                key("records:transition-no-review-submit"),
+            )
+            .await
+            .unwrap();
+        let no_review = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                no_review_id,
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: String::new(),
+                },
+                key("records:transition-no-review-approve"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(no_review).kind,
+            erpx_server_shared::public::FailureKind::Forbidden
+        );
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id IN \
+             ('records:transition-submit','records:transition-approve',\
+             'records:transition-complete','records:transition-reopen',\
+             'records:transition-self-submit')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 5);
+    })
+    .await;
+}

@@ -113,6 +113,7 @@ function mountedManager(send: typeof fetch) {
   const context = {registerUnsavedWork: (check: () => boolean) => {dirtyChecks.add(check); return () => {dirtyChecks.delete(check);};}, contextIsSwitching: () => false, hasUnsavedWork: () => forcedDirty || [...dirtyChecks].some(check => check())};
   const evaluated = {exports: {} as Record<string, unknown>}, path = process.env.ERPX_GUEST_BOOKING_SOURCE ?? "packages/feature-pms/src/components/guest-booking-management-workspace.tsx";
   const localRequire = (name: string) => {
+    if(name==='@erpx/contracts/holding-fetch')return {holdingFetch:(...args:Parameters<typeof fetch>)=>globalThis.fetch(...args)};
     if (name === "react") return {...React, useState, useRef, useEffect: effect, useLayoutEffect: effect};
     if (name === "react/jsx-runtime") return require(name);
     if (name.endsWith("@erpx/ui/components/foundation")) return primitives;
@@ -129,7 +130,7 @@ function mountedManager(send: typeof fetch) {
     if (name.endsWith(".css")) return {default: new Proxy({}, {get: (_target, key) => String(key)})};
     throw Error("Unexpected live dependency: " + name);
   };
-  const code = ts.transpileModule(readFileSync(path, "utf8"), {compilerOptions: {jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
+  const code = ts.transpileModule(readFileSync(path, "utf8"), {compilerOptions: {esModuleInterop: false, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
   new Function("require", "module", "exports", code)(localRequire, evaluated, evaluated.exports);
   const component = (evaluated.exports.GuestBookingManagementWorkspace ?? evaluated.exports.GuestBookingManager) as (props: {slug: string}) => React.ReactNode;
   type Node = React.ReactElement<Record<string, unknown>>;

@@ -1,11 +1,13 @@
 import "server-only";
-import {one,run} from '@erpx/server-runtime/public/runtime/sql';
+import {one} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-export function posStripePmsFacts(db:SqlDatabase){return {
+import {nativePmsOwnerWrite} from "@erpx/feature-pms/public/native-pms";
+
+export function posStripePmsFacts(db:SqlDatabase,companyId = ''){return {
 readPmsStripePayments1:(facts:{counterId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,'SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?',facts.counterId,facts.company_id,facts.account_id,facts.livemode),
-writePmsStripePayments1:(facts:{provider_created_at:string | number | true;counterId:string;})=>run(db,'UPDATE pms_stripe_payments SET provider_succeeded_at=COALESCE(provider_succeeded_at,?) WHERE id=?',facts.provider_created_at,facts.counterId),
+writePmsStripePayments1:(facts:{provider_created_at:string | number | true;counterId:string;})=>nativePmsOwnerWrite(companyId,'pms_w098',[facts.provider_created_at,facts.counterId]),
 readPmsBookingPayments1:(facts:{bookingId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,'SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?',facts.bookingId,facts.company_id,facts.account_id,facts.livemode),
-writePmsBookingPayments1:(facts:{provider_created_at:string | number | true;bookingId:string;})=>run(db,'UPDATE pms_booking_payments SET provider_succeeded_at=COALESCE(provider_succeeded_at,?) WHERE id=?',facts.provider_created_at,facts.bookingId),
+writePmsBookingPayments1:(facts:{provider_created_at:string | number | true;bookingId:string;})=>nativePmsOwnerWrite(companyId,'pms_w099',[facts.provider_created_at,facts.bookingId]),
 readPmsStripePayments2:(facts:{counterId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,'SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?',facts.counterId,facts.company_id,facts.account_id,facts.livemode),
 readPmsBookingPayments2:(facts:{bookingId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,'SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?',facts.bookingId,facts.company_id,facts.account_id,facts.livemode),
 readPmsBookingPayments3:(facts:{bookingId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,"SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND status IN ('confirmed','cancelled','refund_review')",facts.bookingId,facts.company_id,facts.account_id,facts.livemode),

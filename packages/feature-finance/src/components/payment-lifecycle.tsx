@@ -336,7 +336,7 @@ export function PrepareControlledPayment({
       return;
     }
     if (attempt.current?.body !== body||attempt.current.context!==context) { attempt.current = { body, key: crypto.randomUUID(),context }; setHasAttempt(true); }
-    const completion = captureFinanceForm();
+    const completion = captureFinanceForm(form);
     setBusy(true);
     setError("");
     try {

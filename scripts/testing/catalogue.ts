@@ -1,9 +1,10 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { internalRequiredCases, loadRequiredCases } from "./required-case-inventory";
 import { loadProviderRehearsals } from "./provider-rehearsals";
+import { validateCargoSuite } from './cargo';
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const testLanes = ["unit", "integration", "e2e", "journeys", "uat", "provider"] as const;
@@ -16,6 +17,8 @@ export type Suite = {
   owner: string;
   modules: string[];
   files: string[];
+  framework?: 'vitest' | 'cargo';
+  cargo?: { package: string; targets: string[]; features?: string[] };
   verificationInputs?: string[];
   fixture: FixtureProfile;
   requires: { jobs: boolean; scanner: boolean };
@@ -66,15 +69,17 @@ export function assertExplicitSelectionIncluded(selection: Selection, suites: Su
 export function discoverTests(root: string): string[] {
   const visit = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(directory, entry.name);
-    return entry.isDirectory() ? visit(path) : /\.(?:test\.[cm]?[jt]sx?|spec\.[cm]?[jt]sx?)$/.test(entry.name) ? [relative(root, path).replaceAll("\\", "/")] : [];
+    return entry.isDirectory() ? visit(path) : /\.(?:test\.(?:[cm]?[jt]sx?|rs)|spec\.[cm]?[jt]sx?)$/.test(entry.name) ? [relative(root, path).replaceAll("\\", "/")] : [];
   });
   return visit(resolve(root, "tests")).sort();
 }
 
 /** Imports, re-exports, literal import() and require() participate in impact and isolation checks. */
 export function importSpecifiers(source: string, filename = "source.ts"): string[] {
+  return sourceImportSpecifiers(ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true));
+}
+function sourceImportSpecifiers(tree: ts.SourceFile): string[] {
   const found = new Set<string>();
-  const tree = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true);
   const visit = (node: ts.Node) => {
     if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) found.add(node.moduleSpecifier.text);
     if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression) && node.expression.text === "require") && node.arguments.length && ts.isStringLiteralLike(node.arguments[0])) found.add(node.arguments[0].text);
@@ -93,32 +98,49 @@ export function resolveImport(from: string, specifier: string, files: ReadonlySe
 }
 
 export function reachesDatabaseFixture(file: string, root: string, visited = new Set<string>()): boolean {
-  if (file === "tests/support/runtime-env.ts" || file === "tests/support/runtime-setup.ts") return true;
-  if (visited.has(file) || !existsSync(resolve(root, file))) return false;
-  visited.add(file);
-  const source = readFileSync(resolve(root, file), "utf8");
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  let importsPostgres = false;
-  const inspect = (node: ts.Node) => {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === "pg") {
-      const clause = node.importClause;
-      const typeOnly = clause?.isTypeOnly || (!clause?.name && clause?.namedBindings && ts.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.length > 0 && clause.namedBindings.elements.every(binding => binding.isTypeOnly));
-      if (!typeOnly) importsPostgres = true;
-    }
-    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression) && node.expression.text === "require") && node.arguments.length && ts.isStringLiteralLike(node.arguments[0]) && node.arguments[0].text === "pg") importsPostgres = true;
-    ts.forEachChild(node, inspect);
-  };
-  inspect(tree);
-  if (importsPostgres) return true;
-  for (const specifier of importSpecifiers(source, file)) {
-    if (!specifier.startsWith(".")) continue;
-    const base = relative(root, resolve(dirname(resolve(root, file)), specifier)).replaceAll("\\", "/");
-    // Only the fixture tree is relevant: mocked server imports may otherwise lead through arbitrary implementation.
-    if (!base.startsWith("tests/") && !base.startsWith("fixtures/")) continue;
-    const path = [base, base + ".ts", base + ".tsx", base + "/index.ts"].find(candidate => existsSync(resolve(root, candidate)));
-    if (path && reachesDatabaseFixture(path, root, visited)) return true;
+  return databaseFixtureTraversal(root)(file, visited);
+}
+
+/** Parsed nodes live only for one validation. Repeated shared helper imports
+ * reuse AST facts, while a later validation always observes edited source. */
+function databaseFixtureTraversal(root: string) {
+  const facts = new Map<string, { database: boolean; imports: string[] }>();
+  function readFacts(file: string) {
+    const prior = facts.get(file);
+    if (prior) return prior;
+    const source = readFileSync(resolve(root, file), "utf8");
+    const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    let importsPostgres = false;
+    const inspect = (node: ts.Node) => {
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === "pg") {
+        const clause = node.importClause;
+        const typeOnly = clause?.isTypeOnly || (!clause?.name && clause?.namedBindings && ts.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.length > 0 && clause.namedBindings.elements.every(binding => binding.isTypeOnly));
+        if (!typeOnly) importsPostgres = true;
+      }
+      if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression) && node.expression.text === "require") && node.arguments.length && ts.isStringLiteralLike(node.arguments[0]) && node.arguments[0].text === "pg") importsPostgres = true;
+      ts.forEachChild(node, inspect);
+    };
+    inspect(tree);
+    const imports = sourceImportSpecifiers(tree).flatMap(specifier => {
+      if (!specifier.startsWith(".")) return [];
+      const base = relative(root, resolve(dirname(resolve(root, file)), specifier)).replaceAll("\\", "/");
+      // Only fixture imports are relevant; implementation imports may be mocked.
+      if (!base.startsWith("tests/") && !base.startsWith("fixtures/")) return [];
+      const path = [base, base + ".ts", base + ".tsx", base + "/index.ts"].find(candidate => existsSync(resolve(root, candidate)));
+      return path ? [path] : [];
+    });
+    const value = { database: importsPostgres, imports };
+    facts.set(file, value);
+    return value;
   }
-  return false;
+  const reaches = (file: string, visited = new Set<string>()): boolean => {
+    if (file === "tests/support/runtime-env.ts" || file === "tests/support/runtime-setup.ts") return true;
+    if (visited.has(file) || !existsSync(resolve(root, file))) return false;
+    visited.add(file);
+    const current = readFacts(file);
+    return current.database || current.imports.some(imported => reaches(imported, visited));
+  };
+  return reaches;
 }
 
 /** This helper reads the Engineering Business snapshot, which ordinary demo seeds do not create. */
@@ -174,13 +196,15 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
   const registered = (JSON.parse(readFileSync(resolve(root, "packages/catalogue/src/module-registry.json"), "utf8")) as { id: string }[]).map(module => module.id).sort();
   if (JSON.stringify([...catalogue.modules].sort()) !== JSON.stringify(registered)) throw new Error("TEST_MODULE_REGISTRY_MISMATCH");
   const ids = new Set<string>(), files = new Set<string>();
+  const reachesDatabase = databaseFixtureTraversal(root);
   for (const suite of catalogue.suites) {
     if (!suite.id || ids.has(suite.id)) throw new Error(`DUPLICATE_TEST_SUITE:${suite.id}`);
     ids.add(suite.id);
     if (!testLanes.includes(suite.lane) || !suite.owner || !Array.isArray(suite.modules) || !suite.modules.length || !Array.isArray(suite.files) || !suite.files.length || !fixtureProfiles.has(suite.fixture) || typeof suite.requires?.jobs !== "boolean" || typeof suite.requires?.scanner !== "boolean") throw new Error(`INVALID_TEST_SUITE:${suite.id}`);
     if (suite.serial !== undefined && (typeof suite.serial?.reason !== "string" || !suite.serial.reason.trim())) throw new Error(`SERIAL_SUITE_REASON_REQUIRED:${suite.id}`);
     if (suite.verificationInputs !== undefined && (!Array.isArray(suite.verificationInputs) || new Set(suite.verificationInputs).size !== suite.verificationInputs.length || suite.verificationInputs.some(file =>
-      typeof file !== "string" || isAbsolute(file) || file.includes("\\") || file.split("/").some(part => !part || part === "." || part === ".." || ["node_modules", ".next", ".build", ".cache", ".turbo", ".scratch", ".runtime", ".git"].includes(part)) || !existsSync(resolve(root,file))))) throw new Error(`INVALID_SUITE_VERIFICATION_INPUT:${suite.id}`);
+      typeof file !== "string" || isAbsolute(file) || file.includes("\\") || file.split("/").some(part => !part || part === "." || part === ".." || ["node_modules", ".next", ".build", ".cache", ".turbo", ".scratch", ".runtime", ".git"].includes(part)) || !existsSync(resolve(root,file)) || !statSync(resolve(root,file)).isFile()))) throw new Error(`INVALID_SUITE_VERIFICATION_INPUT:${suite.id}`);
+    validateCargoSuite(suite, root);
     if (!suite.modules.every(module => catalogue.modules.includes(module))) throw new Error(`UNKNOWN_SUITE_MODULE:${suite.id}`);
     if (suite.lane === "unit" || suite.lane === "integration") {
       if (suite.ci && (typeof suite.ci.critical !== "boolean" || typeof suite.ci.reason !== "string" || !suite.ci.reason.trim())) throw new Error(`NATIVE_CI_CLASSIFICATION_REQUIRED:${suite.id}`);
@@ -189,8 +213,9 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     for (const file of suite.files) {
       if (isAbsolute(file) || file.split("/").includes("..") || files.has(file) || !existsSync(resolve(root, file))) throw new Error(`INVALID_OR_DUPLICATE_TEST_FILE:${file}`);
       files.add(file);
+      if (file.endsWith('.rs') !== (suite.framework === 'cargo')) throw new Error(`TEST_FRAMEWORK_SOURCE_MISMATCH:${file}`);
       if (["e2e", "journeys", "uat"].includes(suite.lane) !== /\.spec\.[cm]?[jt]sx?$/.test(file)) throw new Error(`TEST_FRAMEWORK_LANE_MISMATCH:${file}`);
-      if (suite.lane === "unit" && reachesDatabaseFixture(file, root)) throw new Error(`UNIT_IMPORTS_POSTGRES_FIXTURE:${file}`);
+      if (suite.lane === "unit" && reachesDatabase(file)) throw new Error(`UNIT_IMPORTS_POSTGRES_FIXTURE:${file}`);
     }
     if (suite.lane === "provider" && !suite.provider) throw new Error(`PROVIDER_PREREQUISITES_REQUIRED:${suite.id}`);
     if (suite.lane === "uat" && !["case-annotations", "self-authenticated"].includes(suite.uatAuth?.mode ?? "")) throw new Error(`UAT_AUTH_MAPPING_REQUIRED:${suite.id}`);

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance sales-invoice create routing correction merged",
+  "capability": "finance-sales-invoice-create-route-fix",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 46,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/46",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T23:41:20Z",
+    "base": "9f397354161519ee6a6650b65102a78e63bf63f7",
+    "head": "5151e67266e60ec73b34ad1f22f9929d33885bf1",
+    "mergeCommit": "e5e284330a466ca9789387c03d39137eb57320cb",
+    "mergeMethod": "merge commit"
+  },
+  "correction": {
+    "problem": "The browser editor posts to /finance/sales/invoices, served by the specific finance/sales/[[...path]] route. The native branch was placed on the finance/[...path] catch-all, so the first browser run used the legacy TS writer.",
+    "fix": "Move the native branch to the specific sales route with a cloned request body and admit the POST mutation in the private API boundary.",
+    "rerun": "Desktop and mobile normal-auth create returned 201 and persisted INV-2026-000004 and INV-2026-000005 as standalone/native_lines with draft:v1 Money snapshots and both command receipts."
+  },
+  "verification": {
+    "postgres": "finance.rust-sales-invoice-create-postgres.integration 3/3",
+    "regressions": "finance.rust-sales-invoice-list-postgres 3/3",
+    "gates": "cargo clippy private-field-api, typecheck, architecture, docs, catalogue (33 modules, 789 suites)",
+    "browser": "Desktop 201 INV-2026-000004; mobile 201 INV-2026-000005; list showed INV-2026-000005 first; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 18,
+    "workflowsPartial": 1,
+    "workflowsMerged": 18,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "Only standalone create is native; receipt/defaults auxiliaries and edit/void remain TS.",
+    "The first legacy-route browser run (INV-2026-000001/000002) remains development fixture data and is not native-create evidence.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

@@ -19,11 +19,15 @@ prepareLotMove(value:string,lotId:string,warehouseId:string,sourceKind:"maintena
 prepareConsumption(id:string,companyId:string,branchId:string,departmentId:string | null,sourceKind:"maintenance" | "field_service",sourceId:string,sourceVersion:number,warehouseId:string,productId:string,quantityMilli:number,value:number,currency:string,entryDate:string,id2:string,reason:string,userId:string,now:number):Effect;
 prepareStockConsumption(quantityMilli:number,value:number,warehouseId:string,productId:string):Effect;}
 export interface InventoryConsumptionPorts<Effect>{repository:InventoryConsumptionRepository<Effect>;clock:Clock;prepareJournal(actor:WorkContext,input:Parameters<typeof prepareJournal>[2],key:string,status:Parameters<typeof prepareJournal>[4]):Promise<{result:{id:string};steps:Effect[]}>;snapshotMoney(actor:WorkContext,input:Parameters<typeof snapshotMoney>[2]):Promise<{statement:Effect}>;}
-export function createInventoryConsumptionApplication<Effect>(ports:InventoryConsumptionPorts<Effect>){const r=ports.repository;async function availableServiceSpares(a:WorkContext,branchId:string){
+/** Read-only spare projection shared by the retained workspace selector. */
+export interface InventorySparesRepository{availableStock(companyId:string,branchId:string):Promise<{warehouse_id:string;warehouse_name:string;product_id:string;sku:string;product_name:string;unit:string;tracking_mode:string;available_milli:number}[]>;
+availableLots(companyId:string,branchId:string):Promise<{lot_id:string;warehouse_id:string;product_id:string;lot_code:string|null;serial_number:string|null;quantity_milli:number;version:number;expiry_date:string|null}[]>;}
+export async function readAvailableServiceSpares(r:InventorySparesRepository,a:WorkContext,branchId:string){
  const stock=(await r.availableStock(a.companyId,branchId));
  const lots=(await r.availableLots(a.companyId,branchId));
  return {stock,lots};
 }
+export function createInventoryConsumptionApplication<Effect>(ports:InventoryConsumptionPorts<Effect>){const r=ports.repository;async function availableServiceSpares(a:WorkContext,branchId:string){return readAvailableServiceSpares(r,a,branchId);}
 async function prepareInventoryConsumption(a:WorkContext,input:ConsumptionInput<Effect>){
  const stock=await r.serviceStock(a.companyId,input.warehouseId,input.productId,input.branchId);
  if(!stock||stock.quantity_milli<input.quantityMilli)throw new BusinessRuleError(409,'PART_STOCK_UNAVAILABLE','Choose available spare stock from the service branch warehouse.');

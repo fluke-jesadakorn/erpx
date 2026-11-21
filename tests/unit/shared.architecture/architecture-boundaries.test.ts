@@ -22,7 +22,7 @@ describe("architecture enforcement", () => {
     expect(serviceOwnership.owners.filter((owner) => owner.kind === "business").map((owner) => owner.id).sort()).toEqual([...moduleIds].sort());
     for (const owner of serviceOwnership.owners) {
       for (const source of owner.source.filter((source) => !source.includes("*"))) expect(ownersForSource(source).map((entry) => entry.id)).toEqual([owner.id]);
-      if(owner.kind==="business")expect(fs.existsSync(path.join(root,"packages",`server-${owner.id}`,"src/index.ts"))).toBe(true);
+      if(owner.kind==="business")expect(fs.existsSync(path.join(root,"packages",`server-${owner.id}`,"src/index.ts"))||fs.existsSync(path.join(root,"packages",`server-${owner.id}`,"src/lib.rs"))).toBe(true);
       for(const capability of owner.capabilities??[]){
         expect(["legacy","partial","clean"]).toContain(capability.migration);
         expect(capability.regression.length).toBeGreaterThan(0);

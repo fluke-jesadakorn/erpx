@@ -9,6 +9,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { checkPurchasedCapability, companyPurchaseReadLocks, holdingPurchaseReadLocks, peoplePackageEnforcementMode, purchaseCommandBoundary, purchaseCommandFailure, readPurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
 import type { CapabilityPurpose } from "@erpx/server-commercial/public/rules/packages";
 import type { RosterCommand, RosterData } from "@erpx/server-people_payroll/domain/roster";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 /** Existing requests and cancellations discharge already-created obligations.
  * Publishing, assigning and creating requests continue to require active work. */
@@ -23,7 +24,7 @@ async function requireCurrentRosterAuthority(database: SqlDatabase, actor: WorkC
     AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) FOR SHARE`)
     .bind(actor.assignmentId, actor.userId, actor.role, actor.companyId, now, now, actor.branchId, actor.branchId).first();
   if (!assignment) throw new ApiError(403, "ROSTER_ACCESS_CHANGED", "Choose a current roster assignment.");
-  await database.batch([...workContextGuards(database, actor, key), ...iamMutationGuards(database, actor, key), database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+  await database.batch([...workContextGuards(database, actor, key), ...iamMutationGuards(database, actor, key), clearWorkflowCommandAssertions(database, key)]);
 }
 
 export async function rosterPurchasedAccess(database: SqlDatabase, actor: WorkContext): Promise<NonNullable<RosterData["purchase"]> | undefined> {
@@ -66,7 +67,7 @@ export async function withRosterPurchasedTransaction<Result>(owner: SqlDatabase,
       const result = await run(transaction);
       await transaction.prepare("SET CONSTRAINTS ALL IMMEDIATE").run();
       await requireCurrentRosterAuthority(transaction, actor, key);
-      const observations = await transaction.batch([...boundary.after, transaction.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+      const observations = await transaction.batch([...boundary.after, clearWorkflowCommandAssertions(transaction, key)]);
       boundary.observe?.(observations);
       return result;
     });
@@ -99,7 +100,7 @@ export async function withRosterCoveragePurchasedTransaction<Result>(owner: SqlD
         return access.settleExisting;
       });
       await transaction.prepare("SET CONSTRAINTS ALL IMMEDIATE").run();
-      const observations = await transaction.batch(boundaries.flatMap(({key, boundary}) => [...boundary.after, transaction.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]));
+      const observations = await transaction.batch(boundaries.flatMap(({key, boundary}) => [...boundary.after, clearWorkflowCommandAssertions(transaction, key)]));
       boundaries[0]?.boundary.observe?.(observations);
       return result;
     });

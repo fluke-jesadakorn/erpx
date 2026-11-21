@@ -12,6 +12,7 @@ import type {LegalKind} from '@erpx/server-legal/domain/model';
 import {inLegalOwnerUnit} from '@erpx/server-legal/adapters/purchases';
 import {visibility} from '@erpx/server-legal/adapters/legal/access';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
+import { legalRetentionAuthorization } from '@erpx/server-collaboration/adapters/native-legal-retention-authorization';
 type Source={id:string;item_id:string;company_id:string;kind:LegalKind;item_version:number;requested_by:string;approved_by:string|null;image:string};
 async function source(database:SqlDatabase,id:string){return database.prepare(`SELECT x.id,x.item_id,i.company_id,i.kind,i.version item_version,x.requested_by,x.approved_by,jsonb_build_object('request',x.id,'item',i.id,'company',i.company_id,'branch',i.branch_id,'department',i.department_id,'kind',i.kind,'classification',i.classification,'state',i.state,'version',i.version,'requester',x.requested_by,'approver',x.approved_by,'manifest',x.manifest,'policyId',x.policy_id,'policyVersion',x.policy_version,'policy',to_jsonb(p))::text image FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id JOIN legal_retention_policies p ON p.id=x.policy_id AND p.company_id=i.company_id WHERE x.id=?`).bind(id).first<Source>();}
 const hash=(image:string)=>createHash('sha256').update(image).digest('hex');
@@ -26,7 +27,7 @@ export async function recordLegalRetentionExecution(database:SqlDatabase,actor:W
  if(operation==='retention.approve'&&original.approved_by!==actor.userId)throw new ApiError(409,'LEGAL_RETENTION_SOURCE_CHANGED','The original approval identity changed.');
  const bound=await requireQueuedCommandAuthority(database,actor,'legal.destroy');
  await requireSourceAccess(database,bound,original.item_id);
- await database.prepare('INSERT INTO legal_retention_execution_authorizations(command_id,destruction_id,item_id,company_id,kind,actor_id,assignment_id,authority_json,source_hash,item_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(key,original.id,original.item_id,actor.companyId,operation==='retention.approve'?'approve':'retry',actor.userId,actor.assignmentId,JSON.stringify(queuedAuthority(bound)),hash(original.image),original.item_version,Date.now()).run();
+ await legalRetentionAuthorization(database).authorize({ key, companyId: actor.companyId, destructionId: original.id, itemId: original.item_id, kind: operation==='retention.approve'?'approve':'retry', userId: actor.userId, assignmentId: actor.assignmentId, authority: JSON.stringify(queuedAuthority(bound)), sourceHash: hash(original.image), itemVersion: original.item_version, now: Date.now() });
 }
 async function requireSourceAccess(database:SqlDatabase,actor:WorkContext,itemId:string){const visible=visibility(actor);if(!await database.prepare(`SELECT 1 FROM legal_items i JOIN legal_settings s ON s.company_id=i.company_id AND s.enabled=true WHERE i.id=? AND ${visible.sql} AND ${scheduledFeaturePredicate('i.company_id','legal')}`).bind(itemId,...visible.values).first())throw new ApiError(403,'LEGAL_RETENTION_ACCESS_CHANGED','The exact retained Legal source is unavailable to its original queued reviewer.');}
 type Lease={id:string;companyId:string;authorizedForDeletion:boolean};const leases=new WeakMap<SqlDatabase,Lease>();

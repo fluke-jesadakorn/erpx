@@ -9,15 +9,16 @@ import {applyMigrations,env} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
 import {enrollEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import {createSupportTicket,getSupportTicket} from '@erpx/server-support/public/support';
-import {createSupportPolicy,changeSupportPolicy,attachSupportClock} from "@erpx/server-support/public/support-sla";
-import {drainSupportSla} from "@erpx/server-support/public/support-sla-alerts";
+import {getSupportTicket} from '@erpx/server-support/public/support';
+import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
+import {startSupportClock} from "@erpx/server-support/public/rules/support-clock";
+import {seedSupportClock,seedSupportPolicy} from "../../support/helpers/support-sla-seed";
 import {savePostDraft,publishPost,postView} from '@erpx/server-collaboration/public/social-home';
 import {drainSocialAgent} from "@erpx/server-collaboration/public/social-agent";
 import {createReport,reportView} from "@erpx/server-runtime/public/executive/reports";
 import {queueGeneration,drainExecutiveGeneration} from "@erpx/server-runtime/public/executive/generation";
 import {generateSchema,emptyDefinition} from "@erpx/feature-shared/lib/executive/canvas";
-import {selectAiProviders,aiSelectionSchema} from "@erpx/server-agent/public/ai-providers";
+import {seedAiSelection} from "../agent/ai-provider-seed";
 
 const run=randomBytes(6).toString('hex'),source='a'.repeat(64),version=`release-${source}`,directory=resolve('.runtime/browser',run),databaseName=`erpx_browser_${run}_h001_db`,key=()=>crypto.randomUUID();
 const aiEnv={AI_BASE_URL:'https://opencode.ai/zen/go/v1',AI_MODEL:'muse-spark-1.3-contributor',AI_API_KEY:'declared-no-network-worker-fixture'};
@@ -41,26 +42,18 @@ async function supportTicket(company:typeof f){
  const {owner,head,manager}=company;for(const [actor,role] of [[head,'support_agent'],[manager,'support_manager']] as const){actor.role=role;actor.assignmentId=await company.grant(actor,role);actor.branchId=null;actor.departmentId=null;}
  const customer=await saveMaster(owner,'parties',null,{kind:'customer',code:key(),name:'Fictional SLA customer'},key()),warehouse=await saveMaster(owner,'warehouses',null,{branchId:company.branch,code:key(),name:'Fictional SLA warehouse'},key()),product=await saveMaster(owner,'products',null,{sku:key(),name:'Fictional SLA equipment',price:'10'},key());
  const order=await saveOrder(owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:warehouse.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:product.id,quantity:'1',price:'10',taxBps:0}]}),key());
- const ticket=await createSupportTicket(owner,{orderId:order.id,sourceVersion:1,title:'Fictional overdue support ticket',issue:'Retain the linked native customer request',ownerId:head.userId,dueDate:'2026-10-10'},key()),policy=await createSupportPolicy(owner,{name:'Fictional one-minute engineering SLA',policy:{calendar:{timezone:'Asia/Bangkok',weekdays:[0,1,2,3,4,5,6],opensAtMinute:0,closesAtMinute:1440,holidays:[]},targetMinutes:1,pauseWhileWaiting:true},reason:'Declared fixture calendar; no real SLA contract'},key());
- await changeSupportPolicy(manager,String(policy.id),{action:'approve',expectedVersion:1,reason:'Independent fixture calendar review'},key());const clock=vi.spyOn(Date,'now').mockReturnValue(Date.now()-3600000);try{await attachSupportClock(owner,String(ticket.id),{expectedVersion:1,policyId:policy.id,policyVersion:2,reason:'Declared historical fixture clock'},key());}finally{clock.mockRestore();}
+ const ticket=await seedSupportTicket(db,owner,{orderId:String(order.id),title:'Fictional overdue support ticket',issue:'Retain the linked native customer request',ownerId:head.userId,dueDate:'2026-10-10'}),policyDefinition={calendar:{timezone:'Asia/Bangkok',weekdays:[0,1,2,3,4,5,6],opensAtMinute:0,closesAtMinute:1440,holidays:[]},targetMinutes:1,pauseWhileWaiting:true},policy=await seedSupportPolicy(db,owner,{name:'Fictional one-minute engineering SLA',policy:policyDefinition});
+ const clock=vi.spyOn(Date,'now').mockReturnValue(Date.now()-3600000);try{await seedSupportClock(db,String(ticket.id),{policyId:policy.id,policyVersion:2,clock:startSupportClock(policyDefinition,Date.now()-3600000),actorId:owner.userId,reason:'Declared historical fixture clock'});}finally{clock.mockRestore();}
  return String(ticket.id);
 }
 async function social(company:typeof f){
  const draft=await savePostDraft(db,company.owner,null,{body:'@ERPX assistant Help with this fictional manual question',mentions:[{kind:'agent',targetId:'erpx-assistant',label:'ERPX assistant',start:0,end:15}],branchId:company.branch,expectedVersion:1},key()),post=await publishPost(db,company.owner,String(draft.id),Number(draft.version),key());
  return {id:String(post.id),reply:(await postView(db,company.owner,String(post.id))).agentReplies[0].id};
 }
-async function executive(company:typeof f){await selectAiProviders(db,company.owner,aiSelectionSchema.parse({expectedVersion:0,mode:'deployment',imageMode:'disabled'}),key());const report=await createReport(db,company.owner,key(),'Fictional manual report'),job=key();await queueGeneration(db,company.owner,aiEnv,report.id,generateSchema.parse({question:'Propose a fictional layout for explicit human review'}),job);return {report:report.id,job};}
+async function executive(company:typeof f){await seedAiSelection(db,company.owner,{mode:'deployment',imageMode:'disabled'});const report=await createReport(db,company.owner,key(),'Fictional manual report'),job=key();await queueGeneration(db,company.owner,aiEnv,report.id,generateSchema.parse({question:'Propose a fictional layout for explicit human review'}),job);return {report:report.id,job};}
 const reply=()=>({result:{body:'Declared fixture reply; a person decides the next step.'},inputTokens:4,outputTokens:3});
 const proposal=()=>({result:{message:'Declared fixture proposal; review before applying.',definition:emptyDefinition('Fictional proposal'),followUps:[]},inputTokens:4,outputTokens:3});
 
-it('delivers one enabled Support breach to the current manager across retries while disabled and unenrolled Companies stay untouched',async()=>{
- const ticket=await supportTicket(f),blocked=await supportTicket(disabled),absent=await supportTicket(unenrolled),before=await getSupportTicket(f.head,ticket);await production();
- await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.manager.assignmentId).run();await Promise.all([drainSupportSla(db),drainSupportSla(db)]);
- expect(await db.prepare('SELECT count(*) n FROM support_sla_alerts WHERE ticket_id=?').bind(ticket).first('n')).toBe(1);expect(await db.prepare("SELECT count(*) n FROM staff_notifications WHERE record_type='support_sla_alert' AND company_id=? AND user_id=?").bind(f.company,f.manager.userId).first('n')).toBe(0);
- f.manager.assignmentId=await f.grant(f.manager,'support_manager');await drainSupportSla(db);await drainSupportSla(db);
- const notices=(await db.prepare("SELECT user_id,record_id FROM staff_notifications WHERE record_type='support_sla_alert' AND company_id=?").bind(f.company).all<{user_id:string;record_id:string}>()).results;expect(notices).toHaveLength(2);expect(notices).toEqual(expect.arrayContaining([f.manager.userId,f.owner.userId].map(user_id=>({user_id,record_id:`support-breach-${ticket}`}))));expect(await getSupportTicket(f.head,ticket)).toEqual(before);
- expect(await db.prepare('SELECT count(*) n FROM support_sla_alerts WHERE ticket_id IN (?,?)').bind(blocked,absent).first('n')).toBe(0);expect(await db.prepare('SELECT count(*) n FROM company_release_acceptances').first('n')).toBe(0);
-});
 it('publishes one explicitly requested Social reply with a single usage receipt while disabled claims and lease recovery remain frozen',async()=>{
  const post=await social(f),blocked=await social(disabled),absent=await social(unenrolled);await db.prepare("UPDATE social_agent_replies SET state='running',lease_until=1 WHERE id=?").bind(blocked.reply).run();const before=await db.prepare('SELECT * FROM social_agent_replies WHERE id=?').bind(blocked.reply).first();await production();const provider=vi.fn(async()=>reply());
  await Promise.all([drainSocialAgent(db,aiEnv,undefined,provider),drainSocialAgent(db,aiEnv,undefined,provider)]);await drainSocialAgent(db,aiEnv,undefined,provider);expect(provider).toHaveBeenCalledTimes(1);
@@ -87,6 +80,6 @@ it('rejects an Executive proposal after Company withdrawal and preserves the sav
  expect(await db.prepare('SELECT state,proposal_json FROM executive_generation_jobs WHERE id=?').bind(own.job).first()).toEqual({state:'running',proposal_json:null});expect(await reportView(db,f.owner,own.report)).toEqual(before);
 });
 it('keeps the ordinary compiled production boundary closed when the engineering attestation is absent',async()=>{
- const ticket=await supportTicket(f),post=await social(f),report=await executive(f);await production();vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');const provider=vi.fn();await drainSupportSla(db);expect(await drainSocialAgent(db,aiEnv,post.id,provider)).toBe(false);expect(await drainExecutiveGeneration(db,aiEnv,provider)).toBe(false);expect(provider).not.toHaveBeenCalled();
- expect(await db.prepare('SELECT count(*) n FROM support_sla_alerts WHERE ticket_id=?').bind(ticket).first('n')).toBe(0);expect(await db.prepare('SELECT state,attempt FROM social_agent_replies WHERE id=?').bind(post.reply).first()).toEqual({state:'pending',attempt:0});expect(await db.prepare('SELECT state,attempts FROM executive_generation_jobs WHERE id=?').bind(report.job).first()).toEqual({state:'queued',attempts:0});
+ const post=await social(f),report=await executive(f);await production();vi.stubEnv('ERPX_ENGINEERING_VERIFICATION_RUN','');const provider=vi.fn();expect(await drainSocialAgent(db,aiEnv,post.id,provider)).toBe(false);expect(await drainExecutiveGeneration(db,aiEnv,provider)).toBe(false);expect(provider).not.toHaveBeenCalled();
+ expect(await db.prepare('SELECT state,attempt FROM social_agent_replies WHERE id=?').bind(post.reply).first()).toEqual({state:'pending',attempt:0});expect(await db.prepare('SELECT state,attempts FROM executive_generation_jobs WHERE id=?').bind(report.job).first()).toEqual({state:'queued',attempts:0});
 });

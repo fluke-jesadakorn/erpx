@@ -14,6 +14,7 @@ import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-t
 import {deferCommerceOwnerCheck} from "@erpx/server-commerce/public/purchase-boundary";
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Target={kind:"rfq"|"purchase";id:string};
 type Source={id:string;company_id:string;branch_id:string|null;department_id:string|null;image:string};
@@ -34,10 +35,10 @@ async function current(database:SqlDatabase,actor:WorkContext,permissions:readon
    .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
   if(!allowed?.allowed)throw new ApiError(403,"PROCUREMENT_ACCESS_CHANGED","Choose a current authorized purchasing work role.");
  }
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 function sourceFence(database:SqlDatabase,target:Target,record:Source,key:string){
- return [assertion(database,key,"procurement-source",`EXISTS(SELECT 1 FROM ${table(target)} r WHERE r.id=? AND (${procurementCommandSourceImage(target.kind,"r")})=?::jsonb${actual(target)})`,[record.id,record.image]),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)];
+ return [assertion(database,key,"procurement-source",`EXISTS(SELECT 1 FROM ${table(target)} r WHERE r.id=? AND (${procurementCommandSourceImage(target.kind,"r")})=?::jsonb${actual(target)})`,[record.id,record.image]),clearWorkflowCommandAssertions(database, key)];
 }
 function sourceFailure(error:unknown){
  const failure=error as {code?:string;detail?:string},detail=failure?.detail;
@@ -74,7 +75,7 @@ export async function withProcurementPurchasedCommand<Result>(actor:WorkContext,
   if(!after)throw new ApiError(409,"PROCUREMENT_SOURCE_CHANGED","The original purchasing source changed.");
   await flushFinanceDeferredEffects(database);
   await current(database,actor,command.permissions,after,key);
-  const observed=await database.batch([...sourceFence(database,command.target,after,key),...boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);boundary.observe?.(observed);
+  const observed=await database.batch([...sourceFence(database,command.target,after,key),...boundary.after,clearWorkflowCommandAssertions(database, key)]);boundary.observe?.(observed);
   return result;
  });}catch(error){throw sourceFailure(error)??purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
@@ -95,7 +96,7 @@ export async function prepareRfqPurchaseHandoff(database:SqlDatabase,actor:WorkC
   await current(database,actor,["commerce.read","commerce.purchase"],before,boundaryKey);
   try{const observed=await database.batch([
    assertion(database,boundaryKey,"rfq-handoff-source",`EXISTS(SELECT 1 FROM procurement_rfqs r JOIN commerce_orders o ON o.id=r.order_id AND o.company_id=r.company_id AND o.kind='purchase' WHERE r.id=? AND o.id=? AND jsonb_build_object('record',to_jsonb(r)-'updated_at','lines',(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_lines line WHERE line.rfq_id=r.id),'offers',(SELECT jsonb_agg(to_jsonb(offer) ORDER BY offer.id) FROM procurement_rfq_offers offer WHERE offer.rfq_id=r.id),'offerLines',(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_offer_lines line JOIN procurement_rfq_offers offer ON offer.id=line.offer_id WHERE offer.rfq_id=r.id))=?::jsonb)`,[rfqId,orderId,JSON.stringify({record:expected,lines:sourceImage.lines,offers:sourceImage.offers,offerLines:sourceImage.offerLines})]),
-   ...boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(boundaryKey)
+   ...boundary.after,clearWorkflowCommandAssertions(database, boundaryKey)
   ]);boundary.observe?.(observed);}catch(error){throw sourceFailure(error)??error;}
  });
 }

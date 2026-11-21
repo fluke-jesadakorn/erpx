@@ -5,7 +5,7 @@ import { SectionWorkspace } from "@erpx/workplace/components/section-workspace";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { ListPagination } from "@erpx/ui/components/list-pagination";
-import { collaborationPresentationQueries } from "@erpx/server-collaboration/public/presentation-queries";
+import { handbookReads } from "@erpx/feature-collaboration/lib/native-handbook-page";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -20,7 +20,7 @@ export default async function Knowledge({ params, searchParams }: {
     }>;
     searchParams: Promise<RouteSearch>;
 }) {
-    const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams, presentation = await collaborationPresentationQueries(actor.holdingId);
+    const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams, presentation = await handbookReads(actor, holdingSlug);
     const access = await presentation.handbookAccess(actor).catch(error => pageError(error, holdingSlug));
     const learning = hasModuleAccess(actor.modules, 'learning') && hasPermission(actor, 'records.read');
     const topics = knowledgeTopicsFor(access, learning);

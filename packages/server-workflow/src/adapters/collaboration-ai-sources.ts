@@ -1,2 +1,3 @@
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-export function collaborationAiSources(db: SqlDatabase) { return { clearReserveAssertions(id: string) { return db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(id); }, clearFinishAssertions(id: string) { return db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(id); } }; }
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
+export function collaborationAiSources(db: SqlDatabase) { return { clearReserveAssertions(id: string, companyId: string) { return nativeClearCommandAssertions(db, companyId, id); }, clearFinishAssertions(id: string, companyId: string) { return nativeClearCommandAssertions(db, companyId, id); } }; }

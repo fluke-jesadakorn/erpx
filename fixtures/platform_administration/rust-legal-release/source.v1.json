@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "sources": [
+    {
+      "path": "packages/server-platform_administration/src/adapters/release-predicate.ts",
+      "sha256": "484aeeef5305a8f8939a019162fe70533c3a64e9c1fc957588a319ee52911097"
+    },
+    {
+      "path": "packages/catalogue/src/production-scope.ts",
+      "sha256": "d67d9c7bdb16a59fa4119e27e1a6a170242beae4995eff6ae4258c77da21faf3"
+    },
+    {
+      "path": "packages/server-organization/src/adapters/platform-owner-projection-sources.ts",
+      "sha256": "98870f1569c53cc411af421755fb82a5f892ffe6eb6701d32305f4de853c89a2"
+    },
+    {
+      "path": "packages/server-identity_access/src/adapters/platform-owner-projection-sources.ts",
+      "sha256": "075851ef8dae8a896b1719d7d1781fadbdc848f7d42ebf4fb9ef621afbf83fb5"
+    }
+  ],
+  "node": "v26.11.1",
+  "scope": "legal-th-operations-v1",
+  "softwareVersion": "synthetic-native-release",
+  "criteria": [
+    {
+      "id": "legal_workflows",
+      "label": "Scoped Legal UAT journeys, independent review and executed copies",
+      "owner": "Legal owner / QA",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_content",
+      "label": "Named legal specialist accepts rules, templates, applicability and Company policy",
+      "owner": "Thai legal specialist",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_access",
+      "label": "Current assignments, confidential membership and cross-Company denial",
+      "owner": "IT / Legal reviewer",
+      "permission": "organization.manage"
+    },
+    {
+      "id": "legal_documents",
+      "label": "Quarantine, scanner, OCR, provenance, private files and legal holds",
+      "owner": "IT / Legal reviewer",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_ai",
+      "label": "Company provider policy, citation evaluation, insufficient evidence and provider failure",
+      "owner": "Legal specialist / AI owner",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_release",
+      "label": "Lint, typecheck, migration upgrade and isolated production browser acceptance",
+      "owner": "Engineering / QA",
+      "permission": "organization.manage"
+    },
+    {
+      "id": "legal_operations",
+      "label": "Jobs, email, off-machine restore (RPO 1h / RTO 4h), rollback and alerts",
+      "owner": "Operations / IT",
+      "permission": "organization.manage"
+    }
+  ],
+  "predicateSha256": "678382ff15a3470b80e8de96b6961de2d189d459442f0f9b6b0bc380f1711c09"
+}

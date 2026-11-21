@@ -2,7 +2,7 @@ import type {WorkContext,currentSession,requireWorkContext,requirePlatformContex
 import type {NavigationContext} from "@erpx/feature-work_projection/lib/workplace-navigation";
 import {allowedWidgets,pageLayoutSchema,isConfigurablePage,type LayoutSnapshot} from "@erpx/feature-work_projection/lib/page-layouts";
 import {pageLayoutInputSchema} from "@erpx/server-work_projection/domain/page-layouts";
-export type PageLayoutUnit<Effect>={companyAuthority(actor:WorkContext):Promise<boolean>;layouts(company:string,page:string,user:string,base:string):Promise<{owner_id:string;layout_json:string|null;version:number}[]>;lock(scope:string):Promise<unknown>;workGuards(actor:WorkContext,key:string):Effect[];iamGuards(actor:WorkContext,key:string):Effect[];clearAssertions(key:string):Effect;batch(effects:Effect[]):Promise<unknown>;currentSession(session:string,user:string):Promise<Record<string,unknown>|null>;currentPlatform(assignment:string,user:string,role:string,now:number,now2:number):Promise<Record<string,unknown>|null>;receipt(key:string):Promise<{request_hash:string;result_json:string}|null>;save(company:string,owner:string,base:string,page:string,value:string|null,version:number,now:number):Promise<unknown>;saveReceipt(key:string,hash:string,result:string,user:string,company:string,base:string,page:string,action:string,now:number):Promise<unknown>;};
+export type PageLayoutUnit<Effect>={companyAuthority(actor:WorkContext):Promise<boolean>;layouts(company:string,page:string,user:string,base:string):Promise<{owner_id:string;layout_json:string|null;version:number}[]>;lock(scope:string):Promise<unknown>;workGuards(actor:WorkContext,key:string):Effect[];iamGuards(actor:WorkContext,key:string):Effect[];clearAssertions(key:string,companyId:string):Promise<Effect>;batch(effects:Effect[]):Promise<unknown>;currentSession(session:string,user:string):Promise<Record<string,unknown>|null>;currentPlatform(assignment:string,user:string,role:string,now:number,now2:number):Promise<Record<string,unknown>|null>;receipt(key:string):Promise<{request_hash:string;result_json:string}|null>;save(company:string,owner:string,base:string,page:string,value:string|null,version:number,now:number):Promise<unknown>;saveReceipt(key:string,hash:string,result:string,user:string,company:string,base:string,page:string,action:string,now:number):Promise<unknown>;};
 export function createPageLayoutService<Effect>(ports:{error(status:number,code:string,message:string):Error;now():number;hash(value:string):string;currentSession:typeof currentSession;requireWorkContext:typeof requireWorkContext;requirePlatformContext:typeof requirePlatformContext;prepare(work:WorkContext|null):Promise<void>;unit():PageLayoutUnit<Effect>;navigation(actor:WorkContext):Promise<NavigationContext>;base(actor:WorkContext):string;transaction<T>(action:(tx:PageLayoutUnit<Effect>)=>Promise<T>):Promise<T>}) {
  return async function pageLayout(method:string,command:()=>Promise<{input:unknown;key:string}>,pageKey:string,holdingSlug?:string,account=false):Promise<LayoutSnapshot>{
     if (!isConfigurablePage(pageKey))
@@ -117,7 +117,7 @@ export function createPageLayoutService<Effect>(ports:{error(status:number,code:
         await tx.batch([
           ...tx.workGuards(work,key),
           ...tx.iamGuards(work,key),
-          tx.clearAssertions(key),
+          await tx.clearAssertions(key, company),
         ]);
         if (parsed.action === "publish" && !(await tx.companyAuthority(work)))
           throw ports.error(

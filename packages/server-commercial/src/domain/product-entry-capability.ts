@@ -12,7 +12,7 @@ import { destinationProduct, type ProductId } from "@erpx/contracts/product-regi
 export function productEntryCapability(id: ProductId, path: string): string | null {
   if (destinationProduct(path) !== id) return null;
   switch (id) {
-    case "work": return socialPostSourceEntry(path)?"work.social":workforceSelfServiceEntry(path)?"people.workforce":path.startsWith("projects-routines/routines") || path.startsWith("projects-routines/operations") ? "work.advanced-routines"
+    case "apps": return socialPostSourceEntry(path)?"work.social":workforceSelfServiceEntry(path)?"people.workforce":path.startsWith("projects-routines/routines") || path.startsWith("projects-routines/operations") ? "work.advanced-routines"
       : path.startsWith("inbox/messages") || path.startsWith("inbox/teams") ? "work.messages"
         : path.startsWith("calendar") ? "work.calendar" : path.startsWith("knowledge") ? "work.handbook"
           : path.startsWith("work") || path.startsWith("projects-routines/tasks") ? "work.actions" : "work.today";

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "Commerce now writes Finance-owned order-revision Money evidence in the same serializable transaction as the native quotation/sales-order draft save, and the post-save navigation refreshes the hub and opens the exact created quotation/sales document. Desktop and mobile browser journeys created and edited quotations through the native Next route with persisted order, line and 1+3N Money rows. The quotation workflow closes; sales orders, cancellations and fulfillment remain separate.",
+  "capability": "commerce-order-revision-money-and-browser-close",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "2b8926a17a92f4af507ec5a1a8b9683c2d11dd70",
+  "commit": "62a9147fb",
+  "scope": {
+    "financePort": "Finance owns lock_commerce_order_money_sources and snapshot_commerce_order_revision. It locks company_currency_scales, company_fx_rates and money_transaction_snapshots in a stable order, verifies the serializable unit and exact lock modes, resolves the configured ISO scale and effective-date confirmed quote (fallback recorded), converts to USD with exact rounding, writes the order total plus each line's unit_price/subtotal/tax under source ids ${id}:${version}, re-reads every persisted row and re-verifies the unit.",
+    "composition": "The native Commerce save acquires the Finance locks before the owner write, runs save_order_outcome, then calls Finance snapshot on the same connection. A replay returns plan=None and never duplicates Money rows. Any persistence or revalidation failure rolls the order, receipt, audit, outbox and Money rows back together.",
+    "frontend": "useCommerceCommand now builds the quotation or sales-document destination from the submitted kind, uses the record drawer result and refreshes after the drawer route is active so the created/edit result and the list are read again.",
+    "legacyRetained": "Purchase orders, request/RFQ handoffs, sales-order approval Finance credit guard, confirmed sales cancellation Inventory reversal guard, fulfillment, invoicing, settlement and returns remain retained and are outside sales/quotes."
+  },
+  "verification": {
+    "finance": "cargo test -p erpx-server-finance --locked: all suites pass, including the new commerce_order_money_postgres 3/3. Cases: exact 1+3N rows for version 1 and a new immutable version 2 (14 rows), rollback to zero, XAG scale required, JPY scale mismatch, USD without a rate/company scale, effective-date rate selection and latest-confirmed fallback with used_latest_fallback.",
+    "commerce": "cargo test -p erpx-server-commerce --locked: 61/61 pass across 5 unit/8 PostgreSQL/25 policy/7 HTTP/15 order PostgreSQL/1 service-count suites. New save_outcome_and_finance_money_snapshots_share_one_unit_and_replay_skips_money asserts 4 rows for version 1, 4 for version 2, no duplicate rows on replay and zero order/Money rows after a late deferred outbox failure.",
+    "checks": "cargo check -p erpx-service --locked and cargo check --workspace --locked pass in the working tree. A clean archive of the staged tree passes cargo check -p erpx-server-finance -p erpx-server-commerce --locked. tsc --noEmit, eslint on the changed component and rustfmt --check pass. (The repository HEAD already references untracked external server-files modules, so a clean full-service archive cannot build until that external WIP is integrated; this is not introduced here.)",
+    "browser": "Desktop 1440x1400 New quotation saved QT-2026-000010 (order-bf576781-6935-415c-b87f-e9eccee50d98, version 1, subtotal 1000 USD) through POST /__erpx/sales/api/v1/holdings/acme/commerce/orders (200) and opened the created record. Edit draft changed quantity to 2 and the note; POST /orders/order-bf576781... returned version 2 and the record route with returnTo. Mobile 390x844 New quotation saved QT-2026-000011 (order-93764ab9-f7d6-41f8-a6c8-f142c6ebc829, version 1) and opened the record route. Fresh desktop and mobile lists rendered all 11 native quotations including the edited USD 20.00."
+  },
+  "persistedMoney": {
+    "desktopVersion1": "order-bf576781-...:1 total amount_units=1000 usd_units=1000 scale=2 rate=null captured_at=1794170441438; line-0:1 unit_price=1000 subtotal=1000 tax=0.",
+    "desktopVersion2": "order-bf576781-...:2 total=2000 usd=2000 captured_at=1794170484540; line-0:2 unit_price=1000 subtotal=2000 tax=0.",
+    "mobileVersion1": "order-93764ab9-...:1 total=1000; line-0:1 unit_price=1000 subtotal=1000 tax=0.",
+    "navigation": "Saving the created quotation opened the record detail drawer for the exact number. Closing the drawer produced /sales/sales/documents/quote/order-.../overview?returnTo=...&company=acme-co and a freshly read list containing the new rows. The edit journey landed directly on the same quotation record route.",
+    "screenshots": [
+      ".scratch/dev/commerce-money-create-desktop.png",
+      ".scratch/dev/commerce-money-edit-desktop.png",
+      ".scratch/dev/commerce-money-create-mobile.png",
+      ".scratch/dev/commerce-money-quotes-final-desktop.png",
+      ".scratch/dev/commerce-money-quotes-final-mobile.png"
+    ]
+  },
+  "workflowClosure": {
+    "sales/quotes": "Verified: native price lists, quotation list/detail, draft create/update with Money evidence, submit/approve/return/cancel and quote conversion, desktop/mobile interactive create and edit, persisted readback and no configured fallback. Purchase orders and sales-order approval/cancellation/fulfillment/invoicing/returns are separate workflows or retained operations."
+  },
+  "counts": {
+    "verified": 84,
+    "partial": 36,
+    "unstarted": 86,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "1 verified / 1 partial / 3 unstarted of 5"
+  },
+  "remaining": [
+    "sales/orders: sales-order approval Finance credit guard and confirmed cancellation Inventory guard, fulfillment/invoicing/settlement/returns",
+    "sales/feature-cancellations and sales/fulfillment remain open",
+    "Positive-cost Assets registration browser verification still needs the keyed container built with the Assets/Finance handoff",
+    "External untracked server-files modules prevent a clean full-service archive build; preserve and integrate separately"
+  ],
+  "nextAction": "Close the next dependency-ready Commerce workflow (sales/orders approval/cancellation guards) or rebuild the keyed container for the positive-cost Assets browser journey before advancing more counts."
+}

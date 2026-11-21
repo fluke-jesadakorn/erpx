@@ -11,7 +11,7 @@ const changed=()=>Object.assign(new Error('Your hotel or work context changed. R
 function scope(source:PmsWorkspaceCommandSource|null){
  const work=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');
  const front=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-front-app]');
- return JSON.stringify([source,typeof window==='undefined'?null:[window.location.pathname,window.location.search],work&&[work.dataset.workUser,work.dataset.workRevision,work.dataset.workCompany,work.dataset.workAssignment],front&&[front.dataset.frontApp,front.dataset.frontLocation]]);
+ return JSON.stringify([source,typeof window==='undefined'?null:[window.location.pathname,window.location.search],work&&[work.dataset.workUser,work.dataset.workRevision,work.dataset.workCompany,work.dataset.workAssignment,work.dataset.workAssignmentVersion],front&&[front.dataset.frontApp,front.dataset.frontLocation]]);
 }
 export function capturePmsWorkspaceCommandContext(current:()=>PmsWorkspaceCommandSource|null){
  if(!current())throw changed();

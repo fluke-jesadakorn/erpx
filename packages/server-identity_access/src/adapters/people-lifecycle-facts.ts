@@ -1,3 +1,5 @@
+import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 import "server-only";
@@ -57,11 +59,11 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
                 .first();
         },
         stageSaveLifecycleEffect2(now: number, id: string) {
-            return database.prepare(`UPDATE assignments SET revoked_at=?,version=version+1 WHERE id IN (SELECT assignment_id ${peoplepayrollSources.people_lifecycle_facts_people_lifecycle_grants_from} WHERE case_id=?) AND revoked_at IS NULL`)
+            return nativePrepare("w_lifecycle_revoke_case")
                 .bind(now, id);
         },
         stageSaveLifecycleEffect3(companyId: string, id: string) {
-            return database.prepare("UPDATE iam_reviews SET status='failed',version=version+1 WHERE company_id=? AND payload->>'caseId'=? AND kind IN ('people.lifecycle.grant','people.lifecycle.activate') AND status='pending'")
+            return nativePrepare("w_9a1fec78b9d4")
                 .bind(companyId, id);
         },
         guard40(key: string, value: "protected-person", companyId: string, personId: string, userId: string, companyId2: string, companyId3: string, personId2: string) {
@@ -76,11 +78,11 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
         },
         guard46(key: string, value: string, companyId: string, owner: string, value2: string | null, value3: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return assertion(database, key, value, "EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (?::text IS NULL OR iam_role_allows(role,company_id,?)) AND (? NOT IN ('payroll','finance','directory') OR scope_kind='holding'))", [companyId, owner, value2, value3, kind]); },
         stageCancelLifecycleEffect3(now: number, id: string) {
-            return database.prepare(`UPDATE assignments SET revoked_at=?,version=version+1 WHERE id IN (SELECT assignment_id ${peoplepayrollSources.people_lifecycle_facts_people_lifecycle_grants_from} WHERE case_id=?) AND revoked_at IS NULL`)
+            return nativePrepare("w_lifecycle_revoke_case")
                 .bind(now, id);
         },
         stageCancelLifecycleEffect4(id: string) {
-            return database.prepare(`UPDATE iam_reviews SET status='failed',version=version+1 WHERE id IN (SELECT review_id ${peoplepayrollSources.people_lifecycle_facts_people_lifecycle_grants_from} WHERE case_id=?) AND status='pending'`)
+            return nativePrepare("w_lifecycle_fail_review_case")
                 .bind(id);
         },
         readPeopleLifecycleWorkReviews(companyId: string) {
@@ -100,10 +102,10 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
         applyValidatePackageEffect3(companyId: unknown, connectionId: unknown, account: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM iam_connections WHERE company_id=$1 AND id=$2 AND status='active' AND ($3='local' OR provider=$3)", [companyId, connectionId, account]); },
         applyValidatePackageEffect4(connectionId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM iam_groups WHERE connection_id=$1 AND external_id=$2", [connectionId, id]); },
         applyRequestLifecycleAccessEffect(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM iam_reviews WHERE company_id=$1 AND payload->>'caseId'=$2 AND status IN ('pending','approved')", [companyId, id]); },
-        applyApplyLifecycleReviewEffect2(id: unknown, value: unknown) { return client!.query<Record<string, unknown>>(`UPDATE assignments SET revoked_at=$2,version=version+1 WHERE id IN (SELECT assignment_id ${peoplepayrollSources.people_lifecycle_facts_people_lifecycle_grants_from} WHERE case_id=$1) AND revoked_at IS NULL`, [id, value]); },
-        applyApplyLifecycleReviewEffect3(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("UPDATE iam_reviews SET status='failed',version=version+1 WHERE company_id=$1 AND payload->>'caseId'=$2 AND status='pending'", [companyId, id]); },
+        applyApplyLifecycleReviewEffect2(id: unknown, value: unknown) { return nativeIdentityWrite("w_lifecycle_revoke_case_pg", [id, value]); },
+        applyApplyLifecycleReviewEffect3(companyId: unknown, id: unknown) { return nativeIdentityWrite("w_569a11c3d974", [companyId, id]); },
         applyApplyLifecycleReviewEffect5(userId: unknown, created_by: unknown, companyId: unknown) { return client!.query<{
             same: boolean;
         }>("SELECT iam_same_person($1,$2,$3) same", [userId, created_by, companyId]); },
-        applyApplyLifecycleReviewEffect7(assignment: unknown, effective_at: unknown) { return client!.query<Record<string, unknown>>("UPDATE assignments SET valid_from=GREATEST(valid_from,$2) WHERE id=$1", [assignment, effective_at]); } };
+        applyApplyLifecycleReviewEffect7(assignment: unknown, effective_at: unknown) { return nativeIdentityWrite("w_5d80557e76ba", [assignment, effective_at]); } };
 }

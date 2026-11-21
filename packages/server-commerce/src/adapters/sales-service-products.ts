@@ -19,6 +19,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {createSalesServiceProductInTransaction} from '@erpx/server-commerce/adapters/commerce';
 import {salesServiceProductSchema,type SalesServiceProductInput,type SalesServiceProductResult,type SalesServiceProductsView} from '@erpx/server-commerce/domain/sales-service-products';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const capabilities=['sales.quotes','sales.orders','finance.sales-posting'] as const;
 const changed=()=>new ApiError(409,'SALES_SERVICE_PRODUCT_SOURCE_CHANGED','The original Sales posting, product or price source changed before completion.');
 const authorityImage=(actor:WorkContext)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam]);
@@ -70,7 +71,7 @@ export async function createSalesServiceProduct(actor:WorkContext,raw:unknown,ke
   if(result.id!==id||result.version!==1)throw changed();const savedProduct=await product(database,actor,id),savedMoney=await salesServiceProductMoneySource(database,actor.companyId,id),savedReceipt=await receipt(database,actor,key,id);if(!savedReceipt)throw changed();
   const bornReplay=await replayCommand<{id:string;version:number}>(database,actor,key,operation,id,input);if(!bornReplay||bornReplay.id!==id||bornReplay.version!==1||savedReceipt!==await receipt(database,actor,key,id))throw changed();
   const native=JSON.parse(savedReceipt) as {request_hash:string;result_json:string},nativeResult=JSON.parse(native.result_json) as {id?:unknown;version?:unknown};if(!native.request_hash||nativeResult.id!==id||nativeResult.version!==1)throw changed();
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);
   if(savedProduct!==await product(database,actor,id)||savedReceipt!==await receipt(database,actor,key,id)||JSON.stringify(savedMoney)!==JSON.stringify(await salesServiceProductMoneySource(database,actor.companyId,id))||finance.image!==(await salesServiceProductFinanceSource(database,actor.companyId)).image)throw changed();
   if(originalReceipt&&(before!==savedProduct||JSON.stringify(beforeMoney)!==JSON.stringify(savedMoney)))throw changed();
   if(!originalReceipt&&(!matches(savedProduct,actor,input,id)||!captured||!salesServiceProductMoneyMatches(savedMoney,actor.companyId,id,captured)))throw changed();

@@ -1,9 +1,11 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { z } from "zod";
-import { readAiGatewayPolicy, setAiPlatformKeyEnabled } from "@erpx/server-agent/public/ai-gateway";
+import {
+  createNativeAgentAiGateway,
+  nativeAgentAiGatewayAvailable,
+} from "@erpx/server-agent/public/native-ai-gateway";
 import { requireManageErpxContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import { activeHoldingBindings, holdingResources } from "../../../../../../../../../packages/server-runtime/src/public/runtime";
 
 const changeSchema = z.object({
   holdingId: z.string().min(3).max(24),
@@ -12,10 +14,18 @@ const changeSchema = z.object({
   reason: z.string().trim().min(3).max(1000),
 });
 
-async function holdingDatabase(holdingId: string) {
-  const binding = (await activeHoldingBindings()).find((item) => item.id === holdingId && item.id !== "h003");
-  if (!binding) throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
-  return (await holdingResources(binding.id)).write;
+const headers = { "Cache-Control": "private, no-store" };
+
+/** Fail closed without the mounted native owner; there is no TypeScript fallback. */
+function client() {
+  const raw = process.env.ERPX_NATIVE_AGENT_AI_GATEWAY_CONFIG;
+  if (!raw || !nativeAgentAiGatewayAvailable())
+    throw new ApiError(
+      503,
+      "NATIVE_AGENT_AI_GATEWAY_UNAVAILABLE",
+      "The native AI-gateway service is unavailable.",
+    );
+  return createNativeAgentAiGateway(raw);
 }
 
 export async function GET(request: Request) {
@@ -25,8 +35,8 @@ export async function GET(request: Request) {
       throw new ApiError(403, "FORBIDDEN", "Platform billing permission required.");
     const holdingId = new URL(request.url).searchParams.get("holdingId");
     if (!holdingId) throw new ApiError(422, "HOLDING_REQUIRED", "Select a Customer Holding.");
-    return Response.json(canonicalDestinationLinks({ data: await readAiGatewayPolicy(await holdingDatabase(holdingId)) }),
-      { headers: { "Cache-Control": "private, no-store" } });
+    const data = await client().policy(request.headers, holdingId);
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -38,16 +48,7 @@ export async function POST(request: Request) {
     const parsed = changeSchema.safeParse(await request.json());
     if (!parsed.success)
       throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid gateway policy request.");
-    const db = await holdingDatabase(parsed.data.holdingId);
-    const previous = await readAiGatewayPolicy(db);
-    if (previous.updatedAt !== parsed.data.expectedUpdatedAt)
-      throw new ApiError(409, "AI_GATEWAY_POLICY_CHANGED", "The AI gateway policy changed. Refresh before saving.");
-    if (previous.platformEnabled === parsed.data.enabled)
-      throw new ApiError(409, "AI_GATEWAY_POLICY_UNCHANGED", "The AI gateway is already in that state.");
-    await setAiPlatformKeyEnabled(db, {
-      enabled: parsed.data.enabled, actorId: platform.userId, reason: parsed.data.reason,
-    });
-    return Response.json(canonicalDestinationLinks({ data: await readAiGatewayPolicy(db) }),
-      { headers: { "Cache-Control": "private, no-store" } });
+    const data = await client().setEnabled(request.headers, parsed.data);
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) { return errorResponse(error); }
 }

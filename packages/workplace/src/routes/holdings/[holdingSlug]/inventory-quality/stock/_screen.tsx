@@ -16,16 +16,19 @@ import {commercePage,commercePermissions} from '@erpx/server-commerce/public/com
 import { canApproveCounts, canPrepareCounts, canReadCounts } from "@erpx/server-inventory/public/inventory-counts";
 import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
 
 import { InventoryReorderConsole } from "@erpx/feature-inventory/components/inventory-reorder-console";
+import { nativeInventoryAvailabilityFromHeaders, nativeInventoryMovementsFromHeaders, nativeInventoryStockRegisterFromHeaders, selectNativeStockRegisterView } from "@erpx/feature-inventory/lib/native-availability";
 
 import { frontWorkspaceHref } from "@erpx/server-work_projection/public/front-app";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
 import { AttachmentFeatureSurface } from "@erpx/feature-files/components/attachment-feature-context";
 import { Card } from "@erpx/ui/components/foundation";
+import { StatusBadge } from "@erpx/ui/components/primitives";
 
 export default async function CommercePage({ params, searchParams, }: {
     params: Promise<{
@@ -57,7 +60,70 @@ export default async function CommercePage({ params, searchParams, }: {
     if (destination)
         redirect(destination);
     ;
-    const data = await commercePage(actor, { ...search, view, kind: partyKind }).catch((error) => pageError(error, holdingSlug));
+    const nativeActor =
+      actor.authority && actor.iam
+        ? {
+            userId: actor.userId,
+            holdingId: actor.holdingId,
+            holdingSlug,
+            companyId: actor.companyId,
+            branchId: actor.branchId,
+            departmentId: actor.departmentId,
+            assignmentId: actor.assignmentId,
+            revision: actor.authority.revision,
+            assignmentVersion: actor.authority.assignmentVersion,
+            branchSlug: actor.scope.kind === "holding" ? undefined : actor.scope.branchSlug ?? undefined,
+            departmentSlug: actor.scope.kind === "department" ? actor.scope.departmentSlug ?? undefined : undefined,
+          }
+        : undefined;
+    const nativeRegister = await nativeInventoryStockRegisterFromHeaders(
+      nativeActor,
+      holdingSlug,
+    ).catch((error) => pageError(error, holdingSlug));
+    const nativeStock = await nativeInventoryAvailabilityFromHeaders(
+      nativeActor,
+      holdingSlug,
+    ).catch((error) => pageError(error, holdingSlug));
+    const nativeMovements = await nativeInventoryMovementsFromHeaders(
+      nativeActor,
+      holdingSlug,
+      typeof search.movementCursor === "string" ? search.movementCursor : undefined,
+    ).catch((error) => pageError(error, holdingSlug));
+    let data: Awaited<ReturnType<typeof commercePage>>;
+    try {
+      data = await commercePage(actor, { ...search, view, kind: partyKind });
+    } catch (error) {
+      // Stock availability is an Inventory read and must not depend on Commerce
+      // posting setup. When either native Inventory source is configured, the
+      // stock view renders from it even if order posting is not configured.
+      if ((nativeStock || nativeRegister) && error instanceof ApiError && error.code === "COMMERCE_SETUP_REQUIRED") {
+        data = {
+          orders: [],
+          products: [],
+          parties: [],
+          warehouses: [],
+          stock: [],
+          moves: [],
+          nodes: [],
+          currency: nativeRegister ? nativeRegister.currency : nativeStock!.currency,
+          page: undefined,
+          movementPage: null,
+          options: null,
+          inTransit: [],
+        } as unknown as typeof data;
+      } else {
+        return pageError(error, holdingSlug);
+      }
+    }
+    const stockView = selectNativeStockRegisterView(nativeRegister, nativeStock);
+    const stockRows = stockView?.rows ?? data.stock;
+    const stockCurrency = stockView?.currency ?? data.currency;
+    const movementRows = nativeMovements?.rows ?? data.moves;
+    const movementPage = nativeMovements
+      ? nativeMovements.nextCursor
+        ? { items: movementRows, nextCursor: nativeMovements.nextCursor, previousCursor: null }
+        : null
+      : data.movementPage;
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
@@ -83,7 +149,17 @@ export default async function CommercePage({ params, searchParams, }: {
     const pageTitle = (tabs.find(([id]) => id === view)?.[1] ?? "Records");
 
     const lotRecords = hasPermission(actor, "inventory.read")
-        ? (await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointInventoryFacts().lotRecords(actor.companyId, actor.branchId ?? null)).results
+        ? nativeRegister
+          ? nativeRegister.lots.map((lot) => ({
+              id: lot.id,
+              version: lot.version,
+              lot_code: lot.lot_code,
+              serial_number: lot.serial_number,
+              status: lot.status,
+              sku: lot.sku,
+              name: lot.sku,
+            }))
+          : (await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointInventoryFacts().lotRecords(actor.companyId, actor.branchId ?? null)).results
         : [];
     const selectedLot = search.lotFiles
         ? lotRecords.find((row) => String(row.id) === search.lotFiles)
@@ -93,7 +169,7 @@ export default async function CommercePage({ params, searchParams, }: {
         <div>
           <p className="eyebrow">{area}</p>
           <h1>{pageTitle}</h1>
-          <p className="muted">Company records and next actions · {data.currency}</p>
+          <p className="muted">Company records and next actions · {stockCurrency}</p>
         </div>
         {permissions.finance && (<UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${base}/finance`)}>
             Finance
@@ -174,11 +250,11 @@ export default async function CommercePage({ params, searchParams, }: {
                         <th>Quarantined</th>
                         <th>In transit</th>
                         <th>Available</th>
-                        <th>Inventory value ({data.currency})</th>
+                        <th>Inventory value ({stockCurrency})</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.stock.map((s) => {
+                      {stockRows.map((s) => {
                 const available = Math.max(0, Number(s.quantity_milli) -
                     Math.max(Number(s.reserved_milli ?? 0), Number(s.quarantined_milli ?? 0)));
                 return (<tr key={`${s.warehouse_id}-${s.product_id}`}>
@@ -200,12 +276,86 @@ export default async function CommercePage({ params, searchParams, }: {
                     </tbody>
                   </Table>
                 </TableFrame>
-                {!data.stock.length && (<p className="muted">
+                {!stockRows.length && (<p className="muted">
                     Receive a purchase order or record and approve a physical count to establish
                     stock.
                   </p>)}
               </Card>
             </FeatureWidget>
+            {nativeRegister && (
+              <FeatureWidget appearance="standard" id="operations-inventory-stock-register" title="Physical count register and lot reconciliation">
+                <Card as="section" appearance="standard" className="ui-panel">
+                  <p className="muted">
+                    Tracked aggregate stock must equal the per-lot balances. Counts retain their
+                    current lifecycle version; an initial physical source is marked explicitly.
+                  </p>
+                  <dl>
+                    <div>
+                      <dt>Tracked stock</dt>
+                      <dd>
+                        {nativeRegister.totals.tracked_quantity_milli / 1000} ·{" "}
+                        {minorToDecimal(nativeRegister.totals.tracked_value_minor)}{" "}
+                        {nativeRegister.currency}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Lot balances</dt>
+                      <dd>
+                        {nativeRegister.totals.lot_quantity_milli / 1000} ·{" "}
+                        {minorToDecimal(nativeRegister.totals.lot_value_minor)}{" "}
+                        {nativeRegister.currency}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Reconciliation</dt>
+                      <dd>
+                        <StatusBadge
+                          appearance="standard"
+                          status={nativeRegister.totals.consistent ? "matched" : "mismatch"}
+                        />
+                      </dd>
+                    </div>
+                  </dl>
+                  {nativeRegister.counts.length > 0 && (
+                    <TableFrame appearance="standard" label="Count register" className="business-table-wrap">
+                      <Table className="business-table">
+                        <thead>
+                          <tr>
+                            <th>Count</th>
+                            <th>Warehouse</th>
+                            <th>Date</th>
+                            <th>Version</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nativeRegister.counts.map((count) => (
+                            <tr key={count.id}>
+                              <td>
+                                <Link href={canonicalUiHref(`${base}/stock-counts/${count.id}`)}>
+                                  {count.number}
+                                </Link>
+                                {count.initial_physical_source ? " · initial" : ""}
+                              </td>
+                              <td>{count.warehouse_name}</td>
+                              <td>{count.count_date}</td>
+                              <td>{count.version}</td>
+                              <td>
+                                {minorToDecimal(count.net_value_minor)} {nativeRegister.currency}
+                              </td>
+                              <td>
+                                <StatusBadge appearance="standard" status={count.status} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    </TableFrame>
+                  )}
+                </Card>
+              </FeatureWidget>
+            )}
             <AttachmentFeatureSurface>
               {!!lotRecords.length && (<FeatureWidget appearance="standard" id="operations-sales-lot-documents" title="Lot and serial documents">
                   <Card as="section" appearance="standard" className="ui-panel">
@@ -243,7 +393,7 @@ export default async function CommercePage({ params, searchParams, }: {
             </AttachmentFeatureSurface>
             <FeatureWidget appearance="standard" id="operations-sales-movement-history" title="Movement history">
               <Card as="section" appearance="standard" className="ui-panel">
-                {data.moves.map((m) => (<Link className="ui-record-item" key={String(m.id)} href={String(m.source_type).startsWith("pos_")
+                {movementRows.map((m) => (<Link className="ui-record-item" key={String(m.id)} href={String(m.source_type).startsWith("pos_")
                     ? `${frontPosHref ?? canonicalUiHref(`${base}/pos`)}?movement=${m.id}`
                     : m.source_type === "pms"
                         ? canonicalUiHref(`${base}/pms/inventory?property=${m.source_id}`)
@@ -262,7 +412,7 @@ export default async function CommercePage({ params, searchParams, }: {
                       {String(m.order_number)} · {String(m.fulfillment_date)}
                     </span>
                   </Link>))}
-                {data.movementPage && (<ListPagination {...data.movementPage} cursorName="movementCursor" query={search} count={data.movementPage.items.length}/>)}
+                {movementPage && (<ListPagination {...movementPage} cursorName="movementCursor" query={search} count={movementPage.items.length}/>)}
               </Card>
             </FeatureWidget>
           </>)}

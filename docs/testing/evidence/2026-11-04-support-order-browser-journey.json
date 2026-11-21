@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Order-backed Support ticket lifecycle qualified in the browser with an independent customer-note confirmation",
+  "capability": "support-tickets-order-browser",
+  "base": "4857abf81c8ffdc1757799c51e07bfaf9b7fe22b",
+  "branch": "codex/support-tickets-owner-cutover",
+  "runtime": {
+    "cohort": "7bb9e96af7a9",
+    "account": "normal Account email/password sign-in at account-dev-erpx.jesadakorn.com",
+    "host": "https://acme.jesadakorn.com",
+    "supportApp": "apps/support on 127.0.0.1:3285",
+    "nativeWriter": "private-api on 127.0.0.1:44993",
+    "order": "support-browser-order (sales, customer party-5ab014c7..., warehouse support-browser-warehouse)",
+    "customerNote": "support-browser-note-1793732688752 (phone, active)"
+  },
+  "journey": {
+    "ticket": "ticket-670846fb-00e8-49a5-995b-01fff69ccbcb",
+    "steps": [
+      {"action": "create", "source": "sales_order", "status": 200, "state": "open", "version": 1},
+      {"action": "start", "status": 200, "state": "in_progress", "version": 2},
+      {"action": "resolve", "status": 200, "state": "resolved", "version": 3},
+      {"action": "confirm", "status": 200, "state": "closed", "version": 4, "note": "support-browser-note-1793732688752"}
+    ],
+    "persisted": {
+      "status": "closed",
+      "version": 4,
+      "source_kind": "sales_order",
+      "order_id": "support-browser-order",
+      "confirmation_note_id": "support-browser-note-1793732688752",
+      "events": ["create:1", "start:2", "resolve:3", "confirm:4"]
+    },
+    "pageErrors": 0
+  },
+  "limits": [
+    "The order-backed journey ran on desktop. The general lifecycle and employee-report journeys cover desktop and mobile.",
+    "The asset source create and source policy are PostgreSQL-tested; the asset visibility negative has no browser journey because the cohort does not serve the Assets product UI.",
+    "The Support app logs React hydration console warnings on navigation; pageErrors stay 0."
+  ]
+}

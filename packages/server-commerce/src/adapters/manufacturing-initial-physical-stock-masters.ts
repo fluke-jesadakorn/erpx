@@ -20,6 +20,7 @@ import {BusinessRuleError} from '@erpx/server-shared/index';
 import {manufacturingInitialPhysicalStockCommerceSource} from '@erpx/server-commerce/adapters/manufacturing-initial-physical-stock-sources';
 import {createManufacturingInitialPhysicalStockMasterInTransaction} from '@erpx/server-commerce/adapters/commerce';
 import {manufacturingInitialPhysicalStockProductSchema,manufacturingInitialPhysicalStockWarehouseSchema,type ManufacturingInitialPhysicalStockProductInput,type ManufacturingInitialPhysicalStockWarehouseInput,type ManufacturingInitialPhysicalStockMasterResult} from '@erpx/server-commerce/domain/manufacturing-initial-physical-stock-masters';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const capabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 type Kind='products'|'warehouses';
 const changed=()=>new ApiError(409,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original Manufacturing mapping, master or price source changed before completion.');
@@ -89,7 +90,7 @@ async function create(actor:WorkContext,kind:Kind,raw:unknown,key:string):Promis
   if(!expectedReceipt)throw changed();
   const saved=JSON.parse(expectedReceipt) as {result_json:string;request_hash:string},savedResult=JSON.parse(saved.result_json) as {id?:unknown;version?:unknown};
   if(!saved.request_hash||savedResult.id!==id||savedResult.version!==1)throw changed();
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
   await flushFinanceDeferredEffects(database);
   if(expectedReceipt!==await ownReceipt(database,actor,operation,key,id)||JSON.stringify(mapping)!==JSON.stringify(await manufacturingInitialPhysicalStockCommerceSource(database,actor.companyId))||finance.image!==(await manufacturingInitialPhysicalStockMasterFinanceSource(database,actor.companyId,String(mapping.chart_id),String(mapping.currency))).image||expectedMaster!==await master(database,actor,kind,id)||JSON.stringify(expectedMoney)!==JSON.stringify(kind==='products'?await manufacturingInitialPhysicalStockProductMoneySource(database,actor.companyId,id):null))throw changed();
   if(receipt&&(before!==expectedMaster||JSON.stringify(beforeMoney)!==JSON.stringify(expectedMoney)))throw changed();

@@ -109,8 +109,8 @@ it("allows the named department appointee to decide with an active employee assi
  expect((await getExpense(employee,id)).id).toBe(id);
  expect((await approvalView(db,"expense",id,f.head)).canDecide).toBe(true);
  expect((await approvalView(db,"expense",id,f.tie)).canDecide).toBe(false);
- const {selectWorkRole}=await import("@erpx/server-work_projection/public/work-role-store");
- const sessionId=crypto.randomUUID();await selectWorkRole(db,{sessionId,userId:f.head.userId,companyId:f.company,assignmentId:employeeId,assignmentVersion:1,revision:0,expiresAt:Date.now()+60000});
+ const sessionId=crypto.randomUUID();
+ await db.prepare("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(session_id,company_id) DO UPDATE SET assignment_id=excluded.assignment_id,assignment_version=excluded.assignment_version,revision=excluded.revision,expires_at=excluded.expires_at,updated_at=excluded.updated_at").bind(sessionId,f.head.userId,f.company,employeeId,1,1,Date.now()+60000,Date.now()).run();
  await f.action({...employee,authority:{sessionId,revision:1,assignmentVersion:1}},id,"approve");
  const evidence=await db.prepare("SELECT d.authority_json FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id WHERE i.record_id=? AND d.actor_user_id=?").bind(id,f.head.userId).first<{authority_json:string}>();
  expect(JSON.parse(evidence!.authority_json).activeAuthority).toMatchObject({role:'employee',assignmentId:employeeId,assignmentVersion:1,revision:1});

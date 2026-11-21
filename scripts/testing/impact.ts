@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importSpecifiers, loadCatalogue, repositoryRoot, resolveImport, type Catalogue, type Suite } from "./catalogue";
+import { isCargoInput } from './cargo';
 
 export type SourceTree = ReadonlyMap<string, string>;
 export type SourceOwnership = { owners: { id: string; modules: string[]; source: string[] }[] };
@@ -16,7 +17,7 @@ export function patternMatches(path: string, pattern: string): boolean {
 
 const globalPatterns = [
   "migrations/**", "src/server/runtime*", "src/server/runtime/**", "src/server/auth*", "src/server/authorization*", "src/server/iam*", "src/server/transaction*", "packages/server-workflow/src/public/commands.ts", "packages/server-finance/src/public/finance-transactions.ts", "packages/server-identity_access/src/**", "packages/server-finance/src/**/finance-transactions.ts", "packages/server-shared/src/**", "src/server/modules/composition-root.ts", "src/server/modules/ownership*", "packages/server-shared.*/src/**", "src/data/module-registry*", "src/lib/permissions*", "packages/workplace/src/routes/layout.tsx",
-  "tests/support/**", "tests/catalogue/**", "tests/config/**", "tests/runtime-*", "docs/testing/**", "fixtures/**", "scripts/**", "ops/**", "public/**", ".github/**", "*.json", "*.mts", "*.mjs", "*.config.ts", "bun.lock", "AGENTS.md",
+  "tests/support/**", "tests/catalogue/**", "tests/config/**", "tests/runtime-*", "docs/testing/**", "fixtures/**", "scripts/**", "ops/**", "public/**", ".github/**", "*.json", "*.mts", "*.mjs", "*.config.ts", "bun.lock", "AGENTS.md", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
 ];
 const documentationOnly = (path: string) => /^(?:docs\/|adr\/|\.agents\/|Designed\/)/.test(path) || /\.(?:md|txt)$/.test(path);
 
@@ -82,7 +83,7 @@ export function selectImpact(input: {
   return result;
 }
 
-const codeFile = (path: string) => /\.(?:[cm]?[jt]sx?|json)$/.test(path) && /^(?:src|tests|fixtures|scripts)\//.test(path);
+const codeFile = (path: string) => /\.(?:[cm]?[jt]sx?|json)$/.test(path) && /^(?:src|tests|fixtures|scripts)\//.test(path) || isCargoInput(path);
 function git(root: string, args: string[], input?: string): Buffer {
   return execFileSync("git", args, { cwd: root, input, maxBuffer: 256 * 1024 * 1024, stdio: ["pipe", "pipe", "pipe"] });
 }

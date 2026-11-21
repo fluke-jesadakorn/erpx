@@ -15,7 +15,8 @@ import type { BookingEnv } from "@erpx/server-pms/public/pms-booking";
 import { createPmsBookingRefund, type PmsBookingRefundUnit, type PmsBookingRefundRepository, type Request } from "@erpx/server-pms/application/pms-booking-refunds";
 import { holdingResources as resolveResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePmsPropertyPurchase, requirePmsFinancialRead, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
-function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRefundUnit {
+function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''): PmsBookingRefundUnit {
+        const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     void _whole;
     return {
         requirePurchase: input => requirePmsPropertyPurchase(db, input),
@@ -50,12 +51,12 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
             requestedBy: string;
             now: number;
             now2: number;
-        }) => db.prepare("INSERT INTO pms_booking_refund_requests(id,payment_id,amount_minor,allocations_json,reason,requested_by,state,created_at,updated_at) VALUES(?,?,?,?,?,?,'requested',?,?)").bind(facts.requestId, facts.paymentId, facts.amount, facts.fact3, facts.reason, facts.requestedBy, facts.now, facts.now2).run(),
+        }) => write('pms_w009', [facts.requestId, facts.paymentId, facts.amount, facts.fact3, facts.reason, facts.requestedBy, facts.now, facts.now2]),
         updatePmsBookingPayments: (facts: {
             now: number;
             now2: number;
             paymentId: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET refund_state='requested',refund_requested_at=?,updated_at=? WHERE id=?").bind(facts.now, facts.now2, facts.paymentId).run(),
+        }) => write('pms_w010', [facts.now, facts.now2, facts.paymentId]),
         readPmsBookingRefundRequests3: (facts: {
             id: string;
             id2: string;
@@ -72,12 +73,12 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
             userId: string;
             fact1: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET state='approved',legacy_review=false,approved_by=?,updated_at=? WHERE id=?").bind(facts.userId, facts.fact1, facts.id).run(),
+        }) => write('pms_w011', [facts.userId, facts.fact1, facts.id]),
         updatePmsBookingPayments2: (facts: {
             userId: string;
             fact1: number;
             payment_id: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET refund_state='approved',refund_approved_by=?,updated_at=? WHERE id=?").bind(facts.userId, facts.fact1, facts.payment_id).run(),
+        }) => write('pms_w012', [facts.userId, facts.fact1, facts.payment_id]),
         readPmsRecords: (facts: {
             companyId: string;
         }) => db.prepare(`SELECT r.id,p.id payment_id,p.property_id,r.amount_minor,p.status,r.state refund_state,r.last_error,r.reason,r.created_at, (p.status='refund_review' AND r.state='requested' AND r.allocations_json::jsonb='[]'::jsonb AND NOT EXISTS(SELECT 1 FROM pms_records e WHERE e.property_id=p.property_id AND e.kind='entry' AND e.data_json::jsonb->>'sourceKey'='online-payment:'||p.id)) needs_receipt_recovery FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE p.company_id=? ORDER BY r.created_at DESC LIMIT 100`).bind(facts.companyId).all<{
@@ -108,7 +109,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
             id: string;
             now: number;
             id2: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET paid_at=?,provider_succeeded_at=?,payment_intent_id=?,last_error=NULL,updated_at=? WHERE id=?').bind(facts.succeededAt, facts.succeededAt2, facts.id, facts.now, facts.id2).run(),
+        }) => write('pms_w013', [facts.succeededAt, facts.succeededAt2, facts.id, facts.now, facts.id2]),
         readPmsBookingRefundRequests5: (facts: {
             id: string;
             id2: string;
@@ -121,30 +122,30 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
             generation: number;
             refundId: string;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_refund_attempts(request_id,generation,provider_id,created_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING').bind(facts.id, facts.generation, facts.refundId, facts.now).run(),
+        }) => write('pms_w014', [facts.id, facts.generation, facts.refundId, facts.now]),
         updatePmsBookingRefundRequests2: (facts: {
             refundId: string;
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET provider_id=?,state='processing',updated_at=? WHERE id=? AND provider_id IS NULL").bind(facts.refundId, facts.now, facts.id).run(),
+        }) => write('pms_w015', [facts.refundId, facts.now, facts.id]),
         updatePmsBookingPayments4: (facts: {
             refundId: string;
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET refund_id=?,refund_state='processing',updated_at=? WHERE id=?").bind(facts.refundId, facts.now, facts.id).run(),
+        }) => write('pms_w016', [facts.refundId, facts.now, facts.id]),
         updatePmsBookingRefundRequests3: (facts: {
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET state='failed',last_error='Provider refund failed; liability remains outstanding',updated_at=? WHERE id=?").bind(facts.now, facts.id).run(),
+        }) => write('pms_w017', [facts.now, facts.id]),
         updatePmsBookingPayments5: (facts: {
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET refund_state='failed',updated_at=? WHERE id=?").bind(facts.now, facts.id).run(),
+        }) => write('pms_w018', [facts.now, facts.id]),
         updatePmsBookingRefundRequests4: (facts: {
             state: "requires_action" | "processing";
             now: number;
             id: string;
-        }) => db.prepare('UPDATE pms_booking_refund_requests SET state=?,updated_at=? WHERE id=?').bind(facts.state, facts.now, facts.id).run(),
+        }) => write('pms_w019', [facts.state, facts.now, facts.id]),
         readWriteContext3: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
         readPmsBookingRefundRequests6: (facts: {
             id: string;
@@ -152,11 +153,11 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
         updatePmsBookingRefundRequests5: (facts: {
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET state='succeeded',last_error=NULL,updated_at=? WHERE id=?").bind(facts.now, facts.id).run(),
+        }) => write('pms_w020', [facts.now, facts.id]),
         updatePmsBookingPayments6: (facts: {
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET refund_state='succeeded',updated_at=? WHERE id=?").bind(facts.now, facts.id).run(),
+        }) => write('pms_w021', [facts.now, facts.id]),
         readPmsBookingRefundRequests7: (facts: {
             id: string;
             companyId: string;
@@ -173,31 +174,32 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
             generation: number;
             provider_id: string | null;
             fact3: number;
-        }) => db.prepare('INSERT INTO pms_booking_refund_attempts(request_id,generation,provider_id,created_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING').bind(facts.id, facts.generation, facts.provider_id, facts.fact3).run(),
+        }) => write('pms_w022', [facts.id, facts.generation, facts.provider_id, facts.fact3]),
         updatePmsBookingRefundRequests6: (facts: {
             fact0: string;
             fact1: number;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_refund_requests SET generation=generation+1,provider_id=NULL,state='approved',last_error=?,updated_at=? WHERE id=?").bind(facts.fact0, facts.fact1, facts.id).run(),
+        }) => write('pms_w023', [facts.fact0, facts.fact1, facts.id]),
         updatePmsBookingPayments7: (facts: {
             fact0: number;
             payment_id: string;
-        }) => db.prepare("UPDATE pms_booking_payments SET refund_state='approved',updated_at=? WHERE id=?").bind(facts.fact0, facts.payment_id).run(),
+        }) => write('pms_w024', [facts.fact0, facts.payment_id]),
         persist: (arg0: Snapshot, arg1: Map<string, string>) => persist(db, arg0, arg1),
         bookingSnapshot: (arg0: string, arg1?: undefined, arg2?: true) => bookingSnapshot(db, arg0, arg1, arg2),
         effects: (arg0: WorkContext, arg1: Snapshot, arg2: Effects) => effects(db, arg0, arg1, arg2),
         queueMail: (arg0: Snapshot, arg1: string, arg2: string, arg3: "refund", arg4: BookingEnv, arg5: number) => queueMail(db, arg0, arg1, arg2, arg3, arg4, arg5)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsBookingRefundRepository { return { ...unit(db, db), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db)), purchase) }; }
-const application = createPmsBookingRefund({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => { const database=(await resolveResources(actor.holdingId)).write; await requirePmsFinancialRead(database,actor); return unit(database); }, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), bookingEnv: (...args) => bookingEnv(...args) });
+function repository(db: TransactionalSqlDatabase, companyId = ''): PmsBookingRefundRepository { return { ...unit(db, db, companyId), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db, companyId)), purchase) }; }
+const application = createPmsBookingRefund({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => { const database=(await resolveResources(actor.holdingId)).write; await requirePmsFinancialRead(database,actor); return unit(database, undefined, actor.companyId); }, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), bookingEnv: (...args) => bookingEnv(...args) });
 import { createHash } from "node:crypto";
+import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
 export function requestBookingRefund(tx: SqlDatabase, s: Snapshot, paymentId: string, wanted: Array<{
     stayId: string;
     amount: number;
 }>, reason: string, requestedBy: string, now = Date.now(), requestId = randomUUID()) { return application.requestBookingRefund(unit(tx, undefined), s, paymentId, wanted, reason, requestedBy, now, requestId); }
-export function approveBookingRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string) { return application.approveBookingRefund(repository(db), actor, id); }
+export function approveBookingRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string) { return application.approveBookingRefund(repository(db, actor.companyId), actor, id); }
 export function bookingRefundsForFinance(actor: WorkContext) { return application.bookingRefundsForFinance(actor); }
-export function recoverBookingReceipt(db: TransactionalSqlDatabase, actor: WorkContext, requestId: string, reason: string) { return application.recoverBookingReceipt(repository(db), actor, requestId, reason); }
+export function recoverBookingReceipt(db: TransactionalSqlDatabase, actor: WorkContext, requestId: string, reason: string) { return application.recoverBookingReceipt(repository(db, actor.companyId), actor, requestId, reason); }
 export function processBookingRefund(db: TransactionalSqlDatabase, id: string, now = Date.now()) { return application.processBookingRefund(repository(db), id, now); }
-export function retryBookingRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string, reason: string) { return application.retryBookingRefund(repository(db), actor, id, reason); }
+export function retryBookingRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string, reason: string) { return application.retryBookingRefund(repository(db, actor.companyId), actor, id, reason); }

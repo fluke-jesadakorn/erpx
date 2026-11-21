@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "date": "2026-10-31",
+  "status": "local scoped ARM64 Docker capability qualified; PR integration pending",
+  "capability": "field-visit-files-native-container",
+  "sourceCodeCommit": "168420994b9b335bf0a470b67f96bb2e44a38ff4",
+  "recipeAndQualificationSources": {
+    "ops/containers/field-files-native.Dockerfile": "c1917ccb1b8a3f1eac88dc7d2b42d8d3bd7440a4b7f36f6a150db0febb2f5448",
+    "ops/containers/field-files-native.Dockerfile.dockerignore": "8fa073c6bab479ce4f8bcf11172f17c36a8cffc4fb50997ca9ec38caec179824",
+    "ops/containers/field-files-native.compose.yaml": "6fc21b5f60da88ab5bc2baf5c044a40dc6c61258e2a7f8d782dbed5570652206",
+    "scripts/testing/fixtures/field-files-compose-cleanup-fault.py": "f2b39255d9a1cdcc8fc32f70c95ddafd74b02d5671f717ae403af53afcbd47c0",
+    "scripts/testing/fixtures/field-files-compose-corpus.mjs": "896f4536ac9d0e5ad5f3dc57549c7f71035bed5809a066ee778943c05e880b6b",
+    "scripts/testing/fixtures/field-files-compose-qualification.py": "8e9c2732c3f1666917186c318583a57b5402fb46ca4aa86df511e6159f6b49ae",
+    "scripts/testing/fixtures/field-files-container-fixture-overlay.Dockerfile": "7cd140797fcfa73bed2a9971fca9725b8fdc46372d962f235ded55a0f82092cf",
+    "scripts/testing/fixtures/field-files-container-fixture.Dockerfile": "c20936df20458364ce5c401faf9bc4cd75f20261dfaaf18a16055f95e93abd7c",
+    "scripts/testing/fixtures/field-files-container-qualification.py": "b086fd66b5eb288eca8d825db8a117cc1acd375061af5bc1779d0fff7dc70be9",
+    "scripts/testing/fixtures/field-files-container-scenario.mjs": "b26b6a2e5870939ca863a01bd65d9dbdcf0d102c829375a44528149d4eedceb5",
+    "scripts/testing/fixtures/field-files-origin-runtime-overlay.Dockerfile": "fd3464298c08f9a04e10f6942127dbb7c9f4f4db5db2adfb6839c90b4cc1b148",
+    "scripts/testing/fixtures/field-files-preview-corpus.Dockerfile": "fa3efdddf434988e3fa0e2aca56996749e49253cc064aa6a932bf8907981b584"
+  },
+  "build": "Fresh default Dockerfile targets built from a clean Git archive of the exact merged code plus the recorded recipe/ignore inputs. Final runtime proof does not substitute earlier verification overlays.",
+  "images": {
+    "api": {
+      "id": "sha256:a52da2d54afc5762a809e8a573b90118c4d2ae6645bc5c87b9c2b72ab012cca0",
+      "bytes": 46438599
+    },
+    "worker": {
+      "id": "sha256:b808c1eca0f27b467b35ea235b56769f2cc2faf5f20d3ac29677ad3894be76a1",
+      "bytes": 64260485
+    },
+    "architecture": "arm64",
+    "scanner": "clamav/clamav:1.5.4-debian13-slim@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b",
+    "combinedDockerSaveBytesIncludingMetadata": 110746112
+  },
+  "binarySha256": "dd938e3104aa4b7dd8a9a8c24a34a1c3a848fce1ae4c437b6cc237621272dd1b",
+  "providerLibraries": {
+    "libvipsSha256": "119f2d789617c6b09101cf4e6750021a3e5fe465dd170039c4fd2e21ce81a62b",
+    "lcmsSha256": "3a6591d6fd273e06c50bae481d82ba42e1e9bf2ac7e8afc05fb61fbff154ce40",
+    "lcmsSourceVersion": "2.19.1",
+    "resolution": "Actual default worker links without LD_LIBRARY_PATH; bundled LCMS license present. API/worker library hashes match."
+  },
+  "checks": {
+    "coldComposeUpScenarioDown": true,
+    "normalAccountSSO": true,
+    "uploadScanPreviewBindDownload": true,
+    "expiredDraftCleanup": true,
+    "fullUnchangedRendererCorpusCases": 22,
+    "exactHttpPreviewCases": 8,
+    "httpPreviewMediaFamilies": [
+      "PNG",
+      "JPEG",
+      "WebP",
+      "HEIC",
+      "PDF"
+    ],
+    "polyglot": "Exact422 UPLOAD_TYPE; direct-renderer B0 expectations remain a distinct unchanged test.",
+    "hardening": {
+      "api": {
+        "readOnlyRootfs": true,
+        "capDropAll": true,
+        "noNewPrivileges": true
+      },
+      "worker": {
+        "readOnlyRootfs": true,
+        "capDropAll": true,
+        "noNewPrivileges": true
+      },
+      "scanner": {
+        "readOnlyRootfs": true,
+        "capDropAll": true,
+        "noNewPrivileges": true
+      }
+    },
+    "scannerConfigurationIsolation": true,
+    "gracefulExits": {
+      "compose-api": "0",
+      "compose-scanner": "0",
+      "compose-worker": "0",
+      "seed": "0"
+    },
+    "cleanupComplete": true,
+    "failedWorkerCleanup": {
+      "reportedFailure": "Compose worker did not exit cleanly",
+      "ownedProjectRemoved": true,
+      "unrelatedCanaryPreserved": true,
+      "workerSignal": "SIGKILL"
+    },
+    "independentReview": "Source deltas reviewed; scanner cold startup, scanner credential mounts and verifier failure cleanup findings resolved."
+  },
+  "limits": [
+    "ARM64 only; noAMD64executionclaim.",
+    "Explicitly leased synthetic development database namespace; not installed native production PostgreSQL connectivity/roles.",
+    "Scanner signatures supplied separately; recurring FreshClam updates and encrypted backup/restore/rollback remain final operations gates.",
+    "Failure teardown proof is not in-flight job recovery.",
+    "Runtime has no replaced Field TS/Python business backend; separate test/build images use development tooling.",
+    "Rust worker feature retains broader existing-business build dependencies; minimal runtime size measured after stripping.",
+    "No staging/development rollout, production deploy/release, image publication or visibility change.",
+    "APT versions are observed, not a full artifact-pinned/bit-reproducible image claim."
+  ],
+  "counts": {
+    "fullFieldChecklistClosed": 7,
+    "fullFieldChecklistTotal": 18,
+    "workflowPartial": 13,
+    "workflowVerified": 0,
+    "workflowMerged": 0,
+    "workflowTotal": 206,
+    "ownersComplete": 0,
+    "ownersTotal": 41
+  },
+  "privateEvidence": {
+    ".scratch/dev/field-files-docker-accepted-evidence/855072235cfe15ef64beff85c4004e554f25e276ec27976de1418c1add715fe6.json": {
+      "sha256": "855072235cfe15ef64beff85c4004e554f25e276ec27976de1418c1add715fe6",
+      "originalLog": ".scratch/dev/field-files-docker/compose-168-cleanup-final.json"
+    },
+    ".scratch/dev/field-files-docker-accepted-evidence/7376a56bf020101fc165ee11fcec2413abcc8524932a0746de1347e3a6c3ea36.log": {
+      "sha256": "7376a56bf020101fc165ee11fcec2413abcc8524932a0746de1347e3a6c3ea36",
+      "originalLog": ".scratch/dev/field-files-docker/compose-168-cleanup-final.log"
+    },
+    ".scratch/dev/field-files-docker-accepted-evidence/d0945b9a7a004ae9153711cb933ca0bb574da4ef636fb6dab9a7a8d5a49c6efe.json": {
+      "sha256": "d0945b9a7a004ae9153711cb933ca0bb574da4ef636fb6dab9a7a8d5a49c6efe",
+      "originalLog": ".scratch/dev/field-files-docker/compose-cleanup-fault-final.json"
+    },
+    ".scratch/dev/field-files-docker-accepted-evidence/074437c822ae7bdd1f21b5a3ef180ca00847839afebfc9754a5f5e44eec9f71a.log": {
+      "sha256": "074437c822ae7bdd1f21b5a3ef180ca00847839afebfc9754a5f5e44eec9f71a",
+      "originalLog": ".scratch/dev/field-files-docker/preview-corpus-168-original.log"
+    },
+    ".scratch/dev/field-files-docker-accepted-evidence/ace6ec924aa2c397b341606700f0ecde489b2348bda96c353e61ad99b3463fae.log": {
+      "sha256": "ace6ec924aa2c397b341606700f0ecde489b2348bda96c353e61ad99b3463fae",
+      "originalLog": ".scratch/dev/field-files-docker/worker-168-linkage.log"
+    }
+  }
+}

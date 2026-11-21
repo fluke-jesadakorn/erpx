@@ -31,24 +31,24 @@ export interface AssetPolicyRepository<Effect> {
     }>;
     policyLegacyCount(id: string | number | null): Promise<number | null>;
     pendingRun(id: string | number | null): Promise<Record<string, unknown> | null>;
-    preparePolicy(id: string, companyId: string, assetId: string, value: string | number | null, value2: string, hash: string, userId: string, reason: string, now: number, now2: number, value3: string): Effect;
-    supersedePolicy(now: number, id: string | number | null): Effect;
+    preparePolicy(id: string, companyId: string, assetId: string, value: string | number | null, value2: string, hash: string, userId: string, reason: string, now: number, now2: number, value3: string): Promise<Effect>;
+    supersedePolicy(now: number, id: string | number | null): Promise<Effect>;
     guardPolicyVersion(key: string, value: "asset-policy-version", id: string, companyId: string, expectedVersion: number): Effect;
-    decidePolicy(value: "active" | "rejected", userId: string, now: number, id: string): Effect;
+    decidePolicy(value: "active" | "rejected", userId: string, now: number, id: string): Promise<Effect>;
     openPeriod(periodId: string, companyId: string, entryDate: string, entryDate2: string): Promise<Record<string, unknown> | null>;
     runLegacyCount(id: string | number | null): Promise<number | null>;
-    prepareRun(runId: string, companyId: string, id: string | number | null, id2: string, ordinal: number, entryDate: string, value: string, value2: string, hash: string, userId: string, reason: string, now: number, now2: number): Effect;
+    prepareRun(runId: string, companyId: string, id: string | number | null, id2: string, ordinal: number, entryDate: string, value: string, value2: string, hash: string, userId: string, reason: string, now: number, now2: number): Promise<Effect>;
     run(id: string, companyId: string): Promise<Row | null>;
-    updateAssetCarrying(value: string, now: number, id: string | number | null): Effect;
-    updatePolicyVersion(now: number, id: string | number | null): Effect;
-    assetEvent(value: string, id: string | number | null, companyId: string, value2: number, key: string, value3: string, userId: string, now: number): Effect;
+    updateAssetCarrying(value: string, now: number, id: string | number | null): Promise<Effect>;
+    updatePolicyVersion(now: number, id: string | number | null): Promise<Effect>;
+    assetEvent(value: string, id: string | number | null, companyId: string, value2: number, key: string, value3: string, userId: string, now: number): Promise<Effect>;
     guardRunVersion(key: string, value: "asset-policy-run-version", id: string, companyId: string, expectedVersion: number): Effect;
-    decideRun(value: "posted" | "rejected", userId: string, value2: string, now: number, id: string): Effect;
+    decideRun(value: "posted" | "rejected", userId: string, value2: string, now: number, id: string): Promise<Effect>;
     laterRuns(id: string | number | null, ordinal: string | number | null): Promise<Record<string, unknown> | null>;
     pendingPolicy(id: string | number | null): Promise<Record<string, unknown> | null>;
-    reverseAssetCarrying(value: string, now: number, id: string | number | null): Effect;
-    reversePolicyVersion(now: number, id: string | number | null): Effect;
-    reverseRun(value: string, entryDate: string, now: number, id: string): Effect;
+    reverseAssetCarrying(value: string, now: number, id: string | number | null): Promise<Effect>;
+    reversePolicyVersion(now: number, id: string | number | null): Promise<Effect>;
+    reverseRun(value: string, entryDate: string, now: number, id: string): Promise<Effect>;
     workspacePolicies(companyId: string): Promise<{
         results: Row[];
     }>;
@@ -226,7 +226,7 @@ export function createAssetPolicyApplication<Effect>(ports: AssetPolicyPorts<Eff
             await ports.requireTool(actor.companyId, "asset_policies");
             const e = await policyEvidence(actor, input), now = ports.clock.now();
             return ports.commands.commit(actor, key, op, input, id, 1, { id, status: "draft", version: 1 }, [
-                repository.preparePolicy(id, actor.companyId, input.assetId, e.parent?.id ?? null, JSON.stringify(input), e.hash, actor.userId, input.reason, now, now, JSON.stringify(e.basis)),
+                await repository.preparePolicy(id, actor.companyId, input.assetId, e.parent?.id ?? null, JSON.stringify(input), e.hash, actor.userId, input.reason, now, now, JSON.stringify(e.basis)),
             ]);
         });
     }
@@ -252,10 +252,10 @@ export function createAssetPolicyApplication<Effect>(ports: AssetPolicyPorts<Eff
                 throw new BusinessRuleError(409, "ASSET_POLICY_SOURCE_CHANGED", "Asset or book evidence changed. Reject and prepare again.");
             const steps: Effect[] = e?.parent
                 ? [
-                    repository.supersedePolicy(ports.clock.now(), e.parent.id),
+                    await repository.supersedePolicy(ports.clock.now(), e.parent.id),
                 ]
                 : [];
-            steps.push(repository.guardPolicyVersion(key, "asset-policy-version", id, actor.companyId, input.expectedVersion), repository.decidePolicy(action === "approve" ? "active" : "rejected", actor.userId, ports.clock.now(), id));
+            steps.push(repository.guardPolicyVersion(key, "asset-policy-version", id, actor.companyId, input.expectedVersion), await repository.decidePolicy(action === "approve" ? "active" : "rejected", actor.userId, ports.clock.now(), id));
             return ports.commands.commit(actor, key, op, input, id, input.expectedVersion + 1, {
                 id,
                 status: action === "approve" ? "active" : "rejected",
@@ -395,7 +395,7 @@ export function createAssetPolicyApplication<Effect>(ports: AssetPolicyPorts<Eff
             await journals(actor, runId, input, e, key, "draft");
             const now = ports.clock.now();
             return ports.commands.commit(actor, key, op, { id, input }, runId, 1, { id: runId, status: "draft", version: 1, result: e.result }, [
-                repository.prepareRun(runId, actor.companyId, e.a.id, id, e.result.ordinal, input.entryDate, JSON.stringify(input), JSON.stringify(e.result), e.hash, actor.userId, input.reason, now, now),
+                await repository.prepareRun(runId, actor.companyId, e.a.id, id, e.result.ordinal, input.entryDate, JSON.stringify(input), JSON.stringify(e.result), e.hash, actor.userId, input.reason, now, now),
             ]);
         });
     }
@@ -427,13 +427,13 @@ export function createAssetPolicyApplication<Effect>(ports: AssetPolicyPorts<Eff
                 ? await journals(actor, id, definition, e, key, "posted")
                 : [], now = ports.clock.now(), steps: Effect[] = js.flatMap((j) => j.steps);
             if (e)
-                steps.push(repository.updateAssetCarrying(String(decimalToUnits(e.primary.accumulated)), now, e.a.id), repository.updatePolicyVersion(now, p.id), repository.assetEvent(`asset-event-${key}`, e.a.id, actor.companyId, Number(e.a.version) + 1, key, JSON.stringify({
+                steps.push(await repository.updateAssetCarrying(String(decimalToUnits(e.primary.accumulated)), now, e.a.id), await repository.updatePolicyVersion(now, p.id), await repository.assetEvent(`asset-event-${key}`, e.a.id, actor.companyId, Number(e.a.version) + 1, key, JSON.stringify({
                     policyId: p.id,
                     runId: id,
                     ...e.result,
                     journalIds: js.map((j) => j.id),
                 }), actor.userId, now));
-            steps.push(repository.guardRunVersion(key, "asset-policy-run-version", id, actor.companyId, input.expectedVersion), repository.decideRun(action === "post" ? "posted" : "rejected", actor.userId, JSON.stringify(js.map((j) => ({ id: j.id, sourceType: j.sourceType }))), now, id));
+            steps.push(repository.guardRunVersion(key, "asset-policy-run-version", id, actor.companyId, input.expectedVersion), await repository.decideRun(action === "post" ? "posted" : "rejected", actor.userId, JSON.stringify(js.map((j) => ({ id: j.id, sourceType: j.sourceType }))), now, id));
             return ports.commands.commit(actor, key, op, input, id, input.expectedVersion + 1, {
                 id,
                 status: action === "post" ? "posted" : "rejected",
@@ -476,9 +476,9 @@ export function createAssetPolicyApplication<Effect>(ports: AssetPolicyPorts<Eff
                 reversalJournalIds: reversals.map((j) => j.id),
             }, [
                 ...reversals.flatMap((j) => j.steps),
-                repository.reverseAssetCarrying(String(decimalToUnits(primary.amount)), ports.clock.now(), a.id),
-                repository.reversePolicyVersion(ports.clock.now(), p.id),
-                repository.reverseRun(JSON.stringify(reversals.map((j) => j.id)), input.entryDate, ports.clock.now(), id),
+                await repository.reverseAssetCarrying(String(decimalToUnits(primary.amount)), ports.clock.now(), a.id),
+                await repository.reversePolicyVersion(ports.clock.now(), p.id),
+                await repository.reverseRun(JSON.stringify(reversals.map((j) => j.id)), input.entryDate, ports.clock.now(), id),
             ]);
         });
     }

@@ -1,1 +1,2 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function clearExecutiveGenerationAssertion(database:SqlDatabase,key:string){return database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key);}
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
+export function clearExecutiveGenerationAssertion(database:SqlDatabase,key:string,companyId:string){return nativeClearCommandAssertions(database,companyId,key);}

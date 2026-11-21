@@ -1,4 +1,11 @@
 import "server-only";
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+async function nativeBillingTest(kind: any, values: readonly unknown[], recordId: string, key: string, companyId: string): Promise<{ results: Record<string, unknown>[] }> {
+  try { await nativeCommerceOwnerWrite(kind, values, recordId, 'system', key, companyId); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new Error(error.code + ': ' + error.message); throw error; }
+  return { results: [] };
+}
 import { registeredDatabases, type RegistryEnv } from "@erpx/feature-runtime/lib/holding-registry";
 import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { StripeObject } from "@erpx/server-billing/public/billing-stripe";
@@ -30,9 +37,7 @@ function unit(db: SqlDatabase): BillingTestFinanceUnit<SqlStatement> {
             status: string;
             now: number;
             now2: number;
-        }) => db.prepare(`INSERT INTO billing_test_finance_documents
-      (stripe_invoice_id,source_billing_invoice_id,customer_holding_id,company_id,currency,
-      total_satang,stripe_status,observed_at,created_at) VALUES(?,?,?,?,'THB',?,?,?,?)`).bind(facts.stripe_id, facts.id, facts.holding_id, facts.TEST_COMPANY, facts.total_satang, facts.status, facts.now, facts.now2).run(),
+        }) => nativeBillingTest('billing-test.document', [facts.stripe_id, facts.id, facts.holding_id, facts.TEST_COMPANY, facts.total_satang, facts.status, facts.now, facts.now2], facts.stripe_id, `billing-test:document:${facts.stripe_id}`, facts.TEST_COMPANY),
         writeBillingTestFinanceDocuments2: (facts: {
             status: string;
             now: number;
@@ -53,9 +58,7 @@ function unit(db: SqlDatabase): BillingTestFinanceUnit<SqlStatement> {
             amount: number;
             now: number;
             now2: number;
-        }) => db.prepare(`INSERT INTO billing_test_finance_entries
-        (source_key,stripe_invoice_id,entry_kind,amount_satang,effective_at,created_at)
-        VALUES(?,?,?,?,?,?)`).bind(facts.key, facts.stripe_id, facts.kind, facts.amount, facts.now, facts.now2).run(),
+        }) => nativeBillingTest('billing-test.entry', [facts.key, facts.stripe_id, facts.kind, facts.amount, facts.now, facts.now2], facts.key, `billing-test:entry:${facts.key}`, facts.stripe_id),
         writeBillingTestFinanceLines1: (facts: {
             key: string;
             fact1: 0;
@@ -65,9 +68,7 @@ function unit(db: SqlDatabase): BillingTestFinanceUnit<SqlStatement> {
             fact5: 1;
             credit: Account;
             amount2: number;
-        }) => db.prepare(`INSERT INTO billing_test_finance_lines
-        (source_key,ordinal,account_code,debit_satang,credit_satang)
-        VALUES(?,?,?, ?,0),(?,?,?,0,?)`).bind(facts.key, facts.fact1, facts.debit, facts.amount, facts.key2, facts.fact5, facts.credit, facts.amount2).run(),
+        }) => nativeBillingTest('billing-test.line', [facts.key, facts.fact1, facts.debit, facts.amount, facts.key2, facts.fact5, facts.credit, facts.amount2], facts.key, `billing-test:line:${facts.key}`, facts.key),
         readBillingTestFinanceEntries2: (facts: {
             issuedKey: string;
         }) => db.prepare(`SELECT 1 FROM billing_test_finance_entries WHERE source_key=?`).bind(facts.issuedKey).first(),

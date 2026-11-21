@@ -1,9 +1,11 @@
+import {headers} from 'next/headers';
 import {technologyContext} from '@erpx/workplace/routes/holdings/[holdingSlug]/administration/technology/_context';
 import {StandardOrganizationAccessWorkspace} from '@erpx/feature-identity_access/components/technology/standard-organization-access-workspace';
 import {PageHeader} from '@erpx/ui/components/primitives';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
-export default async function Screen({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const {local,actor,queries,base,canReadDirectory}=await technologyContext((await params).holdingSlug,'organization'),query=await searchParams;      const [organization, lifecycle, automation, technology, gpoRules] = await Promise.all([
-        queries.organizationAccessData(local), queries.peopleLifecycleData(local),
+import {nativeOrganizationAccessPage} from '@erpx/feature-organization/lib/native-organization';
+export default async function Screen({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const holdingSlug=(await params).holdingSlug,{local,actor,queries,base,canReadDirectory}=await technologyContext(holdingSlug,'organization'),query=await searchParams,incoming=await headers();      const [organization, lifecycle, automation, technology, gpoRules] = await Promise.all([
+        nativeOrganizationAccessPage(local,holdingSlug,incoming,()=>queries.organizationAccessData(local)), queries.peopleLifecycleData(local),
         canReadDirectory ? queries.directoryAutomationData(actor) : Promise.resolve({ cases: [], connections: [], jobs: [], canApply: false, canManage: false, canReview: false }),
         canReadDirectory ? queries.technologyData(actor) : Promise.resolve({ applications: [], operations: [] }),
         queries.gpoRulesOverview(local),

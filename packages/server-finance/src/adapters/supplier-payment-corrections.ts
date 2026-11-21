@@ -12,6 +12,7 @@ import {supplierPaymentOriginalSources,financePaymentReversalSources} from "@erp
 import {requireFinanceCurrentAuthority,withFinancePurchasedCommand} from "@erpx/server-finance/adapters/purchase-boundary";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/adapters/finance-transactions";
 import {inFinanceSignatureParent} from '@erpx/server-finance/adapters/tax-signature-read-parent';
+import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 type Target={kind:"payment";id:string}|{kind:"create";invoiceId:string;correctionPaymentId:string};
 type Operation=`finance.payment.${"create"|"approve"|"release"|"confirm"|"reverse"}`;
 type Command={key:string;operation:Operation;bankTransactionId?:string};
@@ -62,7 +63,7 @@ export async function withSupplierPaymentCorrection<Result>(actor:WorkContext,ta
   const result=await withFinancePurchasedCommand(actor,{key:command.key,operation:command.operation,purpose:"settle-existing",capability},run,database);
   await flushFinanceDeferredEffects(database);
   const after=await source(database,actor,target);if(!after||identity(after)!==identity(before))throw new ApiError(409,"SUPPLIER_PAYMENT_CORRECTION_SOURCE_CHANGED","The original supplier payment or purchasing source changed during this correction.");
-  const guard=`supplier-correction-final:${crypto.randomUUID()}`;await requireFinanceCurrentAuthority(database,actor,guard);await database.batch([...financeDocumentSourceGuards(database,actor,"invoice",after.invoice_id,"finance.inventory-valuation",guard),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(guard)]);
+  const guard=`supplier-correction-final:${crypto.randomUUID()}`;await requireFinanceCurrentAuthority(database,actor,guard);await database.batch([...financeDocumentSourceGuards(database,actor,"invoice",after.invoice_id,"finance.inventory-valuation",guard),clearWorkflowCommandAssertions(database,guard)]);
   if(target.kind==="create"){
    const captured=await database.prepare("SELECT payment.* FROM command_receipts receipt JOIN finance_payments payment ON payment.id=receipt.record_id WHERE receipt.command_id=? AND receipt.operation='finance.payment.create' AND receipt.actor_id=? AND receipt.authority_json::jsonb->>'companyId'=? AND receipt.result_json::jsonb->>'correctionPaymentId'=? AND receipt.result_json::jsonb->>'settlementInvoiceId'=? AND payment.company_id=? AND payment.party_id=? AND payment.currency=? AND payment.bank_account=? AND payment.kind='payment' AND payment.amount_minor=?").bind(command.key,actor.userId,actor.companyId,before.id,before.invoice_id,actor.companyId,before.party_id,before.currency,before.bank_account,before.amount_minor).first();
    if(!captured)throw new ApiError(422,"SUPPLIER_CORRECTION_AMOUNT_MISMATCH","Retain the exact original supplier, bank account, currency and amount for this correction.");

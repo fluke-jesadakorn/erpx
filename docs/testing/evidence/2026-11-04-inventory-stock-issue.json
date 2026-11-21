@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Inventory stock issue/consumption is PostgreSQL-qualified against the caller's sales reservation and stock sources; the Commerce same-transaction fulfillment call path remains open and no browser acceptance is claimed",
+  "capability": "inventory-stock-issue",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Issue plan validation, proportional lot value allocation, full-quantity requirement, own-reservation exclusion, quarantine/lot depletion rejection and tampered-plan refusal.",
+    "application": "Issue untracked stock at current proportional value inside the caller's serializable transaction; excludes the order's own reservation while preserving other holds.",
+    "adapters": "Reads current Sales source, persists lot movements/allocations and reservation effects, rechecks source versions, fences every reservation source and stock writer, and rolls back with the enclosing unit.",
+    "frontend": "No UI cutover in this slice."
+  },
+  "tests": [
+    "inventory.rust-stock-issue.unit: 5 passed",
+    "inventory.rust-stock-issue-postgres.integration: 10 passed",
+    "cargo test -p erpx-server-inventory --test stock_issue --test stock_issue_postgres --locked: 15 passed",
+    "Coverage: proportional lot values, own-reservation exclusion, quarantine/depletion, tampered plans, serializable requirement, stale sources, over-fulfillment, rollback, Company/branch isolation and reservation-source fences"
+  ],
+  "limits": [
+    "The retained Commerce fulfillment drawer/command is still the active writer; no native Commerce purchase-fulfillment transaction calls this seam yet.",
+    "No browser/authenticated stock/receipt journey was run.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

@@ -1,0 +1,1227 @@
+{
+  "version": 1,
+  "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "sources": [
+    {
+      "path": "packages/server-identity_access/src/domain/mfa.ts",
+      "sha256": "7762a6c99383b472cc2bb6cb51161156dc8ec71d32aea3e2baba911da0e46669"
+    },
+    {
+      "path": "packages/server-identity_access/src/application/mfa.ts",
+      "sha256": "572242049ede0a2dd588f59a1ab1c75845d942409bb09e5a9bd5377fea6ea37b"
+    },
+    {
+      "path": "packages/server-identity_access/src/adapters/iam-mfa.ts",
+      "sha256": "050091435c98ecde1d1c74d484e836599011e5c8d5c065d959045ce5f64420a2"
+    },
+    {
+      "path": "packages/server-identity_access/src/adapters/account-session-security.ts",
+      "sha256": "ba7c469c4f5f5817d052f6e8daabb160ce2b041d1d294289a4b50b19ec7011a0"
+    },
+    {
+      "path": "packages/server-identity_access/src/domain/product-sso.ts",
+      "sha256": "baa82774d08371721309fa370ca68ae3c0eaa66f83fe7c65d8fc8cd6f5f205b4"
+    }
+  ],
+  "node": "v26.11.1",
+  "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+  "vectors": [
+    {
+      "counter": 0,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "755224"
+    },
+    {
+      "counter": 1,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "287082"
+    },
+    {
+      "counter": 2,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "359152"
+    },
+    {
+      "counter": 3,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "969429"
+    },
+    {
+      "counter": 4,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "338314"
+    },
+    {
+      "counter": 5,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "254676"
+    },
+    {
+      "counter": 6,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "287922"
+    },
+    {
+      "counter": 7,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "162583"
+    },
+    {
+      "counter": 8,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "399871"
+    },
+    {
+      "counter": 9,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "520489"
+    },
+    {
+      "counter": 1,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "287082"
+    },
+    {
+      "counter": 37037036,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "081804"
+    },
+    {
+      "counter": 37037037,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "050471"
+    },
+    {
+      "counter": 41152263,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "005924"
+    },
+    {
+      "counter": 66666666,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "279037"
+    },
+    {
+      "counter": 666666666,
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "expected": "353130"
+    }
+  ],
+  "codes": [
+    {
+      "code": "000000",
+      "expected": true
+    },
+    {
+      "code": "999999",
+      "expected": true
+    },
+    {
+      "code": "12345",
+      "expected": false
+    },
+    {
+      "code": "1234567",
+      "expected": false
+    },
+    {
+      "code": "１２３４５６",
+      "expected": false
+    },
+    {
+      "code": " 123456",
+      "expected": false
+    },
+    {
+      "code": "12345a",
+      "expected": false
+    },
+    {
+      "code": "",
+      "expected": false
+    }
+  ],
+  "counters": [
+    59999999,
+    60000000,
+    60000001
+  ],
+  "rules": [
+    {
+      "id": "previous",
+      "expected": {
+        "verifiedUntil": 1800000300000
+      },
+      "expectedError": null,
+      "calls": {
+        "throttles": 1,
+        "activated": 59999999,
+        "verified": 1800000000000
+      }
+    },
+    {
+      "id": "current",
+      "expected": {
+        "verifiedUntil": 1800000300000
+      },
+      "expectedError": null,
+      "calls": {
+        "throttles": 1,
+        "activated": 60000000,
+        "verified": 1800000000000
+      }
+    },
+    {
+      "id": "next",
+      "expected": {
+        "verifiedUntil": 1800000300000
+      },
+      "expectedError": null,
+      "calls": {
+        "throttles": 1,
+        "activated": 60000001,
+        "verified": 1800000000000
+      }
+    },
+    {
+      "id": "outside",
+      "expected": null,
+      "expectedError": {
+        "code": "MFA_INVALID",
+        "status": 403
+      },
+      "calls": {
+        "throttles": 1,
+        "activated": null,
+        "verified": null
+      }
+    },
+    {
+      "id": "reused",
+      "expected": null,
+      "expectedError": {
+        "code": "MFA_INVALID",
+        "status": 403
+      },
+      "calls": {
+        "throttles": 1,
+        "activated": null,
+        "verified": null
+      }
+    },
+    {
+      "id": "malformed",
+      "expected": null,
+      "expectedError": {
+        "code": "MFA_INVALID",
+        "status": 422
+      },
+      "calls": {
+        "throttles": 1,
+        "activated": null,
+        "verified": null
+      }
+    },
+    {
+      "id": "not-enrolled",
+      "expected": null,
+      "expectedError": {
+        "code": "MFA_NOT_ENROLLED",
+        "status": 409
+      },
+      "calls": {
+        "throttles": 1,
+        "activated": null,
+        "verified": null
+      }
+    },
+    {
+      "id": "counter-cas-failed",
+      "expected": null,
+      "expectedError": {
+        "code": "MFA_REPLAY",
+        "status": 403
+      },
+      "calls": {
+        "throttles": 1,
+        "activated": 60000000,
+        "verified": null
+      }
+    }
+  ],
+  "enrollments": [
+    {
+      "userId": "synthetic-user",
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "uri": "otpauth://totp/ERPX:synthetic-user?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=ERPX&algorithm=SHA1&digits=6&period=30"
+    },
+    {
+      "userId": "ไทย é é !~*'()/:",
+      "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      "uri": "otpauth://totp/ERPX:%E0%B9%84%E0%B8%97%E0%B8%A2%20%C3%A9%20e%CC%81%20!~*'()%2F%3A?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=ERPX&algorithm=SHA1&digits=6&period=30"
+    }
+  ],
+  "snapshots": [
+    {
+      "id": "single",
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": null,
+        "verifications": [],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expected": {
+        "accountKey": "dcf2c2e35b473a59a3fb0a878dc1dac8c7370fe078e821aaccbc9661f842ccc8",
+        "revision": "da36e750e7a1c9e38e7c3cc4419276e97f98a5d89bac4f29244a82447416afee",
+        "mfaEnabled": false,
+        "mfaFreshUntil": null,
+        "families": [
+          {
+            "handle": "1cdc7179586aa6e131fcb1f0a4a101da269f47a4fd2e5abbf6ba8fb5bfbcbdbc",
+            "current": true,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": []
+          }
+        ],
+        "legacySessions": 0
+      }
+    },
+    {
+      "id": "multiple-legacy-foreign",
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "child-a",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-a"
+          },
+          {
+            "id": "child-b",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-b"
+          },
+          {
+            "id": "foreign",
+            "user_id": "foreign-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:foreign"
+          },
+          {
+            "id": "legacy",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:legacy"
+          },
+          {
+            "id": "other",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:other"
+          },
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "child-a",
+            "parent_session_id": "other",
+            "audience": "holding:development:h001:acme.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-a"
+          },
+          {
+            "session_id": "child-b",
+            "parent_session_id": "other",
+            "audience": "holding:development:h002:northstar.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-b"
+          },
+          {
+            "session_id": "foreign",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:foreign"
+          },
+          {
+            "session_id": "other",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:other"
+          },
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": {
+          "enabled": true,
+          "image": "opaque-source-mfa"
+        },
+        "verifications": [
+          {
+            "session_id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "verified_at": 1800000000000,
+            "image": "opaque-source-verification"
+          }
+        ],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expected": {
+        "accountKey": "dcf2c2e35b473a59a3fb0a878dc1dac8c7370fe078e821aaccbc9661f842ccc8",
+        "revision": "e2dfde794176b4f4cf2383804db9f8cdbc59dc0ad7bfc0c061ee353f6811f218",
+        "mfaEnabled": true,
+        "mfaFreshUntil": 1800000300000,
+        "families": [
+          {
+            "handle": "eef749801dd09da66c6a48c5bae46858630ae203cd251205ade94369ca26e173",
+            "current": false,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": [
+              "holding:development:h001:acme.example.test",
+              "holding:development:h002:northstar.example.test"
+            ]
+          },
+          {
+            "handle": "1cdc7179586aa6e131fcb1f0a4a101da269f47a4fd2e5abbf6ba8fb5bfbcbdbc",
+            "current": true,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": []
+          }
+        ],
+        "legacySessions": 1
+      }
+    },
+    {
+      "id": "changed-encryption-image",
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "child-a",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-a"
+          },
+          {
+            "id": "child-b",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-b"
+          },
+          {
+            "id": "foreign",
+            "user_id": "foreign-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:foreign"
+          },
+          {
+            "id": "legacy",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:legacy"
+          },
+          {
+            "id": "other",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:other"
+          },
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "child-a",
+            "parent_session_id": "other",
+            "audience": "holding:development:h001:acme.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-a"
+          },
+          {
+            "session_id": "child-b",
+            "parent_session_id": "other",
+            "audience": "holding:development:h002:northstar.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-b"
+          },
+          {
+            "session_id": "foreign",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:foreign"
+          },
+          {
+            "session_id": "other",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:other"
+          },
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": {
+          "enabled": true,
+          "image": "rotated-mfa-envelope"
+        },
+        "verifications": [
+          {
+            "session_id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "verified_at": 1800000000000,
+            "image": "opaque-source-verification"
+          }
+        ],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expected": {
+        "accountKey": "dcf2c2e35b473a59a3fb0a878dc1dac8c7370fe078e821aaccbc9661f842ccc8",
+        "revision": "da82752b433824162adc570e8dd8e5b33b5ac555fd4866c687a9e03d37dda536",
+        "mfaEnabled": true,
+        "mfaFreshUntil": 1800000300000,
+        "families": [
+          {
+            "handle": "eef749801dd09da66c6a48c5bae46858630ae203cd251205ade94369ca26e173",
+            "current": false,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": [
+              "holding:development:h001:acme.example.test",
+              "holding:development:h002:northstar.example.test"
+            ]
+          },
+          {
+            "handle": "1cdc7179586aa6e131fcb1f0a4a101da269f47a4fd2e5abbf6ba8fb5bfbcbdbc",
+            "current": true,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": []
+          }
+        ],
+        "legacySessions": 1
+      }
+    },
+    {
+      "id": "expired-mfa",
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "child-a",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-a"
+          },
+          {
+            "id": "child-b",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-b"
+          },
+          {
+            "id": "foreign",
+            "user_id": "foreign-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:foreign"
+          },
+          {
+            "id": "legacy",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:legacy"
+          },
+          {
+            "id": "other",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:other"
+          },
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "child-a",
+            "parent_session_id": "other",
+            "audience": "holding:development:h001:acme.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-a"
+          },
+          {
+            "session_id": "child-b",
+            "parent_session_id": "other",
+            "audience": "holding:development:h002:northstar.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-b"
+          },
+          {
+            "session_id": "foreign",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:foreign"
+          },
+          {
+            "session_id": "other",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:other"
+          },
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": {
+          "enabled": true,
+          "image": "opaque-source-mfa"
+        },
+        "verifications": [
+          {
+            "session_id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "verified_at": 1799999700000,
+            "image": "opaque-source-verification"
+          }
+        ],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expected": {
+        "accountKey": "dcf2c2e35b473a59a3fb0a878dc1dac8c7370fe078e821aaccbc9661f842ccc8",
+        "revision": "bbea45b5de7c033fcaf7f2560350aa2f491455090abe27383e034c1218c23c84",
+        "mfaEnabled": true,
+        "mfaFreshUntil": 1800000000000,
+        "families": [
+          {
+            "handle": "eef749801dd09da66c6a48c5bae46858630ae203cd251205ade94369ca26e173",
+            "current": false,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": [
+              "holding:development:h001:acme.example.test",
+              "holding:development:h002:northstar.example.test"
+            ]
+          },
+          {
+            "handle": "1cdc7179586aa6e131fcb1f0a4a101da269f47a4fd2e5abbf6ba8fb5bfbcbdbc",
+            "current": true,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": []
+          }
+        ],
+        "legacySessions": 1
+      }
+    },
+    {
+      "id": "disabled-mfa",
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "child-a",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-a"
+          },
+          {
+            "id": "child-b",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-b"
+          },
+          {
+            "id": "foreign",
+            "user_id": "foreign-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:foreign"
+          },
+          {
+            "id": "legacy",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:legacy"
+          },
+          {
+            "id": "other",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:other"
+          },
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "child-a",
+            "parent_session_id": "other",
+            "audience": "holding:development:h001:acme.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-a"
+          },
+          {
+            "session_id": "child-b",
+            "parent_session_id": "other",
+            "audience": "holding:development:h002:northstar.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-b"
+          },
+          {
+            "session_id": "foreign",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:foreign"
+          },
+          {
+            "session_id": "other",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:other"
+          },
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": {
+          "enabled": false,
+          "image": "disabled"
+        },
+        "verifications": [
+          {
+            "session_id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "verified_at": 1800000000000,
+            "image": "opaque-source-verification"
+          }
+        ],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expected": {
+        "accountKey": "dcf2c2e35b473a59a3fb0a878dc1dac8c7370fe078e821aaccbc9661f842ccc8",
+        "revision": "9d69589d4ac419bb579975927370a6508f8e669ae44d748a16196eed277ac989",
+        "mfaEnabled": false,
+        "mfaFreshUntil": null,
+        "families": [
+          {
+            "handle": "eef749801dd09da66c6a48c5bae46858630ae203cd251205ade94369ca26e173",
+            "current": false,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": [
+              "holding:development:h001:acme.example.test",
+              "holding:development:h002:northstar.example.test"
+            ]
+          },
+          {
+            "handle": "1cdc7179586aa6e131fcb1f0a4a101da269f47a4fd2e5abbf6ba8fb5bfbcbdbc",
+            "current": true,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": []
+          }
+        ],
+        "legacySessions": 1
+      }
+    },
+    {
+      "id": "unicode-agent",
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": "ไทย é é 😀 punctuation ~!_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": null,
+        "verifications": [],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expected": {
+        "accountKey": "dcf2c2e35b473a59a3fb0a878dc1dac8c7370fe078e821aaccbc9661f842ccc8",
+        "revision": "3d071489a7f3472812bdf13afa7763d086804c84c13d451870aaafc8591a79c8",
+        "mfaEnabled": false,
+        "mfaFreshUntil": null,
+        "families": [
+          {
+            "handle": "1cdc7179586aa6e131fcb1f0a4a101da269f47a4fd2e5abbf6ba8fb5bfbcbdbc",
+            "current": true,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": "ไทย é é 😀 punctuation ~!_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "audiences": []
+          }
+        ],
+        "legacySessions": 0
+      }
+    },
+    {
+      "id": "ordered-mfa-verifications",
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "child-a",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-a"
+          },
+          {
+            "id": "child-b",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:child-b"
+          },
+          {
+            "id": "foreign",
+            "user_id": "foreign-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:foreign"
+          },
+          {
+            "id": "legacy",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:legacy"
+          },
+          {
+            "id": "other",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:other"
+          },
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": null,
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "child-a",
+            "parent_session_id": "other",
+            "audience": "holding:development:h001:acme.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-a"
+          },
+          {
+            "session_id": "child-b",
+            "parent_session_id": "other",
+            "audience": "holding:development:h002:northstar.example.test",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:child-b"
+          },
+          {
+            "session_id": "foreign",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:foreign"
+          },
+          {
+            "session_id": "other",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:other"
+          },
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": {
+          "enabled": true,
+          "image": "opaque-source-mfa"
+        },
+        "verifications": [
+          {
+            "session_id": "other",
+            "user_id": "synthetic-user",
+            "verified_at": 1799999999000,
+            "image": "older"
+          },
+          {
+            "session_id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "verified_at": 1800000000000,
+            "image": "opaque-source-verification"
+          }
+        ],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expected": {
+        "accountKey": "dcf2c2e35b473a59a3fb0a878dc1dac8c7370fe078e821aaccbc9661f842ccc8",
+        "revision": "88fde76c7e2f6c116d964cf626cbbf9608b47de840f9f375171cd11c9510d4e4",
+        "mfaEnabled": true,
+        "mfaFreshUntil": 1800000300000,
+        "families": [
+          {
+            "handle": "eef749801dd09da66c6a48c5bae46858630ae203cd251205ade94369ca26e173",
+            "current": false,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": [
+              "holding:development:h001:acme.example.test",
+              "holding:development:h002:northstar.example.test"
+            ]
+          },
+          {
+            "handle": "1cdc7179586aa6e131fcb1f0a4a101da269f47a4fd2e5abbf6ba8fb5bfbcbdbc",
+            "current": true,
+            "createdAt": 1800000000000,
+            "expiresAt": 1800043200000,
+            "userAgent": null,
+            "audiences": []
+          }
+        ],
+        "legacySessions": 1
+      }
+    }
+  ],
+  "displayBoundaries": [
+    {
+      "length": 498,
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀tail",
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": null,
+        "verifications": [],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expectedRevision": "c3fd46c77dda2c098403aec71c3e53c2f1ff71508ed9ad988286e31d429d317f",
+      "expectedB0Json": "\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀\"",
+      "reviewedNativeDisplay": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀"
+    },
+    {
+      "length": 499,
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀tail",
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": null,
+        "verifications": [],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expectedRevision": "df31eb73580e9b165dd4b785e7f99c2af35c1656e44c3768e105ca628ff3953f",
+      "expectedB0Json": "\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\ud83d\"",
+      "reviewedNativeDisplay": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "length": 500,
+      "actor": {
+        "userId": "synthetic-user",
+        "sessionId": "synthetic-session"
+      },
+      "image": {
+        "sessions": [
+          {
+            "id": "synthetic-session",
+            "user_id": "synthetic-user",
+            "created_at": "2027-01-15T08:00:00.000Z",
+            "expires_at": "2027-01-15T20:00:00.000Z",
+            "user_agent": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀tail",
+            "image": "opaque-source-session:synthetic-session"
+          }
+        ],
+        "bindings": [
+          {
+            "session_id": "synthetic-session",
+            "parent_session_id": null,
+            "audience": "account",
+            "environment": "development",
+            "authenticated_at": 1800000000000,
+            "absolute_expires_at": 1800043200000,
+            "image": "opaque-source-binding:synthetic-session"
+          }
+        ],
+        "mfa": null,
+        "verifications": [],
+        "user": "opaque-source-user"
+      },
+      "now": 1800000000000,
+      "expectedRevision": "f71d2b59a4eedcc4e31f6cf427a21a3d6d48d6579db44f03fea63faa3f7571b1",
+      "expectedB0Json": "\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"",
+      "reviewedNativeDisplay": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ]
+}

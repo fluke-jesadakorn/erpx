@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The native Commerce quotation create and draft edit journeys are browser-verified on desktop and mobile. The keyed office-shell hydration blocker was isolated to the Turbopack development HMR restart loop; starting the sales app with the already-supported webpack development bundler mounted the app root, opened the New quotation drawer and saved through the native Next route. Desktop and mobile lists show the native-created quotations and the edited total. Order-revision Money snapshots, purchase orders, fulfillment, invoicing, settlement and returns remain retained, so sales/quotes and sales/orders stay partial.",
+  "capability": "commerce-native-order-browser-interactive",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "68f7c27003ce33c8a990f0a119e98a793477569c",
+  "hydrationFix": {
+    "rootCause": "The sales app was started with Turbopack. Its HMR client received repeated full-relaunch updates (restart/handleApply), so the app root never mounted and only the Next devtools NEXTJS-PORTAL React root existed. Blocking the HMR/devtools chunks stopped reloads but also prevented hydration.",
+    "verificationBundler": "The sales app was restarted with the existing supported webpack development bundler. The app root mounted, the New quotation button had React props, the form drawer opened and Save draft posted to the native route. The committed workspace settings still select Turbopack; this is a verification workaround, not a production change.",
+    "notChanged": "No auth, SSO, public host, Cloudflared, PostgreSQL or production runtime was changed."
+  },
+  "browserEvidence": {
+    "create": "Desktop 1440x1200 New quotation: customer Acme Corporation Retail Customer, stock item ACC-1794070684514, quantity 1, price 10.00, warehouse Bangkok distribution warehouse, note 'Browser native quote'. POST /__erpx/sales/api/v1/holdings/acme/commerce/orders returned 200; persisted QT-2026-000004 draft subtotal 1000 USD.",
+    "edit": "Desktop Edit draft opened the existing QT-2026-000004 with its line and fields. Quantity changed to 2, note to 'Browser native quote edited'. POST /orders/order-da058c54-b19c-433b-939e-a463fc7ab3d3 returned 200; readback version 2, quantity_milli 2000, subtotal_minor 2000, note applied.",
+    "mobile": "Mobile 390x844 New quotation created QT-2026-000005 through the same native route (200) and showed the document preview.",
+    "readback": "Fresh desktop and mobile quotations pages rendered all five native quotes QT-2026-000001 through QT-2026-000005 and the edited USD 20.00 total. Screenshots: .scratch/dev/commerce-native-quotes-final-desktop.png and .scratch/dev/commerce-native-quotes-final-mobile.png. Drawer evidence: .scratch/dev/quote-drawer-webpack.png, .scratch/dev/quote-edit-drawer.png, .scratch/dev/commerce-native-mobile-save.png."
+  },
+  "verification": {
+    "nativeApi": "Native owner direct create/update and Next route create/read/replay/conflict/stale-CAS evidence recorded in 2026-11-09-commerce-native-order-http-browser-readback.json.",
+    "tests": "cargo test -p erpx-server-commerce previously 57/57; registered sales-pricing 16/16; native transport 7/7; workspace cargo check and tsc passed.",
+    "browser": "Desktop+mobile interactive create and desktop draft edit, with persisted readback."
+  },
+  "remaining": [
+    "Order-revision Money snapshot rows for the order total and per-line unit price/subtotal/tax",
+    "Purchase-order create/update and request/RFQ handoffs",
+    "Sales-order approval Finance credit guard and confirmed sales cancellation Inventory reversal guard",
+    "Fulfillment, invoicing, settlement and returns",
+    "Positive-cost Assets registration browser journey (the container build does not yet include the Assets/Finance handoff; the Assets app is still on the Turbopack dev path)"
+  ],
+  "nextAction": "Implement the Finance-owned order-revision Money snapshot port for Commerce, then close the remaining sales/quotes scope. For Assets, rebuild the keyed container with the Assets/Finance handoff and use the webpack dev verification bundler if Turbopack still prevents hydration."
+}

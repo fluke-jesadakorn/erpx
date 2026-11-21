@@ -1,10 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { createFinanceCommandFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { createFinanceCommandFetch } from "@erpx/feature-finance/public/client";
 
 afterEach(()=>vi.unstubAllGlobals());
 
-it.each(['revision','stale','removed'] as const)('retains the exact Finance attempt and original form revision when the boundary becomes %s during native body decoding',async changed=>{
- const node={isConnected:true,dataset:{workUser:'maker',workRevision:'7',workCompany:'original-company',workAssignment:'finance-role',workStale:'false'}};
+it.each(['revision','assignmentVersion','stale','removed'] as const)('retains the exact Finance attempt and original form revision when the boundary becomes %s during native body decoding',async changed=>{
+ const node={isConnected:true,dataset:{workUser:'maker',workRevision:'7',workCompany:'original-company',workAssignment:'finance-role',workAssignmentVersion:'3',workStale:'false'}};
  let present=true,edit='original-edit';
  const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement;
  const browser=Object.assign(new EventTarget(),{location:{origin:'https://finance-dev-erpx.jesadakorn.com'}}),saved:CustomEvent[]=[];
@@ -18,10 +18,10 @@ it.each(['revision','stale','removed'] as const)('retains the exact Finance atte
  const request=createFinanceCommandFetch(),url='/api/v1/holdings/acme/finance/budgets',input={method:'POST',body:'{"expectedVersion":1,"amount":"100.01"}'};
  await expect(request(url,input)).rejects.toThrow('Lost after commit');
  const retry=request(url,input);await decoding;edit='newer-local-edit';
- if(changed==='revision')node.dataset.workRevision='8';else if(changed==='stale')node.dataset.workStale='true';else{node.isConnected=false;present=false;}
+ if(changed==='revision')node.dataset.workRevision='8';else if(changed==='assignmentVersion')node.dataset.workAssignmentVersion='4';else if(changed==='stale')node.dataset.workStale='true';else{node.isConnected=false;present=false;}
  body.enqueue(new TextEncoder().encode(JSON.stringify(response)));body.close();
  await expect(retry).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(saved).toEqual([]);
- node.dataset.workRevision='7';node.dataset.workStale='false';node.isConnected=true;present=true;
+ node.dataset.workRevision='7';node.dataset.workAssignmentVersion='3';node.dataset.workStale='false';node.isConnected=true;present=true;
  expect(request.hasAttempt(url,input.body)).toBe(true);expect(request.completion(url,input.body)?.formEditVersion).toBe('original-edit');await request(url,input);
  expect(request.hasAttempt(url,input.body)).toBe(false);expect(new Set(keys).size).toBe(1);expect(bodies).toEqual([input.body,input.body,input.body]);
  expect(saved).toHaveLength(1);expect(saved[0].detail.formEditVersion).toBe('original-edit');expect(form.getAttribute('data-erpx-edit-version')).toBe('newer-local-edit');

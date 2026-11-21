@@ -6,7 +6,7 @@ export type LegalInvitationRepository = {
   cancel(id: string, token: string): Promise<void>; sent(id: string, token: string, now: number): Promise<void>;
   failed(id: string, token: string, state: "failed" | "queued", error: string, nextAttempt: number): Promise<void>;
 };
-export function createLegalInvitationWorker(ports: { repository: LegalInvitationRepository; clock: Clock; identifiers: IdentifierSource; publicOrigin?: string; enrollmentOrigin?:string; shareSpecificLink?:boolean; enrollmentEnabled: boolean; enrollmentToken(slug: string, shareId: string, expiresAt: number): Promise<string>; send(email: string, subject: string, body: string, key: string): Promise<void> }) {
+export function createLegalInvitationWorker(ports: { repository: LegalInvitationRepository; clock: Clock; identifiers: IdentifierSource; publicOrigin?: string; documentUrl?(slug:string):string|null;enrollmentOrigin?:string; shareSpecificLink?:boolean; enrollmentEnabled: boolean; enrollmentToken(slug: string, shareId: string, expiresAt: number): Promise<string>; send(email: string, subject: string, body: string, key: string): Promise<void> }) {
   return async () => {
     const now = ports.clock.now(); await ports.repository.recover(now);
     const token = ports.identifiers.next(), job = await ports.repository.claim(token, now); if (!job) return;
@@ -14,7 +14,7 @@ export function createLegalInvitationWorker(ports: { repository: LegalInvitation
       const share = await ports.repository.share(job.share_id, ports.clock.now());
       if (!share) { await ports.repository.cancel(job.id, token); return; }
       if (!ports.publicOrigin) throw new Error("PUBLIC_ORIGIN_NOT_CONFIGURED");
-      const documentUrl = new URL(`/legal-portal/${encodeURIComponent(job.holding_slug)}`, ports.publicOrigin);if(ports.shareSpecificLink)documentUrl.searchParams.set('share',job.share_id);
+      const documentUrl = new URL(ports.documentUrl?.(job.holding_slug)??`/legal-portal/${encodeURIComponent(job.holding_slug)}`, ports.publicOrigin);if(ports.shareSpecificLink)documentUrl.searchParams.set('share',job.share_id);
       const url=documentUrl.href;
       const inviteLink = ports.enrollmentEnabled ? new URL(`/legal-portal/enroll#token=${await ports.enrollmentToken(job.holding_slug, job.share_id, share.expires_at)}`, ports.enrollmentOrigin??ports.publicOrigin).href : null;
       await ports.send(share.email, "You have an ERPX Legal document invitation", inviteLink ? `${url}\n\nNew invited account: ${inviteLink}` : url, `legal-invitation-${job.id}`);

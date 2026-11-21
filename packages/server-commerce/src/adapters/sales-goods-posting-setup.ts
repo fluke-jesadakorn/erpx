@@ -1,4 +1,10 @@
 import{salesGoodsPostingFulfillmentSources}from '@erpx/server-commerce/public/sales-goods-posting-sources';
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
+  try { return await nativeCommerceOwnerWrite('settings.initialize', [actor.companyId, ...fields.map((f: string) => input[f])], actor.companyId, actor.userId, key); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 export{salesGoodsPostingFulfillmentSources};
 import 'server-only';
 import {createHash,randomUUID} from 'node:crypto';
@@ -19,6 +25,7 @@ import {commercialOwnerProjectionSources as inventorySources} from '@erpx/server
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/adapters/owner-source-locks';
 import {salesGoodsPostingSetupSchema,type SalesGoodsPostingSetupInput,type SalesGoodsPostingSetupResult,type SalesGoodsPostingSetupView} from '@erpx/server-commerce/domain/sales-goods-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const operation='commerce.sales-goods-posting-setup.initialize';
 const capabilities=['sales.orders','inventory.stock-core','finance.sales-posting'] as const;
@@ -89,9 +96,9 @@ export async function initializeSalesGoodsPostingSetup(actor:WorkContext,raw:unk
    if(input.contextKey!==contextKey(authority,finance,documents,configuration))throw new ApiError(409,'SALES_GOODS_POSTING_CONTEXT_CHANGED','The selected context, reviewed defaults or original documents changed. Keep the draft and review the current setup.');
    if(documents.goods)throw new ApiError(409,'SALES_GOODS_POSTING_HISTORY_REQUIRES_REVIEW','Goods economics without their original mapping require owner reconciliation. Initial Sales setup cannot repair them.');
    await validateSalesGoodsPostingFinanceState(database,actor,input,documents.history);
+   await nativeSettingsWrite(actor, input, key, fields);
    result=await executeCommand(database,actor,key,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
     assertion(database,key,'sales-goods-posting-absent','NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)',[actor.companyId]),
-    database.prepare(`INSERT INTO commerce_settings(company_id,${fields.map(field=>columns[field]).join(',')}) VALUES(${Array.from({length:fields.length+1},()=>'?').join(',')})`).bind(actor.companyId,...fields.map(field=>input[field])),
    ]);
   }
   await flushFinanceDeferredEffects(database);
@@ -99,7 +106,7 @@ export async function initializeSalesGoodsPostingSetup(actor:WorkContext,raw:unk
   if(!sameMapping(await current(database,actor.companyId),mapping(input)))throw new ApiError(409,'SALES_GOODS_POSTING_SOURCE_CHANGED','The original goods posting mapping changed before completion.');
   const finalFinance=await salesGoodsPostingFinanceState(database,actor),finalDocuments=await documentState(database,actor.companyId);
   if(finance.image!==finalFinance.image||documents.image!==finalDocuments.image||!replay&&finance.defaults&&JSON.stringify(finance.service)!==JSON.stringify(await salesGoodsPostingEffectiveService(database,actor)))throw new ApiError(409,'SALES_GOODS_POSTING_SOURCE_CHANGED','The original reviewed Sales settings or document economics changed before completion.');
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));return result;
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 

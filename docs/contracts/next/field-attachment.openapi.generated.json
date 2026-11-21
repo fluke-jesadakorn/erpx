@@ -1,0 +1,450 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "erpx-service",
+    "description": "",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status": {
+      "get": {
+        "tags": [],
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current authorized attachment status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldAttachmentStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/withdraw": {
+      "post": {
+        "tags": [],
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldAttachmentWithdrawInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical status after withdrawal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldAttachmentStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holdings/{holding_slug}/attachment-sets/{set_id}/bind": {
+      "post": {
+        "tags": [],
+        "operationId": "bind",
+        "parameters": [
+          {
+            "name": "holding_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldAttachmentBindInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bound Field visit record evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldAttachmentBindResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "FieldAttachmentBindInput": {
+        "type": "object",
+        "required": [
+          "expectedTargetVersion"
+        ],
+        "properties": {
+          "expectedTargetVersion": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FieldAttachmentBindResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FieldAttachmentBindResult"
+          }
+        }
+      },
+      "FieldAttachmentBindResult": {
+        "type": "object",
+        "required": [
+          "setId",
+          "version",
+          "manifest"
+        ],
+        "properties": {
+          "manifest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldAttachmentManifestItem"
+            }
+          },
+          "setId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FieldAttachmentManifestItem": {
+        "type": "object",
+        "required": [
+          "linkId",
+          "sourceId",
+          "purposeKey",
+          "checksumSha256",
+          "mediaType",
+          "bytes"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checksumSha256": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "purposeKey": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          }
+        }
+      },
+      "FieldAttachmentScan": {
+        "type": "object",
+        "required": [
+          "attempts"
+        ],
+        "properties": {
+          "attempts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "definitionUpdatedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastResult": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scannedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "signature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "FieldAttachmentStatus": {
+        "type": "object",
+        "required": [
+          "linkId",
+          "setId",
+          "linkState",
+          "scan",
+          "previewAvailable",
+          "bindable",
+          "expiresAt"
+        ],
+        "properties": {
+          "bindable": {
+            "type": "boolean"
+          },
+          "boundAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "linkId": {
+            "type": "string"
+          },
+          "linkState": {
+            "type": "string"
+          },
+          "previewAvailable": {
+            "type": "boolean"
+          },
+          "scan": {
+            "$ref": "#/components/schemas/FieldAttachmentScan"
+          },
+          "setId": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "withdrawnAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "FieldAttachmentStatusResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "context"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FieldServiceRenderedContext"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FieldAttachmentStatus"
+          }
+        }
+      },
+      "FieldAttachmentWithdrawInput": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FieldServiceRenderedContext": {
+        "type": "object",
+        "required": [
+          "userId",
+          "holdingId",
+          "companyId",
+          "assignmentId",
+          "assignmentVersion",
+          "revision",
+          "role",
+          "assignmentScopeKind",
+          "modules",
+          "permissions",
+          "expiresAt"
+        ],
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "assignmentScopeKind": {
+            "type": "string"
+          },
+          "assignmentVersion": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0
+          },
+          "branchId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchSlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "departmentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "departmentSlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0
+          },
+          "holdingId": {
+            "type": "string"
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0
+          },
+          "role": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

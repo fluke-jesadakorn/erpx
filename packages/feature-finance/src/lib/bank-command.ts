@@ -61,7 +61,7 @@ function fields(form:HTMLFormElement){return JSON.stringify(Array.from(new FormD
  * status, not a version; reconciliation returns the bank movement version. */
 export function validFinanceBankReceipt(request:FinanceBankRequest,key:string,value:unknown):value is Record<string,unknown> {
   if(!object(value))return false;
-  return request.kind==='import'?value.id===`statement-${key}`&&value.status==='imported'&&value.imported===request.input.rows.length&&value.settlementPaymentId===undefined&&value.refundInstructionId===undefined&&value.payrollRunId===undefined:
+  return request.kind==='import'?value.id===`statement-${key}`&&value.status==='imported'&&value.imported===request.input.rows.length&&(value.settlementPaymentId===undefined||value.settlementPaymentId===null)&&value.refundInstructionId===undefined&&value.payrollRunId===undefined:
     value.id===request.id&&value.status==='matched'&&value.version===request.input.expectedVersion+1;
 }
 function firstRollback(request:FinanceBankRequest,status:number,code:unknown,wasUncertain:boolean){

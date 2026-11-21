@@ -5,6 +5,7 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { talentWorkspace } from "@erpx/server-talent/public/talent";
+import { nativeTalentWorkspace } from "@erpx/feature-talent/public/native-talent-page";
 import { TalentConsole } from "@erpx/feature-talent/components/talent-console";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import { PageContent, Card } from "@erpx/ui/components/foundation";
@@ -17,7 +18,16 @@ export default async function Page({
   const { holdingSlug } = await params,
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
-    data = await talentWorkspace(a).catch((e) => pageError(e, holdingSlug));
+    data = await (async () => {
+      const workspace = await talentWorkspace(a),
+        native = await nativeTalentWorkspace(a);
+      return native
+        ? {
+            ...workspace,
+            requisitions: native.requisitions as unknown as typeof workspace.requisitions,
+          }
+        : workspace;
+    })().catch((e) => pageError(e, holdingSlug));
   return (
     <PageContent as="div" className="ui-page-content">
       <Link href={canonicalUiHref(`${base}/work`)}>Work</Link>

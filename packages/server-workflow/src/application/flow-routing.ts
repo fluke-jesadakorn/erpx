@@ -132,11 +132,11 @@ export interface FlowRoutingRepository<Effect> {
     }>;
     guard24(key: string, value: string, args: string[], version: number): Effect;
     guard25(key: string, value: string, companyId: string, revision: number): Effect;
-    stageRouteStatementsEffect(args: string[], revision: number, value: string, now: number): Effect;
+    stageRouteStatementsEffect(args: string[], revision: number, value: string, now: number): Effect | Promise<Effect>;
     readPrepareFlowCommandPerson(companyId: string, userId: string): Promise<{
         legal_name: string;
     } | null>;
-    stagePrepareFlowCommandSteps(value: string, key: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string, value2: string, action: string, userId: string, value3: string, reason: string, version: number, now: number): Effect;
+    stagePrepareFlowCommandSteps(value: string, key: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string, value2: string, action: string, userId: string, value3: string, reason: string, version: number, now: number): Effect | Promise<Effect>;
     readPrepareFlowCommandParent(id: string, companyId: string): Promise<{
         order_id: string;
     } | null>;
@@ -146,14 +146,14 @@ export interface FlowRoutingRepository<Effect> {
     readAssignFlowPrimaryParent(id: string, companyId: string): Promise<{
         order_id: string;
     } | null>;
-    stageAssignFlowPrimaryEffect(userId: string, companyId: string, order_id: string): Effect;
+    stageAssignFlowPrimaryEffect(userId: string, companyId: string, order_id: string): Effect | Promise<Effect>;
     readAssignFlowPrimaryAdministrator(companyId: string, userId: string): Promise<{
         legal_name: string;
     } | null>;
     guard34(key: string, value: "flow-document-version", companyId: string, id: string, recordVersion: number, kind: FlowKind): Effect;
-    stageAssignFlowPrimaryEffect2(value: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string): Effect;
-    stageAssignFlowPrimaryEffect3(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", key: string, branch_id: string | null, department_id: string | null, userId: string, userId2: string, reason: string, now: number): Effect;
-    stageAssignFlowPrimaryEffect4(value: string, key: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string, key2: string, userId: string, value2: string, value3: string, recordVersion: number, now: number): Effect;
+    stageAssignFlowPrimaryEffect2(value: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string): Effect | Promise<Effect>;
+    stageAssignFlowPrimaryEffect3(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", key: string, branch_id: string | null, department_id: string | null, userId: string, userId2: string, reason: string, now: number): Effect | Promise<Effect>;
+    stageAssignFlowPrimaryEffect4(value: string, key: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string, key2: string, userId: string, value2: string, value3: string, recordVersion: number, now: number): Effect | Promise<Effect>;
 }
 export interface FlowRoutingPorts<Effect> {
     repository: FlowRoutingRepository<Effect>;
@@ -165,7 +165,7 @@ export interface FlowRoutingPorts<Effect> {
     batch(effects: Effect[]): Promise<unknown>;
     policyRead<Result>(key: string, read: () => Promise<Result>): Promise<Result>;
     policyNow(): number;
-    flowAfterEffects(actor: StaffActor, key: string, kind: FlowKind, id: string): Effect[];
+    flowAfterEffects(actor: StaffActor, key: string, kind: FlowKind, id: string): Promise<Effect[]>;
     approvalView(...args: Tail<Parameters<typeof approvalView>>): PortResult<ReturnType<typeof approvalView>, Effect>;
     canOverrideEmployeeRequest(...args: Tail<Parameters<typeof canOverrideEmployeeRequest>>): PortResult<ReturnType<typeof canOverrideEmployeeRequest>, Effect>;
     readRequestForOverride(...args: Tail<Parameters<typeof readRequestForOverride>>): PortResult<ReturnType<typeof readRequestForOverride>, Effect>;
@@ -542,7 +542,7 @@ export function createFlowPlanningApplication<Effect>(ports: FlowPlanningPorts<E
             return [r.guard24(key, `flow-version-${view.kind}`, args, view.version)];
         const revision = view.defaultsRevision;
         const saved = Object.fromEntries(view.steps.map(s => [s.key, { primaryUserId: s.primary?.userId ?? null, teamName: s.teamName, defaultRevision: revision }]));
-        return [r.guard25(key, `flow-defaults-version-${view.kind}`, actor.companyId, revision), r.stageRouteStatementsEffect(args, revision, JSON.stringify(saved), ports.clock.now())];
+        return [r.guard25(key, `flow-defaults-version-${view.kind}`, actor.companyId, revision), await r.stageRouteStatementsEffect(args, revision, JSON.stringify(saved), ports.clock.now())];
     }
     async function prepareFlowCommand(actor: StaffActor, key: string, kind: FlowKind, id: string, action: string, input: unknown, version: number): Promise<{
         before: Effect[];
@@ -574,14 +574,14 @@ export function createFlowPlanningApplication<Effect>(ports: FlowPlanningPorts<E
             throw new BusinessRuleError(view.blocker ? 409 : 403, "FLOW_PRIMARY_REQUIRED", view.blocker ?? `This action belongs to ${view.current?.primary?.name ?? "the responsible staff member"}.`);
         const reason = typeof input === "object" && input !== null ? String((input as Record<string, unknown>).reason ?? (input as Record<string, unknown>).note ?? "") : "";
         const person = await r.readPrepareFlowCommandPerson(actor.companyId, actor.userId);
-        const steps: Effect[] = [snap.guard(key, "flow-authority"), ...await routeStatements(actor, key, view), r.stagePrepareFlowCommandSteps(ports.identifiers.next(), key, actor.companyId, kind, id, view.current?.key ?? view.state, action, actor.userId, person?.legal_name ?? actor.userId, reason, version, ports.clock.now())];
+        const steps: Effect[] = [snap.guard(key, "flow-authority"), ...await routeStatements(actor, key, view), await r.stagePrepareFlowCommandSteps(ports.identifiers.next(), key, actor.companyId, kind, id, view.current?.key ?? view.state, action, actor.userId, person?.legal_name ?? actor.userId, reason, version, ports.clock.now())];
         if (kind === "journal") {
             const parent = await r.readPrepareFlowCommandParent(id, actor.companyId);
             if (parent)
                 steps.push(...await routeStatements(actor, key, await resolveFlow(actor, "order", parent.order_id)));
         }
         // The owner update is committed between the guards and this durable notification.
-        const after = ports.flowAfterEffects(actor, key, kind, id);
+        const after = await ports.flowAfterEffects(actor, key, kind, id);
         return { before: steps, after, view };
     }
     return { flowRecord, flowRoleAllowed, resolveFlow, prepareFlowCommand, flowCommandTarget, routeStatements };
@@ -631,7 +631,7 @@ export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Eff
                 const parentFlow = await resolveFlow(actor, "order", parent.order_id), parentStep = parentFlow.steps.find(s => s.key === "stock_gl");
                 if (!parentStep?.candidates.some(p => p.userId === input.userId))
                     throw new BusinessRuleError(422, "FLOW_STAFF_INELIGIBLE", "The accountant must also be eligible for the source order.");
-                linked.push(...await routeStatements(actor, key, parentFlow), r.stageAssignFlowPrimaryEffect(input.userId, actor.companyId, parent.order_id));
+                linked.push(...await routeStatements(actor, key, parentFlow), await r.stageAssignFlowPrimaryEffect(input.userId, actor.companyId, parent.order_id));
             }
         }
         const administrator = await r.readAssignFlowPrimaryAdministrator(actor.companyId, actor.userId);
@@ -639,10 +639,10 @@ export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Eff
         return ports.commands.commit(actor, key, "flow.assign", { kind, ...input }, id, view.recordVersion, { id, version: (view.version || 1) + 1 }, [
             ...featureGuards, ports.authorityGuard(key, actor), snap.guard(key, "flow-authority"), ...await routeStatements(actor, key, view), ...linked,
             r.guard34(key, "flow-document-version", actor.companyId, id, view.recordVersion, kind),
-            r.stageAssignFlowPrimaryEffect2(JSON.stringify(saved), actor.companyId, kind, id),
-            ...(input.saveDefault ? [r.stageAssignFlowPrimaryEffect3(actor.companyId, kind, step.key, scope.branch_id, scope.department_id, person.userId, actor.userId, input.reason, ports.clock.now())] : []),
-            r.stageAssignFlowPrimaryEffect4(ports.identifiers.next(), key, actor.companyId, kind, id, step.key, actor.userId, administrator?.legal_name ?? actor.userId, `${input.reason} → ${person.name}`, view.recordVersion, ports.clock.now()),
-            ports.notification(scope, person.userId, kind, id, view.recordVersion, `${step.action}: assigned to you`),
+            await r.stageAssignFlowPrimaryEffect2(JSON.stringify(saved), actor.companyId, kind, id),
+            ...(input.saveDefault ? [await r.stageAssignFlowPrimaryEffect3(actor.companyId, kind, step.key, scope.branch_id, scope.department_id, person.userId, actor.userId, input.reason, ports.clock.now())] : []),
+            await r.stageAssignFlowPrimaryEffect4(ports.identifiers.next(), key, actor.companyId, kind, id, step.key, actor.userId, administrator?.legal_name ?? actor.userId, `${input.reason} → ${person.name}`, view.recordVersion, ports.clock.now()),
+            await ports.notification(scope, person.userId, kind, id, view.recordVersion, `${step.action}: assigned to you`),
         ], { companyId: scope.company_id, branchId: scope.branch_id, departmentId: scope.department_id });
     }
     return { flowRecord, flowRoleAllowed, resolveFlow, prepareFlowCommand, assignFlowPrimary, flowCommandTarget };

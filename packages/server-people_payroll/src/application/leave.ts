@@ -28,8 +28,8 @@ export interface LeaveRepository<Effect> {
     readCreateLeaveEmployee(person_id: string, companyId: string): Promise<{
         id: string;
     } | null>;
-    stageCreateLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number): Effect;
-    stageCreateLeaveEffect2(id: string, value: string, person_id: string, companyId: string, person_id2: string, engagement_id: string, companyId2: string, value2: string, department_id: string | null, startDate: string, days: number, handoverNote: string, userId: string, now: number, now2: number): Effect;
+    stageCreateLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number): Promise<Effect>;
+    stageCreateLeaveEffect2(id: string, value: string, person_id: string, companyId: string, person_id2: string, engagement_id: string, companyId2: string, value2: string, department_id: string | null, startDate: string, days: number, handoverNote: string, userId: string, now: number, now2: number): Promise<Effect>;
     guard6(key: string, value: "leave-state", id: string, version: number, states: string[]): Effect;
     guard7(key: string, value: "placement", engagement_id: string, engagement_version: number): Effect;
     stageSubmitLeaveEffect(startDate: string, days: number, handoverNote: string, state: "draft" | "pending_approval", person_id: string, engagement_id: string, value: string, department_id: string | null, userId: string, key: string, now: number, id: string): Effect;
@@ -49,7 +49,7 @@ export interface LeaveRepository<Effect> {
     guard14(key: string, value: string, sourceId: string, id: string, company_id: string, purposeKey: string, checksumSha256: string, mediaType: string, bytes: number): Effect;
     guard15(key: string, value: "leave-evidence-no-pending", id: string, company_id: string): Effect;
     guard16(key: string, value: "leave-evidence-required-count", value2: (string | number)[], legacyIncluded: boolean): Effect;
-    stageDecideEvidenceManifestStep(value: string, id: string, company_id: string, id2: string, key: string, expectedVersion: number, value2: string | null, userId: string, value3: string, now: number): Effect;
+    stageDecideEvidenceManifestStep(value: string, id: string, company_id: string, id2: string, key: string, expectedVersion: number, value2: string | null, userId: string, value3: string, now: number): Promise<Effect>;
     stageDecideEffect(id: string, company_id: string): Effect;
     stageDecideEffect2(state: "pending_approval" | "approved" | "rejected", note: string, userId: string, value: 0 | 1, key: string, now: number, id: string): Effect;
     stageDecideEffect3(value: string, key: string, id: string, operation: "leave.approve" | "leave.reject", userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number): Effect;
@@ -96,10 +96,10 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
             ports.staffGuard(key, context.companyId, context.userId),
             ...(!employee
                 ? [
-                    repository.stageCreateLeaveEffect(employeeId, staff.person_id, context.companyId, staff.branch_id ?? "", staff.department_id, staff.legal_name, now),
+                    await repository.stageCreateLeaveEffect(employeeId, staff.person_id, context.companyId, staff.branch_id ?? "", staff.department_id, staff.legal_name, now),
                 ]
                 : []),
-            repository.stageCreateLeaveEffect2(id, `LR-${key}`, staff.person_id, context.companyId, staff.person_id, staff.engagement_id, context.companyId, staff.branch_id ?? "", staff.department_id, input.startDate, input.days, input.handoverNote, context.userId, now, now),
+            await repository.stageCreateLeaveEffect2(id, `LR-${key}`, staff.person_id, context.companyId, staff.person_id, staff.engagement_id, context.companyId, staff.branch_id ?? "", staff.department_id, input.startDate, input.days, input.handoverNote, context.userId, now, now),
         ], eventScope(staff));
     }
     function guard(key: string, id: string, version: number, states: string[]) {
@@ -227,7 +227,7 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
         ];
         const evidenceManifestStep = evidenceManifest.length
             ? [
-                repository.stageDecideEvidenceManifestStep(`leave-evidence-${key}`, id, checked.company_id, decision.instance.id, key, input.expectedVersion, checked.policy_version_id ?? null, context.userId, JSON.stringify({
+                await repository.stageDecideEvidenceManifestStep(`leave-evidence-${key}`, id, checked.company_id, decision.instance.id, key, input.expectedVersion, checked.policy_version_id ?? null, context.userId, JSON.stringify({
                     policy: evidencePolicy,
                     files: evidenceManifest,
                 }), now),
@@ -278,7 +278,7 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
                 repository.stageTransitionLeaveEffect2(key, now, id),
             ], eventScope(row));
         }
-        return ports.commands.commit(context, key, "leave.cancellation", input, id, input.expectedVersion + 1, { id, state: "cancelled", version: input.expectedVersion + 1 }, [
+        return ports.commands.commit(context, key, "leave.cancellation", input, id, input.expectedVersion + 1, { id, state: "cancelled", version: input.expectedVersion + 1 }, await Promise.all([
             guard(key, id, input.expectedVersion, [
                 "draft",
                 "rejected",
@@ -287,7 +287,7 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
             ...ports.closeApprovals(key, "leave", id, context.userId, "cancel", input.note, input.expectedVersion),
             repository.stageTransitionLeaveEffect3(input.note, key, ports.clock.now(), id),
             ...(row.state === "pending_approval" ? balanceTransition(row, key, context.userId, "release") : []),
-        ], eventScope(row));
+        ]), eventScope(row));
     }
     async function decideLeaveCancellation(context: WorkContext, id: string, input: z.infer<typeof leaveDecisionSchema>, key: string, approve: boolean) {
         await ports.prepare(context.holdingId);

@@ -1,0 +1,2207 @@
+{
+  "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "path": "packages/server-identity_access/src/application/iam-grants.ts",
+  "sourceSha256": "e67e927601db34c06302083b7802cdd5777a80708bc5afdf53d6b1e1fbe4165c",
+  "node": "v26.11.1",
+  "now": 1800000000000,
+  "cases": [
+    {
+      "id": "valid-holding",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "same-user",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "parent-user",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "parent-user",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "SELF_ACCESS_CHANGE"
+      }
+    },
+    {
+      "id": "same-person-alias",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": true,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "SELF_ACCESS_CHANGE"
+      }
+    },
+    {
+      "id": "missing-parent",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": null,
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 409,
+        "code": "PARENT_EXPIRED"
+      }
+    },
+    {
+      "id": "inactive-parent",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": false,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 409,
+        "code": "PARENT_EXPIRED"
+      }
+    },
+    {
+      "id": "expiry-boundary",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000000000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000000000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 422,
+        "code": "EXPIRY_INVALID"
+      }
+    },
+    {
+      "id": "expiry-parent-ceiling",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000600001,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000600001,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 422,
+        "code": "EXPIRY_INVALID"
+      }
+    },
+    {
+      "id": "missing-parent-role",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": null,
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 409,
+        "code": "PARENT_ROLE_UNAVAILABLE"
+      }
+    },
+    {
+      "id": "unreviewed-directory-member",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "local"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "DIRECTORY_IDENTITY_REVIEW_REQUIRED"
+      }
+    },
+    {
+      "id": "suspended-member",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "suspended",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "IDENTITY_INACTIVE"
+      }
+    },
+    {
+      "id": "missing-role",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": null,
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 409,
+        "code": "ROLE_UNAVAILABLE"
+      }
+    },
+    {
+      "id": "unsupported-role-scope",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "branch"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping"
+      },
+      "ok": false,
+      "error": {
+        "status": 409,
+        "code": "ROLE_UNAVAILABLE"
+      }
+    },
+    {
+      "id": "published-role-revision-changed",
+      "directoryAssembled": false,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping",
+          "expectedRoleRevision": 2
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 2
+      },
+      "ok": false,
+      "error": {
+        "status": 409,
+        "code": "ROLE_CHANGED"
+      }
+    },
+    {
+      "id": "permission-ceiling",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify",
+            "finance.pay"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "DELEGATION_EXCEEDED"
+      }
+    },
+    {
+      "id": "grantable-ceiling",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read",
+            "finance.pay"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "DELEGATION_EXCEEDED"
+      }
+    },
+    {
+      "id": "parent-ceiling-removed",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": []
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": []
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "DELEGATION_EXCEEDED"
+      }
+    },
+    {
+      "id": "independent-actor-ceiling-removed",
+      "directoryAssembled": false,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": []
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "DELEGATION_EXCEEDED"
+      }
+    },
+    {
+      "id": "foreign-parent-company",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "foreign",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "SCOPE_FORBIDDEN"
+      }
+    },
+    {
+      "id": "customer-platform-scope",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department",
+            "platform"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "platform",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "platform",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "SCOPE_FORBIDDEN"
+      }
+    },
+    {
+      "id": "missing-branch",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": null,
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "branch",
+          "scopeNodeId": "b001",
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "branch",
+        "scopeNodeId": "b001",
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 409,
+        "code": "SCOPE_UNAVAILABLE"
+      }
+    },
+    {
+      "id": "valid-branch",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "branch",
+          "scopeNodeId": "b001",
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "branch",
+        "scopeNodeId": "b001",
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "valid-department-parent-branch",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "branch",
+          "scopeNodeId": "b001",
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "branch",
+          "scope_node_id": "b001",
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "d001",
+          "kind": "department",
+          "branch_id": "b001"
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "department",
+          "scopeNodeId": "d001",
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "department",
+        "scopeNodeId": "d001",
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "foreign-department-parent-branch",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "branch",
+          "scopeNodeId": "other",
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "branch",
+          "scope_node_id": "other",
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "d001",
+          "kind": "department",
+          "branch_id": "b001"
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "department",
+          "scopeNodeId": "d001",
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "department",
+        "scopeNodeId": "d001",
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "SCOPE_FORBIDDEN"
+      }
+    },
+    {
+      "id": "valid-same-department",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "department",
+          "scopeNodeId": "d001",
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "department",
+          "scope_node_id": "d001",
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "d001",
+          "kind": "department",
+          "branch_id": "b001"
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "department",
+          "scopeNodeId": "d001",
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "department",
+        "scopeNodeId": "d001",
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "branch-parent-cannot-grant-holding",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "branch",
+          "scopeNodeId": "b001",
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "branch",
+          "scope_node_id": "b001",
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": false,
+      "error": {
+        "status": 403,
+        "code": "SCOPE_FORBIDDEN"
+      }
+    },
+    {
+      "id": "baseline-holding-extra-node-is-ignored",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "c001",
+          "scopeKind": "holding",
+          "scopeNodeId": null,
+          "platform": false,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "c001",
+          "scope_kind": "holding",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "holding",
+          "scopeNodeId": "b001",
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "holding",
+        "scopeNodeId": "b001",
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "platform-normal",
+      "directoryAssembled": true,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "platform",
+          "scopeKind": "platform",
+          "scopeNodeId": null,
+          "platform": true,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "platform",
+          "scope_kind": "platform",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "platform"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "platform",
+          "scopeNodeId": null,
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "platform",
+        "scopeNodeId": null,
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": true,
+      "error": null
+    },
+    {
+      "id": "baseline-platform-branch-request-is-ignored-by-insert",
+      "directoryAssembled": false,
+      "facts": {
+        "actor": {
+          "userId": "parent-user",
+          "assignmentId": "parent-assignment",
+          "companyId": "platform",
+          "scopeKind": "platform",
+          "scopeNodeId": null,
+          "platform": true,
+          "iam": {
+            "grantablePermissions": [
+              "legal.verify",
+              "module.legal.read"
+            ]
+          }
+        },
+        "parent": {
+          "id": "parent-assignment",
+          "company_id": "platform",
+          "scope_kind": "platform",
+          "scope_node_id": null,
+          "role": "holding_owner",
+          "valid_until": 1800000600000
+        },
+        "parentCurrent": true,
+        "parentRole": {
+          "grantable_json": [
+            "legal.verify",
+            "module.legal.read"
+          ]
+        },
+        "member": {
+          "status": "active",
+          "login_policy": "directory"
+        },
+        "role": {
+          "published_revision": 1,
+          "permissions_json": [
+            "legal.verify"
+          ],
+          "grantable_json": [
+            "module.legal.read"
+          ],
+          "scopes_json": [
+            "holding",
+            "branch",
+            "department"
+          ]
+        },
+        "node": {
+          "id": "b001",
+          "kind": "branch",
+          "branch_id": null
+        },
+        "same": false,
+        "input": {
+          "userId": "dir_target",
+          "roleId": "custom_legal",
+          "scopeKind": "branch",
+          "scopeNodeId": "b001",
+          "validUntil": 1800000300000,
+          "reason": "Reviewed directory mapping"
+        }
+      },
+      "inputAfter": {
+        "userId": "dir_target",
+        "roleId": "custom_legal",
+        "scopeKind": "branch",
+        "scopeNodeId": "b001",
+        "validUntil": 1800000300000,
+        "reason": "Reviewed directory mapping",
+        "expectedRoleRevision": 1
+      },
+      "ok": true,
+      "error": null
+    }
+  ]
+}

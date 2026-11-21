@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import {createHash} from 'node:crypto';
 import type {PoolClient} from 'pg';
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
@@ -62,16 +63,14 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
         actor.platform ? "platform_admin" : "holding_owner",
         now,
       ])
-    ).rowCount),perform:async()=>{const result=await action(client);await capture?.();return result;},freshMfa:requireFreshMfa,recordReceipt:async(request,result,now)=>{const{actor,key,digest}=request;await client.query("INSERT INTO iam_receipts VALUES($1,$2,$3,$4,$5,$6)", [
+    ).rowCount),perform:async()=>{const result=await action(client);await capture?.();return result;},freshMfa:requireFreshMfa,recordReceipt:async(request,result,now)=>{const{actor,key,digest}=request;await nativeIdentityWrite("w_e60a5a1fc21d", [
       key,
       actor.companyId,
       actor.userId,
       digest,
       JSON.stringify(result),
       now,
-    ]);},recordAudit:async(request,result,now)=>{const{actor,key,operation,payload}=request;await client.query(
-      "INSERT INTO iam_audit VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
-      [
+    ]);},recordAudit:async(request,result,now)=>{const{actor,key,operation,payload}=request;await nativeIdentityWrite("w_4db5f896c556", [
         crypto.randomUUID(),
         actor.companyId,
         actor.userId,
@@ -86,5 +85,4 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
           roleRevision: actor.iam?.roleRevision,
         }),
         now(),
-      ],
-    );}});for(const check of ownerChecks.get(client)!)await check();await client.query('COMMIT');return result;}catch(error){await client.query('ROLLBACK');if(['40001','40P01','23505'].includes((error as{code?:string}).code??''))throw new ApiError(409,'IAM_CONFLICT','Access changed. Refresh and review before retrying.');throw error;}finally{ownerChecks.delete(client);client.release();}}})(actor,key,operation,payload,permission);}
+      ]);}});for(const check of ownerChecks.get(client)!)await check();await client.query('COMMIT');return result;}catch(error){await client.query('ROLLBACK');if(['40001','40P01','23505'].includes((error as{code?:string}).code??''))throw new ApiError(409,'IAM_CONFLICT','Access changed. Refresh and review before retrying.');throw error;}finally{ownerChecks.delete(client);client.release();}}})(actor,key,operation,payload,permission);}

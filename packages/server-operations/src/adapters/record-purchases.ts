@@ -5,7 +5,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
-import {workPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccess,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccess,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 
 import {projectTaskRecordPolicy} from '@erpx/server-operations/adapters/project-task-record-policy';
@@ -22,7 +22,7 @@ import {handbookSourceReadScope,requireHandbookWorkspaceRead} from '@erpx/server
 /** Native identity determines Task ownership. Project foundations continue
  * through their own reader; a source label cannot grant ordinary Work access. */
 export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:'records'|'staff'|'inbox'){
- const mode=await workPackageEnforcementMode();if(mode!=='enforced'){
+ const mode=await appsPackageEnforcementMode();if(mode!=='enforced'){
   if(mode==='shadow')await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.actions'});
   return {where:'TRUE',args:[] as unknown[]};
  }
@@ -36,7 +36,7 @@ export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext
  return {where:`(NOT ${actual} OR ${task.where}) AND (module_id<>'operations' OR EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE work_record_project.id=${id} AND work_record_project.company_id=${company} AND work_record_project.project_id IS NOT NULL) OR EXISTS(SELECT 1 FROM(SELECT ${company} company_id,workspace_records.branch_id,workspace_records.department_id,${packageClockSql} now_ms)workforce_actor_scope WHERE ${current.where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')})) AND ${handbook.where}`,args:[...task.args,...current.args,...handbook.args]};
 }
 export async function requireWorkWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
- const mode=await workPackageEnforcementMode();if(mode==='disabled')return;
+ const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
  if(moduleId==='collaboration')await requireHandbookWorkspaceRead(database,actor,id);
  const task=await database.prepare('SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{project_id:string|null}>();
  if(task?.project_id||!task&&moduleId!=='operations')return;
@@ -46,7 +46,7 @@ export async function requireWorkWorkspaceRecordRead(database:SqlDatabase,actor:
  if(!await database.prepare(`SELECT ${where} allowed FROM(SELECT ?::text id,?::text company_id)work_record_input`).bind(...args,id,actor.companyId).first('allowed'))throw new ApiError(404,'WORK_SOURCE_NOT_FOUND','The original Work source is unavailable to this current assignment.');
 }
 export async function filterWorkTaskWork(database:SqlDatabase,actor:WorkContext,items:WorkItem[]){
- if(await workPackageEnforcementMode()==='disabled'||!items.some(item=>item.type==='staff_task'))return items;
+ if(await appsPackageEnforcementMode()==='disabled'||!items.some(item=>item.type==='staff_task'))return items;
  const output:WorkItem[]=[];
  for(const item of items){
   if(item.type!=='staff_task'){output.push(item);continue;}
@@ -62,12 +62,12 @@ export async function filterWorkTaskWork(database:SqlDatabase,actor:WorkContext,
 /** Fixed native alias t, shared by metric rows and later evidence pages. The
  * original metric cohort still determines which visible tasks are counted. */
 export async function workTaskProjectionReadScope(database:SqlDatabase,actor:WorkContext){
- if(await workPackageEnforcementMode()==='disabled'&&await projectsPackageEnforcementMode()==='disabled')return {where:'TRUE',args:[] as unknown[]};
+ if(await appsPackageEnforcementMode()==='disabled'&&await projectsPackageEnforcementMode()==='disabled')return {where:'TRUE',args:[] as unknown[]};
  const work=await workTaskReadScope(database,actor),project=await projectTaskReadScope(database,actor),social=await workTaskSocialReadScope(database,actor),current=authority(actor),viewer='work_projection_viewer';
  return {where:`(${work.where}) AND (${project.where}) AND (${social.where}) AND EXISTS(WITH ${viewer} AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,${packageClockSql} now_ms) SELECT 1 FROM ${viewer} CROSS JOIN LATERAL(SELECT t.company_id,t.branch_id,t.department_id)workforce_actor_scope WHERE ${current.where} AND ${projectTaskRecordPolicy('t.id','t.company_id',viewer)})`,args:[...work.args,...social.args,actor.userId,actor.assignmentId,...current.args]};
 }
 export async function workMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
- const mode=await workPackageEnforcementMode(),projectMode=await projectsPackageEnforcementMode();
+ const mode=await appsPackageEnforcementMode(),projectMode=await projectsPackageEnforcementMode();
  const result=(tasks:boolean,routines:boolean)=>({'my-tasks':tasks,'open-operations-exceptions':tasks,'exception-resolution-time':tasks,'operations-escalations':tasks,routines});
  if(mode==='disabled'&&projectMode==='disabled')return result(true,true);
  const work=await readPurchasedAccesses(database,mode,actor.companyId,['work.actions','work.advanced-routines']),project=await readPurchasedAccess(database,projectMode,{companyId:actor.companyId,capability:'projects.tasks'});

@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead,requireFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceCollections } from '@erpx/server-collaboration/adapters/native-finance-collections';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import type { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -60,25 +61,7 @@ prepareCommit:async(facts)=>{const {actor,key,op,input,id,row,ageStage,message,h
           row.party_version,
         ],
       ),
-      write
-        .prepare(
-          "INSERT INTO finance_collection_cases(id,company_id,invoice_id,invoice_version,as_of_date,stage,amount_minor,currency,message,source_hash,prepared_by,created_at,root_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          id,
-          actor.companyId,
-          row.id,
-          row.version,
-          input.asOf,
-          ageStage,
-          row.outstanding_minor,
-          row.currency,
-          message,
-          hash,
-          actor.userId,
-          Date.now(),
-          id,
-        ),
+      await nativeFinanceCollections(write, actor.companyId).prepare([id, actor.companyId, row.id, row.version, input.asOf, ageStage, row.outstanding_minor, row.currency, message, hash, actor.userId, Date.now(), id]),
     ],
   );},
 parent:async(actor,parentId)=>write
@@ -160,34 +143,8 @@ reviseCommit:async(facts)=>{const {actor,key,op,parentId,input,id,parent,invoice
           invoice.party_version,
         ],
       ),
-      write
-        .prepare(
-          "UPDATE finance_collection_cases SET status='superseded',version=version+1 WHERE id=?",
-        )
-        .bind(parentId),
-      write
-        .prepare(
-          "INSERT INTO finance_collection_cases(id,company_id,invoice_id,invoice_version,as_of_date,stage,amount_minor,currency,message,source_hash,prepared_by,created_at,root_id,revision_number,parent_case_id,parent_version,revision_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          id,
-          actor.companyId,
-          invoice.id,
-          invoice.version,
-          input.asOf,
-          parent.stage,
-          invoice.outstanding_minor,
-          invoice.currency,
-          message,
-          sourceHash,
-          actor.userId,
-          now,
-          parent.root_id,
-          parent.revision_number + 1,
-          parentId,
-          parent.version + 1,
-          input.reason,
-        ),
+      await nativeFinanceCollections(write, actor.companyId).supersede([parentId]),
+      await nativeFinanceCollections(write, actor.companyId).revise([id, actor.companyId, invoice.id, invoice.version, input.asOf, parent.stage, invoice.outstanding_minor, invoice.currency, message, sourceHash, actor.userId, now, parent.root_id, parent.revision_number + 1, parentId, parent.version + 1, input.reason]),
     ],
   );},
 case:async(actor,id)=>write
@@ -235,33 +192,10 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,row,invoice,st
   );
   if (action === "test-deliver")
     steps.push(
-      write
-        .prepare(
-          "INSERT INTO finance_collection_deliveries(case_id,company_id,adapter,delivered_by,payload_hash,delivered_at) VALUES(?,?,'test',?,?,?)",
-        )
-        .bind(
-          id,
-          actor.companyId,
-          actor.userId,
-          payloadHash,
-          now,
-        ),
+      await nativeFinanceCollections(write, actor.companyId).delivery([id, actor.companyId, actor.userId, payloadHash, now]),
     );
   steps.push(
-    write
-      .prepare(
-        "UPDATE finance_collection_cases SET status=?,version=version+1,reviewed_by=CASE WHEN ?='approved' THEN ? ELSE reviewed_by END,review_reason=CASE WHEN ?='approved' THEN ? ELSE review_reason END,reviewed_at=CASE WHEN ?='approved' THEN ? ELSE reviewed_at END WHERE id=?",
-      )
-      .bind(
-        status,
-        status,
-        actor.userId,
-        status,
-        input.reason,
-        status,
-        now,
-        id,
-      ),
+    await nativeFinanceCollections(write, actor.companyId).decide([status, status, actor.userId, status, input.reason, status, now, id]),
   );
   return executeCommand(
     write,

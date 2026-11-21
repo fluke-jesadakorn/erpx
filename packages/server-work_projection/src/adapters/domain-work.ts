@@ -8,7 +8,7 @@ import {listExpenses,canEditExpense,canReviewExpense,canPostExpenses} from '@erp
 import { listCounts, canReadCounts, canEditCount, canReviewCount } from "@erpx/server-inventory/public/inventory-counts";
 import {countSourceAccess} from "@erpx/server-inventory/public/count-purchases";
 import {transferSourceAccess} from "@erpx/server-inventory/public/transfer-purchases";
-import { listTransfers, canEditTransfer, canReviewTransfer } from "@erpx/server-inventory/public/inventory-transfers";
+import { listTransfers, canEditTransfer, canReviewTransfer } from "@erpx/server-inventory/public/inventory-transfer-read";
 import { createDomainWork, type DomainWorkPorts } from "@erpx/server-work_projection/application/domain-work";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function domainWorkPorts(db: SqlDatabase): DomainWorkPorts {

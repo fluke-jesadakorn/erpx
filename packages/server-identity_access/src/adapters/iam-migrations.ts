@@ -1,3 +1,5 @@
+import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {linkMigratedPerson,linkMigratedEmployee} from "@erpx/server-people_payroll/public/identity-person-link-effects";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
@@ -56,7 +58,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         insertMigrationBatch: async (facts) => {
             const { id, input, observedNow } = facts;
-            return void await c.query("INSERT INTO iam_migrations(id,company_id,connection_id,users_json,status,created_by,created_at) VALUES($1,$2,$3,$4,'awaiting_review',$5,$6)", [
+            return void await nativeIdentityWrite("w_ec0f720aa686", [
                 id,
                 actor.companyId,
                 input.connectionId,
@@ -99,11 +101,11 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         supersedeLocalIdentity: async (facts) => {
             const { u } = facts;
-            return void await c.query("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES($1,$2,$3,$4,'superseded','local') ON CONFLICT(company_id,user_id) DO UPDATE SET status='superseded',person_id=excluded.person_id,version=iam_members.version+1", [actor.companyId, u.localUserId, `local:${u.localUserId}`, u.personId]);
+            return void await nativeIdentityWrite("w_ea3bd27b980b", [actor.companyId, u.localUserId, `local:${u.localUserId}`, u.personId]);
         },
         activateDirectoryIdentity: async (facts) => {
             const { userId, digest, u, connection, identity } = facts;
-            return void await c.query("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,login_policy,connection_id,identity_id) VALUES($1,$2,$3,$4,'directory',$5,$6) ON CONFLICT(company_id,user_id) DO UPDATE SET person_id=excluded.person_id,connection_id=excluded.connection_id,identity_id=excluded.identity_id,login_policy='directory',status='active',version=iam_members.version+1", [
+            return void await nativeIdentityWrite("w_b2fa6734a05b", [
                 actor.companyId,
                 userId,
                 `directory:${digest}`,
@@ -114,7 +116,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         linkMigratedIdentity: async (facts) => {
             const { userId, u, identity } = facts;
-            return void await c.query("UPDATE iam_identities SET user_id=$1,person_id=$2 WHERE id=$3", [userId, u.personId, identity.id]);
+            return void await nativeIdentityWrite("w_5b2a2aefb278", [userId, u.personId, identity.id]);
         },
         linkMigratedPerson: async (facts) => {
             const { userId, u } = facts;
@@ -126,15 +128,15 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         revokeMigratedLocalGrants: async (facts) => {
             const { now, u } = facts;
-            return void await c.query("UPDATE assignments SET revoked_at=$1,version=version+1 WHERE user_id=$2 AND company_id=$3 AND revoked_at IS NULL", [now, u.localUserId, actor.companyId]);
+            return void await nativeIdentityWrite("w_e64cd0fcfd71", [now, u.localUserId, actor.companyId]);
         },
         clearMigratedWorkSelection: async (facts) => {
             const { u } = facts;
-            return void await c.query("UPDATE active_work_contexts SET assignment_id=NULL,assignment_version=NULL,revision=revision+1 WHERE company_id=$1 AND user_id=$2", [actor.companyId, u.localUserId]);
+            return void await nativeIdentityWrite("w_8774a0e28e6e", [actor.companyId, u.localUserId]);
         },
         completeMigrationBatch: async (facts) => {
             const { batch } = facts;
-            return void await c.query("UPDATE iam_migrations SET status='complete',version=version+1 WHERE id=$1", [batch.id]);
+            return void await nativeIdentityWrite("w_35a97c23eda2", [batch.id]);
         },
         currentRecoveryOwner: async (facts) => {
             const { userId, owner, observedNow } = facts;
@@ -156,7 +158,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         designateRecoveryIdentity: async (facts) => {
             const { userId } = facts;
-            return void await c.query("INSERT INTO iam_members(company_id,user_id,principal_id,login_policy) VALUES($1,$2,$3,'emergency') ON CONFLICT(company_id,user_id) DO UPDATE SET login_policy='emergency',version=iam_members.version+1", [actor.companyId, userId, `local:${userId}`]);
+            return void await nativeIdentityWrite("w_bb125e66f021", [actor.companyId, userId, `local:${userId}`]);
         } };
     clients.set(tx, c);
     return tx;
@@ -167,14 +169,14 @@ function migrationService(raw?: PostgresDatabase) {
     const control = async () => environment ??= await runtimeEnv();
     return createMigrationService({ error: (...args) => new ApiError(...args), now: Date.now, id: () => crypto.randomUUID(), digest: (value) => createHash('sha256').update(value).digest('hex'), companyScope: assertCompanyScope, fresh: requireFreshMfa, platformIdentity: async (userId) => !!await (await control()).CONTROL_DB.prepare('SELECT 1 FROM platform_assignments WHERE user_id=? AND revoked_at IS NULL').bind(userId).first(), readyControl: async () => { await control(); }, localRecoveryReady, controlIdentity: async (connection, identity, userId, email, now) => {
             const env = await control();
-            await env.CONTROL_DB.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?) ON CONFLICT(id) DO NOTHING')
+            await nativePrepare("w_bccf47b0a2b9")
                 .bind(userId, identity.name, email, now, now)
                 .run();
-            await env.CONTROL_DB.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,'active',?) ON CONFLICT(id) DO NOTHING")
+            await nativePrepare("w_9e7d979fc417")
                 .bind(`principal-${userId}`, userId, identity.name, now)
                 .run();
             if (connection.config.mode === 'oidc')
-                await env.CONTROL_DB.prepare('INSERT INTO account(id,"accountId","providerId","userId","createdAt","updatedAt",issuer) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING')
+                await nativePrepare("w_3b27f567191b")
                     .bind(`directory-${connection.id}-${userId}`, identity.external_id, `directory-${connection.id}`, userId, now, now, connection.config.issuer)
                     .run();
         }, command: async (actor, key, operation, payload, permission, run) => iamCommand(db!, actor, key, operation, payload, permission, async (c) => run(migrationTx(c, actor))), validateGrant: (tx, actor, input, parentId) => validateIamGrant(clients.get(tx)!, actor, input, parentId), insertGrant: (tx, actor, input, parentId) => insertIamGrant(clients.get(tx)!, actor, input, parentId), review: (tx, actor, kind, payload, reason) => proposeIamReview(clients.get(tx)!, actor, kind, payload, reason) });

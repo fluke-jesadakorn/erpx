@@ -2,7 +2,13 @@ import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 
 /** Only the immutable original release, event, command receipt and captured
- * amount establish an invoice handoff. Caller source labels grant nothing. */
+ * amount establish an invoice handoff. Caller source labels grant nothing.
+ *
+ * Retained shared consumers: Finance document, attachment, package-obligation
+ * and service-payment purchase adapters still execute these read-only source
+ * and lock statements inside their own transactions. Removal condition: move
+ * that Finance source lineage to Finance owner interfaces/native composition.
+ * Never delete the stored release/event/receipt history behind it. */
 const invoice=`SELECT service.company_id,invoice.id,billing.id money_source_id
  FROM field_service_billing_releases billing
  JOIN field_service_orders service ON service.id=billing.order_id AND service.agreement_id=billing.agreement_id AND service.version>=billing.source_order_version
@@ -40,14 +46,6 @@ export const fieldServiceFinanceRecordSources={invoice,partsJournal,payment,
  UNION SELECT p.company_id,owned.id FROM finance_payments p JOIN (${payment}) source ON source.id=p.id AND source.company_id=p.company_id CROSS JOIN LATERAL (VALUES(p.journal_id),(p.fx_journal_id)) owned(id) WHERE owned.id IS NOT NULL
  UNION SELECT p.company_id,owned.id FROM finance_payments p JOIN (${payment}) source ON source.id=p.id AND source.company_id=p.company_id JOIN finance_payment_reversals reversal ON reversal.payment_id=p.id CROSS JOIN LATERAL (VALUES(reversal.reversal_journal_id),(reversal.fx_reversal_journal_id)) owned(id) WHERE owned.id IS NOT NULL`,
 } as const;
-
-/** Legacy Service invoices already captured their real billing release quote.
- * Finance may carry that immutable source, never choose a later FX quote from
- * an invoice's caller-controlled source label. */
-export async function fieldServiceInvoiceMoneySource(database:SqlDatabase,companyId:string,invoiceId:string){
- const source=await database.prepare(`SELECT money_source_id FROM (${invoice}) actual_service_invoice WHERE id=? AND company_id=?`).bind(invoiceId,companyId).first<{money_source_id:string}>();
- return source?{sourceType:"field_service_billing_release",sourceId:source.money_source_id,amountKind:"invoice_total"}:null;
-}
 
 /** These read leases precede the first Finance/Files source snapshot. Service
  * starts with the same Support relation, so an owner writer never holds later

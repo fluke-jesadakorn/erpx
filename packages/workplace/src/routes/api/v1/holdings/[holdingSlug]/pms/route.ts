@@ -1,5 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { pmsCommand, pmsWorkspace } from "../../../../../../../../../packages/server-pms/src/public/pms";
+import { nativePmsAvailable, nativePmsFailure, nativePmsFrontDesk, nativePmsRoomBoard } from "../../../../../../lib/native-pms";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { holdingResources } from "../../../../../../../../../packages/server-runtime/src/public/runtime";
@@ -17,14 +18,67 @@ export async function GET(request: Request, { params }: Context) {
   try {
     const { holdingSlug } = await params;
     const actor = await requireWorkContext(holdingSlug);
+    const search = new URL(request.url).searchParams;
+    const section = search.get("section");
+    if (search.get("view") === "list" && (section === "rooms" || section === "housekeeping" || section === "front-desk")) {
+      const frontDesk = section === "front-desk";
+      if (!nativePmsAvailable())
+        throw new ApiError(
+          503,
+          "NATIVE_PMS_UNAVAILABLE",
+          frontDesk
+            ? "The native Hotel front desk is unavailable."
+            : "The native Hotel board is unavailable.",
+        );
+      const value = (key: string) => search.get(key) ?? undefined;
+      let data;
+      try {
+        data = frontDesk
+          ? await nativePmsFrontDesk(actor, holdingSlug, {
+              property: value("property"),
+              status: value("status") ?? value("queue"),
+              q: value("q"),
+              page: value("page"),
+              selectedId: value("selectedId") ?? value("record") ?? value("detailId") ?? value("guestAccount"),
+              from: value("from"),
+              to: value("to"),
+            })
+          : await nativePmsRoomBoard(actor, holdingSlug, section, {
+              property: value("property"),
+              status: value("status"),
+              q: value("q"),
+              building: value("building"),
+              floor: value("floor"),
+              typeId: value("typeId"),
+              page: value("page"),
+              selectedId: value("selectedId") ?? value("record") ?? value("detailId"),
+              from: value("from"),
+              to: value("to"),
+            });
+      } catch (error) {
+        const failure = nativePmsFailure(error);
+        throw failure ? new ApiError(failure.status, failure.code, failure.message) : error;
+      }
+      if (!data)
+        throw new ApiError(
+          503,
+          "NATIVE_PMS_UNAVAILABLE",
+          frontDesk
+            ? "The native Hotel front desk is unavailable."
+            : "The native Hotel board is unavailable.",
+        );
+      return Response.json(canonicalDestinationLinks({ data }), {
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     return Response.json(
       canonicalDestinationLinks({
         data: await pmsWorkspace(
           actor,
-          new URL(request.url).searchParams.get("property") ?? undefined,
-          new URL(request.url).searchParams.get("dayControls") === "1",
+          search.get("property") ?? undefined,
+          search.get("dayControls") === "1",
           false,
-          pmsReadSelectionFromSearch(new URL(request.url).searchParams),
+          pmsReadSelectionFromSearch(search),
         ),
       }),
       { headers: { "Cache-Control": "private, no-store" } },

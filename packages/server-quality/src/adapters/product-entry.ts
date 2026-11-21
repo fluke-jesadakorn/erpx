@@ -15,6 +15,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {ApiError} from "@erpx/server-runtime/public/http";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 /** Read-only role candidate discovery. Entry never creates a WorkContext,
  * chooses an assignment or returns a private source/purchase snapshot. */
 export async function qualityProductSourceEntry(database:SqlDatabase,scope:QualityProductEntryScope,target:QualitySourceEntry){
@@ -40,7 +41,7 @@ async function strictSourceScope(database:SqlDatabase,actor:WorkContext,target:Q
   AND ${scheduledFeaturePredicate("quality_product_scope.company_id",target.kind==="hold"?"quality":"inventory")}`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId,actor.assignmentId,scope.assignmentVersion).first<{allowed:boolean}>();
  if(!current?.allowed||actor.departmentId)throw new ApiError(403,"QUALITY_SOURCE_ACCESS_CHANGED","Choose a current authorized source assignment.");
- const key=`quality-product-presentation:${crypto.randomUUID()}`;try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);}catch(error){throw financialConstraintError(error)??error;}
+ const key=`quality-product-presentation:${crypto.randomUUID()}`;try{await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);}catch(error){throw financialConstraintError(error)??error;}
  return scope;
 }
 /** The canonical detail drawer repeats its original owner authorization. Its
@@ -56,7 +57,7 @@ export async function qualitySourceRecordBackdrop(actor:WorkContext,target:Quali
  // These are original authenticated owner readers; no candidate assignment
  // is converted to a new acting context and only the summary crosses UI.
  if(target.kind==="hold"){
-  const {qualityDetail}=await import("@erpx/server-quality/public/quality"),{hold}=await qualityDetail(actor,target.id);
+  const {getQualityHold}=await import("@erpx/server-quality/public/quality"),hold=await getQualityHold(actor,target.id);
   if(strictScope){await strictSourceScope(database,actor,target,strictScope);if(!await qualityProductSourceEntry(database,strictScope,target))throw new ApiError(404,"QUALITY_SOURCE_NOT_FOUND","The original purchased Quality source is unavailable.");}
   return {kind:"hold",title:`Quality hold · ${String(hold.product_name)}`,description:String(hold.warehouse_name),status:String(hold.status)};
  }

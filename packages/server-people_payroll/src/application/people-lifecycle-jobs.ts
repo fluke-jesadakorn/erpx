@@ -21,14 +21,8 @@ export interface PeopleLifecycleWorkerRepository {
         rows: (LifecycleEngagementFacts)[];
         rowCount: number | null;
     }>;
-    applyEffect(company_id: string, person_id: string, effective_at: number): Promise<{
-        rows: (Record<string, unknown>)[];
-        rowCount: number | null;
-    }>;
-    applyEffect2(company_id: string, person_id: string): Promise<{
-        rows: (Record<string, unknown>)[];
-        rowCount: number | null;
-    }>;
+    applyEffect(company_id: string, person_id: string, effective_at: number): Promise<unknown> | unknown;
+    applyEffect2(company_id: string, person_id: string): Promise<unknown> | unknown;
     applyEffect3(engagement_id: string, value: "ended" | "suspended", lastWorkingDate: string | null, now: number): Promise<{
         rows: (Record<string, unknown>)[];
         rowCount: number | null;
@@ -61,14 +55,8 @@ export interface PeopleLifecycleWorkerRepository {
         rows: (Record<string, unknown>)[];
         rowCount: number | null;
     }>;
-    applyEffect7(company_id: string, person_id: string, effective_at: number, id: string): Promise<{
-        rows: (Record<string, unknown>)[];
-        rowCount: number | null;
-    }>;
-    applyEffect8(company_id: string, person_id: string, effective_at: number, id: string): Promise<{
-        rows: (Record<string, unknown>)[];
-        rowCount: number | null;
-    }>;
+    applyEffect7(company_id: string, person_id: string, effective_at: number, id: string): Promise<unknown> | unknown;
+    applyEffect8(company_id: string, person_id: string, effective_at: number, id: string): Promise<unknown> | unknown;
     applyEffect9(company_id: string, person_id: string, effective_at: number): Promise<{
         rows: (Record<string, unknown>)[];
         rowCount: number | null;
@@ -149,14 +137,8 @@ export interface PeopleLifecycleWorkerRepository {
         rows: (Record<string, unknown>)[];
         rowCount: number | null;
     }>;
-    applyEffect22(value: string, company_id: string, id: string, value2: string, now: number): Promise<{
-        rows: (Record<string, unknown>)[];
-        rowCount: number | null;
-    }>;
-    applyEffect23(value: string, value2: string, id: string, value3: number, value4: string, now: number): Promise<{
-        rows: (Record<string, unknown>)[];
-        rowCount: number | null;
-    }>;
+    applyEffect22(value: string, company_id: string, id: string, value2: string, now: number): Promise<unknown> | unknown;
+    applyEffect23(value: string, value2: string, id: string, value3: number, value4: string, now: number): Promise<unknown> | unknown;
     applyEffect24(currentId: string, now: number, code: string): Promise<{
         rows: (Record<string, unknown>)[];
         rowCount: number | null;
@@ -168,7 +150,6 @@ export interface PeopleLifecycleWorkerSession {
 }
 export interface PeopleLifecycleWorkerPorts {
     withSession<Result>(run: (session: PeopleLifecycleWorkerSession) => Promise<Result>): Promise<Result>;
-    drainPositionMoves(now: number): Promise<number>;
     drainOrganizationDrafts(now: number): Promise<number>;
 }
 export function createPeopleLifecycleWorker(ports: PeopleLifecycleWorkerPorts) {
@@ -321,7 +302,7 @@ export function createPeopleLifecycleWorker(ports: PeopleLifecycleWorkerPorts) {
             }
             return processed;
         });
-        return processed + await ports.drainPositionMoves(now) + await ports.drainOrganizationDrafts(now);
+        return processed + await ports.drainOrganizationDrafts(now);
     }
     return { drainPeopleLifecycle };
 }

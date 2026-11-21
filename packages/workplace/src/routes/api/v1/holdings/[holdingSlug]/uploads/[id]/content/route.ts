@@ -1,3 +1,5 @@
+import {nativeFieldFamily,nativeFinancePaymentFiles,nativeFinanceJournalFiles} from '../../../../../../../../lib/native-field-family';
+import {fieldFileWriterOwner,servicePaymentFileOwner,fieldJournalFileOwner} from '@erpx/server-files/public/field-file-writer-owner';
 import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {appAttachmentSources} from "@erpx/server-files/public/app-attachment-sources";
@@ -13,6 +15,7 @@ import {
 import { attachmentsV2ReadOnly } from "@erpx/server-files/public/attachments/feature";
 import { readBoundedUploadBody } from "@erpx/server-files/public/attachments/upload";
 import { legacyAttachmentPolicy } from "@erpx/server-files/public/attachments/legacy-policy";
+import { withNativeSupportAttachment } from "@erpx/server-files/public/native-support-attachments";
 
 export async function PUT(
   request: Request,
@@ -32,6 +35,12 @@ export async function PUT(
         "ATTACHMENTS_READ_ONLY",
         "Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.",
       );
+    const journalOwner=await fieldJournalFileOwner(actor,{kind:"upload",id});
+    const financeOwner=await servicePaymentFileOwner(actor,{kind:"upload",id});
+    if(journalOwner||financeOwner||await fieldFileWriterOwner(actor,{kind:"upload",id})==="field") {
+      const bytes=await readBoundedUploadBody(request,Number(request.headers.get("content-length")));
+      return await (journalOwner?nativeFinanceJournalFiles:financeOwner?nativeFinancePaymentFiles:nativeFieldFamily)(request,actor,{route:{kind:"upload",intentId:id},body:new Uint8Array(bytes),contentType:request.headers.get("content-type")??""});
+    }
     operation = "open_resources";
     const { write, files } = await holdingResources(actor.holdingId);
     operation = "load_reservation";
@@ -53,6 +62,41 @@ export async function PUT(
         "UPLOAD_TYPE",
         "Content-Type must match the reserved file type.",
       );
+    if (universal.owner_type === "support_ticket") {
+      operation = "read_body";
+      const buffer = await readBoundedUploadBody(
+        request,
+        Number(universal.declared_bytes),
+      );
+      operation = "complete_upload";
+      const completed = await withNativeSupportAttachment((client) =>
+        client.complete(request.headers, actor, id, {
+          contentType: universal.media_type,
+          bytes: new Uint8Array(buffer),
+        }),
+      );
+      operation = "scan";
+      const scanned = await withNativeSupportAttachment((client) =>
+        client.scan(request.headers, actor, id, `support-scan-${id}`),
+      );
+      if (scanned.state !== "available")
+        throw new ApiError(
+          423,
+          "ATTACHMENT_NOT_AVAILABLE",
+          "The file did not pass security scanning.",
+        );
+      return Response.json(
+        canonicalDestinationLinks({
+          data: {
+            ...completed,
+            id: completed.sourceId,
+            state: scanned.state,
+            attachmentSetId: universal.attachment_set_id,
+          },
+        }),
+        { status: 202 },
+      );
+    }
     operation = "read_body";
     const buffer = await readBoundedUploadBody(
       request,

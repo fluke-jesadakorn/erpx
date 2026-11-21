@@ -9,7 +9,8 @@ import { FinanceChartControls, type FinanceChart, type FinanceAccount } from "@e
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { financeSetupWorkspace } from "@erpx/server-finance/public/finance-workspace";
+import { readFinanceSetup } from "../_native-setup";
+import { nativeChartAccounts } from "@erpx/feature-finance/lib/native-finance-setup";
 import { ledgerWorkspace } from "@erpx/server-finance/public/ledger";
 import { FinanceStarterControls } from "@erpx/feature-finance/components/finance-starter-controls";
 
@@ -22,13 +23,40 @@ export default async function FinanceSetupPage({ params, searchParams }: {
     const { holdingSlug } = await params, query = searchParams ? await searchParams : {}, requestedChart = typeof query.chart === "string" ? query.chart : null;
     const actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor));
     
-    const setup = await financeSetupWorkspace(actor), ledger = setup.charts.length ? await ledgerWorkspace(actor, requestedChart ?? undefined) : null;
+    const setup = (await readFinanceSetup(actor, holdingSlug)).setup, ledger = setup.charts.length ? await ledgerWorkspace(actor, requestedChart ?? undefined) : null;
+    const nativeActor = actor.authority && actor.iam
+      ? {
+          userId: actor.userId,
+          holdingId: actor.holdingId,
+          holdingSlug,
+          companyId: actor.companyId,
+          branchId: actor.branchId,
+          departmentId: actor.departmentId,
+          assignmentId: actor.assignmentId,
+          role: actor.role,
+          assignmentScope: actor.assignmentScope,
+          scope:
+            actor.scope.kind === "holding"
+              ? { kind: "holding" as const }
+              : actor.scope.kind === "branch"
+                ? { kind: "branch" as const, branchSlug: actor.scope.branchSlug ?? "" }
+                : {
+                    kind: "department" as const,
+                    branchSlug: actor.scope.branchSlug ?? undefined,
+                    departmentSlug: actor.scope.departmentSlug ?? "",
+                  },
+          authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+          modules: actor.modules,
+          iam: { permissions: actor.iam.permissions },
+        }
+      : undefined;
+    const nativeChart = await nativeChartAccounts(nativeActor, holdingSlug, requestedChart ?? (ledger?.chart.id as string | undefined) ?? (setup.charts[0]?.id as string | undefined));
     const step = "chart";
     
     
     const complete = setup.checks.filter(check => check.complete).length;
-    const selectedChart = ledger?.chart as FinanceChart | undefined;
-    const chartAccounts = ledger?.accounts as FinanceAccount[] | undefined;
+    const selectedChart = (nativeChart?.chart ?? ledger?.chart) as FinanceChart | undefined;
+    const chartAccounts = (nativeChart?.accounts ?? ledger?.accounts) as FinanceAccount[] | undefined;
     return <FeaturePage className="ui-page-content" data-source="live"><FinanceWorkspace base={base} context={ledger ? { chartId: String(ledger.chart.id), chartName: String(ledger.chart.name), currency: String(ledger.chart.base_currency) } : undefined} active="setup" title="Finance setup" description="Prepare the company before receiving documents and posting">
     <SectionWorkspace nested showHeading={false} title="Finance setup" items={workspaceTopicLinks(base, query, sectionWorkspaceTopics.finance)} selected={step} context={ledger ? `${ledger.chart.name} · ${ledger.chart.base_currency}` : "Company setup"}>
     {false}

@@ -12,6 +12,7 @@ import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {financeDeferredEffectStatements} from "@erpx/server-finance/public/finance-transactions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {commerceKindCapability,commercePurchaseSource,requireCommerceCurrentAuthority} from "@erpx/server-commerce/adapters/purchase-boundary";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Target={type:"order"|"fulfillment"|"return";id:string};
 export type CommerceAttachmentPurchase={companyId:string;capability:string;purpose:CapabilityPurpose;actor:WorkContext;target:Target;source:{id:string;company_id:string;branch_id:string|null;department_id:string|null;kind:"quote"|"sales"|"purchase"};witness:string;permissions:readonly string[]};
@@ -52,9 +53,9 @@ export async function commerceAttachmentCommandBoundary(database:SqlDatabase,sco
   return [database.prepare("SELECT id FROM commerce_orders WHERE id=? AND company_id=? FOR SHARE").bind(record.id,record.company_id),database.prepare(`SELECT id FROM ${table(scope.target)} WHERE id=? FOR SHARE`).bind(scope.target.id),database.prepare("SELECT id FROM assignments WHERE id=? AND company_id=? FOR SHARE").bind(actor.assignmentId,actor.companyId),...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),
    assertion(database,key,"commerce-file-assignment",`(SELECT (${allowed}) FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) commerce_file_scope)`,[...scope.permissions.flatMap(()=>[actor.assignmentId,actor.userId,actor.role]),record.company_id,record.branch_id,record.department_id]),
    assertion(database,key,"commerce-file-source",`${image(scope.target)}=?::jsonb AND EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND company_id=? AND kind=? AND branch_id IS NOT DISTINCT FROM ?::text AND department_id IS NOT DISTINCT FROM ?::text)`,[scope.target.id,scope.witness,record.id,record.company_id,record.kind,record.branch_id,record.department_id]),
-   database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)];
+   clearWorkflowCommandAssertions(database, key)];
  });
- return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
+ return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>clearWorkflowCommandAssertions(database, item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};
 }
 export function commerceAttachmentFailure(error:unknown){
  let current=error;

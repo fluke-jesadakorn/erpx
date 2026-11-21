@@ -188,7 +188,7 @@ const{requestAccess,getEmployeeRequest,requestAttachments,employeeRequestDetail,
         const statements = [];
         for (const user of recipients)
             if (await ports.serviceMember(row, user))
-                statements.push(ports.notification(row, user, "request", row.id, row.version, message));
+                statements.push(await ports.notification(row, user, "request", row.id, row.version, message));
         return statements;
     }
     async function saveEmployeeRequest(actor: WorkContext, id: string | null, input: z.infer<typeof employeeRequestSchema>, key: string) {

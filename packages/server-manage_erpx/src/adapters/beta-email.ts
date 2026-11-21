@@ -3,6 +3,7 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { BetaEnvironment } from '@erpx/server-manage_erpx/domain/config';
 import { createBetaEmailApplication } from '@erpx/server-manage_erpx/application/email';
 import type { BetaEmailReceipt } from '@erpx/server-manage_erpx/domain/email';
+import {NativeEmailDeliveryError,nativeReserveEmailDelivery} from './native-email-delivery-command';
 
 type EmailEnvironment = BetaEnvironment & {
   BETTER_AUTH_SECRET?: string;
@@ -99,19 +100,26 @@ export async function sendBetaEmail(
         const context = { deliveryKey: input.deliveryKey, to: input.to, subject: input.subject, providerId: input.providerId };
         const bodyCiphertext = input.sensitive ? encryptBody(input.body, env.BETTER_AUTH_SECRET, context) : null;
         const bodyText = input.sensitive ? redactedSensitiveBody : input.body;
-        await env.CONTROL_DB!.prepare(
-          'INSERT INTO sandbox_email_deliveries(id,delivery_key,recipient,subject,body_text,body_ciphertext,provider_id,created_at,metadata_json) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(delivery_key) DO NOTHING',
-        ).bind(
-          input.id,
-          input.deliveryKey,
-          input.to,
-          input.subject,
-          bodyText,
-          bodyCiphertext,
-          input.providerId,
-          input.now,
-          JSON.stringify({ adapter: 'sandbox' }),
-        ).run();
+        // Native axum command owns the sandbox_email_deliveries write. No
+        // TypeScript SQL writer remains for this capability. Encryption of the
+        // sensitive body stays here; only bounded, encrypted facts are sent.
+        try {
+          await nativeReserveEmailDelivery({
+            id: input.id,
+            deliveryKey: input.deliveryKey,
+            recipient: input.to,
+            subject: input.subject,
+            bodyText,
+            bodyCiphertext,
+            providerId: input.providerId,
+            createdAt: input.now,
+            metadataJson: JSON.stringify({ adapter: 'sandbox' }),
+          }, `email-delivery:${input.deliveryKey}`);
+        } catch (error) {
+          if (error instanceof NativeEmailDeliveryError)
+            throw new Error(`NATIVE_EMAIL_DELIVERY_UNAVAILABLE:${error.status ?? 503}`);
+          throw error;
+        }
       },
       async receipt(deliveryKey) {
         const stored = await env.CONTROL_DB!.prepare(

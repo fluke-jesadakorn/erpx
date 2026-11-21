@@ -1,3 +1,4 @@
+import { nativeRuntimeStatement } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import "server-only";
 import { randomUUID } from "node:crypto";
@@ -8,7 +9,8 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeEnv } from "../../../../../packages/server-runtime/src/public/runtime";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { consumeExecutiveRateLimit, findExecutiveToken, recheckExecutivePrincipal, resolveExecutivePrincipal, type ExecutivePrincipal, type TokenRow } from "@erpx/server-runtime/public/executive/connections";
+import { findExecutiveToken, recheckExecutivePrincipal, resolveExecutivePrincipal, type ExecutivePrincipal, type TokenRow } from "@erpx/server-runtime/public/executive/connections";
+import { consumeNativeExecutiveRateLimit } from "@erpx/server-runtime/public/executive/native-connections";
 import { reportAccess, reportData } from "@erpx/server-runtime/public/executive/reports";
 import { metricCatalogFor, queryMetric } from "@erpx/server-runtime/public/executive/metrics";
 import { createExecutiveTools, type ExecutiveMcpUnit } from "@erpx/server-runtime/application/executive/mcp";
@@ -73,7 +75,7 @@ export async function handleExecutiveMcp(request: Request) {
         token = await findExecutiveToken(control, request.headers.get("authorization"));
         // Expired/revoked attempts still have attribution, but never reach a business read.
         const p = await resolveExecutivePrincipal(control, token);
-        await consumeExecutiveRateLimit(control, token);
+        await consumeNativeExecutiveRateLimit(request.headers.get("authorization"));
         if (request.method !== "POST")
             throw new ApiError(405, "METHOD_NOT_ALLOWED", "Use Streamable HTTP POST. This endpoint holds no sessions or subscription streams.");
         const raw = await readBody(request);
@@ -140,7 +142,7 @@ export async function handleExecutiveMcp(request: Request) {
             }
             response = new Response(body || null, { status: result.status, headers: result.headers });
             response.headers.set("Cache-Control", "private, no-store");
-            await control.prepare("UPDATE executive_external_tokens SET last_used_at=? WHERE id=? AND revoked_at IS NULL").bind(Date.now(), token.id).run();
+            await nativeRuntimeStatement('runtime_stmt_16', { companyId: '', now: Date.now(), actor: undefined }).bind(Date.now(), token.id).run();
         }
         finally {
             await handler.close();
@@ -155,8 +157,7 @@ export async function handleExecutiveMcp(request: Request) {
     try {
         if (!control)
             throw new Error("CONTROL_UNAVAILABLE");
-        await control.prepare(`INSERT INTO executive_mcp_audit(id,token_id,user_id,company_id,assignment_id,branch_id,department_id,action,outcome,code,started_at,duration_ms)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).bind(randomUUID(), token?.id ?? null, token?.user_id ?? null, token?.company_id ?? null, token?.assignment_id ?? null, token?.branch_id ?? null, token?.department_id ?? null, action, outcome, code, started, Date.now() - started).run();
+        await nativeRuntimeStatement('runtime_stmt_17', { companyId: token?.company_id ?? '', now: Date.now() - started, actor: undefined }).bind(randomUUID(), token?.id ?? null, token?.user_id ?? null, token?.company_id ?? null, token?.assignment_id ?? null, token?.branch_id ?? null, token?.department_id ?? null, action, outcome, code, started, Date.now() - started).run();
     }
     catch {
         return httpFailure(new ApiError(503, "EXECUTIVE_UNAVAILABLE", "Executive MCP is temporarily unavailable. Retry later."));

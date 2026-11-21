@@ -51,10 +51,10 @@ export interface ApprovalsRepository<Effect> {
         cycle: number;
     } | null>;
     guard9(key: string, value: string, check: NonNullable<ApprovalRoute["checks"]>[number]): Effect;
-    stageOpenApprovalStatements(now: number, kind: ApprovalKind, id: string): Effect;
-    stageOpenApprovalStatements2(instanceId: string, company_id: string, branch_id: string | null, department_id: string | null, kind: ApprovalKind, id: string, phase: ApprovalPhase, cycle: number, requester: string, assignee: string | null, value: "pending" | "approved", now: number, now2: number): Effect;
+    stageOpenApprovalStatements(now: number, kind: ApprovalKind, id: string): Effect | Promise<Effect>;
+    stageOpenApprovalStatements2(instanceId: string, company_id: string, branch_id: string | null, department_id: string | null, kind: ApprovalKind, id: string, phase: ApprovalPhase, cycle: number, requester: string, assignee: string | null, value: "pending" | "approved", now: number, now2: number): Effect | Promise<Effect>;
     guard12(key: string, value: string, company_id: string, appointedPersonId: string, userId: string): Effect;
-    stageOpenApprovalStatements3(value: string, instanceId: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, value3: string | null, value4: string | null, value5: string | null): Effect;
+    stageOpenApprovalStatements3(value: string, instanceId: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, value3: string | null, value4: string | null, value5: string | null): Effect | Promise<Effect>;
     readInitializeLegacyApprovalExpense(record_id: string, company_id: string): Promise<{
         created_by: string;
         prepared_by: string | null;
@@ -65,13 +65,13 @@ export interface ApprovalsRepository<Effect> {
     guard16(key: string, value: "legacy-route", id: string, version: number, id2: string): Effect;
     guard17(key: string, value: "legacy-record", record_id: string, company_id: string, pendingState: "pending_approval" | "in_review", version: number, kind: ApprovalKind): Effect;
     guard18(key: string, value: string, check: NonNullable<ApprovalRoute["checks"]>[number]): Effect;
-    stageInitializeLegacyApprovalEffect(value: string, id: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner"): Effect;
-    stageInitializeLegacyApprovalEffect2(branch_id: string | null, department_id: string | null, now: number, id: string): Effect;
+    stageInitializeLegacyApprovalEffect(value: string, id: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner"): Effect | Promise<Effect>;
+    stageInitializeLegacyApprovalEffect2(branch_id: string | null, department_id: string | null, now: number, id: string): Effect | Promise<Effect>;
     stageInitializeLegacyApprovalEffect3(value: string | null, department_id: string | null, now: number, record_id: string, kind: ApprovalKind): Effect;
-    stageInitializeLegacyApprovalEffect4(key: string, id: string, version: number, key2: string, now: number): Effect;
-    stageInitializeLegacyApprovalEffect5(key: string, key2: string, value: "system", value2: "system", value3: "approval.initialize", record_type: ApprovalKind, record_id: string, value4: number, value5: "Initialize route; no historical approval inferred", now: number): Effect;
-    stageInitializeLegacyApprovalEffect6(key: string, key2: string, value: string, record_type: ApprovalKind, record_id: string, value2: number, value3: string, now: number): Effect;
-    stageInitializeLegacyApprovalEffect7(key: string): Effect;
+    stageInitializeLegacyApprovalEffect4(key: string, id: string, version: number, key2: string, now: number): Effect | Promise<Effect>;
+    stageInitializeLegacyApprovalEffect5(key: string, key2: string, value: "system", value2: "system", value3: "approval.initialize", record_type: ApprovalKind, record_id: string, value4: number, value5: "Initialize route; no historical approval inferred", now: number): Effect | Promise<Effect>;
+    stageInitializeLegacyApprovalEffect6(key: string, key2: string, value: string, record_type: ApprovalKind, record_id: string, value2: number, value3: string, now: number): Effect | Promise<Effect>;
+    stageInitializeLegacyApprovalEffect7(key: string, companyId: string): Promise<Effect>;
     guard26(key: string, label: string, approver_user_id: string, company_id: string, authority: "named" | "department" | "hr_admin" | "holding_owner", now: number, now2: number, authority2: "named" | "department" | "hr_admin" | "holding_owner", branch_id: string | null, department_id: string | null): Effect;
     readApprovalViewActiveScope(assignmentId: string, userId: string, companyId: string, role: string, now: number, now2: number, policyStep: boolean, branch_id: string | null, department_id: string | null): Promise<Record<string, unknown> | null>;
     readApprovalViewHistory(kind: "expense" | "leave" | "leave_cancellation" | "overtime" | "task", id: string, companyId: string): Promise<{
@@ -92,22 +92,22 @@ export interface ApprovalsRepository<Effect> {
     guard37(key: string, value: "override-expense-preparer", id: string, company_id: string, userId: string, userId2: string): Effect;
     guard38(key: string, value: "expense-separation", id: string, userId: string, userId2: string, id2: string, ordinal: number, userId3: string): Effect;
     guard39(key: string, value: "expense-role", company_id: string, assignmentId: string, required_role: string, now: number, now2: number, branch_id: string | null, department_id: string | null): Effect;
-    stagePrepareDecisionStatements(value: "approved" | "rejected", userId: string, id: string): Effect;
-    stagePrepareDecisionStatements2(value: "pending" | "approved" | "rejected", value2: number, now: number, id: string): Effect;
-    stagePrepareDecisionStatements3(value: string, id: string, id2: string, value2: "override" | "approve" | "reject", userId: string, value3: string | null, userId2: string, reason: string, version: number, key: string, now: number, decisionEvidence: string): Effect;
-    stageCloseApprovalsEffect(key: string, action: "cancel" | "revise", actorId: string, reason: string, version: number, key2: string, now: number, kind: ApprovalKind, id: string): Effect;
-    stageCloseApprovalsEffect2(value: "cancelled" | "superseded", now: number, kind: ApprovalKind, id: string): Effect;
+    stagePrepareDecisionStatements(value: "approved" | "rejected", userId: string, id: string): Effect | Promise<Effect>;
+    stagePrepareDecisionStatements2(value: "pending" | "approved" | "rejected", value2: number, now: number, id: string): Effect | Promise<Effect>;
+    stagePrepareDecisionStatements3(value: string, id: string, id2: string, value2: "override" | "approve" | "reject", userId: string, value3: string | null, userId2: string, reason: string, version: number, key: string, now: number, decisionEvidence: string): Effect | Promise<Effect>;
+    stageCloseApprovalsEffect(key: string, action: "cancel" | "revise", actorId: string, reason: string, version: number, key2: string, now: number, kind: ApprovalKind, id: string): Effect | Promise<Effect>;
+    stageCloseApprovalsEffect2(value: "cancelled" | "superseded", now: number, kind: ApprovalKind, id: string): Effect | Promise<Effect>;
     readRerouteApprovalInstance(id: string, companyId: string): Promise<ApprovalInstance | null>;
     readRerouteApprovalEffect(record_id: string, approverUserId: string, approverUserId2: string): Promise<Record<string, unknown> | null>;
     readRerouteApprovalClaim(record_id: string, company_id: string): Promise<{
         claimant_user_id: string;
         prepared_by: string;
     } | null>;
-    stageRerouteApprovalEffect(value: string, approverUserId: string, companyId: string, value2: "expense" | "leave" | "staff_task" | "leave_cancellation" | "overtime", record_id: string): Effect;
+    stageRerouteApprovalEffect(value: string, approverUserId: string, companyId: string, value2: "expense" | "leave" | "staff_task" | "leave_cancellation" | "overtime", record_id: string): Effect | Promise<Effect>;
     guard49(key: string, value: "route-version", id: string, instanceVersion: number, current_step: number, record_id: string, companyId: string, expectedVersion: number, state: "approved" | "pending_approval" | "in_review" | "pending_authorization" | "pending_hr" | "pending_verification" | "start_approval" | "completion_approval", kind: ApprovalKind): Effect;
-    stageRerouteApprovalEffect2(approverUserId: string, value: string | null, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, id: string): Effect;
-    stageRerouteApprovalEffect3(now: number, id: string): Effect;
-    stageRerouteApprovalEffect4(value: string, id: string, id2: string, userId: string, approver_user_id: string, approverUserId: string, reason: string, expectedVersion: number, key: string, now: number): Effect;
+    stageRerouteApprovalEffect2(approverUserId: string, value: string | null, authority: "named" | "department" | "hr_admin" | "holding_owner", value2: string | null, id: string): Effect | Promise<Effect>;
+    stageRerouteApprovalEffect3(now: number, id: string): Effect | Promise<Effect>;
+    stageRerouteApprovalEffect4(value: string, id: string, id2: string, userId: string, approver_user_id: string, approverUserId: string, reason: string, expectedVersion: number, key: string, now: number): Effect | Promise<Effect>;
     stageRerouteApprovalEffect5(now: number, record_id: string, kind: ApprovalKind): Effect;
 }
 export interface ApprovalsPorts<Effect> {
@@ -230,9 +230,9 @@ async function openApproval(key: string, kind: ApprovalKind, id: string, phase: 
         const instanceId = `approval-${key}`, cycle = (previous?.cycle ?? 0) + 1, now = ports.clock.now();
         const statements = [
             ...(route.checks ?? []).map((check, i) => r.guard9(key, `route-snapshot-${i}`, check)),
-            r.stageOpenApprovalStatements(now, kind, id),
-            r.stageOpenApprovalStatements2(instanceId, route.scope.company_id, route.scope.branch_id, route.scope.department_id, kind, id, phase, cycle, requester, assignee, route.steps.length ? "pending" : "approved", now, now),
-            ...route.steps.flatMap((s, ordinal) => [
+            await r.stageOpenApprovalStatements(now, kind, id),
+            await r.stageOpenApprovalStatements2(instanceId, route.scope.company_id, route.scope.branch_id, route.scope.department_id, kind, id, phase, cycle, requester, assignee, route.steps.length ? "pending" : "approved", now, now),
+            ...(await Promise.all(route.steps.map(async (s, ordinal) => [
                 ports.staffGuard(key, route.scope.company_id, s.userId, `route-staff-${ordinal}`),
                 ...(s.authority === "hr_admin" || s.authority === "holding_owner"
                     ? [
@@ -241,16 +241,16 @@ async function openApproval(key: string, kind: ApprovalKind, id: string, phase: 
                             : roleGuard(key, route.scope, { approver_user_id: s.userId, authority: s.authority }, `route-role-${ordinal}`),
                     ]
                     : []),
-                r.stageOpenApprovalStatements3(`${instanceId}-${ordinal}`, instanceId, ordinal, s.userId, s.authority, s.candidateUserIds && !(s.snapshot && "departmentPolicyVersion" in s.snapshot)
+                await r.stageOpenApprovalStatements3(`${instanceId}-${ordinal}`, instanceId, ordinal, s.userId, s.authority, s.candidateUserIds && !(s.snapshot && "departmentPolicyVersion" in s.snapshot)
                     ? JSON.stringify(s.candidateUserIds)
                     : null, s.requiredRole ?? null, s.stage ?? null, s.snapshot ? JSON.stringify(s.snapshot) : null),
-            ]),
+            ]))).flat(),
         ];
         if (route.steps[0])
             for (const userId of route.steps[0].candidateUserIds ?? [
                 route.steps[0].userId,
             ])
-                statements.push(ports.notification(route.scope, userId, kind, id, recordVersion, `${phase === "start" ? "Start" : phase === "completion" ? "Completion" : "Request"} approval needs your decision`));
+                statements.push(await ports.notification(route.scope, userId, kind, id, recordVersion, `${phase === "start" ? "Start" : phase === "completion" ? "Completion" : "Request"} approval needs your decision`));
         return { statements, instanceId };
     }
 async function initializeLegacyApproval(instance: ApprovalInstance): Promise<ApprovalInstance> {
@@ -288,22 +288,22 @@ async function initializeLegacyApproval(instance: ApprovalInstance): Promise<App
                 r.guard17(key, "legacy-record", instance.record_id, instance.company_id, pendingState, record.version, instance.record_type),
                 ports.staffGuard(key, instance.company_id, instance.requester_user_id, "legacy-requester"),
                 ...(route.checks ?? []).map((check, i) => r.guard18(key, `legacy-snapshot-${i}`, check)),
-                ...route.steps.flatMap((s, ordinal) => [
+                ...(await Promise.all(route.steps.map(async (s, ordinal) => [
                     ports.staffGuard(key, instance.company_id, s.userId, `eligible-${ordinal}`),
                     ...(s.authority === "hr_admin" || s.authority === "holding_owner"
                         ? [
                             roleGuard(key, route.scope, { approver_user_id: s.userId, authority: s.authority }, `legacy-role-${ordinal}`),
                         ]
                         : []),
-                    r.stageInitializeLegacyApprovalEffect(`${instance.id}-${ordinal}`, instance.id, ordinal, s.userId, s.authority),
-                ]),
-                r.stageInitializeLegacyApprovalEffect2(route.scope.branch_id, route.scope.department_id, now, instance.id),
+                    await r.stageInitializeLegacyApprovalEffect(`${instance.id}-${ordinal}`, instance.id, ordinal, s.userId, s.authority),
+                ]))).flat(),
+                await r.stageInitializeLegacyApprovalEffect2(route.scope.branch_id, route.scope.department_id, now, instance.id),
                 r.stageInitializeLegacyApprovalEffect3(instance.record_type === "leave"
                     ? (route.scope.branch_id ?? "")
                     : route.scope.branch_id, route.scope.department_id, now, instance.record_id, instance.record_type),
-                r.stageInitializeLegacyApprovalEffect4(key, instance.id, record.version, key, now),
-                r.stageInitializeLegacyApprovalEffect5(key, key, "system", "system", "approval.initialize", instance.record_type, instance.record_id, record.version + 1, "Initialize route; no historical approval inferred", now),
-                r.stageInitializeLegacyApprovalEffect6(key, key, `${instance.record_type}.approval.initialize`, instance.record_type, instance.record_id, record.version + 1, JSON.stringify({
+                await r.stageInitializeLegacyApprovalEffect4(key, instance.id, record.version, key, now),
+                await r.stageInitializeLegacyApprovalEffect5(key, key, "system", "system", "approval.initialize", instance.record_type, instance.record_id, record.version + 1, "Initialize route; no historical approval inferred", now),
+                await r.stageInitializeLegacyApprovalEffect6(key, key, `${instance.record_type}.approval.initialize`, instance.record_type, instance.record_id, record.version + 1, JSON.stringify({
                     id: instance.record_id,
                     state: pendingState,
                     companyId: instance.company_id,
@@ -311,8 +311,8 @@ async function initializeLegacyApproval(instance: ApprovalInstance): Promise<App
                     departmentId: route.scope.department_id,
                     version: record.version + 1,
                 }), now),
-                ports.notification(route.scope, route.steps[0].userId, instance.record_type, instance.record_id, instance.version, "Request approval needs your decision"),
-                r.stageInitializeLegacyApprovalEffect7(key),
+                await ports.notification(route.scope, route.steps[0].userId, instance.record_type, instance.record_id, instance.version, "Request approval needs your decision"),
+                await r.stageInitializeLegacyApprovalEffect7(key, instance.company_id),
             ]);
         }
         catch (error) {
@@ -499,10 +499,10 @@ async function prepareDecision(actor: StaffActor, key: string, kind: ApprovalKin
                         : []),
                 ]
                 : []),
-            r.stagePrepareDecisionStatements(approve ? "approved" : "rejected", actor.userId, step.id),
-            r.stagePrepareDecisionStatements2(!approve ? "rejected" : final ? "approved" : "pending", next && approve ? next.ordinal : step.ordinal, now, instance.id),
-            r.stagePrepareDecisionStatements3(ports.identifiers.next(), instance.id, step.id, override ? "override" : approve ? "approve" : "reject", actor.userId, override ? step.approver_user_id : null, actor.userId, reason, version, key, now, decisionEvidence),
-            ports.notification(instance, instance.requester_user_id, kind, id, version + 1, approve
+            await r.stagePrepareDecisionStatements(approve ? "approved" : "rejected", actor.userId, step.id),
+            await r.stagePrepareDecisionStatements2(!approve ? "rejected" : final ? "approved" : "pending", next && approve ? next.ordinal : step.ordinal, now, instance.id),
+            await r.stagePrepareDecisionStatements3(ports.identifiers.next(), instance.id, step.id, override ? "override" : approve ? "approve" : "reject", actor.userId, override ? step.approver_user_id : null, actor.userId, reason, version, key, now, decisionEvidence),
+            await ports.notification(instance, instance.requester_user_id, kind, id, version + 1, approve
                 ? final
                     ? "Approval complete"
                     : "Step approved; awaiting the next decision"
@@ -514,7 +514,7 @@ async function prepareDecision(actor: StaffActor, key: string, kind: ApprovalKin
                     ? { ...s, state: "approved", approver_user_id: actor.userId }
                     : s))
                 : [next.approver_user_id])
-                statements.push(ports.notification(instance, userId, kind, id, version + 1, "Approval needs your decision"));
+                statements.push(await ports.notification(instance, userId, kind, id, version + 1, "Approval needs your decision"));
         return { statements, final, instance, next };
     }
 function closeApprovals(key: string, kind: ApprovalKind, id: string, actorId: string, action: "cancel" | "revise", reason: string, version: number) {
@@ -600,7 +600,7 @@ export function createApprovalsApplication<Effect>(ports:ApprovalsPorts<Effect>)
             version: input.expectedVersion + 1,
         }, [
             ports.authorityGuard(key, actor),
-            r.stageRerouteApprovalEffect(current.stage ?? (instance.record_type === "leave" ? `approval_${current.ordinal}` : `${instance.phase}_${current.ordinal}`), input.approverUserId, actor.companyId, instance.record_type === "task" ? "staff_task" : instance.record_type, instance.record_id),
+            await r.stageRerouteApprovalEffect(current.stage ?? (instance.record_type === "leave" ? `approval_${current.ordinal}` : `${instance.phase}_${current.ordinal}`), input.approverUserId, actor.companyId, instance.record_type === "task" ? "staff_task" : instance.record_type, instance.record_id),
             ...(current.approver_pool_json ? [authoritySnapshot.guard(key)] : []),
             ports.staffGuard(key, actor.companyId, input.approverUserId),
             ...(!replacement.approver_pool_json &&
@@ -609,11 +609,11 @@ export function createApprovalsApplication<Effect>(ports:ApprovalsPorts<Effect>)
                 ? [roleGuard(key, instance, replacement)]
                 : []),
             r.guard49(key, "route-version", id, input.instanceVersion, instance.current_step, instance.record_id, actor.companyId, input.expectedVersion, state, instance.record_type),
-            r.stageRerouteApprovalEffect2(input.approverUserId, replacement.approver_pool_json ?? null, replacement.authority, replacement.route_snapshot_json ?? null, current.id),
-            r.stageRerouteApprovalEffect3(now, id),
-            r.stageRerouteApprovalEffect4(ports.identifiers.next(), id, current.id, actor.userId, current.approver_user_id, input.approverUserId, input.reason, input.expectedVersion, key, now),
+            await r.stageRerouteApprovalEffect2(input.approverUserId, replacement.approver_pool_json ?? null, replacement.authority, replacement.route_snapshot_json ?? null, current.id),
+            await r.stageRerouteApprovalEffect3(now, id),
+            await r.stageRerouteApprovalEffect4(ports.identifiers.next(), id, current.id, actor.userId, current.approver_user_id, input.approverUserId, input.reason, input.expectedVersion, key, now),
             r.stageRerouteApprovalEffect5(now, instance.record_id, instance.record_type),
-            ports.notification(instance, input.approverUserId, instance.record_type, instance.record_id, input.expectedVersion + 1, "Approval rerouted to you"),
+            await ports.notification(instance, input.approverUserId, instance.record_type, instance.record_id, input.expectedVersion + 1, "Approval rerouted to you"),
         ], {
             companyId: instance.company_id,
             branchId: instance.branch_id,

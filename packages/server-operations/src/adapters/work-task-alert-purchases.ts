@@ -11,13 +11,14 @@ import {workApprovalSettlementSources as approval,workTaskApprovalSourceLocks} f
 import {finalRootOwnerProjectionSources as people} from '@erpx/server-people_payroll/public/final-root-owner-projection-sources';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {withProjectTaskAlert} from '@erpx/server-projects/public/scheduled-tasks';
-import {workPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 function nativeStaff(viewer:string){return `(SELECT COUNT(*) FROM (${people.hr_people}) person JOIN (${people.hr_engagements}) engagement ON engagement.person_id=person.id AND engagement.company_id=person.company_id WHERE person.company_id=t.company_id AND person.status='active' AND person.merged_into_id IS NULL AND iam_same_person(person.user_id,${viewer}.user_id,person.company_id) AND engagement.status='active' AND engagement.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (engagement.end_date IS NULL OR engagement.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) AND (${viewer}.scope_kind='holding' OR ${viewer}.scope_kind='branch' AND ${viewer}.scope_node_id=engagement.branch_id OR ${viewer}.scope_kind='department' AND ${viewer}.scope_node_id=engagement.department_id))=1`;}
 function authority(viewer:string,social='TRUE'){return `iam_assignment_active(${viewer}.assignment_id,${viewer}.now_ms) AND iam_principal_active(${viewer}.user_id,t.company_id,${viewer}.now_ms) AND EXISTS(SELECT 1 FROM iam_roles role WHERE role.id=${viewer}.role AND role.company_id IN ('*',t.company_id) AND role.status='active') AND ${nativeStaff(viewer)} AND ${scheduledFeaturePredicate('t.company_id','operations')} AND ${taskParticipantReadPolicy('t.id','t.company_id',viewer)} AND (${social})`;}
@@ -25,7 +26,7 @@ function purchased(socialRequired:string){return `${purchasedCapabilityPredicate
 /** Only actual ordinary Task recipients participate; Project and every other
  * product's foundation actions retain their separate original owner. */
 export async function workTaskAlertReadScope(now:number,deadline=now+86400000){
- if(await workPackageEnforcementMode()!=='enforced')return {prefix:'',where:'TRUE',args:[]};
+ if(await appsPackageEnforcementMode()!=='enforced')return {prefix:'',where:'TRUE',args:[]};
  if(!Number.isSafeInteger(now))throw new ApiError(422,'WORK_ALERT_CLOCK_REQUIRED','A current scheduled task clock is required.');
  const social=await workTaskSocialQueuedSourceScope({deadline}),recipient=`(iam_same_person(work_alert_viewer.user_id,t.assignee_user_id,t.company_id) OR iam_same_person(work_alert_viewer.user_id,d.delegate_user_id,t.company_id) OR (t.due_at<${now} AND iam_same_person(work_alert_viewer.user_id,t.creator_user_id,t.company_id)) OR EXISTS(SELECT 1 FROM (${approval.instances}) pending_instance JOIN (${approval.steps}) pending_step ON pending_step.instance_id=pending_instance.id AND pending_step.state='pending' WHERE pending_instance.company_id=t.company_id AND pending_instance.record_id=t.id AND pending_instance.state='pending' AND iam_same_person(pending_step.approver_user_id,work_alert_viewer.user_id,t.company_id)))`;
  return {prefix:social.prefix,args:social.args,where:`(t.project_id IS NOT NULL OR EXISTS(WITH work_alert_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM work_alert_clock WHERE ${purchased(social.socialRequired)} AND EXISTS(SELECT 1 FROM assignments assignment CROSS JOIN LATERAL(SELECT assignment.id assignment_id,assignment.user_id,assignment.role,assignment.scope_kind,assignment.scope_node_id,work_alert_clock.now_ms) work_alert_viewer WHERE assignment.company_id=t.company_id AND ${recipient} AND ${authority('work_alert_viewer',social.where)})))`};
@@ -36,7 +37,7 @@ type Target={id:string;companyId:string;userId:string;version:number};
 /** Pin a real current recipient assignment, never fabricate a role/session for
  * a system delivery. The private source lease precedes the first snapshot. */
 export async function withWorkTaskAlert<Result>(owner:SqlDatabase,selected:TaskAlertRow|undefined,target:Target,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result|undefined>{
- const mode=await workPackageEnforcementMode();
+ const mode=await appsPackageEnforcementMode();
  if(mode!=='enforced'){if(mode==='shadow'&&!selected?.project_id)await readPurchasedAccesses(owner,mode,target.companyId,['work.actions','work.advanced-routines','work.social']);return withProjectTaskAlert(owner,selected,target,run);}
  if(selected?.project_id&&await projectsPackageEnforcementMode()==='enforced')return withProjectTaskAlert(owner,selected,target,run);
  if(!selected)return undefined;
@@ -57,6 +58,6 @@ export async function withWorkTaskAlert<Result>(owner:SqlDatabase,selected:TaskA
   const socialAfter=await workTaskSocialPurchaseSource(database,target.companyId,target.id);
   if(!image||image!==await database.prepare(imageSql).bind(target.id,target.companyId).first<string>('image')||social.postsImage!==socialAfter.postsImage||social.originImage!==socialAfter.originImage)throw new ApiError(409,'WORK_ALERT_SOURCE_CHANGED','The original queued Work task source changed before alert commit.');
   if(assignment&&!(await database.prepare(`${socialPolicy.prefix}${recipientSql(socialPolicy.where)}`).bind(...socialPolicy.args,target.userId,target.companyId,target.id).all<{id:string;version:number}>()).results.some(row=>row.id===assignment!.id&&row.version===assignment!.version))throw new ApiError(403,'WORK_ALERT_AUTHORITY_CHANGED','The current original Work alert recipient authority changed.');
-  const results=await database.batch(fences.flatMap(({key,boundary})=>[...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]));fences[0]?.boundary.observe?.(results);return result;
+  const results=await database.batch(fences.flatMap(({key,boundary})=>[...boundary.after,clearWorkflowCommandAssertions(database, key)]));fences[0]?.boundary.observe?.(results);return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}
 }

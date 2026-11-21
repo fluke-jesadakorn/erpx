@@ -16,6 +16,7 @@ import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {peopleEvaluationTaskSourceLocks,peopleEvaluationTaskSourceImage} from '@erpx/server-operations/public/people-evaluation-work-facts';
 import {peopleEvaluationProjectSourceLocks,peopleEvaluationProjectSourceImage} from '@erpx/server-projects/public/people-evaluation-facts';
 import {peopleEvaluationLearningSourceLocks,peopleEvaluationLearningSourceImage} from '@erpx/server-learning/public/people-evaluation-facts';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const tables=['hr_evaluation_definitions','hr_evaluation_definition_history','hr_evaluation_assessments','hr_evaluation_assessment_history','hr_evaluation_evidence','hr_evaluation_pay_basis','hr_evaluation_compensation_drafts','hr_evaluation_ai_jobs','hr_compensation_revisions','hr_people','hr_engagements','hr_pay_groups','hr_payroll_runs','hr_payroll_items'];
 /** Evaluation/compensation source writer leases establish no data snapshot. */
@@ -43,7 +44,7 @@ export async function withPerformancePurchasedCommand<Result>(actor:WorkContext,
   // Retained cycle closure must still describe the same stored frozen cycle
   // after all native effects, including an immediate new unfinished review.
   if(!prior&&purpose==='settle-existing'&&typeof command.purpose==='function'&&await command.purpose(database)!==purpose)throw new ApiError(409,'PERFORMANCE_SOURCE_CHANGED','The retained Evaluation closure changed before completion.');
-  if(await performanceSourceImage(database,current.companyId)!==witness||await referenceSourceImage(database,current)!==reference)throw new ApiError(409,'PERFORMANCE_SOURCE_CHANGED','The original Evaluation or compensation source changed before completion.');const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);return result;
+  if(await performanceSourceImage(database,current.companyId)!==witness||await referenceSourceImage(database,current)!==reference)throw new ApiError(409,'PERFORMANCE_SOURCE_CHANGED','The original Evaluation or compensation source changed before completion.');const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database, key)]);boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 
@@ -64,7 +65,7 @@ export async function performanceDefinitionPurpose(database:SqlDatabase,actor:Wo
 
 /** Existing queued work needs settlement authority before provider access and
  * again in its original final native effects; history alone starts no job. */
-export async function performanceJobEffects(database:SqlDatabase,actor:WorkContext){const mode=await peoplePackageEnforcementMode();if(mode==='disabled')return [];const scope={companyId:actor.companyId,capability:'people.performance',purpose:'settle-existing' as const};await checkPurchasedCapability(database,mode,scope);await requirePeopleCurrentAuthority(database,actor,`performance-job-current:${randomUUID()}`);const key=`performance-job-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;return [...boundary.before,...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)];}
+export async function performanceJobEffects(database:SqlDatabase,actor:WorkContext){const mode=await peoplePackageEnforcementMode();if(mode==='disabled')return [];const scope={companyId:actor.companyId,capability:'people.performance',purpose:'settle-existing' as const};await checkPurchasedCapability(database,mode,scope);await requirePeopleCurrentAuthority(database,actor,`performance-job-current:${randomUUID()}`);const key=`performance-job-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;return [...boundary.before,...boundary.after,clearWorkflowCommandAssertions(database, key)];}
 export async function performanceExecutionSourceImage(database:SqlDatabase,actor:WorkContext){return await peoplePackageEnforcementMode()==='disabled'?undefined:completeSourceImage(database,actor);}
 
 /** No SQL transaction spans the provider call. Its final result owns a new

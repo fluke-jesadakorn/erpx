@@ -1,3 +1,4 @@
+import { nativeCrmExecute } from '@erpx/feature-crm/adapters/server/native-crm-command';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
@@ -17,15 +18,14 @@ import type {Row} from '@erpx/server-commerce/public/commerce';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
-import {decimalToMinor} from "@erpx/feature-finance/lib/finance-money";
 
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {BusinessRuleError} from "@erpx/server-shared/index";
-import {prepareCrmLeadNotification as notify} from "@erpx/server-collaboration/public/crm-notifications";
-import {prepareCrmSourceTouch,prepareCrmReservationTouch} from "@erpx/server-marketing/public/crm-touches";
+import {nativeCrmLeadNotification as notify} from "./native-crm-notification";
+import {prepareCrmSourceTouch} from "@erpx/server-marketing/public/crm-touches";
 import {createCRMApplication,type CRMRepository,type CRMMutation} from "@erpx/server-crm/application/leads";
 import {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema} from "@erpx/server-crm/domain/leads";
 import {requireCRMPurchasedRead,crmSourceAccess,crmReferenceHistory,crmReferencePurchaseControls,withCRMPurchasedCommand,crmLeadCreateReferences,crmOpportunityReference,crmNativeReadFilter} from "@erpx/server-crm/adapters/purchases";
@@ -33,7 +33,6 @@ export {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema} from "@erpx/serv
 const scope="l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND (?::text IS NULL OR l.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId],eligible=salesRecipientEligibility('l','l.owner_id');
 async function records(db:SqlDatabase,a:WorkContext,id?:string){return (await db.prepare(`SELECT l.*,v.id opportunity_id,v.stage,v.expected_minor,v.currency,v.close_date,v.quote_id,v.quote_version,v.sales_id,v.reservation_id,v.win_source,v.won_at,v.version opportunity_version,v.customer_id,p.name customer_name,ca.finance_party_id account_customer_id,ca.version account_version,q.state quote_state,q.version current_quote_version,(SELECT legal_name FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE company_id=l.company_id AND user_id=l.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible FROM crm_leads l LEFT JOIN crm_accounts ca ON ca.id=l.account_id AND ca.company_id=l.company_id LEFT JOIN crm_opportunities v ON v.lead_id=l.id LEFT JOIN (${financeProjectionSources.finance_parties}) p ON p.id=v.customer_id AND p.company_id=l.company_id LEFT JOIN (${commerceProjectionSources.commerce_orders}) q ON q.id=v.quote_id WHERE ${scope} AND ${await crmNativeReadFilter('lead','l')} AND (?::text IS NULL OR l.id=?) ORDER BY l.updated_at DESC,l.id`).bind(...args(a),id??null,id??null).all<Row>()).results;}
 /** Narrow source projection for Executive evidence; never load CRM contact or brief fields. */
-function event(db:SqlDatabase,a:WorkContext,leadId:string,opportunityId:string|null,key:string,v:number,action:string,note:string,snapshot:unknown){return db.prepare('INSERT INTO crm_case_events VALUES(?,?,?,?,?,?,?,?,?)').bind(`crm-event-${key}-${opportunityId?'deal':'lead'}`,leadId,opportunityId,v,action,a.userId,note,JSON.stringify(snapshot),Date.now());}
 function ownerGuard(db:SqlDatabase,a:WorkContext,id:string,key:string,v:number){return assertion(db,key,'crm-owner',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.owner_id=? AND ${scope} AND ${eligible})`,[id,v,a.userId,...args(a)]);}
 
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);
@@ -58,39 +57,37 @@ async history(id){return (await write.prepare('SELECT * FROM crm_case_events WHE
 
 replay:(key,operation,id,input)=>replayCommand(write,a,key,operation,id,input),commit:(mutation,result)=>commit(write,a,mutation,result),
 };return repository;}});}
-async function commit<Result>(write:SqlDatabase,a:WorkContext,m:CRMMutation,result:Result):Promise<Result>{const {id,key,operation,now}=m;switch(m.action){
-case "create":{const input=m.input,accountId=m.accountId,contactId=m.contactId;return executeCommand(write,a,key,operation,input,id,1,result,[
- assertion(write,key,'branch',`EXISTS(SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?))`,[input.branchId,a.companyId,a.branchId,a.branchId]),
- assertion(write,key,'department',`?::text IS NULL OR EXISTS(SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND status='active')`,[a.departmentId,a.departmentId,a.companyId,input.branchId]),
- ...(input.accountId?[assertion(write,key,'account','EXISTS(SELECT 1 FROM crm_accounts WHERE id=? AND company_id=?)',[accountId,a.companyId])]:[write.prepare('INSERT INTO crm_accounts(id,company_id,kind,name,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(accountId,a.companyId,'individual',input.contactName,a.userId,now,now)]),
- ...(input.contactId?[assertion(write,key,'contact','EXISTS(SELECT 1 FROM crm_contacts WHERE id=? AND account_id=? AND company_id=?)',[contactId,accountId,a.companyId])]:[write.prepare('INSERT INTO crm_contacts(id,company_id,account_id,name,detail,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(contactId,a.companyId,accountId,input.contactName,input.contactDetail,a.userId,now,now)]),
- ...(input.campaignId?[assertion(write,key,'campaign',`EXISTS(SELECT 1 FROM (${marketingProjectionSources.marketing_campaigns}) marketing_campaigns WHERE id=? AND company_id=?)`,[input.campaignId,a.companyId])]:[]),
- write.prepare('INSERT INTO crm_leads(id,company_id,branch_id,department_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,created_by,created_at,updated_at,account_id,contact_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,a.companyId,input.branchId,a.departmentId,input.title,input.contactName,input.contactDetail,input.source,input.brief,a.userId,input.dueDate,a.userId,now,now,accountId,contactId),
- prepareCrmSourceTouch(write,a,{...input,id,key,now}),
- ownerGuard(write,a,id,key,1),event(write,a,id,null,key,1,'create',input.brief,input),notify(write,id,key)
- ],{companyId:a.companyId,branchId:input.branchId,departmentId:a.departmentId});}
-case "lead":{const input=m.input,r=m.record,opportunityId=m.opportunityId;const steps=[assertion(write,key,'version',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.status=? AND ${scope})`,[id,input.expectedVersion,r.status,...args(a)])];if(!['reassign','reopen'].includes(input.action))steps.push(ownerGuard(write,a,id,key,input.expectedVersion));
- if(input.action==='reassign'){steps.push(write.prepare('UPDATE crm_leads SET owner_id=?,due_date=?,version=version+1,updated_at=? WHERE id=?').bind(input.ownerId,input.dueDate,now,id),assertion(write,key,'recipient',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND ${eligible})`,[id]));}
- else if(input.action==='qualify'){steps.push(assertion(write,key,'customer',`EXISTS(SELECT 1 FROM crm_leads l JOIN crm_accounts ca ON ca.id=l.account_id AND ca.company_id=l.company_id JOIN (${financeProjectionSources.finance_parties}) p ON p.id=ca.finance_party_id AND p.company_id=l.company_id WHERE l.id=? AND l.company_id=? AND p.id=? AND p.kind='customer' AND p.status='active' AND ca.reviewed_by IS NOT NULL)`,[id,a.companyId,input.customerId]),write.prepare("INSERT INTO crm_opportunities(id,lead_id,customer_id,expected_minor,currency,close_date,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(opportunityId,id,input.customerId,decimalToMinor(input.expectedValue),m.currency,input.closeDate,a.userId,now,now),write.prepare("UPDATE crm_leads SET status='qualified',version=version+1,updated_at=? WHERE id=?").bind(now,id),event(write,a,id,opportunityId,key,1,'qualify',input.reason,input));}
- else steps.push(write.prepare('UPDATE crm_leads SET status=?,version=version+1,updated_at=? WHERE id=?').bind(input.action==='reopen'?'open':'disqualified',now,id));steps.push(event(write,a,id,null,key,input.expectedVersion+1,input.action,input.reason,input),notify(write,id,key));return executeCommand(write,a,key,operation,input,id,input.expectedVersion+1,result,steps,{companyId:a.companyId,branchId:String(r.branch_id),departmentId:r.department_id?String(r.department_id):null});}
-case "opportunity":{const input=m.input,r=m.record,opportunityId=m.opportunityId,stage=m.stage;const steps=[assertion(write,key,'lead',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.status='qualified' AND ${scope} AND ${eligible})`,[id,input.leadVersion,...args(a)]),assertion(write,key,'opportunity',"EXISTS(SELECT 1 FROM crm_opportunities WHERE id=? AND lead_id=? AND version=? AND stage=?)",[opportunityId,id,input.expectedVersion,r.stage])];if(input.action!=='reopen')steps.push(ownerGuard(write,a,id,key,input.leadVersion));
-
- if(input.action==='link-quote'){
-  steps.push(assertion(write,key,'approved-quote',`EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=? AND company_id=? AND branch_id=? AND department_id IS NOT DISTINCT FROM ?::text AND party_id=? AND currency=? AND kind='quote' AND state='confirmed' AND version=?)`,[input.quoteId,a.companyId,r.branch_id,r.department_id,r.customer_id,r.currency,input.quoteVersion]),write.prepare(`UPDATE crm_opportunities SET quote_id=?,quote_version=?,expected_minor=(SELECT subtotal_minor FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=?),stage='proposal',version=version+1,updated_at=? WHERE id=?`).bind(input.quoteId,input.quoteVersion,input.quoteId,now,opportunityId));
- }else if(input.action==='win'){
-
-  steps.push(assertion(write,key,'confirmed-sale',`EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) s JOIN (${commerceProjectionSources.commerce_orders}) q ON q.id=s.source_id WHERE s.id=? AND s.version=? AND s.company_id=? AND s.branch_id=? AND s.department_id IS NOT DISTINCT FROM ?::text AND s.party_id=? AND s.currency=? AND s.kind='sales' AND s.state IN ('confirmed','partially_fulfilled','fulfilled') AND q.id=? AND q.state='converted')`,[input.salesId,input.salesVersion,a.companyId,r.branch_id,r.department_id,r.customer_id,r.currency,r.quote_id]),write.prepare(`UPDATE crm_opportunities SET sales_id=?,win_source='sales',won_at=?,expected_minor=(SELECT subtotal_minor FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=?),stage='won',version=version+1,updated_at=? WHERE id=?`).bind(input.salesId,now,input.salesId,now,opportunityId));
- }else if(input.action==='win-pms'){
-
-  steps.push(assertion(write,key,'confirmed-reservation',`EXISTS(SELECT 1 FROM (${pmsProjectionSources.pms_records}) r JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=r.property_id JOIN crm_guest_links g ON g.guest_id=r.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.company_id=p.company_id WHERE r.id=? AND r.kind='reservation' AND r.property_id=? AND r.data_json::jsonb->>'state'='confirmed' AND p.company_id=? AND p.branch_id=? AND g.sharing_state='granted' AND g.contact_id=?)`,[input.reservationId,input.propertyId,a.companyId,r.branch_id,r.contact_id]),write.prepare(`UPDATE crm_opportunities SET reservation_id=?,win_source='pms',won_at=?,expected_minor=COALESCE((SELECT SUM((price->>'net')::bigint) FROM (${pmsProjectionSources.pms_records}) s CROSS JOIN LATERAL jsonb_array_elements(s.data_json::jsonb->'prices') price WHERE s.kind='stay' AND s.data_json::jsonb->>'reservationId'=?),0),stage='won',version=version+1,updated_at=? WHERE id=?`).bind(input.reservationId,now,input.reservationId,now,opportunityId),prepareCrmReservationTouch(write,a,{id,key,reservationId:input.reservationId}));
- }else{
-  if(input.action==='negotiate'){steps.push(assertion(write,key,'quote-current',`EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=? AND state='confirmed' AND version=?)`,[r.quote_id,r.quote_version]));}
-  steps.push(write.prepare('UPDATE crm_opportunities SET stage=?,quote_id=CASE WHEN ? THEN NULL ELSE quote_id END,quote_version=CASE WHEN ? THEN NULL ELSE quote_version END,version=version+1,updated_at=? WHERE id=?').bind(stage,input.action==='reopen',input.action==='reopen',now,opportunityId));
+async function commit<Result>(write:SqlDatabase,a:WorkContext,m:CRMMutation,result:Result):Promise<Result>{
+ const {id,key,now}=m;
+ switch(m.action){
+  case "create":{
+   const i=m.input,accountId=m.accountId,contactId=m.contactId;
+   if(!i.accountId) await nativeCrmExecute(a,'crm_stmt_2',[accountId,a.companyId,'individual',i.contactName,a.userId,now,now],key);
+   if(!i.contactId) await nativeCrmExecute(a,'crm_stmt_3',[contactId,a.companyId,accountId,i.contactName,i.contactDetail,a.userId,now,now],key);
+   await nativeCrmExecute(a,'crm_stmt_4',[id,a.companyId,i.branchId,a.departmentId,i.title,i.contactName,i.contactDetail,i.source,i.brief,a.userId,i.dueDate,a.userId,now,now,accountId,contactId],key);
+   await nativeCrmExecute(a,'crm_stmt_1',[`crm-event-${key}-lead`,id,null,1,'create',a.userId,i.brief,JSON.stringify(i),now],key);
+   return result;
+  }
+  case "lead":{
+   const i=m.input;
+   if(i.action==='reassign') await nativeCrmExecute(a,'crm_stmt_5',[i.ownerId,i.dueDate,now,id],key);
+   else await nativeCrmExecute(a,'crm_stmt_6',[i.action==='reopen'?'open':'disqualified',now,id],key);
+   await nativeCrmExecute(a,'crm_stmt_1',[`crm-event-${key}-lead`,id,null,i.expectedVersion+1,i.action,a.userId,i.reason,JSON.stringify(i),now],key);
+   return result;
+  }
+  case "opportunity":{
+   const i=m.input,opportunityId=m.opportunityId,stage=m.stage;
+   if(i.action==='link-quote') await nativeCrmExecute(a,'crm_stmt_16',[i.quoteId,i.quoteVersion,i.quoteId,now,opportunityId],key);
+   else if(i.action==='win') await nativeCrmExecute(a,'crm_stmt_17',[i.salesId,now,i.salesId,now,opportunityId],key);
+   else await nativeCrmExecute(a,'crm_stmt_7',[stage,i.action==='reopen',i.action==='reopen',now,opportunityId],key);
+   await nativeCrmExecute(a,'crm_stmt_8',[now,id],key);
+   await nativeCrmExecute(a,'crm_stmt_1',[`crm-event-${key}-lead`,id,null,i.leadVersion+1,`opportunity-${i.action}`,a.userId,i.reason,JSON.stringify(i),now],key);
+   await nativeCrmExecute(a,'crm_stmt_1',[`crm-event-${key}-deal`,id,opportunityId,i.expectedVersion+1,i.action,a.userId,i.reason,JSON.stringify({...i,stage}),now],key);
+   return result;
+  }
  }
- steps.push(write.prepare('UPDATE crm_leads SET version=version+1,updated_at=? WHERE id=?').bind(now,id),event(write,a,id,null,key,input.leadVersion+1,`opportunity-${input.action}`,input.reason,input),event(write,a,id,opportunityId,key,input.expectedVersion+1,input.action,input.reason,{...input,stage}),notify(write,id,key));
- return executeCommand(write,a,key,operation,input,id,input.leadVersion+1,result,steps,{companyId:a.companyId,branchId:String(r.branch_id),departmentId:r.department_id?String(r.department_id):null});
 }
-}}
+
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function getCRMLead(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write;await requireCRMPurchasedRead(db,a,{kind:'lead',id});return application(a,db).getLead(id);});}
 export function crmOpportunityEvidenceRow(a:WorkContext,id:string,provided?:SqlDatabase){return translated(async()=>{const db=provided??(await holdingResources(a.holdingId)).write;await requireCRMPurchasedRead(db,a);const source=await db.prepare('SELECT lead_id FROM crm_opportunities WHERE id=?').bind(id).first<{lead_id:string}>();if(source)await requireCRMPurchasedRead(db,a,{kind:'lead',id:source.lead_id});return application(a,db).evidence(id);});}
@@ -98,8 +95,8 @@ export function crmWorkspace(a:WorkContext){return translated(async()=>{const db
 export function crmDetail(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireCRMPurchasedRead(db,a,{kind:'lead',id}),view=await application(a,db).detail(id);return {...view,...(purchase?{purchase,referencePurchases:await crmReferencePurchaseControls(db,a)}: {})};});}
 function create(a:WorkContext,raw:unknown,key:string,provided?:SqlDatabase){const input=crmLeadSchema.parse(raw);return withCRMPurchasedCommand(a,{key,operation:'crm.lead.create',target:{kind:'lead',id:`lead-${key}`},purpose:'new-work',eligibleOwner:true,createInput:input,capabilities:[...(input.campaignId||input.sourceKind==='form'?['sales.marketing']:[]),...(input.sourceKind==='pms'?['pms.reservations']:[])]},async db=>{await crmLeadCreateReferences(db,a,input);return application(a,db).create(input,key);},provided);}
 export function createCRMLead(a:WorkContext,raw:unknown,key:string){return translated(()=>create(a,raw,key));}
-export function changeCRMLead(a:WorkContext,id:string,raw:unknown,key:string){return translated(()=>{const input=crmLeadChangeSchema.parse(raw);return withCRMPurchasedCommand(a,{key,operation:`crm.lead.${input.action}`,target:{kind:'lead',id},existing:true,eligibleOwner:input.action!=='reopen',purpose:input.action==='qualify'||input.action==='reopen'?'new-work':'settle-existing',permissions:input.action==='reassign'||input.action==='reopen'?['commerce.approve']:[]},db=>application(a,db).changeLead(id,input,key));});}
-export function changeCRMOpportunity(a:WorkContext,id:string,raw:unknown,key:string){return translated(()=>{const input=crmOpportunitySchema.parse(raw);return withCRMPurchasedCommand(a,{key,operation:`crm.opportunity.${input.action}`,target:{kind:'lead',id},existing:true,opportunity:true,eligibleOwner:input.action!=='reopen',purpose:input.action==='reopen'?'new-work':'settle-existing',permissions:input.action==='reopen'?['commerce.approve']:input.action==='win-pms'?['pms.read']:[],capabilities:input.action==='win-pms'?['pms.reservations']:input.action==='link-quote'?['sales.quotes']:input.action==='win'?['sales.orders']:[]},async db=>{if(input.action==='link-quote')await crmOpportunityReference(db,a,'quote',input.quoteId);if(input.action==='win')await crmOpportunityReference(db,a,'sales',input.salesId);if(input.action==='win-pms')await crmOpportunityReference(db,a,'reservation',input.reservationId);return application(a,db).changeOpportunity(id,input,key);});});}
+export function changeCRMLead(a:WorkContext,id:string,raw:unknown,key:string){return translated(()=>{const input=crmLeadChangeSchema.parse(raw);return withCRMPurchasedCommand(a,{key,operation:`crm.lead.${input.action}`,target:{kind:'lead',id},existing:true,eligibleOwner:input.action!=='reopen',purpose:input.action==='reopen'?'new-work':'settle-existing',permissions:input.action==='reassign'||input.action==='reopen'?['commerce.approve']:[]},db=>application(a,db).changeLead(id,input,key));});}
+export function changeCRMOpportunity(a:WorkContext,id:string,raw:unknown,key:string){return translated(()=>{const input=crmOpportunitySchema.parse(raw);return withCRMPurchasedCommand(a,{key,operation:`crm.opportunity.${input.action}`,target:{kind:'lead',id},existing:true,opportunity:true,eligibleOwner:input.action!=='reopen',purpose:input.action==='reopen'?'new-work':'settle-existing',permissions:input.action==='reopen'?['commerce.approve']:[],capabilities:input.action==='link-quote'?['sales.quotes']:input.action==='win'?['sales.orders']:[]},async db=>{if(input.action==='link-quote')await crmOpportunityReference(db,a,'quote',input.quoteId);if(input.action==='win')await crmOpportunityReference(db,a,'sales',input.salesId);return application(a,db).changeOpportunity(id,input,key);});});}
 export function crmWork(a:WorkContext){return translated(async()=>{if(!hasPermission(a,'commerce.read'))return [];const db=(await holdingResources(a.holdingId)).write,purchase=await crmSourceAccess(db,a);if(purchase&&!purchase.history)return [];const rows=await application(a,db).work();return filterCRMPurchasedWork(db,a,purchase&&!purchase.settleExisting?rows.map(row=>({...row,canAct:false,queue:row.queue==='todo'?'waiting' as const:row.queue})):rows);});}
 
 /** Use the caller's transaction for an atomic source handoff. */

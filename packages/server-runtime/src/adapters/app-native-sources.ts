@@ -8,6 +8,3 @@ export function runtimeAppSources(db: SqlDatabase) { return {
 export async function customerHoldingBindingExists(db: PostgresDatabase, holdingId: string): Promise<boolean> {
   return Boolean((await db.pool.query("SELECT 1 FROM holding_bindings WHERE holding_id=$1 AND holding_id<>'h003'", [holdingId])).rowCount);
 }
-export function platformHoldingBindingEffects(db: SqlDatabase) { return {
-  activate: (holdingId: string, slug: string, displayName: string, writeBinding: string, readBinding: string, filesBinding: string) => db.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES(?,?,?,?,?,?, 'active') ON CONFLICT(holding_id) DO UPDATE SET slug=excluded.slug,display_name=excluded.display_name,write_binding=excluded.write_binding,read_binding=excluded.read_binding,files_binding=excluded.files_binding,status='active'").bind(holdingId, slug, displayName, writeBinding, readBinding, filesBinding),
-}; }

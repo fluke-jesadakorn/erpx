@@ -41,6 +41,7 @@ import { holdingResources as nativeHoldingResources } from '../../../../packages
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
+import { nativeRecordsStatement } from '@erpx/feature-records/adapters/server/native-records-command';
 import { type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema, addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
 import { createRecordsApplication, type RecordsRepository } from '@erpx/server-records/application/records';
 import { BusinessRuleError } from '@erpx/server-shared/index';
@@ -75,17 +76,14 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
     FROM workspace_records WHERE archived_at IS NULL AND module_id=? AND id=? AND ${scope.sql}`).bind(moduleId, id, ...args).first<RecordRow>();
         },
         guard3(key: string, value: "record-version", moduleId: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)", [moduleId, id, version]); },
-        stageCreateRecordEffect(moduleId: string, id: string, sectionId: string, title: string, description: string, value: string, companyId: string, branchId: string | null, departmentId: string | null, userId: string, userId2: string, now: number, now2: number) { return database.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,branch_id,department_id,version,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,'draft',?,?,?,?,1,?,?,?,?)").bind(moduleId, id, sectionId, title, description, value, companyId, branchId, departmentId, userId, userId2, now, now2); },
-        stageArchiveRecordEffect(now: number, userId: string, now2: number, moduleId: string, id: string) { return database.prepare("UPDATE workspace_records SET archived_at=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=?").bind(now, userId, now2, moduleId, id); },
-        stageUpdateRecordEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return database.prepare("UPDATE workspace_records SET fields_json=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=?").bind(value, userId, now, moduleId, id); },
-        stageTransitionRecordUpdate(status: "draft" | "in_review" | "approved" | "completed" | "rejected", userId: string, now: number, moduleId: string, id: string, version: number) {
-            return database.prepare(`UPDATE workspace_records SET status=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=? AND version=?`)
-                .bind(status, userId, now, moduleId, id, version);
-        },
-        stageTransitionRecordHistory(transitionId: string, moduleId: string, id: string, status: "draft" | "in_review" | "approved" | "completed" | "rejected", status2: "draft" | "in_review" | "approved" | "completed" | "rejected", action: "submit" | "approve" | "reject" | "complete" | "reopen", note: string, userId: string, assignmentId: string, value: number, now: number) {
-            return database.prepare(`INSERT INTO workspace_record_transitions(id,module_id,record_id,from_status,to_status,action,note,actor_id,assignment_id,record_version,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(transitionId, moduleId, id, status, status2, action, note, userId, assignmentId, value, now);
-        },
+        /** Retired: record creation executes in the native Rust records command route. */
+        stageCreateRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
+        /** Retired: archive and update execute in the native Rust records command route. */
+        stageArchiveRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
+        stageUpdateRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
+        /** Retired: transition state and history execute in the native Rust records command route. */
+        stageTransitionRecordUpdate() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
+        stageTransitionRecordHistory() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         guard9(key: string, value: "record-version", companyId: string, moduleId: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE company_id=? AND module_id=? AND id=? AND version=? AND archived_at IS NULL)", [companyId, moduleId, id, version]); },
         readRecordContextEdgesbacklinksmentionssuggestionshistory(moduleId: string, id: string) {
             return database.prepare(`SELECT target_module,target_id,kind,ordinal FROM record_reference_edges WHERE host_module=? AND host_id=? ORDER BY ordinal`).bind(moduleId, id).all<{
@@ -118,25 +116,21 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         readSearchReferencesAssignment(...args) { return RecordsIdentityAccessFacts(database).readSearchReferencesAssignment(...args); },
         readAddPrincipalMentionEligible(...args) { return RecordsIdentityAccessFacts(database).readAddPrincipalMentionEligible(...args); },
         readAddPrincipalMentionPrincipal(...args) { return RecordsIdentityAccessOwnedFacts(control).readAddPrincipalMentionPrincipal(...args); },
-        stageAddPrincipalMentionEffect(moduleId: string, id: string, targetKind: "person", targetId: string, display_name: string, userId: string, now: number) { return database.prepare(`INSERT INTO record_principal_mentions(host_module,host_id,target_kind,target_id,target_label,created_by,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`).bind(moduleId, id, targetKind, targetId, display_name, userId, now); },
+        stageAddPrincipalMentionEffect(moduleId: string, id: string, targetKind: "person", targetId: string, display_name: string, userId: string, now: number) { return nativeRecordsStatement('records_stmt_18', { companyId: actor?.companyId, actor, now: Date.now() }).bind(moduleId, id, targetKind, targetId, display_name, userId, now); },
         readAddReferenceCount(moduleId: string, id: string) {
             return database.prepare(`SELECT COUNT(*) AS count FROM record_reference_edges WHERE host_module=? AND host_id=?`).bind(moduleId, id).first<{
                 count: number;
             }>();
         },
-        stageAddReferenceEffect(moduleId: string, id: string, targetModule: string, targetId: string, kind: "dependsOn" | "blocks" | "billedBy" | "fulfills" | "authoredWith", moduleId2: string, id2: string, userId: string, now: number) {
-            return database.prepare(`INSERT INTO record_reference_edges(host_module,host_id,target_module,target_id,kind,ordinal,created_by,created_at)
-    VALUES(?,?,?,?,?,COALESCE((SELECT MAX(ordinal)+1 FROM record_reference_edges WHERE host_module=? AND host_id=?),0),?,?) ON CONFLICT DO NOTHING`)
-                .bind(moduleId, id, targetModule, targetId, kind, moduleId2, id2, userId, now);
-        },
+        /** Retired: record references execute in the native Rust records command route. */
+        stageAddReferenceEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         stageRequestSuggestionEffect(suggestionId: string, moduleId: string, id: string, key: string, value: string, value2: string, value3: string, value4: string, value5: "ready", userId: string, now: number, now2: number) {
-            return database.prepare(`INSERT INTO record_field_suggestions(id,module_id,record_id,field_key,proposed_value_json,previous_value_digest,source_versions_json,provenance_json,state,created_by,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).bind(suggestionId, moduleId, id, key, value, value2, value3, value4, value5, userId, now, now2);
+            return nativeRecordsStatement('records_stmt_19', { companyId: actor?.companyId, actor, now: Date.now() }).bind(suggestionId, moduleId, id, key, value, value2, value3, value4, value5, userId, now, now2);
         },
         guard24(key: string, value: "suggestion-ready", suggestionId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM record_field_suggestions WHERE id=? AND state='ready')", [suggestionId]); },
         guard25(key: string, value: string, mod: string, sourceId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)", [mod, sourceId, version]); },
-        stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return database.prepare("UPDATE workspace_records SET fields_json=?,version=version+1,updated_by=?,updated_at=? WHERE module_id=? AND id=?").bind(value, userId, now, moduleId, id); },
-        stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string) { return database.prepare("UPDATE record_field_suggestions SET state=?,applied_by=?,updated_at=? WHERE id=?").bind(value, userId, now, suggestionId); } };
+        stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return nativeRecordsStatement('records_stmt_20', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, moduleId, id); },
+        stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string) { return nativeRecordsStatement('records_stmt_21', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, suggestionId); } };
     return createRecordsApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;

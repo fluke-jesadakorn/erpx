@@ -22,6 +22,10 @@
     "./lib/worker-startup-command": "./src/lib/worker-startup-command.ts",
     "./lib/project-record-command": "./src/lib/project-record-command.ts",
     "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
+    "./public/native-project-attachment": "./src/public/native-project-attachment.ts",
+    "./public/native-project-attachment-read": "./src/public/native-project-attachment-read.ts",
+    "./public/native-project-wbs-owned": "./src/public/native-project-wbs-owned.ts",
+    "./public/native-project-wbs-page": "./src/public/native-project-wbs-page.ts",
     "./lib/project-editor-command": "./src/lib/project-editor-command.ts",
     "./lib/worker-display": "./src/lib/worker-display.ts",
     "./lib/project-command": "./src/lib/project-command.ts",
@@ -39,7 +43,8 @@
     "./routes/holdings/[holdingSlug]/@record/projects-routines/projects/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/projects-routines/projects/[id]/page.tsx",
     "./routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route": "./src/routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route.ts",
+    "./routes/holdings/[holdingSlug]/projects-routines/projects/[id]/wbs/page": "./src/routes/holdings/[holdingSlug]/projects-routines/projects/[id]/wbs/page.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -62,8 +67,8 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
     "server-only": "0.0.1"
   }
 }

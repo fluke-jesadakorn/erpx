@@ -10,7 +10,10 @@
     "./components/benefit-draft-boundary": "./src/components/benefit-draft-boundary.tsx",
     "./components/use-benefit-command": "./src/components/use-benefit-command.ts",
     "./lib/presentation": "./src/lib/presentation.ts",
-    "./lib/command": "./src/lib/command.ts"
+    "./lib/command": "./src/lib/command.ts",
+    "./public/native-benefits-workspace": "./src/public/native-benefits-workspace.ts",
+    "./public/native-benefits-workspace-page": "./src/public/native-benefits-workspace-page.ts",
+    "./adapters/server/next-native-benefits-workspace": "./src/adapters/server/next-native-benefits-workspace.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -23,7 +26,10 @@
     "@erpx/feature-shared": "workspace:*",
     "@erpx/feature-work_projection": "workspace:*",
     "@erpx/server-benefits": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/server-runtime": "workspace:*",
     "@erpx/ui": "workspace:*",
-    "react": "19.3.0"
+    "next": "16.4.3",
+    "react": "19.3.1"
   }
 }

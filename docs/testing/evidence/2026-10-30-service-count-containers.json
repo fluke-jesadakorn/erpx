@@ -1,0 +1,60 @@
+{
+  "scope": "Native Service Initial Physical Stock Count API and shared Count worker; isolated leased development only",
+  "sourceCommit": "f6be90f743fa149713bc488f06c0cfbbaf1041a7",
+  "runtime": {
+    "imageId": "sha256:1bdec56869a35df2b3108b6d1549bc27b57340d791029a88f65579f9b3d56d98",
+    "architecture": "arm64",
+    "uncompressedBytes": 16942946,
+    "user": "65532:65532",
+    "nativeBinarySha256": "973c728acd614c617e7f46cdb620063910f4c27e03eceebac461fba73c9ed5f9",
+    "contains": "Native binary, distroless C/C++ runtime and exact migration files; no shell, Node, Bun, Python interpreter, Cargo or TypeScript backend"
+  },
+  "qualification": {
+    "evidenceSha256": "25ed560167f750b73e6bf15db16692b19d0724228131f59742da8e1c5bdb255c",
+    "normalAccountSso": true,
+    "selectedWorkContext": "Synthetic fixture selection after genuine Holding SSO, not browser Company-selection acceptance",
+    "nativeSetupAndCountCreateRead": true,
+    "nativeCountOutboxAckReceiptCheckpoint": true,
+    "healthStatus": 200,
+    "globalReadinessStatus": 503,
+    "readinessMeaning": "RUST_MIGRATION_INCOMPLETE is preserved; liveness does not establish whole-system readiness",
+    "hardening": "Read-only root, UID65532, capabilities dropped, no-new-privileges, noexec/nosuid temporary filesystem",
+    "startupIncludingSeedAndMigrationsSeconds": 10.719,
+    "sampledMemoryMiB": {
+      "api": 4.789,
+      "worker": 3.426
+    },
+    "memoryMeaning": "One idle/post-command sample; not peak usage or load sizing",
+    "gracefulExitStatuses": {
+      "api": 0,
+      "worker": 0,
+      "seed": 0
+    },
+    "ownedFinalCaseResourcesRemoved": true,
+    "provenance": "Immutable image IDs, expected revision/architecture, identical native binaries, migration bytes from immutable fixture image, before/after script hashes"
+  },
+  "warmBuild": {
+    "exitCode": 0,
+    "elapsedSeconds": 11.827,
+    "sourceCommit": "f6be90f743fa149713bc488f06c0cfbbaf1041a7",
+    "meaning": "Exact repeated archive source and recipe with local Docker layer cache; includes runtime and test-only fixture build."
+  },
+  "coldBuildSeconds": null,
+  "amd64": "Not built or verified",
+  "publication": "No image push, release, deploy, staging access or Tunnel cutover",
+  "recipeAndToolSha256": {
+    "ops/containers/service-count-native.Dockerfile": "6bd90dc14f1168a14b44ff15767f5a6b8c9dd8df1aa92d76c6bb7af7cbf3072e",
+    "ops/containers/service-count-native.Dockerfile.dockerignore": "81a1563369570ce31404ec8503a0b86c0605b4513b1ee7e7112754af2bd9640c",
+    "ops/containers/service-count-fixture.Dockerfile": "f6cd8fe35608ef4b3e8aac2d533f7da6fcc4d72bfb654a0bd310bef109c5d861",
+    "ops/containers/service-count-native.compose.yaml": "c0c694eeffcfda02e3b66bbeac113475696f6642e25c4b383a76a712979e91b8",
+    "scripts/local/build-service-count-container": "622211d647d4500780d5c626188041667bef0a2596606186efa4c2faf722a231",
+    "scripts/testing/fixtures/service-count-container-qualification.py": "6f2bfd11b71a353532301543a063b7657c76baa6870c0703ef23062ab00eb01c",
+    "scripts/testing/fixtures/service-count-container-account.mjs": "4e5c9c8e8cf0452ecfaaf76a254dcb7645297119fbee9596c02bcd0179f2fea7",
+    "scripts/testing/fixtures/service-count-container-scenario.mjs": "ed2d6f02684e76a1129217bd5c856a6fa4606fabb93e44bdbeddef636c86d21e"
+  },
+  "limitations": [
+    "Next/Account rendering and other shared owner dependencies remain outside this image.",
+    "Production configuration/provisioning and full Dev Container fresh setup/HMR are separate gates.",
+    "Cleanup proves the final case labeled resources were removed; no unowned or pre-existing Docker volumes were pruned."
+  ]
+}

@@ -3,7 +3,7 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextInput } from "@erpx/ui/components/foundation";
 
-import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import { authClient } from "@erpx/feature-identity_access/lib/auth-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormLayout } from "@erpx/ui/components/foundation";
@@ -24,13 +24,8 @@ export function ActivationForm({ token, existingAccount = false }: { token: stri
         setPending(true);
         setError("");
         try {
-          const r = await workFetch("/api/v1/account-invitations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token, password: f.get("password") }),
-          });
-          const v = (await r.json()) as { error?: { message: string } };
-          if (!r.ok) throw new Error(v.error?.message ?? "Activation failed.");
+          const result = await authClient.invitations.accept({ token, password: String(f.get("password") ?? "") });
+          if (result.error || !result.data?.data.activated) throw new Error(result.error?.message ?? "Activation failed.");
           router.replace("/login");
         } catch (e) {
           setError(e instanceof Error ? e.message : "Activation failed.");

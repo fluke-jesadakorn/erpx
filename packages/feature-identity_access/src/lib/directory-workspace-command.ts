@@ -11,7 +11,7 @@ const strings=(value:unknown)=>Array.isArray(value)&&value.every(item=>typeof it
 const preview=(path:string)=>path==='preview'||path==='fields/preview';
 const paths:readonly string[]=['preview','fields/preview','apply','submit','refresh','configure','fields/sync','retry','cancel'];
 const validPath=(value:string):value is DirectoryWorkspacePath=>paths.includes(value);
-const workOwner=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment]):'server';};
+const workOwner=()=>{const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):'server';};
 const same=(a:DirectoryWorkspaceSource,b:DirectoryWorkspaceSource)=>a.base===b.base&&a.connectionId===b.connectionId;
 export function validDirectoryPreview(value:unknown):value is DirectoryPreview{return object(value)&&text(value.token)&&['objects','people','computers','positions','warnings'].every(key=>strings(value[key]))&&Array.isArray(value.companies)&&value.companies.every(item=>object(item)&&text(item.id)&&typeof item.name==='string');}
 export function validDirectoryWorkspaceResult(path:DirectoryWorkspacePath,input:unknown,value:unknown):value is Record<string,unknown>{

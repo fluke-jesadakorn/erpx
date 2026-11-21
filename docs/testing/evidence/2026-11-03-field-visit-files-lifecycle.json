@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "local scoped Rust candidate qualified; PR integration pending",
+  "capability": "field-visit-files-staging-upload-scan-content-bind",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "2e8133bb1",
+  "transport": {
+    "browser": "Chromium 1248 on the host",
+    "relay": "loopback CONNECT relay over docker exec stdio into the finite cohort",
+    "isolation": "cohort keeps --network none, no published ports, registered-host allowlist",
+    "auth": "normal Account sign-in, Company and Field role selection; no cookie injection"
+  },
+  "journey": {
+    "stages": [
+      "normal-account-signin",
+      "select-company-and-role",
+      "open-synthetic-visit",
+      "upload-once",
+      "scan-ready",
+      "bind-once",
+      "bound-evidence-readback"
+    ],
+    "orderId": "service-order-4b5f4fa0-dce0-42cf-881a-e8374831f53a",
+    "file": "field-photo.png",
+    "fileSha256": "303f6be4e58ac7834b4562e620bb8df8e6bd84643f4839fff062c21616e3697a",
+    "responses": [
+      ["GET", 200, "/attachment-sets"],
+      ["POST", 201, "/attachment-sets"],
+      ["POST", 201, "/attachment-sets/{set}/files"],
+      ["PUT", 202, "/uploads/{intent}/content"],
+      ["GET", 200, "/attachment-links/{link}/status"],
+      ["GET", 200, "/attachment-links/{link}/status"],
+      ["GET", 200, "/attachment-links/{link}/content"],
+      ["POST", 200, "/attachment-sets/{set}/bind"],
+      ["GET", 200, "/attachment-links/{link}/content"]
+    ],
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  "persisted": {
+    "link": {
+      "id": "attachment-link-a429f7dc81fc64b65a399fa7357798ee",
+      "setId": "attachment-set-5458f3f82a5398f7ba96fe27a3e2ec6e",
+      "state": "bound",
+      "bindingType": "record_document",
+      "bindingId": "service-order-4b5f4fa0-dce0-42cf-881a-e8374831f53a"
+    },
+    "source": {
+      "id": "attachment-attachment-upload-a429f7dc81fc64b65a399fa7357798ee",
+      "sourceState": "available",
+      "originalName": "field-photo.png",
+      "mediaType": "image/png",
+      "bytes": 182,
+      "checksumSha256": "303f6be4e58ac7834b4562e620bb8df8e6bd84643f4839fff062c21616e3697a",
+      "scannedAt": 1793706054934
+    },
+    "set": {
+      "id": "attachment-set-5458f3f82a5398f7ba96fe27a3e2ec6e",
+      "state": "bound"
+    },
+    "events": {
+      "file.quarantined": 1,
+      "scan.available": 1
+    }
+  },
+  "limits": [
+    "Local scoped candidate evidence, not owner/workflow acceptance.",
+    "The cohort scan worker is started by the finite provider's scan command; this is test infrastructure, not a production activation.",
+    "Checklist 12-18 and the scoped PR remain open."
+  ],
+  "privateEvidence": ".scratch/dev/field-files-current/result4.json"
+}

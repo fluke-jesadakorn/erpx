@@ -2,6 +2,14 @@
 
 Business language for ERPX, independent of implementation. Current delivery scope and status belong in the [production plan](docs/production-plan.md).
 
+**ERPX Apps**: ERPX's main workplace, bringing the Feed and available applications together for the person's chosen Company and Workspace.
+_Avoid_: Work as a separate product name.
+
+**All apps**: The person's available applications and administration areas in a chosen Company and Workspace. Availability reflects their current access.
+
+**Organization Address**: A Holding's shared entrance to its applications and published customer services. Branches and Departments identify workspaces within that organization; each Company retains its own legal identity and data policies.
+_Avoid_: Product subdomain, Company subdomain when referring to a Holding.
+
 ## Pilot acceptance
 
 **Stock Item**: A saleable item whose delivery changes inventory quantity and value. A Stock Item can share a sales document with a Service Item.
@@ -61,6 +69,9 @@ Business language for ERPX, independent of implementation. Current delivery scop
 - **Principal** — A distinct actor that can sign in and be authorized. Different login identities remain distinct Principals even when independently reviewed as belonging to the same Person.
 - **Provider Identity** — A stable identity issued by a named directory authority, independent of changing contact details or usernames.
 - **Directory Connection** — An optional, Company-approved source of authentication and membership evidence. Several may coexist with local accounts.
+- **Directory Source Selection** — A Company's explicit choice of the Directory source revision permitted to supply its Connection's observations. It is distinct from the resulting memberships, grants and permissions.
+- **Directory Observation Provenance** — The exact selected source revision that supplied a complete Directory observation. Its presence alone establishes neither current freshness nor authority.
+- **Directory Source Revision** — An increasing identity for a selected Directory source, retained when its material changes or is deliberately invalidated. Returning to earlier material creates a new revision.
 - **Role Revision** — An immutable, approved version of the permissions and delegation limits of a Business Role.
 - **Grant Ceiling** — The bounded set of permissions an administrator may delegate within their own scope and validity; it does not grant access to the underlying business records.
 - **Migration Batch** — A reviewed, fixed list of people whose local Company access will be replaced by explicitly approved directory access.

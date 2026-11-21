@@ -1,4 +1,5 @@
 "use client";
+import { SidebarIcon } from "@erpx/ui/components/sidebar-navigation";
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 
 import { Field, TextInput } from "@erpx/ui/components/foundation";
@@ -432,9 +433,9 @@ function QuickAccessShelfState({ appearance = "legacy",
                     key={item.id}
                   >
                     <Link href={item.href} className={styles.tileLink} onClick={onNavigate}>
-                      <span data-ui-appearance={appearance} className={styles.icon}>
+                      {placement === "rail" || placement === "sidebar" ? <SidebarIcon tone={item.tone}><Icon size={18} aria-hidden="true" /></SidebarIcon> : <span data-ui-appearance={appearance} className={styles.icon}>
                         <Icon size={19} strokeWidth={2.1} aria-hidden="true" />
-                      </span>
+                      </span>}
                       <span data-ui-appearance={appearance} className={styles.tileTitle}>{item.title}</span>
                       {placement !== "sidebar" && item.description && (
                         <span data-ui-appearance={appearance} className={styles.description}>{item.description}</span>

@@ -90,7 +90,7 @@ readSaveLifecycleSettings(companyId:string):Promise<{ definition: PeopleLifecycl
 readSaveLifecycleManager(engagementId:string,companyId:string):Promise<{user_id:string|null}|null>;
 guard46(key:string,value:string,companyId:string,owner:string,value2:string | null,value3:string | null,kind:"equipment" | "directory" | "handover" | "payroll" | "finance" | "hr"):Effect;
 stageSaveLifecycleEffect10(taskId:string,companyId:string,id:string,value:string,owner:string | null,now:number,value2:boolean,lastWorkingDate:string | null,kind:"equipment" | "directory" | "handover" | "payroll" | "finance" | "hr",kind2:"equipment" | "directory" | "handover" | "payroll" | "finance" | "hr"):Effect;
-stageSaveLifecycleEffect11(value:string,companyId:string,owner:string,taskId:string,value2:string,now:number):Effect;
+stageSaveLifecycleEffect11(value:string,companyId:string,owner:string,taskId:string,value2:string,now:number):Promise<Effect>;
 stageSaveLifecycleEffect12(value:string,companyId:string,id:string,title:string,value2:string | null,now:number,privileged:boolean):Effect;
 readCancelLifecycleRow(companyId:string,id:string):Promise<LifecycleCase|null>;
 guard51(key:string,value:"case-version",id:string,companyId:string,expectedVersion:number):Effect;
@@ -140,12 +140,12 @@ readSavePackagecurrent(companyId:unknown,id:unknown):Promise<{rows:(AccessPackag
 applySavePackageEffect(companyId:unknown,id:unknown,version:unknown,revision:unknown,value:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
 applySavePackageEffect2(companyId:unknown,id:unknown,revision:unknown,value:unknown,userId:unknown,value2:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
 applySavePackageEffect3(companyId:unknown,id:unknown,revision:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
-applyLifecycleOutboxEffect(value:unknown,key:unknown,event:unknown,id:unknown,version:unknown,value2:unknown,value3:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
+applyLifecycleOutboxEffect(value:unknown,key:unknown,event:unknown,id:unknown,version:unknown,value2:unknown,value3:unknown):Promise<unknown> | unknown;
 readBindPositionPackageposition(companyId:unknown,positionId:unknown):Promise<{rows:(LifecyclePositionFact)[];rowCount:number|null}>;
 readBindPositionPackagepkg(companyId:unknown,packageId:unknown,revision:unknown):Promise<{rows:(LifecyclePackageRevisionFact)[];rowCount:number|null}>;
 readBindPositionPackagepeople(companyId:unknown,id:unknown):Promise<{rows:(LifecyclePersonFact)[];rowCount:number|null}>;
 applyBindPositionPackageEffect(companyId:unknown,id:unknown,packageId:unknown,revision:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
-applyBindPositionPackageEffect2(companyId:unknown,id:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
+applyBindPositionPackageEffect2(companyId:unknown,id:unknown):Promise<unknown> | unknown;
 applyBindPositionPackageEffect3(companyId:unknown,id:unknown,value:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
 readRequestLifecycleAccessrow(companyId:unknown,id:unknown):Promise<{rows:(LifecycleCase)[];rowCount:number|null}>;
 applyRequestLifecycleAccessEffect(companyId:unknown,id:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
@@ -154,13 +154,13 @@ applyRequestLifecycleAccessEffect2(grantId:unknown,companyId:unknown,id:unknown,
 applyRequestLifecycleAccessEffect3(id:unknown,value:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
 readApplyLifecycleReviewrow(companyId:unknown,caseId:unknown):Promise<{rows:(LifecycleCase)[];rowCount:number|null}>;
 applyApplyLifecycleReviewEffect(id:unknown,value:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
-applyApplyLifecycleReviewEffect2(id:unknown,value:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
-applyApplyLifecycleReviewEffect3(companyId:unknown,id:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
+applyApplyLifecycleReviewEffect2(id:unknown,value:unknown):Promise<unknown> | unknown;
+applyApplyLifecycleReviewEffect3(companyId:unknown,id:unknown):Promise<unknown> | unknown;
 applyApplyLifecycleReviewEffect4(companyId:unknown,person_id:unknown,userId:unknown):Promise<{rows:({same:boolean;ok:boolean})[];rowCount:number|null}>;
 applyApplyLifecycleReviewEffect5(userId:unknown,created_by:unknown,companyId:unknown):Promise<{rows:({same:boolean})[];rowCount:number|null}>;
 readApplyLifecycleReviewg(grantId:unknown,companyId:unknown,id:unknown):Promise<{rows:(LifecycleGrantFact)[];rowCount:number|null}>;
 applyApplyLifecycleReviewEffect6(companyId:unknown,person_id:unknown,userId:unknown):Promise<{rows:({same:boolean;ok:boolean})[];rowCount:number|null}>;
-applyApplyLifecycleReviewEffect7(assignment:unknown,effective_at:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
+applyApplyLifecycleReviewEffect7(assignment:unknown,effective_at:unknown):Promise<unknown> | unknown;
 applyApplyLifecycleReviewEffect8(id:unknown,assignment:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
 applyApplyLifecycleReviewEffect9(id:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;
 applyApplyLifecycleReviewEffect10(id:unknown,value:unknown):Promise<{rows:(Record<string,unknown>)[];rowCount:number|null}>;}export interface PeopleLifecyclePorts<Effect>{repository:PeopleLifecycleRepository<Effect>;clock:Clock;ids:{newId():string};authorize(actor:WorkContext,permission:string):WorkContext;commands:RosterCommands<Effect>;digest(value:unknown):string;grantInput:typeof grantInput;iamCommand<Result>(actor:IamActor,key:string,operation:string,input:unknown,permission:string,run:(ports:PeopleLifecyclePorts<Effect>)=>Promise<Result>):Promise<Result>;effectiveGpoRules(...args:Tail<Parameters<typeof effectiveGpoRules>>):PortResult<ReturnType<typeof effectiveGpoRules>,Effect>;eligibleClearanceOwner(...args:Tail<Parameters<typeof eligibleClearanceOwner>>):PortResult<ReturnType<typeof eligibleClearanceOwner>,Effect>;iamActorFromWork(...args:Parameters<typeof iamActorFromWork>):PortResult<ReturnType<typeof iamActorFromWork>,Effect>;requireFreshMfa(...args:Parameters<typeof requireFreshMfa>):PortResult<ReturnType<typeof requireFreshMfa>,Effect>;validateIamGrant(...args:Tail<Parameters<typeof validateIamGrant>>):PortResult<ReturnType<typeof validateIamGrant>,Effect>;insertIamGrant(...args:Tail<Parameters<typeof insertIamGrant>>):PortResult<ReturnType<typeof insertIamGrant>,Effect>;proposeIamReview(...args:Tail<Parameters<typeof proposeIamReview>>):PortResult<ReturnType<typeof proposeIamReview>,Effect>;organizationGuard(...args:Tail<Parameters<typeof organizationGuard>>):PortResult<ReturnType<typeof organizationGuard>,Effect>;validateStaffOrganization(...args:Tail<Parameters<typeof validateStaffOrganization>>):PortResult<ReturnType<typeof validateStaffOrganization>,Effect>;calendarCommand(...args:Tail<Parameters<typeof calendarCommand>>):PortResult<ReturnType<typeof calendarCommand>,Effect>;}export function createPeopleLifecycleApplication<Effect>(ports:PeopleLifecyclePorts<Effect>){const repository=ports.repository;async function legacyCaseForPlacement(
@@ -702,7 +702,7 @@ async function saveLifecycle(
         if(owner) steps.push(repository.guard46(key,`clearance-owner-${kind}`,actor.companyId,owner,clearancePermissions[kind],clearancePermissions[kind],kind));
         const taskId = `${id}-clearance-${kind}`;
         steps.push(repository.stageSaveLifecycleEffect10(taskId,actor.companyId,id,clearanceLabels[kind],owner,now,kind === "directory",input.lastWorkingDate,kind,kind));
-        if(owner)steps.push(repository.stageSaveLifecycleEffect11(`${taskId}-notification`,actor.companyId,owner,taskId,`${clearanceLabels[kind]} · ${e.legal_name}`,now));
+        if(owner)steps.push(await repository.stageSaveLifecycleEffect11(`${taskId}-notification`,actor.companyId,owner,taskId,`${clearanceLabels[kind]} · ${e.legal_name}`,now));
       }
     } else {
     const tasks: {title:string;privileged:boolean}[] = [

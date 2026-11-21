@@ -1,6 +1,6 @@
 import { configuredProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { productIds, sharedHostKeys } from "@erpx/contracts/product-registry";
-import {holdingHosts,holdingRoutingEnabled,holdingAudience} from '@erpx/contracts/holding-hosts';
+import {activeHoldingHosts,holdingRoutingEnabled,holdingAudience} from '@erpx/feature-runtime/lib/holding-hosts';
 const sessionCookieName = "__Host-erpx-product";
 
 export function cookie(headers: Headers, name: string) {
@@ -10,7 +10,7 @@ export function cookie(headers: Headers, name: string) {
 }
 export function productSessionCookie(headers: Headers) { return cookie(headers, sessionCookieName); }
 export function ssoOrigins() {
-  if (holdingRoutingEnabled(process.env)) return Object.fromEntries([['account', configuredProductOrigin('account')!], ...holdingHosts.map(entry => [holdingAudience(entry.hostname)!, `https://${entry.hostname}`])]);
+  if (holdingRoutingEnabled(process.env)) return Object.fromEntries([['account', configuredProductOrigin('account')!], ...activeHoldingHosts().map(entry => [holdingAudience(entry.hostname)!, `https://${entry.hostname}`])]);
   return Object.fromEntries([...productIds, ...sharedHostKeys].flatMap(key => {
     const origin = configuredProductOrigin(key);
     return origin ? [[key, origin]] : [];

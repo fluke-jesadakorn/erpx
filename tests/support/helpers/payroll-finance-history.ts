@@ -9,7 +9,8 @@ import {readCompanyPurchaseFacts} from "@erpx/server-commercial/public/package-g
 import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
 import {financeDocumentFlow,financeDocumentPresentationAccess,financeSourceDocumentBackdrop,journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
 import {bookRuleSchema,prepareBookRule,decideBookRule} from "@erpx/server-finance/public/finance-books";
-import {createJournal,createJournalSchema,importBankStatement} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from "./finance-journal-seed";
+import {importBankStatement} from '@erpx/server-finance/public/finance';
 import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {attachmentContent,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";
@@ -35,7 +36,7 @@ export async function preparePayrollProjection(f:Fixture,preparer:WorkContext,ap
 /** Exercise original owner readers, normal versioned role selection and the
  * original Files transaction using real Payroll-produced ledger identities. */
 export async function assertPayrollFinanceHistory(f:Fixture,actor:WorkContext,payrollActor:WorkContext,runId:string,primaryIds:string[],book:{chart:string;openingId:string}){
- const forged=await createJournal(actor,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-30",currency:"THB",sourceType:"payroll",sourceId:runId,memo:"A caller label cannot manufacture Payroll ledger ownership",lines:[{accountId:f.accounts.expense,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]}),key());
+ const forged=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-30",currency:"THB",sourceType:"payroll",sourceId:runId,memo:"A caller label cannot manufacture Payroll ledger ownership",key:key(),createdBy:actor.userId,lines:[{accountId:f.accounts.expense,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]});
  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
  expect((await readCompanyPurchaseFacts(db,f.company)).grants.map(grant=>grant.packageId).sort()).toEqual(["people","people-payroll"]);
  const projections=(await db.prepare(`SELECT secondary_journal_id id FROM finance_book_postings WHERE primary_journal_id IN (${primaryIds.map(()=>"?").join(",")}) ORDER BY id`).bind(...primaryIds).all<{id:string}>()).results;

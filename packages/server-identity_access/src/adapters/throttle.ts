@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import "server-only";
 import { createHash } from "node:crypto";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
@@ -10,7 +11,7 @@ export async function iamThrottle(category: string, identity: string, limit = 8,
   const db = (await runtimeEnv()).CONTROL_DB;
   const application = createIamThrottleApplication({
     async increment(key, now, windowBefore) {
-      const row = await db.prepare("INSERT INTO iam_throttles(key,window_start,attempts) VALUES(?,?,1) ON CONFLICT(key) DO UPDATE SET window_start=CASE WHEN iam_throttles.window_start<? THEN excluded.window_start ELSE iam_throttles.window_start END,attempts=CASE WHEN iam_throttles.window_start<? THEN 1 ELSE iam_throttles.attempts+1 END RETURNING attempts")
+      const row = await nativePrepare("w_a2e9726082b9")
         .bind(key, now, windowBefore, windowBefore).first<{ attempts: number }>();
       return row?.attempts ?? null;
     },

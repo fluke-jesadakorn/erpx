@@ -8,12 +8,13 @@ import { platformOwnerProjectionSources as people_payrollPlatformSources } from 
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
+import { nativeProcurementStatement } from '@erpx/feature-procurement/adapters/server/native-procurement-command';
 import type {invoiceFromDeliverySchema} from '@erpx/server-commerce/public/commerce';
 import type {z} from "zod";
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierBillReceiptVersion,stageSupplierBillReceiptLinks} from "@erpx/server-commerce/public/supplier-bill-receipts";
 import {stageSupplierBillDraftVoid} from "@erpx/server-finance/public/supplier-bill-draft-void";
-import {stageSupplierBillNotifications} from "@erpx/server-collaboration/public/supplier-bill-notifications";
+import {nativeSupplierBillNotification} from "./native-supplier-bill-notification";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -29,7 +30,7 @@ import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bill
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope="m.company_id=? AND (?::text IS NULL OR m.branch_id=?) AND (?::text IS NULL OR m.department_id=?)";
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
-function event(db:SqlDatabase,actor:WorkContext,id:string,key:string,nextVersion:number,action:string,note:string,now:number){return db.prepare('INSERT INTO procurement_bill_match_events VALUES(?,?,?,?,?,?,?)').bind(`bill-event-${key}`,id,nextVersion,action,actor.userId,note,now);}
+function event(db:SqlDatabase,actor:WorkContext,id:string,key:string,nextVersion:number,action:string,note:string,now:number){return nativeProcurementStatement('procurement_stmt_1', { now: Date.now() }).bind(`bill-event-${key}`,id,nextVersion,action,actor.userId,note,now);}
 function application(actor:WorkContext,provided?:SqlDatabase){
  let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(actor.holdingId).then(x=>x.write);
  const ports:BillPorts<SqlStatement>={clock:{now:()=>Date.now()},companyId:actor.companyId,userId:actor.userId,canRead:hasPermission(actor,'finance.read'),canWrite:hasPermission(actor,'finance.write'),canApprove:hasPermission(actor,'finance.approve'),canCommerceRead:hasPermission(actor,'commerce.read'),samePerson:(id)=>samePerson(actor,id),
@@ -132,9 +133,9 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  stageInvoice:async(h)=>{const db=await database(),bill=h.bill,nextVersion=Number(bill.version)+1;
  const steps:SqlStatement[]=[assertion(db,h.key,'supplier-bill-handoff',"EXISTS(SELECT 1 FROM procurement_bill_matches WHERE id=? AND company_id=? AND fulfillment_id=? AND status='approved' AND version=? AND invoice_id IS NULL)",[bill.id,actor.companyId,h.fulfillment.id,h.matchVersion])];
  for(const [index,receipt]of h.receipts.entries())steps.push(assertion(db,h.key,`supplier-bill-receipt-${index}`,`EXISTS(SELECT 1 FROM procurement_bill_match_receipts br JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=br.fulfillment_id WHERE br.id=? AND br.match_id=? AND br.active=TRUE AND f.version=br.captured_version AND f.invoice_id IS NULL)`,[receipt.id,bill.id]));
- steps.push(stageSupplierBillReceiptLinks(db,String(bill.id),h.invoiceId),db.prepare("UPDATE procurement_bill_matches SET status='invoiced',invoice_id=?,version=version+1,updated_at=? WHERE id=?").bind(h.invoiceId,h.now,bill.id),event(db,actor,String(bill.id),h.key,nextVersion,'invoice-created',`Draft invoice ${h.invoiceId} prepared from ${h.receipts.length} receipt(s) for independent GL posting`,h.now),stageSupplierBillNotifications(db,String(bill.id),h.key));return steps;},
+ steps.push(stageSupplierBillReceiptLinks(db,String(bill.id),h.invoiceId),nativeProcurementStatement('procurement_stmt_2', { now: Date.now() }).bind(h.invoiceId,h.now,bill.id),event(db,actor,String(bill.id),h.key,nextVersion,'invoice-created',`Draft invoice ${h.invoiceId} prepared from ${h.receipts.length} receipt(s) for independent GL posting`,h.now),await nativeSupplierBillNotification(db,actor,String(bill.id),h.key));return steps;},
  billByInvoice:async(id)=>(await database()).prepare('SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?').bind(id,actor.companyId).first<Row>(),
- stagePosting:async(h)=>{const db=await database(),bill=h.bill;return [assertion(db,h.key,'supplier-bill-post',"EXISTS(SELECT 1 FROM procurement_bill_matches WHERE id=? AND version=? AND status='invoiced' AND invoice_id=?)",[bill.id,bill.version,h.invoice.id]),db.prepare("UPDATE procurement_bill_matches SET status='posted',version=version+1,updated_at=? WHERE id=?").bind(h.now,bill.id),event(db,actor,String(bill.id),h.key,Number(bill.version)+1,'posted','Matched invoice and price variance posted to GL',h.now),stageSupplierBillNotifications(db,String(bill.id),h.key)];},
+ stagePosting:async(h)=>{const db=await database(),bill=h.bill;return [assertion(db,h.key,'supplier-bill-post',"EXISTS(SELECT 1 FROM procurement_bill_matches WHERE id=? AND version=? AND status='invoiced' AND invoice_id=?)",[bill.id,bill.version,h.invoice.id]),nativeProcurementStatement('procurement_stmt_3', { now: Date.now() }).bind(h.now,bill.id),event(db,actor,String(bill.id),h.key,Number(bill.version)+1,'posted','Matched invoice and price variance posted to GL',h.now),await nativeSupplierBillNotification(db,actor,String(bill.id),h.key)];},
  workFacts:async(row)=>{const write=await database();
 let latest:Row|null=null,eligible=0,primary:{userId:string;name:string}|null=null,flowBlocker:string|null=null;
  if(row.status==='returned')latest=await write.prepare("SELECT id,status FROM procurement_bill_matches WHERE fulfillment_id=? ORDER BY (status<>'returned') DESC,created_at DESC,id DESC LIMIT 1").bind(row.fulfillment_id).first<Row>();
@@ -147,34 +148,31 @@ async function commit<Result>(write:SqlDatabase,actor:WorkContext,m:BillMutation
  const {key,operation,id,now}=m;
  if(m.kind==='capture'){const input=m.input;
   const {requested,receipts:receiptRows,primary,order,config,clearing,lines:prepared,expected,subtotal,tax,quantityMatches}=m.plan;
-  const steps: SqlStatement[] = [write.prepare(`
-    INSERT INTO procurement_bill_matches(id,company_id,branch_id,department_id,order_id,fulfillment_id,supplier_id,currency,chart_id,clearing_account_id,payable_account_id,tax_account_id,reference,invoice_date,due_date,evidence,expected_subtotal_minor,subtotal_minor,tax_minor,quantity_matches,status,created_by,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'review',?,?,?)
-  `).bind(id, actor.companyId, order.branch_id, order.department_id, order.id, primary.id, order.party_id, order.currency, config.chart_id, clearing, config.payable_account_id, config.input_tax_account_id, input.reference, input.invoiceDate, input.dueDate, input.evidence, expected, subtotal, tax, quantityMatches, actor.userId, now, now)];
+  const steps: SqlStatement[] = [nativeProcurementStatement('procurement_stmt_4', { now: Date.now() }).bind(id, actor.companyId, order.branch_id, order.department_id, order.id, primary.id, order.party_id, order.currency, config.chart_id, clearing, config.payable_account_id, config.input_tax_account_id, input.reference, input.invoiceDate, input.dueDate, input.evidence, expected, subtotal, tax, quantityMatches, actor.userId, now, now)];
   for (const [index, receipt] of receiptRows.entries()) {
     const selected = requested.find(candidate => candidate.fulfillmentId === receipt.id)!;
     steps.push(
       assertion(write, key, `receipt-${index}`, `EXISTS(SELECT 1 FROM (${commercePlatformSources.commerce_fulfillments}) f JOIN (${financePlatformSources.finance_journals}) j ON j.id=f.journal_id WHERE f.id=? AND f.order_id=? AND f.version=? AND f.invoice_id IS NULL AND j.status='posted')`, [receipt.id, receipt.order_id, selected.expectedVersion]),
-      write.prepare("INSERT INTO procurement_bill_match_receipts(id,match_id,fulfillment_id,captured_version) VALUES(?,?,?,?)").bind(`${id}-receipt-${index}`, id, receipt.id, selected.expectedVersion + 1),
+      nativeProcurementStatement('procurement_stmt_5', { now: Date.now() }).bind(`${id}-receipt-${index}`, id, receipt.id, selected.expectedVersion + 1),
       stageSupplierBillReceiptVersion(write,String(receipt.id)),
     );
   }
-  for (const line of prepared) steps.push(write.prepare("INSERT INTO procurement_bill_match_lines VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`${id}-${line.index}`, id, line.line.id, line.quantity, line.line.quantity_milli, line.price, line.taxBps, line.line.subtotal_minor, line.subtotal, line.tax));
-  steps.push(event(write, actor, id, key, 1, "capture", input.evidence,now), stageSupplierBillNotifications(write, id, key));
+  for (const line of prepared) steps.push(nativeProcurementStatement('procurement_stmt_6', { now: Date.now() }).bind(`${id}-${line.index}`, id, line.line.id, line.quantity, line.line.quantity_milli, line.price, line.taxBps, line.line.subtotal_minor, line.subtotal, line.tax));
+  steps.push(event(write, actor, id, key, 1, "capture", input.evidence,now), await nativeSupplierBillNotification(write, actor, id, key));
   return executeCommand(write, actor, key, operation, input, id, 1, result, steps, { companyId: actor.companyId, branchId: String(order.branch_id), departmentId: order.department_id ? String(order.department_id) : null });
  }
  if(m.kind==='policy'){const input=m.input;return executeCommand(write,actor,key,operation,input,id,m.version,result,[
  authorityGuard(write,key,actor,'finance.approve'),
  assertion(write,key,'policy-version',input.expectedVersion===0?'NOT EXISTS(SELECT 1 FROM procurement_invoice_policies WHERE company_id=?)':'EXISTS(SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND version=?)',input.expectedVersion===0?[actor.companyId]:[actor.companyId,input.expectedVersion]),
- write.prepare('INSERT INTO procurement_invoice_policies(company_id,matching_mode,version,updated_by,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET matching_mode=excluded.matching_mode,version=excluded.version,updated_by=excluded.updated_by,updated_at=excluded.updated_at').bind(actor.companyId,input.matchingMode,m.version,actor.userId,now),
- write.prepare('INSERT INTO procurement_invoice_policy_events(id,company_id,version,previous_mode,matching_mode,actor_id,reason,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(`supplier-policy-${key}`,actor.companyId,m.version,m.previous,input.matchingMode,actor.userId,input.reason,now),
+ nativeProcurementStatement('procurement_stmt_7', { now: Date.now() }).bind(actor.companyId,input.matchingMode,m.version,actor.userId,now),
+ nativeProcurementStatement('procurement_stmt_8', { now: Date.now() }).bind(`supplier-policy-${key}`,actor.companyId,m.version,m.previous,input.matchingMode,actor.userId,input.reason,now),
  ],{companyId:actor.companyId,branchId:null,departmentId:null});}
  const {input,bill,returnDraft,variance,status}=m;
  const steps:SqlStatement[]=[assertion(write,key,'bill-review',`EXISTS(SELECT 1 FROM procurement_bill_matches m WHERE m.id=? AND m.version=? AND m.status=? AND ${scope})`,[id,input.expectedVersion,bill.status,...args(actor)])];
  if(input.action==='approve'&&variance)steps.push(assertion(write,key,'variance-account',`EXISTS(SELECT 1 FROM (${financePlatformSources.finance_accounts}) a JOIN (${financePlatformSources.finance_charts}) c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active')`,[input.varianceAccountId!,actor.companyId,bill.chart_id]));
- if(returnDraft)steps.push(...stageSupplierBillDraftVoid(write,actor.companyId,{invoiceId:String(bill.invoice_id),invoiceVersion:Number(bill.invoice_version),matchId:id},key,now),stageSupplierBillReceiptLinks(write,id,null));
- if(status==='returned')steps.push(write.prepare('UPDATE procurement_bill_match_receipts SET active=FALSE WHERE match_id=? AND active=TRUE').bind(id));
- steps.push(write.prepare('UPDATE procurement_bill_matches SET status=?,reviewed_by=?,review_reason=?,variance_account_id=?,version=version+1,updated_at=? WHERE id=?').bind(status,actor.userId,input.reason,input.action==='approve'&&variance?input.varianceAccountId??null:bill.variance_account_id??null,now,id),event(write,actor,id,key,input.expectedVersion+1,returnDraft?'return-ap-draft':input.action,input.reason,now),stageSupplierBillNotifications(write,id,key));
+ if(returnDraft)steps.push(...await stageSupplierBillDraftVoid(write,actor.companyId,{invoiceId:String(bill.invoice_id),invoiceVersion:Number(bill.invoice_version),matchId:id},key,now),stageSupplierBillReceiptLinks(write,id,null));
+ if(status==='returned')steps.push(nativeProcurementStatement('procurement_stmt_9', { now: Date.now() }).bind(id));
+ steps.push(nativeProcurementStatement('procurement_stmt_10', { now: Date.now() }).bind(status,actor.userId,input.reason,input.action==='approve'&&variance?input.varianceAccountId??null:bill.variance_account_id??null,now,id),event(write,actor,id,key,input.expectedVersion+1,returnDraft?'return-ap-draft':input.action,input.reason,now),await nativeSupplierBillNotification(write,actor,id,key));
  return executeCommand(write,actor,key,operation,input,id,input.expectedVersion+1,result,steps,{companyId:actor.companyId,branchId:String(bill.branch_id),departmentId:bill.department_id?String(bill.department_id):null});
 }
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}

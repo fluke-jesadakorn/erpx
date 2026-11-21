@@ -1,3 +1,4 @@
+import { nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -22,10 +23,10 @@ function repository(client: PoolClient | Pool): PeopleTemplateRepository {
             return client.query<TemplateRow>("SELECT * FROM people_holding_templates WHERE id=$1 AND holding_id=$2 FOR UPDATE", [id, holdingId]);
         },
         updateTemplate(name: string, value: string, now: number, id: string) {
-            return client.query<TemplateRow>("UPDATE people_holding_templates SET version=version+1,name=$1,definition=$2,updated_at=$3 WHERE id=$4", [name, value, now, id]);
+            return nativePpQuery<TemplateRow>('pp_people_templates_stmt_1', [name, value, now, id]);
         },
         insertTemplate(id: string, holdingId: string | null, name: string, value: string, userId: string, now: number) {
-            return client.query<TemplateRow>("INSERT INTO people_holding_templates(id,holding_id,name,definition,created_by,updated_at) VALUES($1,$2,$3,$4,$5,$6)", [
+            return nativePpQuery<TemplateRow>('pp_people_templates_stmt_2', [
                 id,
                 holdingId,
                 name,
@@ -46,10 +47,10 @@ function repository(client: PoolClient | Pool): PeopleTemplateRepository {
         upsertAttribute(...args) { return peopleTemplateAttributes(client as PoolClient).upsertAttribute(...args); },
         attributeHistory(...args) { return peopleTemplateAttributes(client as PoolClient).attributeHistory(...args); },
         updateSettings(companyId: string, value: string) {
-            return client.query<Record<string, unknown>>("INSERT INTO people_lifecycle_settings(company_id,version,definition) VALUES($1,1,$2) ON CONFLICT(company_id) DO UPDATE SET version=people_lifecycle_settings.version+1,definition=excluded.definition", [companyId, value]);
+            return nativePpQuery<Record<string, unknown>>('pp_people_templates_stmt_3', [companyId, value]);
         },
         recordAdoption(companyId: string, id: unknown, version: unknown, value: string) {
-            return client.query<Record<string, unknown>>("INSERT INTO people_template_adoptions(company_id,template_id,template_version,definition) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,template_id) DO UPDATE SET template_version=excluded.template_version,version=people_template_adoptions.version+1,definition=excluded.definition", [companyId, id, version, value]);
+            return nativePpQuery<Record<string, unknown>>('pp_people_templates_stmt_4', [companyId, id, version, value]);
         } };
 }
 async function external<Result>(run: () => Promise<Result>) { try {

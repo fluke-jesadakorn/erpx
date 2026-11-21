@@ -10,18 +10,22 @@ export function PageHeader({
   description,
   action,
   appearance = "legacy",
+  decorative = false,
 }: {
   appearance?: UiAppearance;
   eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
+  /** Hide a duplicated title from assistive technology when a dialog banner
+   * already announces the same record heading. */
+  decorative?: boolean;
 }) {
   return (
     <header className={`${appearance === "standard" ? "ui-page-header" : "mb-6"} flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center sm:gap-6`}>
       <div className="min-w-0">
         {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-        <h1>{title}</h1>
+        <h1 aria-hidden={decorative || undefined}>{title}</h1>
         {description && <p className="lede max-w-[72ch]">{description}</p>}
       </div>
       {action && <div className="flex w-full items-center gap-2 sm:w-auto">{action}</div>}

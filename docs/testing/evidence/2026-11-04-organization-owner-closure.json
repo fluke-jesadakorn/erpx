@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "The Organization page GET now has a native owner read for nodes, positions, levels, templates, change history/queue, sharing channels and command flags, consumed by the Next route when native transport is configured; attachment proof binding stays explicitly unavailable and no authenticated browser journey is claimed",
+  "capability": "organization-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Existing bounded node-change parsing, reserved slugs, branch/department placement, lifecycle transitions, relocation fences, independent review, business-unit visibility and channel audience rules are unchanged.",
+    "application": "OrganizationWorkspace now carries the Organization-owned page projection: positions, levels, templates, node tree, change history/queue, authorized channels, actor id, canManage, canManageUnits and canManageSpending. Node lifecycle save/preview/review/cancel keep replay-before-validation ordering and retained error codes.",
+    "adapters": "Company-scoped PostgreSQL reads for organization_positions, staff_levels and organization_templates are added to the existing node/channel/change workspace query. Foreign-Company rows are excluded; branch/department placement filters match the retained overview; levels stop at 100, templates at 500, positions and nodes at 4000.",
+    "http": "GET /api/v1/holdings/{holding_slug}/people/organization returns the extended native workspace when ERPX_NATIVE_ORGANIZATION_CONFIG is present. Missing configuration keeps the retained organizationOverview fallback; configured transport/authority/validation failures map to the existing bounded errors and never fall back.",
+    "frontend": "The existing opt-in native transport validates the extended page payload exactly and composes native Organization fields over the retained People projection at the Next route. The retained People roster, IAM manager-grant issues, mixed staff defaults, monthly pay groups and spending template remain public-port reads; no cross-owner SQL read was added to the Organization crate."
+  },
+  "tests": [
+    "organization.rust-organization-nodes.unit: 8 passed including the explicit ORGANIZATION_ATTACHMENT_BINDING_UNAVAILABLE guard",
+    "organization.rust-organization-nodes-postgres.integration: 5 passed including the new page-read catalog/placement/Company isolation test",
+    "organization.rust-organization-http-postgres.integration: 2 passed including native page fields, foreign origin/missing key/foreign Company, missing people.manage denial, and attachment proof refusal without persisted state",
+    "organization.rust-hierarchy.unit: 8 passed",
+    "organization.rust-hierarchy-postgres.integration: 5 passed",
+    "cargo test -p erpx-server-organization --locked: 26 passed",
+    "cargo test -p erpx-service --locked --features existing-business --test organization_http_postgres: 2 passed",
+    "tests/unit/organization/organization-services.test.ts: 53 passed including extended workspace validation, malformed page payloads and native/retained page composition",
+    "tests/unit/organization/organization-chart.test.ts, organization-explorer.test.ts and tests/unit/shared.work/presentation-owner-queries.test.ts: 32 passed",
+    "typecheck packages/feature-organization and packages/workplace: pass",
+    "rustfmt --edition 2024 --check on changed Organization source: pass; cargo clippy reports only the four pre-existing Organization warnings"
+  ],
+  "limits": [
+    "No authenticated browser journey was run; the four Organization workflows are not claimed browser-verified. The main agent will run the current-source browser cohort.",
+    "Native page selection is opt-in through ERPX_NATIVE_ORGANIZATION_CONFIG. Without it the retained organizationOverview path remains the explicit fallback; configured failures close instead of retrying the retained read.",
+    "People roster, IAM manager-grant issues, mixed staff defaults, monthly pay groups and spending template still come from retained public ports because no native People/IAM page port exists for them. Positions, nodes, levels, templates, changes, channels and command flags are native.",
+    "Organization-change attachment proof binding remains unsupported. server-files exposes only the Finance-specific payment proof binding (binding type finance_payment_confirmation), so review with non-empty attachmentSetIds returns 503 ORGANIZATION_ATTACHMENT_BINDING_UNAVAILABLE with no state change or receipt.",
+    "The SSG People workspace remains on peopleWorkspaceData/organizationAccessData because it renders People directory/lifecycle data and the draft workspace mixes People and Organization facts.",
+    "Position, template, level, draft, position-move, acceptance and spending/leave default writes remain on the retained TypeScript owner.",
+    "The TypeScript PostgreSQL integration suite was not executable in this environment because the pinned Bun 1.4.3 test runner is unavailable; affected unit tests and both Rust integration targets were run.",
+    "Hosted CI, staging, installed production and Cloudflare were not accessed."
+  ]
+}

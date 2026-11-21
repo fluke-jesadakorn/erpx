@@ -1,9 +1,9 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import "server-only";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { TransactionalSqlDatabase, SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { bindingIsCurrent, browserTransactionLifetime, safeProductReturnPath, sessionLifetime, singleUseGrantLifetime, type SsoSessionBinding } from "@erpx/server-identity_access/domain/product-sso";
-import {revokeProductSessionFamily} from '@erpx/server-identity_access/adapters/product-session-revocation';
-import {deviceSessionSelected,ensureDeviceSessionBinding} from '@erpx/server-identity_access/adapters/device-account-store';
+import {deviceSessionSelected} from '@erpx/server-identity_access/adapters/device-account-store';
 
 export const ssoHash = (value: string) => createHash("sha256").update(value).digest("base64url");
 const secret = () => randomBytes(32).toString("base64url");
@@ -34,8 +34,7 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
     /** Called only for a newly created account-host credential/directory session. */
     async registerCentral(session: { id: string; createdAt: Date; expiresAt: Date }) {
       const authenticatedAt = session.createdAt.getTime();
-      await db.prepare(`INSERT INTO sso_session_bindings(session_id,audience,environment,parent_session_id,authenticated_at,absolute_expires_at)
-        VALUES(?,'account',?,NULL,?,?)`).bind(session.id, environment, authenticatedAt, Math.min(session.expiresAt.getTime(), authenticatedAt + sessionLifetime)).run();
+      await nativePrepare("w_7af4b209d194").bind(session.id, environment, authenticatedAt, Math.min(session.expiresAt.getTime(), authenticatedAt + sessionLifetime)).run();
     },
     async centralIsCurrent(sessionId: string) {
       try { await central(db, sessionId, now()); return true; } catch (error) {
@@ -46,8 +45,7 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
     async start(audience: string, returnPath?: string | null) {
       const instant = now(), id = randomUUID(), browser = secret(), verifier = secret(), state = secret();
       const redirectUri = callback(audience), challenge = ssoHash(verifier);
-      await db.prepare(`INSERT INTO sso_browser_transactions(id,browser_hash,state_hash,challenge,audience,environment,callback,return_path,created_at,expires_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(id, ssoHash(browser), ssoHash(state), challenge, audience, environment, redirectUri, safeProductReturnPath(returnPath), instant, instant + browserTransactionLifetime).run();
+      await nativePrepare("w_2daae34ee70f").bind(id, ssoHash(browser), ssoHash(state), challenge, audience, environment, redirectUri, safeProductReturnPath(returnPath), instant, instant + browserTransactionLifetime).run();
       return { id, state, challenge, browserCookie: `${id}.${browser}.${verifier}`, callback: redirectUri };
     },
     async authorize(input: { transactionId: string; state: string; challenge: string; parentSessionId: string }) {
@@ -59,8 +57,7 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
         const parent = await central(tx, input.parentSessionId, instant, true);
         const expires = Math.min(instant + singleUseGrantLifetime, Number(browser.expires_at), Number(parent.absolute_expires_at), new Date(parent.session_expires_at).getTime());
         if (expires <= instant) return rejected();
-        await tx.prepare(`INSERT INTO sso_authorization_grants(code_hash,transaction_id,parent_session_id,audience,environment,callback,state_hash,challenge,created_at,expires_at)
-          VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(ssoHash(code), browser.id, parent.session_id, browser.audience, environment, browser.callback, browser.state_hash, browser.challenge, instant, expires).run();
+        await nativePrepare("w_fab4e7d1149e").bind(ssoHash(code), browser.id, parent.session_id, browser.audience, environment, browser.callback, browser.state_hash, browser.challenge, instant, expires).run();
         return { code, callback: browser.callback };
       });
     },
@@ -78,15 +75,14 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
           !equal(browser.browser_hash, ssoHash(browserSecret)) || !equal(browser.state_hash, ssoHash(input.state)) || !equal(grant.state_hash, browser.state_hash) ||
           !equal(browser.challenge, ssoHash(verifier)) || !equal(grant.challenge, browser.challenge)) return rejected();
         const parent = await central(tx, grant.parent_session_id, instant, true);
-        await ensureDeviceSessionBinding(tx,parent.session_id,instant);
         const expiresAt = Math.min(Number(parent.absolute_expires_at), new Date(parent.session_expires_at).getTime());
         const date = new Date(instant).toISOString();
-        await tx.prepare(`INSERT INTO session(id,token,"userId","createdAt","updatedAt","expiresAt") VALUES(?,?,?,?,?,?)`)
+        await nativePrepare("w_ffd9413f07c2")
           .bind(sessionId, ssoHash(token), parent.user_id, new Date(Number(parent.authenticated_at)).toISOString(), date, new Date(expiresAt).toISOString()).run();
-        await tx.prepare(`INSERT INTO sso_session_bindings(session_id,audience,environment,parent_session_id,authenticated_at,absolute_expires_at) VALUES(?,?,?,?,?,?)`)
+        await nativePrepare("w_0101ff13964c")
           .bind(sessionId, input.audience, environment, parent.session_id, parent.authenticated_at, expiresAt).run();
-        await tx.prepare("UPDATE sso_browser_transactions SET consumed_at=? WHERE id=?").bind(instant, browser.id).run();
-        await tx.prepare("UPDATE sso_authorization_grants SET consumed_at=? WHERE code_hash=?").bind(instant, grant.code_hash).run();
+        await nativePrepare("w_a8eab54476f5").bind(instant, browser.id).run();
+        await nativePrepare("w_1de1e0b7b695").bind(instant, grant.code_hash).run();
         return { token, sessionId, expiresAt, returnPath: browser.return_path };
       });
     },
@@ -102,16 +98,16 @@ export function productSsoStore(db: TransactionalSqlDatabase, environment: "deve
           id: string; expiresAt: string; userId: string; name: string; email: string; emailVerified: number; image: string | null; user_created_at: number; user_updated_at: number;
           parent_expires_at: string; parent_user_id: string; parent_audience: string; parent_environment: string; grandparent: string | null; parent_absolute_expires_at: number; parent_authenticated_at: number;
         }>();
+      // Device adoption is native (`account_sso_postgres`). This retained oracle
+      // still reads children minted before native grouping existed; when a
+      // device row is present it must still select this exact parent.
       if (!row || !bindingIsCurrent(binding(row), audience, environment, instant) || row.parent_audience !== "account" || row.parent_environment !== environment || row.grandparent ||
         row.parent_user_id !== row.userId || Number(row.parent_authenticated_at) !== Number(row.authenticated_at) || Number(row.parent_absolute_expires_at) < Number(row.absolute_expires_at) ||
-        new Date(row.parent_expires_at).getTime() <= instant || new Date(row.expiresAt).getTime() <= instant || !await deviceSessionSelected(db, row.parent_session_id!,true)) return null;
+        new Date(row.parent_expires_at).getTime() <= instant || new Date(row.expiresAt).getTime() <= instant || !await deviceSessionSelected(db, row.parent_session_id!,false)) return null;
       return {
         session: { id: row.id, userId: row.userId, token: "", expiresAt: new Date(Math.min(new Date(row.expiresAt).getTime(), new Date(row.parent_expires_at).getTime(), Number(row.absolute_expires_at))), createdAt: new Date(Number(row.authenticated_at)), updatedAt: new Date(Number(row.authenticated_at)), ipAddress: null, userAgent: null },
         user: { id: row.userId, name: row.name, email: row.email, emailVerified: Boolean(Number(row.emailVerified)), image: row.image, createdAt: new Date(Number(row.user_created_at)), updatedAt: new Date(Number(row.user_updated_at)) },
       };
-    },
-    async revokeFamily(sessionId: string) {
-      await db.transaction(tx=>revokeProductSessionFamily(tx,sessionId,environment));
     },
   };
 }

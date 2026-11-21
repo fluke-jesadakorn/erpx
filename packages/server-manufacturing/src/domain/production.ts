@@ -3,32 +3,6 @@ import {z} from 'zod';import {decimalToMinor} from "@erpx/feature-finance/lib/fi
   date = z.string().date(),
   qty = z.string().regex(/^\d+(\.\d{1,3})?$/);
 export const q = (x: string) => decimalToMinor(x, 3);
-export const specSchema = z.object({
-  name: z.string().trim().min(2).max(160),
-  mode: z.enum(["bom", "formula"]),
-  outputProductId: z.string().min(1),
-  batchQuantity: qty,
-  expectedYieldBps: z.number().int().min(1).max(20000),
-  lines: z
-    .array(
-      z.object({
-        productId: z.string().min(1),
-        quantity: qty,
-        substitutionGroup: z.string().max(80).nullable().optional(),
-      }),
-    )
-    .min(1)
-    .max(100),
-  operations: z.array(z.object({
-    resourceId: z.string().min(1), name: z.string().trim().min(2).max(160),
-    setupMinutes: z.number().int().nonnegative(), runMinutesPerBatch: z.number().int().positive(),
-  })).max(50).default([]),
-});
-export const reviewSchema = z.object({
-  action: z.enum(["approve", "reject", "retire"]),
-  expectedVersion: version,
-  reason,
-});
 export const orderSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("reserve"),

@@ -13,7 +13,8 @@ import { OpeningBalanceImport } from "@erpx/feature-finance/components/ledger-co
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { financeSetupWorkspace } from "@erpx/server-finance/public/finance-workspace";
+import { nativeChartAccounts } from "@erpx/feature-finance/lib/native-finance-setup";
+import { readFinanceSetup } from "../../../finance/setup/_native-setup";
 import { ledgerWorkspace } from "@erpx/server-finance/public/ledger";
 import { financeBookWorkspace } from "@erpx/server-finance/public/finance-books";
 import { FinanceBookControls } from "@erpx/feature-finance/components/finance-book-controls";
@@ -26,13 +27,40 @@ export default async function FinanceSetupPage({params,searchParams}:{params:Pro
   const {holdingSlug}=await params,query=searchParams?await searchParams:{},requestedChart=typeof query.chart==="string"?query.chart:null;
   const actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));
   const profiles=await accountingProfiles(actor);
-  const setup=await financeSetupWorkspace(actor),ledger=setup.charts.length?await ledgerWorkspace(actor,requestedChart??undefined):null;
+  const setup=(await readFinanceSetup(actor,holdingSlug)).setup,ledger=setup.charts.length?await ledgerWorkspace(actor,requestedChart??undefined):null;
+  const nativeActor = actor.authority && actor.iam
+    ? {
+        userId: actor.userId,
+        holdingId: actor.holdingId,
+        holdingSlug,
+        companyId: actor.companyId,
+        branchId: actor.branchId,
+        departmentId: actor.departmentId,
+        assignmentId: actor.assignmentId,
+        role: actor.role,
+        assignmentScope: actor.assignmentScope,
+        scope:
+          actor.scope.kind === "holding"
+            ? { kind: "holding" as const }
+            : actor.scope.kind === "branch"
+              ? { kind: "branch" as const, branchSlug: actor.scope.branchSlug ?? "" }
+              : {
+                  kind: "department" as const,
+                  branchSlug: actor.scope.branchSlug ?? undefined,
+                  departmentSlug: actor.scope.departmentSlug ?? "",
+                },
+        authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+        modules: actor.modules,
+        iam: { permissions: actor.iam.permissions },
+      }
+    : undefined;
+  const nativeChart = await nativeChartAccounts(nativeActor, holdingSlug, requestedChart ?? (ledger?.chart.id as string | undefined) ?? (setup.charts[0]?.id as string | undefined));
   const step=typeof query.step==="string"&&["chart","profile","opening","policy","ai","books","tools"].includes(query.step)?query.step:"checklist";
   const books=step==="books"?await financeBookWorkspace(actor):null;
   const tools=step==="tools"?await financeCompanyTools(actor):null;
   const complete=setup.checks.filter(check=>check.complete).length;
-  const selectedChart=ledger?.chart as FinanceChart | undefined;
-  const chartAccounts=ledger?.accounts as FinanceAccount[] | undefined;
+  const selectedChart=(nativeChart?.chart ?? ledger?.chart) as FinanceChart | undefined;
+  const chartAccounts=(nativeChart?.accounts ?? ledger?.accounts) as FinanceAccount[] | undefined;
   return <FeaturePage className="ui-page-content" data-source="live"><FinanceWorkspace actor={actor} base={base} context={ledger?{chartId:String(ledger.chart.id),chartName:String(ledger.chart.name),currency:String(ledger.chart.base_currency)}:undefined} active="setup" title="Finance setup" description="Prepare the company before receiving documents and posting">
     <SectionWorkspace nested showHeading={false} title="Finance setup" items={workspaceTopicLinks(base,query,sectionWorkspaceTopics.finance)} selected={step} context={ledger?`${ledger.chart.name} · ${ledger.chart.base_currency}`:"Company setup"}>
     {step==="checklist"&&<><section className={styles.hero}><div><p className="eyebrow">Readiness</p><strong>{complete}/{setup.checks.length}</strong><p>Key setup checks found by the system</p></div><aside><b>{complete===setup.checks.length?"Ready to test the workflow":"Setup still required"}</b><span className="muted">Go-live requires a close simulation and accountable data review.</span></aside></section>

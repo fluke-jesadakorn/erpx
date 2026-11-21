@@ -29,6 +29,14 @@ export type ServiceTeam = {
     configuration_json: string;
 };
 export type ServiceTeamInput = z.infer<typeof serviceTeamSchema>;
+export type ServiceTeamPreview = {
+    previousVersion: number;
+    newVersion: number;
+    previous: ServiceTeamInput | null;
+    proposed: ServiceTeamInput;
+    warnings: string[];
+    effect: string;
+};
 export type ServiceHandler = {
     user_id: string;
     responsibility: "lead" | "member";

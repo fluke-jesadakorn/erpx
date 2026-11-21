@@ -10,7 +10,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {legalEvidenceSamePerson} from "@erpx/server-identity_access/public/legal-evidence-identity";
 import {legalApprovalFacts} from "@erpx/server-workflow/public/legal-approval-facts";
-import {legalApprovalNotifications} from "@erpx/server-collaboration/public/legal-approval-notifications";
+import {nativeLegalApprovalNotification} from "@erpx/server-collaboration/adapters/native-legal-approval-notification";
 import {openApproval,currentApproval} from '@erpx/server-workflow/public/approval-planning';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
@@ -18,7 +18,8 @@ import {access,guards,eligible,personGuard} from "@erpx/server-legal/adapters/le
 import type {DocumentVersion,LegalItem} from "@erpx/server-legal/domain/model";
 import {createLegalApprovalApplication} from "@erpx/server-legal/application/approval";
 import type {LegalWrite} from "@erpx/server-legal/application/service";
-function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),collaboration=legalApprovalNotifications(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
+import { legalApprovalStatements } from '@erpx/server-collaboration/adapters/native-legal-approval';
+function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>(),nativeApproval=legalApprovalStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalApprovalApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),hash:value=>createHash("sha256").update(value).digest("hex"),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 routeSteps:facts=>workflow.routeSteps(facts),
 decisionHistory:facts=>workflow.decisionHistory(facts),
@@ -26,8 +27,8 @@ contractDocument:(facts:{documentId:string;itemId:string;})=>db.prepare("SELECT 
 executedDocument:(facts:{id:string;})=>db.prepare("SELECT 1 FROM legal_executed_copies WHERE document_id=?").bind(facts.id).first(),
 latestAuthor:(facts:{itemId:string;})=>db.prepare("SELECT actor_id FROM legal_events WHERE item_id=? AND action IN ('created','update','document','document.upload','ai.accepted') ORDER BY version DESC LIMIT 1").bind(facts.itemId).first<{ actor_id: string }>(),
 signerAccess:(facts:{itemId:string;u:string;itemId2:string;id:string;u2:string;now:number;})=>db.prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=? UNION ALL SELECT 1 FROM legal_shares WHERE item_id=? AND document_id=? AND user_id=? AND revoked_at IS NULL AND expires_at>?").bind(facts.itemId,facts.u,facts.itemId2,facts.id,facts.u2,facts.now).first(),
-lockDocument:(facts:{id:string;})=>stage(db.prepare("UPDATE legal_documents SET locked=true WHERE id=?").bind(facts.id)),
-retainRoute:(facts:{itemId:string;instanceId:string;id:string;checksum:string;signerIdsJson:string;nextVersion:number;actorId:string;sourceHash:string;})=>stage(db.prepare("INSERT INTO legal_approval_routes(item_id,instance_id,document_id,document_hash,signers,source_version,created_by,source_hash) VALUES(?,?,?,?,?::jsonb,?,?,?) ON CONFLICT(item_id) DO UPDATE SET instance_id=excluded.instance_id,document_id=excluded.document_id,document_hash=excluded.document_hash,signers=excluded.signers,source_version=excluded.source_version,created_by=excluded.created_by,source_hash=excluded.source_hash").bind(facts.itemId,facts.instanceId,facts.id,facts.checksum,facts.signerIdsJson,facts.nextVersion,facts.actorId,facts.sourceHash)),
+async lockDocument(facts){return stage(await nativeApproval.lockDocument(facts));},
+async retainRoute(facts){return stage(await nativeApproval.retainRoute(facts));},
 currentStep:facts=>workflow.currentStep(facts),
 routeSnapshot:(facts:{itemId:string;instanceId:string;})=>db.prepare("SELECT * FROM legal_approval_routes WHERE item_id=? AND instance_id=?").bind(facts.itemId,facts.instanceId).first<{
         document_id: string;
@@ -44,10 +45,10 @@ recordDecision:facts=>stage(workflow.recordDecision(facts)),
 nextReviewer:facts=>workflow.nextReviewer(facts),
 cancelRoute:facts=>stage(workflow.cancelRoute(facts)),
 advanceStep:facts=>stage(workflow.advanceStep(facts)),
-notifyReviewer:facts=>stage(collaboration.notifyReviewer(facts)),
+notifyReviewer:async facts=>stage(await nativeLegalApprovalNotification(db,a,facts)),
 approveRoute:facts=>stage(workflow.approveRoute(facts)),
-recordApproval:(facts:{itemId:string;nextVersion:number;document_id:string;document_hash:string;signerIdsJson:string;actorId:string;now:number;})=>stage(db.prepare("INSERT INTO legal_approvals VALUES(?,?,?,?,?::jsonb,?,'approved',?)").bind(facts.itemId,facts.nextVersion,facts.document_id,facts.document_hash,facts.signerIdsJson,facts.actorId,facts.now)),
-advanceContract:(facts:{state:string;now:number;itemId:string;})=>stage(db.prepare("UPDATE legal_items SET state=?,version=version+1,updated_at=? WHERE id=?").bind(facts.state,facts.now,facts.itemId)),
+async recordApproval(facts){return stage(await nativeApproval.recordApproval(facts));},
+async advanceContract(facts){return stage(await nativeApproval.advanceContract(facts));},
 reviewerMembership:(facts:{company_id:string;itemId:string;id:string;now:number;now2:number;})=>db.prepare(`SELECT 1 FROM legal_members m JOIN (${identity_accessProjectionSources.assignments}) a ON a.user_id=m.user_id AND a.company_id=? WHERE m.item_id=? AND m.user_id=? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND iam_role_allows(a.role,a.company_id,'legal.approve')`).bind(facts.company_id,facts.itemId,facts.id,facts.now,facts.now2).first(),
 sameAuthor:facts=>legalEvidenceSamePerson(db,facts.company,facts.user,facts.author).then(value=>value?{}:null),
 requireReviewerMembership:(key:string,reviewerId:string,itemId:string)=>stage(assertion(db,key,`legal-reviewer-membership-${reviewerId}`,"EXISTS(SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?)",[itemId,reviewerId])),
@@ -57,7 +58,7 @@ requireDecisionMembership:(key:string,itemId:string)=>stage(assertion(db,key,"le
 currentApproval:(id,companyId)=>currentApproval(db,"legal",id,companyId),
 openApproval:async(key,recordType,id,policyKey,requesterId,subjectId,route,version)=>{const opened=await openApproval(db,key,recordType,id,policyKey,requesterId,subjectId,route,version);return {...opened,statements:opened.statements.map(stage)};},
 guardChanges:(id,version,key,edit)=>guards(db,a,id,version,key,edit).map(stage),personGuard:(key,id,item,permission)=>stage(personGuard(db,a,key,id,item,permission)),
-event:(id,action,note,version,identifier,now)=>stage(db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)").bind(identifier,id,action,a.userId,note,version,now)),
+async event(id,action,note,version,identifier,now){return stage(await nativeApproval.event({id,action,note,version,identifier,now}));},
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_APPROVAL_REPOSITORY_MISMATCH");return statement;})),
 }});}

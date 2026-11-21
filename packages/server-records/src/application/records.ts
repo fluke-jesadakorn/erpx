@@ -112,7 +112,7 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         if (!hasModuleAccess(actor.modules, moduleId))
             throw new BusinessRuleError(403, "MODULE_FORBIDDEN", "Change to a role with access to this module.");
     }
-    function assertFinanceOwnerOperation(moduleId: string, actor?: WorkContext) {
+    function assertGenericRecordOwner(moduleId: string, actor?: WorkContext) {
         if (moduleId === "legal")
             throw new BusinessRuleError(409, "LEGAL_OWNER_REQUIRED", "Use Legal workflows; preview records remain read-only.");
         const definition = findModule(moduleId);
@@ -120,6 +120,10 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
             throw new BusinessRuleError(409, "MODULE_PREVIEW_ONLY", "This module is a preview and cannot execute business commands.");
         if (actor)
             ports.requirePermission(actor, "records.write");
+        if (moduleId === "field_service") {
+            if (actor) assertModule(actor, moduleId);
+            throw new BusinessRuleError(503, "FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED", "Use the native Field Service workflows.");
+        }
         if (moduleId === "finance")
             throw new BusinessRuleError(409, "FINANCE_OWNER_REQUIRED", "Use the Finance API for accounting records; the generic workbench is read-only.");
     }
@@ -152,7 +156,7 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         return ports.commands.commit(actor, key, operation, { moduleId, ...(input as object) }, id, version, { id }, [recordGuard(key, moduleId, id, version), ...statements]);
     }
     async function createRecord(actor: WorkContext, moduleId: string, input: z.infer<typeof createRecordSchema>, key = ports.identifiers.next()) {
-        assertFinanceOwnerOperation(moduleId, actor);
+        assertGenericRecordOwner(moduleId, actor);
         assertModule(actor, moduleId);
         const definition = findModule(moduleId)!;
         if (!definition.sections.some(section => section.id === input.sectionId))
@@ -168,7 +172,7 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         return getRecord(actor, moduleId, id);
     }
     async function archiveRecord(actor: WorkContext, moduleId: string, id: string, expectedVersion: number, key = ports.identifiers.next()) {
-        assertFinanceOwnerOperation(moduleId, actor);
+        assertGenericRecordOwner(moduleId, actor);
         assertModule(actor, moduleId);
         await ports.prepare(actor.holdingId);
         if (await ports.commands.replay(actor, key, "record.archive", id, { moduleId, expectedVersion }))
@@ -178,7 +182,7 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         return { id, moduleId, archived: true };
     }
     async function updateRecord(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof updateRecordSchema>, key = ports.identifiers.next()) {
-        assertFinanceOwnerOperation(moduleId, actor);
+        assertGenericRecordOwner(moduleId, actor);
         await ports.prepare(actor.holdingId);
         const previous = await ports.commands.replay(actor, key, "record.update", id, { moduleId, ...input });
         if (previous)
@@ -198,7 +202,7 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
         return Object.prototype.hasOwnProperty.call(values, field.key) ? { ...field, value: values[field.key] } : field;
     }
     async function transitionRecord(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof transitionSchema>, key: string = ports.identifiers.next()) {
-        assertFinanceOwnerOperation(moduleId, actor);
+        assertGenericRecordOwner(moduleId, actor);
         if (["approve", "reject"].includes(input.action))
             actor = ports.requirePermission(actor, "records.review");
         await ports.prepare(actor.holdingId);
@@ -337,7 +341,7 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
             throw new BusinessRuleError(409, "SUGGESTION_CONFLICT", "The record changed. Request a new suggestion.");
         const statements: Effect[] = [r.guard24(key, "suggestion-ready", suggestionId)];
         if (input.action === "apply") {
-            assertFinanceOwnerOperation(moduleId, actor);
+            assertGenericRecordOwner(moduleId, actor);
             for (const source of JSON.parse(String(suggestion.source_versions_json)) as Array<{
                 record: string;
                 version: number;

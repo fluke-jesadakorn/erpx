@@ -1,2 +1,3 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { consumptionLotSchema, availableServiceSpares, prepareInventoryConsumption } from "@erpx/server-inventory/adapters/inventory-consumption";
+/** Retained read-only spare selector; the parts-consumption command is native. */
+export { consumptionLotSchema } from "@erpx/server-inventory/domain/consumption";
+export { availableServiceSpares } from "@erpx/server-inventory/adapters/inventory-consumption";

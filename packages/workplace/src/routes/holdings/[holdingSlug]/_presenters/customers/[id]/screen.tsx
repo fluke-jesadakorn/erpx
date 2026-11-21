@@ -8,6 +8,7 @@ import { HubForm } from "@erpx/feature-records/components/loaders/sales-customer
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { customerWorkspaceProfile } from "@erpx/server-sales/public/sales-customers";
+import { nativeCustomerTimeline } from "@erpx/feature-sales/public/native-customer-timeline-page";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string; id: string }>; searchParams: Promise<HubQuery> }) {
   const { holdingSlug, id } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams;
   const data = await customerWorkspaceProfile(actor, id, query).catch(error => pageError(error, holdingSlug)), customer = data.customer, history = queryValue(query, "section") === "history" || !!query.cursor;
+  const timeline = history ? await nativeCustomerTimeline(actor, id, queryValue(query, "cursor") || undefined).catch(error => pageError(error, holdingSlug)) : undefined;
   return <PageContent className={styles.profile}>
     <Link href={base + "/customers"}>Customers</Link>
     <header className={styles.profileHeader}><div><h1>{String(customer.name)}</h1><p className={styles.meta}>{String(customer.code)} · <StatusBadge appearance="standard" status={String(customer.status)} /></p></div>{hasPermission(actor, "commerce.sales") && <ActionLink appearance="standard" variant="secondary" href={base + "/sales?view=documents&type=quote&new=1&customerId=" + encodeURIComponent(id)}>New quotation</ActionLink>}{data.supportSource && <ActionLink appearance="standard" variant="secondary" href={base + "/customers?view=support&new=1&orderId=" + encodeURIComponent(data.supportSource.id)}>New service case</ActionLink>}</header>
@@ -33,7 +35,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         {!data.followups.length && !data.orders.length && !data.opportunities?.length && !data.cases?.length && <p className={styles.meta}>No pending work visible in this scope.</p>}
       </section>
     </> : <>
-      <section><h2>Customer history</h2><div className={styles.sourceList} data-slot="record-list">{data.timeline?.items.map(event => <Link key={event.id} href={base + event.href}><div><strong>{event.title}</strong><small>{event.status}</small></div><TimeText appearance="standard" value={Number(event.at)} /></Link>)}</div>{!data.timeline?.items.length && <p className={styles.meta}>No source history visible in this scope.</p>}{data.timeline?.nextCursor && <Link record={{ kind: "customer", id, args: { section: "history", cursor: data.timeline.nextCursor } }} href={base + "/customers/" + id + "?section=history&cursor=" + encodeURIComponent(data.timeline.nextCursor)}>Older activity</Link>}{query.cursor && <Link record={{ kind: "customer", id, args: { section: "history" } }} href={base + "/customers/" + id + "?section=history"}>Latest activity</Link>}</section>
+      <section><h2>Customer history</h2><div className={styles.sourceList} data-slot="record-list">{timeline?.items.map(event => <Link key={event.id} href={base + event.href}><div><strong>{event.title}</strong><small>{event.status}</small></div><TimeText appearance="standard" value={Number(event.at)} /></Link>)}</div>{!timeline?.items.length && <p className={styles.meta}>No source history visible in this scope.</p>}{timeline?.nextCursor && <Link record={{ kind: "customer", id, args: { section: "history", cursor: timeline.nextCursor } }} href={base + "/customers/" + id + "?section=history&cursor=" + encodeURIComponent(timeline.nextCursor)}>Older activity</Link>}{query.cursor && <Link record={{ kind: "customer", id, args: { section: "history" } }} href={base + "/customers/" + id + "?section=history"}>Latest activity</Link>}</section>
       {data.notes && <CustomerNotes base={base} data={data.notes} mode="history" />}
     </>}
   </PageContent>;

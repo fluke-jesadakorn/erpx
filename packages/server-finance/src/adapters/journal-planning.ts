@@ -1,6 +1,7 @@
 
 
 import type { JournalPlan } from '@erpx/server-finance/application/journal';
+import { financeJournalPlanning } from '@erpx/server-collaboration/adapters/native-finance-journal-planning';
 import type { JournalInput } from '@erpx/server-finance/domain/finance';
 
 import { createJournalPreparation } from '@erpx/server-finance/application/journal';
@@ -32,7 +33,7 @@ export function journalPreparation(write: SqlDatabase) {
             id: string;
         }>()).results, openingExists: async (companyId, chartId) => !!await write.prepare("SELECT id FROM finance_journals WHERE company_id=? AND chart_id=? AND is_opening=1 AND status IN ('draft','in_review','posted') LIMIT 1").bind(companyId, chartId).first() });
 }
-export function journalStatements(write: SqlDatabase, actor: WorkContext, input: JournalInput, key: string, status: "draft" | "posted", plan: JournalPlan) {
+export async function journalStatements(write: SqlDatabase, actor: WorkContext, input: JournalInput, key: string, status: "draft" | "posted", plan: JournalPlan) {
     const { fx, accountIds, journalId, number, now, values, preparedFxEvidence } = plan;
     const guards: SqlStatement[] = [
         assertion(write, key, "posting-period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)", [input.periodId, actor.companyId, input.entryDate, input.entryDate]),
@@ -41,8 +42,8 @@ export function journalStatements(write: SqlDatabase, actor: WorkContext, input:
         ...accountIds.map((accountId, index) => assertion(write, key, `posting-account-${index}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active')", [accountId, actor.companyId, input.chartId])),
     ];
     const steps: SqlStatement[] = [...guards,
-        write.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,is_opening,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(journalId, actor.companyId, input.chartId, input.periodId, number, input.entryDate, input.currency, fx, input.sourceType, input.sourceId ?? null, input.memo, input.isOpening ? 1 : 0, status, actor.userId, status === "posted" ? actor.userId : null, status === "posted" ? now : null, now, now),
-        ...values.map((l, index) => write.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`${journalId}-${index}`, journalId, l.accountId, l.description ?? "", l.debit, l.credit, l.baseDebit, l.baseCredit, JSON.stringify(l.dimensions ?? {}), index)),
+        await financeJournalPlanning(write, actor.companyId, actor.userId).journal({ journalId, companyId: actor.companyId, chartId: input.chartId, periodId: input.periodId, number, entryDate: input.entryDate, currency: input.currency, fx, sourceType: input.sourceType, sourceId: input.sourceId ?? null, memo: input.memo, isOpening: input.isOpening, status, now, userId: actor.userId }),
+        ...await Promise.all(values.map(async (l, index) => await financeJournalPlanning(write, actor.companyId, actor.userId).line({ journalId, id: `${journalId}-${index}`, accountId: l.accountId, description: l.description ?? "", debit: l.debit, credit: l.credit, baseDebit: l.baseDebit, baseCredit: l.baseCredit, dimensions: l.dimensions ?? {}, ordinal: index }))),
     ];
     // Owner adapters consume these exact retained amounts; public journal results
     // and command receipts keep their existing shape.

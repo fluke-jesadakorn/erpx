@@ -72,7 +72,7 @@ export interface OvertimePorts<Effect> {
     prepare(holdingId: string): Promise<void>;
     commands: RosterCommands<Effect>;
     activeStaff(...args: Tail<Parameters<typeof activeStaff>>): PortResult<ReturnType<typeof activeStaff>, Effect>;
-    notification(...args: Tail<Parameters<typeof notification>>): PortResult<ReturnType<typeof notification>, Effect>;
+    notification(...args: Tail<Parameters<typeof notification>>): Promise<Effect>;
     requireCompanyAuthority(...args: Tail<Parameters<typeof requireCompanyAuthority>>): PortResult<ReturnType<typeof requireCompanyAuthority>, Effect>;
     peopleRequestRoute(...args: Tail<Parameters<typeof peopleRequestRoute>>): PortResult<ReturnType<typeof peopleRequestRoute>, Effect>;
     approvalView(...args: Tail<Parameters<typeof approvalView>>): PortResult<ReturnType<typeof approvalView>, Effect>;
@@ -208,7 +208,7 @@ export function createOvertimeApplication<Effect>(ports: OvertimePorts<Effect>) 
         }
         else if (input.action === 'withdraw') {
             state = 'withdrawn';
-            statements.push(...ports.closeApprovals(key, 'overtime', id, actor.userId, 'cancel', input.note, row.version));
+            statements.push(...await Promise.all(ports.closeApprovals(key, 'overtime', id, actor.userId, 'cancel', input.note, row.version)));
         }
         else {
             const approve = !['return', 'reject'].includes(input.action), decision = await ports.prepareDecision(actor, key, 'overtime', id, approve, input.note, row.version, input.override);
@@ -226,7 +226,7 @@ export function createOvertimeApplication<Effect>(ports: OvertimePorts<Effect>) 
             }
             statements.push(repository.stageCommandOvertimeEffect4(input.note, id));
         }
-        statements.push(repository.stageCommandOvertimeEffect5(state, version, now, id), ...(attachmentBinding?.steps ?? []), ports.notification(row, row.created_by, 'overtime', id, version, overtimeLabels[state]));
+        statements.push(repository.stageCommandOvertimeEffect5(state, version, now, id), ...(attachmentBinding?.steps ?? []), await ports.notification(row, row.created_by, 'overtime', id, version, overtimeLabels[state]));
         return ports.commands.commit(actor, key, operation, input, id, version, { id, state, version }, statements, { companyId: row.company_id, branchId: row.branch_id, departmentId: row.department_id });
     }
     async function applyEligibility(actor: WorkContext, input: {

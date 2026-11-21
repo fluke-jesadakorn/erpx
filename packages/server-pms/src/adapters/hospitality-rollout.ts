@@ -11,6 +11,7 @@ import { authorityGuard } from "@erpx/server-operations/public/staff-policy";
 import { isolatedEngineeringVerification } from "@erpx/server-platform_administration/public/engineering-verification";
 import { createPmsRollout, type PmsRolloutRepository, type PmsRolloutRow } from "@erpx/server-pms/application/hospitality-rollout";
 import { productionAccepted } from "@erpx/server-pms/public/hospitality-evidence";
+import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
 type Readiness = Record<string, boolean>;
 async function setupReadiness(db: SqlDatabase, companyId: string): Promise<Readiness> {
     const posFacts = pmsRolloutPosFacts(db), financeFacts = pmsRolloutFinanceFacts(db), commerceFacts = pmsRolloutCommerceFacts(db), organizationFacts = pmsRolloutOrganizationFacts(db), legalFacts = pmsRolloutLegalFacts(db);
@@ -40,15 +41,12 @@ function repository(write: SqlDatabase): PmsRolloutRepository {
         rollouts: companyId => write.prepare('SELECT module_id,rollout_state,version,reason,changed_at FROM company_feature_rollouts WHERE company_id=?').bind(companyId).all<PmsRolloutRow>().then(rows => rows.results),
         readiness: companyId => setupReadiness(write, companyId), release: (companyId, id, scope) => companyReleaseStatus(write, companyId, id, scope), engineering: companyId => isolatedEngineeringVerification(write, companyId),
         replay: (actor, key, commandId, input) => replayCommand(write, actor, key, 'feature.rollout.change', commandId, input),
-        commit: (actor, key, input, commandId, nextVersion, now, release, scope) => {
+        commit: async (actor, key, input, commandId, nextVersion, now, release, scope) => {
+            await nativePmsOwnerWrite(actor.companyId, 'pms_w001', [actor.companyId, input.moduleId, input.state, nextVersion, input.reason, actor.userId, now]);
             return executeCommand(write, actor, key, 'feature.rollout.change', input, commandId, nextVersion, { id: input.moduleId, state: input.state, version: nextVersion }, [
                 authorityGuard(write, key, actor, 'organization.manage'),
                 ...pmsRolloutReleaseGuards(write, key, actor, release, scope),
                 assertion(write, key, 'feature-rollout-version', 'COALESCE((SELECT version FROM company_feature_rollouts WHERE company_id=? AND module_id=?),0)=?', [actor.companyId, input.moduleId, input.expectedVersion]),
-                write.prepare(`INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at)
-        VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,module_id) DO UPDATE SET
-        rollout_state=excluded.rollout_state,version=excluded.version,reason=excluded.reason,
-        changed_by=excluded.changed_by,changed_at=excluded.changed_at`).bind(actor.companyId, input.moduleId, input.state, nextVersion, input.reason, actor.userId, now),
             ]);
         },
         enabled: (companyId, modules) => write.prepare(`SELECT module_id FROM company_feature_rollouts f WHERE company_id=? ${modules ? `AND module_id IN (${modules.map(() => '?').join(',')})` : ''} AND ${activeRolloutPredicate('f')}`).bind(companyId, ...(modules ?? [])).all<{

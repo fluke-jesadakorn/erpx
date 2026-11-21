@@ -4,7 +4,8 @@ import { platformOwnerProjectionSources as organizationPlatformSources } from "@
 import "server-only";
 import {createHash} from "node:crypto";
 import artifact from "@erpx/catalogue/release-artifact.json";
-import {productionScope,type ReleaseScopeVersion} from "@erpx/catalogue/production-scope";
+import {productionScope,legalProductionScope,type ReleaseScopeVersion} from "@erpx/catalogue/production-scope";
+import { nativeOwnerWrite } from "./native-owner-write";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -15,15 +16,16 @@ import {authorityGuard,companyAuthority} from "@erpx/server-operations/public/st
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {createReleaseAcceptanceApplication,type ReleaseRepository} from "@erpx/server-platform_administration/application/release-acceptance";
 import type {ReleaseRow,ReviewRow} from "@erpx/server-platform_administration/domain/release-acceptance";
+import { nativeReleaseEvents } from '@erpx/server-collaboration/adapters/native-release-events';
 
 
 
 /** Code-owned SQL expressions only. Used by owner, API, queue and scheduled guards. */
 
 
-function inputsGuard(db: SqlDatabase, actor: WorkContext, key: string, revision: number, setupVersion: number, scope: ReleaseScopeVersion) {
+async function inputsGuard(db: SqlDatabase, actor: WorkContext, key: string, revision: number, setupVersion: number, scope: ReleaseScopeVersion) {
   return [
-    db.prepare(`INSERT INTO ${releaseRevisionTable(scope)}(company_id,revision) VALUES(?,0) ON CONFLICT DO NOTHING`).bind(actor.companyId),
+    await nativeOwnerWrite(scope===legalProductionScope.version?'pl_legal_release_revision_init':'pl_release_revision_init',[actor.companyId],`pl-revision:${key}:${scope}`,{companyId:actor.companyId},()=>db.prepare("SELECT 1")),
     db.prepare(`SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE`).bind(actor.companyId),
     assertion(db, key, 'release-configuration', `EXISTS(SELECT 1 FROM ${releaseRevisionTable(scope)} WHERE company_id=? AND revision=?)`, [actor.companyId, revision]),
     assertion(db, key, 'release-setup', `EXISTS(SELECT 1 FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=? AND status='accepted' AND version=?)`, [actor.companyId, setupVersion]),
@@ -53,36 +55,32 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
  replay:command=>replayCommand(db,workActor(),command.key,command.operation,command.id,command.input),
  submit:async(command,facts)=>{const {key,operation,input}=command,{id,now,current,evidence,digest}=facts,a=workActor(),actor=a,result={id,version:1,state:'pending' as const};return executeCommand(db, actor, key, operation, input, actor.companyId, 1, result, [
     authorityGuard(db, key, actor, 'organization.manage'),
-    ...inputsGuard(db, actor, key, current.configurationRevision, current.setupVersion, input.scopeVersion),
-    db.prepare(`INSERT INTO company_release_acceptances(id,company_id,scope_version,software_version,configuration_revision,
-      setup_version,evidence_sha256,evidence_json,requested_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(id, actor.companyId, input.scopeVersion, input.softwareVersion, current.configurationRevision,
-        current.setupVersion, digest, evidence, actor.userId, input.reason, now, now),
-    db.prepare("INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,detail_json,created_at) VALUES(?,?,?,1,'submitted',?,?,?)")
-      .bind(`release-event-${key}`, actor.companyId, id, actor.userId, JSON.stringify({ reason: input.reason, evidenceSha256: digest }), now),
+    ...(await inputsGuard(db, actor, key, current.configurationRevision, current.setupVersion, input.scopeVersion)),
+    await nativeOwnerWrite('pl_release_acceptance_insert',[
+      id,actor.companyId,input.scopeVersion,input.softwareVersion,current.configurationRevision,
+      current.setupVersion,digest,evidence,actor.userId,input.reason,now,now,
+    ],key,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+    await nativeReleaseEvents(db).submitted({ key, companyId: actor.companyId, releaseId: id, version: 1, userId: actor.userId, detail: JSON.stringify({ reason: input.reason, evidenceSha256: digest }), now }),
   ]);},
  review:async(command,row,facts)=>{const {key,operation,id,input}=command,{inputs,scope,version,now}=facts,a=workActor(),actor=a,criterion={permission:facts.permission};return executeCommand(db, actor, key, operation, input, id, version, { id, version, criterionId: input.criterionId, state: input.state }, [
     authorityGuard(db, key, actor, criterion.permission),
-    ...inputsGuard(db, actor, key, inputs.configurationRevision, inputs.setupVersion, scope),
+    ...(await inputsGuard(db, actor, key, inputs.configurationRevision, inputs.setupVersion, scope)),
     db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE').bind(actor.companyId, id),
     assertion(db, key, 'release-version', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)', [actor.companyId, id, input.expectedVersion]),
     assertion(db, key, 'release-latest', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND id=(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=? AND latest.scope_version=? ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1))', [actor.companyId, id, actor.companyId, scope]),
     assertion(db, key, 'release-independent', 'NOT iam_same_person(?,?,?)', [actor.userId, row.requested_by, actor.companyId]),
-    db.prepare(`INSERT INTO company_release_gate_reviews(company_id,release_id,criterion_id,state,reviewer_id,assignment_id,permission,reason,reviewed_at)
-      VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(release_id,criterion_id) DO UPDATE SET state=excluded.state,reviewer_id=excluded.reviewer_id,
-      assignment_id=excluded.assignment_id,permission=excluded.permission,reason=excluded.reason,reviewed_at=excluded.reviewed_at`)
-      .bind(actor.companyId, id, input.criterionId, input.state, actor.userId, actor.assignmentId, criterion.permission, input.reason, now),
-    db.prepare('UPDATE company_release_acceptances SET version=?,updated_at=? WHERE company_id=? AND id=?').bind(version, now, actor.companyId, id),
-    db.prepare("INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,detail_json,created_at) VALUES(?,?,?,?,'reviewed',?,?,?)")
-      .bind(`release-event-${key}`, actor.companyId, id, version, actor.userId, JSON.stringify(input), now),
+    await nativeOwnerWrite('pl_release_gate_review_upsert',[
+      actor.companyId,id,input.criterionId,input.state,actor.userId,actor.assignmentId,criterion.permission,input.reason,now,
+    ],key,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+    await nativeOwnerWrite('pl_release_version_step',[version,now,actor.companyId,id],`pl-version:${key}`,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+    await nativeReleaseEvents(db).reviewed({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
  revoke:async(command,facts)=>{const {key,operation,id,input}=command,{version,now}=facts,a=workActor(),actor=a;return executeCommand(db, actor, key, operation, input, id, version, { id, version, state: 'pending' as const }, [
     authorityGuard(db, key, actor, 'organization.manage'),
     db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE').bind(actor.companyId, id),
     assertion(db, key, 'release-version', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)', [actor.companyId, id, input.expectedVersion]),
-    db.prepare('UPDATE company_release_acceptances SET revoked_at=?,version=?,updated_at=? WHERE company_id=? AND id=?').bind(now, version, now, actor.companyId, id),
-    db.prepare("INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,detail_json,created_at) VALUES(?,?,?,?,'revoked',?,?,?)")
-      .bind(`release-event-${key}`, actor.companyId, id, version, actor.userId, JSON.stringify(input), now),
+    await nativeOwnerWrite('pl_release_revoke',[now,version,now,actor.companyId,id],`pl-revoke:${key}`,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+    await nativeReleaseEvents(db).revoked({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
  evidenceRow:id=>db.prepare('SELECT version,revoked_at FROM company_release_acceptances WHERE company_id=? AND id=?').bind(companyId,id).first<{version:number;revoked_at:number|null}>(),
  prepareEvidence:async(command,version)=>{const {key,operation,id,input}=command,a=workActor(),actor=a,prepared=await prepareAttachmentBinding(db,actor,{
@@ -93,7 +91,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
   authorityGuard(db,key,actor,'organization.manage'),
   assertion(db,key,'release-evidence-current','EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)',[actor.companyId,id,input.expectedVersion]),
   ...prepared.guards,
-  db.prepare('UPDATE company_release_acceptances SET version=?,updated_at=? WHERE company_id=? AND id=?').bind(version,now,actor.companyId,id),
+  await nativeOwnerWrite('pl_release_version_step',[version,now,actor.companyId,id],`pl-version:${key}`,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
   ...prepared.steps,
  ]) };},
  };}

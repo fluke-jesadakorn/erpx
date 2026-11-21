@@ -14,6 +14,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {qualityHoldPurchaseSource,qualityPurchaseSourceReadLocks,type QualityPurchaseSource} from "@erpx/server-quality/adapters/purchase-sources";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 export type QualityPurchaseTarget={kind:"hold"|"spec"|"alert";id:string};
 export type QualityPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
@@ -25,7 +26,7 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permissions:r
   const row=await database.prepare(`SELECT ${assignmentReadSql("quality_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) quality_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
   if(!row?.allowed)throw new ApiError(403,"QUALITY_ACCESS_CHANGED","The original Quality assignment is no longer current.");
  }
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 async function targetSource(database:SqlDatabase,actor:Actor,target:QualityPurchaseTarget):Promise<{capabilities:readonly string[];witness:string;owner?:QualityPurchaseSource;productId:string}>{
  if(target.kind==="spec"){
@@ -68,7 +69,7 @@ export async function withQualityPurchasedCommand<Result>(owner:SqlDatabase,acto
    else if(!await qualityProductFacts(database,actor,after.productId))throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The original specification product is no longer active.");
   }
   if(before&&before.witness!==after.witness)throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The original Quality source, product or warehouse changed.");
-  await current(database,actor,key,command.permissions);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
+  await current(database,actor,key,command.permissions);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 
@@ -86,7 +87,7 @@ export async function withQualityPurchasedSweep<Result>(owner:SqlDatabase,run:(d
   const required=[...new Set(sources.flatMap(source=>source.capabilities))],boundaries=required.map(capability=>{const key=`quality-sweep:${randomUUID()}`;return {key,boundary:purchaseCommandBoundary(database,mode,key,{companyId:company.company_id,capability,purpose:"settle-existing"})!};});
   await database.batch(boundaries.flatMap(item=>item.boundary.before));const result=await run(database,{companyId:company.company_id,holdIds:sources.map(source=>source.hold.id)});await flushFinanceDeferredEffects(database);
   for(const source of sources)if((await qualityHoldPurchaseSource(database,{companyId:company.company_id,branchId:null},source.hold.id)).witness!==source.witness)throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The original escalation source changed before commit.");
-  const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
+  const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
  }));}
  return merge(results);
 }

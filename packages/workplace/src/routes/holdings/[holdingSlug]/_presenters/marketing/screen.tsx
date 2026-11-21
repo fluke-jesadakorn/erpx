@@ -7,6 +7,13 @@ import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { marketingWorkspace } from "@erpx/server-marketing/public/marketing";
 import { MarketingConsole } from "@erpx/feature-marketing/components/marketing-console";
+import { nativeMarketingCampaignReport } from "@erpx/feature-sales/public/native-marketing-campaign-page";
+import {
+  nativeMarketingAssetProfiles,
+  nativeMarketingLeadFailure,
+} from "@erpx/feature-marketing/public/native-marketing-lead";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { headers } from "next/headers";
 import {
   marketingAnalytics,
   analyticsOptions,
@@ -38,6 +45,15 @@ export default async function Page({
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
     data = await marketingWorkspace(a).catch((e) => pageError(e, holdingSlug)),
+    nativeCampaigns = await nativeMarketingCampaignReport(a).catch((e) =>
+      pageError(e, holdingSlug),
+    ),
+    nativeAssets = await nativeMarketingAssetProfiles(await headers(), a).catch((e) => {
+      const failure = nativeMarketingLeadFailure(e);
+      if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+      return pageError(e, holdingSlug);
+    }),
+    assets = (nativeAssets?.assets ?? data.assets) as typeof data.assets,
     q = await searchParams,
     defaults = defaultAnalyticsRange(),
     raw = {
@@ -51,11 +67,20 @@ export default async function Page({
     [report, options] = await Promise.all([marketingAnalytics(a, raw), analyticsOptions(a)]).catch(
       (e) => pageError(e, holdingSlug),
     ),
+    campaigns = nativeCampaigns?.campaigns ?? data.campaigns,
+    campaignAttribution = nativeCampaigns?.attribution ?? data.campaignSummary.map((row) => ({
+      campaign: String(row.campaign),
+      source: String(row.source),
+      captured: Number(row.captured),
+      pending: Number(row.pending),
+      handed_off: Number(row.handed_off),
+      rejected: Number(row.rejected),
+    })),
     selectedCampaign = q.campaignId
-      ? data.campaigns.find((c) => String(c.id) === q.campaignId)
+      ? campaigns.find((c) => String(c.id) === q.campaignId)
       : null,
     selectedAsset = q.assetId
-      ? data.assets.find((asset) => asset.kind === "content" && String(asset.id) === q.assetId)
+      ? assets.find((asset) => asset.kind === "content" && String(asset.id) === q.assetId)
       : null;
   return (
     <PageContent as="div" className="ui-page-content">
@@ -69,7 +94,7 @@ export default async function Page({
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Lead intake by campaign</h2>
         <p>Candidate counts by recorded campaign and source. Contact details are not included.</p>
-        {data.campaignSummary.length ? (
+        {campaignAttribution.length ? (
           <TableFrame appearance="standard" label="Records"><Table className="business-table">
             <thead>
               <tr>
@@ -82,7 +107,7 @@ export default async function Page({
               </tr>
             </thead>
             <tbody>
-              {data.campaignSummary.map((row) => (
+              {campaignAttribution.map((row) => (
                 <tr key={`${String(row.campaign)}:${String(row.source)}`}>
                   <td><Link record={{kind:"marketing_campaign_sources",id:String(row.campaign),args:{source:String(row.source)}}} href={canonicalUiHref(`${base}/record-details/marketing_campaign_sources/${encodeURIComponent(String(row.campaign))}`)}>{String(row.campaign)}</Link></td>
                   <td>{String(row.source)}</td>
@@ -98,7 +123,7 @@ export default async function Page({
           <p>No lead candidates have been captured yet.</p>
         )}
       </Card>
-      <MarketingConsole base={base} data={data} />
+      <MarketingConsole base={base} data={{ ...data, assets }} />
       <AttachmentFeatureSurface>
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Campaign documents and public creative</h2>
@@ -107,7 +132,7 @@ export default async function Page({
             derivatives.
           </p>
           <div className="ui-form-actions">
-            {data.campaigns.map((c) => (
+            {campaigns.map((c) => (
               <UiActionLink appearance="standard"
                 variant="secondary"
                 key={String(c.id)}
@@ -165,7 +190,7 @@ export default async function Page({
             approved public derivative.
           </p>
           <div className="ui-form-actions">
-            {data.assets
+            {assets
               .filter((asset) => asset.kind === "content")
               .map((asset) => (
                 <UiActionLink appearance="standard"
@@ -220,7 +245,7 @@ export default async function Page({
       </AttachmentFeatureSurface>
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Active public forms</h2>
-        {data.assets
+        {assets
           .filter((x) => x.kind === "form" && x.status === "active")
           .map((x) => (
             <p key={String(x.id)}>
@@ -231,7 +256,7 @@ export default async function Page({
               </Link>
             </p>
           ))}
-        {!data.assets.some((x) => x.kind === "form" && x.status === "active") && (
+        {!assets.some((x) => x.kind === "form" && x.status === "active") && (
           <p>No active public forms.</p>
         )}
       </Card>

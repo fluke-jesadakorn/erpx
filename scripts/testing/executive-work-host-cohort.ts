@@ -10,7 +10,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 
 export const executiveWorkHostBrowserFile = "tests/e2e/shared.executive/executive-work-mcp.spec.ts";
 export const executiveWorkHostCaseTitle = "isolated Work Executive UI reads a seeded connection through scoped MCP";
-export const executiveWorkOrigin = "https://work-dev-erpx.jesadakorn.com";
+export const executiveWorkOrigin = "https://apps-dev-erpx.jesadakorn.com";
 export const executiveAccountOrigin = "https://account-dev-erpx.jesadakorn.com";
 export const executiveWorkOrigins = [executiveWorkOrigin, executiveAccountOrigin] as const;
 const hash = (value: Uint8Array | string) => createHash("sha256").update(value).digest("hex");

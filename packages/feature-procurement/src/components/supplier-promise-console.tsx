@@ -14,8 +14,9 @@ import {useProcurementCommand} from "@erpx/feature-procurement/components/use-pr
 import {ProcurementEditor} from "@erpx/feature-procurement/components/procurement-editor";
 import {RecordLink as Link} from "@erpx/feature-records/components/record-link";
 import { Card, TableFrame } from "@erpx/ui/components/foundation";
+import type { NativeSupplierPromiseHistory } from "../lib/native-supplier-promise-history-types";
 type Data = Awaited<ReturnType<typeof supplierPromiseDetail>>;
-export function SupplierPromiseConsole({ base, data }: { base: string; data: Data }) {
+export function SupplierPromiseConsole({ base, data, native }: { base: string; data: Data; native?: NativeSupplierPromiseHistory }) {
   const {busy,error,send,retry,uncertain,notice,savedHref}=useProcurementCommand(base,data.purchase),
     [generation,setGeneration]=useState(0),
     [draftVersion,setDraftVersion]=useState(Number(data.order.version)),
@@ -37,6 +38,11 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
     const form=new FormData(element),input={expectedVersion:Number(form.get("expectedVersion")),kind,confirmationDate:form.get("confirmationDate"),supplierReference:form.get("reference"),evidence:form.get("evidence"),attachmentSetIds:attachments?.setId&&attachments.readyCount>0&&attachments.bindable?[attachments.setId]:[],lines:kind==="withdrawn"?[]:rows.map(row=>({orderLineId:row.lineId,quantity:row.quantity,promisedDate:row.date}))};
     await send(`supplier-promises/${data.order.id}`,input,false,element);
   }
+  const open = native?.open ?? data.open,
+    history = native?.history ?? data.history,
+    schedule = native?.lines ?? data.schedule,
+    lineLabel = (lineId: unknown) =>
+      String(data.lines.find((line) => line.id === lineId)?.description ?? lineId);
   return (
     <Card as="section" appearance="standard" className="ui-panel" id="supplier-promises">
       <h2>Supplier delivery confirmations</h2>
@@ -66,7 +72,7 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
         </tbody>
       </Table></TableFrame>
       <h3>Current promised deliveries</h3>
-      {data.open
+      {open
         .filter((l) => Number(l.remaining_milli) > 0)
         .map((l) => (
           <p key={String(l.id)}>
@@ -77,7 +83,7 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
               : ""}
           </p>
         ))}
-      {!data.open.some((l) => Number(l.remaining_milli) > 0) && (
+      {!open.some((l) => Number(l.remaining_milli) > 0) && (
         <p>No outstanding supplier-confirmed quantities.</p>
       )}
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
@@ -230,8 +236,8 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
         </form>
       </ProcurementEditor>
       <h3>Immutable confirmation history</h3>
-      {data.history.length ? (
-        data.history.map((h) => (
+      {history.length ? (
+        history.map((h) => (
           <article className={styles.history} key={String(h.id)}>
             <h4>
               {String(h.kind)} · {String(h.confirmation_date)} · {String(h.supplier_reference)}
@@ -240,11 +246,11 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
             <p>
               Recorded against PO version {String(h.order_version)} · {String(h.recorded_by)}
             </p>
-            {data.schedule
+            {schedule
               .filter((l) => l.promise_id === h.id)
               .map((l) => (
                 <p key={String(l.id)}>
-                  {String(data.lines.find((s) => s.id === l.order_line_id)?.description)} ·{" "}
+                  {lineLabel(l.order_line_id)} ·{" "}
                   {Number(l.quantity_milli) / 1000} · {String(l.promised_date)}
                 </p>
               ))}

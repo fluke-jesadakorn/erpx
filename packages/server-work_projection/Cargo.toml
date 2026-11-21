@@ -1,0 +1,66 @@
+[package]
+name="erpx-server-work-projection"
+version.workspace=true
+edition.workspace=true
+rust-version.workspace=true
+license.workspace=true
+publish.workspace=true
+autotests=false
+[lib]
+path="src/lib.rs"
+[features]
+contracts=["dep:ts-rs","dep:utoipa"]
+[dependencies]
+serde.workspace=true
+serde_json.workspace=true
+ts-rs={workspace=true,optional=true}
+utoipa={workspace=true,optional=true}
+erpx-server-shared.workspace=true
+erpx-server-runtime.workspace=true
+erpx-server-workflow.workspace=true
+erpx-server-field-service.workspace = true
+erpx-server-support.workspace = true
+erpx-server-finance.workspace = true
+erpx-server-collaboration.workspace = true
+erpx-server-operations.workspace = true
+erpx-server-maintenance.workspace = true
+erpx-server-quality.workspace = true
+erpx-server-learning.workspace = true
+erpx-server-marketing.workspace = true
+erpx-server-organization.workspace = true
+erpx-server-benefits.workspace = true
+erpx-server-customer-authority.workspace = true
+erpx-server-identity-access.workspace = true
+sqlx.workspace=true
+sha2.workspace=true
+[dev-dependencies]
+tokio.workspace=true
+uuid.workspace=true
+
+[[test]]
+name="quick_access_preferences_postgres"
+path="../../tests/integration/shared.work/rust-quick-access-preferences-postgres.test.rs"
+
+[[test]]
+name="work_role_initialization"
+path="../../tests/unit/shared.work/rust-work-role-initialization.test.rs"
+
+[[test]]
+name = "work_snapshot_maintenance_postgres"
+path = "../../tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs"
+
+[[test]]
+name = "work_card_preferences_postgres"
+path = "../../tests/integration/shared.work/rust-work-card-preferences-postgres.test.rs"
+
+[[test]]
+name = "work_report_projection_postgres"
+path = "../../tests/integration/shared.work/rust-work-report-projection-postgres.test.rs"
+
+[[test]]
+name = "work_navigation_postgres"
+path = "../../tests/integration/shared.work/rust-work-navigation-postgres.test.rs"
+
+[[test]]
+name = "work_home_unread_http"
+path = "../../tests/unit/shared.work/rust-work-home-unread-http.test.rs"

@@ -25,11 +25,14 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commerceOverview,commercePermissions} from '@erpx/server-commerce/public/commerce';
+import { nativeInventoryReceiptFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
+import { nativeCommerceOrderPage } from "@erpx/feature-sales/public/native-commerce-orders-page";
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/public/sales-editor";
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { supplierPromiseDetail } from "@erpx/server-procurement/public/supplier-promises";
+import { ownedSupplierPromiseDetail, ownedSupplierPromiseHistory } from "@erpx/feature-procurement/public/native-supplier-promise-history-owned";
 import { SupplierBillCapture } from "@erpx/feature-records/components/loaders/modules--supplier-bill-console";
 import { supplierBillWorkspace, supplierInvoicePolicy } from "@erpx/server-procurement/public/supplier-bill-matching";
 import { SupplierPromiseConsole } from "@erpx/feature-records/components/loaders/modules--supplier-promise-console";
@@ -52,7 +55,36 @@ export default async function OrderPage({
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
   const data = await getOrder(actor, id).catch((error) => pageError(error, holdingSlug));
-  const { order, lines } = data;
+  const nativeOrder =
+    data.order.kind === "purchase"
+      ? undefined
+      : await nativeCommerceOrderPage(actor, id).catch((error) =>
+          pageError(error, holdingSlug),
+        );
+  const order = nativeOrder ? { ...data.order, ...nativeOrder.order } : data.order;
+  const lines = nativeOrder ? nativeOrder.lines : data.lines;
+  const nativeActor =
+    actor.authority && actor.iam
+      ? {
+          userId: actor.userId,
+          holdingId: actor.holdingId,
+          holdingSlug,
+          companyId: actor.companyId,
+          branchId: actor.branchId,
+          departmentId: actor.departmentId,
+          assignmentId: actor.assignmentId,
+          revision: actor.authority.revision,
+          assignmentVersion: actor.authority.assignmentVersion,
+          branchSlug: actor.scope.kind === "holding" ? undefined : actor.scope.branchSlug ?? undefined,
+          departmentSlug: actor.scope.kind === "department" ? actor.scope.departmentSlug ?? undefined : undefined,
+        }
+      : undefined;
+  const nativeReceipt =
+    order.kind === "purchase"
+      ? await nativeInventoryReceiptFromHeaders(nativeActor, holdingSlug, id).catch((error) =>
+          pageError(error, holdingSlug),
+        )
+      : undefined;
   const purchase = await commercePurchaseControls(actor,{type:"order",id});
   const returnPurchase = data.returns.length ? await commerceReturnPurchaseControls(actor,id,purchase) : {};
   const reconciliationControls = Object.fromEntries(await Promise.all(data.customerNotifications.filter(row=>row.status==="unknown").map(async row=>[String(row.id),await customerNotificationReconciliationControls(actor,String(row.id))] as const)));
@@ -85,7 +117,18 @@ export default async function OrderPage({
   const matchableReceipts = data.fulfillments.filter(
     (receipt) => !receipt.invoice_id && !activeReceiptIds.has(String(receipt.id)),
   );
-  const supplier = order.kind === "purchase" ? await supplierPromiseDetail(actor, id) : null;
+  const supplier =
+    order.kind === "purchase"
+      ? ((await ownedSupplierPromiseDetail(actor, holdingSlug, id)) as
+          | Awaited<ReturnType<typeof supplierPromiseDetail>>
+          | undefined) ?? (await supplierPromiseDetail(actor, id))
+      : null;
+  const nativeSupplierPromise =
+    order.kind === "purchase"
+      ? await ownedSupplierPromiseHistory(actor, holdingSlug, id).catch((error) =>
+          pageError(error, holdingSlug),
+        )
+      : undefined;
   const landedPurchase=order.kind==="purchase"&&hasPermission(actor,"finance.read")?await landedCostPurchaseControls(actor):undefined;
   const landedCosts =
     order.kind === "purchase" && hasPermission(actor, "finance.read") && landedPurchase?.history!==false
@@ -304,7 +347,12 @@ export default async function OrderPage({
           </Card>
         </FeatureWidget>
         {supplier && (
-          <SupplierPromiseConsole key={String(order.id)} base={base} data={supplier} />
+          <SupplierPromiseConsole
+            key={String(order.id)}
+            base={base}
+            data={supplier}
+            native={nativeSupplierPromise}
+          />
         )}
         {options && (
           <FeatureWidget appearance="standard" id="commerce-orders-detail-order-details" title="Order details">
@@ -315,6 +363,51 @@ export default async function OrderPage({
               order={order}
               lines={lines}
             />
+          </FeatureWidget>
+        )}
+        {nativeReceipt && (
+          <FeatureWidget
+            id="commerce-orders-detail-native-receipt-source"
+            title="Native receiving source"
+          >
+            <Card as="section" appearance="standard" className="ui-panel">
+              <p className="muted">
+                Inventory checks the current purchase line, warehouse stock, lot or serial
+                balances and Quality holds before it accepts a goods receipt.
+              </p>
+              <p>
+                <StatusBadge
+                  appearance="standard"
+                  status={nativeReceipt.can_receive ? "ready" : "blocked"}
+                />
+              </p>
+              {nativeReceipt.lines
+                .filter((line) => line.remaining_milli > 0)
+                .map((line) => (
+                  <article className="ui-record-item" key={line.id}>
+                    <strong>
+                      {line.sku} · {line.description}
+                    </strong>
+                    <span>
+                      {line.remaining_milli / 1000} {line.unit} remaining ·{" "}
+                      {line.tracking_mode === "none"
+                        ? "untracked"
+                        : `${line.tracking_mode} tracking`}
+                    </span>
+                    <span>
+                      Stock version {line.stock?.version ?? "new"} · reserved{" "}
+                      {(line.stock?.reserved_milli ?? 0) / 1000} · quarantined{" "}
+                      {(line.stock?.quarantined_milli ?? 0) / 1000}
+                    </span>
+                    {line.lots.length > 0 && (
+                      <span>
+                        {line.lots.length}
+                        {line.lots_truncated ? "+" : ""} current lot or serial balances
+                      </span>
+                    )}
+                  </article>
+                ))}
+            </Card>
           </FeatureWidget>
         )}
         {flow.canAct &&

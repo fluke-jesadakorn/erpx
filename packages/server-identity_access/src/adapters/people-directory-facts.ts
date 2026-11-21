@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -25,7 +26,7 @@ export function peopleDirectoryIdentityFacts(database: SqlDatabase) {
             ]);
         },
         stageSetDirectoryStatusEffect4(now: number, user_id: string | number, companyId: string) {
-            return database.prepare("UPDATE assignments SET revoked_at=?,version=version+1 WHERE user_id=? AND company_id=? AND revoked_at IS NULL")
+            return nativePrepare("w_2e5c080fd56b")
                 .bind(now, user_id, companyId);
         },
         async readPersonAccessAccount(user_id: string | number) {

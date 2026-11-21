@@ -1,0 +1,1 @@
+erpx_native_finance_field_outbox_eligible(e)

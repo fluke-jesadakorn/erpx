@@ -89,7 +89,6 @@
     "./public/identity-snapshot-sources": "./src/public/identity-snapshot-sources.ts",
     "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
-    "./public/runtime-minio-preservation-authority": "./src/public/runtime-minio-preservation-authority.ts",
     "./public/attachment-purchases": "./src/public/attachment-purchases.ts",
     "./public/evidence-attachment-read": "./src/public/evidence-attachment-read.ts",
     "./public/hospitality-owner-projection-sources": "./src/public/hospitality-owner-projection-sources.ts",
@@ -103,7 +102,6 @@
     "./public/portal-attachment-contracts": "./src/public/portal-attachment-contracts.ts",
     "./public/runtime-minio-mutation-authority": "./src/public/runtime-minio-mutation-authority.ts",
     "./public/purchases": "./src/public/purchases.ts",
-    "./public/rules/portal-upload-recovery": "./src/public/rules/portal-upload-recovery.ts",
     "./public/rules/model": "./src/public/rules/model.ts",
     "./public/rules/thailand": "./src/public/rules/thailand.ts",
     "./public/rules/features": "./src/public/rules/features.ts",
@@ -134,9 +132,7 @@
     "./public/legal/operations": "./src/public/legal/operations.ts",
     "./public/legal/jobs": "./src/public/legal/jobs.ts",
     "./public/legal/features": "./src/public/legal/features.ts",
-    "./public/legal/pdf-validation": "./src/public/legal/pdf-validation.ts",
     "./public/legal/access": "./src/public/legal/access.ts",
-    "./public/legal/portal-attachments": "./src/public/legal/portal-attachments.ts",
     "./public/legal/documents": "./src/public/legal/documents.ts",
     "./public/legal/runtime-gate": "./src/public/legal/runtime-gate.ts",
     "./public/legal/references": "./src/public/legal/references.ts",
@@ -151,7 +147,6 @@
     "./public/executive-main-evidence-sources": "./src/public/executive-main-evidence-sources.ts",
     "./public/collaboration-notification-snapshot-sources": "./src/public/collaboration-notification-snapshot-sources.ts",
     "./public/portal-download-request": "./src/public/portal-download-request.ts",
-    "./index": "./src/index.ts",
     "./application/governance": "./src/application/governance.ts",
     "./application/runtime-preservation-authority": "./src/application/runtime-preservation-authority.ts",
     "./application/law-source-worker": "./src/application/law-source-worker.ts",
@@ -190,7 +185,6 @@
     "./domain/knowledge": "./src/domain/knowledge.ts",
     "./domain/executed-copies": "./src/domain/executed-copies.ts",
     "./domain/enrollment": "./src/domain/enrollment.ts",
-    "./domain/portal-upload-recovery": "./src/domain/portal-upload-recovery.ts",
     "./domain/destruction-sources": "./src/domain/destruction-sources.ts",
     "./domain/law-corpus": "./src/domain/law-corpus.ts",
     "./domain/sources": "./src/domain/sources.ts",
@@ -210,6 +204,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/catalogue": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-legal": "workspace:*",
@@ -234,10 +229,10 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "@pdf-lib/fontkit": "1.1.1",
-    "docx": "9.7.1",
-    "jose": "6.2.12",
+    "docx": "9.14.0",
+    "jose": "6.2.13",
     "pdf-lib": "1.17.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

@@ -49,10 +49,10 @@ export interface FinanceGroupEditionsRepository<Effect> {
     readSourceOwnership2(ownershipId: string, holdingId: string, startDate: string, endDate: string): Promise<Row | null>;
     readSourceEffect(value: string, holdingId: string, investee_entity_id: string | number | null, endDate: string, currency: string, id: string | number | null): Promise<Row | null>;
     readGetR(id: string, holdingId: string, companyId: string): Promise<Row | null>;
-    stagePrepareGroupReportEditionEffect(id: string, holdingId: string, companyId: string, value: string | number | null, value2: string | number, value3: number, startDate: string, endDate: string, currency: string, value4: string, value5: string, value6: string, hash: string, csv: string, exportHash: string, userId: string, reason: string, now: number, now2: number): Effect;
-    stageDecideGroupReportEditionEffect(now: number, id: string | number | null): Effect;
+    stagePrepareGroupReportEditionEffect(id: string, holdingId: string, companyId: string, value: string | number | null, value2: string | number, value3: number, startDate: string, endDate: string, currency: string, value4: string, value5: string, value6: string, hash: string, csv: string, exportHash: string, userId: string, reason: string, now: number, now2: number): Promise<Effect>;
+    stageDecideGroupReportEditionEffect(now: number, id: string | number | null, holdingId: string): Promise<Effect>;
     guard14(key: string, value: "group-edition-version", id: string, holdingId: string, expectedVersion: number): Effect;
-    stageDecideGroupReportEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string): Effect;
+    stageDecideGroupReportEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string, holdingId: string): Promise<Effect>;
     readGroupReportEditionWorkspaceEffect(holdingId: string, companyId: string): Promise<{
         results: (Row)[];
     }>;
@@ -535,7 +535,7 @@ export function createFinanceGroupEditionsApplication<Effect>(ports: FinanceGrou
                 ["profit_attribution", "nci", "Profit attributable to non-controlling interests", "income", e.result.profitAttribution.nci, input.currency],
             ]), exportHash = await ports.sha256(csv), now = ports.clock.now();
             return ports.commands.commit(actor, key, op, input, id, 1, { id, status: "draft", version: 1, sourceHash: e.hash }, [
-                repository.stagePrepareGroupReportEditionEffect(id, actor.holdingId, actor.companyId, parent?.id ?? null, parent?.root_id ?? id, Number(parent?.edition ?? 0) + 1, input.startDate, input.endDate, input.currency, JSON.stringify(input), JSON.stringify(e.evidence), JSON.stringify(e.result), e.hash, csv, exportHash, actor.userId, input.reason, now, now),
+                await repository.stagePrepareGroupReportEditionEffect(id, actor.holdingId, actor.companyId, parent?.id ?? null, parent?.root_id ?? id, Number(parent?.edition ?? 0) + 1, input.startDate, input.endDate, input.currency, JSON.stringify(input), JSON.stringify(e.evidence), JSON.stringify(e.result), e.hash, csv, exportHash, actor.userId, input.reason, now, now),
             ]);
         });
     }
@@ -564,9 +564,9 @@ export function createFinanceGroupEditionsApplication<Effect>(ports: FinanceGrou
                 const p = await get(actor, String(r.parent_id));
                 if (p.status !== "approved" || p.version !== definition.parentVersion)
                     throw new BusinessRuleError(409, "GROUP_EDITION_PARENT_CHANGED", "The earlier edition changed before amendment approval.");
-                steps.push(repository.stageDecideGroupReportEditionEffect(ports.clock.now(), p.id));
+                steps.push(await repository.stageDecideGroupReportEditionEffect(ports.clock.now(), p.id, actor.holdingId));
             }
-            steps.push(repository.guard14(key, "group-edition-version", id, actor.holdingId, input.expectedVersion), repository.stageDecideGroupReportEditionEffect2(action === "approve" ? "approved" : "rejected", actor.userId, ports.clock.now(), id));
+            steps.push(repository.guard14(key, "group-edition-version", id, actor.holdingId, input.expectedVersion), await repository.stageDecideGroupReportEditionEffect2(action === "approve" ? "approved" : "rejected", actor.userId, ports.clock.now(), id, actor.holdingId));
             return ports.commands.commit(actor, key, op, input, id, input.expectedVersion + 1, {
                 id,
                 status: action === "approve" ? "approved" : "rejected",

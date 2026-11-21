@@ -4,7 +4,7 @@ import {iamDb} from "@erpx/server-identity_access/public/iam-db";
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {sealSecret} from "@erpx/server-identity_access/public/iam-mfa";
 import type {IamActor} from "@erpx/server-identity_access/public/iam-context";
-import {connectionInput,saveConnection,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview} from "@erpx/server-identity_access/public/iam-directories";
+import {connectionInput,saveConnection,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview} from "../../support/legacy-directory";
 import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
 import {decideIamReview,grantIamAccess,grantInput,revokeIamAssignment} from "@erpx/server-identity_access/public/iam-service";
 import {iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';

@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "reviewedAt": "2026-10-27",
+  "maintainer": "fluke-jesadakorn",
+  "inventoryComplete": false,
+  "publicReleaseReady": false,
+  "entries": [
+    {
+      "id": "current-erpx-owned-source",
+      "paths": [
+        "apps/",
+        "packages/",
+        "src/",
+        "scripts/",
+        "tests/",
+        "docs/"
+      ],
+      "declaredLicense": "Apache-2.0",
+      "reviewStatus": "scope-declared",
+      "basis": "The project owner authorized the current ERPX-owned source and documentation grant on 2026-10-27. Third-party material and historical source require their own review; this category is not a complete file-level rights audit."
+    },
+    {
+      "id": "archived-rust-source",
+      "gitRefs": [
+        "refs/heads/backup/rust-2026-09-02",
+        "refs/tags/rust-archive-2026-09-02"
+      ],
+      "declaredLicense": "LicenseRef-Proprietary",
+      "reviewStatus": "pending",
+      "basis": "Historical declaration retained. Determine the source rights and any explicit additional grant before reuse or public-history publication."
+    },
+    {
+      "id": "vendored-shadcn",
+      "paths": [
+        "vendor/shadcn/"
+      ],
+      "noticeFiles": [
+        "vendor/shadcn/LICENSE",
+        "vendor/shadcn/source-lock.json"
+      ],
+      "declaredLicense": "MIT",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Existing MIT notice and source lock retained; adapted source must retain required attribution."
+    },
+    {
+      "id": "noto-thai-fonts",
+      "paths": [
+        "public/fonts/"
+      ],
+      "noticeFiles": [
+        "public/fonts/OFL.txt",
+        "public/fonts/NotoSansThai-OFL.txt"
+      ],
+      "declaredLicense": "OFL-1.1",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Existing Noto Project Authors notices and SIL Open Font License retained."
+    },
+    {
+      "id": "dingbat-to-unicode-mapping",
+      "paths": [
+        "packages/server-legal/src/adapters/document_docx/dingbats.rs"
+      ],
+      "noticeFiles": [
+        "packages/server-legal/licenses/dingbat-to-unicode-BSD-2-Clause.txt"
+      ],
+      "declaredLicense": "BSD-2-Clause",
+      "reviewStatus": "notice-reviewed",
+      "upstream": "https://github.com/mwilliamson/dingbat-to-unicode",
+      "upstreamVersion": "1.0.2",
+      "upstreamSourceSha256": "5d99a6ab462352f6a6b2c2ce1dd9062821a0c211b41bbe7249bef631df1e05d6",
+      "basis": "Factual mapping data generated from the pinned upstream dist/dingbats.js source. The original 2021 Michael Williamson BSD-2-Clause notice, upstream reference and source checksum are retained. No runtime npm import is introduced; the complete transitive release inventory remains pending."
+    },
+    {
+      "id": "icu4x-compiled-collation",
+      "paths": [
+        "packages/server-commercial/src/domain/collation.rs",
+        "packages/server-finance/src/domain/company_money.rs",
+        "packages/server-people_payroll/src/domain/payroll_accounting_collation.rs"
+      ],
+      "noticeFiles": [
+        "packages/server-commercial/licenses/ICU4X-Unicode-3.0.txt"
+      ],
+      "declaredLicense": "Unicode-3.0",
+      "reviewStatus": "notice-reviewed",
+      "upstream": "https://github.com/unicode-org/icu4x",
+      "upstreamVersion": "2.1.0",
+      "upstreamLicenseSha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "basis": "Cargo pins icu_collator and icu_collator_data to 2.1.0, whose CLDR 48 compiled data matches the retained Node 26.11.1 collation-data release. Both published crates carry the byte-identical retained Unicode-3.0 license, including adapted ICU notices. Their registry archive checksums are recorded in Cargo.lock. This reviews these notices only, not the complete transitive Rust release inventory. Finite source-oracle conformance is not a claim that ICU4X and ICU4C implementations are identical for every Unicode input."
+    },
+    {
+      "id": "generated-hotel-media",
+      "paths": [
+        "public/pms-demo/rooms/"
+      ],
+      "noticeFiles": [
+        "public/pms-demo/rooms/README.md"
+      ],
+      "reviewStatus": "pending",
+      "basis": "The existing README documents fictional AI-generated media and its generation history. Confirm redistribution scope as part of asset review."
+    },
+    {
+      "id": "brand-and-preview-media",
+      "paths": [
+        "public/brand/",
+        "public/preview/"
+      ],
+      "reviewStatus": "pending",
+      "basis": "Record asset authorship, acquisition and redistribution terms; keep trademark use distinct from the source-code license."
+    },
+    {
+      "id": "historical-evidence-and-operator-metadata",
+      "paths": [
+        "docs/archive/",
+        "docs/testing/",
+        "ops/"
+      ],
+      "reviewStatus": "pending",
+      "basis": "Review screenshots, private paths, provider resource identifiers and personal data. Preserve original dated or checksum-protected evidence and label any public redacted derivatives."
+    },
+    {
+      "id": "dependency-and-runtime-inventory",
+      "paths": [
+        "package.json",
+        "bun.lock",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "reviewStatus": "pending",
+      "basis": "Complete the transitive JavaScript, Rust, native-tool and eventual image dependency/license inventory for the actual release. No complete SBOM or compliance clearance is claimed here."
+    },
+    {
+      "id": "ryu-js-number-formatting",
+      "paths": [
+        "packages/server-workflow/",
+        "Cargo.lock",
+        "packages/server-people_payroll/src/domain/payroll_accounting_operand.rs"
+      ],
+      "noticeFiles": [
+        "packages/server-workflow/licenses/ryu-js-1.0.3-Apache-2.0.txt"
+      ],
+      "reviewStatus": "notice-reviewed",
+      "declaredLicense": "Apache-2.0",
+      "upstreamVersion": "1.0.3",
+      "upstreamLicenseSha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "basis": "The pinned published ryu-js crate declares Apache-2.0 OR BSL-1.0. ERPX selects Apache-2.0 and retains its published LICENSE-APACHE byte-for-byte. Cargo.lock records the registry archive checksum. This is a notice review for this direct dependency, not a complete transitive release clearance."
+    },
+    {
+      "id": "development-tesseract-models",
+      "paths": [
+        "fixtures/legal/documents/worker-bootstrap-provider.v1.json",
+        "scripts/testing/fixtures/fetch-legal-worker-models.ts"
+      ],
+      "noticeFiles": [
+        "packages/server-legal/licenses/tesseract-tessdata-fast-Apache-2.0.txt"
+      ],
+      "reviewStatus": "notice-reviewed",
+      "declaredLicense": "Apache-2.0",
+      "upstreamCommit": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "upstreamLicenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "basis": "The explicit development worker provider smoke fetches eng/tha traineddata only from the pinned official tessdata_fast revision, checks the recorded byte counts and SHA-256 values, and retains its Apache-2.0 license. Model bytes are ignored and not shipped in this source checkpoint. Operational eng+tha probes do not establish Thai OCR accuracy, complete transitive notices or production release acceptance."
+    },
+    {
+      "id": "directory-ldap-protocol",
+      "paths": [
+        "packages/server-identity_access/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
+        "packages/server-identity_access/licenses/ldap3_lber-0.8.1-MIT.txt"
+      ],
+      "noticeFiles": [
+        "packages/server-identity_access/licenses/DIRECTORY-LDAP-NOTICE.md",
+        "packages/server-identity_access/licenses/directory-ldap-provenance.json",
+        "packages/server-identity_access/licenses/ldap3_proto-0.8.1-MPL-2.0.txt",
+        "packages/server-identity_access/licenses/ldap3_lber-0.8.1-MIT.txt"
+      ],
+      "declaredLicense": "MPL-2.0 AND MIT",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Optional unmodified ldap3_proto 0.8.1 and ldap3_lber 0.8.1 registry dependencies retain their upstream licenses. Pinned source commit, archive hashes and corresponding source URLs are recorded in the local dependency provenance; this entry does not relicense them or declare Directory production readiness. ERPX-owned adapter wrappers retain the current project Apache-2.0 grant; dependency license obligations are recorded separately."
+    },
+    {
+      "id": "native-files-preview-dependencies",
+      "paths": [
+        "fixtures/files/preview/licenses/libvips-rust-MIT.txt",
+        "fixtures/files/preview/licenses/libvips-LGPL-2.1.txt"
+      ],
+      "noticeFiles": [
+        "fixtures/files/preview/licenses/libvips-rust-MIT.txt",
+        "fixtures/files/preview/licenses/libvips-LGPL-2.1.txt",
+        "fixtures/files/preview/provenance.json",
+        "fixtures/files/preview/darwin-qualification-profile.json"
+      ],
+      "declaredLicense": "MIT AND LGPL-2.1-or-later",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Optional unmodified libvips 2.3.0 Rust binding and dynamically linked native libvips 8.18.7 retain upstream licenses. ERPX-owned wrappers remain Apache-2.0. The recorded Darwin ARM64 qualification is not Linux, production-image, complete transitive-license or release acceptance."
+    },
+    {
+      "id": "synthetic-preview-icc-profiles",
+      "paths": [
+        "fixtures/files/preview/profiles/"
+      ],
+      "noticeFiles": [
+        "fixtures/files/preview/licenses/compact-icc-CC0-1.0.txt",
+        "fixtures/files/preview/licenses/cmyk-profile-public-domain.txt",
+        "fixtures/files/preview/provenance.json"
+      ],
+      "declaredLicense": "CC0-1.0 AND LicenseRef-Public-Domain",
+      "reviewStatus": "notice-reviewed",
+      "basis": "Compact ICC Profiles are pinned to bdd84663061bc4ae95ca70decff54f581e27f702 and match the recorded libvips P3/sRGB profile bytes. The CMYK profile retains its embedded Graeme W. Gill public-domain statement and hash. Fixture images are synthetic; no proprietary macOS/Adobe profile grant is inferred."
+    }
+  ]
+}

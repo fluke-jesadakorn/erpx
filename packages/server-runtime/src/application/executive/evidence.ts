@@ -1,5 +1,10 @@
-import type {readBenefitEvidence,searchBenefitEvidence} from "@erpx/server-benefits/public/executive-evidence";
-import {benefitEvidenceMetrics} from "@erpx/server-benefits/public/rules/executive-evidence";
+const benefitEvidenceMetrics=["active-benefit-elections","published-benefit-plans"] as const;
+type BenefitEvidenceMetric=typeof benefitEvidenceMetrics[number];
+type BenefitEvidenceItem={id:string;label:string;summary:string;status:string;version:number;href:string};
+type BenefitEvidenceSearch={provider:string;metric:BenefitEvidenceMetric;fields:string[];items:BenefitEvidenceItem[];hasMore:boolean;nextCursor:string|null;queryHash:string};
+type BenefitEvidenceRead={provider:string;metric:BenefitEvidenceMetric;fields:string[];record:{id:string;status:string;version:number;updated_at:number;effective_from:string;effective_to:string|null;href:string};queryHash:string};
+declare function searchBenefitEvidence(database:unknown,actor:WorkContext,raw:unknown):Promise<BenefitEvidenceSearch>;
+declare function readBenefitEvidence(database:unknown,actor:WorkContext,metric:string,id:string,filters:Filters):Promise<BenefitEvidenceRead>;
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { z } from 'zod';
 import { type Filters, type MetricId } from "@erpx/server-runtime/public/rules/canvas-domain";
@@ -12,14 +17,13 @@ import { hasModuleAccess } from '@erpx/catalogue/module-access';
 import { organizationChangeHref } from "@erpx/server-organization/public/rules/organization-domain";
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { operationsMetrics, type OperationsMetricId } from '@erpx/server-runtime/domain/executive/operations-metric-ids';
-import { providerId, payrollSummaryMetric, payrollSummaryProviderId, payrollSummaryFields, approvedLeaveMetric, authorizedOvertimeMetric, peopleLeaveOvertimeProviderId, approvedLeaveFields, authorizedOvertimeFields, hotelOccupancyMetric, hotelOccupancyProviderId, hotelOccupancyFields, hotelRoomRevenueMetrics, HotelRoomRevenueMetric, hotelRoomRevenueFields, hotelGuestAccountBalanceMetric, hotelGuestAccountBalanceProviderId, hotelGuestAccountBalanceFields, hotelNightAuditBlockersMetric, hotelNightAuditBlockersProviderId, hotelNightAuditBlockersFields, procurementProviderId, salesProviderId, qualityProviderId, financeMetrics, FinanceMetricId, salesMetrics, SalesMetricId, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, legalMetrics, LegalMetricId, legalProviderId, maintenanceDowntimeMetric, maintenanceProviderId, supportIncidentMetric, supportIncidentProviderId, supportIncidentFields, supportTicketMetrics, SupportTicketMetricId, supportTicketProviderId, duplicateReviewMetric, duplicateReviewProviderId, duplicateReviewFields, closeBlockersMetric, closeBlockersProviderId, closeBlockersFields, identityChangeMetric, identityChangeProviderId, identityChangeFields, organizationNodeMetric, pendingStructureMetric, organizationProviderId, organizationNodeFields, pendingStructureFields, activeAssignmentsMetric, pendingAccessReviewsMetric, activeAssignmentsProviderId, pendingAccessReviewsProviderId, activeSubscriptionsMetric, overdueInvoicesMetric, activeSubscriptionsProviderId, overdueInvoicesProviderId, activeSubscriptionFields, legacySubscriptionFields, overdueInvoiceFields, activeAssignmentFields, pendingAccessReviewFields, maintenanceSearchFields, maintenanceDetailFields, qualityMetrics, searchableMetrics, searchFields, detailFields, procurementSearchFields, procurementDetailFields, salesSearchFields, salesDetailFields, salesOrderSearchFields, salesOrderDetailFields, commonFilters, querySchema, procurementQuerySchema, salesQuerySchema, salesFulfillmentQuerySchema, fieldVisitQuerySchema, manufacturingCostQuerySchema, qualityQuerySchema, customerActivityQuerySchema, socialActivityQuerySchema, legalQuerySchema, maintenanceQuerySchema, supportIncidentQuerySchema, supportTicketQuerySchema, duplicateReviewQuerySchema, closeBlockersQuerySchema, identityChangeQuerySchema, organizationNodeQuerySchema, pendingStructureQuerySchema, activeAssignmentsQuerySchema, pendingAccessReviewsQuerySchema, activeSubscriptionsQuerySchema, overdueInvoicesQuerySchema, payrollSummaryQuerySchema, peopleLeaveOvertimeQuerySchema, hotelOccupancyQuerySchema, hotelGuestAccountBalanceQuerySchema, hotelNightAuditBlockersQuerySchema, availableStockMetric, availableStockProviderId, availableStockFields, availableStockQuerySchema, inventoryShortagesMetric, inventoryShortagesProviderId, inventoryShortagesFields, inventoryShortagesQuerySchema, stockedLocationsMetric, stockedLocationsQuerySchema, inventoryMovementsMetric, inventoryMovementsProviderId, inventoryMovementFields, inventoryMovementsQuerySchema, operationsProviderId, operationsQuerySchema, projectMilestoneMetric, projectMilestoneProviderId, projectMilestoneFields, projectMilestoneQuerySchema, projectDependencyMetric, projectDependencyProviderId, projectDependencyFields, projectDependencyQuerySchema, projectActualMetrics, ProjectActualMetric, projectActualProviderId, projectActualHoursFields, projectPostedCostFields, projectActualQuerySchema, InvoiceEvidenceRow, predicate, cursorValue, encodeCursor, LegalEvidenceRow, LegalHoldEvidenceRow, legalEvidenceCursor, encodeLegalEvidenceCursor, PayrollSummaryEvidenceRow, payrollSummaryCursor, encodePayrollSummaryCursor, peopleRequestCursor, encodePeopleRequestCursor, HotelOccupancyEvidenceRow, hotelOccupancyCursorValue, encodeHotelOccupancyCursor, HotelGuestAccountBalanceEvidenceRow, hotelGuestAccountBalanceCursorValue, encodeHotelGuestAccountBalanceCursor, HotelNightAuditBlockerEvidenceRow, hotelNightAuditBlockerCursorValue, encodeHotelNightAuditBlockerCursor, SupplierBillEvidenceRow, SalesOrderEvidenceRow, SalesEvidenceCursor, salesCursorValue, encodeSalesCursor, SalesFulfillmentEvidenceRow, salesFulfillmentFields, salesFulfillmentCursorValue, encodeSalesFulfillmentCursor, FieldVisitEvidenceRow, fieldVisitFields, fieldVisitCursorValue, encodeFieldVisitCursor, QualityInspectionRow, qualitySearchFields, qualityDetailFields, qualityCursorValue, encodeQualityCursor, ManufacturingCostEvidenceRow, manufacturingCostProviderId, manufacturingCostSearchFields, manufacturingCostDetailFields, manufacturingCostCursorValue, encodeManufacturingCostCursor, customerActivityProviderId, customerActivityFields, customerActivityCursor, encodeCustomerActivityCursor, socialActivityProviderId, socialActivityFields, socialActivityCursor, encodeSocialActivityCursor, SupportIncidentEvidenceRow, supportIncidentCursorValue, encodeSupportIncidentCursor, encodeSupportIncidentRecordId, decodeSupportIncidentRecordId, supportIncidentNumber, SupportTicketEvidenceRow, supportTicketCursorValue, encodeSupportTicketCursor, encodeSupportTicketRecordId, decodeSupportTicketRecordId, supportTicketNumber, supportTicketFieldsFor, DuplicateReviewEvidenceRow, duplicateReviewCursorValue, encodeDuplicateReviewCursor, encodeDuplicateReviewRecordId, decodeDuplicateReviewRecordId, duplicateReviewNumber, IdentityChangeEvidenceRow, identityChangeCursorValue, encodeIdentityChangeCursor, encodeIdentityChangeRecordId, decodeIdentityChangeRecordId, identityChangeNumber, OrganizationNodeEvidenceRow, PendingStructureEvidenceRow, organizationEvidenceCursor, encodeOrganizationRecordId, decodeOrganizationRecordId, organizationEvidenceNumber, ActiveAssignmentEvidenceRow, PendingAccessReviewEvidenceRow, identityAccessCursor, encodeIdentityAccessRecordId, decodeIdentityAccessRecordId, CommercialSubscriptionRow, OverdueInvoiceEvidenceRow, commercialCursor, encodeCommercialSubscriptionId, decodeCommercialSubscriptionId, encodeOverdueInvoiceId, decodeOverdueInvoiceId, CloseBlockerEvidenceRow, closeBlockerCursorValue, encodeCloseBlockerCursor, encodeCloseBlockerRecordId, decodeCloseBlockerRecordId, closeBlockerNumber, closeBlockerCount, maintenanceCursorValue, encodeMaintenanceCursor, maintenanceEvidenceNumber, AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow, inventoryMovementCursorValue, encodeInventoryMovementCursor, encodeInventoryMovementRecordId, decodeInventoryMovementRecordId, inventoryMovementHref, availableStockCursorValue, encodeAvailableStockCursor, encodeAvailableStockRecordId, decodeAvailableStockRecordId, milliQuantity, ProjectMilestoneEvidenceRow, projectMilestoneCursor, ProjectDependencyEvidenceRow, projectDependencyBlockers, ProjectActualEvidenceRow, projectActualCursor, OperationsEvidenceRow, operationsEvidenceFields, operationsRecordId, decodeOperationsRecordId, operationsEvidenceCursor } from '@erpx/server-runtime/domain/executive/evidence';
+import { providerId, payrollSummaryMetric, payrollSummaryProviderId, payrollSummaryFields, approvedLeaveMetric, authorizedOvertimeMetric, peopleLeaveOvertimeProviderId, approvedLeaveFields, authorizedOvertimeFields, hotelOccupancyMetric, hotelOccupancyProviderId, hotelOccupancyFields, hotelRoomRevenueMetrics, HotelRoomRevenueMetric, hotelRoomRevenueFields, hotelGuestAccountBalanceMetric, hotelGuestAccountBalanceProviderId, hotelGuestAccountBalanceFields, hotelNightAuditBlockersMetric, hotelNightAuditBlockersProviderId, hotelNightAuditBlockersFields, procurementProviderId, salesProviderId, qualityProviderId, financeMetrics, FinanceMetricId, salesMetrics, SalesMetricId, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, legalMetrics, LegalMetricId, legalProviderId, maintenanceDowntimeMetric, maintenanceProviderId, supportIncidentMetric, supportIncidentProviderId, supportIncidentFields, supportTicketMetrics, SupportTicketMetricId, supportTicketProviderId, duplicateReviewMetric, duplicateReviewProviderId, duplicateReviewFields, closeBlockersMetric, closeBlockersProviderId, closeBlockersFields, identityChangeMetric, identityChangeProviderId, identityChangeFields, organizationNodeMetric, pendingStructureMetric, organizationProviderId, organizationNodeFields, pendingStructureFields, activeAssignmentsMetric, pendingAccessReviewsMetric, activeAssignmentsProviderId, pendingAccessReviewsProviderId, activeSubscriptionsMetric, overdueInvoicesMetric, activeSubscriptionsProviderId, overdueInvoicesProviderId, activeSubscriptionFields, legacySubscriptionFields, overdueInvoiceFields, activeAssignmentFields, pendingAccessReviewFields, maintenanceSearchFields, maintenanceDetailFields, qualityMetrics, searchableMetrics, searchFields, detailFields, procurementSearchFields, procurementDetailFields, salesSearchFields, salesDetailFields, salesOrderSearchFields, salesOrderDetailFields, commonFilters, querySchema, procurementQuerySchema, salesQuerySchema, salesFulfillmentQuerySchema, manufacturingCostQuerySchema, qualityQuerySchema, customerActivityQuerySchema, socialActivityQuerySchema, legalQuerySchema, maintenanceQuerySchema, supportIncidentQuerySchema, supportTicketQuerySchema, duplicateReviewQuerySchema, closeBlockersQuerySchema, identityChangeQuerySchema, organizationNodeQuerySchema, pendingStructureQuerySchema, activeAssignmentsQuerySchema, pendingAccessReviewsQuerySchema, activeSubscriptionsQuerySchema, overdueInvoicesQuerySchema, payrollSummaryQuerySchema, peopleLeaveOvertimeQuerySchema, hotelOccupancyQuerySchema, hotelGuestAccountBalanceQuerySchema, hotelNightAuditBlockersQuerySchema, availableStockMetric, availableStockProviderId, availableStockFields, availableStockQuerySchema, inventoryShortagesMetric, inventoryShortagesProviderId, inventoryShortagesFields, inventoryShortagesQuerySchema, stockedLocationsMetric, stockedLocationsQuerySchema, inventoryMovementsMetric, inventoryMovementsProviderId, inventoryMovementFields, inventoryMovementsQuerySchema, operationsProviderId, operationsQuerySchema, projectMilestoneMetric, projectMilestoneProviderId, projectMilestoneFields, projectMilestoneQuerySchema, projectDependencyMetric, projectDependencyProviderId, projectDependencyFields, projectDependencyQuerySchema, projectActualMetrics, ProjectActualMetric, projectActualProviderId, projectActualHoursFields, projectPostedCostFields, projectActualQuerySchema, InvoiceEvidenceRow, predicate, cursorValue, encodeCursor, LegalEvidenceRow, LegalHoldEvidenceRow, legalEvidenceCursor, encodeLegalEvidenceCursor, PayrollSummaryEvidenceRow, payrollSummaryCursor, encodePayrollSummaryCursor, peopleRequestCursor, encodePeopleRequestCursor, HotelOccupancyEvidenceRow, hotelOccupancyCursorValue, encodeHotelOccupancyCursor, HotelGuestAccountBalanceEvidenceRow, hotelGuestAccountBalanceCursorValue, encodeHotelGuestAccountBalanceCursor, HotelNightAuditBlockerEvidenceRow, hotelNightAuditBlockerCursorValue, encodeHotelNightAuditBlockerCursor, SupplierBillEvidenceRow, SalesOrderEvidenceRow, SalesEvidenceCursor, salesCursorValue, encodeSalesCursor, SalesFulfillmentEvidenceRow, salesFulfillmentFields, salesFulfillmentCursorValue, encodeSalesFulfillmentCursor, QualityInspectionRow, qualitySearchFields, qualityDetailFields, qualityCursorValue, encodeQualityCursor, ManufacturingCostEvidenceRow, manufacturingCostProviderId, manufacturingCostSearchFields, manufacturingCostDetailFields, manufacturingCostCursorValue, encodeManufacturingCostCursor, customerActivityProviderId, customerActivityFields, customerActivityCursor, encodeCustomerActivityCursor, socialActivityProviderId, socialActivityFields, socialActivityCursor, encodeSocialActivityCursor, SupportIncidentEvidenceRow, supportIncidentCursorValue, encodeSupportIncidentCursor, encodeSupportIncidentRecordId, decodeSupportIncidentRecordId, supportIncidentNumber, SupportTicketEvidenceRow, supportTicketCursorValue, encodeSupportTicketCursor, encodeSupportTicketRecordId, decodeSupportTicketRecordId, supportTicketNumber, supportTicketFieldsFor, DuplicateReviewEvidenceRow, duplicateReviewCursorValue, encodeDuplicateReviewCursor, encodeDuplicateReviewRecordId, decodeDuplicateReviewRecordId, duplicateReviewNumber, IdentityChangeEvidenceRow, identityChangeCursorValue, encodeIdentityChangeCursor, encodeIdentityChangeRecordId, decodeIdentityChangeRecordId, identityChangeNumber, OrganizationNodeEvidenceRow, PendingStructureEvidenceRow, organizationEvidenceCursor, encodeOrganizationRecordId, decodeOrganizationRecordId, organizationEvidenceNumber, ActiveAssignmentEvidenceRow, PendingAccessReviewEvidenceRow, identityAccessCursor, encodeIdentityAccessRecordId, decodeIdentityAccessRecordId, CommercialSubscriptionRow, OverdueInvoiceEvidenceRow, commercialCursor, encodeCommercialSubscriptionId, decodeCommercialSubscriptionId, encodeOverdueInvoiceId, decodeOverdueInvoiceId, CloseBlockerEvidenceRow, closeBlockerCursorValue, encodeCloseBlockerCursor, encodeCloseBlockerRecordId, decodeCloseBlockerRecordId, closeBlockerNumber, closeBlockerCount, maintenanceCursorValue, encodeMaintenanceCursor, maintenanceEvidenceNumber, AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow, inventoryMovementCursorValue, encodeInventoryMovementCursor, encodeInventoryMovementRecordId, decodeInventoryMovementRecordId, inventoryMovementHref, availableStockCursorValue, encodeAvailableStockCursor, encodeAvailableStockRecordId, decodeAvailableStockRecordId, milliQuantity, ProjectMilestoneEvidenceRow, projectMilestoneCursor, ProjectDependencyEvidenceRow, projectDependencyBlockers, ProjectActualEvidenceRow, projectActualCursor, OperationsEvidenceRow, operationsEvidenceFields, operationsRecordId, decodeOperationsRecordId, operationsEvidenceCursor } from '@erpx/server-runtime/domain/executive/evidence';
 import type { Clock } from '@erpx/server-shared/index';
 import type { currentAuthority } from "@erpx/server-runtime/public/executive/access";
 import type { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { getSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import type { getQualityHold } from "@erpx/server-quality/public/quality";
-import type { fieldServiceDetail } from "@erpx/server-field_service/public/field-service";
 import type { productionDetail } from "@erpx/server-manufacturing/public/production";
 import type { maintenanceDowntimeEvidenceRows } from "@erpx/server-maintenance/public/asset-maintenance";
 import type {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
@@ -294,22 +298,6 @@ export interface ExecutiveEvidenceRepository {
         currency: string;
     }, recordId: string): Promise<{
         row: SalesFulfillmentEvidenceRow;
-    }>;
-    factsSearchFieldVisitEvidence(actor: WorkContext, input: {
-        filters: {
-            from: string;
-            to: string;
-            currency: string;
-        };
-        query: string;
-        limit: number;
-        metric: "field-visit-completion";
-        cursor?: string | undefined;
-    }, cursor: {
-        scheduledAt: number;
-        id: string;
-    } | null): Promise<{
-        rows: FieldVisitEvidenceRow[];
     }>;
     factsSearchQualityInspectionEvidence(input: {
         filters: {
@@ -865,7 +853,6 @@ export interface ExecutiveEvidencePorts {
     assertProductionModuleEnabled(...args: Tail<Parameters<typeof assertProductionModuleEnabled>>): ReturnType<typeof assertProductionModuleEnabled>;
     getSupplierBill(actor: WorkContext, id: string): ReturnType<typeof getSupplierBill>;
     getQualityHold(actor: WorkContext, id: string): ReturnType<typeof getQualityHold>;
-    fieldServiceDetail(actor: WorkContext, id: string): ReturnType<typeof fieldServiceDetail>;
     productionDetail(actor: WorkContext, id: string): ReturnType<typeof productionDetail>;
     getSupportIncident(actor: WorkContext, id: string): ReturnType<typeof getSupportIncident>;
     canReadOrganizationChanges(...args: Tail<Parameters<typeof canReadOrganizationChanges>>): ReturnType<typeof canReadOrganizationChanges>;
@@ -1517,60 +1504,6 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
         await audit(actor, salesProviderId, salesFulfillmentMetric, "open", [{ id: row.id, version: row.version }], salesFulfillmentFields, queryHash);
         await ports.currentAuthority(actor);
         return { provider: salesProviderId, metric: salesFulfillmentMetric, fields: salesFulfillmentFields, record, queryHash };
-    }
-    async function requireFieldVisitEvidence(actor: WorkContext) {
-        await ports.currentAuthority(actor);
-        if (!hasPermission(actor, "records.read"))
-            throw new BusinessRuleError(403, "EVIDENCE_FORBIDDEN", "This source record is not available in the current role or scope.");
-        const catalog = await ports.metricCatalogFor(actor);
-        if (!catalog.some((item) => item.id === fieldVisitMetric && item.available))
-            throw new BusinessRuleError(403, "EVIDENCE_FORBIDDEN", "This source record is not available in the current role or scope.");
-        await ports.assertProductionModuleEnabled(actor.companyId, "field_service");
-    }
-    async function searchFieldVisitEvidence(actor: WorkContext, input: z.infer<typeof fieldVisitQuerySchema>) {
-        await requireFieldVisitEvidence(actor);
-        const cursor = fieldVisitCursorValue(input.cursor);
-        const { rows } = await r.
-            factsSearchFieldVisitEvidence(actor, input, cursor);
-        const hasMore = rows.length > input.limit;
-        const items = rows.slice(0, input.limit);
-        const queryHash = await ports.digest(JSON.stringify({ providerId: "field-service-orders", metric: input.metric, filters: input.filters, query: input.query, cursor: input.cursor ?? null }));
-        await ports.currentAuthority(actor);
-        await audit(actor, "field-service-orders", input.metric, "search", items.map(({ id, version }) => ({ id, version })), fieldVisitFields, queryHash);
-        await ports.currentAuthority(actor);
-        return {
-            provider: "field-service-orders",
-            metric: input.metric,
-            fields: fieldVisitFields,
-            items: items.map((row) => ({ id: row.id, label: row.id, summary: `${row.status} · ${new Date(Number(row.scheduled_at)).toISOString()} UTC`, status: row.status, version: row.version, href: `/field-service/${encodeURIComponent(row.id)}` })),
-            hasMore,
-            nextCursor: hasMore && items.length ? encodeFieldVisitCursor(items.at(-1)!) : null,
-            queryHash,
-        };
-    }
-    async function readFieldVisitEvidence(actor: WorkContext, recordId: string, filters: Filters) {
-        await requireFieldVisitEvidence(actor);
-        let order: Record<string, unknown>;
-        try {
-            ({ order } = await ports.fieldServiceDetail(actor, recordId));
-        }
-        catch (error) {
-            if (error instanceof BusinessRuleError && error.status === 404)
-                throw new BusinessRuleError(404, "EVIDENCE_NOT_FOUND", "This source record is unavailable in the selected role, scope or filters.");
-            throw error;
-        }
-        const scheduledAt = Number(order.scheduled_at), status = String(order.status);
-        const eligible = Number.isSafeInteger(scheduledAt) && scheduledAt >= Date.parse(filters.from) && scheduledAt < Date.parse(filters.to) + 86400000
-            && ["scheduled", "dispatched", "in_visit", "exception", "completed", "billed"].includes(status);
-        if (!eligible)
-            throw new BusinessRuleError(404, "EVIDENCE_NOT_FOUND", "This source record is unavailable in the selected role, scope or filters.");
-        const completedAt = order.visit_completed_at === null || order.visit_completed_at === undefined ? null : Number(order.visit_completed_at);
-        const record = { id: recordId, scheduled_at: scheduledAt, visit_completed_at: completedAt, status, version: Number(order.version), href: `/field-service/${encodeURIComponent(recordId)}` };
-        const queryHash = await ports.digest(JSON.stringify({ providerId: "field-service-orders", metric: fieldVisitMetric, filters, recordId }));
-        await ports.currentAuthority(actor);
-        await audit(actor, "field-service-orders", fieldVisitMetric, "open", [{ id: recordId, version: record.version }], fieldVisitFields, queryHash);
-        await ports.currentAuthority(actor);
-        return { provider: "field-service-orders", metric: fieldVisitMetric, fields: fieldVisitFields, record, queryHash };
     }
     async function requireQualityEvidence(actor: WorkContext, metric: typeof qualityMetrics[number]) {
         await ports.currentAuthority(actor);
@@ -3081,8 +3014,6 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             return searchSupplierBillEvidence(actor, procurementQuerySchema.parse(common));
         if (common.metric === salesFulfillmentMetric)
             return searchSalesFulfillmentEvidence(actor, salesFulfillmentQuerySchema.parse(common));
-        if (common.metric === fieldVisitMetric)
-            return searchFieldVisitEvidence(actor, fieldVisitQuerySchema.parse(common));
         if (common.metric === manufacturingCostMetric)
             return searchManufacturingCostEvidence(actor, manufacturingCostQuerySchema.parse(common));
         if (common.metric === customerActivityMetric)
@@ -3170,8 +3101,6 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             return readSupplierBillEvidence(actor, recordId, filters);
         if (metric === salesFulfillmentMetric)
             return readSalesFulfillmentEvidence(actor, recordId, filters);
-        if (metric === fieldVisitMetric)
-            return readFieldVisitEvidence(actor, recordId, filters);
         if (metric === manufacturingCostMetric)
             return readManufacturingCostEvidence(actor, recordId, filters);
         if (metric === customerActivityMetric)

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Inventory availability read merged; the Inventory owner remains partial",
+  "capability": "inventory-availability-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 34,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/34",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T21:47:19Z",
+    "base": "d18678e85a3b5127187cb30cb307b1ca9e7cb6d9",
+    "head": "c8dd41a01c82e402d66960cd5edb496d0a9d9166",
+    "mergeCommit": "ed1d5b50b2f07fc62f85e0b79963611a80992af5",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "inventory/availability",
+    "changedFiles": 21,
+    "domain": "packages/server-inventory/src/domain/availability.rs",
+    "adapter": "packages/server-inventory/src/adapters/availability_read.rs",
+    "http": "src/composition/src/inventory_availability_http.rs",
+    "transport": "packages/feature-inventory/src/adapters/server/native-availability.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/inventory-quality/stock/_screen.tsx"
+  },
+  "verification": {
+    "postgres": "inventory.rust-inventory-availability-read-postgres.integration 3/3",
+    "unit": "inventory.native-inventory-availability-transport.unit 4/4; erpx-server-inventory availability 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 783 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile normal-auth stock pages: BROWSER-P, 10 pcs on hand, 3 reserved, 0 quarantined, 0 in transit, 7 available, 10.00 THB; pageErrors 0; renders without Commerce posting setup."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 15,
+    "workflowsPartial": 3,
+    "workflowsMerged": 15,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "The stock page falls back to the legacy commercePage rows when ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG is absent.",
+    "The browser exercised branch scope; holding scope is PostgreSQL-tested.",
+    "The Inventory owner remains partial for issues/movements."
+  ]
+}

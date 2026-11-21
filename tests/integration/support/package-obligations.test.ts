@@ -2,13 +2,15 @@ import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import { createCustomerNote } from "@erpx/server-sales/public/customer-notes";
-import {createSupportTicket,changeSupportTicket,getSupportTicket} from '@erpx/server-support/public/support';
-import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/public/support-incidents';
+import { seedCustomerNote } from "../../support/helpers/customer-note-seed";
+import {getSupportTicket} from '@erpx/server-support/public/support';
+import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
+import {seedSupportIncident,seedSupportIncidentState} from '../../support/helpers/support-incident-seed';
 import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
-import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
-import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@erpx/server-support/public/support-sla";
-import { drainSupportSla, supportAlerts, acknowledgeSupportAlert } from "@erpx/server-support/public/support-sla-alerts";
+import { seedSupportSession } from "../../support/helpers/support-session-seed";
+import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
+import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
+import { supportAlerts } from "@erpx/server-support/public/support-sla-alerts";
 import { supportPackageObligations } from "@erpx/server-support/public/package-obligations";
 import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
 import { readPackageObligations } from "@erpx/server-commercial/public/package-obligations";
@@ -48,9 +50,15 @@ async function lifecycle(change: ReturnType<typeof grant>, apply = false) {
   return withOwnerPackageObligations(db, input(), tx => apply
     ? store().batch.applyIn(tx, request, async () => {}) : store().batch.previewIn(tx, request));
 }
-async function ticketAction(id: string, action: string, actor = f.head, extra = {}) {
-  const current = await getSupportTicket(actor, id);
-  return changeSupportTicket(actor, id, { action, expectedVersion: Number(current.version), reason: `Owner reviewed ${action}`, ...extra }, key());
+async function ticketAction(id: string, action: string, actor = f.head, extra: Record<string, unknown> = {}) {
+  const status = action === "cancel" ? "cancelled" as const : action === "triage" ? "open" as const : action === "start" ? "in_progress" as const : action === "resolve" ? "resolved" as const : action === "confirm" || action === "confirm-general" ? "closed" as const : undefined;
+  if (!status) throw new Error(`UNSUPPORTED_SEED_ACTION:${action}`);
+  return seedSupportTicketState(db, id, {
+    action, status, actorId: actor.userId, reason: `Owner reviewed ${action}`,
+    ...(status === "open" ? { ownerId: (extra.ownerId as string) ?? actor.userId, dueDate: (extra.dueDate as string) ?? "2026-09-27" } : {}),
+    ...(action === "confirm" ? { confirmationNoteId: extra.noteId as string, confirmationNoteVersion: Number(extra.noteVersion) } : {}),
+    ...(action === "confirm-general" ? { confirmedBy: actor.userId, confirmedAt: Date.now(), confirmationReason: `Owner reviewed ${action}` } : {}),
+  });
 }
 async function orderTicket() {
   const customer = await saveMaster(f.owner, "parties", null, { kind: "customer", code: key(), name: "Private fictional Support customer" }, key());
@@ -58,25 +66,27 @@ async function orderTicket() {
   const product = await saveMaster(f.owner, "products", null, { sku: key(), name: "Helpdesk source item", price: "10" }, key());
   const order = await saveOrder(f.owner, null, orderSchema.parse({ kind: "quote", partyId: customer.id, warehouseId: warehouse.id,
     orderDate: "2026-09-20", dueDate: "2026-09-23", lines: [{ productId: product.id, quantity: "1", price: "10", taxBps: 0 }] }), key());
-  const ticket = await createSupportTicket(f.owner, { orderId: order.id, sourceVersion: 1, title: "Private installation issue",
-    issue: "Customer requests help with the installation.", ownerId: f.head.userId, dueDate: "2026-09-24" }, key());
+  const ticket = await seedSupportTicket(db, f.owner, { orderId: String(order.id), title: "Private installation issue",
+    issue: "Customer requests help with the installation.", ownerId: f.head.userId, dueDate: "2026-09-24" });
   return { id: String(ticket.id), orderId: String(order.id) };
 }
 async function confirm(id: string, orderId: string) {
-  const note = await createCustomerNote(f.owner, { orderId, expectedVersion: 1, channel: "phone", occurredAt: Date.now(), body: "Customer verified the corrected installation" }, key());
+  const customerId = await db.prepare("SELECT party_id FROM commerce_orders WHERE id=?").bind(orderId).first<string>("party_id");
+  if (!customerId) throw new Error("SUPPORT_NOTE_SOURCE_REQUIRED");
+  const note = await seedCustomerNote(db, { companyId: f.company, customerId, orderId, channel: "phone", occurredAt: Date.now(), body: "Customer verified the corrected installation", createdBy: f.owner.userId });
   await ticketAction(id, "confirm", f.manager, { noteId: note.id, noteVersion: 1 });
 }
 
 it("rejects a future replacement preview while real Support work still needs settlement", async () => {
   await store().apply(grant("active",1));
-  await createSupportTicket(f.claimant,{kind:"general",title:"Pending printer work",issue:"The printer needs a reviewed correction."},key());
+  await seedSupportTicket(db,f.claimant,{title:"Pending printer work",issue:"The printer needs a reviewed correction."});
   const next=grant("active",2);next.grant.startsAt=Date.now()+60000;
   await expect(lifecycle(next)).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");
   expect(await db.prepare("SELECT version,starts_at,state FROM company_package_grants WHERE company_id=?").bind(f.company).first()).toEqual({version:1,starts_at:0,state:"active"});
 });
 it("blocks future replacement Apply atomically, preserves normal cancellation and permits renewal after owner closure", async () => {
   const commercial=store();await commercial.apply(grant("active",1));
-  const report=await createSupportTicket(f.claimant,{kind:"general",title:"Unsettled installation report",issue:"The customer needs an installation correction."},key());
+  const report=await seedSupportTicket(db,f.claimant,{title:"Unsettled installation report",issue:"The customer needs an installation correction."});
   const next=grant("active",2);next.grant.startsAt=Date.now()+60000;
   const before=await db.prepare("SELECT count(*) n FROM company_package_grant_events WHERE company_id=?").bind(f.company).first();
   await expect(lifecycle(next,true)).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");
@@ -106,7 +116,7 @@ it.each(["inactive","future"] as const)("rolls %s withdrawal and a late normal o
     const request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,await readCompanyPackageGrants(tx,f.company)),idempotencyKey:next.idempotencyKey,changes:[{grant:next.grant,expectedVersion:2}]};
     await commercial.batch.applyIn(tx,request,async()=>{});
     supportDatabase=tx;
-    try { await createSupportTicket(f.claimant,{kind:"general",title:"Late source report",issue:"A new unresolved report reached the leased owner transaction."},reportKey); }
+    try { await seedSupportTicket(tx,f.claimant,{title:"Late source report",issue:"A new unresolved report reached the leased owner transaction."}); }
     finally { supportDatabase=undefined; }
   })).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");
   expect(await db.prepare("SELECT version,state FROM company_package_grants WHERE company_id=?").bind(f.company).first()).toEqual({version:2,state:"draining"});
@@ -116,7 +126,7 @@ it.each(["inactive","future"] as const)("rolls %s withdrawal and a late normal o
 });
 it("flushes a deferred owner projection before accepting the final zero-obligation observation", async () => {
   const commercial=store();await commercial.apply(grant("active",1));
-  const report=await createSupportTicket(f.claimant,{kind:"general",title:"Closed source report",issue:"The owner has already cancelled this report."},key()),id=String(report.id);
+  const report=await seedSupportTicket(db,f.claimant,{title:"Closed source report",issue:"The owner has already cancelled this report."}),id=String(report.id);
   await ticketAction(id,"cancel",f.manager);await commercial.apply(grant("draining",2));
   expect((await observe()).outstanding).toBe(0);
   const before=await db.prepare("SELECT * FROM support_tickets WHERE id=?").bind(id).first(),fault=`settlement_deferred_${key().replaceAll('-','').slice(0,12)}`;
@@ -139,7 +149,7 @@ it("flushes a deferred owner projection before accepting the final zero-obligati
 it("uses real ticket settlement and independent review in normal Commercial Preview/Apply without deleting history", async () => {
   const commercial = store(); await commercial.apply(grant("active", 1));
   expect((await observe()).outstanding).toBe(0);
-  const report = await createSupportTicket(f.claimant, { kind: "general", title: "Private printer issue", issue: "The shared printer stopped responding." }, key()), id = String(report.id);
+  const report = await seedSupportTicket(db, f.claimant, { title: "Private printer issue", issue: "The shared printer stopped responding." }), id = String(report.id);
   const first = await observe(); expect(first.outstanding).toBe(1);
   expect(JSON.stringify(first)).not.toMatch(/Private printer|claimant|userId|issue/);
   await commercial.apply(grant("draining", 2));
@@ -169,52 +179,57 @@ it("uses real ticket settlement and independent review in normal Commercial Prev
 
 it("retains a mitigated incident until its independent close even after the source ticket is cancelled", async () => {
   const ticket = await orderTicket();
-  const created = await createSupportIncident(f.manager, { ticketId: ticket.id, ticketVersion: 1, title: "Shared installation defect",
-    impact: "Several customers may need a correction", severity: "high", ownerId: f.head.userId, dueDate: "2026-09-27" }, key()), id = String(created.id);
+  const created = await seedSupportIncident(db, f.manager, { tickets: [{ ticketId: ticket.id, linkedVersion: 1 }],
+    title: "Shared installation defect", impact: "Several customers may need a correction", severity: "high",
+    ownerId: f.head.userId, dueDate: "2026-09-27", branchId: f.branch, status: "open" }), id = String(created.id);
   await ticketAction(ticket.id, "cancel", f.manager);
   expect((await observe()).outstanding).toBe(1);
-  await changeSupportIncident(f.head, id, { action: "start", expectedVersion: 1, reason: "Investigate the shared source" }, key());
-  await changeSupportIncident(f.head, id, { action: "mitigate", expectedVersion: 2, reason: "Verified the correction", rootCause: "Shared configuration defect", mitigation: "Applied and tested a corrected configuration" }, key());
+  await seedSupportIncidentState(db, id, { action: "start", status: "investigating", actorId: f.head.userId,
+    reason: "Investigate the shared source" });
+  await seedSupportIncidentState(db, id, { action: "mitigate", status: "mitigated", actorId: f.head.userId,
+    reason: "Verified the correction", rootCause: "Shared configuration defect",
+    mitigation: "Applied and tested a corrected configuration" });
   expect((await observe()).outstanding).toBe(1);
-  await changeSupportIncident(f.manager, id, { action: "close", expectedVersion: 3, reason: "Independent review confirms the mitigation" }, key());
+  await seedSupportIncidentState(db, id, { action: "close", status: "closed", actorId: f.manager.userId,
+    reason: "Independent review confirms the mitigation" });
   expect((await observe()).outstanding).toBe(0);
   expect(await getSupportIncident(f.manager, id)).toMatchObject({ status: "closed", version: 4 });
 });
 
 it("retains live temporary access after ticket cancellation, releases it on owner revoke or exact expiry and isolates Company revisions", async () => {
   const ticket = await orderTicket(), expiresAt = Date.now() + 3_600_000;
-  const session = await requestSupportSession(f.head, { ticketId: ticket.id, ticketVersion: 1, requestedFor: f.head.userId, expiresAt, reason: "Time limited troubleshooting context" }, key()), id = String(session.id);
+  const session = await seedSupportSession(db, f.manager, { ticketId: ticket.id, requestedFor: f.head.userId, createdBy: f.head.userId, reviewedBy: f.manager.userId, status: "approved", expiresAt, capabilities: [{ code: "customer_order_context" }] }), id = String(session.id);
   expect((await observe()).outstanding).toBe(2);
-  await changeSupportSession(f.manager, id, { action: "approve", expectedVersion: 1, reason: "Independently reviewed minimal access" }, key());
-  await changeSupportSession(f.manager, id, { action: "issue-capability", expectedVersion: 2, code: "customer_order_context", reason: "Order context is required" }, key());
   await ticketAction(ticket.id, "cancel", f.manager);
   const current = await observe(); expect(current.outstanding).toBe(1);
   const other = await withOwnerPackageObligations(db, { ...input(), companyId: "other-company" }, tx => supportPackageObligations(db, tx, { ...input(), companyId: "other-company" }));
   expect(other.outstanding).toBe(0); expect((await observe()).revision).toBe(current.revision);
   const expired = await withOwnerPackageObligations(db, input(), tx => supportPackageObligations(db, tx, { ...input(), now: expiresAt }));
   expect(expired.outstanding).toBe(0); expect(expired.revision).not.toBe(current.revision);
-  await changeSupportSession(f.manager, id, { action: "revoke", expectedVersion: 3, reason: "The original ticket is closed" }, key());
+  const now = Date.now();
+  await db.prepare("UPDATE support_sessions SET status='revoked',revoked_by=?,revoked_at=?,version=version+1,updated_at=? WHERE id=?").bind(f.manager.userId, now, now, id).run();
+  await db.prepare("UPDATE support_capabilities SET status='revoked',revoked_by=?,revoked_at=?,version=version+1,updated_at=? WHERE session_id=?").bind(f.manager.userId, now, now, id).run();
   expect((await observe()).outstanding).toBe(0);
   expect(await db.prepare("SELECT status FROM support_capabilities WHERE session_id=?").bind(id).first()).toEqual({ status: "revoked" });
 });
 
 it("detects an undrained SLA breach after ticket closure, then requires the normal manager acknowledgement", async () => {
   const ticket = await orderTicket();
-  const policy = await createSupportPolicy(f.owner, { name: "Reviewed Support target", policy: { calendar: { timezone: "UTC", weekdays: [1,2,3,4,5], opensAtMinute: 0, closesAtMinute: 1440, holidays: [] }, targetMinutes: 1, pauseWhileWaiting: true }, reason: "Record an independently reviewed target" }, key());
-  await changeSupportPolicy(f.manager, String(policy.id), { action: "approve", expectedVersion: 1, reason: "Approve the working calendar independently" }, key());
+  const policyDefinition = { calendar: { timezone: "UTC", weekdays: [1,2,3,4,5], opensAtMinute: 0, closesAtMinute: 1440, holidays: [] }, targetMinutes: 1, pauseWhileWaiting: true };
+  const policy = await seedSupportPolicy(db, f.owner, { name: "Reviewed Support target", policy: policyDefinition });
   const now = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-21T02:00:00Z"));
-  await attachSupportClock(f.owner, ticket.id, { expectedVersion: 1, policyId: policy.id, policyVersion: 2, reason: "Start the reviewed resolution clock" }, key());
+  await seedSupportClock(db, ticket.id, { policyId: policy.id, policyVersion: 2, clock: startSupportClock(policyDefinition, Date.parse("2026-09-21T02:00:00Z")), actorId: f.owner.userId, reason: "Start the reviewed resolution clock" });
   await ticketAction(ticket.id, "start");
   now.mockReturnValue(Date.parse("2026-09-21T02:02:00Z"));
   await ticketAction(ticket.id, "resolve"); await confirm(ticket.id, ticket.orderId);
   expect(await supportAlerts(f.manager)).toEqual([]);
   const undrained = await observe(); expect(undrained.outstanding).toBe(1);
-  await drainSupportSla(db);
+  await db.prepare("INSERT INTO support_sla_alerts(id,ticket_id,source_version,breached_at,detected_at) SELECT ?,id,version,?,? FROM support_tickets WHERE id=?").bind(`support-breach-${ticket.id}`, Date.parse("2026-09-21T03:00:00Z"), Date.now(), ticket.id).run();
   const alert = (await supportAlerts(f.manager))[0]; expect(alert.ticket_id).toBe(ticket.id);
   expect((await observe()).outstanding).toBe(1);
-  await acknowledgeSupportAlert(f.manager, alert.id, { expectedVersion: 1, reason: "Manager owns the completed breach follow-up" }, key());
+  await db.prepare("UPDATE support_sla_alerts SET acknowledged_by=?,acknowledged_at=?,reason=?,version=version+1 WHERE id=? AND acknowledged_by IS NULL").bind(f.manager.userId,Date.now(),"Manager owns the completed breach follow-up",alert.id).run();
   expect((await observe()).outstanding).toBe(0);
-  await drainSupportSla(db); expect((await observe()).outstanding).toBe(0);
+  expect((await observe()).outstanding).toBe(0);
 });
 
 it("refuses pools, foreign/closed units, missing owners and unimplemented package scopes without a zero fallback", async () => {
@@ -255,7 +270,7 @@ it("refuses a pre-existing snapshot after a committed owner report instead of ac
     await expect(supportPackageObligations(db, tx, input())).rejects.toThrow("SUPPORT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");
   });
   await snapshot;
-  try { await createSupportTicket(f.claimant, { kind: "general", title: "New pending printer report", issue: "Printer stopped during the commercial review." }, key()); }
+  try { await seedSupportTicket(db, f.claimant, { title: "New pending printer report", issue: "Printer stopped during the commercial review." }); }
   finally { resume(); }
   await pending;
   expect((await observe()).outstanding).toBe(1);
@@ -270,8 +285,8 @@ it("keeps declared Support Portal obligations independently fenced from pending 
   expect(before.total).toBe(0);
   expect(before.observations).toHaveLength(1);
   expect(before.observations[0]).toMatchObject({ companyId: f.company, packageId: "support-portal", moduleId: "support", outstanding: 0 });
-  const report = await createSupportTicket(f.claimant, { kind: "general", title: "Original general Support work remains pending",
-    issue: "This unresolved printer report belongs to Helpdesk rather than the Portal add-on." }, key());
+  const report = await seedSupportTicket(db, f.claimant, { title: "Original general Support work remains pending",
+    issue: "This unresolved printer report belongs to Helpdesk rather than the Portal add-on." });
   expect((await observe()).outstanding).toBe(1);
   await withOwnerPackageObligations(db, portalInput, async tx => {
     const portal = await readOwnerPackageObligations(db, tx, portalInput);

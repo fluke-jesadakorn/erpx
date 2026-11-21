@@ -1,0 +1,10 @@
+pub mod accounting_profile_wave3;
+pub mod accounting_profile_wave3_http;
+pub mod owner_write_wave3;
+pub mod owner_write_wave3_http;
+pub mod bom;
+pub mod bom_http;
+pub mod lots;
+pub mod planning;
+pub mod planning_http;
+pub mod specification;

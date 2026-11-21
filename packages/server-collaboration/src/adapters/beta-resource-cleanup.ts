@@ -1,2 +1,3 @@
+import { nativeBetaResourceCleanup } from "@erpx/server-collaboration/adapters/native-beta-resource-cleanup";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-export async function expireBetaAiReservations(db:SqlDatabase,pendingBefore:number,now:number){await db.batch([db.prepare("UPDATE social_ai_usage SET state='failed' WHERE state='reserved' AND lease_until<?").bind(now),db.prepare("UPDATE social_ai_drafts SET state='failed',result_json=NULL WHERE (state='pending' AND created_at<?) OR (state='ready' AND expires_at<?)").bind(pendingBefore,now)]);}
+export async function expireBetaAiReservations(db:SqlDatabase,holdingId:string,pendingBefore:number,now:number){const native=nativeBetaResourceCleanup(db,holdingId);await db.batch([await native.usage(now),await native.draft(pendingBefore,now)]);}

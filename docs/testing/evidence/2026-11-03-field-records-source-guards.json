@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "local scoped Rust candidate qualified; PR integration pending",
+  "capability": "field-records-source-guards",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "2e8133bb1",
+  "scope": "Same-unit Records source guards for Field-managed Support, Collaboration and Operations mutations; generic Field mutations fail closed; HTTP source reads are not used as an atomic guard.",
+  "checks": [
+    {
+      "owner": "support",
+      "command": "bun run test tests/unit/support/support-services.test.ts",
+      "result": "61 passed; includes the Field Service-managed case and exact currently authorized visit link"
+    },
+    {
+      "owner": "support",
+      "command": "bun run test tests/integration/support/support.test.ts",
+      "result": "9 passed; includes SUPPORT_SOURCE_IMMUTABLE and source_record_json handoff"
+    },
+    {
+      "owner": "collaboration",
+      "command": "cargo test -p erpx-service --test field_collaboration_selected_postgres selected_records_actor_executes_all_field_collaboration_commands_with_exact_replay --features private-field-api -- --exact",
+      "result": "passed; selected Records actor executes all Field collaboration commands with exact replay"
+    },
+    {
+      "owner": "operations",
+      "command": "bun run test --suite=operations.rust-field-exceptions.unit",
+      "result": "10 passed; ownership, independent review, scope and stale-version guards"
+    },
+    {
+      "owner": "records",
+      "command": "bun run test tests/unit/shared.records/record-services.test.ts",
+      "result": "29 passed; retired generic Field mutations cannot prepare persistence or commit an orphan record"
+    }
+  ],
+  "sourceGuards": [
+    "packages/server-records/src/adapters/source-record-policy.ts: Field-linked operations require the native unit and fail closed",
+    "packages/server-support/src/adapters/support-ticket-read.ts: source visibility is resolved from source_record_json through the owner policy",
+    "packages/server-support/src/adapters/field_ticket_read.rs: native Field source read"
+  ],
+  "limits": [
+    "Local scoped candidate evidence, not owner/workflow acceptance.",
+    "Support's own catalogue workflows remain outside the Field bundle; this closes only the Field source-guard prerequisite.",
+    "Checklist 12-18 and the scoped PR remain open."
+  ]
+}

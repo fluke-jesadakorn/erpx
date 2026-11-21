@@ -18,7 +18,6 @@
     "./adapters/bill-purchases": "./src/adapters/bill-purchases.ts",
     "./adapters/commerce-facts": "./src/adapters/commerce-facts.ts",
     "./adapters/bill-source-sql": "./src/adapters/bill-source-sql.ts",
-    "./adapters/finance-close-source": "./src/adapters/finance-close-source.ts",
     "./adapters/finance-owned-snapshot-sources": "./src/adapters/finance-owned-snapshot-sources.ts",
     "./adapters/supplier-payments": "./src/adapters/supplier-payments.ts",
     "./adapters/attachment-read": "./src/adapters/attachment-read.ts",
@@ -37,7 +36,6 @@
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/executive-main-evidence-sources": "./src/adapters/executive-main-evidence-sources.ts",
     "./adapters/collaboration-notification-snapshot-sources": "./src/adapters/collaboration-notification-snapshot-sources.ts",
-    "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",
     "./public/commerce-bill-contracts": "./src/public/commerce-bill-contracts.ts",
     "./public/supplier-payment-contract": "./src/public/supplier-payment-contract.ts",
     "./public/supplier-bill-matching": "./src/public/supplier-bill-matching.ts",
@@ -50,7 +48,6 @@
     "./public/document-posting-preview-facts": "./src/public/document-posting-preview-facts.ts",
     "./public/presentation-queries": "./src/public/presentation-queries.ts",
     "./public/commerce-facts": "./src/public/commerce-facts.ts",
-    "./public/finance-close-source": "./src/public/finance-close-source.ts",
     "./public/finance-owned-snapshot-sources": "./src/public/finance-owned-snapshot-sources.ts",
     "./public/supplier-payments": "./src/public/supplier-payments.ts",
     "./public/attachment-read": "./src/public/attachment-read.ts",
@@ -69,7 +66,6 @@
     "./public/package-obligations": "./src/public/package-obligations.ts",
     "./public/executive-main-evidence-sources": "./src/public/executive-main-evidence-sources.ts",
     "./public/collaboration-notification-snapshot-sources": "./src/public/collaboration-notification-snapshot-sources.ts",
-    "./index": "./src/index.ts",
     "./application/supplier-bills": "./src/application/supplier-bills.ts",
     "./application/supplier-payments": "./src/application/supplier-payments.ts",
     "./application/rfqs": "./src/application/rfqs.ts",
@@ -80,7 +76,8 @@
     "./domain/supplier-payments": "./src/domain/supplier-payments.ts",
     "./domain/rfqs": "./src/domain/rfqs.ts",
     "./domain/supplier-promises": "./src/domain/supplier-promises.ts",
-    "./domain/request-progress": "./src/domain/request-progress.ts"
+    "./domain/request-progress": "./src/domain/request-progress.ts",
+    "./public/purchases": "./src/public/purchases.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -108,6 +105,6 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

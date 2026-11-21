@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, TextArea } from "@erpx/ui/components/foundation";
@@ -69,7 +70,7 @@ export function CustomerPortalActions({
     let mayHaveCommitted=true;
     try {
       fence.assertCurrent();attempts.current.retain(attempt);
-      const response = await fetch(`/api/customer-portal/${encodeURIComponent(holdingSlug)}`, {
+      const response = await holdingFetch(`/api/customer-portal/${encodeURIComponent(holdingSlug)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.key },
         body:attempt.body,

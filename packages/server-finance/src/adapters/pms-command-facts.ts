@@ -1,4 +1,5 @@
 import {financeOwnedSnapshotSources as pmsSnapshotSources} from "@erpx/server-pms/public/finance-owned-snapshot-sources";
+import { nativePmsFinanceFacts } from '@erpx/server-collaboration/adapters/native-pms-finance-facts';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
@@ -123,7 +124,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             currency: string;
             now: number;
             now2: number;
-        }) => run(db, "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer',?,?,?,'active',?,?) ON CONFLICT(id) DO NOTHING", facts.party, facts.companyId, facts.fact2, facts.name, facts.currency, facts.now, facts.now2),
+        }) => nativePmsFinanceFacts(db, facts.companyId).party([facts.party, facts.companyId, facts.fact2, facts.name, facts.currency, facts.now, facts.now2]).then(s => s.run()),
         insertFinanceInvoices: (facts: {
             id: string;
             companyId: string;
@@ -147,7 +148,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             now: number;
             now2: number;
             now3: number;
-        }) => run(db, "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'receivable',?,?,?,?,?,?,?,?,?,?,?,'pms',?,?,?,?,?,?,?,?)", facts.id, facts.companyId, facts.party, facts.fact3, facts.businessDate, facts.fact5, facts.currency, facts.fact7, facts.tax, facts.total, facts.currentDue, facts.receivable, facts.revenue, facts.tax2, facts.id2, facts.fact15, facts.fact16, facts.userId, facts.approvedBy, facts.now, facts.now2, facts.now3),
+        }) => nativePmsFinanceFacts(db, facts.companyId).invoice([facts.id, facts.companyId, facts.party, facts.fact3, facts.businessDate, facts.fact5, facts.currency, facts.fact7, facts.tax, facts.total, facts.currentDue, facts.receivable, facts.revenue, facts.tax2, facts.id2, facts.fact15, facts.fact16, facts.userId, facts.approvedBy, facts.now, facts.now2, facts.now3]).then(s => s.run()),
         insertFinancePayments: (facts: {
             id: string;
             companyId: string;
@@ -163,11 +164,11 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             userId2: string;
             now: number;
             now2: number;
-        }) => run(db, "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?)", facts.id, facts.companyId, facts.party, facts.fact3, facts.fact4, facts.businessDate, facts.currency, facts.amount, facts.fact8, facts.fact9, facts.userId, facts.userId2, facts.now, facts.now2),
+        }) => nativePmsFinanceFacts(db, facts.companyId).payment([facts.id, facts.companyId, facts.party, facts.fact3, facts.fact4, facts.businessDate, facts.currency, facts.amount, facts.fact8, facts.fact9, facts.userId, facts.userId2, facts.now, facts.now2]).then(s => s.run()),
         deleteFinanceAllocations: (facts: {
             id: string;
             companyId: string;
-        }) => run(db, "DELETE FROM finance_allocations WHERE invoice_id=? AND company_id=?", facts.id, facts.companyId),
+        }) => nativePmsFinanceFacts(db, facts.companyId).allocationDelete([facts.id, facts.companyId]).then(s => s.run()),
         updateFinanceInvoices: (facts: {
             outstanding: number;
             outstanding2: number;
@@ -176,7 +177,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             fact4: number;
             id: string;
             companyId: string;
-        }) => run(db, "UPDATE finance_invoices SET outstanding_minor=?,base_outstanding_minor=?,status=CASE WHEN ?=0 THEN 'paid' WHEN ?<total_minor THEN 'partially_paid' ELSE 'posted' END,version=version+1,updated_at=? WHERE id=? AND company_id=?", facts.outstanding, facts.outstanding2, facts.outstanding3, facts.outstanding4, facts.fact4, facts.id, facts.companyId),
+        }) => nativePmsFinanceFacts(db, facts.companyId).invoiceUpdate([facts.outstanding, facts.outstanding2, facts.outstanding3, facts.outstanding4, facts.fact4, facts.id, facts.companyId]).then(s => s.run()),
         insertFinanceAllocations: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             companyId: string;
@@ -185,7 +186,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             n: number;
             userId: string;
             fact6: number;
-        }) => run(db, "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)", facts.fact0, facts.companyId, facts.id, facts.id2, facts.n, facts.userId, facts.fact6),
+        }) => nativePmsFinanceFacts(db, facts.companyId).allocationInsert([facts.fact0, facts.companyId, facts.id, facts.id2, facts.n, facts.userId, facts.fact6]).then(s => s.run()),
         readFinanceParties2: (facts: {
             partyId: string;
             companyId: string;
@@ -208,6 +209,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
         updateFinanceBankTransactions2: (facts: {
             id: string;
             matchedBankId: string;
-        }) => run(db, "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=? AND match_status IN ('unmatched','proposed')", facts.id, facts.matchedBankId)
+            companyId: string;
+        }) => nativePmsFinanceFacts(db, facts.companyId).bankMatch([facts.id, facts.matchedBankId]).then(s => s.run())
     };
 }

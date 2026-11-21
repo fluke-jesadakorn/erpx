@@ -1,0 +1,7229 @@
+{
+  "profile": {
+    "TZ": "Asia/Bangkok",
+    "LANG": "en_US.UTF-8",
+    "LC_ALL": "en_US.UTF-8",
+    "locale": "en-US",
+    "timeZone": "Asia/Bangkok"
+  },
+  "resolvedInputSha256": {
+    "node": "72661776a737f5bbd7bc66af9dc5a5ef324819a53df518fdc7143127927c1378",
+    "typescript": "d3f3cd2b04b7f466f4484df921b744223f7bd1f3e353ec9110bdf52695b983d5",
+    "typescriptPackage": "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+    "zod": "d93a8730d52c0fedab13619c8bc971cc99934c13d8dce7c97ee4d03a98d4096e",
+    "zodPackage": "c2d190d9ee4e0bdb60332aaa2130a6a98d65ddb903fe1d29248b15de57832c45"
+  },
+  "version": 1,
+  "acceptance": false,
+  "description": "33 finite actual retained route/schema/application/owner/purchase/workflow observations with synthetic auth/database/source/quote/commit ports. No actual SQL, authority, or transactional effect.",
+  "node": "v26.11.1",
+  "typescriptWrapper": "6.0.2",
+  "typescriptEngine": "6.0.3",
+  "zod": "4.6.7",
+  "sourceRevision": "5974da959d0b2672e8c061d859f98e137f89eb0e",
+  "inputs": {
+    "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts": "07ad895c2eaef855efcd6492b629a9ef5fe5502db44c7696cae130610feba877",
+    "packages/server-runtime/src/adapters/http.ts": "70ce5f82e007f79946dd95c3fd7b1b052c2e847e0d38a6e0ffd402364ea858f6",
+    "packages/server-shared/src/domain/error.ts": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c",
+    "packages/server-shared/src/domain/consumption-lot.ts": "dddcf06b3390953a58715a7c7888b888fa1069a9f82ae0cf675f8fc799aa543f",
+    "packages/server-field_service/src/domain/service.ts": "9fc084338201fe2ee1f5864f49f8eb568f757f433154008c633755dd05636e28",
+    "packages/server-field_service/src/application/service.ts": "95aa03b1a0662783476429056fb5f7c5e568b95747830f9a8ac934e7ba1429c7",
+    "packages/server-field_service/src/adapters/service.ts": "5276d8703ffd87144a9bec9a5fb4d7246e9a42411029dc2cf5e1362a57ce2b5e",
+    "packages/server-field_service/src/adapters/purchases.ts": "69d1e89e2f2d156ceb58f76a60cf6965eb5abbfc44a2d7de75f3e85f30602d8e",
+    "packages/server-field_service/src/domain/package-commands.ts": "0c403ef49059bb02a5f5c45630723e6500dcd2ba3b41e0b60de8b434e5d8b8b7",
+    "packages/server-workflow/src/application/commands.ts": "665c8e957951a7748c0211e58b2001a133d4479bf546fc986f61d1cc6920ea98",
+    "packages/server-workflow/src/domain/commands.ts": "c610e8a5dcd72dec347f6c2e842d469cf37a5e0eac428d82dfe5f50c6c76f92b",
+    "packages/feature-identity_access/src/lib/guest-account-compat.ts": "9cb447b63957b7a91f6bbc85f2074a531e5e8bb3e14dac7d58cd17d61b5b6e80",
+    "packages/server-manage_erpx/src/adapters/public-origin.ts": "42da7a5939c001617d5cb082a0e4c1054a75c39e5cfb11009097b52c37f3e7d8",
+    "packages/server-manage_erpx/src/domain/public-origin.ts": "27bf065b5c10b4f18b2f782db60190b3a21281c8084e766fc3ae5145e9d48b88",
+    "packages/feature-field_service/src/lib/command.ts": "5e9c974dd8cb41c38f77d8876f465c8e0d549f2ca4eed0dd9bd74189711d5f83",
+    "packages/feature-work_projection/src/lib/work-fetch.ts": "70ee5907223c3e7c5ce95ce0fb1eed1c1487f9bb3f638c8270d56251ed7ec56b",
+    "packages/contracts/src/holding-fetch.ts": "cbe52d2a0d0ccacec4eb983523752c29d324e8b6d6955b5fb0608a2664cc9a55",
+    "package.json": "e158b60b978f47f7a718283bbaa23b8296b1d075f710ac9ef2e64d241320555a",
+    "bun.lock": "714d959fc1f827a8ebdfef2edf73a9f29c52c7c2bd9c0a3e5a613d844d03376a",
+    "node_modules/typescript/package.json": "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+    "node_modules/typescript/lib/typescript.js": "d3f3cd2b04b7f466f4484df921b744223f7bd1f3e353ec9110bdf52695b983d5",
+    "node_modules/@typescript/old/package.json": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+    "node_modules/@typescript/old/lib/typescript.js": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39"
+  },
+  "runtimeTrees": {
+    "node_modules/zod": "e03604b0cec3438eaa46715d3338a91b892bf230feb90bd3e72d4570fd3f8125",
+    "node_modules/@typescript/old": "20e1e6659cff23eaeaf9eade115c5a6a169944f046d2012a3f2c4740012be183"
+  },
+  "ownerLeaf": {
+    "invoke": "3071c7f0d4f8e705ca071710cd8a11ac4f00ce2290a7f72b8248fe821d5873d2",
+    "changeServiceOrder": "1fdcfcfc7ed19b6158612b79e8f67c201c4102835ce6d2c562ae8eb94d778e1d"
+  },
+  "cases": [
+    {
+      "id": "reserve-success",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"order\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "issue-success",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": [
+              114,
+              101,
+              115,
+              101,
+              114,
+              118,
+              97,
+              116,
+              105,
+              111,
+              110
+            ]
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.reservation",
+          "order",
+          "reservation"
+        ],
+        [
+          "fake.quote",
+          "reservation",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          "valid-key-123",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "in_visit"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"order\",\"version\":8,\"status\":\"in_visit\"}}"
+      }
+    },
+    {
+      "id": "bad-origin-missing-key-denied-auth-malformed-json",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://evil.test"
+          ]
+        ],
+        "wire": "{",
+        "options": {
+          "denyAuth": true,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://evil.test",
+        "key": null,
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://evil.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://evil.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ]
+      ],
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"ORIGIN_FORBIDDEN\",\"message\":\"Use the application origin.\"}}"
+      }
+    },
+    {
+      "id": "origin-omitted",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": null,
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          null
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"order\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "origin-empty",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            ""
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          ""
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"order\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "missing-key-denied-auth-malformed-json",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{",
+        "options": {
+          "denyAuth": true,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": null,
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          null
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"COMMAND_KEY_REQUIRED\",\"message\":\"Idempotency-Key is required.\"}}"
+      }
+    },
+    {
+      "id": "empty-key-denied-auth-malformed-json",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            ""
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{",
+        "options": {
+          "denyAuth": true,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          ""
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"COMMAND_KEY_REQUIRED\",\"message\":\"Idempotency-Key is required.\"}}"
+      }
+    },
+    {
+      "id": "whitespace-key-real-Headers",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "   "
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          ""
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"COMMAND_KEY_REQUIRED\",\"message\":\"Idempotency-Key is required.\"}}"
+      }
+    },
+    {
+      "id": "duplicate-origin-real-Headers",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test, https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test, https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test, https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ]
+      ],
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"ORIGIN_FORBIDDEN\",\"message\":\"Use the application origin.\"}}"
+      }
+    },
+    {
+      "id": "duplicate-key-real-Headers",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ],
+          [
+            "idempotency-key",
+            "second-key-123"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123, second-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123, second-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123, second-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123, second-key-123",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": [
+              114,
+              101,
+              115,
+              101,
+              114,
+              118,
+              97,
+              116,
+              105,
+              111,
+              110
+            ]
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.reservation",
+          "order",
+          "reservation"
+        ],
+        [
+          "fake.quote",
+          "reservation",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          "valid-key-123, second-key-123",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "in_visit"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"COMMAND_KEY_REQUIRED\",\"message\":\"Use a valid Idempotency-Key for this action.\"}}"
+      }
+    },
+    {
+      "id": "denied-auth-malformed-json",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{",
+        "options": {
+          "denyAuth": true,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ]
+      ],
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Sign in to continue.\"}}"
+      }
+    },
+    {
+      "id": "allowed-auth-malformed-json",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ]
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"The request could not be completed.\"}}"
+      }
+    },
+    {
+      "id": "entity-request-with-parts-action-and-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \",\"entity\":\"request\"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  ",
+            "entity": "request"
+          }
+        ],
+        [
+          "fake.dispatch",
+          "request",
+          {
+            "id": "order",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  ",
+            "entity": "request"
+          },
+          "valid-key-123"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"fakeDispatch\":\"request\"}}"
+      }
+    },
+    {
+      "id": "entity-agreement-with-parts-action-and-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \",\"allocations\":[],\"entity\":\"agreement\"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": [],
+            "entity": "agreement"
+          }
+        ],
+        [
+          "fake.dispatch",
+          "changeAgreement",
+          "order",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": [],
+            "entity": "agreement"
+          },
+          "valid-key-123"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"fakeDispatch\":\"changeAgreement\"}}"
+      }
+    },
+    {
+      "id": "other-entity-with-parts-action-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \",\"entity\":\"other\"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  ",
+            "entity": "other"
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "order",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"order\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "nonstring-id-with-parts-action",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":123,\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": 123,
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "fake.dispatch",
+          "createOrder",
+          {
+            "id": 123,
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          },
+          "valid-key-123"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"fakeDispatch\":\"createOrder\"}}"
+      }
+    },
+    {
+      "id": "null-json",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "null",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          null
+        ]
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"The request could not be completed.\"}}"
+      }
+    },
+    {
+      "id": "array-json",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "[]",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          []
+        ],
+        [
+          "fake.dispatch",
+          "createOrder",
+          [],
+          "valid-key-123"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"fakeDispatch\":\"createOrder\"}}"
+      }
+    },
+    {
+      "id": "empty-string-order-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "",
+          []
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "",
+          []
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "",
+          []
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "",
+          []
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "",
+          []
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "long220-order-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          [
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          [
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          [
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          [
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          [
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120,
+            120
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "control-order-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"a\\u0000b\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "a\u0000b",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "a\u0000b",
+          [
+            97,
+            0,
+            98
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "a\u0000b",
+          [
+            97,
+            0,
+            98
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "a\u0000b",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "a\u0000b",
+          [
+            97,
+            0,
+            98
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "a\u0000b",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "a\u0000b",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "a\u0000b",
+          [
+            97,
+            0,
+            98
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "a\u0000b",
+          [
+            97,
+            0,
+            98
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"a\\u0000b\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "lone-surrogate-order-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"a\\ud800b\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "a\ud800b",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "a\ud800b",
+          [
+            97,
+            55296,
+            98
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "a\ud800b",
+          [
+            97,
+            55296,
+            98
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "a\ud800b",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "a\ud800b",
+          [
+            97,
+            55296,
+            98
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "a\ud800b",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "a\ud800b",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "a\ud800b",
+          [
+            97,
+            55296,
+            98
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "a\ud800b",
+          [
+            97,
+            55296,
+            98
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"a\\ud800b\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "unicode-order-id",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"งาน😀\",\"action\":\"reserve-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"product\",\"quantityMilli\":1000,\"expiresAt\":1800000010100,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "งาน😀",
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "งาน😀",
+          [
+            3591,
+            3634,
+            3609,
+            55357,
+            56832
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "งาน😀",
+          [
+            3591,
+            3634,
+            3609,
+            55357,
+            56832
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.reserve-part",
+          "งาน😀",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": null
+          }
+        ],
+        [
+          "fake.order",
+          "งาน😀",
+          [
+            3591,
+            3634,
+            3609,
+            55357,
+            56832
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.reserve-part",
+          "งาน😀",
+          {
+            "action": "reserve-part",
+            "expectedVersion": 7,
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "quantityMilli": 1000,
+            "expiresAt": 1800000010100,
+            "reason": "reason"
+          },
+          {
+            "id": "งาน😀",
+            "version": 8,
+            "status": "scheduled"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "งาน😀",
+          [
+            3591,
+            3634,
+            3609,
+            55357,
+            56832
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "งาน😀",
+          [
+            3591,
+            3634,
+            3609,
+            55357,
+            56832
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"งาน😀\",\"version\":8,\"status\":\"scheduled\"}}"
+      }
+    },
+    {
+      "id": "bad-nonempty-key-valid-owner-and-quote",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "bad!"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "bad!",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "bad!"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "bad!"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "bad!",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": [
+              114,
+              101,
+              115,
+              101,
+              114,
+              118,
+              97,
+              116,
+              105,
+              111,
+              110
+            ]
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.reservation",
+          "order",
+          "reservation"
+        ],
+        [
+          "fake.quote",
+          "reservation",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          "bad!",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "in_visit"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"COMMAND_KEY_REQUIRED\",\"message\":\"Use a valid Idempotency-Key for this action.\"}}"
+      }
+    },
+    {
+      "id": "bad-key-invalid-schema",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "bad!"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":0,\"reason\":\"  reason  \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "bad!",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "bad!"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 0,
+            "reason": "  reason  ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too small: expected number to be >0\"}}"
+      }
+    },
+    {
+      "id": "invalid-schema-denied-write",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":0,\"reason\":\"  reason  \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": true,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 0,
+            "reason": "  reason  ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too small: expected number to be >0\"}}"
+      }
+    },
+    {
+      "id": "bad-key-missing-owner",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "bad!"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": true,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "bad!",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "bad!"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "bad!"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ]
+      ],
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"FIELD_SERVICE_ORDER_NOT_FOUND\",\"message\":\"The original Service source is not available in this workspace.\"}}"
+      }
+    },
+    {
+      "id": "bad-key-missing-quote",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "bad!"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": true
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "bad!",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "bad!"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "bad!"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "bad!",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": [
+              114,
+              101,
+              115,
+              101,
+              114,
+              118,
+              97,
+              116,
+              105,
+              111,
+              110
+            ]
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.reservation",
+          "order",
+          "reservation"
+        ],
+        [
+          "fake.quote",
+          "reservation",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          "bad!",
+          1800000000100
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"MANUAL_RATE_REQUIRED\",\"message\":\"Synthetic quote unavailable.\"}}"
+      }
+    },
+    {
+      "id": "trimmed-too-short-reason",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\" a \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": " a ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too small: expected string to have >=3 characters\"}}"
+      }
+    },
+    {
+      "id": "multiple-schema-errors-first-message",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":0,\"reservationId\":\"\",\"quantityMilli\":0,\"reason\":\"\",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 0,
+            "reservationId": "",
+            "quantityMilli": 0,
+            "reason": "",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ]
+      ],
+      "response": {
+        "status": 422,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"error\":{\"code\":\"VALIDATION_FAILED\",\"message\":\"Too small: expected number to be >0\"}}"
+      }
+    },
+    {
+      "id": "issue-unknown-warehouse-product-stripped",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \",\"allocations\":[],\"warehouseId\":\"ignored-warehouse\",\"productId\":\"ignored-product\",\"unknown\":\"ignored\"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  ",
+            "allocations": [],
+            "warehouseId": "ignored-warehouse",
+            "productId": "ignored-product",
+            "unknown": "ignored"
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": [
+              114,
+              101,
+              115,
+              101,
+              114,
+              118,
+              97,
+              116,
+              105,
+              111,
+              110
+            ]
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.reservation",
+          "order",
+          "reservation"
+        ],
+        [
+          "fake.quote",
+          "reservation",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          "valid-key-123",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "in_visit"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"order\",\"version\":8,\"status\":\"in_visit\"}}"
+      }
+    },
+    {
+      "id": "issue-default-allocations",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"order\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"reservation\",\"quantityMilli\":1000,\"reason\":\"  reason  \"}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "order",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "reason": "  reason  "
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "reason": [
+              114,
+              101,
+              97,
+              115,
+              111,
+              110
+            ],
+            "reservationId": [
+              114,
+              101,
+              115,
+              101,
+              114,
+              118,
+              97,
+              116,
+              105,
+              111,
+              110
+            ]
+          }
+        ],
+        [
+          "fake.order",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.reservation",
+          "order",
+          "reservation"
+        ],
+        [
+          "fake.quote",
+          "reservation",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          "valid-key-123",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.issue-part",
+          "order",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "reservation",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "reason"
+          },
+          {
+            "id": "order",
+            "version": 8,
+            "status": "in_visit"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "order",
+          [
+            111,
+            114,
+            100,
+            101,
+            114
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"order\",\"version\":8,\"status\":\"in_visit\"}}"
+      }
+    },
+    {
+      "id": "lone-surrogate-schema-and-detail-units",
+      "synthetic": {
+        "headers": [
+          [
+            "host",
+            "holding.example.test"
+          ],
+          [
+            "origin",
+            "https://holding.example.test"
+          ],
+          [
+            "idempotency-key",
+            "valid-key-123"
+          ],
+          [
+            "content-type",
+            "application/json"
+          ]
+        ],
+        "wire": "{\"id\":\"id\\ud800\",\"action\":\"issue-part\",\"expectedVersion\":7,\"reservationId\":\"r\\ud800\",\"quantityMilli\":1000,\"reason\":\" xy\\ud800 \",\"allocations\":[]}",
+        "options": {
+          "denyAuth": false,
+          "denyWrite": false,
+          "noSource": false,
+          "noQuote": false
+        },
+        "expectedOrigin": "https://holding.example.test"
+      },
+      "actualHeaders": {
+        "origin": "https://holding.example.test",
+        "key": "valid-key-123",
+        "host": "holding.example.test"
+      },
+      "trace": [
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "headers.get",
+          "origin",
+          "https://holding.example.test"
+        ],
+        [
+          "actual.publicOrigin"
+        ],
+        [
+          "headers.get",
+          "host",
+          "holding.example.test"
+        ],
+        [
+          "headers.get",
+          "Idempotency-Key",
+          "valid-key-123"
+        ],
+        [
+          "fake.requireWorkContext",
+          "acme"
+        ],
+        [
+          "request.json"
+        ],
+        [
+          "request.json.result",
+          {
+            "id": "id\ud800",
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "r\ud800",
+            "quantityMilli": 1000,
+            "reason": " xy\ud800 ",
+            "allocations": []
+          }
+        ],
+        [
+          "owner.changeServiceOrder",
+          "id\ud800",
+          [
+            105,
+            100,
+            55296
+          ]
+        ],
+        [
+          "fake.enforcement",
+          "enforced"
+        ],
+        [
+          "fake.transaction"
+        ],
+        [
+          "fake.batch",
+          3
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.ownerReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.source",
+          "id\ud800",
+          [
+            105,
+            100,
+            55296
+          ]
+        ],
+        [
+          "fake.purchase",
+          "service.orders",
+          "history"
+        ],
+        [
+          "fake.purchase",
+          "service.parts-assets",
+          "history"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.orders",
+          "settle-existing"
+        ],
+        [
+          "fake.purchaseBoundary",
+          "service.parts-assets",
+          "settle-existing"
+        ],
+        [
+          "fake.batch",
+          0
+        ],
+        [
+          "fake.applicationAuthorize",
+          true
+        ],
+        [
+          "fake.applicationReplay",
+          "valid-key-123",
+          "field.order.issue-part",
+          "id\ud800",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "r\ud800",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "xy\ud800"
+          },
+          {
+            "reason": [
+              120,
+              121,
+              55296
+            ],
+            "reservationId": [
+              114,
+              55296
+            ]
+          }
+        ],
+        [
+          "fake.order",
+          "id\ud800",
+          [
+            105,
+            100,
+            55296
+          ]
+        ],
+        [
+          "fake.clock",
+          1800000000100
+        ],
+        [
+          "fake.reservation",
+          "id\ud800",
+          "r\ud800"
+        ],
+        [
+          "fake.quote",
+          "r\ud800",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "r\ud800",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "xy\ud800"
+          },
+          "valid-key-123",
+          1800000000100
+        ],
+        [
+          "fake.commitPreparation",
+          "field.order.issue-part",
+          "id\ud800",
+          {
+            "action": "issue-part",
+            "expectedVersion": 7,
+            "reservationId": "r\ud800",
+            "quantityMilli": 1000,
+            "allocations": [],
+            "reason": "xy\ud800"
+          },
+          {
+            "id": "id\ud800",
+            "version": 8,
+            "status": "in_visit"
+          }
+        ],
+        [
+          "workflow.executeCommand"
+        ],
+        [
+          "fake.digest"
+        ],
+        [
+          "fake.workflowReceipt",
+          "valid-key-123"
+        ],
+        [
+          "fake.workflowStatements"
+        ],
+        [
+          "fake.workflowBatch"
+        ],
+        [
+          "fake.source",
+          "id\ud800",
+          [
+            105,
+            100,
+            55296
+          ]
+        ],
+        [
+          "fake.flush"
+        ],
+        [
+          "fake.source",
+          "id\ud800",
+          [
+            105,
+            100,
+            55296
+          ]
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "permission"
+        ],
+        [
+          "fake.currentQuery",
+          "module"
+        ],
+        [
+          "fake.batch",
+          1
+        ],
+        [
+          "fake.batch",
+          2
+        ],
+        [
+          "fake.boundary.observe"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "private, no-store",
+          "content-type": "application/json"
+        },
+        "body": "{\"data\":{\"id\":\"id\\ud800\",\"version\":8,\"status\":\"in_visit\"}}"
+      }
+    }
+  ]
+}

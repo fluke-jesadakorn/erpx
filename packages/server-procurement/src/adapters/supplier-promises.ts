@@ -9,7 +9,7 @@ import {requirePermission} from "@erpx/server-identity_access/public/iam-permiss
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierPromiseOrderVersion} from "@erpx/server-commerce/public/supplier-promise-version";
-import {stageSupplierPromiseNotifications} from "@erpx/server-collaboration/public/supplier-promise-notifications";
+import {nativeSupplierPromiseNotification} from "./native-supplier-promise-notification";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {attachmentPurposeFacts} from "@erpx/server-files/public/attachment-purpose-facts";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -44,18 +44,24 @@ return {lines:lines.results,history:history.results,schedule:schedule.results,op
  FROM (${commercePlatformSources.commerce_orders}) o WHERE o.kind='purchase' AND o.state IN ('confirmed','partially_fulfilled') AND ${scope} ORDER BY o.due_date,o.id`).bind(...scopeArgs(a)).all<Row>()).results;
 },};return createSupplierPromiseApplication(ports);
 }
-async function commit<Result>(write:SqlDatabase,a:WorkContext,m:PromiseMutation<Evidence>,result:Result):Promise<Result>{
- const {key,operation,id,promiseId,input,order,now,evidence:attachmentBinding}=m;
- const prepared=m.lines.map(line=>write.prepare('INSERT INTO procurement_delivery_promise_lines(id,promise_id,order_line_id,ordinal,quantity_milli,fulfilled_snapshot_milli,promised_date) VALUES(?,?,?,?,?,?,?)').bind(`${promiseId}-${line.ordinal}`,promiseId,line.orderLineId,line.ordinal,line.quantityMilli,line.fulfilledSnapshot,line.promisedDate));
- return executeCommand(write,a,key,operation,input,id,input.expectedVersion+1,result,[
- ...(attachmentBinding?.guards??[]),
- assertion(write,key,'source-order',`EXISTS(SELECT 1 FROM (${commercePlatformSources.commerce_orders}) o WHERE o.id=? AND o.version=? AND o.kind='purchase' AND o.state IN ('confirmed','partially_fulfilled') AND `+scope+')',[id,input.expectedVersion,...scopeArgs(a)]),
- write.prepare('INSERT INTO procurement_delivery_promises(id,order_id,company_id,order_version,supplier_id,currency,required_date,kind,confirmation_date,supplier_reference,evidence,recorded_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(promiseId,id,a.companyId,input.expectedVersion,String(order.party_id),String(order.currency),String(order.due_date),input.kind,input.confirmationDate,input.supplierReference,input.evidence,a.userId,now),...prepared,
- stageSupplierPromiseOrderVersion(write,id,now),...(attachmentBinding?.steps??[]),stageSupplierPromiseNotifications(write,key,id)
- ],{companyId:a.companyId,branchId:String(order.branch_id),departmentId:order.department_id?String(order.department_id):null});}
+/**
+ * Retired TypeScript write path. The supplier-promise mutation now executes
+ * only in the native Rust command route (`supplier_promise_command_http`),
+ * which owns the SQL, the purchase-version CAS, the receipt, the audit event
+ * and the outbox in one caller transaction. This adapter keeps the type-level
+ * port surface for the retained read use cases but is intentionally fail
+ * closed: no SQL is staged here and no TypeScript writer may run as a
+ * fallback. Callers must reach the native command transport.
+ */
+async function commit<Result>(_write:SqlDatabase,_a:WorkContext,_m:PromiseMutation<Evidence>,_result:Result):Promise<Result>{
+ throw new ApiError(503,'NATIVE_PROCUREMENT_UNAVAILABLE','The native Procurement command is unavailable.');}
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 async function readPurchase(a:WorkContext){return requireProcurementPurchasedRead((await holdingResources(a.holdingId)).write,a);}
 export const getSupplierPromiseOrder=(a:WorkContext,id:string)=>invoke(async()=>{await readPurchase(a);return application(a).order(id);});
 export const supplierPromiseDetail=(a:WorkContext,id:string)=>invoke(async()=>{const access=await readPurchase(a),data=await application(a).detail(id);return {...data,canRecord:data.canRecord&&(access?.settleExisting??true),purchase:access?{newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision}:undefined};});
-export const recordSupplierPromise=(a:WorkContext,id:string,raw:unknown,key:string)=>invoke(()=>withProcurementPurchasedCommand(a,{key,operation:"procurement.promise.record",target:{kind:"purchase",id},purpose:"settle-existing",permissions:["commerce.read","commerce.purchase"]},database=>application(a,database).record(id,raw,key)));
+/** Fail-closed compatibility export. The native route is authoritative; this
+ * symbol is retained only so out-of-scope route modules still typecheck while
+ * their cutover is integrated. It never executes a TypeScript writer. */
+export const recordSupplierPromise=(_a:WorkContext,_id:string,_raw:unknown,_key:string):Promise<{id:string;promiseId:string;version:number}>=>{
+ throw new ApiError(503,'NATIVE_PROCUREMENT_UNAVAILABLE','The native Procurement command is unavailable.');};
 export const supplierPromiseWork=(a:WorkContext)=>invoke(async()=>{if(!hasPermission(a,"commerce.read"))return [];const access=await procurementPurchaseAccess((await holdingResources(a.holdingId)).write,a);if(access&&!access.history)return [];const items=await application(a).work();return access&&!access.settleExisting?items.map(item=>({...item,canAct:false,queue:"waiting" as const})):items;});

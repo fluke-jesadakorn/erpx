@@ -1,3 +1,5 @@
+import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {identitySnapshotSources as manageerpxSnapshotSources} from '@erpx/server-manage_erpx/public/identity-snapshot-sources';
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
@@ -5,29 +7,32 @@ const manageerpxSources=manageerpxSnapshotSources();
 const organizationSources=organizationSnapshotSources();
 import { applyProvisioningReview } from "@erpx/server-identity_access/public/technology";
 import { applyLifecycleReview } from "@erpx/server-people_payroll/public/people-lifecycle";
-import { applyDirectoryOperationReview } from "@erpx/server-identity_access/public/directory-operations";
 import { inspectIamAccess, inspectorInput } from "@erpx/server-identity_access/public/iam-inspector";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { applyManagementReview, managementCommand } from "@erpx/server-identity_access/public/user-management";
-import {
-  activateEmergency,
-  emergencyRevocationInput,
-  listEmergencyAccess,
-  recoveryInput,
-  revokeEmergency,
-} from "@erpx/server-identity_access/public/iam-recovery";
+import { nativeUserManagementAvailable, nativeUserManagementDecideReview, nativeUserManagementPreview, nativeUserManagementSave } from "@erpx/server-identity_access/public/native-user-management";
+import { nativeEmergencyAccess } from "@erpx/server-identity_access/adapters/native-recovery";
 import "server-only";
-import { peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
+import { peopleRelationshipsSnapshot, peopleAccessSnapshot } from "@erpx/server-identity_access/public/people-access";
+import {
+  createNativePeopleRelationshipsClient,
+  nativePeopleRelationshipsAvailable,
+  nativePeopleRelationshipsConfiguration,
+  nativePeopleRelationshipsFailure,
+  type NativePeopleRelationshipsContext,
+} from "../public/native-people-relationships";
+import {
+  createNativePeopleAccessClient,
+  nativePeopleAccessAvailable,
+  nativePeopleAccessFailure,
+} from "../public/native-people-grants";
 import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
 import { iamContext } from "@erpx/server-identity_access/public/iam-context";
-import {saveIamRole,roleInput,grantIamAccess,grantInput,proposeIamReview,revokeIamAssignment,decideIamReview,reviewInput,accessReviewCampaignInput,accessReviewDecisionInput,startAccessReviewCampaign,decideAccessReviewItem,cancelAccessReviewCampaign} from "@erpx/server-identity_access/public/iam-service";
+import {grantIamAccess,grantInput,proposeIamReview,revokeIamAssignment,decideIamReview,reviewInput} from "@erpx/server-identity_access/public/iam-service";
 import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
 import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
-import {saveConnection,connectionInput,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview,proposeMapping,mappingInput} from "@erpx/server-identity_access/public/iam-directories";
-import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
-import {synchronizeConnection} from '@erpx/server-identity_access/public/directory-synchronization';
+import {proposeMapping,mappingInput} from "@erpx/server-identity_access/public/directory-mapping";
 import {
   prepareMigration,
   migrationInput,
@@ -35,13 +40,21 @@ import {
   proposeEmergency,
   applyEmergency,
 } from "@erpx/server-identity_access/public/iam-migrations";
-import { beginMfa, verifyMfa, requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import {nativeAccountHttp} from "@erpx/server-identity_access/public/native-account-http";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
-import { runtimeEnv, activeHoldingBindings, holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
+import { runtimeEnv, activeHoldingBindings } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { iamPermission } from "@erpx/server-identity_access/public/iam-context";
+import {
+  createNativeIamAssignmentsClient,
+  nativeIamAssignmentsFailure,
+  nativeIamAssignmentsConfiguration,
+  NativeIamAssignmentsError,
+  type NativeIamPageContext,
+} from "../public/native-iam-assignments";
 
 const versionInput = z.object({
   expectedVersion: z.number().int().positive(),
@@ -56,7 +69,85 @@ function sameOrigin(request: Request) {
       "Use the ERPX application to submit this request.",
     );
 }
+
+async function nativeIamAssignmentRevoke(
+  actor: {
+    userId: string;
+    holdingId: string | null;
+    companyId: string;
+    branchId: string | null;
+    departmentId: string | null;
+    assignmentId: string;
+    role: string;
+    scopeKind: string;
+    platform: boolean;
+    authority?: { revision: number; assignmentVersion: number };
+    iam?: { permissions: readonly string[] };
+  },
+  holdingSlug: string | null,
+  request: Request,
+  id: string,
+  version: number,
+  reason: string,
+  key: string,
+) {
+  if (process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG === undefined || actor.platform)
+    return undefined;
+  if (!/^[A-Za-z0-9:_.-]{8,180}$/.test(key))
+    throw new ApiError(
+      422,
+      "COMMAND_KEY_REQUIRED",
+      "A valid Idempotency-Key is required.",
+    );
+  if (!holdingSlug || !actor.holdingId || !actor.authority || !actor.iam)
+    throw new NativeIamAssignmentsError("NATIVE_IAM_ASSIGNMENTS_CONTEXT_CHANGED");
+  const page: NativeIamPageContext = {
+    userId: actor.userId,
+    holdingId: actor.holdingId,
+    holdingSlug,
+    companyId: actor.companyId,
+    branchId: actor.branchId,
+    departmentId: actor.departmentId,
+    assignmentId: actor.assignmentId,
+    role: actor.role,
+    assignmentScope: actor.scopeKind,
+    authority: actor.authority,
+    iam: { permissions: actor.iam.permissions },
+  };
+  const raw = process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG;
+  try {
+    const client = createNativeIamAssignmentsClient(
+      nativeIamAssignmentsConfiguration(raw),
+    );
+    return await client.revoke(
+      request.headers,
+      page,
+      id,
+      JSON.stringify({ expectedVersion: version, reason }),
+      key,
+      {
+        holdingSlug,
+        expected: {
+          companyId: page.companyId,
+          assignmentId: page.assignmentId,
+          revision: page.authority.revision,
+          assignmentVersion: page.authority.assignmentVersion,
+        },
+      },
+    );
+  } catch (error) {
+    const failure = nativeIamAssignmentsFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
 export async function iamAccountApi(request: Request, path: string[]) {
+  if(path.join('/')==='mfa/enroll'||path.join('/')==='mfa/verify'){
+    // Static logical path from this owned entry, independent of the external
+    // Holding namespace. Rust owns authentication, rate/counter and writes.
+    const url=new URL(request.url);url.pathname='/api/v1/account/iam/'+path.join('/');
+    return nativeAccountHttp(new Request(url,request));
+  }
   try {
     sameOrigin(request);
     const { session } = await currentSession(),
@@ -64,7 +155,7 @@ export async function iamAccountApi(request: Request, path: string[]) {
     if (request.method === "GET") {
       if (path.join("/") === "emergency/active")
         return Response.json(
-          canonicalDestinationLinks({ data: await listEmergencyAccess(actor) }),
+          canonicalDestinationLinks({ data: await nativeEmergencyAccess.active(request) }),
           { headers: { "Cache-Control": "no-store" } },
         );
       const env = await runtimeEnv();
@@ -92,27 +183,18 @@ export async function iamAccountApi(request: Request, path: string[]) {
     const input = await request.json();
     if (path.join("/") === "emergency/activate")
       return Response.json(canonicalDestinationLinks({
-        data: await activateEmergency(
-          actor,
-          recoveryInput.parse(input),
+        data: await nativeEmergencyAccess.activate(
+          request,
           request.headers.get("Idempotency-Key") ?? "",
+          input,
         ),
       }));
     if (path.join("/") === "emergency/revoke")
       return Response.json(canonicalDestinationLinks({
-        data: await revokeEmergency(
-          actor,
-          emergencyRevocationInput.parse(input),
+        data: await nativeEmergencyAccess.revoke(
+          request,
           request.headers.get("Idempotency-Key") ?? "",
-        ),
-      }));
-    if (path.join("/") === "mfa/enroll")
-      return Response.json(canonicalDestinationLinks({ data: await beginMfa(actor) }));
-    if (path.join("/") === "mfa/verify")
-      return Response.json(canonicalDestinationLinks({
-        data: await verifyMfa(
-          actor,
-          z.object({ code: z.string() }).parse(input).code,
+          input,
         ),
       }));
     if (path.join("/") === "sessions/revoke") {
@@ -126,24 +208,15 @@ export async function iamAccountApi(request: Request, path: string[]) {
           .bind(id, actor.userId)
           .first()
       ) {
-        for (const holding of await activeHoldingBindings())
-          await (
-            await holdingResources(holding.id)
-          ).write
-            .prepare(
-              "INSERT INTO iam_revoked_sessions SELECT DISTINCT ?,company_id,user_id,? FROM assignments WHERE user_id=? ON CONFLICT DO NOTHING",
-            )
+        for (const _holding of await activeHoldingBindings())
+          await nativePrepare("w_52777ef4470d")
             .bind(id, Date.now(), actor.userId)
             .run();
-        await env.CONTROL_DB.prepare(
-          "INSERT INTO iam_revoked_sessions VALUES(?,'platform',?,?) ON CONFLICT DO NOTHING",
-        )
+        await nativePrepare("w_1a1bf71b659f")
           .bind(id, actor.userId, Date.now())
           .run();
       }
-      await env.CONTROL_DB.prepare(
-        'DELETE FROM session WHERE id=? AND "userId"=?',
-      )
+      await nativePrepare("w_0668ea9cd0dd")
         .bind(id, actor.userId)
         .run();
       return Response.json(canonicalDestinationLinks({ data: { revoked: true } }));
@@ -159,6 +232,102 @@ function csvCell(value: unknown) {
     '"' + (/^[=+@\-\t\r]/.test(s) ? "'" : "") + s.replaceAll('"', '""') + '"'
   );
 }
+function nativePeopleRelationshipsContext(
+  actor: {
+    userId: string;
+    holdingId: string | null;
+    companyId: string;
+    branchId: string | null;
+    departmentId: string | null;
+    assignmentId: string;
+    role: string;
+    scopeKind: string;
+    platform: boolean;
+    authority?: { revision: number; assignmentVersion: number };
+    iam?: { permissions: readonly string[] };
+  },
+  holdingSlug: string,
+): NativePeopleRelationshipsContext {
+  if (!actor.holdingId || !actor.authority || !actor.iam)
+    throw new ApiError(
+      409,
+      "WORK_CONTEXT_CHANGED",
+      "Your work role changed. Reload and review before retrying.",
+    );
+  return {
+    userId: actor.userId,
+    holdingId: actor.holdingId,
+    holdingSlug,
+    companyId: actor.companyId,
+    branchId: actor.branchId,
+    departmentId: actor.departmentId,
+    assignmentId: actor.assignmentId,
+    role: actor.role,
+    scopeKind: actor.scopeKind,
+    authority: actor.authority,
+    iam: { permissions: actor.iam.permissions },
+  };
+}
+async function nativePeopleRelationshipsCommand(
+  actor: Parameters<typeof nativePeopleRelationshipsContext>[0],
+  holdingSlug: string | null,
+  request: Request,
+  command: { kind: "preview"; change: unknown } | { kind: "apply"; token: string; key: string },
+) {
+  const raw = process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG;
+  if (!nativePeopleRelationshipsAvailable() || !raw || !holdingSlug)
+    throw new ApiError(
+      503,
+      "NATIVE_PEOPLE_RELATIONSHIPS_REQUIRED",
+      "This People relationship command requires the native owner service.",
+    );
+  if (actor.platform || !actor.authority || !actor.iam || !actor.holdingId)
+    throw new ApiError(403, "COMPANY_SCOPE_REQUIRED", "Select a Company workspace for People access.");
+  try {
+    const client = createNativePeopleRelationshipsClient(
+      nativePeopleRelationshipsConfiguration(raw),
+    );
+    const context = nativePeopleRelationshipsContext(actor, holdingSlug);
+    return command.kind === "preview"
+      ? await client.preview(request.headers, context, command.change)
+      : await client.apply(request.headers, context, command.token, command.key);
+  } catch (error) {
+    const failure = nativePeopleRelationshipsFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
+async function nativePeopleAccessCommand(
+  actor: Parameters<typeof nativePeopleRelationshipsContext>[0],
+  holdingSlug: string | null,
+  request: Request,
+  command: { kind: "preview"; change: unknown } | { kind: "apply"; token: string; key: string },
+) {
+  const raw = process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG;
+  if (!nativePeopleAccessAvailable() || !raw || !holdingSlug)
+    throw new ApiError(
+      503,
+      "NATIVE_PEOPLE_ACCESS_REQUIRED",
+      "This People access command requires the native owner service.",
+    );
+  if (actor.platform || !actor.authority || !actor.iam || !actor.holdingId)
+    throw new ApiError(403, "COMPANY_SCOPE_REQUIRED", "Select a Company workspace for People access.");
+  if (command.kind === "apply" && !/^[A-Za-z0-9:_.-]{8,180}$/.test(command.key))
+    throw new ApiError(422, "COMMAND_KEY_REQUIRED", "A valid Idempotency-Key is required.");
+  try {
+    const client = createNativePeopleAccessClient(
+      nativePeopleRelationshipsConfiguration(raw),
+    );
+    const context = nativePeopleRelationshipsContext(actor, holdingSlug);
+    return command.kind === "preview"
+      ? await client.preview(request.headers, context, command.change)
+      : await client.apply(request.headers, context, command.token, command.key);
+  } catch (error) {
+    const failure = nativePeopleAccessFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
 export async function iamApi(
   request: Request,
   holdingSlug: string | null,
@@ -170,6 +339,7 @@ export async function iamApi(
       route = path.join("/"),
       key = request.headers.get("Idempotency-Key") ?? "";
     if (request.method === "GET") {
+      if (route === "people-relationships") return Response.json({ data: await peopleRelationshipsSnapshot(db, actor) }, { headers: { "Cache-Control": "private, no-store" } });
       if (route === "people-access") return Response.json(canonicalDestinationLinks({ data: await peopleAccessSnapshot(db, actor) }), { headers: { "Cache-Control": "no-store" } });
       if (route === "audit") {
         const params = new URL(request.url).searchParams;
@@ -225,8 +395,7 @@ export async function iamApi(
               d.reasons.join("; "),
               d.conditions.join("; "),
             ]);
-        await db
-          .prepare("INSERT INTO iam_audit VALUES(?,?,?,?,?,?,?,?)")
+        await nativePrepare("w_e130d1b143d2")
           .bind(
             crypto.randomUUID(),
             actor.companyId,
@@ -272,79 +441,50 @@ export async function iamApi(
     sameOrigin(request);
     const input = await request.json();
     let result: unknown;
-    if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
-    else if (route === "people-access/apply") result = await applyPeopleAccess(db, actor, z.string().uuid().parse(input.previewToken), key);
+    if (route === "people-relationships/preview") result = await nativePeopleRelationshipsCommand(actor, holdingSlug, request, { kind: "preview", change: input.change });
+    else if (route === "people-relationships/apply") result = await nativePeopleRelationshipsCommand(actor, holdingSlug, request, { kind: "apply", token: z.string().uuid().parse(input.previewToken), key });
+    else if (route === "people-access/preview") result = await nativePeopleAccessCommand(actor, holdingSlug, request, { kind: "preview", change: input.change });
+    else if (route === "people-access/apply") result = await nativePeopleAccessCommand(actor, holdingSlug, request, { kind: "apply", token: z.string().uuid().parse(input.previewToken), key });
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')
       result=await bindIamReviewEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='migrations')
       result=await bindIamMigrationEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
-    else if (path[0] === "user-management" && ["preview", "save"].includes(path[1]))
-      result = await managementCommand(db, actor, input.change, key, path[1] === "preview", input.previewToken);
-    else if (route === "roles")
-      result = await saveIamRole(db, actor, roleInput.parse(input), key);
+    else if (holdingSlug && path[0] === "user-management" && ["preview", "save"].includes(path[1])) {
+      if (!nativeUserManagementAvailable())
+        throw new ApiError(503, "NATIVE_USER_MANAGEMENT_REQUIRED", "The native user-management service is unavailable.");
+      result =
+        path[1] === "preview"
+          ? await nativeUserManagementPreview(request.headers, holdingSlug, input.change)
+          : await nativeUserManagementSave(
+              request.headers,
+              holdingSlug,
+              input.change,
+              z.string().parse(input.previewToken),
+              key,
+            );
+    }
     else if (route === "assignments")
       result = await grantIamAccess(db, actor, grantInput.parse(input), key);
-    else if(route==="access-reviews")result=await startAccessReviewCampaign(db,actor,accessReviewCampaignInput.parse(input),key);
-    else if(path[0]==="access-review-items"&&path[2]==="decide")result=await decideAccessReviewItem(db,actor,path[1],accessReviewDecisionInput.parse(input),key);
-    else if(path[0]==="access-reviews"&&path[2]==="cancel"){const v=versionInput.parse(input);result=await cancelAccessReviewCampaign(db,actor,path[1],v.expectedVersion,v.reason,key);}
     else if (path[0] === "assignments" && path[2] === "revoke") {
       const v = versionInput.parse(input);
-      result = await revokeIamAssignment(
-        db,
-        actor,
-        path[1],
-        v.expectedVersion,
-        v.reason,
-        key,
-      );
-    } else if (route === "connections")
-      result = await saveConnection(
-        db,
-        actor,
-        connectionInput.parse(input),
-        key,
-      );
-    else if (path[0] === "connections") {
-      const v = versionInput.parse(input),
-        id = path[1];
-      if (path[2] === "test")
-        result = await testConnection(db, actor, id, v.expectedVersion, key);
-      else if (path[2] === "activate")
-        result = await proposeConnectionActivation(
-          db,
+      result =
+        (await nativeIamAssignmentRevoke(
           actor,
-          id,
+          holdingSlug,
+          request,
+          path[1],
           v.expectedVersion,
+          v.reason,
           key,
-        );
-      else if (path[2] === "disable")
-        result = await disableConnection(db, actor, id, v.expectedVersion, key);
-      else if (path[2] === "sync") {
-        const connection = await connectionById(db, actor.companyId, id);
-        await iamCommand(
+        )) ??
+        (await revokeIamAssignment(
           db,
           actor,
+          path[1],
+          v.expectedVersion,
+          v.reason,
           key,
-          "connection.sync.request",
-          { id, ...v },
-          "iam.directory.manage",
-          async () => {
-            if (
-              connection.version !== v.expectedVersion ||
-              connection.status !== "active"
-            )
-              throw new ApiError(
-                409,
-                "CONNECTION_CHANGED",
-                "Choose an active connection.",
-              );
-            return { id };
-          },
-        );
-        await synchronizeConnection(db, connection);
-        result = { id, status: "synchronized" };
-      } else
-        throw new ApiError(404, "NOT_FOUND", "Connection action not found.");
+        ));
     } else if (route === "mappings")
       result = await proposeMapping(db, actor, mappingInput.parse(input), key);
     else if (path[0] === "mappings" && path[2] === "revoke") {
@@ -357,17 +497,14 @@ export async function iamApi(
         { id: path[1], ...v },
         "iam.manage",
         async (c) => {
-          const changed = await c.query(
-            "UPDATE iam_mappings SET status='revoked',version=version+1 WHERE id=$1 AND company_id=$2 AND version=$3 AND (scope_node_id=$4 OR $5) RETURNING id",
-            [
+          const changed = await nativeIdentityWrite("w_477f64b8b491", [
               path[1],
               actor.companyId,
               v.expectedVersion,
               actor.scopeNodeId,
               ["holding", "platform"].includes(actor.scopeKind),
-            ],
-          );
-          if (!changed.rowCount)
+            ]);
+          if (!changed.rows)
             throw new ApiError(
               409,
               "MAPPING_CHANGED",
@@ -394,7 +531,11 @@ export async function iamApi(
         z.object({ userId: z.string() }).parse(input).userId,
         key,
       );
+    else if (path[0] === "reviews" && path[1] && holdingSlug && nativeUserManagementAvailable() && await db.prepare("SELECT 1 FROM iam_reviews WHERE id=? AND company_id=? AND kind='policy.grant'").bind(path[1], actor.companyId).first())
+      result = await nativeUserManagementDecideReview(request.headers, holdingSlug, path[1], reviewInput.parse(input), key);
     else if (path[0] === "reviews" && path[1])
+      {
+      let directoryOperation: Record<string, unknown> | undefined;
       result = await decideIamReview(
         db,
         actor,
@@ -403,9 +544,8 @@ export async function iamApi(
         key,
         async (c, kind, p) => {
           if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p);
-          if (!actor.platform && kind === "directory.operation") return applyDirectoryOperationReview(c, actor, p);
+          if (!actor.platform && kind === "directory.operation") { directoryOperation = p as Record<string, unknown>; return; }
           if (!actor.platform && kind.startsWith("people.lifecycle.")) return applyLifecycleReview(c, actor, kind, p);
-          if (kind === "policy.grant") return applyManagementReview(c, actor, p);
           if (kind === "identity.restore") {
             if (
               p.userId === actor.userId ||
@@ -422,11 +562,8 @@ export async function iamApi(
                 "SELF_ACCESS_CHANGE",
                 "Another person must approve your restoration.",
               );
-            const changed = await c.query(
-              "UPDATE iam_members SET status='active',version=version+1 WHERE company_id=$1 AND user_id=$2 AND status='suspended' AND version=$3 RETURNING user_id",
-              [actor.companyId, p.userId, p.version],
-            );
-            if (!changed.rowCount)
+            const changed = await nativeIdentityWrite("w_d0707ba38dc2", [actor.companyId, p.userId, p.version]);
+            if (!changed.rows)
               throw new ApiError(
                 409,
                 "IDENTITY_CHANGED",
@@ -476,15 +613,32 @@ export async function iamApi(
           if (kind === "migration.activate") return applyMigration(c, actor, p);
           if (kind === "emergency.designate")
             return applyEmergency(c, actor, p);
-          return applyDirectoryReview(c, actor, kind, p);
+          throw new ApiError(409, "REVIEW_UNSUPPORTED", "The review kind is not supported here.");
         },
         async (c, kind, p) => {
           if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p,"reject");
-          if (!actor.platform && kind === "directory.operation") return applyDirectoryOperationReview(c, actor, p, "reject");
+          if (!actor.platform && kind === "directory.operation") { directoryOperation = p as Record<string, unknown>; return; }
           if (!actor.platform && kind.startsWith("people.lifecycle."))
             await applyLifecycleReview(c, actor, kind, p, "reject");
         },
       );
+      if (directoryOperation && holdingSlug) {
+        // The review decision committed above. Queue the reviewed Directory
+        // operation natively; a transport failure leaves it recoverable by the
+        // native worker, which sweeps approved pending reviews.
+        const { nativeDirectoryOperationsAvailable, nativeDirectoryOperationsReview } = await import("@erpx/server-identity_access/adapters/native-directory-operations");
+        const parsed = reviewInput.parse(input);
+        if (nativeDirectoryOperationsAvailable())
+          try {
+            await nativeDirectoryOperationsReview(
+              request.headers,
+              holdingSlug,
+              { ...directoryOperation, decision: parsed.decision },
+              key + ":directory",
+            );
+          } catch {}
+      }
+      }
     else if (path[0] === "users" && path[2] === "sessions") {
       const userId = path[1];
       result = await iamCommand(
@@ -521,15 +675,9 @@ export async function iamApi(
               .all<{ id: string }>()
           ).results;
           for (const session of sessions)
-            await c.query(
-              "INSERT INTO iam_revoked_sessions VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-              [session.id, actor.companyId, userId, Date.now()],
-            );
+            await nativeIdentityWrite("w_d162e4b42ba4", [session.id, actor.companyId, userId, Date.now()]);
           if (!actor.platform)
-            await c.query(
-              "UPDATE active_work_contexts SET assignment_id=NULL,assignment_version=NULL,revision=revision+1 WHERE company_id=$1 AND user_id=$2",
-              [actor.companyId, userId],
-            );
+            await nativeIdentityWrite("w_8774a0e28e6e", [actor.companyId, userId]);
           return {
             revoked: sessions.length,
             message: "Company sessions revoked. The user must sign in again.",
@@ -636,15 +784,9 @@ export async function iamApi(
               "PROTECTED_IDENTITY",
               "Emergency access requires an independent review.",
             );
-          await c.query(
-            "INSERT INTO iam_members(company_id,user_id,principal_id,status) VALUES($1,$2,$3,'suspended') ON CONFLICT(company_id,user_id) DO UPDATE SET status='suspended',version=iam_members.version+1",
-            [actor.companyId, userId, `local:${userId}`],
-          );
+          await nativeIdentityWrite("w_f78e88caed87", [actor.companyId, userId, `local:${userId}`]);
           if (!actor.platform)
-            await c.query(
-              "UPDATE active_work_contexts SET assignment_id=NULL,assignment_version=NULL,revision=revision+1 WHERE company_id=$1 AND user_id=$2",
-              [actor.companyId, userId],
-            );
+            await nativeIdentityWrite("w_8774a0e28e6e", [actor.companyId, userId]);
           return { suspended: true };
         },
       );

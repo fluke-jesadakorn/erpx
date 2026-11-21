@@ -15,7 +15,6 @@
     "./adapters/billing-forecast": "./src/adapters/billing-forecast.ts",
     "./adapters/billing-api": "./src/adapters/billing-api.ts",
     "./adapters/billing-presentation": "./src/adapters/billing-presentation.ts",
-    "./adapters/app-finance-projection-source": "./src/adapters/app-finance-projection-source.ts",
     "./adapters/billing": "./src/adapters/billing.ts",
     "./adapters/beta-billing": "./src/adapters/beta-billing.ts",
     "./adapters/billing-attachments": "./src/adapters/billing-attachments.ts",
@@ -32,13 +31,11 @@
     "./public/billing-forecast": "./src/public/billing-forecast.ts",
     "./public/billing-api": "./src/public/billing-api.ts",
     "./public/billing-presentation": "./src/public/billing-presentation.ts",
-    "./public/app-finance-projection-source": "./src/public/app-finance-projection-source.ts",
     "./public/billing": "./src/public/billing.ts",
     "./public/beta-billing": "./src/public/beta-billing.ts",
     "./public/billing-attachments": "./src/public/billing-attachments.ts",
     "./public/executive-main-evidence-sources": "./src/public/executive-main-evidence-sources.ts",
     "./public/billing-target": "./src/public/billing-target.ts",
-    "./index": "./src/index.ts",
     "./application/evidence": "./src/application/evidence.ts",
     "./application/stripe": "./src/application/stripe.ts",
     "./application/target-rollout": "./src/application/target-rollout.ts",
@@ -54,7 +51,11 @@
     "./domain/target": "./src/domain/target.ts",
     "./domain/billing": "./src/domain/billing.ts",
     "./domain/forecast": "./src/domain/forecast.ts",
-    "./domain/beta-billing": "./src/domain/beta-billing.ts"
+    "./domain/beta-billing": "./src/domain/beta-billing.ts",
+    "./adapters/native-billing": "./src/adapters/native-billing.ts",
+    "./adapters/native-billing-owner-write": "./src/adapters/native-billing-owner-write.ts",
+    "./public/native-billing": "./src/public/native-billing.ts",
+    "./public/native-billing-page": "./src/public/native-billing-page.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -71,9 +72,9 @@
     "@erpx/server-manage_erpx": "workspace:*",
     "@erpx/server-operations": "workspace:*",
     "@erpx/server-runtime": "workspace:*",
-    "next": "16.4.0",
-    "pg": "8.23.0",
+    "next": "16.4.3",
+    "pg": "8.23.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

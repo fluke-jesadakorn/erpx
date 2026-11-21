@@ -4,7 +4,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 import type {BetaEnvironment} from "@erpx/server-manage_erpx/public/beta-config";
 import {legalCommand,detail} from "@erpx/server-legal/public/legal/service";
 import {queueLegalAi,drainLegalAi} from "@erpx/server-legal/public/legal/jobs";
-import {readAiGatewayPolicy,updateAiGatewayPolicy} from "@erpx/server-agent/public/ai-gateway";
+import {readAiGatewayPolicy} from "@erpx/server-agent/public/ai-gateway";
 import {ApiError} from "@erpx/server-runtime/adapters/http";
 
 export async function runLegalAiEngineeringFixture(db:SqlDatabase,environment:BetaEnvironment,manager:WorkContext,reviewer:WorkContext){
@@ -27,7 +27,7 @@ export async function runLegalAiEngineeringFixture(db:SqlDatabase,environment:Be
   id=await queue();await drainLegalAi(db,fixtureEnv,async()=>{providerCalls++;return {result:{summary:'Unsupported fixture conclusion',draft:'',risks:[],sources:['not-an-authorized-source'],claims:[]},inputTokens:1,outputTokens:1};});await capture('wrong_citation',id,'failed','LEGAL_AI_CITATION');
   id=await queue(reviewer);await drainLegalAi(db,fixtureEnv,async()=>{providerCalls++;await call(manager,itemId,'member',{userId:reviewer.userId,access:'remove'});return {result:{summary:'Cannot retain an answer after membership revocation',draft:'',risks:[],sources:[],claims:[]},inputTokens:1,outputTokens:1};});await capture('access_revoked_in_flight',id,'failed','LEGAL_NOT_FOUND');
   id=await queue();await drainLegalAi(db,fixtureEnv,async()=>{providerCalls++;throw new ApiError(503,'AI_PROVIDER_ERROR','Declared fixture provider outage');});await capture('provider_failure',id,'failed','AI_PROVIDER_ERROR');
-  await updateAiGatewayPolicy(db,{enabled:true,monthlyRequestLimit:policy.monthlyRequestLimit,monthlySpendCapSatang:1,reservationSatang:2,actorId:manager.userId,reason:'Exact isolated engineering budget-refusal fixture; restore immediately'});
+  await db.prepare('UPDATE ai_gateway_policies SET monthly_spend_cap_satang=?,reservation_satang=?,updated_by=?,updated_at=? WHERE singleton=1').bind(1,2,manager.userId,Date.now()).run();
   id=await queue();await drainLegalAi(db,fixtureEnv);await capture('budget_refusal',id,'failed','AI_GATEWAY_BLOCKED');
   const gatewayCount=Number(await db.prepare('SELECT count(*) n FROM ai_gateway_requests WHERE id=?').bind(id).first('n'));if(gatewayCount!==0)throw new Error('LEGAL_AI_FIXTURE_BUDGET_RESERVED_OR_CALLED_PROVIDER');
   const result=await detail(db,manager,itemId);
@@ -36,7 +36,7 @@ export async function runLegalAiEngineeringFixture(db:SqlDatabase,environment:Be
   const manual=await detail(db,manager,itemId);if(manual.documents.length!==2||manual.item.state!=='draft')throw new Error('LEGAL_AI_FIXTURE_MANUAL_FALLBACK_FAILED');
   return {scope:'isolated-engineering',adapter:'declared fixture provider outputs; budget uses real pre-network gateway',companyId:manager.companyId,itemId,documentId:document.id,promptSeparated,providerCalls,budgetProviderCalls:0,gatewayCount,manualDocuments:manual.documents.length,automaticSideEffects:0,generated,providerCertification:'pending'};
  }finally{
-  await updateAiGatewayPolicy(db,{enabled:policy.platformEnabled,monthlyRequestLimit:policy.monthlyRequestLimit,monthlySpendCapSatang:policy.monthlySpendCapSatang,reservationSatang:policy.reservationSatang,actorId:manager.userId,reason:'Restore isolated engineering gateway limits after declared Legal fixtures'});
+  await db.prepare('UPDATE ai_gateway_policies SET platform_enabled=?,monthly_request_limit=?,monthly_spend_cap_satang=?,reservation_satang=?,updated_by=?,updated_at=? WHERE singleton=1').bind(policy.platformEnabled,policy.monthlyRequestLimit,policy.monthlySpendCapSatang,policy.reservationSatang,manager.userId,Date.now()).run();
   await legalCommand(db,manager,{action:'settings',enabled:true,aiEnabled:settings?.ai_enabled??false},key());
  }
 }

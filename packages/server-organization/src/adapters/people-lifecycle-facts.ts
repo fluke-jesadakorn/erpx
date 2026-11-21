@@ -4,6 +4,7 @@ import type { PoolClient } from "pg";
 import { type PeopleLifecycleData } from "@erpx/feature-people_payroll/lib/people-lifecycle";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type LifecyclePositionFact } from '@erpx/server-people_payroll/public/people-lifecycle-contract';
+import { nativeOrgExecute } from './native-organization-owner-write';
 export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?: PoolClient) {
     return { readPeopleLifecycleDataPositions(companyId: string) {
             return database.prepare(`SELECT p.id,p.title,p.version,p.requirements,p.branch_id,p.department_id,p.level_id,p.active,b.package_id,b.revision package_revision FROM organization_positions p LEFT JOIN (${people_payrollPlatformSources.people_position_packages}) b ON b.company_id=p.company_id AND b.position_id=p.id WHERE p.company_id=? ORDER BY p.title,p.id`)
@@ -75,5 +76,5 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
         },
         applyValidatePackageEffect2(companyId: unknown, scopeNodeId: unknown, scopeKind: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM organization_nodes WHERE company_id=$1 AND id=$2 AND kind=$3 AND status='active'", [companyId, scopeNodeId, scopeKind]); },
         readBindPositionPackageposition(companyId: unknown, positionId: unknown) { return client!.query<LifecyclePositionFact>("SELECT * FROM organization_positions WHERE company_id=$1 AND id=$2 AND active=1 FOR UPDATE", [companyId, positionId]); },
-        applyBindPositionPackageEffect2(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("UPDATE organization_positions SET version=version+1 WHERE company_id=$1 AND id=$2", [companyId, id]); } };
+        async applyBindPositionPackageEffect2(companyId: unknown, id: unknown) { const key=`lifecycle-position-version:${String(companyId)}:${String(id)}`;const result=await nativeOrgExecute(String(companyId),'lifecycle_position_version_step',[companyId,id],key);return { results: [], success: true, meta: { changes: result.rows, duration: 0 } }; } };
 }

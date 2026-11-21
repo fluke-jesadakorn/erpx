@@ -1,20 +1,19 @@
 import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import {appAttachmentSources} from "@erpx/server-files/public/app-attachment-sources";
 import { z } from "zod";
-import { documentBrandModes, listBrandProfiles, updateBrandProfile, updateStorefrontAppBrand } from "@erpx/server-brand/public/branding";
+import {nativeBrandingCommand,nativeBrandingFailure,nativeBrandingWorkspace} from "@erpx/feature-brand/lib/native-branding";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
+import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
 
 const patchSchema = z.object({
-  documentMode: z.enum(documentBrandModes).optional(),
+  documentMode: z.enum(["holding", "branch", "both"]).optional(),
   remove: z.enum(["primary", "inverse"]).optional(),
   shortName: z.string().trim().min(1).max(40).optional(),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   removeLogo: z.boolean().optional(),
 }).refine((value) => value.documentMode || value.remove || value.shortName || value.accentColor || value.removeLogo, "Choose a branding change.");
-
+const headers={"Cache-Control":"private, no-store"};
+function nativeFailure(error:unknown):never{const failure=nativeBrandingFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}
 export async function GET(
   _request: Request,
   context: RouteContext<"/api/v1/holdings/[holdingSlug]/branding/[[...path]]">,
@@ -22,8 +21,10 @@ export async function GET(
   try {
     const { holdingSlug } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
-    const { write } = await holdingResources(actor.holdingId);
-    return Response.json(canonicalDestinationLinks({ data: await listBrandProfiles(write, actor) }));
+    let data;
+    try { data = await nativeBrandingWorkspace(actor, holdingSlug); } catch (error) { nativeFailure(error); }
+    if (!data) throw new ApiError(503, "NATIVE_BRANDING_UNAVAILABLE", "The native Branding reader is unavailable.");
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) {
     return errorResponse(error);
   }
@@ -35,36 +36,22 @@ export async function PATCH(
 ) {
   try {
     const { holdingSlug, path = [] } = await context.params;
-    const actor = await requireWorkContext(holdingSlug);
-    const input = patchSchema.parse(await request.json());
     const commandId = request.headers.get("Idempotency-Key");
     if (!commandId) throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Use an Idempotency-Key for branding changes.");
-    const { write, files } = await holdingResources(actor.holdingId);
-    if (path[0] === "storefront" && path.length === 1) {
-      const changed = await updateStorefrontAppBrand(write, actor, {
-        shortName: input.shortName,
-        accentColor: input.accentColor,
-        removeLogo: input.removeLogo,
-        commandId,
-      });
-      if (changed.previousId) {
-        const old = await appAttachmentSources(write).previousObject(changed.previousId);
-        if (old?.object_key) await files.delete(old.object_key).catch(() => undefined);
-      }
-      return Response.json(canonicalDestinationLinks({ data: changed.result }));
-    }
-    const target = path[0] === "holding" && path.length === 1
-      ? { scopeKind: "holding" as const, scopeId: actor.holdingId }
-      : path[0] === "branches" && path[1] && path.length === 2
-        ? { scopeKind: "branch" as const, scopeId: path[1] }
-        : null;
-    if (!target) throw new ApiError(404, "NOT_FOUND", "Brand profile not found.");
-    const changed = await updateBrandProfile(write, actor, { ...target, ...input, commandId });
-    if (changed.previousId) {
-      const old = await appAttachmentSources(write).previousObject(changed.previousId);
-      if (old?.object_key) await files.delete(old.object_key).catch(() => undefined);
-    }
-    return Response.json(canonicalDestinationLinks({ data: changed.result }));
+    const actor = await requireWorkContext(holdingSlug);
+    const input = patchSchema.parse(await request.json());
+    const body = path[0] === "storefront" && path.length === 1
+      ? { action: "storefront" as const, shortName: input.shortName, accentColor: input.accentColor, removeLogo: input.removeLogo }
+      : path[0] === "holding" && path.length === 1
+        ? { action: "profile" as const, scopeKind: "holding" as const, scopeId: actor.holdingId, documentMode: input.documentMode, remove: input.remove }
+        : path[0] === "branches" && path[1] && path.length === 2
+          ? { action: "profile" as const, scopeKind: "branch" as const, scopeId: path[1], documentMode: input.documentMode, remove: input.remove }
+          : null;
+    if (!body) throw new ApiError(404, "NOT_FOUND", "Branding target not found.");
+    let data;
+    try { data = await nativeBrandingCommand(actor, holdingSlug, body, commandId); } catch (error) { nativeFailure(error); }
+    if (!data) throw new ApiError(503, "NATIVE_BRANDING_UNAVAILABLE", "The native Branding writer is unavailable.");
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) {
     return errorResponse(error);
   }

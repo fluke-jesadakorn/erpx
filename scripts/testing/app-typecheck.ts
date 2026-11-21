@@ -33,7 +33,7 @@ try {
   await writeFile(join(project, 'next.config.mjs'), `import configuration from ${JSON.stringify(pathToFileURL(join(directory, 'next.config.mjs')).href)};\nexport default async (phase, context) => { const config = typeof configuration === 'function' ? await configuration(phase, context) : await configuration; return {...config,distDir:'.next',typescript:{...config.typescript,tsconfigPath:'tsconfig.json'}}; };\n`);
   await writeFile(join(project, 'tsconfig.json'), JSON.stringify({ extends: join(directory, 'tsconfig.json'), compilerOptions: { incremental: true, tsBuildInfoFile: join(cache, 'typecheck.tsbuildinfo') }, include: ['next-env.d.ts', join(directory,'src/**/*.ts'), join(directory,'src/**/*.tsx'), '.next/types/**/*.ts'], exclude: ['node_modules'] }, null, 2) + '\n');
   const node = pinnedNode(), environment = { ...process.env, ERPX_REPOSITORY_ROOT: root, ERPX_BUILD_DIR: '.next', NODE_OPTIONS: '--max-old-space-size=8192', PATH: dirname(node) + ':' + process.env.PATH };
-  for (const args of [[node, join(root, 'node_modules/next/dist/bin/next'), 'typegen', project], [node, join(root, 'node_modules/typescript/bin/tsc'), '--noEmit', '--project', join(project, 'tsconfig.json')]]) {
+  for (const args of [[node, join(root, 'node_modules/next/dist/bin/next'), 'typegen', project], [node, join(root, 'node_modules/@typescript/native/bin/tsc'), '--noEmit', '--project', join(project, 'tsconfig.json')]]) {
     if (interrupted) throw new Error('APP_TYPECHECK_INTERRUPTED');
     child = Bun.spawn(args, { cwd: root, env: environment, stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' });
     if (await child.exited !== 0 || interrupted) throw new Error('APP_ROUTE_TYPECHECK_FAILED:' + id);

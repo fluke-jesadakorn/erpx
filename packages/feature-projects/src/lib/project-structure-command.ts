@@ -12,7 +12,7 @@ type Attempt={base:string;projectId:string;companyId:string;actorId:string;workO
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==="object"&&!Array.isArray(value);
 const actions=new Set(["assign-task","unassign-task","link-actual","prepare-handoff","accept-handoff","reject-handoff","cancel-handoff","reopen"]);
 function changed(){return Object.assign(Error("Your Project source, Company or work role changed. Return to this owner and recover the original request; your newer draft is retained."),{code:"WORK_CONTEXT_CHANGED"});}
-function workOwner(){const node=typeof document==="undefined"?null:document.querySelector<HTMLElement>("[data-work-revision]");return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment]):"server";}
+function workOwner(){const node=typeof document==="undefined"?null:document.querySelector<HTMLElement>("[data-work-revision]");return node?JSON.stringify([node.dataset.workUser,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):"server";}
 function stamp(source:ProjectStructureCurrent){return JSON.stringify([source.base,source.graph,source.handoffs,source.actorId,source.canWriteCosts,source.people,source.members,source.workLogs,source.costAllocations,source.purchases]);}
 function allowed(source:ProjectStructureCurrent,input:Record<string,unknown>,replay:boolean){
  const action=String(input.action),kind=typeof input.sourceKind==="string"?input.sourceKind:undefined;

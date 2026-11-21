@@ -11,12 +11,13 @@ import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-t
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {supplierBillSchema,requestedBillReceipts} from "@erpx/server-procurement/domain/supplier-bills";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 const capability="supply.purchasing",foundations=[capability,"supply.receiving","finance.inventory-valuation"] as const;
 export type SupplierBillPurchase={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 async function authority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string){
  for(const permission of permissions){const row=await database.prepare(`SELECT ${assignmentReadSql("bill_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) bill_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,"SUPPLIER_BILL_ACCESS_CHANGED","Choose a current authorized supplier-invoice work role.");}
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 export async function supplierBillPurchaseAccess(database:SqlDatabase,actor:WorkContext){const mode=await commercePackageEnforcementMode();if(mode==="disabled")return undefined;await authority(database,actor,["finance.read"],`bill-read:${randomUUID()}`);return readPurchasedAccess(database,mode,{companyId:actor.companyId,capability});}
 export async function withSupplierBillPurchasedRead<Result>(actor:WorkContext,run:(database?:SqlDatabase,purchase?:SupplierBillPurchase)=>Promise<Result>,provided?:SqlDatabase,id?:string){const mode=await commercePackageEnforcementMode();if(mode==="disabled")return run(provided);const database=provided??(await holdingResources(actor.holdingId)).write;await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability,purpose:"history"});const access=await supplierBillPurchaseAccess(database,actor);if(id&&!await image(database,actor,id))throw new ApiError(404,"SUPPLIER_BILL_NOT_FOUND","The actual supplier invoice source was not found.");return run(database,access?{newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision}:undefined);}
@@ -39,6 +40,6 @@ export async function withSupplierBillPurchasedCommand<Result>(actor:WorkContext
   const result=await run(database),witness=command.policy?null:await image(database,actor,command.id);if(!command.policy&&!witness)throw new ApiError(409,"SUPPLIER_BILL_SOURCE_CHANGED","The actual Purchase invoice source changed.");
   await flushFinanceDeferredEffects(database);await authority(database,actor,command.permissions,key);
   if(witness){const after=await image(database,actor,command.id);if(after!==witness)throw new ApiError(409,"SUPPLIER_BILL_SOURCE_CHANGED","The actual Purchase invoice source changed before commit.");}
-  const observed=await database.batch(purchases.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));purchases[0]?.boundary.observe?.(observed);return result;
+  const observed=await database.batch(purchases.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));purchases[0]?.boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }

@@ -1,3 +1,3 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { serviceTeamSchema, saveServiceTeam, previewServiceTeam } from "@erpx/server-support/adapters/service-teams";
-export type { ServiceTeam } from "@erpx/server-support/adapters/service-teams";
+export { serviceTeamSchema } from "@erpx/server-support/domain/service-teams";
+export type { ServiceTeam, ServiceTeamInput, ServiceTeamPreview, ServiceHandler } from "@erpx/server-support/domain/service-teams";

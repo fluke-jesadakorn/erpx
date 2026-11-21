@@ -1,0 +1,1084 @@
+{
+  "version": 1,
+  "planRef": "docs/production-plan.md#rust-migration-current",
+  "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+  "generatedAt": "2026-11-10T16:15:00+00:00",
+  "interpretation": "G2 frozen producer/consumer seams. A frozen seam names the provider public symbol, its authority witness, transaction/lock order and actual composition mounts. Freezing is not acceptance and does not retire legacy consumers.",
+  "groups": {
+    "ports.common": {
+      "taskId": "ports.common",
+      "owners": [
+        "records",
+        "workflow",
+        "files",
+        "runtime",
+        "work_projection",
+        "shared"
+      ],
+      "status": "frozen",
+      "seams": [
+        {
+          "id": "shared.record-source-v1",
+          "provider": "shared",
+          "symbols": [
+            "erpx_server_shared::public::record_source_contract (CONTRACT_VERSION record-source.v1)",
+            "RecordSourceReference/RecordSourceSnapshot/SourceRecordKind"
+          ],
+          "paths": [
+            "packages/server-shared/src/public/mod.rs",
+            "packages/server-shared/src/domain/source_record.rs"
+          ],
+          "authorityWitness": "Portable facts only. The reader rechecks the selecting owner context; the snapshot grants no authority and carries no owner write capability.",
+          "transaction": "No effects. Callers pass the already-authorized owner transaction/connection; no independent commit or retry.",
+          "consumers": [
+            "records",
+            "files",
+            "workflow",
+            "field_service",
+            "finance"
+          ],
+          "mounts": [
+            "src/composition/src/field_service_source_record.rs",
+            "src/composition/src/field_inbox_read.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-shared",
+            "cargo check -p erpx-service"
+          ],
+          "sourceDigest": {
+            "packages/server-shared/src/public/mod.rs": "a0378b2ececa79ce9bf951753212342789fad8bdf0a13cd8b3bdea558600ae9e",
+            "packages/server-shared/src/domain/source_record.rs": "c119f5672ce92652bd7e73a6ade6d8eccc860d4020f3185ed2e92465b1e7b0d8"
+          }
+        },
+        {
+          "id": "workflow.command-ledger",
+          "provider": "workflow",
+          "symbols": [
+            "erpx_server_workflow::public::commands::PgCommandLedger",
+            "PgCommandLedger::replay",
+            "PgCommandLedger::execute",
+            "command_fingerprint",
+            "CommandOutcome"
+          ],
+          "paths": [
+            "packages/server-workflow/src/adapters/postgres_commands.rs",
+            "packages/server-workflow/src/public/commands.rs"
+          ],
+          "authorityWitness": "PgCommandAuthority::verify_command runs before effects and again before retain; a missing receipt never grants History or NewWork.",
+          "transaction": "Caller owns the Holding transaction and Control lease; the ledger never checks out a pool, commits independently, retries or calls externally. Receipt, owner effects and outbox retain commit in the same unit.",
+          "consumers": [
+            "all owner command adapters",
+            "records",
+            "support",
+            "finance",
+            "field_service",
+            "commerce"
+          ],
+          "mounts": [
+            "src/composition/src/records_command.rs",
+            "src/composition/src/support_ticket_command.rs",
+            "src/composition/src/service_initial_physical_stock_action.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-workflow",
+            "bun run test:integration -- --suite=workflow.rust-command-ledger-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-workflow/src/adapters/postgres_commands.rs": "1b32bd77896df3c89201ee97b5f390360fe7270b41072d97a26f8a6dd1c783cf",
+            "packages/server-workflow/src/public/commands.rs": "31aaf2fd987e64b456677aedd18d5039893dff02c3816c15ac685c5d57ee6499"
+          }
+        },
+        {
+          "id": "runtime.unit-of-work",
+          "provider": "runtime",
+          "symbols": [
+            "erpx_server_runtime::postgres::PgUnitOfWork::run",
+            "PgUnitOfWork::run_once",
+            "TransactionOptions::session_lock",
+            "PgWorkFuture"
+          ],
+          "paths": [
+            "packages/server-runtime/src/adapters/postgres/unit_of_work.rs"
+          ],
+          "authorityWitness": "No implicit actor. Each owner callback re-authorizes on the leased connection.",
+          "transaction": "run may replay its callback four times on serialization failure; effects belong in a durable outbox. run_once refuses callback replay and propagates serialization errors to the caller's explicit resumable protocol. Named session locks serialize shared writers in a fixed order before owner row locks.",
+          "consumers": [
+            "src/composition/**",
+            "all native command/read services"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/records_command.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-runtime",
+            "bun run test:unit -- --suite=shared.runtime.worker-attestation-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-runtime/src/adapters/postgres/unit_of_work.rs": "6a9be9131c7f9d29156e16e0250c6359c215c72e585fc7f7e52727580e37506b"
+          }
+        },
+        {
+          "id": "records.registry-context-http",
+          "provider": "records",
+          "symbols": [
+            "records_registry_http_router",
+            "RecordsRegistryHttpRequest",
+            "RecordsRegistryHttpResponse",
+            "record_context_http::record_context_http_router"
+          ],
+          "paths": [
+            "packages/server-records/src/adapters/record_registry_http.rs",
+            "packages/server-records/src/adapters/record_context_http.rs"
+          ],
+          "authorityWitness": "Router maps the authenticated Holding/assignment context into the owner read; Company scope is rechecked by the owner read, not by the transport.",
+          "transaction": "Read-only HTTP facade. Registry archive/update commands stay on the caller's owner transaction with the workflow ledger.",
+          "consumers": [
+            "workplace records routes",
+            "feature-records"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs:4255",
+            "src/composition/src/private_development_api.rs:4263",
+            "src/composition/src/records.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-service --features existing-business,private-development-api"
+          ],
+          "sourceDigest": {
+            "packages/server-records/src/adapters/record_registry_http.rs": "d40d7d28a681aacc2f79284ea226fd156bd802d4bca11615b1494c1ede0a560a",
+            "packages/server-records/src/adapters/record_context_http.rs": "fe486b2dbe0fa1231052d58ecc2150ec4de956587349023018f9bcdd9a2dc81b"
+          }
+        },
+        {
+          "id": "files.attachment-read",
+          "provider": "files",
+          "symbols": [
+            "attachment_read_router",
+            "AttachmentReadHttpTarget",
+            "AttachmentReadHttpReply",
+            "field_visit_intake router"
+          ],
+          "paths": [
+            "packages/server-files/src/adapters/attachment_http.rs",
+            "packages/server-files/src/adapters/field_visit_intake.rs"
+          ],
+          "authorityWitness": "The Files owner rechecks link/attachment set membership, legal hold and evidence lock; transport headers never substitute for the source check.",
+          "transaction": "Reads take the retaining source fence; intake writes bind the Files set/link/attachment rows and the owner version in one transaction.",
+          "consumers": [
+            "field_service",
+            "support",
+            "legal",
+            "finance",
+            "workplace uploads"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs:4279",
+            "src/composition/src/private_development_api/field_files.rs:235",
+            "src/composition/src/field_attachment_intake_command.rs"
+          ],
+          "status": "partial",
+          "note": "Generic /uploads and attachment-set writes remain in TypeScript; scan receipt authority is split between TS scanner and Rust ClamAV worker.",
+          "tests": [
+            "cargo check -p erpx-server-files",
+            "bun run test:unit -- --suite=files.rust-attachment-read-http.unit"
+          ],
+          "sourceDigest": {
+            "packages/server-files/src/adapters/attachment_http.rs": "ce8afc2a23f15c316c0ad5091fed765f8a12588c5d8fc59a8216ba63ff8b8c19",
+            "packages/server-files/src/adapters/field_visit_intake.rs": "cb7835fef88dd724dcd09195a7f437c0c6560c6fa86d4be7b34db32be14ef29d"
+          }
+        },
+        {
+          "id": "work_projection.snapshot-read",
+          "provider": "work_projection",
+          "symbols": [
+            "read_native_work_snapshot(&mut PgConnection,&AuthorizedWorkContext,TimestampMillis)"
+          ],
+          "paths": [
+            "packages/server-work_projection/src/adapters/work_snapshot_read.rs"
+          ],
+          "authorityWitness": "read_native_work_snapshot opens no transaction and grants no authority; each owner read rechecks selected context and scope.",
+          "transaction": "Caller must already hold the retained serializable Holding transaction. The snapshot is composed from current owner public reads in that transaction.",
+          "consumers": [
+            "workplace SSR work snapshot",
+            "feature-work_projection"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Implemented but not mounted; composition has no HTTP/SSR route to the snapshot read.",
+          "tests": [
+            "cargo check -p erpx-server-work-projection"
+          ],
+          "sourceDigest": {
+            "packages/server-work_projection/src/adapters/work_snapshot_read.rs": "facc4da383186b256480b00edaf8eaefcc90cdfa08f9b43a7de7e5ca06b89d82"
+          }
+        },
+        {
+          "id": "shared.port-adoption",
+          "provider": "shared",
+          "symbols": [
+            "erpx_server_shared::public::Clock",
+            "erpx_server_shared::public::IdentifierSource"
+          ],
+          "paths": [
+            "packages/server-shared/src/application/ports.rs",
+            "packages/server-shared/src/public/mod.rs"
+          ],
+          "authorityWitness": "No transaction or receipt authority lives here. The single adopted transaction witness is runtime PgUnitOfWork; the single receipt/outbox witness is workflow PgCommandLedger.",
+          "transaction": "No effects. Clock/identifier ports are caller-owned; concrete UnitOfWork/ledger implementations retain their own documented replay and lock semantics.",
+          "consumers": [
+            "all owner crates",
+            "src/composition/**"
+          ],
+          "mounts": [
+            "src/composition/src/records_command.rs",
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-shared",
+            "bun run test:unit -- --suite=shared.architecture.rust-shared-core.unit",
+            "bun run test:unit -- --suite=shared.architecture.rust-architecture.unit"
+          ],
+          "sourceDigest": {
+            "packages/server-shared/src/application/ports.rs": "0835d1c463a288baddad77e9096cdf8630ba59a8a376f57e4c021b2ac1dfe9d3",
+            "packages/server-shared/src/public/mod.rs": "a0378b2ececa79ce9bf951753212342789fad8bdf0a13cd8b3bdea558600ae9e"
+          }
+        }
+      ]
+    },
+    "ports.authority": {
+      "taskId": "ports.authority",
+      "owners": [
+        "identity_access",
+        "organization",
+        "customer_authority"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "identity_access.effective-authority",
+          "provider": "identity_access",
+          "symbols": [
+            "HoldingWorkAuthorizer (execute/execute_with_sources/execute_with_selected_typed_transport_ingress_deferred)",
+            "AuthorizedWorkContext",
+            "WorkPermissionRequirement",
+            "require_effective_authority_sources_held",
+            "lock_effective_authority_sources"
+          ],
+          "paths": [
+            "packages/server-identity_access/src/public/effective_authority.rs",
+            "packages/server-identity_access/src/adapters/authorized_work.rs",
+            "packages/server-identity_access/src/adapters/postgres_effective_authority.rs"
+          ],
+          "authorityWitness": "The selected assignment, Company/branch/department scope, role and permission catalogue are rechecked from source rows inside the transaction. A prepared/held-lock token grants no authority by itself.",
+          "transaction": "Caller retains the Holding transaction and Control lease. Authority/source locks are acquired before the first data snapshot and are never released and reacquired after preparation.",
+          "consumers": [
+            "all owner commands/reads",
+            "organization",
+            "commercial",
+            "billing",
+            "customer_authority"
+          ],
+          "mounts": [
+            "src/composition/src/identity_access.rs",
+            "src/composition/src/organization_nodes.rs",
+            "src/composition/src/billing.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-identity-access",
+            "bun run test:integration -- --suite=identity_access.rust-effective-authority-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-identity_access/src/public/effective_authority.rs": "ce3fd6c4e51fe040cc1950816dc3b879e402183250ae025fd5c21dac7bd991b3",
+            "packages/server-identity_access/src/adapters/authorized_work.rs": "b8608dbcd77d13dcc40aab0872778d862096ad8a7506e1d2997a4b6d800ef8d0",
+            "packages/server-identity_access/src/adapters/postgres_effective_authority.rs": "46ddb1eab8d1a9ddad9ea201b82898e1d1bbbeb2df26693958c3f9d0bf523bdf"
+          }
+        },
+        {
+          "id": "identity_access.iam-assignment-http",
+          "provider": "identity_access",
+          "symbols": [
+            "iam_assignment_http_router"
+          ],
+          "paths": [
+            "packages/server-identity_access/src/adapters/assignment_http.rs"
+          ],
+          "authorityWitness": "Transport maps the authenticated Holding context; every IAM mutation rechecks platform/Company authority in the owner transaction.",
+          "transaction": "Reads share the owner transaction; writes use the command ledger receipt/outbox contract.",
+          "consumers": [
+            "admin",
+            "account",
+            "people"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-identity-access --features contracts"
+          ],
+          "sourceDigest": {
+            "packages/server-identity_access/src/adapters/assignment_http.rs": "a91cfb21e91e77a7c29780de1779609e438c948f497b64dbae02a5ba2d0040f7"
+          }
+        },
+        {
+          "id": "identity_access.directory-source",
+          "provider": "identity_access",
+          "symbols": [
+            "directory source preview/approve/sign-in routers",
+            "directory_account_router"
+          ],
+          "paths": [
+            "src/composition/src/directory_source_http.rs",
+            "packages/server-identity_access/src/adapters/directory_http.rs"
+          ],
+          "authorityWitness": "Directory source approval and sign-in decisions recheck platform authority and source freshness before issuing/refreshing a session.",
+          "transaction": "Source approval is a versioned command; sign-in retries preserve source policy and never fabricate a session on a stale source.",
+          "consumers": [
+            "account",
+            "people",
+            "admin"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Both routers exist but neither is mounted in private_development_api; directory operations remain TypeScript-authoritative. Tail lives in migrate.identity_access.directory_runtime.",
+          "tests": [
+            "cargo check -p erpx-server-identity-access --features directory-ldaps"
+          ],
+          "sourceDigest": {
+            "src/composition/src/directory_source_http.rs": "a97614a5bbed40d92e2916f6b60ee3dedb84736473d1d2bbad21141bbc4032f9",
+            "packages/server-identity_access/src/adapters/directory_http.rs": "d92647487224d2c7e436bdb2b0d97173c9ff14eaed86f00a3fd0c14401c4f117"
+          }
+        },
+        {
+          "id": "organization.nodes-setup",
+          "provider": "organization",
+          "symbols": [
+            "organization_nodes_router",
+            "organization_setup_router",
+            "organizationAccessData"
+          ],
+          "paths": [
+            "src/composition/src/organization_nodes_http.rs",
+            "packages/server-organization/src/adapters/organization_setup_http.rs",
+            "packages/server-organization/src/adapters/access.ts"
+          ],
+          "authorityWitness": "Nodes/positions/levels and channel authorization are rechecked per Company scope; the access projection may only summarize what the same transaction authorizes.",
+          "transaction": "Tree/business-unit reads run in the caller transaction; setup writes are versioned owner commands.",
+          "consumers": [
+            "admin",
+            "people",
+            "platform_administration"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Nodes/setup mounted and frozen; the access projection that still feeds Admin technology remains TypeScript. Tail lives in migrate.organization.access_projection.",
+          "tests": [
+            "cargo check -p erpx-server-organization",
+            "bun run test:unit -- --suite=organization.native-organization-setup.unit"
+          ],
+          "sourceDigest": {
+            "src/composition/src/organization_nodes_http.rs": "ec1de63a911862a2da85c4ecf0df6a4a813c147a48dc45196eb54a07b2e07d20",
+            "packages/server-organization/src/adapters/organization_setup_http.rs": "ce4083eab3f6feb71cb3da519871a1972834998667577fb887b9193f1c6de625",
+            "packages/server-organization/src/adapters/access.ts": "9a07a1fd7d86613366d10355c3e9ee55c4094a514465e2c45bc444c534105b5c"
+          }
+        },
+        {
+          "id": "customer_authority.access-duplicates",
+          "provider": "customer_authority",
+          "symbols": [
+            "customer_access_http_router",
+            "customer authority composition service",
+            "duplicate_review request/read"
+          ],
+          "paths": [
+            "packages/server-customer_authority/src/adapters/access_http.rs",
+            "packages/server-customer_authority/src/public/duplicates.rs",
+            "src/composition/src/customer_authority.rs"
+          ],
+          "authorityWitness": "Access changes and duplicate decisions require current Customer 360 authority; independent review cannot be satisfied by the requester.",
+          "transaction": "Accessed changes retain the customer authority transaction; duplicate decision/merge is not yet native, so no second writer is introduced before it is.",
+          "consumers": [
+            "sales",
+            "crm",
+            "portal"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/customer_authority.rs"
+          ],
+          "status": "partial",
+          "note": "Access router mounted; duplicate review has only request + bounded read, no decision/merge HTTP. Tail lives in migrate.customer_authority.duplicate_decisions.",
+          "tests": [
+            "cargo check -p erpx-server-customer-authority"
+          ],
+          "sourceDigest": {
+            "packages/server-customer_authority/src/adapters/access_http.rs": "c68db8ac82f471bb98e3e540726f5a8128659edcc2cb07e18ac59776b4d8a0cb",
+            "packages/server-customer_authority/src/public/duplicates.rs": "a94f17fe95f6c74b9374acd9cc9cabe16aa2c4a012a79a0d40128b1f8e4e1ffa",
+            "src/composition/src/customer_authority.rs": "d2b9d0fb1eb707c2dbc47eb826da5b89bc9d68da9f6d127fe722dd35270d80e0"
+          }
+        }
+      ]
+    },
+    "ports.trade": {
+      "taskId": "ports.trade",
+      "owners": [
+        "commerce",
+        "inventory",
+        "finance",
+        "commercial"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "commerce.goods-fulfillment",
+          "provider": "commerce",
+          "symbols": [
+            "commerce_order_http_router",
+            "fulfillment domain (service completion only)",
+            "apply_stock_issue consumer",
+            "post_commerce_goods_journal consumer"
+          ],
+          "paths": [
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/server-commerce/src/domain/order.rs",
+            "src/composition/src/commerce.rs"
+          ],
+          "authorityWitness": "The authenticated Company/branch/department work context is rechecked in the order transaction; a selected product package never replaces owner authority.",
+          "transaction": "One serializable Holding transaction: receipt replay/lock, then Commerce document row lock, then Inventory stock/lot rows, then Quality hold rows, then Finance journal/period rows, then outbox retain. Business document -> stock -> quality -> accounting -> outbox; never the reverse.",
+          "consumers": [
+            "sales",
+            "inventory",
+            "finance",
+            "quality",
+            "procurement"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Native path exists only for service completion; stock/mixed fulfillment, purchase orders and returns still run TypeScript. Tails live in migrate.commerce.goods-fulfillment/purchase-orders/returns.",
+          "tests": [
+            "cargo check -p erpx-server-commerce"
+          ],
+          "sourceDigest": {
+            "packages/server-commerce/src/domain/fulfillment.rs": "ad1138871abce421e44ae39e7b04cc7a011bd54883757c9b901635fb34f22c82",
+            "packages/server-commerce/src/domain/order.rs": "5177a8967db127f069dc1587578fd5f366fa1d024b3a12b979b61b5e03dcd50b",
+            "src/composition/src/commerce.rs": "837de76e34e9039b75e3a570c0d98d3061f9ee89b58795d11fd7f9de06fae16c"
+          }
+        },
+        {
+          "id": "inventory.stock-write",
+          "provider": "inventory",
+          "symbols": [
+            "InventoryStockReceipt",
+            "PgCommerceReceipt",
+            "apply_stock_issue",
+            "StockReceiptQualityPort",
+            "reserve_stock (field-service only)"
+          ],
+          "paths": [
+            "packages/server-inventory/src/adapters/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs",
+            "packages/server-inventory/src/adapters/stock_issue.rs",
+            "packages/server-inventory/src/public/commerce_receipt.rs"
+          ],
+          "authorityWitness": "Inventory rechecks Company/branch warehouse scope and current stock/lot version; the caller's document is only a source witness.",
+          "transaction": "Runs inside the caller's Holding transaction after the Commerce document lock. Stock/lot rows are locked before the Quality hold and Finance posting; no pool checkout or independent commit.",
+          "consumers": [
+            "commerce",
+            "sales",
+            "procurement",
+            "quality",
+            "finance"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "Writers and quality bridge exist but have no production StockReceiptQualityPort and no composition binding; apply_stock_issue has no caller. Tails live in migrate.inventory.receipt-quality-port/stock-write-bindings.",
+          "tests": [
+            "cargo check -p erpx-server-inventory",
+            "bun run test:integration -- --suite=inventory.rust-stock-receipt-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-inventory/src/adapters/stock_receipt.rs": "d072b362462c63b3c3549ed5c2a956359df70e8c71687ea0894ba9445bef5ff6",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs": "f2cbcee0282c59c19222c06a4b59f3243b932ce11bc389cd317bd239e6396072",
+            "packages/server-inventory/src/adapters/stock_issue.rs": "51057d678ca4901c08dad06cb0513cc00d4f6b961f81b9fc7baf8d462ec9c2cb",
+            "packages/server-inventory/src/public/commerce_receipt.rs": "fc91e209f777eef09dde2c6666d78ead866d1912ec0ec8bb50d5983873dd1483"
+          }
+        },
+        {
+          "id": "quality.goods-receipt-hold",
+          "provider": "quality",
+          "symbols": [
+            "prepare_goods_receipt_hold",
+            "quality.hold.create (missing native)",
+            "read_quality_workspace/read_quality_detail"
+          ],
+          "paths": [
+            "packages/server-quality/src/adapters/goods_receipt_hold.rs",
+            "packages/server-quality/src/adapters/quality.ts"
+          ],
+          "authorityWitness": "Quality inspection/release/cancel rechecks current Quality authority and version; a receipt hold never grants release authority to the receiving owner.",
+          "transaction": "The hold fact is prepared for the Inventory/Commerce receipt transaction; Quality must not open its own commit. Dependency direction stays inventory -> quality, never a crate cycle.",
+          "consumers": [
+            "inventory",
+            "commerce",
+            "procurement"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "prepare_goods_receipt_hold has no consumer and hold creation is still TypeScript; native workspace/detail reads are mounted but unused by the product page. Tails live in migrate.quality.hold-create/read-overlay.",
+          "tests": [
+            "cargo check -p erpx-server-quality"
+          ],
+          "sourceDigest": {
+            "packages/server-quality/src/adapters/goods_receipt_hold.rs": "0af4886c42dc2fe713d92945dbde919709b02ddd2028dc42272d37974af60193",
+            "packages/server-quality/src/adapters/quality.ts": "538811aee1994795c3c2e116b6878a862f4ff3819f458dbdf31af10b567c9028"
+          }
+        },
+        {
+          "id": "finance.goods-journal",
+          "provider": "finance",
+          "symbols": [
+            "post_commerce_goods_journal",
+            "functional_fx_micros",
+            "functional_fx_evidence"
+          ],
+          "paths": [
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Finance rechecks accounting period/account and current Company finance authority; Commerce supplies quantities and source facts only.",
+          "transaction": "Posts COGS/inventory journal in the same serializable transaction after stock/quality effects, before outbox retain. Foreign-currency goods use the published functional valuation; no second writer or deferred fix-up.",
+          "consumers": [
+            "commerce",
+            "inventory",
+            "procurement"
+          ],
+          "mounts": [],
+          "status": "frozen",
+          "note": "Port and PostgreSQL suite exist but have no caller or composition mount; the consumer edit is Commerce-owned. Tail lives in migrate.finance.goods-journal-port and migrate.commerce.goods-fulfillment.",
+          "tests": [
+            "cargo check -p erpx-server-finance",
+            "bun run test:integration -- --suite=finance.rust-commerce-goods-journal-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs": "34a5c56df24513fb7ef728d73b8cc47d965b80e627ea84fcc82bca017f78260a",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "commercial.package-grants",
+          "provider": "commercial",
+          "symbols": [
+            "PgGrantCommands",
+            "package_grant preview/apply",
+            "entitlement decision port",
+            "commercial package read router"
+          ],
+          "paths": [
+            "packages/server-commercial/src/adapters/postgres_grant_commands.rs",
+            "packages/server-commercial/src/application/grant_batches.rs",
+            "packages/server-commercial/src/public/purchases.rs"
+          ],
+          "authorityWitness": "Platform/Company commercial lease is rechecked; a provider purchase or review signature never creates IAM rights or bypasses owner obligations.",
+          "transaction": "Grant preview is read-only; apply retains revision CAS, owner-obligation settlement evidence and the package change set in one transaction with receipt/outbox.",
+          "consumers": [
+            "identity_access",
+            "organization",
+            "billing",
+            "admin"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Package read is mounted; native grant preview/apply has no HTTP mount and admin still uses TS company-package-lifecycle. Tail lives in migrate.commercial.package_grant_http/entitlement_port.",
+          "tests": [
+            "cargo check -p erpx-server-commercial"
+          ],
+          "sourceDigest": {
+            "packages/server-commercial/src/adapters/postgres_grant_commands.rs": "890948ce367d6e56baf6fcc2f0f68588e07d844b6f0fd5410cd8c4c6a4bdb762",
+            "packages/server-commercial/src/application/grant_batches.rs": "3c60d748d5bb54b682f5876a7132b62bfeeccb3173473d7cbdb49f62cebcaac1",
+            "packages/server-commercial/src/public/purchases.rs": "22bdbadf72f6dd8e0be8c078bfd9e40db6064da15dbe646b8121e77f94226f7f"
+          }
+        }
+      ]
+    },
+    "ports.people": {
+      "taskId": "ports.people",
+      "owners": [
+        "people_payroll",
+        "talent",
+        "benefits",
+        "learning"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "people.payroll-run-command",
+          "provider": "people_payroll",
+          "symbols": [
+            "payroll_run_command (missing native)",
+            "payroll_summary_read",
+            "payroll_accounting_projection",
+            "Finance prepare_journal/journal_minor"
+          ],
+          "paths": [
+            "packages/server-people_payroll/src/public/payroll_summary.rs",
+            "packages/server-people_payroll/src/public/payroll_accounting.rs",
+            "packages/server-people_payroll/src/adapters/people-payroll.ts",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Payroll rechecks current People/Payroll authority, Company scope and run version; Finance rechecks accounting period/account in the same transaction. A prepared journal never grants payroll authority.",
+          "transaction": "One serializable Holding transaction: run/version CAS, statutory item calculation, Finance journal preparation, receipt/outbox retain. Finance valuation is called inside the same transaction; no deferred posting or second writer.",
+          "consumers": [
+            "people_payroll",
+            "finance",
+            "benefits"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Summary/read and accounting projection are native; create/calculate/cancel/post/detail are TypeScript. Tail lives in migrate.people_payroll.payroll-run-commands.",
+          "tests": [
+            "cargo check -p erpx-server-people-payroll",
+            "cargo check -p erpx-server-finance"
+          ],
+          "sourceDigest": {
+            "packages/server-people_payroll/src/public/payroll_summary.rs": "08558cb52f79bcc23f02aa09026af349e360a24f181c9b16493a051dd9f22228",
+            "packages/server-people_payroll/src/public/payroll_accounting.rs": "2e055011799870d31044ab974750ca0f74883cd4833fa8ba9e9aba1a8d5346fd",
+            "packages/server-people_payroll/src/adapters/people-payroll.ts": "441e209bbbc8b43e7d4cecefb943ebcfc884e696dc2191921df1a28fdd8ab591",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "people.workforce-employee",
+          "provider": "people_payroll",
+          "symbols": [
+            "workforce_employee_command (missing)",
+            "identity_facts",
+            "invitation_person_link",
+            "Organization placement/role sources"
+          ],
+          "paths": [
+            "packages/server-people_payroll/src/application/people-payroll.ts",
+            "packages/server-people_payroll/src/public/identity_facts.rs",
+            "packages/server-organization/src/public/organization-access.ts"
+          ],
+          "authorityWitness": "Employee/engagement/compensation commands recheck People authority; Organization and IAM facts are rechecked in their owner scopes, never trusted from the transport.",
+          "transaction": "Caller transaction holds the person/engagement rows and the Organization placement facts; IAM invitation/link effects land through the owner port in the same unit.",
+          "consumers": [
+            "people_payroll",
+            "organization",
+            "identity_access",
+            "talent"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "missing",
+          "note": "Employee/engagement/compensation/pay-group commands are TypeScript; only borrowed identity facts are native. Tail lives in migrate.people_payroll.employees.",
+          "tests": [
+            "cargo check -p erpx-server-people-payroll",
+            "cargo check -p erpx-server-organization"
+          ],
+          "sourceDigest": {
+            "packages/server-people_payroll/src/application/people-payroll.ts": "acaf0b3618032c256d78ee9c00864df3c6dc26150377722d8c5e002ad5ec83f2",
+            "packages/server-people_payroll/src/public/identity_facts.rs": "dafe033c39a41fe33b2acf7bffb77b3aa8bcee15d4607c3afbcc2bbb897716ed",
+            "packages/server-organization/src/public/organization-access.ts": "dd1b433b18d6b9d53e5a15a6535c62182f69fbfd9e4a4ea048bf7445efab146f"
+          }
+        },
+        {
+          "id": "benefits.learning-eligibility",
+          "provider": "learning",
+          "symbols": [
+            "learning_eligibility_handoffs",
+            "learning_certificates",
+            "learning_benefit_consumption_receipts",
+            "benefits require_learning_port",
+            "eligibility_facts"
+          ],
+          "paths": [
+            "packages/server-learning/src/adapters/eligibility_facts.rs",
+            "packages/server-learning/src/adapters/learning-eligibility.ts",
+            "packages/server-benefits/src/public/eligibility.ts"
+          ],
+          "authorityWitness": "The election's Person/Company scope and certificate validity are rechecked; a certificate or handoff from another Person/Company never satisfies the gate.",
+          "transaction": "The consumption receipt is written by Learning in the caller's election transaction after certificate/handoff locks; Benefits fails closed when the port is absent.",
+          "consumers": [
+            "benefits",
+            "learning",
+            "people_payroll"
+          ],
+          "mounts": [
+            "src/composition/src/benefits.rs",
+            "src/composition/src/learning.rs"
+          ],
+          "status": "partial",
+          "note": "The read port and TS consumption exist; no Rust command writes receipts, so plan-gated elections fail closed natively. Tail lives in migrate.learning.eligibility-consumption and migrate.benefits.election-eligibility.",
+          "tests": [
+            "cargo check -p erpx-server-learning",
+            "cargo check -p erpx-server-benefits"
+          ],
+          "sourceDigest": {
+            "packages/server-learning/src/adapters/eligibility_facts.rs": "a080feffa5bc2b75c3f880fd5947d27e62f6506c948cd348350b6362b2df0771",
+            "packages/server-learning/src/adapters/learning-eligibility.ts": "20c2fc6b7ef7e18870623f97b8fc7b5355ffef51fb93d63535b038d173400848",
+            "packages/server-benefits/src/public/eligibility.ts": "f5ca356f9f72128b4c51416631ef7d6976ce97c2ad42a71ad96dfe8eb386121f"
+          }
+        },
+        {
+          "id": "talent.offer-money-snapshot",
+          "provider": "finance",
+          "symbols": [
+            "monthly-compensation Money snapshot (missing producer port)",
+            "Finance journal_minor/valuation"
+          ],
+          "paths": [
+            "packages/server-talent/src/adapters/talent.ts",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Talent rechecks offer/requisition/candidate authority and version; the money snapshot is evidence, not authority to hire or pay.",
+          "transaction": "Offer acceptance retains the immutable monthly-compensation snapshot in the Talent transaction; Finance publishes the value and does not post a journal for an offer.",
+          "consumers": [
+            "talent",
+            "people_payroll",
+            "finance"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Offer create/approve/send/accept/decline/withdraw and the Money snapshot are TypeScript. Tail lives in migrate.talent.offers-hire-handoff.",
+          "tests": [
+            "cargo check -p erpx-server-talent"
+          ],
+          "sourceDigest": {
+            "packages/server-talent/src/adapters/talent.ts": "df4480d4c7dd87c52b0be4698609297159f737ee85f12d4032b7bdf2a931bbf5",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "talent.people-hire-handoff",
+          "provider": "people_payroll",
+          "symbols": [
+            "people_hire_intake_command",
+            "accepted-offer handoff"
+          ],
+          "paths": [
+            "packages/server-people_payroll/src/public/people-handoffs.ts",
+            "packages/server-talent/src/application/talent.ts"
+          ],
+          "authorityWitness": "The accepted offer is rechecked against the requisition/candidate version; People rechecks hire intake authority and never trusts the Talent transport.",
+          "transaction": "Accepted-offer evidence and the People employee intake commit in one caller transaction with receipt/outbox; replay returns the original intake.",
+          "consumers": [
+            "talent",
+            "people_payroll",
+            "organization"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "Intake and privacy workspace are TypeScript; native requisition only. Tail lives in migrate.talent.offers-hire-handoff and migrate.people_payroll.employees.",
+          "tests": [
+            "cargo check -p erpx-server-people-payroll",
+            "cargo check -p erpx-server-talent"
+          ],
+          "sourceDigest": {
+            "packages/server-people_payroll/src/public/people-handoffs.ts": "eba37ceccecbb9dd3267ea426e90c26f1bf0c9ebeacc83b471d4e1e3be713ed4",
+            "packages/server-talent/src/application/talent.ts": "2c72ef8fe27aa1801102224dfb81198fa5a3a83185d540d8a96c2d1f04ba7999"
+          }
+        }
+      ]
+    },
+    "ports.growth": {
+      "taskId": "ports.growth",
+      "owners": [
+        "crm",
+        "marketing",
+        "sales",
+        "pms"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "crm.lead-to-sales",
+          "provider": "crm",
+          "symbols": [
+            "create_lead",
+            "apply_crm_qualification_retained",
+            "win-pms validation",
+            "CurrentCrmReviewedAccountLink",
+            "MarketingCrmHandoffPort"
+          ],
+          "paths": [
+            "packages/server-crm/src/public/leads_http.rs",
+            "packages/server-crm/src/public/activity_source.rs",
+            "packages/server-marketing/src/public/lead_candidate.rs",
+            "packages/server-sales/src/public/sales_documents.rs"
+          ],
+          "authorityWitness": "CRM rechecks the reviewed account link, lead version and recipient eligibility; a PMS confirmed reservation witness or Marketing handoff is evidence, never a grant of Sales authority.",
+          "transaction": "One Holding transaction: lead/opportunity CAS, qualified/win facts, reviewed account link and handoff receipt/outbox. Reassignment additionally binds Workflow replay, Sales recipient eligibility and Collaboration notification in that same unit.",
+          "consumers": [
+            "crm",
+            "marketing",
+            "sales",
+            "pms"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/crm.rs"
+          ],
+          "status": "partial",
+          "note": "Native lead/opportunity ingress is mounted, but accounts/activities/lead-create/win-pms lack HTTP or the reviewed-link/composition witness; TS still carries the UI path. Tail lives in migrate.crm.*.",
+          "tests": [
+            "cargo check -p erpx-server-crm",
+            "cargo check -p erpx-server-marketing"
+          ],
+          "sourceDigest": {
+            "packages/server-crm/src/public/leads_http.rs": "fbd8c17fbe32821b71f4ed585141076736335d53479f055e4cc7f7f8cc56e349",
+            "packages/server-crm/src/public/activity_source.rs": "ad0ba0b579ad78cdb41427794a7affa4d0dbe4993f2d9a3c9f45083b119f1b6b",
+            "packages/server-marketing/src/public/lead_candidate.rs": "b2f0b809c28018097ea184c3da24ae92f9abae749ebbdc707ce23655bc1d3248",
+            "packages/server-sales/src/public/sales_documents.rs": "9a8ab4b72f526c42cb452f355eda364509b0109b4c15e65ece0f583d1af41a41"
+          }
+        },
+        {
+          "id": "marketing.public-form-attribution",
+          "provider": "marketing",
+          "symbols": [
+            "public form package read/approved revision/consent/submit (TS today)",
+            "candidate/engagement insert",
+            "attribution_json",
+            "MarketingCrmHandoffPort"
+          ],
+          "paths": [
+            "packages/server-marketing/src/adapters/public-form.ts",
+            "packages/server-marketing/src/public/lead_candidate.rs"
+          ],
+          "authorityWitness": "Public submissions carry tenant/form token scope only; consent-required validation and bounded body are enforced before any candidate/engagement write. No authenticated business authority is inferred.",
+          "transaction": "Submission writes the approved revision fact, attribution, candidate/engagement and handoff receipt in one transaction; replay returns the original submission.",
+          "consumers": [
+            "marketing",
+            "forms",
+            "crm"
+          ],
+          "mounts": [
+            "src/composition/src/marketing.rs"
+          ],
+          "status": "partial",
+          "note": "Public form and attribution read are TypeScript; campaign/asset/candidate commands exist with only record-engagement mounted. Tail lives in migrate.marketing.*.",
+          "tests": [
+            "cargo check -p erpx-server-marketing"
+          ],
+          "sourceDigest": {
+            "packages/server-marketing/src/adapters/public-form.ts": "92557aa234b2b70251c04b042679a23b88799ac4b8b7624c44822cfc6f6afcc9",
+            "packages/server-marketing/src/public/lead_candidate.rs": "b2f0b809c28018097ea184c3da24ae92f9abae749ebbdc707ce23655bc1d3248"
+          }
+        },
+        {
+          "id": "sales.revenue-handoff",
+          "provider": "sales",
+          "symbols": [
+            "sales_documents_router",
+            "invoiceFulfillment/settleInvoice consumer (missing native)",
+            "Commerce delivery writer",
+            "Finance customer invoice"
+          ],
+          "paths": [
+            "packages/server-sales/src/public/sales_documents_http.rs",
+            "packages/server-commerce/src/application/commerce.ts",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Sales rechecks order/customer authority and delivery evidence; Finance rechecks period/account. The delivery evidence or invoice draft is source material, not payment authority.",
+          "transaction": "Delivery completion and Finance invoice creation/settlement commit in the caller's serializable transaction after stock effects; no second invoice writer and no deferred fix-up.",
+          "consumers": [
+            "sales",
+            "commerce",
+            "finance",
+            "ecommerce"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Sales read/price-list routes are frozen; confirmed cancellation, revenue handoff and delivery evidence remain TS. Tail lives in migrate.sales.confirmed-cancellation/revenue-handoff.",
+          "tests": [
+            "cargo check -p erpx-server-sales"
+          ],
+          "sourceDigest": {
+            "packages/server-sales/src/public/sales_documents_http.rs": "85972df95d2d07413f1146c22e5eecaa3899b9d28b9c43df0740f56949f98679",
+            "packages/server-commerce/src/application/commerce.ts": "b14498f2c4ae1a6e3a173d0a16e61a66987e0d2dcd7dfe70916d8944cd84fc49",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "pms.reservation-witness",
+          "provider": "pms",
+          "symbols": [
+            "pms_http_router",
+            "native PMS board/front-desk transport",
+            "reservation quote/confirm/cancel/no-show/change-dates (missing native)"
+          ],
+          "paths": [
+            "packages/server-pms/src/adapters/pms_http.rs",
+            "packages/feature-pms/src/adapters/server/native-pms.ts"
+          ],
+          "authorityWitness": "PMS rechecks property/room/guest scope and reservation version; a confirmed reservation witness exposes only bounded facts to CRM/Finance/stock consumers.",
+          "transaction": "Availability lock and reservation CAS precede the witness write; booking notice is retained through the outbox. Night audit chunks commit progress before release.",
+          "consumers": [
+            "pms",
+            "crm",
+            "finance",
+            "inventory"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Room-board/front-desk reads are native and mounted; commands, reservation booking, guest/cashier/stock, night audit and settings remain TS. Tail lives in migrate.pms.*.",
+          "tests": [
+            "cargo check -p erpx-server-pms"
+          ],
+          "sourceDigest": {
+            "packages/server-pms/src/adapters/pms_http.rs": "60876691585b8fd52d881028c175602213b4acf4b3e94af121a9b0de3fa3b413",
+            "packages/feature-pms/src/adapters/server/native-pms.ts": "755beb0231004a291b3e00afdd0adbc3ec7cfd290b7538ead34800354d536f6e"
+          }
+        }
+      ]
+    },
+    "ports.agent": {
+      "taskId": "ports.agent",
+      "owners": [
+        "agent",
+        "platform_administration"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "agent.governance",
+          "provider": "agent",
+          "symbols": [
+            "agent catalogue/version/approval",
+            "pool membership/lifecycle",
+            "assignment start/delegate/retry/cancel",
+            "private-session hold/expire"
+          ],
+          "paths": [
+            "packages/server-agent/src/adapters/agent-governance.ts"
+          ],
+          "authorityWitness": "Agent governance rechecks platform/Company administration authority and version; provider selection or pool membership never grants AI access.",
+          "transaction": "Catalog/version/approval and assignment/private-session changes are versioned owner commands with receipt/outbox in the caller transaction.",
+          "consumers": [
+            "agent",
+            "platform_administration",
+            "finance",
+            "operations"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "No owner crate exists; only the platform-owned agent evidence audit read is native. Tail lives in migrate.agent.crate_governance.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-agent/src/adapters/agent-governance.ts": "cce91be3c58535716bd55e6644be2251a89b9adc430119c56be027bfe4ce18dc"
+          }
+        },
+        {
+          "id": "agent.provider-runtime",
+          "provider": "agent",
+          "symbols": [
+            "AI connection save/test/activate/disable/discover/select",
+            "key sealing",
+            "provider HTTP transport"
+          ],
+          "paths": [
+            "packages/server-agent/src/adapters/ai-providers.ts"
+          ],
+          "authorityWitness": "Sealed keys are never returned to a consumer; activation/selection rechecks platform authority and connection version. Fail closed when a provider or key is absent.",
+          "transaction": "Connection changes are versioned commands; provider calls occur outside owner transactions with explicit retry/quota reservation and no implicit commit.",
+          "consumers": [
+            "agent",
+            "finance",
+            "operations",
+            "assistant"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Provider resolution/quota ports exist only as TypeScript with no fail-closed Rust adapter. Live provider verification is A1; adapter and failure behavior are G3.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-agent/src/adapters/ai-providers.ts": "392f64ff523e05c3de0f0cde8c260851629c13bcc5d912f7e65576dcccf9485c"
+          }
+        },
+        {
+          "id": "agent.quota-gateway",
+          "provider": "agent",
+          "symbols": [
+            "Per-Company AI request quota lock",
+            "gateway reservation/finish",
+            "usage statements",
+            "provider statement reconciliation"
+          ],
+          "paths": [
+            "packages/server-agent/src/adapters/ai-quota.ts"
+          ],
+          "authorityWitness": "Company quota is locked and rechecked per request; usage or provider statements are facts, not authority to exceed quota.",
+          "transaction": "Quota reservation and finish are durable owner commands; provider usage settles through idempotent receipts and never double-charges a request.",
+          "consumers": [
+            "agent",
+            "finance",
+            "operations"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "Quota lock exists only as a TS port; no native gateway receipts. Tail lives in migrate.agent.provider_runtime.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-agent/src/adapters/ai-quota.ts": "7095c93ff3f5104dd8a2ad45bd828c5a499ebd62effdad1a34588a3c24e5e5a3"
+          }
+        },
+        {
+          "id": "platform_administration.agent-evidence",
+          "provider": "platform_administration",
+          "symbols": [
+            "agent_evidence_http_router",
+            "platform_router"
+          ],
+          "paths": [
+            "packages/server-platform_administration/src/adapters/agent_evidence_http.rs",
+            "packages/server-platform_administration/src/adapters/platform_http.rs"
+          ],
+          "authorityWitness": "Platform audit read requires current platform administration authority; evidence rows are read-only and never grant Agent operation authority.",
+          "transaction": "Read-only bound audit query; no mutation or independent commit.",
+          "consumers": [
+            "platform_administration",
+            "agent"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen",
+          "note": "Platform keeps the Agent evidence audit read; the new Agent crate must not duplicate it.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-platform_administration/src/adapters/agent_evidence_http.rs": "72e6bfd2da02b58266e5cbf08d57f6f17294b63d7255918dac269a18a6a8d1f7",
+            "packages/server-platform_administration/src/adapters/platform_http.rs": "c0a2b6c5e79fc2f39aa44af5a7542b366c41cbe483d8f69f7d5ce448dba8fe88"
+          }
+        }
+      ]
+    }
+  }
+}

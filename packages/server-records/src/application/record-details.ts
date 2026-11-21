@@ -29,7 +29,6 @@ import type {aging} from '@erpx/server-finance/public/finance';
 import type {trialBalance} from '@erpx/server-finance/public/finance';
 import type {statements} from '@erpx/server-finance/public/finance';
 import type { marketingWorkspace } from "@erpx/server-marketing/public/marketing";
-import type { payrollSummary } from "@erpx/server-people_payroll/public/people-payroll";
 import type { calculationRunDetail } from "@erpx/server-finance/public/finance-engines";
 import type { accrualRecordDetail } from "@erpx/server-finance/public/finance-accruals";
 import type { intercompanyDetail } from "@erpx/server-finance/public/finance-intercompany";
@@ -126,7 +125,17 @@ export interface RecordDetailsPorts<Effect> {
     trialBalance(...args: Parameters<typeof trialBalance>): PortResult<ReturnType<typeof trialBalance>, Effect>;
     statements(...args: Parameters<typeof statements>): PortResult<ReturnType<typeof statements>, Effect>;
     marketingWorkspace(...args: Parameters<typeof marketingWorkspace>): PortResult<ReturnType<typeof marketingWorkspace>, Effect>;
-    payrollSummary(...args: Parameters<typeof payrollSummary>): PortResult<ReturnType<typeof payrollSummary>, Effect>;
+    /** Native posted payroll month totals: same fields, ordering and nullability as the retired TypeScript reader. */
+    payrollSummary(actor: WorkContext, payMonth: string): Promise<{
+        pay_month: string;
+        currency: string;
+        run_count: number;
+        headcount: number;
+        gross_minor: number;
+        deductions_minor: number;
+        employer_cost_minor: number;
+        net_minor: number;
+    }[]>;
     calculationRunDetail(...args: Parameters<typeof calculationRunDetail>): PortResult<ReturnType<typeof calculationRunDetail>, Effect>;
     accrualRecordDetail(...args: Parameters<typeof accrualRecordDetail>): PortResult<ReturnType<typeof accrualRecordDetail>, Effect>;
     intercompanyDetail(...args: Parameters<typeof intercompanyDetail>): PortResult<ReturnType<typeof intercompanyDetail>, Effect>;

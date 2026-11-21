@@ -15,6 +15,7 @@ import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-t
 import {peoplePackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,readPurchasedAccess,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Actor=StaffActor & Partial<Pick<WorkContext,'holdingId'>>;
 type Command={key:string;replay?:boolean;requireUnit?:true;purpose:CapabilityPurpose|((database:SqlDatabase)=>Promise<CapabilityPurpose>)};
@@ -72,7 +73,7 @@ async function owned<Result>(database:SqlDatabase,actor:Actor,command:Command,ru
    const result=await run(transaction);
    // Run assertion/observation cleanup BEFORE flushing. Deferred owner work
    // cannot become an unverified baseline after the last read-only fence.
-   if(!read){const observed=await transaction.batch([...(boundary?.after??[]),transaction.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary?.observe?.(observed);}
+   if(!read){const observed=await transaction.batch([...(boundary?.after??[]),clearWorkflowCommandAssertions(transaction, key)]);boundary?.observe?.(observed);}
    if(!parentRead)await flushFinanceDeferredEffects(transaction);
    if(identity(actor)!==actorImage||await authority(transaction,actor)!==before)throw new ApiError(403,'EXPENSE_ACCESS_CHANGED','The original Expense authority changed before commit.');
    for(const finalGuard of unit.finalGuards)await finalGuard();

@@ -40,6 +40,8 @@ describe('Holding addresses',()=>{
  it('preserves record suffixes, repeated filters, Company and fragments in generated links',()=>{
   expect(holdingUiUrl('/holdings/acme/branches/bangkok/departments/accounting/finance/reports/company?tag=a&tag=b#totals')).toBe('https://acme.jesadakorn.com/bangkok/accounting/finance/reports/company?tag=a&tag=b#totals');
   expect(holdingUiUrl('/holdings/acme/finance/documents','acme-co')).toBe('https://acme.jesadakorn.com/finance?company=acme-co');
+  expect(holdingUiUrl('/holdings/acme/administration/brand/identity','acme-co')).toBe('https://acme.jesadakorn.com/holdings/acme/administration/brand/identity?company=acme-co');
+  expect(holdingUiUrl('/holdings/acme/erpx-management/iam/users')).toBe('https://acme.jesadakorn.com/holdings/acme/erpx-management/iam/users');
   expect(holdingPublicUiUrl('/book/acme/manage#token=original')).toBe('https://acme.jesadakorn.com/book/manage#token=original');
   expect(holdingFrontUiUrl('/acme/acme-co/branches/bangkok/sale?table=1','pos')).toBe('https://acme.jesadakorn.com/bangkok/pos/sale?table=1');
  });
@@ -71,12 +73,55 @@ describe('Holding addresses',()=>{
 
 });
 
-it('retires former product hosts only for the explicit Holding profile', async () => {
-  const { appForHost, unregisteredDevelopmentProductHost } = await import('@erpx/contracts/apps');
-  const enabled = {ERPX_HOLDING_ROUTING:'enabled',ERPX_ENVIRONMENT:'local',ERPX_PRODUCT_ENVIRONMENT:'development'};
-  expect(appForHost('finance-dev-erpx.jesadakorn.com')?.id).toBe('finance');
-  expect(appForHost('finance-dev-erpx.jesadakorn.com',enabled)).toBeUndefined();
-  expect(unregisteredDevelopmentProductHost('finance-dev-erpx.jesadakorn.com',enabled)).toBe(true);
-  expect(unregisteredDevelopmentProductHost('finance-dev-erpx.jesadakorn.com')).toBe(false);
-  expect(appForHost('account-dev-erpx.jesadakorn.com',enabled)?.id).toBe('account');
+describe('isolated contributor HTTPS origins',()=>{
+ afterEach(()=>vi.unstubAllEnvs());
+ it('uses only the four full development authorities and keeps the public profile separate',async()=>{
+  vi.stubEnv('NODE_ENV','development');vi.stubEnv('NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE','container-localhost');vi.stubEnv('ERPX_HOLDING_ROUTING','enabled');vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_APP_ID','finance');
+  const hosts=await import('@erpx/feature-runtime/lib/holding-hosts'),runtime=await import('@erpx/feature-runtime/lib/product-hosts'),apps=await import('@erpx/contracts/apps');
+  for(const [host,id] of [['acme.erpx.localhost:3443','h001'],['northstar.erpx.localhost:3443','h002'],['erpx-internal.erpx.localhost:3443','h003']] as const){expect(hosts.holdingHostForHost(host)?.holdingId).toBe(id);expect(hosts.holdingAudience(host)).toBe(`holding:development:${id}:${host}`);expect(runtime.trustedProductOrigin(`https://${host}`)).toBe(`https://${host}`);}
+  const {requestPublicOrigin}=await import('@erpx/server-manage_erpx/public/public-origin');
+  const source=new Request('http://127.0.0.1:3204/path',{headers:{host:'acme.erpx.localhost:3443','x-forwarded-host':'evil.example.test','x-forwarded-proto':'http'}});expect(requestPublicOrigin(source)).toBe('https://acme.erpx.localhost:3443');
+  const {ssoOrigins}=await import('@erpx/server-identity_access/adapters/product-sso-context');const origins=ssoOrigins();expect(Object.keys(origins)).toHaveLength(4);expect(origins.account).toBe('https://account.erpx.localhost:3443');expect(origins['holding:development:h001:acme.erpx.localhost:3443']).toBe('https://acme.erpx.localhost:3443');
+  expect(apps.appForHost('account.erpx.localhost:3443',process.env,'contributor')?.id).toBe('account');expect(runtime.configuredProductOrigin('account')).toBe('https://account.erpx.localhost:3443');expect(hosts.holdingUiUrl('/holdings/acme/finance/documents')).toBe('https://acme.erpx.localhost:3443/finance');
+  for(const host of ['acme.erpx.localhost','acme.erpx.localhost:443','acme.erpx.localhost:3444','x.acme.erpx.localhost:3443','acme.jesadakorn.com','account.erpx.localhost:3444'])expect(hosts.contributorExactOrigin(host)).toBeNull();
+  expect(runtime.trustedProductOrigin('http://acme.erpx.localhost:3443')).toBeNull();expect(runtime.trustedProductOrigin('https://acme.erpx.localhost:3444')).toBeNull();
+  vi.stubEnv('NODE_ENV','production');expect(hosts.holdingHostForHost('acme.jesadakorn.com')?.holdingId).toBe('h001');expect(hosts.contributorExactOrigin('acme.erpx.localhost:3443')).toBeNull();
+ });
+});
+
+it('selects only the exact HTTPS contributor browser origin for presentation transport',async()=>{
+ const {holdingFetch}=await import('@erpx/contracts/holding-fetch');const fetcher=vi.fn(async(_input:RequestInfo|URL,_init?:RequestInit)=>new Response(null,{status:204}));vi.stubGlobal('fetch',fetcher);vi.stubGlobal('document',{documentElement:{dataset:{erpxApp:'finance'}}});
+ try {
+  for(const [origin,host,expected] of [['https://acme.erpx.localhost:3443','acme.erpx.localhost:3443','/__erpx/finance/api/v1/holdings/acme/finance'],['https://acme.erpx.localhost:3444','acme.erpx.localhost:3444','/api/v1/holdings/acme/finance'],['http://acme.erpx.localhost:3443','acme.erpx.localhost:3443','/api/v1/holdings/acme/finance']] as const){
+   vi.stubGlobal('window',{location:{origin,host,href:origin+'/finance'}});fetcher.mockClear();await holdingFetch('/api/v1/holdings/acme/finance');const target=fetcher.mock.calls[0][0];expect(target instanceof URL?target.pathname:typeof target==='string'?target:target.url).toBe(expected);
+  }
+ }finally{vi.unstubAllGlobals();}
+});
+import { contributorAuthResponse, shouldProjectContributorAuth } from '../../../packages/workplace/src/routes/api/auth/[...all]/contributor-auth-response';
+
+const user = { id: 'synthetic', name: 'Synthetic', email: 'synthetic@example.test', emailVerified: true, image: null, createdAt: 'extra' };
+describe('contributor Node Account projection', () => {
+  it('requires the explicit profile and exact Account authority', () => {
+    expect(shouldProjectContributorAuth(true, 'account.erpx.localhost:3443', 'https://account.erpx.localhost:3443')).toBe(true);
+    for (const [profile, host, origin] of [[false, 'account.erpx.localhost:3443', 'https://account.erpx.localhost:3443'], [true, 'account.erpx.localhost', 'https://account.erpx.localhost:3443'], [true, 'account.erpx.localhost:3443', 'http://account.erpx.localhost:3443'], [true, 'account-dev-erpx.jesadakorn.com', 'https://account-dev-erpx.jesadakorn.com']] as const) expect(shouldProjectContributorAuth(profile, host, origin)).toBe(false);
+  });
+  it('returns the strict sign-in user while retaining each cookie and security header', async () => {
+    const headers = new Headers({ 'content-length': '100', 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' });
+    headers.append('set-cookie', 'first=a; Secure; HttpOnly'); headers.append('set-cookie', 'second=b; Secure; HttpOnly');
+    const response = await contributorAuthResponse(Response.json({ user, token: 'secret', redirect: false, url: null }, { headers }), 'sign-in');
+    expect(await response.json()).toEqual({ user: { id: user.id, name: user.name, email: user.email, emailVerified: true, image: null } });
+    expect(response.headers.getSetCookie()).toEqual(['first=a; Secure; HttpOnly', 'second=b; Secure; HttpOnly']);
+    expect(response.headers.get('content-length')).toBeNull(); expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+  it('projects session fields and accepts the anonymous session', async () => {
+    const session = { id: 's', userId: user.id, expiresAt: '2026-10-30T12:00:00.000Z', createdAt: '2026-10-30T11:00:00.000Z', updatedAt: '2026-10-30T11:00:00.000Z', token: 'secret' };
+    expect(await (await contributorAuthResponse(Response.json({ user, session }), 'session')).json()).toEqual({user:{id:user.id,name:user.name,email:user.email,emailVerified:true,image:null},session:{id:session.id,userId:session.userId,expiresAt:session.expiresAt,createdAt:session.createdAt,updatedAt:session.updatedAt}});
+    expect(await (await contributorAuthResponse(Response.json(null), 'session')).json()).toBeNull();
+  });
+  it('passes errors and empty success through and fails malformed successes without cookies', async () => {
+    const denied = new Response('denied', {status: 401}); const empty = new Response(null, {status: 204});
+    expect(await contributorAuthResponse(denied, 'sign-in')).toBe(denied); expect(await contributorAuthResponse(empty, 'session')).toBe(empty);
+    const malformed = await contributorAuthResponse(Response.json({user: {...user, id: ''}}, {headers: {'set-cookie':'secret=x'}}), 'sign-in');
+    expect(malformed.status).toBe(502); expect(malformed.headers.getSetCookie()).toEqual([]);
+  });
 });

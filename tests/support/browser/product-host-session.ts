@@ -16,6 +16,30 @@ function factorCode(secret:string,counter:number){const alphabet='ABCDEFGHIJKLMN
 async function context(browser:Browser,testInfo:TestInfo,deviceScaleFactor?:1){return browser.newContext({...testInfo.project.use,...(deviceScaleFactor===1?{deviceScaleFactor:1}:{}),ignoreHTTPSErrors:false,serviceWorkers:'block',proxy:{server:'http://127.0.0.1:3102'}});}
 async function signIn(page:Page,credentials:Credentials,user:User){await page.goto(account+'/login');await page.locator('input[name="email"][type="email"]').fill(user.email);await page.locator('input[name="password"][type="password"]').fill(credentials.password);const submit=page.locator('form button[type="submit"]');await expect(submit).toBeEnabled();const sent=page.waitForResponse(response=>response.url()===account+'/api/auth/sign-in/email'&&response.request().method()==='POST');await submit.click();expect((await sent).status()).toBe(200);await expect(page.locator('input[name="password"]')).toHaveCount(0);const native=await page.request.get(account+'/api/auth/get-session');try{expect(native.status()).toBe(200);const value=await native.json();expect(value.user.id).toBe(user.userId);expect(value.session.userId).toBe(user.userId);return String(value.session.id);}finally{await native.dispose();}}
 async function signOut(ctx:BrowserContext){const response=await ctx.request.post(account+'/api/auth/sign-out',{headers:{Origin:account},data:{}});try{expect(response.status()).toBe(200);}finally{await response.dispose();}}
+/** Preview an exact authorized area in the shared Navbar picker. */
+export async function chooseApplicationsWorkspace(page:Page,companyId:string,workspace:string|((id:string)=>boolean)){
+ await page.goto(apps + '/?launcher=open');
+ const dialog=page.getByRole('dialog',{name:/Apps and workspaces|แอปและพื้นที่ทำงาน/});
+ await expect(dialog).toBeVisible();
+ const companies=dialog.locator('details[data-company-id]');
+ let company:Locator|undefined;
+ for(const group of await companies.all()){
+  const id=await group.getAttribute('data-company-id');
+  if(id && JSON.parse(id)[1]===companyId){company=group;break;}
+ }
+ expect(company).toBeTruthy();if(!company)throw Error('AUTHORIZED_COMPANY_REQUIRED');
+ let workspaceId=typeof workspace==='string'?workspace:undefined;
+ if(typeof workspace==='function')for(const button of await company.locator('button[data-workspace-id]').all()){
+  const id=await button.getAttribute('data-workspace-id');if(id&&workspace(id)){workspaceId=id;break;}
+ }
+ expect(workspaceId).toBeTruthy();
+ const area=company.locator(`button[data-workspace-id=${JSON.stringify(workspaceId)}]`);
+ await expect(area).toHaveCount(1);
+ // Native disclosures keep unauthorized ancestors as labels, never launch links.
+ for(const ancestor of await area.locator('xpath=ancestor::details').all())if(await ancestor.getAttribute('open')===null)await ancestor.locator(':scope > summary').click();
+ await area.click();
+ await expect(dialog.getByRole('searchbox',{name:/Search all apps|ค้นหาแอปทั้งหมด/})).toBeVisible();
+}
 /** Actual provider auth/MFA/review/apply, never SQL grants, fabricated factors or permission assignment. */
 export async function prepareProductPurchases(browser:Browser,testInfo:TestInfo){
  const path=process.env.ERPX_PRODUCT_HOST_LEASE;if(!path)throw Error('ARMED_PRODUCT_HOST_LEASE_REQUIRED');const lease=await readProductHostLease(root,path),run=process.env.ERPX_DEMO_RUN;if(run!==lease.run)throw Error('PRODUCT_HOST_RUN_CHANGED');
@@ -38,7 +62,7 @@ export async function prepareProductPurchases(browser:Browser,testInfo:TestInfo)
  await testInfo.attach('isolated-normal-commercial',{body:Buffer.from(JSON.stringify({run,sourceFingerprint:lease.sourceFingerprint,release:lease.release,changes,noInstalledWrites:true,noSqlGrants:true,normalOwnerEndpoints:true})),contentType:'application/json'});return{lease,state,directory};
 }
 function endpoint(product:ProductId,state:State,project:'desktop'|'mobile'){
- const base='/api/v1/holdings/simulation';const api:Record<ProductId,string>={work:base+'/work/summary?paged=1',pos:`/api/v1/front/riverside-lantern/${encodeURIComponent(state.fixture.hospitality.companyId)}/pos?tab=sale`,pms:`/api/v1/front/riverside-lantern/${encodeURIComponent(state.fixture.hospitality.companyId)}/pms?property=${encodeURIComponent(state.fixture.hospitality.propertyId)}&view=list&section=front-desk`,finance:base+'/finance/invoices',people:base+'/people-public-directory',sales:base+'/crm',supply:base+'/commerce/orders/'+encodeURIComponent(state.fixture.engineeringBusiness.viewports[project].production.incomingSupplyId),assets:base+'/assets',projects:base+'/projects',recruit:base+'/talent',learn:base+'/learning',support:base+'/support',service:base+'/field-service',legal:base+'/legal/workspace',manufacturing:base+'/production?module=manufacturing'};return api[product];
+ const base='/api/v1/holdings/simulation';const api:Record<ProductId,string>={apps:base+'/work/summary?paged=1',pos:`/api/v1/front/riverside-lantern/${encodeURIComponent(state.fixture.hospitality.companyId)}/pos?tab=sale`,pms:`/api/v1/front/riverside-lantern/${encodeURIComponent(state.fixture.hospitality.companyId)}/pms?property=${encodeURIComponent(state.fixture.hospitality.propertyId)}&view=list&section=front-desk`,finance:base+'/finance/invoices',people:base+'/people-public-directory',sales:base+'/crm',supply:base+'/commerce/orders/'+encodeURIComponent(state.fixture.engineeringBusiness.viewports[project].production.incomingSupplyId),assets:base+'/assets',projects:base+'/projects',recruit:base+'/talent',learn:base+'/learning',support:base+'/support',service:base+'/field-service',legal:base+'/legal/workspace',manufacturing:base+'/production?module=manufacturing'};return api[product];
 }
 export async function verifyProductHost(browser:Browser,testInfo:TestInfo,product:ProductId,visit?: (input:{page:Page;context:BrowserContext;origin:string;companyId:string;userId:string;scopedBusinessWorkflow:ProductHostBusinessWorkflow|null})=>Promise<void>){
  expect(productIds.includes(product)).toBe(true);const prepared=await prepareProductPurchases(browser,testInfo),front=product==='pos'||product==='pms',companyId=front?prepared.state.fixture.hospitality.companyId:prepared.state.fixture.companyId,credentials=JSON.parse(await readFile(resolve(prepared.directory,'credentials.json'),'utf8')) as Credentials,user=credentials.users.find(row=>row.email===(front?'admin@riverside-lantern.example':'source@simulation.test'));if(!user)throw Error('ORIGINAL_PRODUCT_OWNER_REQUIRED');
@@ -46,7 +70,7 @@ export async function verifyProductHost(browser:Browser,testInfo:TestInfo,produc
   const page=await ctx.newPage(),parent=await signIn(page,credentials,user);signed=true;
   // Use the real Account navigation control, then the actual Apps owner tile.
   const appsLink=page.locator('a[data-product-switch]').filter({hasText:/^Apps$/});await expect(appsLink).toHaveCount(1);await appsLink.click();await expect(page).toHaveURL(new RegExp('^'+apps.replaceAll('.','\\.')+'/'));
-  const origin=`https://${product}-dev-erpx.jesadakorn.com`;let matches:Locator[]=[];await expect.poll(async()=>{matches=[];for(const anchor of await page.locator('a[data-product-switch]').all()){const href=await anchor.getAttribute('href');if(!href)continue;const url=new URL(href,page.url());if(url.origin!==origin||url.pathname!=='/sso/start')continue;const next=url.searchParams.get('next');if(!next)continue;const target=new URL(next,origin);if(front?target.pathname.startsWith('/riverside-lantern/')&&target.pathname.endsWith('/holding/'):target.pathname==='/launch'&&target.searchParams.get('companyId')===companyId&&!target.searchParams.get('next')?.includes('/branches/'))matches.push(anchor);}return matches.length;}).toBe(1);expect(await ctx.cookies(origin)).toHaveLength(0);await matches[0].click();
+  await chooseApplicationsWorkspace(page,companyId,front?'/holdings/riverside-lantern':'/holdings/simulation');const origin=`https://${product}-dev-erpx.jesadakorn.com`;let matches:Locator[]=[];await expect.poll(async()=>{matches=[];for(const anchor of await page.locator('a[data-product-switch]').all()){const href=await anchor.getAttribute('href');if(!href)continue;const url=new URL(href,page.url());if(url.origin!==origin||url.pathname!=='/sso/start')continue;const next=url.searchParams.get('next');if(!next)continue;const target=new URL(next,origin);if(front?target.pathname.startsWith('/riverside-lantern/')&&target.pathname.endsWith('/holding/'):target.pathname==='/launch'&&target.searchParams.get('companyId')===companyId&&!target.searchParams.get('next')?.includes('/branches/'))matches.push(anchor);}return matches.length;}).toBe(1);if(product!=='apps')expect(await ctx.cookies(origin)).toHaveLength(0);await matches[0].click();
   // A role choice is a native form POST with its original version/revision.
   await page.waitForURL(url=>url.origin===origin&&(url.pathname==='/choose-work-role'||url.pathname.startsWith('/holdings/')||url.pathname.startsWith('/riverside-lantern/')));
   if(new URL(page.url()).pathname==='/choose-work-role'){const form=page.locator('form[action="/launch"]').filter({hasText:/holding owner/i});await expect(form).toHaveCount(1);await form.locator('button[type="submit"]').click();}

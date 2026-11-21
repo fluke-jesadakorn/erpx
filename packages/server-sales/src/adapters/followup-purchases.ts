@@ -1,19 +1,15 @@
 import 'server-only';
-import {randomUUID} from 'node:crypto';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {ApiError} from '@erpx/server-runtime/public/http';
+import {commercePackageEnforcementMode,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import type {FollowupPurchaseControls} from '@erpx/feature-sales/lib/followup-purchases';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
-import {commercePackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {crmFinanceCustomerSources,crmFinanceSourceReadLocks} from '@erpx/server-finance/public/crm-purchase-sources';
 import {crmCommerceOrderSources,crmCommerceSourceReadLocks} from '@erpx/server-commerce/public/crm-purchase-sources';
-import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
-import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {salesRecipientEligibility} from '@erpx/server-sales/adapters/recipient';
 export type FollowupPurchaseTarget={kind:'followup'|'order';id:string};
@@ -27,9 +23,8 @@ async function source(database:SqlDatabase,actor:WorkContext,target:FollowupPurc
  const row=await database.prepare(`SELECT id,company_id,branch_id,department_id,order_kind,witness::text witness,${target.kind==='followup'?'owner_id,due_date,status,version':"NULL::text owner_id,NULL::text due_date,NULL::text status,NULL::bigint version"} FROM (${rows}) followup_source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)`).bind(target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<Source>();
  if(!row)throw new ApiError(404,'CUSTOMER_FOLLOWUP_SOURCE_NOT_FOUND','The actual customer quotation or Sales source is unavailable in this workspace.');return row;
 }
-async function authority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],record?:Source,key?:string){
+async function authority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],record?:Source){
  for(const permission of permissions){if(!hasPermission(actor,permission))throw new ApiError(403,'FOLLOWUP_ACCESS_CHANGED','Choose a current authorized Sales role.');const current=await database.prepare(`SELECT ${assignmentReadSql('followup_authority',permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) followup_authority`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,record?.branch_id??actor.branchId,record?.department_id??actor.departmentId).first<boolean>('allowed');if(!current)throw new ApiError(403,'FOLLOWUP_ACCESS_CHANGED','The original customer follow-up assignment is no longer current.');}
- if(key)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);
 }
 export async function followupPurchasedAccess(database:SqlDatabase,actor:WorkContext,target?:FollowupPurchaseTarget):Promise<FollowupPurchaseControls|undefined>{
  const mode=await commercePackageEnforcementMode();if(mode==='disabled')return undefined;const actual=target?await source(database,actor,target):undefined;await authority(database,actor,['commerce.read'],actual);const values=Object.values(await readPurchasedAccesses(database,mode,actor.companyId,actual?[capability(actual.order_kind)]:['sales.quotes','sales.orders']));return {newWork:values.some(value=>value.newWork),settleExisting:values.some(value=>value.settleExisting),history:values.some(value=>value.history),revision:values.map(value=>value.revision).join(':')};
@@ -41,18 +36,6 @@ export async function followupProjectionScope(database:SqlDatabase,actor:WorkCon
  const mode=await commercePackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccesses(database,mode,actor.companyId,['sales.quotes','sales.orders']);return {where:'TRUE',args:[] as unknown[]};}
  const quotes=purchasedCapabilityPredicate('followup_native.company_id','sales.quotes','history','followup_clock.now_ms'),sales=purchasedCapabilityPredicate('followup_native.company_id','sales.orders','history','followup_clock.now_ms');
  return {where:`EXISTS(WITH followup_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${followupPurchaseRows}) followup_native CROSS JOIN followup_clock WHERE followup_native.id=${alias}.id AND followup_native.company_id=${alias}.company_id AND ${hasPermission(actor,'commerce.read')?'TRUE':'FALSE'} AND (?::text IS NULL OR followup_native.branch_id=?) AND (?::text IS NULL OR followup_native.department_id=?) AND ${assignmentReadSql('followup_native','commerce.read')} AND CASE WHEN followup_native.order_kind='quote' THEN ${quotes} ELSE ${sales} END)`,args:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
-}
-export async function withFollowupPurchasedCommand<Result>(actor:WorkContext,command:{key:string;operation:string;id:string;orderId?:string;purpose:'new-work'|'settle-existing';manager?:boolean|'unless-owner';eligibleOwner?:boolean;expectedVersion:number;ownerId?:string;dueDate?:string;status:'open'|'completed'|'cancelled'},run:(database:SqlDatabase)=>Promise<Result>){
- const mode=await commercePackageEnforcementMode(),owner=(await holdingResources(actor.holdingId)).write;if(mode==='disabled')return run(owner);if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'FOLLOWUP_TRANSACTION_REQUIRED','Customer follow-ups require their original owned Holding transaction.');
- try{return await owner.transaction(async database=>{
-  const locks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([locks[0],...followupPurchaseSourceReadLocks(database),...locks.slice(1)]);
-  const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first(),before=await source(database,actor,command.orderId&&!replay?{kind:'order',id:command.orderId}:{kind:'followup',id:command.id}),scope={companyId:actor.companyId,capability:capability(before.order_kind),purpose:replay?'history' as const:command.purpose},permissions=['commerce.read','commerce.sales',...(command.manager===true||command.manager==='unless-owner'&&before.owner_id!==actor.userId?['commerce.approve']:[])],key=`followup-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;
-  await authority(database,actor,permissions,before,key);await checkPurchasedCapability(database,mode,scope);await database.batch(boundary.before);const result=await run(database);await flushFinanceDeferredEffects(database);
-  const after=await source(database,actor,{kind:'followup',id:command.id});if(!command.orderId&&before.witness!==after.witness)throw new ApiError(409,'FOLLOWUP_SOURCE_CHANGED','The original customer follow-up source changed.');if(command.orderId&&!replay){const order=await source(database,actor,{kind:'order',id:command.orderId});if(order.witness!==before.witness||!await database.prepare('SELECT 1 FROM customer_followups WHERE id=? AND order_id=? AND company_id=? AND created_by=?').bind(command.id,command.orderId,actor.companyId,actor.userId).first())throw new ApiError(409,'FOLLOWUP_SOURCE_CHANGED','The original customer order changed before follow-up handoff.');}
-  if(!replay&&(Number(after.version)!==command.expectedVersion||after.status!==command.status||after.owner_id!==(command.ownerId??before.owner_id)||after.due_date!==(command.dueDate??before.due_date)))throw new ApiError(409,'FOLLOWUP_SOURCE_CHANGED','The original customer follow-up result changed before commit.');
-  await authority(database,actor,permissions,after,key);if(command.eligibleOwner&&!replay&&!await database.prepare(`SELECT 1 FROM customer_followups c JOIN (${orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE c.id=? AND ${salesRecipientEligibility()}`).bind(command.id).first())throw new ApiError(409,'FOLLOWUP_OWNER_CHANGED','The original assigned Sales colleague is no longer eligible.');
-  const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);return result;
- });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 export async function followupSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:'records'|'staff'|'inbox'){
  const mode=await commercePackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccesses(database,mode,actor.companyId,['sales.quotes','sales.orders']);return {where:'TRUE',args:[] as unknown[]};}const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id',type=surface==='staff'?'staff_notifications.record_type':'e.source_type',actual=`EXISTS(SELECT 1 FROM customer_followups native WHERE native.id=${id})`,relevant=surface==='records'?actual:`(${type}='customer_followup' OR ${actual})`,projection=await followupProjectionScope(database,actor,'followup_projection');

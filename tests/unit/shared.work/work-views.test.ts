@@ -27,13 +27,14 @@ it("keeps domain queries and return context together", () => {
  expect(url.searchParams.get("return")).toBe("view=team&type=people_lifecycle");
 });
 it("shows only permission-filtered app cards before launcher search", () => {
- const model = workplaceNavigation({workspaceBase:"/holdings/acme",role:"holding_owner",scopeKind:"holding"});
+ const model = workplaceNavigation({workspaceBase:"/holdings/acme",role:"holding_owner",scopeKind:"holding",moduleIds:["quality"]});
  const launcher = navigationLauncher(model,"");
  expect(launcher.results).toEqual([]);
- expect(launcher.categories.map(category => category.id)).toEqual(["people-organization","customers-sales","purchasing","inventory-quality","projects-routines","services","finance","pos","pms","knowledge","insights","administration"]);
+ expect(launcher.categories.map(category => category.id)).toEqual(["people-organization","customers-sales","purchasing","inventory-quality","projects-routines","services","finance","pos","pms","production","knowledge","insights","administration"]);
  const destinations=launcher.categories.flatMap(category=>category.apps);
- expect(destinations.map(item=>item.id)).toEqual(expect.arrayContaining(["people-directory","customers-hub","sales-hub","operations-purchasing","quality-holds","pilot-features"]));
+ expect(destinations.map(item=>item.id)).toEqual(expect.arrayContaining(["people-directory","customers-hub","sales-hub","operations-purchasing","quality-holds","technology-business-readiness"]));
  expect(destinations.some(item=>item.submodules?.length)).toBe(true);
+ expect(destinations.find(item=>item.id==="technology-business-readiness")?.submodules).toContainEqual(expect.objectContaining({id:"pilot-features",href:"/holdings/acme/administration/pilot-features"}));
 
 });
 it("searches deep destinations with owning-app context and no duplicate URLs", () => {
@@ -47,8 +48,19 @@ it("searches deep destinations with owning-app context and no duplicate URLs", (
 });
 it("omits inaccessible launcher categories and scopes rail state by workspace", () => {
  const model = workplaceNavigation({workspaceBase:"/holdings/acme",role:"employee",permissions:[]});
- expect(model.categories.map(category => category.id)).toEqual(["people-organization","projects-routines","services","knowledge"]);
+ expect(model.categories.map(category => category.id)).toEqual(["projects-routines","services","knowledge"]);
  expect(navigationLauncher(model,"bank").results).toEqual([]);
  expect(navigationAccordionStorageKey("/holdings/acme")).not.toBe(navigationAccordionStorageKey("/holdings/acme/branches/main"));
  expect(navigationRailStorageKey("/holdings/acme")).not.toBe(navigationRailStorageKey("/holdings/acme/branches/main"));
+});
+
+it('requires actual module grants and current explicit permissions while preserving owner-authorized manufacturing preparation',()=>{
+ const base={workspaceBase:'/holdings/acme',scopeKind:'holding' as const,role:'holding_owner'};
+ const noPermissions=workplaceNavigation({...base,permissions:[]});
+ for(const category of ['people-organization','finance','production'])expect(noPermissions.categories.some(entry=>entry.id===category)).toBe(false);
+ const people=workplaceNavigation({...base,role:'employee',permissions:['people.read']});expect(people.categories.some(entry=>entry.id==='people-organization')).toBe(true);expect(people.categories.some(entry=>entry.id==='finance')).toBe(false);
+ const noModules=workplaceNavigation({...base,moduleIds:[]});expect(noModules.categories.flatMap(entry=>entry.apps).some(entry=>entry.id==='quality-holds')).toBe(false);
+ const quality=workplaceNavigation({...base,moduleIds:['quality'],permissions:['quality.read']});expect(quality.categories.flatMap(entry=>entry.apps).some(entry=>entry.id==='quality-holds')).toBe(true);
+ const preparation=noModules.categories.find(entry=>entry.id==='production')?.apps.flatMap(entry=>entry.submodules??[]).map(entry=>entry.href);expect(preparation).toEqual(['/holdings/acme/production/manufacturing/settings/posting','/holdings/acme/production/manufacturing/settings/initial-stock']);
+ expect(workplaceNavigation({...base,moduleIds:[],permissions:['records.read']}).categories.some(entry=>entry.id==='production')).toBe(false);
 });

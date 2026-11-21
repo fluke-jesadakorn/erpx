@@ -43,9 +43,9 @@ async function login(context: BrowserContext, who = "owner") {
 async function contextHeaders(context: BrowserContext) {
   const response = await context.request.get(`${api}/assignments/active`);
   expect(response.ok(), await response.text()).toBe(true);
-  const { data } = await response.json() as { data: { valid: boolean; companyId: string; assignmentId: string | null; revision: number } };
-  expect(data.valid).toBe(true); expect(data.assignmentId).toBeTruthy();
-  return { Origin: origin, "x-erpx-context-company": data.companyId, "x-erpx-context-assignment": data.assignmentId!, "x-erpx-context-revision": String(data.revision) };
+  const { data } = await response.json() as { data: { valid: boolean; companyId: string; assignmentId: string | null; revision: number; assignmentVersion: number | null } };
+  expect(data.valid).toBe(true); expect(data.assignmentId).toBeTruthy(); expect(data.assignmentVersion).toBeTruthy();
+  return { Origin: origin, "x-erpx-context-company": data.companyId, "x-erpx-context-assignment": data.assignmentId!, "x-erpx-context-revision": String(data.revision), "x-erpx-context-assignment-version": String(data.assignmentVersion) };
 }
 async function preferences(context: BrowserContext) {
   const response = await context.request.get(`${api}/work/card-preferences`);
@@ -132,7 +132,7 @@ test("members without profiles use cards to create drafts and preserve filters, 
   await showShelf(page);
   await shortcutShelf(page)
     .getByRole("article", { name: "Expense claims", exact: true })
-    .locator(`a[href="${base}/work?type=expense&queue=all#work-results"]`)
+    .locator(`a[href="${base}/work/all?type=expense&queue=all#work-results"]`)
     .click();
   await expect(page).toHaveURL(/type=expense&queue=all#work-results$/);
   expect(new URL(page.url()).searchParams.has("q")).toBe(false);
@@ -361,7 +361,7 @@ test("an expense saved from a card appears once in the matching list and summary
   const response = await saved;
   expect(response.ok(), await response.text()).toBeTruthy();
   const id = (await response.json()).data.id;
-  await expect(page).toHaveURL(url => url.pathname === `${base}/finance/documents/expenses/${id}/overview` && url.searchParams.get('return') === new URL(workUrl).search.slice(1));
+  await expect(page).toHaveURL(new RegExp(`/finance/documents/expenses/${id}/overview\\?return=`));
   await page.goBack();
   await expect(page).toHaveURL(workUrl);
   await showShelf(page);
@@ -370,7 +370,7 @@ test("an expense saved from a card appears once in the matching list and summary
     .getByRole("article", { name: "Expense claims", exact: true })
     .locator(`a[href="${base}/work/all?type=expense&queue=all#work-results"]`)
     .click();
-  await expect(page).toHaveURL(url => url.pathname === `${base}/work/all` && url.search === "?type=expense&queue=all" && url.hash === "#work-results");
+  await expect(page).toHaveURL(/type=expense&queue=all#work-results$/);
   await expect(page.getByRole("dialog", { name: "App launcher", exact: true })).toBeHidden();
   const summary = (
     await (await context.request.get(`${api}/work/summary`)).json()
@@ -388,7 +388,7 @@ test("an expense saved from a card appears once in the matching list and summary
       .getByRole("link")
       .filter({ hasText: merchant }),
   ).toHaveCount(1);
-  await expect(page.getByRole("region", { name: "Work results" }).locator('[data-slot="record-list-item"]').filter({ has: page.locator(`a[href^="${base}/finance/documents/expenses/${id}/overview?"]`).filter({ hasText: merchant }) })).toHaveAttribute("data-tone", "amber");
+  await expect(page.getByRole("region", { name: "Work results" }).locator('[data-slot="record-list-item"]').filter({ has: page.locator(`a[href^="${base}/finance/documents/expenses/${id}"]`).filter({ hasText: merchant }) })).toHaveAttribute("data-tone", "amber");
 });
 test("team and inventory cards follow company, branch and department scope", async ({
   page,

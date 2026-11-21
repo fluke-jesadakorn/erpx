@@ -1,0 +1,835 @@
+{
+  "version": 1,
+  "acceptance": false,
+  "zod": {
+    "version": "4.6.7",
+    "sources": [
+      {
+        "path": "package.json",
+        "sha256": "c2d190d9ee4e0bdb60332aaa2130a6a98d65ddb903fe1d29248b15de57832c45"
+      },
+      {
+        "path": "v4/core/checks.js",
+        "sha256": "bc42543274218aa7ef72192b3218d2a4a399e53df8de240a04d9ff275096f563"
+      },
+      {
+        "path": "v4/core/util.js",
+        "sha256": "bb08133b11b478c8e715038fff26ebea204d7fd5443fba31fe138b142d202efb"
+      },
+      {
+        "path": "v4/core/schemas.js",
+        "sha256": "0ee56e8afbae28eeb1060a162ad7e56f0675ee6fb83f0ae56bea2e088f6cdbc0"
+      }
+    ]
+  },
+  "description": "Actual unchanged B0 schemas on pinned Node Fetch JSON decoding; no database, permission or command execution proof.",
+  "revision": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "node": "v26.11.1",
+  "sources": [
+    {
+      "path": "packages/server-maintenance/src/domain/work.ts",
+      "sha256": "8e3eec4cd4dcdd0899134c8e04d2f492f1c6fc23666d4ba0496c8d60a550c007"
+    },
+    {
+      "path": "packages/server-shared/src/domain/consumption-lot.ts",
+      "sha256": "dddcf06b3390953a58715a7c7888b888fa1069a9f82ae0cf675f8fc799aa543f"
+    }
+  ],
+  "cases": [
+    {
+      "id": "valid-schedule",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"schedule\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"resultingCondition\":\"good\",\"evidence\":\" Synthetic evidence \",\"unknown\":\"strip\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"schedule\",\"expectedVersion\":7,\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "valid-start",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"start\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"resultingCondition\":\"good\",\"evidence\":\" Synthetic evidence \",\"unknown\":\"strip\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"start\",\"expectedVersion\":7,\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "valid-block",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"block\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"resultingCondition\":\"good\",\"evidence\":\" Synthetic evidence \",\"unknown\":\"strip\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"block\",\"expectedVersion\":7,\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "valid-resume",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"resume\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"resultingCondition\":\"good\",\"evidence\":\" Synthetic evidence \",\"unknown\":\"strip\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"resume\",\"expectedVersion\":7,\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "valid-complete",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"complete\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"resultingCondition\":\"good\",\"evidence\":\" Synthetic evidence \",\"unknown\":\"strip\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"complete\",\"expectedVersion\":7,\"resultingCondition\":\"good\",\"evidence\":\"Synthetic evidence\",\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "valid-issue-part",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"resultingCondition\":\"good\",\"evidence\":\" Synthetic evidence \",\"unknown\":\"strip\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[],\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "valid-cancel",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"cancel\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"resultingCondition\":\"good\",\"evidence\":\" Synthetic evidence \",\"unknown\":\"strip\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"cancel\",\"expectedVersion\":7,\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "null",
+      "kind": "change",
+      "body": "null",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "array",
+      "kind": "change",
+      "body": "[]",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown-action",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"invented\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_union",
+            "path": [
+              "action"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing-action",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_union",
+            "path": [
+              "action"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bad-reason",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":0,\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": [
+              "reason"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "too-short-reason",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"  x  \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "reason"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "too-long-reason",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "reason"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "js-nel",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"x\",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[],\"reason\":\"x\"}"
+      }
+    },
+    {
+      "id": "astral-length",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"🙂x\",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "reason"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "astral-three-points",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"🙂xy\",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[],\"reason\":\"🙂xy\"}"
+      }
+    },
+    {
+      "id": "lone-high",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"\\ud800ab\",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[],\"reason\":\"\\ud800ab\"}"
+      }
+    },
+    {
+      "id": "lone-low",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"\\udc00ab\",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[],\"reason\":\"\\udc00ab\"}"
+      }
+    },
+    {
+      "id": "js-trim",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\"﻿ trim \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[],\"reason\":\"trim\"}"
+      }
+    },
+    {
+      "id": "float-version",
+      "kind": "change",
+      "body": "{\"expectedVersion\":1.5,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": [
+              "expectedVersion"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "zero-version",
+      "kind": "change",
+      "body": "{\"expectedVersion\":0,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "expectedVersion"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "unsafe-version",
+      "kind": "change",
+      "body": "{\"expectedVersion\":9007199254740992,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "expectedVersion"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "string-version",
+      "kind": "change",
+      "body": "{\"expectedVersion\":\"7\",\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": [
+              "expectedVersion"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "invalid-date",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-02-30\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_format",
+            "path": [
+              "entryDate"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "leap-year",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2000-02-29\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2000-02-29\",\"allocations\":[],\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "century-not-leap",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"1900-02-29\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_format",
+            "path": [
+              "entryDate"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "zero-quantity",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":0,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "quantityMilli"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "unsafe-quantity",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":9007199254740992,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "quantityMilli"
+            ]
+          },
+          {
+            "code": "too_big",
+            "path": [
+              "quantityMilli"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "negative-unsafe-quantity",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":-9007199254740992,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "quantityMilli"
+            ]
+          },
+          {
+            "code": "too_small",
+            "path": [
+              "quantityMilli"
+            ]
+          },
+          {
+            "code": "too_small",
+            "path": [
+              "quantityMilli"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fraction-quantity",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1.5,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": [
+              "quantityMilli"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-allocations",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":null}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": [
+              "allocations"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "empty-warehouse",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "warehouseId"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-product",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":null,\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": [
+              "productId"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "multi-invalid",
+      "kind": "change",
+      "body": "{\"expectedVersion\":0,\"reason\":\"x\",\"action\":\"issue-part\",\"warehouseId\":\"\",\"productId\":\"spare\",\"quantityMilli\":0,\"entryDate\":\"invalid\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "expectedVersion"
+            ]
+          },
+          {
+            "code": "too_small",
+            "path": [
+              "warehouseId"
+            ]
+          },
+          {
+            "code": "too_small",
+            "path": [
+              "quantityMilli"
+            ]
+          },
+          {
+            "code": "invalid_format",
+            "path": [
+              "entryDate"
+            ]
+          },
+          {
+            "code": "too_small",
+            "path": [
+              "reason"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "valid-lot",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"}]}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3}],\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "empty-lot",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[{\"lotId\":\"\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"}]}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "allocations",
+              0,
+              "lotId"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "unsafe-lot-quantity",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[{\"lotId\":\"lot\",\"quantityMilli\":9007199254740992,\"balanceVersion\":3,\"unknown\":\"strip\"}]}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "allocations",
+              0,
+              "quantityMilli"
+            ]
+          },
+          {
+            "code": "too_big",
+            "path": [
+              "allocations",
+              0,
+              "quantityMilli"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "unsafe-balance-version",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":9007199254740992,\"unknown\":\"strip\"}]}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "allocations",
+              0,
+              "balanceVersion"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-lot",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[null]}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_type",
+            "path": [
+              "allocations",
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "too-many-lots",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"}]}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "allocations"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "too-many-invalid-lots",
+      "kind": "change",
+      "body": "{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[null,{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"},{\"lotId\":\"lot\",\"quantityMilli\":1000,\"balanceVersion\":3,\"unknown\":\"strip\"}]}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "allocations"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "create-valid",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\" Synthetic work \",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\" Synthetic create \"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"Synthetic work\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\"Synthetic create\"}"
+      }
+    },
+    {
+      "id": "create-scheduled-null",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\" Synthetic work \",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\" Synthetic create \",\"scheduledAt\":null}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"Synthetic work\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"scheduledAt\":null,\"reason\":\"Synthetic create\"}"
+      }
+    },
+    {
+      "id": "create-scheduled-value",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\" Synthetic work \",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\" Synthetic create \",\"scheduledAt\":1800000000000}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"Synthetic work\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"scheduledAt\":1800000000000,\"reason\":\"Synthetic create\"}"
+      }
+    },
+    {
+      "id": "create-title-astral-160",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\" Synthetic create \"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\"Synthetic create\"}"
+      }
+    },
+    {
+      "id": "create-title-astral-162",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\" Synthetic create \"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\"Synthetic create\"}"
+      }
+    },
+    {
+      "id": "create-title-161-points",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\"🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂\",\"priority\":\"normal\",\"ownerId\":\"owner\",\"reason\":\" Synthetic create \"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_big",
+            "path": [
+              "title"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "create-bad-priority",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\" Synthetic work \",\"priority\":\"invented\",\"ownerId\":\"owner\",\"reason\":\" Synthetic create \"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "invalid_value",
+            "path": [
+              "priority"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "create-bad-owner",
+      "kind": "create",
+      "body": "{\"assetId\":\"asset\",\"assetVersion\":2,\"title\":\" Synthetic work \",\"priority\":\"normal\",\"ownerId\":\"\",\"reason\":\" Synthetic create \"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "ownerId"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "duplicate-last-valid",
+      "kind": "change",
+      "body": "{\"action\":\"invented\",\"action\":\"start\",\"expectedVersion\":7,\"reason\":\"First\",\"reason\":\" Last \"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"start\",\"expectedVersion\":7,\"reason\":\"Last\"}"
+      }
+    },
+    {
+      "id": "duplicate-last-invalid",
+      "kind": "change",
+      "body": "{\"action\":\"start\",\"expectedVersion\":7,\"expectedVersion\":0,\"reason\":\"Valid\"}",
+      "expected": {
+        "ok": false,
+        "validation": true,
+        "issues": [
+          {
+            "code": "too_small",
+            "path": [
+              "expectedVersion"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bom",
+      "kind": "change",
+      "body": "﻿{\"expectedVersion\":7,\"reason\":\" Synthetic reason \",\"action\":\"issue-part\",\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\"}",
+      "expected": {
+        "ok": true,
+        "normalized": "{\"action\":\"issue-part\",\"expectedVersion\":7,\"warehouseId\":\"warehouse\",\"productId\":\"spare\",\"quantityMilli\":1000,\"entryDate\":\"2026-10-27\",\"allocations\":[],\"reason\":\"Synthetic reason\"}"
+      }
+    },
+    {
+      "id": "malformed",
+      "kind": "change",
+      "body": "{\"action\":",
+      "expected": {
+        "ok": false,
+        "json": false
+      }
+    }
+  ]
+}

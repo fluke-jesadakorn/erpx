@@ -1,2 +1,3 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { transitDispatchSchema, transitReceiveSchema, transitLossSchema, transitLossDecisionSchema, transitCancelSchema, getTransit, listTransit, transitDetail, prepareTransit, dispatchTransit, receiveTransit, requestTransitLoss, decideTransitLoss, cancelTransit, transitWork, transitWorkItem } from "@erpx/server-inventory/adapters/inventory-transit";
+/** Read/compatibility entry. Native transport commands mount through composition. */
+export { getTransit, listTransit, transitDetail, prepareTransit, transitWork } from "@erpx/server-inventory/adapters/inventory-transit";
+export { transitDispatchSchema, transitReceiveSchema, transitLossSchema, transitLossDecisionSchema, transitCancelSchema, transitWorkItem } from '@erpx/server-inventory/domain/transit';

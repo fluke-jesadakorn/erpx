@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Brand owner complete: all three catalogue workflows verified on canonical authenticated desktop/mobile routes",
+  "capability": "brand-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "067971fd9",
+  "browserRun": {
+    "auth": "normal Account sign-in, SSO, Company and role selection; no cookie injection",
+    "runtime": "current-source Rust private API and Next account/admin/finance apps on the existing isolated cohort",
+    "projects": ["desktop", "mobile"],
+    "canonicalRoutes": [
+      "/holdings/acme/administration/brand/identity",
+      "/holdings/acme/administration/brand/history"
+    ]
+  },
+  "workflows": {
+    "brand/feature-draft-workspace": {
+      "result": "verified",
+      "desktop": "create/save 200, reload readback",
+      "mobile": "create/save 200, reload readback",
+      "errors": "0 page / 0 console / 0 HTTP"
+    },
+    "brand/feature-published-identity": {
+      "result": "verified",
+      "publish": "independent owner publish 200, revisions 1 and 2 retained in history",
+      "rollback": "200, publishedVersion 3, active version restored, desktop/mobile readback",
+      "negatives": ["stale publish 409 NATIVE_BRAND_CONFLICT", "creator self-approval 403 BRAND_INDEPENDENT_PUBLICATION"],
+      "errors": "0 page / 0 console / 0 HTTP outside intentional negatives"
+    },
+    "brand/feature-category-locks": {
+      "result": "verified",
+      "desktop": "owner lock v1 and unlock v2 readback",
+      "mobile": "owner lock/unlock readback",
+      "guards": ["locked save 409 BRAND_CATEGORY_LOCKED", "non-owner lock 403 PERMISSION_REQUIRED"],
+      "errors": "0 page / 0 console / 0 HTTP outside intentional negatives"
+    }
+  },
+  "retainedSharedCode": [
+    "packages/server-brand TypeScript remains for read-only storefront/workspace-choice projections consumed by server-operations, organization, people-payroll, files, runtime executive and work-projection; removal condition is those owners moving to read_active_brand_identity.",
+    "Brand identity/draft/publish/lock product routes and pages are native-required; no TypeScript writer fallback remains."
+  ],
+  "tests": [
+    "brand.rust-brand-identity-policy.unit 7/7",
+    "brand.rust-brand-identity-postgres.integration 4/4",
+    "brand.rust-brand-identity-http-postgres.integration 2/2",
+    "feature-brand/feature-admin/workplace typechecks pass",
+    "architecture/structure/docs checks pass on merged source"
+  ],
+  "limits": [
+    "A dedicated storefront preview page is absent; active identity was read back on the identity page and brand_identity_active.",
+    "Screenshots/logs are private ignored artifacts under .scratch/dev/agents/browser-brand-finance/evidence-v4.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

@@ -6,7 +6,7 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
-import { PageHeader } from "@erpx/ui/components/primitives";
+import { EmbeddedPageHeader } from "@erpx/feature-records/components/embedded-page-header";
 import { FlowPanel,documentFlow } from "@erpx/workplace/components/flow-panel";
 import { RecordNextAction } from "@erpx/workplace/components/record-next-action";
 import { PurchaseRequestProgress } from "@erpx/workplace/components/purchase-request-progress";
@@ -62,7 +62,7 @@ export default async function RequestPage({
       <Link href={canonicalUiHref(`${base}/work${back.size ? `?${back}` : ""}`)}>
         ← Back to Work
       </Link>
-      <PageHeader appearance="standard"
+      <EmbeddedPageHeader appearance="standard"
         title={row.title || "Untitled request"}
         description={`${requestKinds.find(([id]) => id === row.kind)?.[1]} · ${categoryLabel(row.category)}`}
         action={<RequestState state={row.state} />}

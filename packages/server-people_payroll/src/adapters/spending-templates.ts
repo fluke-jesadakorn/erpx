@@ -12,10 +12,10 @@ import type { SpendingTemplateInput } from '@erpx/server-people_payroll/domain/s
 function application(db: SqlDatabase) {
     return createSpendingTemplateApplication({ clock: { now: Date.now }, authorize: requirePermission, read: company => spendingTemplateOwner(db).read(company), activePosition: (company, id) => activeSpendingPosition(db, company, id), commit: async <Result>(m: SpendingTemplateMutation, result: Result) => {
             const { actor, input, key, version, now } = m;
-            return executeCommand(db, actor, key, "spending.template.save", input, actor.companyId, version, result, [
+            return executeCommand(db, actor, key, "spending.template.save", input, actor.companyId, version, result, await Promise.all([
                 spendingTemplateOwner(db).guard(key,actor.companyId,input.expectedVersion),
                 spendingTemplateOwner(db).publish(actor.companyId,version,JSON.stringify(input.exceptions),input.reason,actor.userId,now),
-            ]);
+            ]));
         } });
 }
 async function invoke<Result>(run: () => Promise<Result>) { try {

@@ -1,3 +1,4 @@
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {withPeoplePurchasedCommand} from "@erpx/server-people_payroll/adapters/people-purchases";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -11,7 +12,6 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { requireCompanyAuthority, authorityGuard } from "@erpx/server-operations/public/staff-policy";
 import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import {validateStaffOrganization} from '@erpx/server-organization/public/organization';
-import { rosterPositionExitStatements } from "@erpx/server-people_payroll/public/roster-position-exit";
 import { recommendationStatements } from "@erpx/server-organization/public/staff-defaults";
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { BusinessRuleError } from '@erpx/server-shared/index';
@@ -42,34 +42,34 @@ function application(provided?: SqlDatabase) {
             return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND version=? AND status!='archived')", [id, expectedVersion]);
         },
         stageSaveDirectoryPersonEffect(legalName: string, value: string | null, email: string, value2: string | null, value3: string | number | null, value4: string | number | null, countryCode: string, now: number, id: string) {
-            return database.prepare("UPDATE hr_people SET legal_name=?,preferred_name=?,email=?,phone=?,work_email=?,work_phone=?,country_code=?,version=version+1,updated_at=? WHERE id=?")
+            return nativePpStatement('pp_people_directory_stmt_1')
                 .bind(legalName, value, email, value2, value3, value4, countryCode, now, id);
         },
         stageSaveDirectoryPersonEffect2(branchId: string, departmentId: string | null, jobTitle: string, workerType: "employee" | "contractor", employmentType: "shift" | "contractor" | "salaried" | "daily" | "hourly", startDate: string, currency: "USD" | "EUR" | "GBP" | "THB" | "SGD" | "CAD", managerPersonId: string | null, now: number, engagement: string) {
-            return database.prepare("UPDATE hr_engagements SET branch_id=?,department_id=?,job_title=?,worker_type=?,employment_type=?,start_date=?,currency=?,manager_person_id=?,version=version+1,updated_at=? WHERE id=?")
+            return nativePpStatement('pp_people_directory_stmt_2')
                 .bind(branchId, departmentId, jobTitle, workerType, employmentType, startDate, currency, managerPersonId, now, engagement);
         },
         stageSaveDirectoryPersonEffect3(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect3(...args); },
         stageSaveDirectoryPersonEffect4(id: string, companyId: string, legalName: string, value: string | null, email: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number) {
-            return database.prepare("INSERT INTO hr_people(id,company_id,legal_name,preferred_name,email,phone,work_email,work_phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+            return nativePpStatement('pp_people_directory_stmt_3')
                 .bind(id, companyId, legalName, value, email, value2, value3, value4, countryCode, userId, now, now2);
         },
         stageSaveDirectoryPersonEffect5(engagement: string, id: string, companyId: string, branchId: string, departmentId: string | null, workerType: "employee" | "contractor", employmentType: "shift" | "contractor" | "salaried" | "daily" | "hourly", startDate: string, jobTitle: string, currency: "USD" | "EUR" | "GBP" | "THB" | "SGD" | "CAD", managerPersonId: string | null, userId: string, now: number, now2: number) {
-            return database.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,manager_person_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'onboarding',?,?,?,?,?,?,?)")
+            return nativePpStatement('pp_people_directory_stmt_4')
                 .bind(engagement, id, companyId, branchId, departmentId, workerType, employmentType, startDate, jobTitle, currency, managerPersonId, userId, now, now2);
         },
         stageSaveDirectoryPersonEffect6(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect6(...args); },
         stageSaveDirectoryPersonEffect7(levelId: string, engagement: string) {
-            return database.prepare("UPDATE hr_engagements SET level_id=? WHERE id=?")
+            return nativePpStatement('pp_people_directory_stmt_5')
                 .bind(levelId, engagement);
         },
         stageSaveDirectoryPersonEffect8(linkedMemberUserId: string, id: string) {
-            return database.prepare("UPDATE hr_people SET user_id=? WHERE id=?")
+            return nativePpStatement('pp_people_directory_stmt_6')
                 .bind(linkedMemberUserId, id);
         },
         stageSaveDirectoryPersonEffect9(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect9(...args); },
-        stageSaveDirectoryPersonEffect10(positionId: string | null, engagement: string) { return database.prepare("UPDATE hr_engagements SET position_id=? WHERE id=?").bind(positionId, engagement); },
-        stageSaveDirectoryPersonEffect11(value: string, companyId: string, engagement: string, value2: string, value3: string, userId: string, reason: string, commandId: string, now: number) { return database.prepare("INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(value, companyId, engagement, value2, value3, userId, reason, commandId, now); },
+        stageSaveDirectoryPersonEffect10(positionId: string | null, engagement: string) { return nativePpStatement('pp_people_directory_stmt_7').bind(positionId, engagement); },
+        stageSaveDirectoryPersonEffect11(value: string, companyId: string, engagement: string, value2: string, value3: string, userId: string, reason: string, commandId: string, now: number) { return nativePpStatement('pp_people_directory_stmt_8').bind(value, companyId, engagement, value2, value3, userId, reason, commandId, now); },
         readSaveDirectoryPersonPrevious(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonPrevious(...args); },
         readSaveDirectoryPersonNext(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonNext(...args); },
         readSetDirectoryStatusEffect(companyId: string, personId: string) { return database.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND person_id=? AND cancelled_at IS NULL AND restored_at IS NULL").bind(companyId, personId).first(); },
@@ -79,11 +79,11 @@ function application(provided?: SqlDatabase) {
         },
         guard27(...args) { return peopleDirectoryOrganizationFacts(database).guard27(...args); },
         stageSetDirectoryStatusEffect(status: "active" | "inactive" | "archived", now: number, personId: string) {
-            return database.prepare("UPDATE hr_people SET status=?,version=version+1,updated_at=? WHERE id=?")
+            return nativePpStatement('pp_people_directory_stmt_9')
                 .bind(status, now, personId);
         },
         stageSetDirectoryStatusEffect2(value: "active" | "suspended", now: number, personId: string) {
-            return database.prepare("UPDATE hr_engagements SET status=?,version=version+1,updated_at=? WHERE person_id=? AND status!='ended'")
+            return nativePpStatement('pp_people_directory_stmt_10')
                 .bind(value, now, personId);
         },
         stageSetDirectoryStatusEffect3(...args) { return peopleDirectoryEmployeeFacts(database).stageSetDirectoryStatusEffect3(...args); },
@@ -93,7 +93,7 @@ function application(provided?: SqlDatabase) {
     return createPeopleDirectoryApplication({ repository, clock: { now: Date.now }, authorize: requirePermission, prepare: async (holding) => {
             if (!provided)
                 database = (await holdingResources(holding)).write;
-        }, commands: projectWorkerNativeCommands(database), levelChangeStatements: (...args) => levelChangeStatements(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), authorityGuard: (...args) => authorityGuard(database, ...args), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), rosterPositionExitStatements: (...args) => rosterPositionExitStatements(database, ...args), recommendationStatements: (...args) => fromNative(() => recommendationStatements(database, ...args)) });
+        }, commands: projectWorkerNativeCommands(database), levelChangeStatements: (...args) => levelChangeStatements(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), authorityGuard: (...args) => authorityGuard(database, ...args), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), recommendationStatements: (...args) => fromNative(() => recommendationStatements(database, ...args)) });
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {

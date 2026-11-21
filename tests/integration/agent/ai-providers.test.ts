@@ -8,18 +8,9 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import {
-  activateAiConnection,
   aiSnapshotGuard,
-  aiConnectionSchema,
   aiProviderOverview,
-  disableAiConnection,
   resolveAiProvider,
-  saveAiConnection,
-  selectAiProviders,
-  testAiConnection,
-  aiSelectionSchema,
-  aiDiscoverySchema,
-  discoverAiModelsInput,
 } from "@erpx/server-agent/public/ai-providers";
 import {
   aiBaseUrl,
@@ -28,6 +19,8 @@ import {
   publicAddress,
   sealAiKey,
 } from "@erpx/server-agent/public/ai-transport";
+import { seedAiProvider, seedAiSelection } from "./ai-provider-seed";
+import { createNativeAgentAiProviders } from "@erpx/feature-platform_administration/adapters/server/native-agent-ai-providers";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";
 import {
   grantPersonAccess,
@@ -51,21 +44,11 @@ const aiEnv = {
   }),
 };
 let f: Awaited<ReturnType<typeof expenseFixture>>;
-const synthetic = vi.fn(
-  async (_endpoint: unknown, messages: { content: unknown }[]) => ({
-    result: Array.isArray(messages[1].content)
-      ? { color: "red" }
-      : { ok: true },
-    inputTokens: 5,
-    outputTokens: 2,
-  }),
-);
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS as TestMigration[]);
 });
 beforeEach(async () => {
   f = await expenseFixture();
-  synthetic.mockClear();
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 it("builds the simulation AI snapshot guard without deployment parameters", async () => {
@@ -95,43 +78,25 @@ it("requires explicit company selection before any production AI provider can ru
     expect((await aiProviderOverview(db, f.it, deployment)).selection.mode).toBe("disabled");
     await expect(resolveAiProvider(db, f.company, deployment, "text")).rejects.toMatchObject({ code: "AI_PILOT_OPT_IN_REQUIRED" });
     await expect(resolveAiProvider(db, f.company, deployment, "image")).rejects.toMatchObject({ code: "AI_PILOT_OPT_IN_REQUIRED" });
-    await selectAiProviders(db, f.it, aiSelectionSchema.parse({ expectedVersion: 0, mode: "deployment" }), key());
+    await seedAiSelection(db, f.it, { mode: "deployment" });
     expect((await resolveAiProvider(db, f.company, deployment, "text")).endpoint.model).toBe("fictional-review-model");
     await expect(resolveAiProvider(db, f.company, deployment, "image")).rejects.toMatchObject({ code: "AI_IMAGE_TEST_REQUIRED" });
-    await selectAiProviders(db, f.it, aiSelectionSchema.parse({ expectedVersion: 1, mode: "disabled" }), key());
+    await seedAiSelection(db, f.it, { mode: "disabled", version: 2 });
     await expect(resolveAiProvider(db, f.company, deployment, "text")).rejects.toMatchObject({ code: "AI_PILOT_OPT_IN_REQUIRED" });
   } finally {
     vi.unstubAllEnvs();
   }
 });
 async function connection() {
-  const row = await saveAiConnection(
-    db,
-    f.it,
-    aiEnv,
-    null,
-    aiConnectionSchema.parse({
+  return (
+    await seedAiProvider(db, aiEnv, f.it, {
       name: "Custom provider",
       baseUrl: "https://opencode.ai/zen/v1",
       apiKey: "private-test-key",
       textModel: "gpt-5.6-luna",
       imageModel: "claude-sonnet-4-6",
-    }),
-    key(),
-  );
-  await testAiConnection(db, f.it, aiEnv, row.id, 1, key(), synthetic);
-  await activateAiConnection(db, f.it, row.id, 2, key());
-  await selectAiProviders(
-    db,
-    f.it,
-    aiSelectionSchema.parse({
-      expectedVersion: 0,
-      mode: "custom",
-      textConnectionId: row.id,
-    }),
-    key(),
-  );
-  return row.id;
+    })
+  ).id;
 }
 it("uses only the selected IT assignment without granting billing or role administration", async () => {
   const access = await administrationAccess(f.it);
@@ -149,18 +114,7 @@ it("uses only the selected IT assignment without granting billing or role admini
     f.grant(f.claimant, "it_admin", "branch", f.branch),
   ).rejects.toThrow();
   await expect(
-    saveAiConnection(
-      db,
-      f.claimant,
-      aiEnv,
-      null,
-      aiConnectionSchema.parse({
-        name: "No access",
-        baseUrl: "https://api.provider.com",
-        textModel: "text",
-      }),
-      key(),
-    ),
+    aiProviderOverview(db, f.claimant, aiEnv),
   ).rejects.toMatchObject({ status: 403 });
   await expect(
     grantPersonAccess(
@@ -184,7 +138,7 @@ it("uses only the selected IT assignment without granting billing or role admini
     false,
   );
 });
-it("encrypts credentials with identity context, returns only masked status, and preserves active revisions", async () => {
+it("encrypts credentials with identity context and returns only masked status", async () => {
   const id = await connection(),
     overview = await aiProviderOverview(db, f.owner, aiEnv);
   expect(JSON.stringify(overview)).not.toContain("private-test-key");
@@ -206,99 +160,9 @@ it("encrypts credentials with identity context, returns only masked status, and 
   expect(await sealAiKey(aiEnv, f.company, id, "private-test-key")).not.toBe(
     rev!.credential_json,
   );
-  await saveAiConnection(
-    db,
-    f.it,
-    aiEnv,
-    id,
-    aiConnectionSchema.parse({
-      expectedVersion: 3,
-      name: "Edited draft",
-      baseUrl: "https://opencode.ai/zen/go/v1",
-      apiKey: "replacement-test-key",
-      textModel: "gpt-5.5",
-      imageModel: "claude-haiku-4-5",
-    }),
-    key(),
-  );
   expect(
     (await resolveAiProvider(db, f.company, aiEnv, "text")).endpoint.model,
   ).toBe("gpt-5.6-luna");
-  await expect(
-    activateAiConnection(db, f.it, id, 4, key()),
-  ).rejects.toMatchObject({ code: "AI_TEST_REQUIRED" });
-  await testAiConnection(db, f.it, aiEnv, id, 4, key(), synthetic);
-  await activateAiConnection(db, f.it, id, 5, key());
-  expect(
-    (await resolveAiProvider(db, f.company, aiEnv, "text")).endpoint.model,
-  ).toBe("gpt-5.5");
-  const audit = await db
-    .prepare("SELECT purpose FROM audit_events WHERE record_id=?")
-    .bind(id)
-    .all();
-  expect(JSON.stringify(audit.results)).not.toContain("private-test-key");
-});
-it("checks authority after tests and blocks stale configuration updates and silent fallback", async () => {
-  const id = await connection();
-  await expect(
-    saveAiConnection(
-      db,
-      f.it,
-      aiEnv,
-      id,
-      aiConnectionSchema.parse({
-        expectedVersion: 1,
-        name: "Conflict",
-        baseUrl: "https://opencode.ai/zen/v1",
-        textModel: "gpt-5.5",
-      }),
-      key(),
-    ),
-  ).rejects.toMatchObject({ status: 409 });
-  await expect(
-    disableAiConnection(
-      db,
-      f.it,
-      id,
-      { expectedVersion: 3, disableUses: false, remove: false },
-      key(),
-    ),
-  ).rejects.toMatchObject({ code: "AI_CONNECTION_IN_USE" });
-  await disableAiConnection(
-    db,
-    f.it,
-    id,
-    { expectedVersion: 3, disableUses: true, remove: false },
-    key(),
-  );
-  await expect(
-    resolveAiProvider(
-      db,
-      f.company,
-      {
-        ...aiEnv,
-        AI_BASE_URL: "https://deployment.com",
-        AI_API_KEY: "default",
-        AI_MODEL: "default",
-      },
-      "text",
-    ),
-  ).rejects.toMatchObject({ code: "AI_DISABLED" });
-  const revoke = async () => {
-    await db
-      .prepare(
-        "UPDATE assignments SET revoked_at=1 WHERE user_id=? AND role='it_admin'",
-      )
-      .bind(f.it.userId)
-      .run();
-    return { result: { ok: true }, inputTokens: 0, outputTokens: 0 };
-  };
-  await expect(
-    testAiConnection(db, f.it, aiEnv, id, 4, key(), revoke),
-  ).rejects.toMatchObject({ status: 409 });
-  await expect(aiProviderOverview(db, f.it, aiEnv)).rejects.toMatchObject({
-    status: 403,
-  });
 });
 it("rejects private URLs, DNS targets and redirects while allowing explicit public unauthenticated JSON endpoints", async () => {
   for (const url of [
@@ -709,94 +573,6 @@ it("enforces company quota without losing an editable claim", async () => {
   ).toBe(0);
 });
 
-function mockCatalog(data: unknown = { data: [{ id: "minimax-m3" }, { id: "minimax-m3" }, { id: "gpt-5.6-luna" }, { id: "new-model" }, { id: "gemini-3.8-flash" }] }) {
-  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ Status: 0, Answer: [{ type: 1, data: "8.8.8.8" }] })));
-  return vi.spyOn(nativeHttps, "pinnedNodeRequest").mockResolvedValue(Response.json(data));
-}
-it("discovers unsaved models without creating a revision and uses the current key", async () => {
-  const request = mockCatalog();
-  const result = await discoverAiModelsInput(db, f.it, aiEnv, aiDiscoverySchema.parse({ baseUrl: "https://opencode.ai/zen/go/v1", apiKey: "fresh-key" }));
-  expect(result.models).toEqual(["gpt-5.6-luna", "minimax-m3"]);
-  expect(result.totalModels).toBe(4);
-  expect(result.fetchedAt).toBeTruthy();
-  expect(request.mock.calls[0][2]).toMatchObject({ Authorization: "Bearer fresh-key" });
-  expect((await aiProviderOverview(db, f.it, aiEnv)).connections).toEqual([]);
-});
-it("keeps saved credentials within the original URL and company during discovery and save", async () => {
-  const id = await connection();
-  const request = mockCatalog();
-  const input = aiDiscoverySchema.parse({ connectionId: id, baseUrl: "https://opencode.ai/zen/v1" });
-  await discoverAiModelsInput(db, f.it, aiEnv, input);
-  expect(request.mock.calls[0][2]).toMatchObject({ Authorization: "Bearer private-test-key" });
-  request.mockResolvedValue(Response.json({ data: [] }));
-  await discoverAiModelsInput(db, f.it, aiEnv, { ...input, apiKey: "new-key" });
-  expect(request.mock.calls[1][2]).toMatchObject({ Authorization: "Bearer new-key" });
-  await expect(discoverAiModelsInput(db, f.it, aiEnv, { ...input, baseUrl: "https://other.provider.com/v1" })).rejects.toMatchObject({ code: "AI_KEY_REQUIRED" });
-  await expect(discoverAiModelsInput(db, f.claimant, aiEnv, input)).rejects.toMatchObject({ status: 403 });
-  await expect(discoverAiModelsInput(db, f.it, aiEnv, { ...input, connectionId: "another-company-connection" })).rejects.toMatchObject({ status: 404 });
-  await expect(saveAiConnection(db, f.it, aiEnv, id, aiConnectionSchema.parse({ expectedVersion: 3, name: "Changed endpoint", baseUrl: "https://other.provider.com/v1", textModel: "text" }), key())).rejects.toMatchObject({ code: "AI_KEY_REQUIRED" });
-  expect(request).toHaveBeenCalledTimes(2);
-});
-it("reports catalog failures and supports public catalogs without a key", async () => {
-  const input = aiDiscoverySchema.parse({ baseUrl: "https://opencode.ai/zen/v1" });
-  const request = mockCatalog({ data: [{ id: 123 }] });
-  await expect(discoverAiModelsInput(db, f.it, aiEnv, input)).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE" });
-  request.mockResolvedValueOnce(Response.json({ data: [] }));
-  expect((await discoverAiModelsInput(db, f.it, aiEnv, input)).models).toEqual([]);
-  request.mockRejectedValueOnce(Error("timeout private-key"));
-  await expect(discoverAiModelsInput(db, f.it, aiEnv, input)).rejects.toMatchObject({ code: "AI_CONNECTION_FAILED" });
-  request.mockResolvedValueOnce(new Response(null, { status: 401 }));
-  await expect(discoverAiModelsInput(db, f.it, aiEnv, input)).rejects.toMatchObject({ code: "AI_PROVIDER_ERROR" });
-});
-it("persists separate protocols in draft and active revisions without changing company defaults", async () => {
-  const saved = await saveAiConnection(db, f.it, aiEnv, null, aiConnectionSchema.parse({ name: "OpenCode Zen", providerPreset: "opencode-zen", baseUrl: "https://opencode.ai/zen/v1", apiKey: "test", textModel: "gpt-5.6-luna", textProtocol: "messages", imageModel: "claude-sonnet-4-6", imageProtocol: "responses" }), key());
-  let view = await aiProviderOverview(db, f.it, aiEnv);
-  expect(view.selection.mode).toBe("deployment");
-  expect(view.connections[0]).toMatchObject({ provider_preset: "opencode-zen", text_protocol: "responses", image_protocol: "messages" });
-  await testAiConnection(db, f.it, aiEnv, saved.id, 1, key(), synthetic);
-  expect(synthetic.mock.calls[0][0]).toMatchObject({ protocol: "responses" });
-  expect(synthetic.mock.calls[1][0]).toMatchObject({ protocol: "messages" });
-  expect(synthetic.mock.calls[0][0]).toHaveProperty("sessionId");
-  expect((synthetic.mock.calls[0][0] as { sessionId: string }).sessionId).toBe((synthetic.mock.calls[1][0] as { sessionId: string }).sessionId);
-  await activateAiConnection(db, f.it, saved.id, 2, key());
-  view = await aiProviderOverview(db, f.it, aiEnv);
-  expect(view.connections[0].active).toMatchObject({ text_protocol: "responses", image_protocol: "messages" });
-  expect(view.selection.mode).toBe("deployment");
-});
-it("accepts omitted protocols and ignores caller protocol overrides", async () => {
-  const input = aiConnectionSchema.parse({ name: "Automatic", baseUrl: "https://opencode.ai/zen/go/v1", textModel: "minimax-m3", textProtocol: "responses" });
-  expect(input).not.toHaveProperty("textProtocol");
-  await saveAiConnection(db, f.it, aiEnv, null, input, key());
-  const view = await aiProviderOverview(db, f.it, aiEnv);
-  expect(view.connections[0].text_protocol).toBe("messages");
-});
-it.each([
-  ["https://opencode.ai/zen/v1", "future-model", ""],
-  ["https://opencode.ai/zen/v1", "gemini-3.8-flash", ""],
-  ["https://opencode.ai/zen/v1", "gpt-5.6-luna", "unknown-image"],
-  ["https://opencode.ai/zen/v1", "toString", ""],
-])("rejects unsupported endpoint/model pairs %s %s %s", async (baseUrl, textModel, imageModel) => {
-  await expect(saveAiConnection(db, f.it, aiEnv, null, aiConnectionSchema.parse({ name: "Unsupported", baseUrl, textModel, imageModel, textProtocol: "responses", imageProtocol: "messages" }), key())).rejects.toMatchObject({ code: "AI_MODEL_UNSUPPORTED" });
-  expect((await aiProviderOverview(db, f.it, aiEnv)).connections).toEqual([]);
-});
-it("preserves active custom revisions when a new custom draft is saved", async () => {
-  const id = await connection();
-  await db.prepare("UPDATE ai_connection_revisions SET base_url=?,text_model=? WHERE connection_id=?").bind("https://legacy.provider.com/v1", "legacy-model", id).run();
-  expect((await resolveAiProvider(db, f.company, aiEnv, "text")).endpoint).toMatchObject({ baseUrl: "https://legacy.provider.com/v1", model: "legacy-model" });
-  await saveAiConnection(db, f.it, aiEnv, id, aiConnectionSchema.parse({ expectedVersion: 3, name: "Legacy edit", baseUrl: "https://legacy.provider.com/v1", textModel: "legacy-model" }), key());
-  expect((await aiProviderOverview(db, f.it, aiEnv)).connections[0].active_revision).toBe(1);
-});
-
-it("activates a verified text model while keeping failed image reading unavailable", async () => {
-  const saved = await saveAiConnection(db, f.it, aiEnv, null, aiConnectionSchema.parse({ name: "Image check", apiKey: "synthetic-test-key", baseUrl: "https://opencode.ai/zen/v1", textModel: "gpt-5.6-luna", imageModel: "claude-sonnet-4-6" }), key());
-  const result = await testAiConnection(db, f.it, aiEnv, saved.id, 1, key(), async (_endpoint, messages) => ({ result: Array.isArray(messages[1].content) ? { color: "blue" } : { ok: true }, inputTokens: 0, outputTokens: 0 }));
-  expect(result).toMatchObject({ textVerified: true, imageVerified: false });
-  await activateAiConnection(db, f.it, saved.id, 2, key());
-  await selectAiProviders(db, f.it, aiSelectionSchema.parse({ expectedVersion: 0, mode: "custom", textConnectionId: saved.id }), key());
-  expect((await resolveAiProvider(db, f.company, aiEnv, "text")).endpoint.model).toBe("gpt-5.6-luna");
-  await expect(resolveAiProvider(db, f.company, aiEnv, "image")).rejects.toMatchObject({ code: "AI_CAPABILITY_UNAVAILABLE" });
-});
-
 it("filters unsafe receipt fields, preserves a Gregorian date and rejects a category in another currency", async () => {
   await connection();
   const id = await f.claim(), attachmentId = await f.attach(id);
@@ -839,12 +615,6 @@ it("does not queue or run expense AI when People is outside the production rollo
     vi.unstubAllEnvs();
   }
 });
-it("accepts an exact color with harmless case and whitespace normalization", async () => {
-  const saved = await saveAiConnection(db, f.it, aiEnv, null, aiConnectionSchema.parse({ name: "Same model", apiKey: "synthetic-test-key", baseUrl: "https://opencode.ai/zen/v1", textModel: "muse-spark-1.3-contributor-free", imageModel: "muse-spark-1.3-contributor-free" }), key());
-  const result = await testAiConnection(db, f.it, aiEnv, saved.id, 1, key(), async (_endpoint, messages) => ({ result: Array.isArray(messages[1].content) ? { color: " Red " } : { ok: true }, inputTokens: 0, outputTokens: 0 }));
-  expect(result).toMatchObject({ textVerified: true, imageVerified: true });
-});
-
 it.each([[0, "54.50"], [385, "50.65"]])("derives draft net from cited receipt total with %s recorded recoverable tax", async (taxMinor, expected) => {
   await connection();
   const id = await f.claim(), attachmentId = await f.attach(id);
@@ -932,4 +702,67 @@ it('keeps queued payment AI as a real duty after independent unused-preparation 
   expect(await db.prepare('SELECT state,claim_until,lease_token,attempts FROM expense_ai_proposals WHERE id=?').bind(queued.proposalId).first()).toEqual({state:'failed',claim_until:null,lease_token:null,attempts:1});expect(await db.prepare('SELECT state,lease_until,input_tokens,output_tokens FROM expense_ai_usage WHERE id=?').bind(queued.proposalId).first()).toEqual({state:'failed',lease_until:0,input_tokens:0,output_tokens:0});expect(await business()).toBe(before);
   expect((await observe()).observations.map(row=>[row.moduleId,row.outstanding])).toEqual([['people_payroll',0],['finance',0]]);const settled=await withdrawal(),preview=await withOwnerPackageObligations(db,scope,tx=>store.batch.previewIn(tx,settled));expect(await withOwnerPackageObligations(db,scope,tx=>store.batch.applyIn(tx,settled,async()=>{}))).toEqual(preview);
  }finally{vi.unstubAllEnvs();}
+});
+
+it("native client forwards the full Administration payload and exact command path", async () => {
+  const calls: {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    body?: string;
+  }[] = [];
+  const client = createNativeAgentAiProviders(
+    JSON.stringify({
+      privateBaseUrl: "http://127.0.0.1:44993",
+      timeoutMs: 5000,
+      holdings: [
+        {
+          origin: "https://acme.example.test",
+          holdingSlug: "acme",
+          holdingId: "h001",
+        },
+      ],
+    }),
+    async (url, method, headers, body) => {
+      calls.push({
+        url: url.href,
+        method,
+        headers: Object.fromEntries(headers),
+        body,
+      });
+      return Response.json({
+        data:
+          method === "GET"
+            ? {
+                connections: [],
+                selection: { mode: "disabled" },
+                deploymentAvailable: false,
+                keyStorageReady: false,
+                usage: [],
+              }
+            : { id: "ai-1", version: 2 },
+      });
+    },
+  );
+  const headers = new Headers({ host: "acme.example.test" });
+  expect((await client.overview(headers, "acme")).selection.mode).toBe(
+    "disabled",
+  );
+  expect(calls[0].url).toBe(
+    "http://127.0.0.1:44993/api/v1/holdings/acme/ai-providers",
+  );
+  expect(calls[0].method).toBe("GET");
+  expect(calls[0].headers.origin).toBe("https://acme.example.test");
+  await client.command(
+    headers,
+    "acme",
+    "/ai-1/test",
+    '{"expectedVersion":1}',
+    "provider-key-1",
+  );
+  expect(calls[1].url).toBe(
+    "http://127.0.0.1:44993/api/v1/holdings/acme/ai-providers/ai-1/test",
+  );
+  expect(calls[1].headers["idempotency-key"]).toBe("provider-key-1");
+  expect(calls[1].headers.origin).toBe("https://acme.example.test");
 });

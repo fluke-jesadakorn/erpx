@@ -7,24 +7,24 @@ export type LegalGovernanceRepository={
 forms(facts:{companyId:string;}):Promise<LegalRows<Record<string, unknown>>>;
 authorities(facts:{id:string;}):Promise<LegalRows<Record<string, unknown>>>;
 settings(facts:{companyId:string;}):Promise<Record<string, unknown> | null>;
-createForm(facts:{key:string;companyId:string;name:string;fieldsJson:string;slaDays:number;actorId:string;}):LegalWrite;
+createForm(facts:{key:string;companyId:string;name:string;fieldsJson:string;slaDays:number;actorId:string;}):Promise<LegalWrite>;
 form(facts:{formId:string;companyId:string;}):Promise<{ created_by: string; state: string; version: number; } | null>;
-approveForm(facts:{actorId:string;formId:string;}):LegalWrite;
+approveForm(facts:{actorId:string;formId:string;}):Promise<LegalWrite>;
 approvedForm(facts:{formId:string;companyId:string;}):Promise<{ fields: string; sla_days: number; } | null>;
 escalationMember(facts:{itemId:string;escalationOwner:string;}):Promise<Record<string, unknown> | null>;
-applyIntake(facts:{formId:string;answersJson:string;now:number;fact3:string;fact4:string | null;itemId:string;}):LegalWrite;
+applyIntake(facts:{formId:string;answersJson:string;now:number;fact3:string;fact4:string | null;itemId:string;}):Promise<LegalWrite>;
 authorityDocument(facts:{documentId:string;itemId:string;}):Promise<Record<string, unknown> | null>;
 signerAccess(facts:{itemId:string;userId:string;itemId2:string;userId2:string;now:number;}):Promise<Record<string, unknown> | null>;
-createAuthority(facts:{key:string;itemId:string;companyId:string;userId:string;documentId:string;currency:string;limitMinor:number;validFrom:string;validUntil:string;actorId:string;}):LegalWrite;
+createAuthority(facts:{key:string;itemId:string;companyId:string;userId:string;documentId:string;currency:string;limitMinor:number;validFrom:string;validUntil:string;actorId:string;}):Promise<LegalWrite>;
 authority(facts:{authorityId:string;itemId:string;}):Promise<{ created_by: string; state: string; version: number; } | null>;
-decideAuthority(facts:{fact0:"approved" | "revoked";fact1:string | null;authorityId:string;}):LegalWrite;
-advanceRecord(facts:{now:number;itemId:string;}):LegalWrite;
+decideAuthority(facts:{fact0:"approved" | "revoked";fact1:string | null;authorityId:string;}):Promise<LegalWrite>;
+advanceRecord(facts:{now:number;itemId:string;}):Promise<LegalWrite>;
 requireFormCurrent(key:string,values:(string | number)[]):LegalWrite;
 requireAuthorityCurrent(key:string,values:(string | number)[]):LegalWrite;
 guardChanges(id:string,version:number,key:string,edit?:boolean):LegalWrite[];
 companyLock():LegalWrite;
 personGuard(key:string,userId:string,scope?:LegalItem,permission?:string):LegalWrite;
-event(id:string,action:string,note:string,version:number,identifier:string,now:number):LegalWrite;
+event(id:string,action:string,note:string,version:number,identifier:string,now:number):Promise<LegalWrite>;
 replay<Result extends object=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
 commit<Result extends object>(key:string,operation:string,input:unknown,id:string,version:number,result:Result,writes:LegalWrite[]):Promise<Result>;
 };
@@ -105,7 +105,7 @@ async function governanceCommand(
     if (new Set(p.fields.map((f) => f.key)).size !== p.fields.length)
       fail("Field keys must be unique.");
     steps.push(
-      ports.repository.createForm({key:key,companyId:a.companyId,name:p.name,fieldsJson:JSON.stringify(p.fields),slaDays:p.slaDays,actorId:a.userId}),
+      await ports.repository.createForm({key:key,companyId:a.companyId,name:p.name,fieldsJson:JSON.stringify(p.fields),slaDays:p.slaDays,actorId:a.userId}),
     );
   } else if (x.action === "form.approve") {
     const p = z
@@ -121,7 +121,7 @@ async function governanceCommand(
       fail("An independent manager must approve this form.");
     steps.push(
       ports.repository.requireFormCurrent(key,[p.formId, p.formVersion]),
-      ports.repository.approveForm({actorId:a.userId,formId:p.formId}),
+      await ports.repository.approveForm({actorId:a.userId,formId:p.formId}),
     );
   } else if (x.action === "intake.apply") {
     if (
@@ -158,7 +158,7 @@ async function governanceCommand(
     )
       fail("Escalation owner needs explicit access.");
     steps.push(
-      ports.repository.applyIntake({formId:p.formId,answersJson:JSON.stringify(p.answers),now:ports.clock.now(),fact3:String(f.sla_days),fact4:p.escalationOwner ?? null,itemId:item!.id}),
+      await ports.repository.applyIntake({formId:p.formId,answersJson:JSON.stringify(p.answers),now:ports.clock.now(),fact3:String(f.sla_days),fact4:p.escalationOwner ?? null,itemId:item!.id}),
     );
   } else if (x.action === "authority.create") {
     if (!["contract", "corporate"].includes(item!.kind))
@@ -183,7 +183,7 @@ async function governanceCommand(
     )
       fail("The signer needs explicit access.");
     steps.push(
-      ports.repository.createAuthority({key:key,itemId:item!.id,companyId:a.companyId,userId:p.userId,documentId:p.documentId,currency:p.currency,limitMinor:p.limitMinor,validFrom:p.validFrom,validUntil:p.validUntil,actorId:a.userId}),
+      await ports.repository.createAuthority({key:key,itemId:item!.id,companyId:a.companyId,userId:p.userId,documentId:p.documentId,currency:p.currency,limitMinor:p.limitMinor,validFrom:p.validFrom,validUntil:p.validUntil,actorId:a.userId}),
     );
   } else {
     const p = z
@@ -201,13 +201,13 @@ async function governanceCommand(
       fail("An independent reviewer must approve the proposed authority.");
     steps.push(
       ports.repository.requireAuthorityCurrent(key,[p.authorityId, p.authorityVersion]),
-      ports.repository.decideAuthority({fact0:x.action === "authority.approve" ? "approved" : "revoked",fact1:x.action === "authority.approve" ? a.userId : null,authorityId:p.authorityId}),
+      await ports.repository.decideAuthority({fact0:x.action === "authority.approve" ? "approved" : "revoked",fact1:x.action === "authority.approve" ? a.userId : null,authorityId:p.authorityId}),
     );
   }
   if (item)
     steps.push(
-      ports.repository.advanceRecord({now:ports.clock.now(),itemId:item.id}),
-      ports.repository.event(item.id,x.action,x.reason,item.version + 1,ports.identifiers.next(),ports.clock.now()),
+      await ports.repository.advanceRecord({now:ports.clock.now(),itemId:item.id}),
+      await ports.repository.event(item.id,x.action,x.reason,item.version + 1,ports.identifiers.next(),ports.clock.now()),
     );
   return ports.repository.commit(key,x.action,raw,aggregate,item ? item.version + 1 : 1,{ id: aggregate, version: item ? item.version + 1 : 1 },steps);
 }

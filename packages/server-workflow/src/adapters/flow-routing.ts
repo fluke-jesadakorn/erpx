@@ -1,3 +1,4 @@
+import {requireLegacyFinanceJournal,requireLegacyFinanceInvoiceFlow} from '@erpx/server-finance/public/document-purchases';
 import {requireExpensePurchasedHistory,expenseDocumentFlow,withExpenseFlowAssignment} from "@erpx/server-people_payroll/public/expense-purchases";
 import {requireWorkforceFlowHistory,workforceDocumentFlow,withWorkforceFlowAssignment} from "@erpx/server-people_payroll/public/workforce-record-purchases";
 
@@ -35,6 +36,8 @@ catch (error) {
 
 
 export async function resolveFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: string): Promise<FlowView> {
+    if(kind==='invoice')await requireLegacyFinanceInvoiceFlow(db,actor,id);
+    if(kind==='journal')await requireLegacyFinanceJournal(db,actor,id);
     if(kind === "expense")await requireExpensePurchasedHistory(db,actor);
     if(kind === "leave")await requireWorkforceFlowHistory(db,actor,id);
     if(kind === "order")await requireCommerceFlowHistory(db,actor,id);
@@ -51,6 +54,8 @@ export async function assignFlowPrimary(db: SqlDatabase, actor: StaffActor, kind
     reason: string;
     saveDefault: boolean;
 }, key: string): Promise<Record<string, unknown>> {
+    if(kind==='invoice')await requireLegacyFinanceInvoiceFlow(db,actor,id);
+    if(kind==='journal')await requireLegacyFinanceJournal(db,actor,id);
     const run=(database:SqlDatabase)=>invoke(() => application(database).assignFlowPrimary(actor, kind, id, input, key));
     return kind === "expense" ? withExpenseFlowAssignment(db,actor,id,{key,stepKey:input.stepKey,saveDefault:input.saveDefault},run) : kind === "payroll" ? withPayrollPurchasedCommand(actor, {key,operation:"flow.assign",purpose:"settle-existing"}, tx => run(tx ?? db), db)
         : kind === "order" ? withCommerceFlowAssignment(db,actor,id,{key,stepKey:input.stepKey,saveDefault:input.saveDefault},run)

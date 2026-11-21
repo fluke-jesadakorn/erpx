@@ -1,4 +1,4 @@
-const assetBase = "/vendor/pdfjs-6.3.289/";
+const assetBase = "/vendor/pdfjs-6.4.299/";
 export const maxDocumentPages = 20;
 async function imageBlob(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) =>

@@ -4,11 +4,13 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 import { hrSettingsTopics } from "@erpx/feature-people_payroll/lib/hr-settings-navigation";
 import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
 import { useRouter } from '@erpx/feature-shared/lib/destination-router';
+import { canonicalUiHref, sourcePath, workspacePathParts } from '@erpx/feature-work_projection/lib/destination-registry';
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
 import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
 import { WorkspaceFrame, WorkspaceNavigation, WorkspaceSections, WorkspaceContent, WorkspaceContext } from "@erpx/ui/components/workspace";
-import { FormDrawer } from "@erpx/ui/components/dialog";
+import { DialogClose } from "@erpx/ui/components/dialog";
+import { PeopleFormDrawer } from "@erpx/feature-people_payroll/components/people-form-drawer";
 import { LeavePolicyWizard } from "@erpx/feature-people_payroll/components/self-service/leave-policy-wizard";
 import { staffLevelTitles, type OrganizationTemplatePosition } from "@erpx/feature-organization/lib/organization";
 import type { HoldingPeopleTemplate } from "@erpx/feature-people_payroll/lib/people-templates";
@@ -45,6 +47,7 @@ function InlineEditor({ title, children }: { title: string; children: ReactNode;
 
 export function PeopleHrSettings({ appearance = "standard",
   standalone = false,
+  navigation = true,
   base,
   initialTopic,
   initialAction,
@@ -54,6 +57,7 @@ export function PeopleHrSettings({ appearance = "standard",
   onClose,
 }: ({
   standalone?: boolean;
+  navigation?: boolean;
   base: string;
   initialTopic?: string;
   initialAction?: string;
@@ -87,10 +91,10 @@ export function PeopleHrSettings({ appearance = "standard",
   }
   const available = hrSettingsTopics.filter(item => index.data?.topics.includes(item.id));
   const topic = chosenTopic || (standalone ? available[0]?.id : "") || "";
-  if (standalone) return <WorkspaceFrame data-testid="hr-settings-workspace">
-    <WorkspaceNavigation title="HR settings" label={available.find(item => item.id === topic)?.title} aria-label="HR settings navigation">
+  if (standalone) return <WorkspaceFrame data-testid="hr-settings-workspace" style={navigation ? undefined : {gridTemplateColumns:"minmax(0,1fr)"}}>
+    {navigation && <WorkspaceNavigation title="HR settings" label={available.find(item => item.id === topic)?.title} aria-label="HR settings navigation">
       <WorkspaceSections items={available} selected={topic} onSelect={id => choose(id as PeopleHrTopic)} label="HR settings topics" />
-    </WorkspaceNavigation>
+    </WorkspaceNavigation>}
     <WorkspaceContent>
       <WorkspaceContext label="Company administration"><strong>HR settings</strong></WorkspaceContext>
       {index.loading && <p role="status">Loading available settings…</p>}
@@ -543,19 +547,19 @@ function LeaveSettings({ appearance = "legacy",
   function policyMode(open: boolean) {
     setCreatingPolicy(open);
     const url = new URL(window.location.href);
-    if (!url.pathname.endsWith("/people/settings") && url.searchParams.get("panel") !== "settings") return;
+    if (sourcePath(workspacePathParts(url.pathname)?.path ?? "") !== "people/settings" && url.searchParams.get("panel") !== "settings") return;
     if (open) {
       url.searchParams.set("editor", "policy");
-      window.history.pushState(null, "", url);
+      window.history.pushState(null, "", canonicalUiHref(url.pathname + url.search));
     } else {
       if (url.searchParams.get("new") === "leave-policy") url.searchParams.delete("new");
       if (url.searchParams.get("editor") === "policy") url.searchParams.delete("editor");
-      window.history.replaceState(null, "", url);
+      window.history.replaceState(null, "", canonicalUiHref(url.pathname + url.search));
     }
   }
   if (creatingPolicy)
     return (
-      <FormDrawer appearance="standard" open title="Create leave policy" onClose={()=>policyMode(false)}>
+      <PeopleFormDrawer appearance="standard" open title="Create leave policy" onClose={()=>policyMode(false)}>
       <LeavePolicyWizard appearance={appearance}
         base={base}
         types={data.types}
@@ -563,8 +567,8 @@ function LeaveSettings({ appearance = "legacy",
           await reload();
           policyMode(false);
         }}
-        onCancel={() => policyMode(false)}
-      /></FormDrawer>
+        cancelAction={<DialogClose render={<Button appearance={appearance} variant="secondary" type="button"/>}>Cancel</DialogClose>}
+      /></PeopleFormDrawer>
     );
   return (
     <div data-ui-appearance={appearance} className={styles.stack}>

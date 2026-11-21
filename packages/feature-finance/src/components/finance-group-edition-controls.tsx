@@ -11,7 +11,7 @@ import type {
   groupReportEditionSchema,
   groupExpansionWorkspace,
 } from "@erpx/server-finance/public/finance-group-editions";
-import { financeCommandFetch as workFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { financeCommandFetch as workFetch } from "@erpx/feature-finance/public/client";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { financeReportPeriods } from "@erpx/feature-finance/lib/finance-report-periods";
 import {

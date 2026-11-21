@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button } from "@erpx/ui/components/foundation";
@@ -23,7 +24,7 @@ export function PlatformContextBoundary({
       typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("erpx-work-context");
     async function check() {
       try {
-        const response = await fetch("/api/v1/platform/assignments/active", { cache: "no-store" });
+        const response = await holdingFetch("/api/v1/platform/assignments/active", { cache: "no-store" });
         const body = await response.json();
         if (
           active &&

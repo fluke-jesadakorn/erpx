@@ -167,13 +167,13 @@ export function OrganizationUnitsTree({ data, unit, selection = null, expanded, 
           ))}</>;
 }
 
-export function PositionPeopleGroup({ title, subtitle, count, expanded, onToggle, onDetails, children, ...props }: Omit<HTMLAttributes<HTMLElement>, "onToggle"> & {
-  title: string; subtitle?: string; count: ReactNode; expanded: boolean; onToggle: () => void; onDetails: () => void;
+export function PositionPeopleGroup({ title, subtitle, count, expanded, onToggle, onDetails, hideHeading = false, children, ...props }: Omit<HTMLAttributes<HTMLElement>, "onToggle"> & {
+  title: string; subtitle?: string; count: ReactNode; expanded: boolean; onToggle: () => void; onDetails: () => void; hideHeading?: boolean;
 }) {
   return <section {...props} className={styles.group}>
-    <div className={styles.groupHeading}><h3 className={styles.groupTitle}><Button appearance="standard" variant="plain" type="button" className={styles.groupName} aria-label={title} aria-expanded={expanded} onClick={onToggle}>{expanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}<span>{title}{subtitle && <small>{subtitle}</small>}</span></Button></h3>
-    <span className={styles.groupCounts} data-testid="people-group-counts">{count}</span><Button appearance="standard" variant="plain" type="button" onClick={onDetails}>Details</Button></div>
-    {expanded && <><div className={styles.columnLabels} aria-hidden="true"><span>Position</span><span>People</span></div>{children}</>}
+    {!hideHeading && <div className={styles.groupHeading}><h3 className={styles.groupTitle}><Button appearance="standard" variant="plain" type="button" className={styles.groupName} aria-label={title} aria-expanded={expanded} onClick={onToggle}>{expanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}<span>{title}{subtitle && <small>{subtitle}</small>}</span></Button></h3>
+    <span className={styles.groupCounts} data-testid="people-group-counts">{count}</span><Button appearance="standard" variant="plain" type="button" onClick={onDetails}>Details</Button></div>}
+    {(hideHeading || expanded) && <><div className={styles.columnLabels} aria-hidden="true"><span>Position</span><span>People</span></div>{children}</>}
   </section>;
 }
 export function PositionPeopleRow({ position, people, positionSelected, ...props }: HTMLAttributes<HTMLElement> & { position: ReactNode; people: ReactNode; positionSelected?: boolean }) {

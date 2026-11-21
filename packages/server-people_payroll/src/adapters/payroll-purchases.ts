@@ -11,6 +11,7 @@ import type { CapabilityPurpose } from "@erpx/server-commercial/public/rules/pac
 import { flushFinanceDeferredEffects } from "@erpx/server-finance/public/finance-transactions";
 import type { FlowView } from "@erpx/feature-shared/lib/flow";
 import type { PayrollPurchaseControls } from "@erpx/feature-people_payroll/lib/payroll-purchases";
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Command = { key: string; operation: string; purpose: CapabilityPurpose };
 type PayrollActor = Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
@@ -23,7 +24,7 @@ export async function requirePayrollCurrentAuthority(database: SqlDatabase, acto
     AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) FOR SHARE`)
     .bind(actor.assignmentId, actor.userId, actor.role, actor.companyId, now, now, actor.branchId, actor.branchId).first();
   if (!assignment) throw new ApiError(403, "PAYROLL_ACCESS_CHANGED", "Choose a current payroll assignment.");
-  await database.batch([...workContextGuards(database, actor, key), ...iamMutationGuards(database, actor, key), database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+  await database.batch([...workContextGuards(database, actor, key), ...iamMutationGuards(database, actor, key), clearWorkflowCommandAssertions(database, key)]);
 }
 export async function payrollPurchasedAccess(database: SqlDatabase, actor: PayrollActor) {
   const mode = await peoplePackageEnforcementMode();
@@ -69,7 +70,7 @@ export async function withPayrollPurchasedCommand<Result>(actor: PayrollActor & 
       const result = await run(transaction);
       await flushFinanceDeferredEffects(transaction);
       await requirePayrollCurrentAuthority(transaction, actor, key);
-      const observations = await transaction.batch([...boundary.after, transaction.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+      const observations = await transaction.batch([...boundary.after, clearWorkflowCommandAssertions(transaction, key)]);
       boundary.observe?.(observations);
       return result;
     };
@@ -133,7 +134,7 @@ export async function withPayrollJobsPurchasedTransaction<Result>(owner: SqlData
       });
       await flushFinanceDeferredEffects(transaction);
       await finalize?.(transaction);
-      const observations = await transaction.batch(boundaries.flatMap(({ key, boundary }) => [...boundary.after, transaction.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]));
+      const observations = await transaction.batch(boundaries.flatMap(({ key, boundary }) => [...boundary.after, clearWorkflowCommandAssertions(transaction, key)]));
       boundaries[0]?.boundary.observe?.(observations);
       return result;
     });

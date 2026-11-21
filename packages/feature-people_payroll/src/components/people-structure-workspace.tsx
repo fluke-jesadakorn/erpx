@@ -8,7 +8,6 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
   type PointerEvent,
   type KeyboardEvent,
@@ -39,7 +38,7 @@ import { PeopleOrganizationDetail } from "@erpx/feature-people_payroll/component
 import type { PeopleOrganizationProps } from "@erpx/feature-people_payroll/components/people-organization-contracts";
 import { usePeopleIntegrationData } from "@erpx/feature-people_payroll/components/people-integration-data";
 import styles from "@erpx/feature-organization/components/organization-structure.module.css";
-import { organizationLabel as label, organizationCompanyOf as companyOf, organizationLocationPath as locationPath, organizationContextFor as contextFor } from "@erpx/feature-organization/lib/organization-presentation";
+import { organizationLabel as label, organizationCompanyOf as companyOf, organizationLocationPath as locationPath, organizationContextFor as contextFor, organizationUnitOverview as unitOverview } from "@erpx/feature-organization/lib/organization-presentation";
 import { OrganizationUnitsTree, PositionPeopleGroup, PositionPeopleRow } from "@erpx/feature-organization/components/organization-structure";
 import { WorkspaceToolbar, WorkspaceFrame, WorkspaceNavigationSurface, WorkspaceDetailPanel } from "@erpx/ui/components/workspace";
 import { WorkspaceItemActions as ItemActions } from "@erpx/ui/components/workspace-item-actions";
@@ -79,12 +78,6 @@ const selectionKinds = [
   "level",
   "unassigned",
 ] as const;
-const overlayMedia = "(max-width: 1250px)";
-const subscribeOverlay = (change: () => void) => {
-  const media = window.matchMedia(overlayMedia);
-  media.addEventListener("change", change);
-  return () => media.removeEventListener("change", change);
-};
 
 function LocationPath({ data, path, onSelect, label: navLabel }: {
   data: HoldingPeopleDirectory;
@@ -406,25 +399,25 @@ export function PeopleStructureWorkspace({
   const context = contextFor(data, unit),
     detailContext = selection ? contextFor(data, selection) : null;
   const term = (query.get("q") ?? "").trim().toLocaleLowerCase();
-  const showOccupancy = !archived && unit.kind !== "unassigned";
+  const overview = !term && ["company", "branch"].includes(unit.kind);
+  const summary = unitOverview(data, unit, archived);
+  const summaryUnits = overview ? summary.children : term ? [
+    ...data.companies.filter(company => company.name.toLocaleLowerCase().includes(term))
+      .map(company => ({...company, kind: "company" as const})),
+    ...data.nodes.filter(node => node.kind !== "company" && node.name.toLocaleLowerCase().includes(term)),
+  ] : [];
+  const showOccupancy = !overview && !archived && unit.kind !== "unassigned";
   const occupancy =
     showOccupancy && ["filled", "vacant"].includes(query.get("occupancy") ?? "")
       ? query.get("occupancy")
       : "all";
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () =>
-      new Set([
-        people.currentCompanyId,
-        ...locationPath(data, selection ?? unit).slice(0, -1).map((item) => item.id),
-        ...people.data.nodes
-          .filter(
-            (n) =>
-              n.companyId === people.currentCompanyId &&
-              (n.kind === "branch" || n.kind === "headquarters"),
-          )
-          .map((n) => n.id),
-      ]),
-  );
+  const expansionIds = locationPath(data, selection ?? unit).map(item => item.id);
+  const expansionPath = JSON.stringify(expansionIds);
+  const [treeExpansion, setTreeExpansion] = useState(() => ({path: expansionPath, ids: new Set(expansionIds)}));
+  const expanded = treeExpansion.path === expansionPath ? treeExpansion.ids : new Set(expansionIds);
+  const [openLooseGroups, setOpenLooseGroups] = useState<Set<string>>(new Set());
+  const looseGroupKey = `${archived}:${unit.kind}:${unit.id}`;
+  const looseExpanded = !overview || openLooseGroups.has(looseGroupKey);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [railOpen, setRailOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -468,12 +461,7 @@ export function PeopleStructureWorkspace({
           ["person", "position", "department"].includes(selection.kind)
         ? (selection as Source)
         : null;
-  const overlay = useSyncExternalStore(
-    subscribeOverlay,
-    () => window.matchMedia(overlayMedia).matches,
-    () => false,
-  );
-  const backgroundInert = !!moveOpen || (overlay && (detailOpen || settingsOpen));
+  const backgroundInert = !!moveOpen || detailOpen || settingsOpen;
   const [pendingPeopleNavigation,setPendingPeopleNavigation]=useState<(()=>void)|null>(null);
   function update(patch: Record<string, string | null>, replace = false) {
     const params = new URLSearchParams(query);
@@ -484,11 +472,11 @@ export function PeopleStructureWorkspace({
     if(document.querySelector('[data-people-draft][data-work-dirty="true"]')){setPendingPeopleNavigation(()=>navigate);return;}
     navigate();
   }
-  function selectUnit(next: OrganizationSelection) {
-    setExpanded((old) => new Set([...old, ...locationPath(data, next).map((item) => item.id)]));
+  function selectUnit(next: OrganizationSelection, clearSearch = false) {
     update({
       ...Object.fromEntries(selectionKinds.map((kind) => [kind, null])),
       unit: `${next.kind}:${next.id}`,
+      ...(clearSearch ? {q: null} : {}),
       panel: null,
       section: null,
       tab: null,
@@ -516,7 +504,6 @@ export function PeopleStructureWorkspace({
     });
   }
   function choose(next: OrganizationSelection) {
-    setExpanded((old) => new Set([...old, ...locationPath(data, next).slice(0, -1).map((item) => item.id)]));
     returnFocus.current = document.activeElement as HTMLElement;
     update({
       ...Object.fromEntries(selectionKinds.map((kind) => [kind, null])),
@@ -550,12 +537,10 @@ export function PeopleStructureWorkspace({
     if (detailOpen || settingsOpen) drawerRef.current?.focus({ preventScroll: true });
   }, [detailOpen, settingsOpen, selectedId]);
   function toggle(id: string) {
-    setExpanded((old) => {
-      const next = new Set(old);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(expanded);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setTreeExpansion({path: expansionPath, ids: next});
   }
   function canMove(source: Source) {
     return !!controls && !archived && companyOf(data, source) === people.currentCompanyId;
@@ -692,7 +677,7 @@ export function PeopleStructureWorkspace({
         person,
       ]);
   const scopePositions =
-    unit.kind === "unassigned" ? [] : term ? data.positions : context.positions;
+    unit.kind === "unassigned" ? [] : term ? data.positions : overview ? summary.directPositions : context.positions;
   // Archived holders describe past assignments; empty current positions are not archive vacancies.
   const matchingPositions = scopePositions.filter(
     (p) =>
@@ -819,6 +804,7 @@ export function PeopleStructureWorkspace({
           <span className={styles.recordText}>
             {person.legalName}
             {(pending || jobTitle) && <small>{pending ? "Pending change" : jobTitle}</small>}
+            {term && !positionTitle && <small>{locationPath(data, {kind: "person", id: person.engagementId}).slice(0, -1).map(item => label(data, item)).join(" · ")}</small>}
           </span>
           <ChevronRight size={16} aria-hidden="true" className={styles.openChevron} />
         </Button>
@@ -867,7 +853,7 @@ export function PeopleStructureWorkspace({
                 ? "Department authority and routing"
                 : "Assignment and reporting";
   return (
-    <section className={styles.workspace} data-testid="people-structure-workspace">
+    <section className={`${styles.workspace} ${styles.peopleWorkspace}`} data-testid="people-structure-workspace">
       <WorkspaceToolbar className={styles.toolbar} inert={backgroundInert}>
         <div className={styles.search}>
           <Search size={18} />
@@ -963,8 +949,8 @@ export function PeopleStructureWorkspace({
         </WorkspaceNavigationSurface>
         <div className={styles.main} inert={backgroundInert}>
           <div ref={locationBarRef} className={styles.locationBar}>
-            <span className={styles.locationLabel}>{term ? "Searching" : "Viewing"}</span>
-            {term ? <strong>All companies</strong> : <LocationPath data={data} path={unitPath} onSelect={selectUnit} label="Viewing location" />}
+            <LocationPath data={data} path={unitPath} onSelect={selectUnit} label="Viewing location" />
+            {term && <Button variant="plain" type="button" onClick={() => update({q: null}, true)}>Clear search</Button>}
           </div>
           {panel === "schedule" ? (
             <PeopleTeamSchedule
@@ -982,18 +968,11 @@ export function PeopleStructureWorkspace({
             <>
               <div className={styles.mainHeading}>
                 <div>
-                  <span className={styles.eyebrow}>{label(data, unit)}</span>
-                  <h2>
-                    {archived
-                      ? "Archived people"
-                      : unit.kind === "unassigned"
-                        ? "People without a position"
-                        : term
-                          ? "Search results"
-                          : "Positions and people"}
-                  </h2>
+                  <h2>{term ? "Search results" : unit.kind === "unassigned" ? "People without a position" : label(data, unit)}</h2>
                   <p data-testid="people-result-counts" aria-live="polite">
-                    {visiblePositions.length} positions · {visiblePeopleCount}{" "}
+                    {overview && <>{unit.kind === "company" && <>{summary.children.filter(node => ["branch", "headquarters"].includes(node.kind)).length} branches · </>}{summary.departments} departments · </>}
+                    {!!term && summaryUnits.length > 0 && <>{summaryUnits.length} units · </>}
+                    {overview ? summary.positions.length : visiblePositions.length} positions · {overview ? summary.people.length : visiblePeopleCount}{" "}
                     {archived ? "archived people" : "people"}
                   </p>
                 </div>
@@ -1010,6 +989,21 @@ export function PeopleStructureWorkspace({
                   </Button>
                 )}
               </div>
+              {(overview || term) && <div className={styles.unitSummaries} data-testid="people-unit-summaries">
+                {summaryUnits.map(node => {
+                  const next: OrganizationSelection = {kind: node.kind === "headquarters" ? "branch" : node.kind, id: node.id};
+                  const totals = unitOverview(data, next, archived);
+                  return <div key={node.id} className={styles.unitSummary} data-testid={`people-unit-summary-${node.id}`} {...(["branch", "department"].includes(next.kind) ? targetProps(next as Target) : {})}>
+                    <Button variant="plain" type="button" className={styles.unitSummaryLink} onClick={() => selectUnit(next, true)}>
+                      <span><strong>{node.name}</strong><small>{term ? locationPath(data, next).slice(0, -1).map(item => label(data, item)).join(" · ") || "Company" : next.kind === "branch" ? "Branch" : next.kind === "team" ? "Team" : "Department"}</small></span>
+                      <span className={styles.unitSummaryCounts}>{next.kind === "branch" && <span>{totals.departments} departments</span>}<span>{totals.positions.length} positions</span><span>{totals.people.length} {archived ? "archived people" : "people"}</span></span>
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </Button>
+                    {next.kind === "department" && actions({kind: "department", id: next.id})}
+                  </div>;
+                })}
+                {overview && !summary.children.length && <p className={styles.empty}>No {unit.kind === "company" ? "branches or departments" : "departments or teams"} in this unit.</p>}
+              </div>}
               {showOccupancy && (
                 <div className={styles.occupancy} role="group" aria-label="Position occupancy">
                   {(["all", "filled", "vacant"] as const).map((filter) => (
@@ -1026,16 +1020,11 @@ export function PeopleStructureWorkspace({
                   ))}
                 </div>
               )}
-              {!controls && <p className={styles.readOnly}>Read-only organization explorer</p>}
-              {controls && !archived && (
-                <p className={styles.interactionHint}>
-                  <GripVertical size={16} aria-hidden="true" />
-                  Click a position or person to view details. Drag the handle to move.
-                </p>
-              )}
+              {!controls && !overview && <p className={styles.readOnly}>Read-only organization explorer</p>}
               {groups.map((group) => {
                 const department = data.nodes.find((n) => n.id === group.departmentId),
                   [companyName, branchName] = groupNames(group);
+                const collapseKey = `${overview ? "overview" : "positions"}:${group.key}`;
                 const title = department?.name ?? (branchName ? "Branch-wide" : "Company-wide");
                 const groupSelection: OrganizationSelection = department
                   ? { kind: department.kind === "team" ? "team" : "department", id: department.id }
@@ -1046,10 +1035,11 @@ export function PeopleStructureWorkspace({
                   <PositionPeopleGroup
                     key={group.key}
                     title={title}
-                    subtitle={[companyName, branchName].filter(Boolean).join(" · ")}
+                    hideHeading={!overview && !term && groups.length === 1 && groupSelection.id === unit.id}
+                    subtitle={term ? [companyName, branchName].filter(Boolean).join(" · ") : undefined}
                     count={<>{group.positions.length} positions · {group.positions.reduce((count, position) => count + (holdersByPosition.get(position.id)?.length ?? 0), 0)} people</>}
-                    expanded={!collapsed.has(group.key)}
-                    onToggle={() => setCollapsed(old => { const next = new Set(old); if (next.has(group.key)) next.delete(group.key); else next.add(group.key); return next; })}
+                    expanded={overview ? collapsed.has(collapseKey) : !collapsed.has(collapseKey)}
+                    onToggle={() => setCollapsed(old => { const next = new Set(old); if (next.has(collapseKey)) next.delete(collapseKey); else next.add(collapseKey); return next; })}
                     onDetails={() => choose(groupSelection)}
                     data-testid="people-position-group"
                     data-company-id={group.companyId}
@@ -1127,15 +1117,15 @@ export function PeopleStructureWorkspace({
               {!!loosePeople.length && (
                 <section className={styles.group} data-testid="people-unassigned">
                   <div className={styles.groupHeading}>
-                    <h3 className={styles.groupTitle}>Without a position</h3>
-                    <span className={styles.groupCounts}>{loosePeople.length} people</span>
+                    <h3 className={styles.groupTitle}>{!overview ? "Without a position" : <Button variant="plain" type="button" className={styles.groupName} aria-expanded={looseExpanded} onClick={() => setOpenLooseGroups(old => {const next = new Set(old); if (next.has(looseGroupKey)) next.delete(looseGroupKey); else next.add(looseGroupKey); return next;})}>{looseExpanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}Without a position</Button>}</h3>
+                    <span className={styles.groupCounts}>{loosePeople.length} {archived ? "archived people" : "people"}</span>
                   </div>
-                  <div className={styles.loosePeople}>
+                  {looseExpanded && <div className={styles.loosePeople}>
                     {loosePeople.map((person) => personRow(person))}
-                  </div>
+                  </div>}
                 </section>
               )}
-              {!visiblePositions.length && !loosePeople.length && (
+              {!overview && !visiblePositions.length && !loosePeople.length && !summaryUnits.length && (
                 <p className={styles.empty}>
                   {archived
                     ? "No archived people in this selection."
@@ -1161,15 +1151,15 @@ export function PeopleStructureWorkspace({
             className={styles.detail}
             data-testid="people-detail"
             tabIndex={-1}
-            role={overlay ? "dialog" : undefined}
-            aria-modal={overlay || undefined}
+            role="dialog"
+            aria-modal="true"
             aria-label={
               settingsOpen
                 ? "HR settings"
                 : `${selection ? label(data, selection) : "People"} details`
             }
             onKeyDown={(event) => {
-              if (overlay) trapFocus(event);
+              trapFocus(event);
               if (event.key === "Escape") {
                 event.stopPropagation();
                 closeDetail();

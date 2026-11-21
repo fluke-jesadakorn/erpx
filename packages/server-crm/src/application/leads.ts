@@ -4,7 +4,7 @@ import type {Row} from '@erpx/server-commerce/public/commerce';
 import {crmForecast} from "@erpx/server-crm/domain/crm-forecast";
 import {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema,crmLeadWorkItems,type CRMLeadInput,type CRMLeadChange,type CRMOpportunityChange} from "@erpx/server-crm/domain/leads";
 type Common={id:string;key:string;operation:string;now:number};
-export type CRMMutation=Common&({action:"create";input:CRMLeadInput;accountId:string;contactId:string}|{action:"lead";input:CRMLeadChange;record:Row;opportunityId:string|null;currency:unknown}|{action:"opportunity";input:CRMOpportunityChange;record:Row;opportunityId:string;stage:string});
+export type CRMMutation=Common&({action:"create";input:CRMLeadInput;accountId:string;contactId:string}|{action:"lead";input:CRMLeadChange;record:Row}|{action:"opportunity";input:CRMOpportunityChange;record:Row;opportunityId:string;stage:string});
 export interface CRMRepository{
  records(id?:string):Promise<Row[]>;branches():Promise<Row[]>;campaigns():Promise<Row[]>;evidence(id:string):Promise<Row|null>;
  recipients(id:string):Promise<{id:string;name:string}[]>;customers():Promise<Row[]>;quotes(row:Row):Promise<Row[]>;sales(row:Row):Promise<Row[]>;
@@ -30,23 +30,21 @@ export function createCRMApplication(ports:{actorId:string;canRead:boolean;canSa
   },
   async changeLead(id:string,raw:unknown,key:string){
    const input=crmLeadChangeSchema.parse(raw);ports.authorize("commerce.sales");ports.authorize("commerce.read");const repository=await ports.repository(),operation=`crm.lead.${input.action}`,prior=await repository.replay(key,operation,id,input);if(prior)return prior;
+   if(input.action==="qualify")throw new BusinessRuleError(503,"CRM_COMMAND_NOT_NATIVE","The CRM command is not native yet.");
    const record=await getLead(id),now=ports.clock.now();
    if(["reassign","reopen"].includes(input.action)&&!ports.canApprove)throw new BusinessRuleError(403,"CRM_MANAGER_REQUIRED","A sales manager must change ownership or reopen a closed lead.");
    if(input.action!=="reassign"&&input.action!=="reopen"&&record.owner_id!==ports.actorId)throw new BusinessRuleError(403,"CRM_OWNER_REQUIRED","The assigned salesperson must qualify this lead.");
    if(input.action==="reopen"?record.status!=="disqualified":input.action==="reassign"?record.stage==="won"||record.status==="disqualified":record.status!=="open")throw new BusinessRuleError(409,"CRM_STATE_CHANGED","Review the current lead or opportunity state.");
-   const config=input.action==="qualify"?await repository.currency():null;
-   if(input.action==="qualify"&&!config)throw new BusinessRuleError(409,"CRM_CURRENCY_REQUIRED","Configure Company currency before forecasting opportunities.");
-   const opportunityId=input.action==="qualify"?`opportunity-${key}`:null;
-   return repository.commit({action:"lead",input,id,key,operation,now,record,opportunityId,currency:config?.currency},{id,version:input.expectedVersion+1,opportunityId});
+   return repository.commit({action:"lead",input,id,key,operation,now,record},{id,version:input.expectedVersion+1,opportunityId:null});
   },
   async changeOpportunity(id:string,raw:unknown,key:string){
    const input=crmOpportunitySchema.parse(raw);ports.authorize("commerce.sales");ports.authorize("commerce.read");const repository=await ports.repository(),operation=`crm.opportunity.${input.action}`,prior=await repository.replay(key,operation,id,input);if(prior)return prior;
+   if(input.action==="win-pms")throw new BusinessRuleError(503,"CRM_COMMAND_NOT_NATIVE","The CRM command is not native yet.");
    const record=await getLead(id);if(!record.opportunity_id)throw new BusinessRuleError(409,"CRM_OPPORTUNITY_REQUIRED","Qualify the lead before managing a deal.");
    if(input.action==="reopen"){ports.authorize("commerce.approve");if(record.stage!=="lost")throw new BusinessRuleError(409,"CRM_STATE_CHANGED","Only a lost opportunity can be reopened.");}else if(record.owner_id!==ports.actorId)throw new BusinessRuleError(403,"CRM_OWNER_REQUIRED","The assigned salesperson must act on the opportunity.");
    if(input.action!=="reopen"&&!["discovery","proposal","negotiation"].includes(String(record.stage)))throw new BusinessRuleError(409,"CRM_STATE_CHANGED","This opportunity is closed.");
-   const now=ports.clock.now(),opportunityId=String(record.opportunity_id),stage=input.action==="lose"?"lost":input.action==="reopen"?"discovery":["win","win-pms"].includes(input.action)?"won":input.action==="link-quote"?"proposal":"negotiation";
+   const now=ports.clock.now(),opportunityId=String(record.opportunity_id),stage=input.action==="lose"?"lost":input.action==="reopen"?"discovery":input.action==="win"?"won":input.action==="link-quote"?"proposal":"negotiation";
    if(input.action==="win"&&!record.quote_id)throw new BusinessRuleError(409,"CRM_QUOTATION_REQUIRED","Link an approved quotation first.");
-   if(input.action==="win-pms")ports.authorize("pms.read");
    if(input.action==="negotiate"&&!record.quote_id)throw new BusinessRuleError(409,"CRM_QUOTATION_REQUIRED","Link an approved quotation before negotiation.");
    return repository.commit({action:"opportunity",input,id,key,operation,now,record,opportunityId,stage},{id,version:input.expectedVersion+1,leadVersion:input.leadVersion+1,stage});
   },

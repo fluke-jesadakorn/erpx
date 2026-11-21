@@ -1,0 +1,315 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-30T20:26:35.305822+00:00",
+  "scope": "Bounded Service Parts setup and native writer closure; complete Field/owner workflows are not claimed",
+  "baseCommit": "72e5b5f3b1de44e829b59f5169a85dd5ee97f62f",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceIdentity": "Checksummed inputs below. Browser-only Count configuration extended after initial startup; a separately owned API/worker used the same verified lease and native binary. Nonbrowser profiles unchanged.",
+  "sourceFiles": {
+    "packages/feature-commerce/package.json": "75c9e035dcf2dfeefaf23c606c9f9f1665438340c69b9e6609b058b9245a184c",
+    "packages/feature-commerce/src/lib/posting-setup-prerequisite-command.ts": "b1955bd60dce8daa4c50e7ee909abc5b9bde8ea65cd67a197d4841629a88c1e0",
+    "packages/feature-field_service/src/adapters/server/native-parts-setup.ts": "5e7952592b8575eba273cedc3fb70ef1eaba9528aa12583ef28e25a655c80d2b",
+    "packages/feature-field_service/src/lib/parts-setup-command.ts": "6114d7fdcb534d18d88db99a5d01aed131541c0dbf5658ff3830a8de6054f3e5",
+    "packages/feature-field_service/src/public/native-parts-setup.ts": "900e379117e56f487051086733b442ae4f13e464f2c621d9de291ccd3578ddd4",
+    "packages/server-commerce/package.json": "c2fdbfa7f4fef51f24ffbf6ca29911ed71757b963e9d9c2db607e241d0f3cd84",
+    "packages/server-commerce/src/adapters/commerce.ts": "e5d66922de597824e4651d5fd280a6f120365dac0e7335ff69cf4a8f271cb2f7",
+    "packages/server-commerce/src/adapters/service-parts-posting-setup.ts": "255f12156e448e86af81b34de659ae4fb1ced79e7704dddcb2f4602acacb488a",
+    "packages/server-commerce/src/public/service-parts-posting-setup.ts": "e155bf0e02ba11638caf291fd1adb56e9805851e2b8de75889b135c61ae47bb6",
+    "packages/server-finance/package.json": "b86b10582bb40478d43e7b85b30d829f998c469184312ebe7a81c176d8abe902",
+    "packages/server-finance/src/adapters/finance.ts": "f4a49faa711186a32f298630d0422883d4d7396eaaa6e0f8a8a5432460733072",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/screen.tsx": "4ce1f8bce4cb558a3a6186f0df1c09b2449a9a672b9dab868a83810f0bff4b0a",
+    "scripts/docs/generate-product-acceptance.ts": "870c5f716a29969607d45044138b63c516f5c1a2ee3688a19b72bfc17ca9de26",
+    "src/composition/src/service_parts_posting_setup.rs": "0d6f68957626eb2de736cc006f7476eac559ff0697dbd0c66e59e99babddc2d6",
+    "tests/catalogue/suite-manifest.json": "4e242ec948b744a8764e575130e60bcc37d98de71dfc04ccca8d917cbe7dc4de",
+    "tests/integration/field_service/field-service.test.ts": "f86cee795d672fa11902a76bd3d3652a1a3edb03d081c9ac243d50512685fe61",
+    "tests/support/files/field-files-native-parity.ts": "0ee176d8f25f6f41a6cd4368f22e404a0af726d1f9d85aae16d6f2a1e4fd6adc",
+    "tests/support/files/rust-field-files-vitest-held-provider.rs": "b5727d788be4a7775bb5ad048dfd965bbd3eacad3973c847c0a5273988f69770",
+    "tests/unit/field_service/field-service-application.test.ts": "6163970e98c929c983e0254b646b13d4d46940ee2150baff9d31c7aa7bb05adf",
+    "tests/unit/field_service/native-reserve.test.ts": "ce15d9192375469d9be8d4779e56d1a92f0797086c24ae20154dd0435df3aebf",
+    "packages/feature-commerce/src/lib/posting-prerequisite-read-model.ts": "0bcef7f31fa7fcc4475fe8b679941f559a7aaa92bfd3ac10ddbc9abcc73c680c",
+    "tests/support/field_service/historical-supply-parts.ts": "0945f520aac72acf125c1ff16202836c1b2c74a26feb3dc1d40455bb46ac49e7",
+    "tests/support/field_service/legacy-service-parts-posting-schemas.ts": "0a110c0cf73e7a3d0b7a52987b176a7ed76e6d738df6333b23847e8daae4ff62",
+    "tests/support/field_service/legacy-service-parts-prerequisite-schemas.ts": "49c365a46ce30a345604088d7a76dd3138338437876836444f6c20fbcf7c13a9",
+    "tests/support/field_service/legacy-service-parts-stock-schemas.ts": "88ae27bb509ea7e3f7f76ea4566b725f2ca76e7b6dbdc9aeb9798695c703d014"
+  },
+  "removedImplementations": [
+    {
+      "path": "packages/server-commerce/src/adapters/service-initial-physical-stock-masters.ts",
+      "previousBlob": "02c945375c0ff33d1b5d35755a82681a846fe61b"
+    },
+    {
+      "path": "packages/server-commerce/src/adapters/service-parts-posting-sources.ts",
+      "previousBlob": "962c32803f762687e46a9c6dc5340e808f95b5ed"
+    },
+    {
+      "path": "packages/server-commerce/src/domain/service-initial-physical-stock-masters.ts",
+      "previousBlob": "84abed5ca93aed890e98e09d436e27f6ed947ffd"
+    },
+    {
+      "path": "packages/server-commerce/src/domain/service-parts-posting-setup.ts",
+      "previousBlob": "ad1cfa8d2fd46afb13f202a8f2ffcfacac1a9201"
+    },
+    {
+      "path": "packages/server-commerce/src/public/service-initial-physical-stock-masters.ts",
+      "previousBlob": "cc123657848a86d36f16ac6281a437c1932ad008"
+    },
+    {
+      "path": "packages/server-commerce/src/public/service-parts-posting-sources.ts",
+      "previousBlob": "e1382d2884423175b21fb51fbb656c3161296572"
+    },
+    {
+      "path": "packages/server-finance/src/adapters/service-parts-posting-sources.ts",
+      "previousBlob": "38eb56db0c8831c40ae78c8f3145752c84c14c3a"
+    },
+    {
+      "path": "packages/server-finance/src/adapters/service-parts-prerequisites.ts",
+      "previousBlob": "a85e52bf639f3020a05515c14eb21c7886acad01"
+    },
+    {
+      "path": "packages/server-finance/src/adapters/service-parts-rate.ts",
+      "previousBlob": "cbb7f8fc4b609047c00b8149c5ea2d0b5719ee61"
+    },
+    {
+      "path": "packages/server-finance/src/domain/service-parts-prerequisites.ts",
+      "previousBlob": "b812e7ffafa742753ba3955380c819a675048559"
+    },
+    {
+      "path": "packages/server-finance/src/public/service-parts-posting-sources.ts",
+      "previousBlob": "c090a042e62602d99e821e203e3bda74dc6a6ab6"
+    },
+    {
+      "path": "packages/server-finance/src/public/service-parts-prerequisites.ts",
+      "previousBlob": "35a50706c7891cad59c297352ee936b926a7cc60"
+    }
+  ],
+  "checks": {
+    "nativePostRemovalCases": 7,
+    "historicalHelperRegisteredCase": 1,
+    "schemaOracleAndUiCases": 94,
+    "focusedFrontendCases": 292,
+    "localQuality": "App/test typecheck, targeted ESLint, compositionClippy -D warnings, architecture/terminology/structure, catalogue, generatedstyles/tasks/workspacecatalogue, product source-map generation and documentation checks passed. Independent review found noP1/P2; no hosted success status.",
+    "normalAuth": "Genuine Account/Holding SSO across distinct Finance preparer, FX approver, Stock preparer and independent Count reviewer.",
+    "reconciledMutations": 22,
+    "receiptsAuditOutbox": "Every acknowledged mutation matches its original response, actual source, one receipt, one audit and one outbox. FX rate source separately verified.",
+    "lostCountReply": {
+      "attempts": 2,
+      "identical": [
+        "key",
+        "body",
+        "context"
+      ],
+      "firstReply": "undelivered",
+      "secondReply": "delivered"
+    },
+    "count": {
+      "state": "posted",
+      "version": 4,
+      "debitMinor": 600,
+      "creditMinor": 600,
+      "journalLines": 2,
+      "processedEvents": 6,
+      "projectionReceipts": 6,
+      "checkpoints": 1,
+      "workItemClaimed": false
+    },
+    "postedUiReadback": "Separate authenticated reload waited for posted heading; earlier approved screenshot is not posted evidence.",
+    "historicalConfirmation": "Separate normal-auth case uses real Supply/Finance owner setup and normal Supply withdrawal. Mapping byte-identical; new source confirm-existing; Supply inactive.",
+    "independentReview": "Production retirement, assertion correspondence, finalization and bounded delivery scope reviewed; no P1/P2 findings."
+  },
+  "retainedConsumers": [
+    {
+      "consumer": "Identity product-workspace and Work Projection product-launcher",
+      "source": "packages/server-commerce/src/adapters/service-parts-posting-setup.ts",
+      "purpose": "Current ProductEntry authority read only",
+      "withdrawal": "Equivalent native ProductEntry selection/authority migration with its own evidence."
+    },
+    {
+      "consumer": "Native Count source guards and non-Service POS/Sales/Finance capabilities",
+      "purpose": "Count proof/obligation reads and generic shared owner methods",
+      "withdrawal": "Migrate actual remaining consumers; no duplicate Service setup writer remains."
+    }
+  ],
+  "limitations": [
+    "Field16 open: cold dev HMR serverComponentChanges initiates hmrRefresh/RSC before React streaming mismatch. No speculative UI fix or clean whole-journey claim.",
+    "Historical-confirm browser has hydration/premount/resource diagnostics; zero-error warm Count observations have narrower scope.",
+    "Correct Holding-profile release artifact builds with namespace-qualified assets, but production engineering attestation cannot select the native leased Company: erpx_browser_<run>_* versus erpx_dev_rust_<token> identity contracts. No guard relaxation/alias; selected-Company release SSR remains unqualified.",
+    "First cold client diagnostic/DOM data overwritten; server diff preserved and later attempts uniquely retained. Lost client data is not recreated.",
+    "ARM64/local leased resources only; AMD64 and final integration/restore gates remain open.",
+    "Docker-only harness WIP excluded; fresh rebuilt image qualification follows scoped Rust integration.",
+    "Hosted CI quota exhausted; local checks used without fabricated hosted success."
+  ],
+  "retestReason": "Same-database ports exposed deferred source and receipt cleanup faults; changed source/retirement retested. Exact test-oracle relocation reran existing UI suite. Unchanged unrelated evidence reused.",
+  "workflowCounts": {
+    "partial": 13,
+    "verified": 0,
+    "merged": 0,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownersTotal": 41
+  },
+  "privateEvidence": [
+    {
+      "path": ".scratch/dev/parts-post-retirement-seven.log",
+      "sha256": "0ce0b4d25a4f4f94e977894066e32b6003b512f6bd2b4b930401688004ab5e02",
+      "bytes": 3612,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/0ce0b4d25a4f4f94e977894066e32b6003b512f6bd2b4b930401688004ab5e02.log"
+    },
+    {
+      "path": ".scratch/dev/parts-historical-helper-real.log",
+      "sha256": "72cea03b6fea8cf348d3fca5789d3adf2c954014346319e18a13c27172f4a8fd",
+      "bytes": 2707,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/72cea03b6fea8cf348d3fca5789d3adf2c954014346319e18a13c27172f4a8fd.log"
+    },
+    {
+      "path": ".scratch/dev/parts-composition-clippy.log",
+      "sha256": "56362143e6009a0ef3111a4b3cc6f28df7ed848059b29f3cee921cbb24ef6c13",
+      "bytes": 2926,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/56362143e6009a0ef3111a4b3cc6f28df7ed848059b29f3cee921cbb24ef6c13.log"
+    },
+    {
+      "path": ".scratch/dev/parts-retirement-eslint.log",
+      "sha256": "6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f",
+      "bytes": 295,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/schema-oracle-unit.log",
+      "sha256": "b8b6cc9d2a5100ed42c9f359beb7ef6ca80fdf0e8415553f1b20023f5af76727",
+      "bytes": 2154,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/b8b6cc9d2a5100ed42c9f359beb7ef6ca80fdf0e8415553f1b20023f5af76727.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/frontend-unit-pure.log",
+      "sha256": "63fe5523347fcadfc9f00b4ddcaaf7f3ee4c1c50d2a10f06202d4aebb663bf51",
+      "bytes": 2669,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/63fe5523347fcadfc9f00b4ddcaaf7f3ee4c1c50d2a10f06202d4aebb663bf51.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-catalogue.log",
+      "sha256": "04870adf5199252a1302b03a46f9238ae92c56962af3241e6ec1e36371ec98ba",
+      "bytes": 82,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/04870adf5199252a1302b03a46f9238ae92c56962af3241e6ec1e36371ec98ba.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/post-generated-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/post-retirement-frontend-lint.log",
+      "sha256": "6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f",
+      "bytes": 295,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/cold-hydration-preservation.json",
+      "sha256": "88df64cf16a8e0af3c1a40a5d83222705eb5663270a629355b38a03c304d12d3",
+      "bytes": 664,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/88df64cf16a8e0af3c1a40a5d83222705eb5663270a629355b38a03c304d12d3.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/source-proof-final.sha256",
+      "sha256": "e7bc94d10543805cfb54fdc557628edde098327b73ae55b18c721c69a8f24a90",
+      "bytes": 1835,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/e7bc94d10543805cfb54fdc557628edde098327b73ae55b18c721c69a8f24a90.sha256"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case/mutation-journal.json",
+      "sha256": "f4fbcf85128f1ad04f672371b0d244ce0d65dc9adb8fb3d762886d3401deb344",
+      "bytes": 7447,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/f4fbcf85128f1ad04f672371b0d244ce0d65dc9adb8fb3d762886d3401deb344.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case/mutation-reconciliation.json",
+      "sha256": "19bc7154985a7c941bcd4e6c83e22b812db9da5b3dbc80779bb26495b161a83d",
+      "bytes": 701,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/19bc7154985a7c941bcd4e6c83e22b812db9da5b3dbc80779bb26495b161a83d.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case/count-reconciliation.json",
+      "sha256": "46a9659ae7f9eef0798eb7a6643f3d5fb9c0340f5c40fb1890d9f9a6cda14d19",
+      "bytes": 498,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/46a9659ae7f9eef0798eb7a6643f3d5fb9c0340f5c40fb1890d9f9a6cda14d19.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case/count-projection-reconciliation.json",
+      "sha256": "923a0ae272675cf396783a846b4c6be444e439138743f32a5643622d5a42d9f6",
+      "bytes": 214,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/923a0ae272675cf396783a846b4c6be444e439138743f32a5643622d5a42d9f6.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case/resume-attempt-8-result.json",
+      "sha256": "afc23e52a22dbd1c65a38c9445aec602367fb654b4fc7b78cc4ad05e523f95ae",
+      "bytes": 7029,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/afc23e52a22dbd1c65a38c9445aec602367fb654b4fc7b78cc4ad05e523f95ae.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case/resume-attempt-9-result.json",
+      "sha256": "891a6787e0501fb2d51c54658561b73c671793fd9b0b6e6f70e35a8a2e8548e9",
+      "bytes": 11814,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/891a6787e0501fb2d51c54658561b73c671793fd9b0b6e6f70e35a8a2e8548e9.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case/cold-recapture-5-result.json",
+      "sha256": "7cd64317f64eaef295e32fc4e79a3f0f174b2ddabeae8ed24eec960f18264849",
+      "bytes": 57706,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/7cd64317f64eaef295e32fc4e79a3f0f174b2ddabeae8ed24eec960f18264849.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case-existing/existing-confirm-2-result.json",
+      "sha256": "1687a4048b0d7039bc3747fc338be7db07b267e77b104e27626d2c0088c42ebf",
+      "bytes": 21628,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/1687a4048b0d7039bc3747fc338be7db07b267e77b104e27626d2c0088c42ebf.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/browser-harness/case-existing/existing-confirm-reconciliation.json",
+      "sha256": "b9d2cbcf0a28c00eb21ffb540967054e9fc62ba26601440adaafa18c0bce34e7",
+      "bytes": 2770,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/b9d2cbcf0a28c00eb21ffb540967054e9fc62ba26601440adaafa18c0bce34e7.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-docs.log",
+      "sha256": "919adfeecd3b7e61ecc79ad0e8286d0ac1cf598fb8733caa87c46a0cd54fc8e1",
+      "bytes": 382,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/919adfeecd3b7e61ecc79ad0e8286d0ac1cf598fb8733caa87c46a0cd54fc8e1.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-product-source.log",
+      "sha256": "1b37f3e91a6ef53f541523c1032039bb01c66cb29d77cdf04eb1da92083f427c",
+      "bytes": 197,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/1b37f3e91a6ef53f541523c1032039bb01c66cb29d77cdf04eb1da92083f427c.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-source-map-lint.log",
+      "sha256": "6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f",
+      "bytes": 295,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-styles.log",
+      "sha256": "b600e4e006a4e17614e33f157007635720cf5807ba0a13ba1751acee07839929",
+      "bytes": 49,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/b600e4e006a4e17614e33f157007635720cf5807ba0a13ba1751acee07839929.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-tasks.log",
+      "sha256": "073e720dbf8271c229c89f582cbc60c18c5b8d2fcb9e44e5e90ac7d4fc75dae7",
+      "bytes": 49,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/073e720dbf8271c229c89f582cbc60c18c5b8d2fcb9e44e5e90ac7d4fc75dae7.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-native-closure/candidate-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389,
+      "preservedPrivateCopy": ".scratch/dev/service-parts-native-closure/accepted-private-evidence/8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846.log"
+    }
+  ],
+  "integrationStatusAtRecording": "Locally qualified scoped candidate; PR pending."
+}

@@ -1,3 +1,5 @@
+import {ApiError} from '@erpx/server-runtime/public/http';
+import {nativeServiceCustomerReceipt,nativeJournalPageFailure,nativeSalesReceipt} from '@erpx/feature-finance/public/server';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import Link from "@erpx/workplace/components/workspace-link";
 import { FeaturePage } from "@erpx/feature-shared/components/features/feature-page";
@@ -12,7 +14,21 @@ import styles from "@erpx/feature-finance/components/sales-workspace.module.css"
 export const dynamic = "force-dynamic";
 export default async function ReceiptPage({params}:{params:Promise<{holdingSlug:string;id:string}>}) {
   const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));
-  const {snapshot,status,sha256}=await customerReceiptDetail(actor,id).catch(error=>pageError(error,holdingSlug));
+  let native;
+  const fieldConfigured=process.env.ERPX_NATIVE_FINANCE_SERVICE_PAYMENT_CONFIG!==undefined;
+  try{
+    if(fieldConfigured)native=await nativeServiceCustomerReceipt(actor,holdingSlug,id);
+    if(!native){
+      const generic=await nativeSalesReceipt(actor,holdingSlug,id);
+      if(generic)native={data:generic} as unknown as typeof native;
+    }
+  }catch(error){
+    if(fieldConfigured){
+      const mapped=nativeJournalPageFailure(error);
+      return pageError(mapped?new ApiError(mapped.status,mapped.code,mapped.message.replaceAll('Journal','Receipt').replaceAll('journal','receipt')):error,holdingSlug);
+    }
+  }
+  const {snapshot,status,sha256}=native?.data??await customerReceiptDetail(actor,id).catch(error=>pageError(error,holdingSlug));
   return <FeaturePage className="ui-page-content" data-print-document><article className={styles.receipt}><div className={styles.noPrint}><Link href={canonicalUiHref(`${base}/finance/sales?tab=receipts`)}>Back to receipts</Link> · <PrintReceipt /> · <a target="_blank" rel="noreferrer" href={`${base.replace(canonicalUiHref("/holdings/"),"/api/v1/holdings/")}/finance/sales/receipts/${id}/export`}>Open retained issued copy</a></div>
     {status === "cancelled" && <InlineNotice tone="danger">Cancelled — the source customer payment was reversed. This original issued receipt is retained for the audit history.</InlineNotice>}
     <header className={styles.receiptHeader}><div><h2>{snapshot.companyName}</h2><p>Received from<br /><strong>{snapshot.customerName}</strong><br />{snapshot.customerCode}</p></div><div><h1>Receipt</h1><p>{snapshot.documentNumber}<br />{snapshot.date}<br />{status}</p></div></header>

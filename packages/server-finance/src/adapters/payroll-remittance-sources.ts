@@ -1,4 +1,5 @@
 import {financeOwnedSnapshotSources as peoplepayrollSnapshotSources} from "@erpx/server-people_payroll/public/finance-owned-snapshot-sources";
+import { financePayrollRemittance } from '@erpx/server-collaboration/adapters/native-finance-payroll-remittance';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {assertion} from "@erpx/server-workflow/public/command-assertions";import type {PostedRun} from '@erpx/server-people_payroll/public/payroll-remittance-contract';export function payrollRemittanceSources(database:SqlDatabase){return {postedRun(runId:string,companyId:string){return database.prepare(`SELECT r.id,r.version,r.currency,r.period_end,j.chart_id,p.journal_id
     ${peoplepayrollSnapshotSources().payroll_remittance_sources_hr_payroll_runs_r_from} ${peoplepayrollSnapshotSources().payroll_remittance_sources_hr_payroll_postings_p_join} ON p.run_id=r.id
     JOIN finance_journals j ON j.id=p.journal_id AND j.status='posted'
@@ -22,5 +23,4 @@ guard10(key:string,value:"bank-match",bankTransactionId:string,companyId:string,
       WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND
         t.amount_minor=? AND t.currency=? AND t.external_id=? AND t.transaction_date>=? AND s.bank_account=?)`,
       [bankTransactionId,companyId,bankVersion,value2,currency,bankReference,period_end,bankAccountId]);},
-matchBank(remittanceId:string,bankTransactionId:string,bankVersion:number){return database.prepare(`UPDATE finance_bank_transactions SET match_status='matched',matched_type='payroll_remittance',matched_id=?,
-      version=version+1 WHERE id=? AND version=?`).bind(remittanceId,bankTransactionId,bankVersion);}};}
+matchBank(remittanceId:string,bankTransactionId:string,bankVersion:number,companyId:string){return financePayrollRemittance(database,companyId).matchBank({remittanceId,bankTransactionId,bankVersion});}};}

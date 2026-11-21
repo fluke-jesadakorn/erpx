@@ -25,7 +25,7 @@ export interface StaffPolicyRepository<Effect> {
         person_id: string;
         version: number;
     } | null>;
-    stageNotificationEffect(value: string, company_id: string, userId: string, type: string, id: string, version: number, message: string, now: number): Effect;
+    stageNotificationEffect(value: string, company_id: string, userId: string, type: string, id: string, version: number, message: string, now: number): Promise<Effect>;
 }
 export interface StaffPolicyPorts<Effect> {
     repository: StaffPolicyRepository<Effect>;
@@ -179,8 +179,8 @@ export function createStaffPolicyApplication<Effect>(ports: StaffPolicyPorts<Eff
             return { steps: [], blockedReason: error.message, scope };
         }
     }
-    function notification(scope: RecordScope, userId: string, type: string, id: string, version: number, message: string) {
-        return r.stageNotificationEffect(ports.identifiers.next(), scope.company_id, userId, type, id, version, message, ports.clock.now());
+    async function notification(scope: RecordScope, userId: string, type: string, id: string, version: number, message: string) {
+        return await r.stageNotificationEffect(ports.identifiers.next(), scope.company_id, userId, type, id, version, message, ports.clock.now());
     }
     return { staffPeople, rosterStaffPeople, activeStaff, staffGuard, companyAuthority, authorityGuard, requireCompanyAuthority, scopeActor, reportingChain, eligibleRoleUsers, requestRoute, notification };
 }

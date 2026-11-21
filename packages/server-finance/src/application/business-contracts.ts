@@ -28,11 +28,11 @@ export interface BusinessContractRepository<Effect> {
     taxCode(companyId: string, taxCode: string | undefined, taxCode2: string | undefined, startDate: string, startDate2: string): Promise<Row | null>;
     billedWindow(root_id: string | number | null, startDate: string): Promise<Record<string, unknown> | null>;
     guardContractParent(key: string, value: "contract-parent", id: string | number | null, companyId: string, value2: number): Effect;
-    prepareContract(id: string, companyId: string, root: string, value: string | number | null, number: string, name: string, chartId: string, partyId: string, startDate: string, endDate: string, edition: number, value2: string, sourceHash: string, userId: string, reason: string, now: number, now2: number): Effect;
+    prepareContract(id: string, companyId: string, root: string, value: string | number | null, number: string, name: string, chartId: string, partyId: string, startDate: string, endDate: string, edition: number, value2: string, sourceHash: string, userId: string, reason: string, now: number, now2: number): Promise<Effect>;
     retainedBilledWindow(root_id: string | number | null, startDate: string): Promise<Record<string, unknown> | null>;
     guardContractVersion(key: string, value: "contract-version", id: string, companyId: string, status: "draft" | "active", expectedVersion: number): Effect;
-    supersedeParent(now: number, id: string | number | null): Effect;
-    decideContract(status: "active" | "rejected" | "cancelled", userId: string, version: number, now: number, id: string): Effect;
+    supersedeParent(now: number, id: string | number | null): Promise<Effect>;
+    decideContract(status: "active" | "rejected" | "cancelled", userId: string, version: number, now: number, id: string): Promise<Effect>;
     contractDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number): Effect;
     postedOwnerCredit(postedCorrectionId: string, companyId: string, userId: string, id: string): Promise<Row | null>;
     parentBill(parentId: unknown, companyId: string, contractId: string): Promise<Row | null>;
@@ -41,9 +41,9 @@ export interface BusinessContractRepository<Effect> {
     billingExists(root_id: string | number | null, billingKey: string): Promise<Record<string, unknown> | null>;
     guardBillParent(key: string, value: "billing-parent-version", id: string | number | null, companyId: string, version: string | number | null, id2: string | number | null): Effect;
     guardParentInvoice(key: string, value: "billing-parent-invoice", invoice_id: string | number, companyId: string, original_invoice_version: string | number | null): Effect;
-    voidParentInvoice(now: number, invoice_id: string | number, companyId: string): Effect;
+    voidParentInvoice(now: number, invoice_id: string | number, companyId: string): Promise<Effect>;
     guardBillingContract(key: string, value: "contract-version", contractId: string, companyId: string, version: number, retainedEdition: boolean): Effect;
-    prepareBill(id: string, companyId: string, contractId: string, root_id: string | number | null, version: number, billingKey: string, serviceFrom: string, serviceTo: string, value: string, value2: string, sourceHash: string, value3: string | null, value4: number | null, value5: string | number, now: number, value6: "draft" | null, value7: string | number | null, value8: string | number | null, value9: number, value10: string | null, value11: string | null): Effect;
+    prepareBill(id: string, companyId: string, contractId: string, root_id: string | number | null, version: number, billingKey: string, serviceFrom: string, serviceTo: string, value: string, value2: string, sourceHash: string, value3: string | null, value4: number | null, value5: string | number, now: number, value6: "draft" | null, value7: string | number | null, value8: string | number | null, value9: number, value10: string | null, value11: string | null): Promise<Effect>;
     billContractId(parentId: string, companyId: string): Promise<{
         contract_id: string;
     } | null>;
@@ -52,19 +52,19 @@ export interface BusinessContractRepository<Effect> {
     recognitionInvoice(invoice_id: string | number | null, companyId: string): Promise<Row | null>;
     openPeriod(periodId: unknown, companyId: string, entryDate: unknown, entryDate2: unknown): Promise<Record<string, unknown> | null>;
     recognitionExistsItem(billingRunId: unknown, itemKey: unknown): Promise<Record<string, unknown> | null>;
-    prepareRecognition(id: string, companyId: string, billingRunId: unknown, itemKey: unknown, date: string, entryDate: unknown, periodId: unknown, value: number, accountId: string, sourceHash: string, userId: string, reason: unknown, now: number, now2: number): Effect;
+    prepareRecognition(id: string, companyId: string, billingRunId: unknown, itemKey: unknown, date: string, entryDate: unknown, periodId: unknown, value: number, accountId: string, sourceHash: string, userId: string, reason: unknown, now: number, now2: number): Promise<Effect>;
     recognition(id: string, companyId: string): Promise<Row | null>;
     guardRecognitionDraft(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number): Effect;
-    decideRecognition(status: "rejected" | "posted", version: number, userId: string, value: string | null, reason: string, now: number, id: string): Effect;
+    decideRecognition(status: "rejected" | "posted", version: number, userId: string, value: string | null, reason: string, now: number, id: string): Promise<Effect>;
     recognitionDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number): Effect;
     postedRecognition(id: string, companyId: string): Promise<Row | null>;
     guardPostedRecognition(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number): Effect;
-    reverseRecognition(reversalId: string, reason: string, now: number, id: string): Effect;
+    reverseRecognition(reversalId: string, reason: string, now: number, id: string): Promise<Effect>;
     zeroBill(id: string, companyId: string): Promise<Row | null>;
     zeroChildBill(id: string): Promise<Record<string, unknown> | null>;
     zeroParentBill(parent_run_id: string | number, companyId: string): Promise<Row | null>;
     guardZeroBill(key: string, value: "zero-usage-version", id: string, companyId: string, expectedVersion: number, id2: string): Effect;
-    decideZeroBill(value: "rejected" | "approved", userId: string, reason: string, id: string): Effect;
+    decideZeroBill(value: "rejected" | "approved", userId: string, reason: string, id: string): Promise<Effect>;
     workspaceContracts(companyId: string): Promise<{
         results: Row[];
     }>;
@@ -215,7 +215,7 @@ export function createBusinessContractApplication<Effect>(ports: BusinessContrac
                         r.guardContractParent(key, "contract-parent", parent.id, actor.companyId, input.expectedVersion ?? 0),
                     ]
                     : []),
-                r.prepareContract(id, actor.companyId, root, parent?.id ?? null, input.number, input.name, input.chartId, input.partyId, input.startDate, input.endDate, edition, JSON.stringify(input), sourceHash, actor.userId, input.reason, now, now),
+                await r.prepareContract(id, actor.companyId, root, parent?.id ?? null, input.number, input.name, input.chartId, input.partyId, input.startDate, input.endDate, edition, JSON.stringify(input), sourceHash, actor.userId, input.reason, now, now),
             ]);
         });
     }
@@ -258,10 +258,10 @@ export function createBusinessContractApplication<Effect>(ports: BusinessContrac
                 r.guardContractVersion(key, "contract-version", id, actor.companyId, row.status, input.expectedVersion),
                 ...(action === "approve" && parent
                     ? [
-                        r.supersedeParent(ports.clock.now(), parent.id),
+                        await r.supersedeParent(ports.clock.now(), parent.id),
                     ]
                     : []),
-                r.decideContract(status, actor.userId, version, ports.clock.now(), id),
+                await r.decideContract(status, actor.userId, version, ports.clock.now(), id),
                 r.contractDecisionEvidence(ports.identifiers.next(), key, id, op, actor.userId, actor.assignmentId, input.expectedVersion, await ports.hash(JSON.stringify(input)), ports.clock.now()),
             ]);
         });
@@ -366,13 +366,13 @@ export function createBusinessContractApplication<Effect>(ports: BusinessContrac
                         ...(parent.invoice_id && !ownerCredit
                             ? [
                                 r.guardParentInvoice(key, "billing-parent-invoice", parent.invoice_id, actor.companyId, parent.original_invoice_version),
-                                r.voidParentInvoice(now, parent.invoice_id, actor.companyId),
+                                await r.voidParentInvoice(now, parent.invoice_id, actor.companyId),
                             ]
                             : []),
                     ]
                     : []),
                 r.guardBillingContract(key, "contract-version", contractId, actor.companyId, row.version, Boolean(parent)),
-                r.prepareBill(id, actor.companyId, contractId, row.root_id, row.version, result.billingKey, result.serviceFrom, result.serviceTo, JSON.stringify(input), JSON.stringify(result), sourceHash, invoice?.id ?? null, invoice?.version ?? null, ownerCredit?.prepared_by ?? actor.userId, now, noCharge ? "draft" : null, parent?.id ?? null, parent?.version ?? null, parent ? Number(parent.bill_edition) + 1 : 1, parent ? JSON.stringify(content) : null, revision?.reason ?? null),
+                await r.prepareBill(id, actor.companyId, contractId, row.root_id, row.version, result.billingKey, result.serviceFrom, result.serviceTo, JSON.stringify(input), JSON.stringify(result), sourceHash, invoice?.id ?? null, invoice?.version ?? null, ownerCredit?.prepared_by ?? actor.userId, now, noCharge ? "draft" : null, parent?.id ?? null, parent?.version ?? null, parent ? Number(parent.bill_edition) + 1 : 1, parent ? JSON.stringify(content) : null, revision?.reason ?? null),
             ]);
         });
     }
@@ -445,7 +445,7 @@ export function createBusinessContractApplication<Effect>(ports: BusinessContrac
                 amount: source.item.amount,
                 sourceHash: source.sourceHash,
             }, [
-                r.prepareRecognition(id, actor.companyId, input.billingRunId, input.itemKey, source.item.date, input.entryDate, input.periodId, decimalToMinor(source.item.amount), source.item.accountId, source.sourceHash, actor.userId, input.reason, ports.clock.now(), ports.clock.now()),
+                await r.prepareRecognition(id, actor.companyId, input.billingRunId, input.itemKey, source.item.date, input.entryDate, input.periodId, decimalToMinor(source.item.amount), source.item.accountId, source.sourceHash, actor.userId, input.reason, ports.clock.now(), ports.clock.now()),
             ]);
         });
     }
@@ -501,7 +501,7 @@ export function createBusinessContractApplication<Effect>(ports: BusinessContrac
             return ports.commands.commit(actor, key, op, input, id, version, { id, status, version, journalId: journal?.result.id ?? null }, [
                 r.guardRecognitionDraft(key, "recognition-version", id, actor.companyId, input.expectedVersion),
                 ...(journal?.steps ?? []),
-                r.decideRecognition(status, version, actor.userId, journal?.result.id ?? null, input.reason, ports.clock.now(), id),
+                await r.decideRecognition(status, version, actor.userId, journal?.result.id ?? null, input.reason, ports.clock.now(), id),
                 r.recognitionDecisionEvidence(ports.identifiers.next(), key, id, op, actor.userId, actor.assignmentId, input.expectedVersion, await ports.hash(JSON.stringify(input)), ports.clock.now()),
             ]);
         });
@@ -532,7 +532,7 @@ export function createBusinessContractApplication<Effect>(ports: BusinessContrac
             }, [
                 r.guardPostedRecognition(key, "recognition-version", id, actor.companyId, input.expectedVersion),
                 ...reversal.steps,
-                r.reverseRecognition(reversalId, input.reason, ports.clock.now(), id),
+                await r.reverseRecognition(reversalId, input.reason, ports.clock.now(), id),
             ]);
         });
     }
@@ -579,7 +579,7 @@ export function createBusinessContractApplication<Effect>(ports: BusinessContrac
                 version: input.expectedVersion + 1,
             }, [
                 r.guardZeroBill(key, "zero-usage-version", id, actor.companyId, input.expectedVersion, id),
-                r.decideZeroBill(action === "approve" ? "approved" : "rejected", actor.userId, input.reason, id),
+                await r.decideZeroBill(action === "approve" ? "approved" : "rejected", actor.userId, input.reason, id),
             ]);
         });
     }

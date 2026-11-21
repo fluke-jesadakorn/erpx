@@ -14,6 +14,7 @@ import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-t
 import {payrollOtherFinanceLeases,payrollOtherFinanceState} from '@erpx/server-finance/public/payroll-other-remittance-facts';
 import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {payrollOtherSource,payrollOtherSourceLeases,payrollOtherRemittanceTables,type PayrollOtherSource} from '@erpx/server-people_payroll/adapters/payroll-other-remittance-sources';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 export {payrollOtherSource,payrollOtherRemittanceTables};
 type Kind='read'|'remit'|'bank-import'|'bank-ignore';
 type Unit={actor:WorkContext;current:WorkContext;runId:string;kind:Kind;source:PayrollOtherSource;guards:(()=>Promise<void>)[]};
@@ -47,7 +48,7 @@ export async function withPayrollOtherRemittanceUnit<Result>(actor:WorkContext,r
   const source=await payrollOtherSource(database,actor.companyId,runId),before=await payrollOtherFinanceState(database,actor.companyId,source),unit:Unit={actor,current,runId,kind:command.kind,source,guards:[]};units.set(database,unit);
   try{
    const result=await run(database,unit);
-   if(boundary)await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(boundaryKey)]);
+   if(boundary)await database.batch([...boundary.after,clearWorkflowCommandAssertions(database, boundaryKey)]);
    if(command.kind!=='read')await flushFinanceDeferredEffects(database);
    if((await payrollOtherSource(database,actor.companyId,runId)).image!==source.image||(await payrollOtherFinanceState(database,actor.companyId,source)).accrualImage!==before.accrualImage)throw new ApiError(409,'PAYROLL_REMITTANCE_SOURCE_CHANGED','The original approved Payroll accrual changed before completion.');
    for(const guard of unit.guards)await guard();

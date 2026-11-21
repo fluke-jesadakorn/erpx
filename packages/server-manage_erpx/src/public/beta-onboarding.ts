@@ -1,3 +1,4 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { onboardingSchema, requireVerified, memberStatements, branchStatements, onboard, onboardingView } from "@erpx/server-manage_erpx/adapters/beta-onboarding";
+/** Retained beta bootstrap effects plus the shared onboarding input contract.
+ * Company onboarding commands are served by the native owner router. */
+export { onboardingSchema, requireVerified, memberStatements, branchStatements } from "@erpx/server-manage_erpx/adapters/beta-onboarding";
 export type { BetaUser } from "@erpx/server-manage_erpx/adapters/beta-onboarding";

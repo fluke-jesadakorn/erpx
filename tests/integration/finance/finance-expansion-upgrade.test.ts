@@ -17,10 +17,6 @@ import {
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
 } from "@erpx/server-finance/public/finance-asset-policies";
-import {
-  editManualDraft,
-  manualDraftEditSchema,
-} from "@erpx/server-finance/public/finance-manual-drafts";
 import { statementPackageExport } from "@erpx/server-finance/public/finance-reporting";
 import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
@@ -337,44 +333,22 @@ it("upgrades a populated pre-expansion Company, preserves posted journals and is
       },
       key(),
     );
-    await editManualDraft(
-      f.reviewer,
-      manual,
-      manualDraftEditSchema.parse({
-        expectedVersion: 1,
-        chartId: f.chart,
-        periodId: f.period,
-        entryDate: "2026-10-31",
-        currency: "THB",
-        memo: "Fill the new required dimension on the old draft",
-        reason: "Retain the old draft and add its reviewed reporting dimension",
-        lines: [
-          {
-            accountId: expense,
-            debit: "100.01",
-            credit: "0",
-            dimensions: { project: "UPGRADE" },
-          },
-          {
-            accountId: capital,
-            debit: "0",
-            credit: "100.01",
-            dimensions: { project: "UPGRADE" },
-          },
-        ],
-      }),
-      key(),
-    );
+    const draftDimensions = async () =>
+      (
+        await db
+          .prepare(
+            "SELECT dimension_json FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal",
+          )
+          .bind(manual)
+          .all<{ dimension_json: string }>()
+      ).results.map((row) => row.dimension_json);
+    // The native Finance manual-draft edit command owns the required-dimension
+    // path (rust-manual-draft-edit-postgres.test.rs). This upgrade oracle only
+    // proves the pre-expansion draft and its empty dimensions survive.
+    expect(await draftDimensions()).toEqual(["{}", "{}"]);
     expect(await original()).toEqual(before);
-    expect(
-      await db
-        .prepare(
-          "SELECT count(*) n FROM finance_manual_draft_editions WHERE journal_id=?",
-        )
-        .bind(manual)
-        .first("n"),
-    ).toBe(2);
     await migrateDatabase(db, "holding-write", current);
+    expect(await draftDimensions()).toEqual(["{}", "{}"]);
     expect(await original()).toEqual(before);
   } finally {
     await rm(old, { recursive: true, force: true });

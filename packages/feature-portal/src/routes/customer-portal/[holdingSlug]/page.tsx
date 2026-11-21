@@ -1,3 +1,4 @@
+import {publicHoldingPath} from '@erpx/feature-runtime/lib/holding-paths';
 import {createHash} from 'node:crypto';
 import { customerPortalPresentationQueries } from "@erpx/server-customer_360/public/presentation-context-queries";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
@@ -23,7 +24,7 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
   const { data, items, preferences, accountKey } = await (async () => {
     const binding = await holdingBindingBySlug(holdingSlug);
     const { queries, actor } = await customerPortalPresentationQueries(holdingSlug).catch(error=>{
-      if(error instanceof Error&&error.message==='UNAUTHENTICATED'||error instanceof ApiError&&error.status===401)redirect('/login?'+new URLSearchParams({next:`/customer-portal/${encodeURIComponent(holdingSlug)}`}));
+      if(error instanceof Error&&error.message==='UNAUTHENTICATED'||error instanceof ApiError&&error.status===401)redirect('/login?'+new URLSearchParams({next:`${new URL(publicHoldingPath(holdingSlug,'customer-portal'),'https://path.invalid').pathname}`}));
       throw error;
     });
     const data = await queries.customerPortalProjection(actor);
@@ -39,7 +40,7 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
       <PageContent as="main" className="ui-page-content">
         <header>
           <h1>Customer documents</h1>
-          <a href={`/customer-portal/${encodeURIComponent(holdingSlug)}/tickets`}>Support tickets</a>
+          <a href={`${publicHoldingPath(holdingSlug,'customer-portal')}/tickets`}>Support tickets</a>
           <p>Only documents explicitly approved for your verified account are shown. Each view is recorded in the access audit.</p>
         </header>
         <div className={rail.layout}>

@@ -64,7 +64,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id
     WHERE i.company_id=? ORDER BY i.invoice_date DESC,i.invoice_number DESC LIMIT ?`).bind(actor.companyId, Math.max(1, Math.min(limit, 100))).all<FinanceRow>()).results;
         },
-        workInvoices: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT i.* FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id WHERE i.company_id=? ORDER BY i.updated_at DESC").bind(actor.companyId).all<FinanceRow>()).results; },
+        workInvoices: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT i.* FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id WHERE i.company_id=? AND NOT erpx_finance_field_invoice_owned(i.id,i.company_id) ORDER BY i.updated_at DESC").bind(actor.companyId).all<FinanceRow>()).results; },
         invoice: async (facts) => {
             const { invoiceId, actor } = facts;
             const write = await db(actor);

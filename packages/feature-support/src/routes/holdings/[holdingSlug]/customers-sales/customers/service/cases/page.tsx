@@ -1,6 +1,5 @@
-import Screen from "@erpx/workplace/routes/holdings/[holdingSlug]/customers-sales/customers/service/cases/_screen";
+import Screen from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/support/screen";
 export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
- const query={...await searchParams,...{"view":"support"}};
- const props={params:Promise.resolve({...await params,...{}}),searchParams:Promise.resolve(query)} as Parameters<typeof Screen>[0];
+ const props={params:Promise.resolve({...await params,...{}}),searchParams:Promise.resolve({...await searchParams,...{}})} as Parameters<typeof Screen>[0];
  return (await Screen(props))??null;
 }

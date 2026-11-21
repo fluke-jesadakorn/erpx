@@ -1,0 +1,80 @@
+//! Native write statements owned by this crate. Generated from the
+//! retired TypeScript write literals with full-parity positional payloads.
+//! The axum executor runs these in the caller-owned serializable unit.
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeStatement {
+    pub kind: &'static str,
+    pub sql: &'static str,
+    pub bind_count: usize,
+    pub scope: &'static str,
+}
+
+const STATEMENTS: &[NativeStatement] = &[
+    NativeStatement {
+        kind: "marketing_stmt_1",
+        sql: r#"INSERT INTO marketing_public_limits(key,bucket,count) VALUES($1,$2,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN marketing_public_limits.bucket=excluded.bucket THEN marketing_public_limits.count+1 ELSE 1 END,bucket=excluded.bucket RETURNING count"#,
+        bind_count: 2,
+        scope: "holding",
+    }, // public-submission.ts
+    NativeStatement {
+        kind: "marketing_stmt_2",
+        sql: r#"INSERT INTO marketing_lead_candidates(id,company_id,branch_id,department_id,form_id,form_version,contact_name,contact_detail,consent_evidence,attribution_json,brief,status,crm_lead_id,created_by,reviewed_by,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',NULL,'public-form',NULL,1,$12,$13)"#,
+        bind_count: 13,
+        scope: "holding",
+    }, // public-submission.ts
+    NativeStatement {
+        kind: "marketing_stmt_3",
+        sql: r#"INSERT INTO marketing_engagement_events(id,candidate_id,version,event_type,channel,evidence,actor_id,created_at) VALUES($1,$2,1,'form_submit','web',$3,'public-form',$4)"#,
+        bind_count: 4,
+        scope: "holding",
+    }, // public-submission.ts
+    NativeStatement {
+        kind: "marketing_stmt_4",
+        sql: r#"INSERT INTO marketing_public_receipts(key,request_hash,candidate_id,created_at) VALUES($1,$2,$3,$4)"#,
+        bind_count: 4,
+        scope: "holding",
+    }, // public-submission.ts
+    NativeStatement {
+        kind: "marketing_stmt_5",
+        sql: r#"INSERT INTO marketing_touches(id,company_id,lead_id,campaign_id,source,evidence,source_kind,source_id,occurred_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"#,
+        bind_count: 10,
+        scope: "holding",
+    }, // crm-touches.ts
+];
+
+pub fn statement(kind: &str) -> Option<&'static NativeStatement> {
+    STATEMENTS.iter().find(|s| s.kind == kind)
+}
+pub fn supported(kind: &str) -> bool {
+    statement(kind).is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn every_statement_is_well_formed() {
+        for s in STATEMENTS {
+            assert!(
+                s.sql.trim_start().starts_with("INSERT")
+                    || s.sql.trim_start().starts_with("UPDATE")
+                    || s.sql.trim_start().starts_with("DELETE")
+            );
+            let max = s
+                .sql
+                .split('$')
+                .skip(1)
+                .filter_map(|x| {
+                    x.chars()
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect::<String>()
+                        .parse::<usize>()
+                        .ok()
+                })
+                .max()
+                .unwrap_or(0);
+            assert_eq!(max, s.bind_count, "{}", s.kind);
+        }
+    }
+}

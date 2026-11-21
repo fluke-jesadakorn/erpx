@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { nativeClearCommandAssertions } from "@erpx/server-collaboration/adapters/native-command-assertions";
 export function GuidedIntakeWorkflowFacts(database: SqlDatabase) {
-    return { stageCheckAuthorityEffect(key: string) { return database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key); },
-        stagePrepareGuidedIntakeEffect2(id: string) { return database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(id); } };
+    return { stageCheckAuthorityEffect(key: string, companyId: string) { return nativeClearCommandAssertions(database, companyId, key); },
+        stagePrepareGuidedIntakeEffect2(id: string, companyId: string) { return nativeClearCommandAssertions(database, companyId, id); } };
 }

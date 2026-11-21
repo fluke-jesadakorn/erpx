@@ -13,6 +13,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bankWorkspace,listCharts} from '@erpx/server-finance/public/finance';
+import {nativeFinanceBankPageFailure,nativeFinanceBankWorkspace} from '@erpx/feature-finance/lib/native-finance-bank-read';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { FilterBar } from "@erpx/ui/components/foundation";
 import { bankAutomationWorkspace } from "@erpx/server-finance/public/finance-bank-automation";
@@ -44,13 +45,42 @@ export default async function BankPage({
 }) {
   const query = await searchParams,
     printing = query.print === "1";
-  const actor = await requireWorkContext((await params).holdingSlug),
+  const { holdingSlug } = await params;
+  const actor = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(actor));
-  const [data, charts] = await Promise.all([bankWorkspace(actor, query), listCharts(actor)]).catch(
-    (error) => pageError(error, actor.holdingSlug),
+  const nativeActor = actor.authority && actor.iam ? {
+      userId: actor.userId,
+      holdingId: actor.holdingId,
+      holdingSlug: actor.holdingSlug,
+      companyId: actor.companyId,
+      branchId: actor.branchId,
+      departmentId: actor.departmentId,
+      assignmentId: actor.assignmentId,
+      role: actor.role,
+      assignmentScope: actor.assignmentScope,
+      scope:
+        actor.scope.kind === "holding"
+          ? { kind: "holding" as const }
+          : actor.scope.kind === "branch"
+            ? { kind: "branch" as const, branchSlug: actor.scope.branchSlug ?? "" }
+            : {
+                kind: "department" as const,
+                branchSlug: actor.scope.branchSlug ?? undefined,
+                departmentSlug: actor.scope.departmentSlug ?? "",
+              },
+      authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+      modules: actor.modules,
+      iam: { permissions: actor.iam.permissions },
+    } : undefined;
+  const readBank = async (selected: Query): Promise<Awaited<ReturnType<typeof bankWorkspace>>> => {
+    const native = await nativeFinanceBankWorkspace(nativeActor, holdingSlug, selected);
+    return (native as Awaited<ReturnType<typeof bankWorkspace>> | undefined) ?? bankWorkspace(actor, selected);
+  };
+  const [data, charts] = await Promise.all([readBank(query), listCharts(actor)]).catch(
+    (error) => pageError(nativeFinanceBankPageFailure(error) ?? error, actor.holdingSlug),
   );
   const tools=await financeCompanyTools(actor),automationEnabled=tools.some(r=>r.tool==="bank_automation"&&r.enabled===1),automation=!printing?await bankAutomationWorkspace(actor,query):null;
-  const importAccounts=automationEnabled?(await bankWorkspace(actor,{new:"1"})).accounts:[];
+  const importAccounts=automationEnabled?(await readBank({new:"1"})).accounts:[];
   const link = (changes: Record<string, string | undefined>) => {
     const values = new URLSearchParams(
       Object.entries({ ...query, ...changes }).flatMap(([key, value]) =>

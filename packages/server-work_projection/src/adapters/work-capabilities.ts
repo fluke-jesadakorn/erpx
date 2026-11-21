@@ -5,7 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { canPrepareCounts } from "@erpx/server-inventory/public/inventory-counts";
-import { canPrepareTransfers } from "@erpx/server-inventory/public/inventory-transfers";
+import { canPrepareTransfers } from "@erpx/server-inventory/public/inventory-transfer-read";
 import { publicScope } from "@erpx/server-identity_access/public/authorization";
 import { createWorkCapabilities, type WorkCapabilitiesUnit } from "@erpx/server-work_projection/application/work-capabilities";
 import { workTeamCoverageFacts } from "@erpx/server-support/public/work-team-coverage-facts";

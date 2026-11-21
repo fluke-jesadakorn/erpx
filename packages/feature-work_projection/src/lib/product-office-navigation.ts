@@ -1,5 +1,5 @@
 import { productPageAllowed } from "@erpx/feature-runtime/lib/product-route-policy";
-import type { ProductHostKey } from "@erpx/contracts/product-registry";
+import type { ProductHostKey } from "@erpx/server-commercial/public/rules/product-registry";
 import type { NavigationItem, WorkplaceNavigationModel } from "@erpx/feature-work_projection/lib/workplace-navigation";
 
 /** Presentation only: retain the original permission/readiness decision, then

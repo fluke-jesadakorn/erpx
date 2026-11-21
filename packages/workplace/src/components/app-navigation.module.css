@@ -233,7 +233,7 @@
   justify-content: center;
   padding: 10px;
 }
-.railScroll > a > span:first-of-type,
+.railScroll > a > [data-nav-label],
 .railScroll > :global(span) {
   display: none;
 }
@@ -249,7 +249,7 @@
   color: var(--ui-muted);
   cursor: pointer;
 }
-.railCategoryButton > span {
+.railCategoryButton > span:not([data-sidebar-icon]) {
   display: none;
 }
 .railCategoryButton:hover,

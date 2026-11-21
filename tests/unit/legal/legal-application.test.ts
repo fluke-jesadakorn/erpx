@@ -2,7 +2,6 @@ import type {ExecutedCopyRepository} from "@erpx/server-legal/application/execut
 import type {LegalDestructionRepository} from "@erpx/server-legal/application/destruction-sources";
 import type {LegalDocumentRepository,DocumentStorage,DocumentIntake,DocumentProvider} from "@erpx/server-legal/application/documents";
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
-type LegalProcessingRepository=Parameters<typeof import("@erpx/server-legal/application/processing").createLegalProcessingApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { createLegalAccessApplication, type LegalAccessRepository } from "@erpx/server-legal/application/access";
@@ -12,8 +11,13 @@ import { createLegalInvitationWorker, type LegalInvitationRepository } from "@er
 import { readBoundedLegalBody } from "@erpx/server-legal/application/body";
 import { createLegalRuntimeApplication } from "@erpx/server-legal/application/runtime-gate";
 import { createLegalKnowledgeApplication, type LegalKnowledgeRepository } from "@erpx/server-legal/application/knowledge";
+import { createLegalCitationQuery } from "@erpx/server-legal/application/citations";
 import { validateLegalAiCitations, type LegalEvidenceSource } from "@erpx/server-legal/domain/knowledge";
 import type { LegalItem } from "@erpx/server-legal/domain/model";
+import { createNativeLegalClient, nativeLegalConfiguration, nativeLegalFailure, NativeLegalError, type NativeLegalPageContext } from "../../../packages/feature-legal/src/adapters/server/native-legal";
+import { nativeLegalCitation, nativeLegalCommandSelected, nativeLegalCitationPageError } from "../../../packages/feature-legal/src/lib/native-legal";
+import { ApiError } from '@erpx/server-runtime/public/http';
+import { ZodError } from 'zod';
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => Object.assign(new Error(code), {code});
@@ -92,17 +96,16 @@ it("a Legal command replay returns retained results before stale-version checks 
   const { createLegalRegisterApplication } = await import("@erpx/server-legal/application/service");
   const source = repository<import("@erpx/server-legal/application/service").LegalRegisterRepository>({ replay: async () => ({ id: "item", version: 2 }) as never });
   const application = createLegalRegisterApplication({ actor, repository: source, require: () => {}, can: () => true, samePerson: () => false, permissionCatalog: [], clock: { now: () => { throw new Error("unexpected clock"); } }, identifiers: { next: () => { throw new Error("unexpected identifier"); } }, error, hash: () => "digest", utf8Length: () => 0, access: async () => ({ ...item, version: 99, state: "active" }), eligible: async () => {}, people: async () => [] });
-  expect(await application.legalCommand({ action: "comment", id: "item", expectedVersion: 1 }, "key")).toEqual({ id: "item", version: 2 });
+  expect(await application.legalCommand({ action: "update", id: "item", expectedVersion: 1 }, "key")).toEqual({ id: "item", version: 2 });
 });
 it("a requester cannot change a submitted question despite current edit permission", async () => {
   const { createLegalRegisterApplication } = await import("@erpx/server-legal/application/service");
   const application = createLegalRegisterApplication({ actor: { ...actor, role: "legal_requester" }, repository: repository<import("@erpx/server-legal/application/service").LegalRegisterRepository>({ replay: async () => null }), require: () => {}, can: () => true, samePerson: () => false, permissionCatalog: [], clock: { now: () => { throw new Error("unexpected clock"); } }, identifiers: { next: () => "identifier" }, error, hash: () => "digest", utf8Length: () => 0, access: async () => ({ ...item, kind: "request", version: 1, state: "review" }), eligible: async () => {}, people: async () => [] });
   await expect(application.legalCommand({ action: "update", id: "item", expectedVersion: 1 }, "key")).rejects.toThrow("LEGAL_REQUESTER_SCOPE");
 });
-it("the latest Legal content author cannot independently approve another creator's record", async () => {
-  const { createLegalRegisterApplication } = await import("@erpx/server-legal/application/service");
-  const application = createLegalRegisterApplication({ actor, repository: repository<import("@erpx/server-legal/application/service").LegalRegisterRepository>({ replay: async () => null, lastAuthor: async () => ({ actor_id: "person" }) }), require: () => {}, can: () => true, samePerson: id => id === "person", permissionCatalog: [], clock: { now: () => { throw new Error("unexpected clock"); } }, identifiers: { next: () => "identifier" }, error, hash: () => "digest", utf8Length: () => 0, access: async () => ({ ...item, version: 1, state: "approval", created_by: "other" }), eligible: async () => {}, people: async () => [] });
-  await expect(application.legalCommand({ action: "approve", id: "item", expectedVersion: 1 }, "key")).rejects.toThrow("LEGAL_INDEPENDENT_REVIEW");
+it("the native Legal command set owns assignment, discussion, linking and contract approval", () => {
+  for (const action of ["assign", "comment", "link", "hold.acknowledge", "approve"])
+    expect(nativeLegalCommandSelected({ action })).toBe(true);
 });
 
 it("a trust manager cannot approve their own proposed CA material", async () => {
@@ -122,10 +125,10 @@ it("a malformed validator status remains indeterminate and never claims a valid 
   const application = createSignedPdfValidation({ materials: async () => [{ id: "material", kind: "root", content: "private certificate body", checksum: "digest" }], prepare: async () => {}, validate: async () => ({ status: ["valid"] }) });
   expect(await application()).toEqual({ status: "indeterminate", reasons: ["VALIDATOR_UNAVAILABLE_OR_TIMED_OUT"], signatures: [], trustMaterials: [{ id: "material", kind: "root", checksum: "digest" }] });
 });
-it("PDF trust preparation failures propagate before the provider fallback and do not leak trust bodies", async () => {
+it("PDF trust preparation failures fail closed as indeterminate before the provider fallback and do not leak trust bodies", async () => {
   const { createSignedPdfValidation } = await import("@erpx/server-legal/application/pdf-validation");
   const application = createSignedPdfValidation({ materials: async () => [], prepare: async () => { throw new Error("trust preparation failed"); }, validate: async () => { throw new Error("unexpected validator"); } });
-  await expect(application()).rejects.toThrow("trust preparation failed");
+  expect(await application()).toEqual({ status: "indeterminate", reasons: ["VALIDATOR_UNAVAILABLE_OR_TIMED_OUT"], signatures: [], trustMaterials: [] });
 });
 
 it("an executed-copy replay still rechecks current eligibility and explicit reviewer membership",async()=>{
@@ -138,11 +141,10 @@ it("references conceal inaccessible target existence and labels while keeping ac
  const application=createLegalReferencesApplication({access:async()=>item,requirePeople:()=>{throw new Error("denied");},target:async(kind,id)=>{if(id==="private")throw new Error("private");return{order_number:"Visible order",version:2};},repository:repository<LegalReferenceRepository>({list:async()=>[{target_module:"person",target_id:"person"},{target_module:"commerce_order",target_id:"private"},{target_module:"commerce_order",target_id:"visible"}]}),clock:{now:()=>0},identifiers:{next:()=>"event"}});
  expect(await application.legalReferences("item")).toEqual([{kind:"commerce_order",id:"visible",label:"Visible order",version:2,path:"commerce/orders/visible"}]);
 });
-it("a processing worker refuses a withdrawn assignment before refreshing authority or reading document bytes",async()=>{
- const {createLegalProcessingApplication}=await import("@erpx/server-legal/application/processing");
- let failure="";const application=createLegalProcessingApplication({actor:()=>actor,clock:{now:()=>100},identifiers:{next:()=>"lease"},error,access:async()=>{throw new Error("unexpected access");},documents:{access:async()=>{throw new Error("unexpected document");},inspect:async()=>{throw new Error("unexpected provider");}},companyReady:async()=>true,assignmentCurrent:async()=>false,refreshAuthority:async()=>{throw new Error("unexpected authority");},repository:repository<LegalProcessingRepository>({recover:async()=>{},claim:async()=>({id:"job",item_id:"item",document_id:"document",kind:"ocr",checksum:"digest",actor_json:JSON.stringify(actor)}),failed:async(_id,_token,code)=>{failure=code;}})});
- await application.drainLegalProcessing();expect(failure).toBe("LEGAL_INVALID");
-});
+// The TypeScript processing drain was retired with the native Legal document
+// worker; the equivalent withdrawn-assignment ordering invariant is covered by
+// tests/integration/legal/rust-processing-postgres.test.rs
+// (`denial_committed_while_owner_lock_waits_is_seen_before_the_first_snapshot`).
 it("destruction refuses a shared canonical source before any ledger retirement",async()=>{
  const {createLegalDestructionApplication}=await import("@erpx/server-legal/application/destruction-sources");
  const application=createLegalDestructionApplication({clock:{now:()=>0},repository:repository<LegalDestructionRepository>({lockedSource:async()=>({object_key:"original",checksum_sha256:"digest",source_state:"available",legal_hold:0}),linkCurrent:async()=>({}),sourceShared:async()=>({}),})});
@@ -176,12 +178,12 @@ it("an unmigrated stored document cannot bypass the canonical attachment authori
 });
 it("the inspection provider session is cleaned after a current preservation guard refuses persistence",async()=>{
  const actions:string[]=[];const document={id:"document",item_id:"item",object_key:null,body:"retained",checksum:"digest",media_type:"text/plain"} as import("@erpx/server-legal/domain/model").DocumentVersion;
- const application=await documentApplication({repository:repository<LegalDocumentRepository>({document:async()=>document,disposed:async()=>null,destroying:async()=>null,preservationLock:()=>({owner:"legal"}),insertInspection:()=>({owner:"legal"}),persistInspection:async()=>0}),provider:repository<DocumentProvider>({prepare:async()=>({write:async()=>{},verify:async()=>{throw new Error("unexpected verification");},extract:async()=>({text:"retained",pages:[],pageMapping:true}),close:async()=>{actions.push("close");}})})});
+ const application=await documentApplication({repository:repository<LegalDocumentRepository>({document:async()=>document,disposed:async()=>null,destroying:async()=>null,preservationLock:()=>({owner:"legal"}),insertInspection:async()=>({owner:"legal"}),persistInspection:async()=>0}),provider:repository<DocumentProvider>({prepare:async()=>({write:async()=>{},verify:async()=>{throw new Error("unexpected verification");},extract:async()=>({text:"retained",pages:[],pageMapping:true}),close:async()=>{actions.push("close");}})})});
  await expect(application.inspectDocument("document","ocr")).rejects.toThrow("LEGAL_DOCUMENT_FROZEN");expect(actions).toEqual(["close"]);
 });
 it("document OCR evidence clips the total retained text and pages while preserving inspection identity",async()=>{
  const text="x".repeat(200001),document={id:"document",item_id:"item",object_key:null,body:"retained",checksum:"digest",media_type:"text/plain"} as import("@erpx/server-legal/domain/model").DocumentVersion;
- const application=await documentApplication({repository:repository<LegalDocumentRepository>({document:async()=>document,disposed:async()=>null,destroying:async()=>null,preservationLock:()=>({owner:"legal"}),insertInspection:()=>({owner:"legal"}),persistInspection:async()=>1,recordInspectionRead:async()=>{}}),provider:repository<DocumentProvider>({prepare:async()=>({write:async()=>{},verify:async()=>({}),extract:async()=>({text,pages:[{page:1,text:text.slice(0,150000)},{page:2,text:text.slice(0,100000)}],pageMapping:true}),close:async()=>{}})})});
+ const application=await documentApplication({repository:repository<LegalDocumentRepository>({document:async()=>document,disposed:async()=>null,destroying:async()=>null,preservationLock:()=>({owner:"legal"}),insertInspection:async()=>({owner:"legal"}),persistInspection:async()=>1,recordInspectionRead:async()=>{}}),provider:repository<DocumentProvider>({prepare:async()=>({write:async()=>{},verify:async()=>({}),extract:async()=>({text,pages:[{page:1,text:text.slice(0,150000)},{page:2,text:text.slice(0,100000)}],pageMapping:true}),close:async()=>{}})})});
  const result=await application.inspectDocument("document","ocr");expect(result).toMatchObject({inspectionId:"inspection",pageMapping:false,truncated:true,requiresReview:true,checksum:"digest"});expect(String(result.text)).toHaveLength(200000);expect((result.pages as {text:string}[]).map(page=>page.text.length)).toEqual([150000,50000]);
 });
 
@@ -257,4 +259,204 @@ it("a counsel purchase replay requires current Legal edit access before returnin
 it('sends configured development document and central enrollment links separately while keeping the invitation token only in its fragment',async()=>{
  const sent:string[]=[],source=repository<LegalInvitationRepository>({recover:async()=>{},claim:async()=>job,share:async()=>({email:'invited@example.test',expires_at:1000}),sent:async()=>{}});await invitation(source,{publicOrigin:'https://legal-portal-dev-erpx.jesadakorn.com',enrollmentOrigin:'https://account-dev-erpx.jesadakorn.com',shareSpecificLink:true,enrollmentEnabled:true,enrollmentToken:async()=> 'signed.actual.invitation',send:async(_email,_subject,body)=>{sent.push(body);}})();expect(sent).toEqual(['https://legal-portal-dev-erpx.jesadakorn.com/legal-portal/holding?share=share\n\nNew invited account: https://account-dev-erpx.jesadakorn.com/legal-portal/enroll#token=signed.actual.invitation']);expect(sent[0]).not.toContain('?token=');
  const legacy:string[]=[];await invitation(source,{enrollmentEnabled:true,enrollmentToken:async()=> 'legacy.signed.invitation',send:async(_email,_subject,body)=>{legacy.push(body);}})();expect(legacy).toEqual(['https://console.example.test/legal-portal/holding\n\nNew invited account: https://console.example.test/legal-portal/enroll#token=legacy.signed.invitation']);
+});
+
+
+const nativeActor: NativeLegalPageContext = {
+  userId: "user", holdingId: "holding", holdingSlug: "acme", companyId: "company",
+  branchId: null, departmentId: null, assignmentId: "assignment", role: "legal_manager",
+  assignmentScope: "holding", scope: {kind: "holding"},
+  authority: {revision: 4, assignmentVersion: 2}, modules: ["legal"],
+  iam: {permissions: ["legal.read", "legal.edit"]},
+};
+const nativeConfig = {
+  privateBaseUrl: "http://127.0.0.1:3199", timeoutMs: 5000,
+  holdings: [{origin: "https://acme.example.test", holdingSlug: "acme", holdingId: "holding"}],
+};
+const nativeHeaders = {get: (name: string) => ({host: "acme.example.test", cookie: "session=value", origin: "https://acme.example.test"})[name] ?? null};
+const nativeContext = {userId: "user", holdingId: "holding", companyId: "company", branchId: null, departmentId: null, assignmentId: "assignment", revision: 4, assignmentVersion: 2, expiresAt: 9007199254740991};
+const nativeRecord = {id: "item", company_id: "company", branch_id: null, department_id: null, kind: "contract", title: "Agreement", description: "", classification: "internal", country: "TH", jurisdiction: "Thailand", language: "th", currency: "THB", timezone: "Asia/Bangkok", priority: "normal", due_date: null, owner_id: "user", created_by: "user", state: "draft", version: 1, created_at: 0, updated_at: 0, data: {}};
+function nativeResponse(data: unknown) {
+  return new Response(JSON.stringify({data, context: nativeContext}), {status: 200, headers: {"content-type": "application/json"}});
+}
+function nativeTransport(response: (method: string, url: URL, headers: Headers, body: string | undefined) => Response = () => nativeResponse({})) {
+  const calls: {method: string; url: URL; headers: Headers; body: string | undefined}[] = [];
+  return {calls, transport: async (method: "GET" | "POST", url: URL, headers: Headers, body: string | undefined) => {
+    calls.push({method, url, headers, body});
+    return response(method, url, headers, body);
+  }};
+}
+
+it('native citation preserves the complete document and law response', async () => {
+  const document = {kind:'document',title:'Matter',name:'document.txt',item_id:'item',document_id:'doc',version:1,checksum:'abc',page:null,page_mapping:false,section:'',text:'Full text',notice:'Review'};
+  const law = {kind:'law',title:'Law',item_id:'rule',document_id:'doc',version:2,checksum:'def',page:1,page_mapping:true,section:'§ 1',text:'Quoted',notice:'Review',asOf:'2026-11-15',href:'/legal?record=rule',originalUrl:'https://example.test/law.pdf#page=1',revision_label:'v2',published_on:'2026-01-01',effective_from:'2026-02-01',effective_until:null,source_url:'https://example.test/law.pdf',sourceId:'law:one',id:'one',excerpt:'Quoted',revision_id:'rev'};
+  const captured = nativeTransport((_method, url) => new Response(JSON.stringify(url.searchParams.get('sourceId')?.startsWith('law:') ? law : document), {status:200,headers:{'content-type':'application/json'}}));
+  const client = createNativeLegalClient(nativeConfig, captured.transport);
+  expect(await client.citation(nativeHeaders,nativeActor,'document:one')).toEqual(document);
+  expect(await client.citation(nativeHeaders,nativeActor,'law:one','2026-11-15')).toEqual(law);
+  expect(captured.calls[1]!.url.pathname).toBe('/api/v1/holdings/acme/legal/citations');
+  expect(captured.calls[1]!.url.searchParams.get('sourceId')).toBe('law:one');
+  expect(captured.calls[1]!.url.searchParams.get('asOf')).toBe('2026-11-15');
+  await client.citation(nativeHeaders,nativeActor,'law:one',['2024-01-01','2024-02-01']);
+  expect(captured.calls[2]!.url.searchParams.get('asOf')).toBe('');
+  const malformed = createNativeLegalClient(nativeConfig,nativeTransport(() => new Response(JSON.stringify({...document,text:42}),{status:200})).transport);
+  await expect(malformed.citation(nativeHeaders,nativeActor,'document:one')).rejects.toMatchObject({code:'NATIVE_LEGAL_RESPONSE_INVALID'});
+  const denied = createNativeLegalClient(nativeConfig,nativeTransport(() => new Response(JSON.stringify({error:{code:'LEGAL_CITATION_UNAVAILABLE',message:'Unavailable'}}),{status:404})).transport);
+  await expect(denied.citation(nativeHeaders,nativeActor,'document:one')).rejects.toMatchObject({code:'LEGAL_CITATION_UNAVAILABLE',status:404});
+});
+
+it('native citation transports opaque document IDs without a synthetic size or asOf bound', async () => {
+  const document = {kind:'document',title:'Matter',name:'document.txt',item_id:'item',document_id:'doc',version:1,checksum:'abc',page:null,page_mapping:false,section:'',text:'Full text',notice:'Review'};
+  const captured = nativeTransport(() => new Response(JSON.stringify(document), {status:200,headers:{'content-type':'application/json'}}));
+  const client = createNativeLegalClient(nativeConfig, captured.transport);
+  for (const id of ['เอกสาร'.repeat(40), '.', '..', 'document:a/b%2Fc']) {
+    await expect(client.citation(nativeHeaders,nativeActor,id,'x'.repeat(300))).resolves.toEqual(document);
+    const url = captured.calls.at(-1)!.url;
+    expect(url.searchParams.get('sourceId')).toBe(id);
+    expect(url.searchParams.has('asOf')).toBe(false);
+  }
+});
+
+it('legacy law citation validates the complete UTF-16 ID after its exact date', async () => {
+  const seen: string[] = [];
+  const app = createLegalKnowledgeApplication({require:()=>{}, access:async()=>{throw Error('unexpected')}, document:async()=>{throw Error('unexpected')}, clock:{now:()=>0}, identifiers:{next:()=> 'event'}, error:(status,code,message)=>Object.assign(new Error(message),{status,code}), repository:repository<LegalKnowledgeRepository>({lawSource:async id=>{seen.push(id); return null;}})});
+  for (const id of ['law: x ', 'law:', 'law:law:x', `law:${'ก'.repeat(60)}`]) {
+    await expect(app.lawCitation(id,'2024-02-29')).rejects.toMatchObject({code:'LEGAL_CITATION_UNAVAILABLE'});
+    expect(seen.at(-1)).toBe(id.slice(4));
+  }
+  const prior=seen.length;
+  for (const date of ['', ' ', ' 2024-02-29 ', '2024-02-30', ['2024-02-29','2024-02-29'], ['', '2024-02-29'], ['2024-02-29','']]) await expect(app.lawCitation('law:x',date)).rejects.toThrow();
+  await expect(app.lawCitation(`law:${'x'.repeat(197)}`,'2024-02-29')).rejects.toThrow();
+  expect(seen).toHaveLength(prior);
+});
+
+it('legacy document citation ignores repeated asOf values', async () => {
+  const doc={id:'doc',item_id:'item',version:1,name:'source.txt',media_type:'text/plain',checksum:'x',body:'body',object_key:null};
+  const query=createLegalCitationQuery({law:async()=>{throw Error('unexpected')},chunk:async()=>null,document:async()=>doc as never,item:async()=>({id:'item',title:'Matter',kind:'matter'}) as never,available:async()=>true,recordRead:async()=>{},clock:{now:()=>0},identifiers:{next:()=> 'event'},error:(_status,_code,message)=>Error(message)});
+  for(const date of [['2024-02-29','2024-02-29'],['','2024-02-29'],['2024-02-29','']]) expect(await query('doc',date)).toMatchObject({document_id:'doc',text:'body'});
+});
+
+it('citation page maps authorized native outcomes through the actual page-error adapter', async () => {
+  const {pageError}=await import('@erpx/server-work_projection/public/page-error');
+  for (const status of [404,410]) {
+    const mapped=nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_UNAVAILABLE',status,'Missing'),'law:x','2024-02-29');
+    expect(mapped).toBeInstanceOf(ApiError);
+    await expect(pageError(mapped,'acme')).rejects.toMatchObject({digest:'NEXT_HTTP_ERROR_FALLBACK;404'});
+  }
+  for (const date of ['', ' 2024-02-29 ', ['2024-02-29','2024-02-29']]) {
+    try { nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_VALIDATION',422,'invalid'),'law:x',date); throw Error('expected ZodError'); }
+    catch (error) { expect(error).toBeInstanceOf(ZodError); await expect(pageError(error,'acme')).rejects.toBe(error); }
+  }
+  const overlong=`law:${'x'.repeat(197)}`;
+  try { nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_VALIDATION',422),overlong,'2024-02-29'); throw Error('expected ZodError'); }
+  catch(error) { expect(error).toBeInstanceOf(ZodError); expect((error as ZodError).issues[0]?.code).toBe('too_big'); }
+  try { nativeLegalCitationPageError(new NativeLegalError('LEGAL_CITATION_VALIDATION',422),overlong,''); throw Error('expected ZodError'); }
+  catch(error) { expect(error).toBeInstanceOf(ZodError); expect((error as ZodError).issues[0]?.code).not.toBe('too_big'); }
+  // A denied native request must not parse the invalid date before IAM.
+  const denied=nativeLegalCitationPageError(new NativeLegalError('PERMISSION_REQUIRED',403,'Denied'),'law:x','');
+  expect(denied).toBeInstanceOf(ApiError); expect(denied).toMatchObject({status:403,code:'PERMISSION_REQUIRED'});
+  const {createPageErrorService}=await import('@erpx/server-work_projection/application/page-error');
+  const navigation=await import('next/navigation');
+  const service=createPageErrorService({headers:async()=>new Headers({'x-erpx-page-path':'/holdings/acme/services/legal/citations/law%3Ax'}),requestedHoldingScope:async()=>{throw Error('unexpected scope read')},forbidden:navigation.forbidden,notFound:navigation.notFound,redirect:navigation.redirect,unstableRethrow:navigation.unstable_rethrow,isApiError:(error):error is ApiError=>error instanceof ApiError});
+  const priorInterrupts=process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS;
+  try {
+    process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS='true';
+    await expect(service.pageError(denied,'acme')).rejects.toMatchObject({digest:'NEXT_HTTP_ERROR_FALLBACK;403'});
+  } finally {
+    if(priorInterrupts===undefined) delete process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS; else process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS=priorInterrupts;
+  }
+  const conflict=nativeLegalCitationPageError(new NativeLegalError('LEGAL_RETENTION_FROZEN',409,'Frozen'),'document:x',undefined);
+  await expect(service.pageError(conflict,'acme')).rejects.toMatchObject({digest:expect.stringContaining('NEXT_REDIRECT;replace;/access?reason=conflict')});
+  const login=nativeLegalCitationPageError(new NativeLegalError('UNAUTHENTICATED',401,'Sign in'),'law:x','');
+  await expect(service.pageError(login,'acme')).rejects.toMatchObject({digest:expect.stringContaining('NEXT_REDIRECT;replace;/login?')});
+  const unavailable=nativeLegalCitationPageError(new NativeLegalError('NATIVE_LEGAL_UNAVAILABLE',503),'law:x','');
+  await expect(pageError(unavailable,'acme')).rejects.toBe(unavailable);
+});
+
+it('native citation wrapper fails closed without private configuration', async () => {
+  const prior = process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+  delete process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+  try {
+    await expect(nativeLegalCitation({} as Parameters<typeof nativeLegalCitation>[0], 'acme', 'doc', undefined, nativeHeaders)).rejects.toMatchObject({code:'NATIVE_LEGAL_UNAVAILABLE'});
+  } finally {
+    if (prior === undefined) delete process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+    else process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = prior;
+  }
+});
+
+it("native Legal accepts a bounded contributor Holding port and prefers the forwarded host", async () => {
+  const contributorConfig = {...nativeConfig, holdings: [{...nativeConfig.holdings[0], origin: "https://acme.example.test:3443"}]};
+  expect(() => nativeLegalConfiguration(JSON.stringify(contributorConfig))).not.toThrow();
+  const captured = nativeTransport(() => nativeResponse({records: [], total: 0, page: 1, counts: [], enabled: true, can_edit: true, can_hold: true, can_release_hold: true, can_share: true}));
+  const client = createNativeLegalClient(contributorConfig, captured.transport);
+  await client.register({get: (name: string) => ({host: "127.0.0.1:3209", "x-forwarded-host": "acme.example.test:3443", cookie: "session=value"})[name] ?? null}, nativeActor, new URLSearchParams());
+  expect(captured.calls[0]!.headers.get("host")).toBe("acme.example.test:3443");
+});
+
+it("native Legal configuration rejects reserved, non-loopback and duplicate targets", () => {
+  expect(() => nativeLegalConfiguration(JSON.stringify({...nativeConfig, privateBaseUrl: "http://127.0.0.1:3101"}))).toThrow(NativeLegalError);
+  expect(() => nativeLegalConfiguration(JSON.stringify({...nativeConfig, privateBaseUrl: "http://192.168.1.1:3199"}))).toThrow(NativeLegalError);
+  expect(() => nativeLegalConfiguration(JSON.stringify({...nativeConfig, holdings: [...nativeConfig.holdings, ...nativeConfig.holdings]}))).toThrow(NativeLegalError);
+  expect(() => nativeLegalConfiguration(JSON.stringify({...nativeConfig, holdings: [{...nativeConfig.holdings[0], origin: "http://acme.example.test"}]}))).toThrow(NativeLegalError);
+});
+
+it("native Legal register forwards the actual session, scope and query and validates the reply", async () => {
+  const captured = nativeTransport(() => nativeResponse({records: [nativeRecord], total: 1, page: 1, counts: [{state: "draft", count: 1}], enabled: true, can_edit: true, can_hold: true, can_release_hold: true, can_share: true}));
+  const client = createNativeLegalClient(nativeConfig, captured.transport);
+  const register = await client.register(nativeHeaders, nativeActor, new URLSearchParams({kind: "contract", page: "2"}));
+  expect(register).toMatchObject({total: 1, page: 1, records: [{id: "item"}], enabled: true});
+  const call = captured.calls[0]!;
+  expect(call.method).toBe("GET");
+  expect(call.url.pathname).toBe("/api/v1/holdings/acme/legal/records");
+  expect(call.url.searchParams.get("kind")).toBe("contract");
+  expect(call.url.searchParams.get("page")).toBe("2");
+  expect(call.headers.get("host")).toBe("acme.example.test");
+  expect(call.headers.get("cookie")).toBe("session=value");
+  expect(call.headers.get("x-erpx-context-company")).toBe("company");
+  expect(call.headers.get("x-erpx-context-revision")).toBe("4");
+});
+
+it("native Legal rejects malformed, over-broad and foreign-context replies", async () => {
+  const malformed = createNativeLegalClient(nativeConfig, nativeTransport(() => nativeResponse({records: [{...nativeRecord, extra: true}], total: 1, page: 1, counts: [], enabled: true, can_edit: true, can_hold: true, can_release_hold: true, can_share: true})).transport);
+  await expect(malformed.register(nativeHeaders, nativeActor, new URLSearchParams())).rejects.toMatchObject({code: "NATIVE_LEGAL_RESPONSE_INVALID"});
+  const foreign = createNativeLegalClient(nativeConfig, nativeTransport(() => new Response(JSON.stringify({data: {}, context: {...nativeContext, companyId: "foreign"}}), {status: 200})).transport);
+  await expect(foreign.register(nativeHeaders, nativeActor, new URLSearchParams())).rejects.toMatchObject({code: "NATIVE_LEGAL_RESPONSE_INVALID"});
+  const missingAuthority = createNativeLegalClient(nativeConfig, nativeTransport().transport);
+  await expect(missingAuthority.register(nativeHeaders, {...nativeActor, authority: undefined}, new URLSearchParams())).rejects.toMatchObject({code: "NATIVE_LEGAL_CONTEXT_CHANGED"});
+});
+
+it("native Legal command requires the exact origin and key and returns the persisted receipt", async () => {
+  const captured = nativeTransport(() => nativeResponse({id: "item", version: 2, state: "draft", documentId: "doc"}));
+  const client = createNativeLegalClient(nativeConfig, captured.transport);
+  await expect(client.command({get: () => "acme.example.test"}, nativeActor, {action: "document", id: "item"}, "legal-command-key-0001")).rejects.toMatchObject({code: "NATIVE_LEGAL_REQUEST_INVALID"});
+  const result = await client.command(nativeHeaders, nativeActor, {action: "document", id: "item"}, "legal-command-key-0001");
+  expect(result).toEqual({id: "item", version: 2, state: "draft", documentId: "doc"});
+  const call = captured.calls[0]!;
+  expect(call.method).toBe("POST");
+  expect(call.url.pathname).toBe("/api/v1/holdings/acme/legal/commands");
+  expect(call.headers.get("origin")).toBe("https://acme.example.test");
+  expect(call.headers.get("idempotency-key")).toBe("legal-command-key-0001");
+  expect(call.headers.get("content-type")).toBe("application/json");
+});
+
+it("native Legal selection covers the bounded record commands", () => {
+  expect(nativeLegalCommandSelected({action: "document"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "hold.create"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "transition", state: "archived"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "transition", state: "approved"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "approve"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "assign"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "comment"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "link"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "hold.acknowledge"})).toBe(true);
+  expect(nativeLegalCommandSelected({action: "settings"})).toBe(false);
+  expect(nativeLegalCommandSelected(null)).toBe(false);
+});
+
+it("native Legal failures retain verified status codes without inventing success", () => {
+  expect(nativeLegalFailure(new NativeLegalError("LEGAL_VERSION_CONFLICT", 409, "changed"))).toMatchObject({status: 409, code: "LEGAL_VERSION_CONFLICT"});
+  expect(nativeLegalFailure(new NativeLegalError("LEGAL_NOT_FOUND", 404, "missing"))).toMatchObject({status: 404, code: "LEGAL_NOT_FOUND"});
+  expect(nativeLegalFailure(new NativeLegalError("NATIVE_LEGAL_RESPONSE_LIMIT"))).toMatchObject({status: 502, code: "NATIVE_LEGAL_RESPONSE_INVALID"});
+  expect(nativeLegalFailure(new NativeLegalError("NATIVE_LEGAL_CONFIGURATION_INVALID"))).toMatchObject({status: 503, code: "NATIVE_LEGAL_UNAVAILABLE"});
+  expect(nativeLegalFailure(new Error("plain"))).toBeUndefined();
 });

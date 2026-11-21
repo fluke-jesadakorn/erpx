@@ -126,6 +126,7 @@ export const recordRoutes = {
   finance_budget_sources: { label: 'Budget actuals sources', route: 'record-details/finance_budget_sources/:id' },
   finance_report_snapshot: { label: 'Retained report', route: 'record-details/finance_report_snapshot/:id' },
   finance_report_row: { label: 'Report row sources', route: 'record-details/finance_report_row/:id' },
+  workspace_record: { label: 'Workspace record', route: 'record-details/workspace_record/:id' },
 } as const;
 export type RecordKind = keyof typeof recordRoutes;
 export const collectionRecordKinds=['billing_cost','billing_source','billing_statement','billing_line','usage_group','usage_item','iam_assignment','iam_group','pms_record','pms_entry','pms_hotel_sources','pms_hotel_record','platform_provision'] as const;

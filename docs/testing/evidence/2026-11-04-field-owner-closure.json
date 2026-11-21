@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Field Service owner closed at six of six catalogue workflows; external Finance production composition and other-owner read bridges remain explicit",
+  "capability": "field-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commit": "b1584b4ad",
+  "workflows": [
+    "field_service/service-orders",
+    "field_service/feature-agreements",
+    "field_service/feature-dispatch",
+    "field_service/feature-visits",
+    "field_service/feature-exceptions",
+    "field_service/feature-billing-release"
+  ],
+  "gates": {
+    "nativeScope": "Rust domain/application/adapters own the six workflow commands, reads, jobs and Files/provider boundaries.",
+    "frontend": "Native-only product route and presenters; six-workflow browser journey recorded in 2026-11-03-field-integrated-exact-candidate.json with normal Account/SSO/Company authentication.",
+    "legacyRetirement": "No product route imports @erpx/server-field_service; retained TS modules are read-only projections for named other owners with removal conditions.",
+    "tests": [
+      "cargo check -p erpx-server-field-service --all-targets",
+      "cargo test -p erpx-server-field-service --lib: 7 passed",
+      "cargo test -p erpx-server-field-service --test parts_policy: 14 passed",
+      "vitest tests/unit/field_service: 195 passed",
+      "recorded field_service.field-service.integration 8/8 and rust-http-parity-postgres 40/41 + single pass"
+    ],
+    "consumers": "Support, Collaboration, Operations, Records, Runtime executive, Work, Workflow, Identity, Finance and Customer 360 read bridges retain named removal conditions."
+  },
+  "externalBoundaries": [
+    "Finance production composition remains fail-closed for Finance posting/receipts; Field billing release creates its draft through the Finance owner Rust interface.",
+    "Hosted CI, installed production and staging were not accessed."
+  ],
+  "register": {
+    "owner": "field_service",
+    "phase": "active",
+    "businessMigrationComplete": true,
+    "surfaces": {
+      "domain": "active",
+      "application": "active",
+      "http": "active",
+      "ssr": "active",
+      "jobs": "active",
+      "providers": "active"
+    }
+  },
+  "limits": [
+    "Global backendMigrated remains false and all-owner readiness remains pending.",
+    "Finance production composition and other-owner legacy read bridges are outside this owner.",
+    "The new action/outbox tests guard the retained matrix; they do not re-run the full historical browser matrix."
+  ]
+}

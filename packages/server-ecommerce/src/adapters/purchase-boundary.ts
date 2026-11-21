@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from 'node:crypto';
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import type {EcommercePurchaseControls} from '@erpx/feature-ecommerce/lib/purchase-controls';
@@ -76,7 +77,7 @@ export async function withEcommercePurchasedCommand<Result extends Record<string
    await current(database,bound,command.review);
    const final=await source(database,actor,command.after);
    if(final.image!==after.image)throw new ApiError(409,'ECOMMERCE_SOURCE_CHANGED','The original Ecommerce source changed after its owner effects.');
-   const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);
+   const observed=await database.batch([...boundary.after,await nativeClearCommandAssertions(database, actor.companyId, key)]);boundary.observe?.(observed);
   });
   return result;
  });

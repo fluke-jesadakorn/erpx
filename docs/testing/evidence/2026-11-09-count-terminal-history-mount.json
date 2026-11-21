@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The committed initial Count terminal/History source witnesses are mounted into the native Service Count detail read. The read acquires the Inventory/Workflow/Files terminal-history fences before its snapshot and returns terminalHistory from the exact joined Count/decision/receipt/Files-version-chain decision. This is a real product read mount, not a workflow promotion.",
+  "capability": "field-count-terminal-history",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commit": "86de0b0ae4cd55cc02d7196bbb374cf860512a70",
+  "scope": {
+    "read": "src/composition/src/service_initial_physical_stock.rs adds terminalHistory to read_service_initial_count using inspect_initial_count_terminal_history.",
+    "locks": "src/composition/src/service_initial_physical_stock_sources.rs acquires initial_count_history_source, count_terminal_history_source, Workflow initial-count receipt and Files count-history attachment fences before the Count unit snapshot.",
+    "test": "tests/integration/field_service/rust-service-initial-physical-stock-postgres.test.rs asserts the posted native Count returns terminalHistory=true."
+  },
+  "verification": {
+    "exactArchive": "PASS: git archive 86de0b0ae; cargo test -p erpx-service --locked --test service_initial_physical_stock_postgres --features field-service: 2 passed, 0 failed, 0 ignored (51.77s), .scratch/dev/rust-migration/current/verify-86-count-terminal.log.",
+    "workingSource": "PASS: same suite 2/2 with the terminalHistory assertion, .scratch/dev/rust-migration/current/count-terminal-mount2.log.",
+    "coverage": "The selected Account/Company native Count create/post journey returns the posted record and terminalHistory=true; the predicate composes Count, decision, Workflow receipt and Files recursive version-chain sources in one serializable unit."
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "The terminal-history read is mounted, but the six Field workflows still require the Files/Finance History mounts, legacy retirement and authenticated browser gates. No owner is certified."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Mount the remaining Field Files/Finance History source witnesses where a native read exists; the generic Finance History and Field link-existing paths still need new native read/write ports."
+}

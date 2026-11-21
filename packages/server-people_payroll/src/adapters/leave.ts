@@ -1,3 +1,4 @@
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeLeaveReadRepository,getLeave}from '@erpx/server-people_payroll/adapters/leave-read';
 export{getLeave};
 import { withWorkforcePurchasedCommand } from "@erpx/server-people_payroll/adapters/workforce-purchases";
@@ -39,7 +40,7 @@ function application(provided?: SqlDatabase) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND version=?)", [engagement_id, engagement_version]);
         },
         stageSubmitLeaveEffect(startDate: string, days: number, handoverNote: string, state: "draft" | "pending_approval", person_id: string, engagement_id: string, value: string, department_id: string | null, userId: string, key: string, now: number, id: string) {
-            return database.prepare("UPDATE leave_requests SET start_date=?,days=?,handover_note=?,state=?,person_id=?,engagement_id=?,branch_id=?,department_id=?,prepared_by=?,decided_by=NULL,decision_note=NULL,version=version+1,last_command_id=?,updated_at=? WHERE id=?")
+            return nativePpStatement('pp_leave_stmt_1')
                 .bind(startDate, days, handoverNote, state, person_id, engagement_id, value, department_id, userId, key, now, id);
         },
         readDecisionEvidencePolicyRule(policy_version_id: string, leave_type_id: string) {
@@ -71,24 +72,22 @@ function application(provided?: SqlDatabase) {
                 .bind(id, company_id);
         },
         stageDecideEffect2(state: "pending_approval" | "approved" | "rejected", note: string, userId: string, value: 0 | 1, key: string, now: number, id: string) {
-            return database.prepare("UPDATE leave_requests SET state=?,decision_note=?,decided_by=?,evidence_version=evidence_version+?,version=version+1,last_command_id=?,updated_at=? WHERE id=?")
+            return nativePpStatement('pp_leave_stmt_2')
                 .bind(state, note, userId, value, key, now, id);
         },
         stageDecideEffect3(...args) { return leaveReviewEvidence(database).stageDecideEffect3(...args); },
-        stageTransitionLeaveEffect(value: string, id: string, company_id: string, note: string, userId: string, now: number, now2: number) { return database.prepare("INSERT INTO leave_cancellation_reviews(id,request_id,company_id,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(value, id, company_id, note, userId, now, now2); },
-        stageTransitionLeaveEffect2(key: string, now: number, id: string) { return database.prepare("UPDATE leave_requests SET cancellation_state='pending_review',version=version+1,last_command_id=?,updated_at=? WHERE id=?").bind(key, now, id); },
+        stageTransitionLeaveEffect(value: string, id: string, company_id: string, note: string, userId: string, now: number, now2: number) { return nativePpStatement('pp_leave_stmt_3').bind(value, id, company_id, note, userId, now, now2); },
+        stageTransitionLeaveEffect2(key: string, now: number, id: string) { return nativePpStatement('pp_leave_stmt_4').bind(key, now, id); },
         stageTransitionLeaveEffect3(note: string, key: string, now: number, id: string) {
-            return database.prepare("UPDATE leave_requests SET state='cancelled',decision_note=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?")
+            return nativePpStatement('pp_leave_stmt_5')
                 .bind(note, key, now, id);
         },
         readDecideLeaveCancellationRow(id: string, companyId: string) { return database.prepare("SELECT * FROM leave_requests WHERE id=? AND company_id=? AND state='approved' AND cancellation_state='pending_review'").bind(id, companyId).first<LeaveRequest>(); },
-        stageDecideLeaveCancellationEffect(value: "approved" | "cancelled", value2: "approved" | "rejected" | "pending_review", key: string, now: number, id: string) { return database.prepare("UPDATE leave_requests SET state=?,cancellation_state=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?").bind(value, value2, key, now, id); },
-        stageDecideLeaveCancellationEffect2(value: "pending_approval" | "approved" | "rejected", userId: string, note: string, now: number, id: string) { return database.prepare("UPDATE leave_cancellation_reviews SET state=?,decided_by=?,decision_note=?,version=version+1,updated_at=? WHERE request_id=? AND state='pending_approval'").bind(value, userId, note, now, id); },
+        stageDecideLeaveCancellationEffect(value: "approved" | "cancelled", value2: "approved" | "rejected" | "pending_review", key: string, now: number, id: string) { return nativePpStatement('pp_leave_stmt_6').bind(value, value2, key, now, id); },
+        stageDecideLeaveCancellationEffect2(value: "pending_approval" | "approved" | "rejected", userId: string, note: string, now: number, id: string) { return nativePpStatement('pp_leave_stmt_7').bind(value, userId, note, now, id); },
         stageBalanceTransitionInsert(value: string, kind: string, multiplier: number, key: string, value2: "Approved cancellation" | "Approved leave" | "Released reservation", actor: string, now: number, id: string, company_id: string, action: "use" | "release" | "reverse") {
             const source = action === 'reverse' ? "'usage','usage_reversal'" : "'reservation','reservation_release'";
-            return database.prepare(`INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at)
- SELECT ?||':'||entitlement_year,company_id,engagement_id,leave_type_id,request_id,?,sum(units)*?,entitlement_year||'-01-01',entitlement_year,?||':'||entitlement_year,?,?,?
- FROM leave_balance_entries WHERE request_id=? AND company_id=? AND kind IN (${source}) GROUP BY company_id,engagement_id,leave_type_id,request_id,entitlement_year HAVING sum(units)<0`)
+            return nativePpStatement('pp_leave_stmt_8')
                 .bind(value, kind, multiplier, key, value2, actor, now, id, company_id);
         } };
     return createLeaveApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, prepare: async (holding) => { if (!provided)

@@ -4,7 +4,9 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { listPayrollRuns, payrollRunsPage } from "@erpx/server-people_payroll/public/people-payroll";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { payrollRunsPage } from "@erpx/server-people_payroll/public/people-payroll";
+import { ownedPeoplePayrollRuns } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { PageContent } from "@erpx/ui/components/foundation";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,14 @@ export default async function PayrollHistory({
   let runs;
   try {
     page = redacted ? null : await payrollRunsPage(actor, query.cursor);
-    runs = page?.items ?? (await listPayrollRuns(actor));
+    if (page) {
+      runs = page.items;
+    } else {
+      const owned = await ownedPeoplePayrollRuns(actor, holdingSlug);
+      if (owned === undefined)
+        throw new ApiError(503, "NATIVE_PEOPLE_PAYROLL_UNAVAILABLE", "The native People Payroll reader is unavailable.");
+      runs = owned;
+    }
   } catch (error) {
     return pageError(error, actor.holdingSlug);
   }

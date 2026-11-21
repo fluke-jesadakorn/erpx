@@ -13,9 +13,11 @@ import { FormLayout, Card } from "@erpx/ui/components/foundation";
 export function AgentGovernanceConsole({ recordOnly=false,
   base,
   data,
+  evidenceUnavailable=false,
 }: { recordOnly?:boolean;
   base: string;
   data: Awaited<ReturnType<typeof agentWorkspace>>;
+  evidenceUnavailable?: boolean;
 }) {
   const router = useRouter(),
     last = useRef<{ body: string; key: string } | null>(null),
@@ -244,11 +246,17 @@ export function AgentGovernanceConsole({ recordOnly=false,
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Private session retention</h2>
         <p>A hold preserves evidence. Expiry starts a fresh private conversation and keeps retained evidence out of the new history.</p>
-        {data.sessions.map(session=><article key={String(session.id)}>
-          <h3><RecordLink href={recordCanonicalHref(base,{kind:"agent_session",id:String(session.id)})}>{String(session.conversation_key)} · generation {String(session.generation)}</RecordLink></h3>
-          <p>{String(session.user_id)} · {String(session.effective_status)} · expires {new Date(Number(session.expires_at)).toISOString()} {session.legal_hold?"· evidence held":""}</p>
-          <Lifecycle entity="session" row={session} actions={[session.legal_hold?"release-hold":"hold",...(session.effective_status==="active"?["expire"]:[])]} send={send} busy={busy}/>
-        </article>)}
+        {evidenceUnavailable ? (
+          <InlineNotice tone="danger" role="alert">
+            Native private-session evidence is unavailable.
+          </InlineNotice>
+        ) : (
+          data.sessions.map(session=><article key={String(session.id)}>
+            <h3><RecordLink href={recordCanonicalHref(base,{kind:"agent_session",id:String(session.id)})}>{String(session.conversation_key)} · generation {String(session.generation)}</RecordLink></h3>
+            <p>{String(session.user_id)} · {String(session.effective_status)} · expires {new Date(Number(session.expires_at)).toISOString()} {session.legal_hold?"· evidence held":""}</p>
+            <Lifecycle entity="session" row={session} actions={[session.legal_hold?"release-hold":"hold",...(session.effective_status==="active"?["expire"]:[])]} send={send} busy={busy}/>
+          </article>)
+        )}
       </Card>
     </>
   );

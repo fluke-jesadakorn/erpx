@@ -13,7 +13,7 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign.signers import SimpleSigner, PdfSigner, PdfSignatureMetadata
 from pyhanko.sign.timestamps import DummyTimeStamper
 from pyhanko_certvalidator.registry import SimpleCertificateStore
-spec=importlib.util.spec_from_file_location('validator',Path(__file__).with_name('validate_pdf.py'))
+spec=importlib.util.spec_from_file_location('validator',Path(__file__).resolve().parents[2]/'tests/support/legal/pdf-oracle/validate_pdf.py')
 validator=importlib.util.module_from_spec(spec);spec.loader.exec_module(validator)
 now=datetime.now(timezone.utc)
 rootkey=rsa.generate_private_key(65537,2048)

@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceBankAutomation } from '@erpx/server-collaboration/adapters/native-finance-bank-automation';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import {financeBankPosCashAvailableSql} from '@erpx/server-pos/public/finance-bank-cash-source';
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -48,18 +49,7 @@ async function replay<Result=Record<string,unknown>>(
     : null;
 }
 function nativeBankAutomation(provided?:SqlDatabase,owned=false){let write:SqlDatabase;const transaction=async<T>(run:()=>Promise<T>,message:string):Promise<T>=>{if(owned)return run();if(!isTransactionalSqlDatabase(write))throw new ApiError(503,'TRANSACTION_REQUIRED',message);return financeTransaction(write,async tx=>{const prior=write;write=tx;try{return await run()}finally{write=prior}})};return createBankAutomation({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,tool:actor=>requireFinanceTool(write,actor.companyId,'bank_automation'),replay:<Result>(actor:WorkContext,key:string,op:string,input:unknown)=>replay<Result>(write,actor,key,op,input),reviewReplay:(actor,key,op,id,input)=>replayCommand(write,actor,key,op,id,input),mappedTransaction:run=>transaction(run,'Mapped imports require PostgreSQL.'),reviewTransaction:run=>transaction(run,'Bank match approval requires PostgreSQL.'),importStatement:(actor,input,key)=>importBankStatement(actor,input,key,write),mappingCommit:async(facts)=>{const {actor,key,op,input,id}=facts;return executeCommand(write, actor, key, op, input, id, 1, { id }, [
-    write
-      .prepare(
-        "INSERT INTO finance_bank_csv_mappings(id,company_id,name,columns_json,created_by,created_at) VALUES(?,?,?,?,?,?)",
-      )
-      .bind(
-        id,
-        actor.companyId,
-        input.name,
-        JSON.stringify(input),
-        actor.userId,
-        Date.now(),
-      ),
+      await nativeFinanceBankAutomation(write, actor.companyId).csvMappingInsert([id, actor.companyId, input.name, JSON.stringify(input), actor.userId, Date.now(),]),
   ]);},
 mapping:async(actor,mappingId)=>write
       .prepare(
@@ -84,19 +74,7 @@ importCommit:async(facts)=>{const {actor,key,op,input,statement,fileHash}=facts;
       1,
       { ...statement, fileHash },
       [
-        write
-          .prepare(
-            "INSERT INTO finance_bank_import_files(id,company_id,bank_account_id,mapping_id,file_hash,statement_id,created_at) VALUES(?,?,?,?,?,?,?)",
-          )
-          .bind(
-            crypto.randomUUID(),
-            actor.companyId,
-            input.bankAccountId,
-            input.mappingId,
-            fileHash,
-            statement.id,
-            Date.now(),
-          ),
+          await nativeFinanceBankAutomation(write, actor.companyId).importFileInsert([crypto.randomUUID(), actor.companyId, input.bankAccountId, input.mappingId, fileHash, statement.id, Date.now(),]),
       ],
     );},
 bank:async(actor,id)=>write
@@ -121,21 +99,8 @@ proposeCommit:async(facts)=>{const {actor,key,op,input,id,source,now,allocations
     1,
     { id, status: "proposed", version: 1 },
     [
-      write
-        .prepare(
-          "INSERT INTO finance_bank_match_groups(id,company_id,currency,status,source_hash,explanation_json,proposed_by,created_at,updated_at) VALUES(?,?,?,'proposed',?,?,?,?,?)",
-        )
-        .bind(
-          id,
-          actor.companyId,
-          source.currency,
-          source.hash,
-          JSON.stringify({ input, source }),
-          actor.userId,
-          now,
-          now,
-        ),
-      ...allocations.map(a=>write.prepare("INSERT INTO finance_bank_match_allocations(id,group_id,bank_transaction_id,target_type,target_id,amount_minor,created_at) VALUES(?,?,?,'journal_line',?,?,?)").bind(a.id,id,a.bankId,a.lineId,a.amount,now)),
+        await nativeFinanceBankAutomation(write, actor.companyId).matchGroupInsert([id, actor.companyId, source.currency, source.hash, JSON.stringify({ input, source }), actor.userId, now, now,]),
+      ...(await Promise.all(allocations.map(a=>nativeFinanceBankAutomation(write, actor.companyId).matchAllocationInsert([a.id,id,a.bankId,a.lineId,a.amount,now])))),
     ],
   );},
 group:async(actor,id)=>write
@@ -161,11 +126,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,group,prepared,curren
             "EXISTS(SELECT 1 FROM finance_bank_transactions WHERE id=? AND company_id=? AND version=? AND match_status IN ('unmatched','proposed'))",
             [b.id, actor.companyId, b.version],
           ),
-          write
-            .prepare(
-              "UPDATE finance_bank_transactions SET match_status='matched',matched_type='group',matched_id=?,version=version+1 WHERE id=?",
-            )
-            .bind(id, b.id),
+            await nativeFinanceBankAutomation(write, actor.companyId).txnMatch([id, b.id]),
         );
       for (const l of current!.lines)
         steps.push(
@@ -176,11 +137,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,group,prepared,curren
             "EXISTS(SELECT 1 FROM finance_journals WHERE id=? AND company_id=? AND version=? AND status='posted')",
             [l.journal_id, actor.companyId, l.version],
           ),
-          write
-            .prepare(
-              "INSERT INTO finance_bank_match_targets(journal_line_id,group_id) VALUES(?,?)",
-            )
-            .bind(l.id, id),
+            await nativeFinanceBankAutomation(write, actor.companyId).matchTargetInsert([l.id, id]),
         );
     } else if (action === "reverse") {
       for (const b of prepared.input.bankTransactionIds)
@@ -192,24 +149,14 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,group,prepared,curren
             "EXISTS(SELECT 1 FROM finance_bank_transactions WHERE id=? AND company_id=? AND match_status='matched' AND matched_type='group' AND matched_id=?)",
             [b, actor.companyId, id],
           ),
-          write
-            .prepare(
-              "UPDATE finance_bank_transactions SET match_status='unmatched',matched_type=NULL,matched_id=NULL,version=version+1 WHERE id=?",
-            )
-            .bind(b),
+            await nativeFinanceBankAutomation(write, actor.companyId).txnUnmatch([b]),
         );
       steps.push(
-        write
-          .prepare("DELETE FROM finance_bank_match_targets WHERE group_id=?")
-          .bind(id),
+          await nativeFinanceBankAutomation(write, actor.companyId).matchTargetDelete([id]),
       );
     }
     steps.push(
-      write
-        .prepare(
-          "UPDATE finance_bank_match_groups SET status=?,version=version+1,confirmed_by=CASE WHEN ?='matched' THEN ? ELSE confirmed_by END,reversed_by=CASE WHEN ?='reversed' THEN ? ELSE reversed_by END,updated_at=? WHERE id=?",
-        )
-        .bind(status, status, actor.userId, status, actor.userId, now, id),
+        await nativeFinanceBankAutomation(write, actor.companyId).matchGroupDecision([status, status, actor.userId, status, actor.userId, now, id]),
     );
     return executeCommand(
       write,

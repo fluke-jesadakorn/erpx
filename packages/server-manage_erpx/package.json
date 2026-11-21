@@ -21,7 +21,6 @@
     "./adapters/document-page-storage-limit": "./src/adapters/document-page-storage-limit.ts",
     "./adapters/company-provisioning-attachment-read-sources": "./src/adapters/company-provisioning-attachment-read-sources.ts",
     "./adapters/beta-team": "./src/adapters/beta-team.ts",
-    "./adapters/beta-config": "./src/adapters/beta-config.ts",
     "./adapters/ai-gateway-sources": "./src/adapters/ai-gateway-sources.ts",
     "./adapters/attachments-service-facts": "./src/adapters/attachments-service-facts.ts",
     "./adapters/beta-onboarding": "./src/adapters/beta-onboarding.ts",
@@ -44,7 +43,6 @@
     "./public/legal-portal-storage-allowance": "./src/public/legal-portal-storage-allowance.ts",
     "./public/document-page-storage-limit": "./src/public/document-page-storage-limit.ts",
     "./public/cloudflare": "./src/public/cloudflare.ts",
-    "./public/company-provisioning-attachment-read-sources": "./src/public/company-provisioning-attachment-read-sources.ts",
     "./public/beta-team": "./src/public/beta-team.ts",
     "./public/beta-config": "./src/public/beta-config.ts",
     "./public/ai-gateway-sources": "./src/public/ai-gateway-sources.ts",
@@ -52,7 +50,6 @@
     "./public/beta-onboarding": "./src/public/beta-onboarding.ts",
     "./public/finance-ai-quota-sources": "./src/public/finance-ai-quota-sources.ts",
     "./public/attachments-finance-facts": "./src/public/attachments-finance-facts.ts",
-    "./index": "./src/index.ts",
     "./application/resource-cleanup": "./src/application/resource-cleanup.ts",
     "./application/email": "./src/application/email.ts",
     "./application/api": "./src/application/api.ts",
@@ -63,7 +60,8 @@
     "./domain/email": "./src/domain/email.ts",
     "./domain/team": "./src/domain/team.ts",
     "./domain/onboarding": "./src/domain/onboarding.ts",
-    "./domain/config": "./src/domain/config.ts"
+    "./domain/config": "./src/domain/config.ts",
+    "./adapters/native-beta-task": "./src/adapters/native-beta-task.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -86,8 +84,8 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "pg": "8.23.0",
+    "pg": "8.23.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

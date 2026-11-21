@@ -1,13 +1,14 @@
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
 const allowedTargets = new Set<string>(["expense_claim", "expense_payment", "leave_request"]);
-const recordVersionTables: Record<string, {
-    table: string;
-    extra?: string;
-}> = { "expense_claim": { "table": "finance_expenses" }, "expense_payment": { "table": "expense_payment_drafts" } };
+const recordVersionKinds: Record<string, 'pp_attachments_record_version' | 'pp_attachments_payment_version'> = {
+    "expense_claim": 'pp_attachments_record_version',
+    "expense_payment": 'pp_attachments_payment_version',
+};
 function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: string, targetId: string, actor: WorkContext, version: number, index: number) {
     if (!allowedTargets.has(targetType))
         return null;
@@ -21,16 +22,16 @@ function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: strin
         throw new ApiError(422, "ATTACHMENT_TARGET_UNSUPPORTED", "This file target has no atomic version guard.");
     return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM ${item.table} WHERE id=? AND company_id=? AND version=?${item.extra ? ` AND ${item.extra}` : ""})`, [targetId, companyId, version]);
 }
-function ownerVersionStep(db: SqlDatabase, targetType: string, targetId: string, expectedVersion: number, now: number) {
+function ownerVersionStep(_db: SqlDatabase, targetType: string, targetId: string, expectedVersion: number, now: number) {
     if (!allowedTargets.has(targetType))
         return null;
     if (targetType === "leave_request")
-        return db.prepare("UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?").bind(now, targetId, expectedVersion);
-    const descriptor = recordVersionTables[targetType];
-    if (!descriptor)
+        return nativePpStatement('pp_attachments_leave_request').bind(now, targetId, expectedVersion);
+    const kind = recordVersionKinds[targetType];
+    if (!kind)
         throw new ApiError(422, "RECORD_ATTACHMENT_BIND_UNSUPPORTED", "This record does not support standalone document binding.");
-    return db.prepare(`UPDATE ${descriptor.table} SET version=version+1${["inventory_lots", "commerce_products", "marketing_campaigns"].includes(descriptor.table) ? "" : ",updated_at=?"} WHERE id=? AND version=?${descriptor.extra ? ` AND ${descriptor.extra}` : ""}`)
-        .bind(...(["inventory_lots", "commerce_products", "marketing_campaigns"].includes(descriptor.table) ? [targetId, expectedVersion] : [now, targetId, expectedVersion]));
+    // The table is fixed by this allow-list; no SQL is assembled in TypeScript.
+    return nativePpStatement(kind).bind(now, targetId, expectedVersion);
 }
 export function attachmentServicePeoplePayrollFacts(db: SqlDatabase) {
     return { versionGuard: (...args: Parameters<typeof ownerVersionGuard> extends [

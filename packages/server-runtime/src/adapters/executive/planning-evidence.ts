@@ -1,3 +1,4 @@
+import { recordExecutiveEvidenceAccess } from '@erpx/feature-runtime/adapters/server/native-executive-evidence';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -11,13 +12,15 @@ import { createPlanningEvidenceApplication, type PlanningEvidenceRepository } fr
 import { executiveEvidenceSources } from '@erpx/server-planning/public/executive-evidence-sources';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 function application(database: SqlDatabase) {
-    const repository: PlanningEvidenceRepository = { ...executiveEvidenceSources(database), source0(companyId: string, userId: string, assignmentId: string, providerId: "planning-scenarios-recommendations", metric: "planning-shortage-scenarios" | "proposed-planning-recommendations" | "capacity-feasible-recommendations", action: "search" | "open", value: string, queryHash: string, now: number, value2: string) {
-            return database.prepare(`INSERT INTO executive_evidence_access_events
-    (id,company_id,actor_id,assignment_id,provider_id,metric_id,action,record_id,record_version,field_ids,query_hash,created_at)
-    SELECT 'executive-evidence-'||gen_random_uuid()::text,?,?,?,?,?,?,item.record_id,item.record_version,?::jsonb,?,?
-    FROM jsonb_to_recordset(?::jsonb) AS item(record_id text,record_version bigint)`)
-                .bind(companyId, userId, assignmentId, providerId, metric, action, value, queryHash, now, value2)
-                .run();
+    const repository: PlanningEvidenceRepository = { ...executiveEvidenceSources(database), async source0(companyId: string, userId: string, assignmentId: string, providerId: "planning-scenarios-recommendations", metric: "planning-shortage-scenarios" | "proposed-planning-recommendations" | "capacity-feasible-recommendations", action: "search" | "open", value: string, queryHash: string, now: number, value2: string) {
+            const rows = JSON.parse(value2) as Array<{ record_id: string; record_version: number | null }>;
+            await recordExecutiveEvidenceAccess({
+                userId, companyId, assignmentId,
+                provider: providerId, metric, action,
+                fieldIds: value, queryHash,
+                records: rows.map((row) => ({ recordId: row.record_id, recordVersion: Number(row.record_version ?? 0) })),
+            });
+            return { success: true, meta: { changes: rows.length } };
         } };
     return createPlanningEvidenceApplication({ repository, clock: { now: Date.now }, digest: sha256, planningExecutiveEvidenceRow: (...args) => fromNative(() => planningExecutiveEvidenceRow(database, ...args)), assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), currentAuthority: (...args) => fromNative(() => currentAuthority(database, ...args)), metricCatalogFor: (...args) => fromNative(() => metricCatalogFor(database, ...args)) });
 }

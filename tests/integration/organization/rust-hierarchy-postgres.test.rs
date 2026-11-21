@@ -1,0 +1,142 @@
+#[path = "../../support/rust-postgres.rs"]
+mod fixture;
+use erpx_server_organization::public::{
+    NodeKind, PgOrganizationReader, WorkspaceRouteQuery, lock_hierarchy_sources,
+    read_company_context, resolve_workspace,
+};
+use erpx_server_runtime::public::postgres::{
+    MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions, load_migrations,
+    migrate_database,
+};
+use erpx_server_shared::public::{BusinessError, CompanyId, HoldingId, RecordId};
+
+#[tokio::test]
+async fn company_setup_acceptance_is_scoped_and_updated_tuple_retries_the_owner() {
+    use erpx_server_organization::public::{
+        PgCompanyBusinessAcceptanceReader, lock_business_acceptance_sources,
+    };
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    fixture::with_database(2,|pool|async move{
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+        sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,status)VALUES('company','company','acme','Synthetic',NULL,'company','active');INSERT INTO company_business_acceptance(company_id,status,version,requested_by,requested_at,reason,updated_at)VALUES('company','accepted',1,'requester',0,'Synthetic setup',0)").execute(pool.raw()).await.unwrap();
+        let attempts=Arc::new(AtomicUsize::new(0));let observed=attempts.clone();let writer=pool.clone();
+        let facts=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|{let attempts=attempts.clone();let writer=writer.clone();Box::pin(async move{
+            if attempts.fetch_add(1,Ordering::SeqCst)==0 {sqlx::query("SELECT status FROM company_business_acceptance").execute(&mut *connection).await?;sqlx::query("UPDATE company_business_acceptance SET status='revoked',version=version+1 WHERE company_id='company'").execute(writer.raw()).await?;}
+            lock_business_acceptance_sources(connection).await?;let mut reader=PgCompanyBusinessAcceptanceReader::new(connection);assert!(reader.current(&CompanyId::new("foreign").unwrap()).await?.is_none());reader.current(&CompanyId::new("company").unwrap()).await
+        })}).await.unwrap().unwrap();
+        assert_eq!(observed.load(Ordering::SeqCst),2);assert_eq!(facts.status,"revoked");assert_eq!(facts.version,2);
+    }).await;
+}
+#[tokio::test]
+async fn structural_routes_use_current_active_company_lineage_on_the_callers_transaction() {
+    fixture::with_database(2,|pool|async move {
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+        sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES
+         ('company','company','acme','Acme',NULL,'company',NULL,'active'),
+         ('branch','branch','north','North','company','company','branch','active'),
+         ('department','department','engineering','Engineering','branch','company','branch','active'),
+         ('company-department','department','legal','Legal','company','company',NULL,'active'),
+         ('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active'),
+         ('foreign-dept','department','wrong','Wrong','branch','foreign','branch','active')").execute(pool.raw()).await.unwrap();
+        let uow=PgUnitOfWork::new(pool.clone());
+        let context=uow.run::<_,BusinessError,_>(TransactionOptions::default(),|connection|Box::pin(async move {
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await?;
+            let mut port=PgOrganizationReader::new(HoldingId::new("h001").unwrap(),&mut *connection);
+            let query=WorkspaceRouteQuery::new(Some("north".into()),Some("engineering".into()),Some("acme".into())).unwrap();
+            let context=resolve_workspace(&mut port,&query).await?.unwrap();
+            let second:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(connection).await?;assert_eq!(pid,second);Ok(context)
+        })).await.unwrap();
+        assert_eq!(context.holding_id().as_str(),"h001");assert_eq!(context.company().id.as_str(),"company");assert_eq!(context.branch().unwrap().id.as_str(),"branch");
+        for (kind,id,expected_branch,valid) in [(NodeKind::Branch,"branch",Some("branch"),true),(NodeKind::Department,"department",Some("branch"),true),(NodeKind::Department,"company-department",None,true),(NodeKind::Department,"foreign-dept",None,false),(NodeKind::Branch,"department",None,false),(NodeKind::Company,"company",None,false)] {
+            PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|Box::pin(async move {
+                lock_hierarchy_sources(connection).await?;
+                let result=PgOrganizationReader::new(HoldingId::new("h001").unwrap(),connection).scope_node_context(&CompanyId::new("company").unwrap(),kind,&RecordId::new(id).unwrap()).await;
+                assert_eq!(result.is_ok(),valid,"scope node {id}");
+                if let Ok(context)=result {assert_eq!(context.branch().map(|b|b.id.as_str()),expected_branch);assert_eq!(context.department().is_some(),kind==NodeKind::Department)}
+                Ok(())
+            })).await.unwrap();
+        }
+        for (branch,department,valid) in [(None,None,true),(Some("branch"),None,true),(Some("branch"),Some("department"),true),(None,Some("company-department"),true),(None,Some("department"),false),(Some("branch"),Some("company-department"),false),(Some("branch"),Some("foreign-dept"),false),(Some("missing"),None,false)] {
+            uow.run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|Box::pin(async move {
+                let before:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await?;
+                let branch=branch.map(|id|RecordId::new(id).unwrap());let department=department.map(|id|RecordId::new(id).unwrap());
+                let result=PgOrganizationReader::new(HoldingId::new("h001").unwrap(),&mut *connection).scope_context(&CompanyId::new("company").unwrap(),branch.as_ref(),department.as_ref()).await;
+                assert_eq!(result.is_ok(),valid,"scope IDs {branch:?}/{department:?}");
+                assert_eq!(sqlx::query_scalar::<_,i32>("SELECT pg_backend_pid()").fetch_one(connection).await?,before);
+                Ok(())
+            })).await.unwrap();
+        }
+        let denied=uow.run::<_,BusinessError,_>(TransactionOptions::default(),|connection|Box::pin(async move {
+            sqlx::query("UPDATE organization_nodes SET status='suspended' WHERE id='company'").execute(&mut *connection).await?;
+            let mut port=PgOrganizationReader::new(HoldingId::new("h001").unwrap(),connection);
+            read_company_context(&mut port,&CompanyId::new("company").unwrap()).await
+        })).await;
+        assert!(matches!(denied,Err(PgTransactionError::Business(_))));
+        assert_eq!(sqlx::query_scalar::<_,String>("SELECT status FROM organization_nodes WHERE id='company'").fetch_one(pool.raw()).await.unwrap(),"active");
+        for (branch,department,company,exists) in [(None,Some("legal"),Some("acme"),true),(Some("north"),Some("wrong"),Some("acme"),false),(Some("north"),Some("engineering"),Some("foreign"),false)] {
+            uow.run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|Box::pin(async move {
+                let mut port=PgOrganizationReader::new(HoldingId::new("h001").unwrap(),connection);
+                let query=WorkspaceRouteQuery::new(branch.map(str::to_owned),department.map(str::to_owned),company.map(str::to_owned)).unwrap();
+                assert_eq!(resolve_workspace(&mut port,&query).await?.is_some(),exists);Ok(())
+            })).await.unwrap();
+        }
+    }).await;
+}
+
+#[tokio::test]
+async fn organization_reader_preserves_sqlstate_for_the_outer_whole_transaction_retry() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    fixture::with_database(2,|pool|async move{
+        sqlx::raw_sql("CREATE TABLE organization_nodes(id text PRIMARY KEY,kind text,slug text,display_name text,parent_id text,company_id text,branch_id text,status text,hierarchy_revision bigint); INSERT INTO organization_nodes VALUES('company','company','acme','Acme',NULL,'company',NULL,'active',1); CREATE SEQUENCE read_attempt; CREATE FUNCTION authority_probe() RETURNS boolean LANGUAGE plpgsql AS $$ BEGIN IF nextval('read_attempt')<2 THEN RAISE EXCEPTION 'retry authority snapshot' USING ERRCODE='40001'; END IF; RETURN true; END $$; ALTER TABLE organization_nodes ENABLE ROW LEVEL SECURITY; ALTER TABLE organization_nodes FORCE ROW LEVEL SECURITY; CREATE POLICY retry_probe ON organization_nodes USING(authority_probe());").execute(pool.raw()).await.unwrap();
+        let attempts=Arc::new(AtomicUsize::new(0));let observed=attempts.clone();
+        let context=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|{let observed=observed.clone();Box::pin(async move{
+            observed.fetch_add(1,Ordering::SeqCst);let mut port=PgOrganizationReader::new(HoldingId::new("h001").unwrap(),connection);
+            read_company_context(&mut port,&CompanyId::new("company").unwrap()).await
+        })}).await.unwrap();
+        assert_eq!(context.company().id.as_str(),"company");assert_eq!(attempts.load(Ordering::SeqCst),2);
+    }).await;
+}
+
+#[tokio::test]
+async fn scope_id_tuple_fences_reject_nodes_revoked_after_an_earlier_snapshot() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    fixture::with_database(2,|pool|async move{
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+        sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','acme','Acme',NULL,'company',NULL,'active'),('branch','branch','north','North','company','company','branch','active')").execute(pool.raw()).await.unwrap();
+        let attempts=Arc::new(AtomicUsize::new(0));let observed=attempts.clone();let writer=pool.clone();
+        let result=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move|connection|{
+            let observed=observed.clone();let writer=writer.clone();Box::pin(async move{
+                if observed.fetch_add(1,Ordering::SeqCst)==0 {
+                    assert_eq!(sqlx::query_scalar::<_,String>("SELECT status FROM organization_nodes WHERE id='branch'").fetch_one(&mut *connection).await?,"active");
+                    sqlx::query("UPDATE organization_nodes SET status='suspended',hierarchy_revision=hierarchy_revision+1 WHERE id='branch'").execute(writer.raw()).await?;
+                }
+                PgOrganizationReader::new(HoldingId::new("h001").unwrap(),connection).scope_context(&CompanyId::new("company").unwrap(),Some(&RecordId::new("branch").unwrap()),None).await
+            })
+        }).await;
+        assert!(matches!(result,Err(PgTransactionError::Business(ref error))if error.code=="WORKSPACE_NOT_FOUND"));
+        assert_eq!(attempts.load(Ordering::SeqCst),2,"the updated tuple must raise40001 before the new snapshot denies");
+    }).await;
+}
+
+#[tokio::test]
+async fn service_stock_branches_match_active_company_branch_picker_and_detect_drift() {
+    use erpx_server_organization::public::field_service_workspace::{
+        lock_service_workspace_locations, read_service_stock_branches,
+    };
+    fixture::with_database(2,|pool|async move{
+  let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");let files=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&files).await.unwrap();
+  sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','acme','Acme',NULL,'company',NULL,'active'),('b2','branch','b2','Alpha','company','company','b2','active'),('b1','branch','b1','Zulu','company','company','b1','active'),('b3','branch','b3','Archived','company','company','b3','suspended'),('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active'),('fb','branch','fb','Foreign branch','foreign','foreign','fb','active')").execute(pool.raw()).await.unwrap();
+  let result=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),|c|Box::pin(async move{
+   lock_service_workspace_locations(c).await?;let company=CompanyId::new("company").unwrap();let all=read_service_stock_branches(c,&company,None).await?;assert_eq!(all.branches().map(|x|x.id.as_str()).collect::<Vec<_>>(),vec!["b1","b2"]);let branch=read_service_stock_branches(c,&company,Some("b2")).await?;assert_eq!(branch.branches().count(),1);sqlx::query("UPDATE organization_nodes SET display_name='changed' WHERE id='b2'").execute(&mut *c).await?;all.require_current(c).await
+  })).await;assert!(result.is_err());
+ }).await;
+}

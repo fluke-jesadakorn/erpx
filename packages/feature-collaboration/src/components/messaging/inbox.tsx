@@ -1,17 +1,15 @@
 "use client";
-import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 
 import { Dialog } from "@erpx/ui/components/dialog";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
-import { FeatureTabBar, FeatureWidget, WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
+import { FeatureWidget, WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 
 import { PersonAvatar } from "@erpx/ui/components/person-avatar";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import Image from "next/image";
-import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 
 import type {
   MessagingHistory,
@@ -100,7 +98,7 @@ export function MessagingInbox({
   initialTab,
   initialPerson,
   initialRoom,
-  notificationUnread = 0,
+  notificationUnread: _notificationUnread = 0,
   initialOverview,initialHistory,contextToken="",
 }: {
   base: string;
@@ -112,7 +110,6 @@ export function MessagingInbox({
   notificationUnread?: number;
   initialOverview?:MessagingOverview;initialHistory?:MessagingHistory;contextToken?:string;
 }) {
-  const router = useRouter();
   const root = `/api/v1${base}/messaging`;
   const tab = initialTab;
   const [overview, setOverview] = useState<MessagingOverview>(initialOverview??{teams:[],rooms:[]});
@@ -228,34 +225,6 @@ export function MessagingInbox({
   }
   return (
     <MessagingDraftBoundary dirty={draft.dirty||editorDraft.dirty||editorDraft.unresolved} unresolved={draft.unresolved||editorDraft.unresolved} onDiscard={()=>discardDraft.current()}>
-      <FeatureTabBar appearance="standard" aria-label="Inbox sections" data-inbox-sections>
-        {(["chats", "teams", "updates"] as const).map((value) => (
-          <Button appearance="standard"
-            type="submit"
-            variant="ghost"
-            key={value}
-            aria-current={tab === value ? "page" : undefined}
-            onClick={() => {
-              navigate(()=>router.push(canonicalUiHref(`${base}/inbox?tab=${value}`), { scroll: false }));
-            }}
-          >
-            {{ chats: "Messages", teams: "Teams", updates: "Notifications" }[value]}
-            {value === "updates" && notificationUnread > 0 && (
-              <span className={styles.badge}>{notificationUnread}</span>
-            )}
-            {value !== "updates" &&
-              overview.rooms
-                .filter((r) => (value === "teams") === (r.kind === "channel"))
-                .reduce((sum, r) => sum + r.unread, 0) > 0 && (
-                <span className={styles.badge}>
-                  {overview.rooms
-                    .filter((r) => (value === "teams") === (r.kind === "channel"))
-                    .reduce((sum, r) => sum + r.unread, 0)}
-                </span>
-              )}
-          </Button>
-        ))}
-      </FeatureTabBar>
       {tab === "updates" ? (
         updates
       ) : (

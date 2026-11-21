@@ -20,6 +20,7 @@ import {BusinessRuleError} from '@erpx/server-shared/index';
 import {posStartupMappingState} from '@erpx/server-commerce/adapters/pos-posting-setup-sources';
 import {createPosStartupMasterInTransaction} from '@erpx/server-commerce/adapters/commerce';
 import {posStartupProductSchema,posStartupWarehouseSchema,type PosStartupProductInput,type PosStartupWarehouseInput,type PosStartupMasterResult} from '@erpx/server-commerce/domain/pos-startup-masters';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 const capabilities=['pos.sales','inventory.stock-core','finance.pos-posting'] as const;
 type Kind='products'|'warehouses';
 const changed=()=>new ApiError(409,'POS_STARTUP_SOURCE_CHANGED','The original POS mapping, master or price source changed before completion.');
@@ -89,7 +90,7 @@ async function create(actor:WorkContext,kind:Kind,raw:unknown,key:string):Promis
   if(!expectedReceipt)throw changed();
   const saved=JSON.parse(expectedReceipt) as {result_json:string;request_hash:string},savedResult=JSON.parse(saved.result_json) as {id?:unknown;version?:unknown};
   if(!saved.request_hash||savedResult.id!==id||savedResult.version!==1)throw changed();
-  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));
   await flushFinanceDeferredEffects(database);
   if(expectedReceipt!==await ownReceipt(database,actor,operation,key,id)||JSON.stringify(mapping)!==JSON.stringify(await posStartupMappingState(database,actor.companyId))||finance.image!==(await posStartupMasterFinanceSource(database,actor.companyId,String(mapping.chartId),String(mapping.currency))).image||expectedMaster!==await master(database,actor,kind,id)||JSON.stringify(expectedMoney)!==JSON.stringify(kind==='products'?await posStartupProductMoneySource(database,actor.companyId,id):null))throw changed();
   if(receipt&&(before!==expectedMaster||JSON.stringify(beforeMoney)!==JSON.stringify(expectedMoney)))throw changed();

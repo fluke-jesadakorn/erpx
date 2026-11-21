@@ -1,9 +1,11 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,returnRequestSchema,saveMaster,saveOrder,orderSchema,transitionOrder,fulfillOrder,fulfillmentSchema,invoiceFulfillment,settleInvoice} from '@erpx/server-commerce/public/commerce';
+import {requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,returnRequestSchema,saveMaster,saveOrder,orderSchema,transitionOrder,fulfillmentSchema,invoiceFulfillment,settleInvoice} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import {postInvoice,postJournal,reversePayment} from '@erpx/server-finance/public/finance';
+import {postInvoice,reversePayment} from '@erpx/server-finance/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import { deliveryEvidence } from "../../support/helpers/delivery-evidence";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
@@ -47,10 +49,10 @@ it("completes and invoices services without warehouses, inventory or cost journa
   await assign("order", orderId, "confirmed", f.owner.userId);
   const lineId = String((await getOrder(f.owner, orderId)).lines[0].id), completionKey = key();
   const completionInput = fulfillmentSchema.parse({ expectedVersion: 3, date: "2026-09-03", completionMode: "service", evidenceNote: "Customer accepted installation phase one", lines: [{ lineId, quantity: "1" }] });
-  const first = await fulfillOrder(f.owner, orderId, completionInput, completionKey);
-  expect(await fulfillOrder(f.owner, orderId, completionInput, completionKey)).toEqual(first);
-  await expect(fulfillOrder(f.owner, orderId, completionInput, key())).rejects.toMatchObject({ status: 409 });
-  const second = await fulfillOrder(f.owner, orderId, fulfillmentSchema.parse({ ...completionInput, expectedVersion: 4, date: "2026-09-04" }), key());
+  const first = await seedCommerceFulfillment(db, f.owner, orderId, completionInput, completionKey);
+  expect(await seedCommerceFulfillment(db, f.owner, orderId, completionInput, completionKey)).toEqual(first);
+  await expect(seedCommerceFulfillment(db, f.owner, orderId, completionInput, key())).rejects.toMatchObject({ status: 409 });
+  const second = await seedCommerceFulfillment(db, f.owner, orderId, fulfillmentSchema.parse({ ...completionInput, expectedVersion: 4, date: "2026-09-04" }), key());
   expect(await db.prepare("SELECT COUNT(*) n FROM commerce_stock WHERE product_id=?").bind(service.id).first("n")).toBe(0);
   expect(await db.prepare("SELECT COUNT(*) n FROM commerce_fulfillments WHERE order_id=? AND journal_id IS NOT NULL").bind(orderId).first("n")).toBe(0);
   await expect(saveMaster(f.owner, "products", String(service.id), { expectedVersion: 1, sku: key(), name: "Installation", price: "100", itemType: "stock" }, key())).rejects.toMatchObject({code:"ITEM_TYPE_LOCKED"});
@@ -86,7 +88,7 @@ it("completes and invoices services without warehouses, inventory or cost journa
   expect(reviewed.stockJournalId).toBeUndefined();
   const creditJournal=String(reviewed.creditJournalId),flow=await resolveFlow(db,f.owner,"journal",creditJournal);
   await assignFlowPrimary(db,f.owner,"journal",creditJournal,{stepKey:"draft",userId:f.manager.userId,reason:"Independent Finance review of service credit",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
-  await postJournal(f.manager,creditJournal,key(),{expectedVersion:1});
+  await markFinanceJournalPosted(db,creditJournal,f.manager.userId);
   await completeCommerceReturn(f.manager,String(credit.id),{expectedVersion:2},key());
   expect(await db.prepare("SELECT COUNT(*) n FROM inventory_ledger WHERE product_id=?").bind(service.id).first("n")).toBe(0);
 
@@ -157,19 +159,19 @@ it("combines equipment and installation, preserving stock cost and itemized sour
   const result=await saveOrder(f.owner,null,orderSchema.parse({kind:"sales",partyId:customer.id,warehouseId:warehouse.id,orderDate:"2026-09-02",dueDate:"2026-09-10",lines:[{productId:goods.id,quantity:"2",price:"100",taxBps:700},{productId:service.id,quantity:"1",price:"50",taxBps:700}]}),key()),orderId=String(result.id);
   await transitionOrder(f.owner,orderId,{expectedVersion:1,action:"submit"},key());await transitionOrder(f.head,orderId,{expectedVersion:2,action:"approve"},key());await assign("order",orderId,"confirmed",f.owner.userId);
   const lines=(await getOrder(f.owner,orderId)).lines;
-  const delivered=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:"2026-09-03",lines:[{lineId:String(lines.find(line=>line.item_type==="stock")!.id),quantity:"1"}],...await deliveryEvidence(db,f.owner,orderId,"Customer signed equipment delivery proof")}),key());
-  const completed=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:4,date:"2026-09-03",completionMode:"service",evidenceNote:"Installed and accepted by the customer",lines:[{lineId:String(lines.find(line=>line.item_type==="service")!.id),quantity:"1"}]}),key());
+  const delivered=await seedCommerceFulfillment(db, f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:"2026-09-03",lines:[{lineId:String(lines.find(line=>line.item_type==="stock")!.id),quantity:"1"}],...await deliveryEvidence(db,f.owner,orderId,"Customer signed equipment delivery proof")}),key());
+  const completed=await seedCommerceFulfillment(db, f.owner,orderId,fulfillmentSchema.parse({expectedVersion:4,date:"2026-09-03",completionMode:"service",evidenceNote:"Installed and accepted by the customer",lines:[{lineId:String(lines.find(line=>line.item_type==="service")!.id),quantity:"1"}]}),key());
   expect(await db.prepare("SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id=?").bind(goods.id).first()).toEqual({quantity_milli:1000,value_minor:3000});
   expect(await db.prepare("SELECT COUNT(*) n FROM inventory_ledger WHERE product_id=?").bind(service.id).first("n")).toBe(0);
   const journal=String(await db.prepare("SELECT journal_id FROM commerce_fulfillments WHERE id=?").bind(delivered.fulfillmentId).first("journal_id"));
-  const flow=await resolveFlow(db,f.owner,"journal",journal);await assignFlowPrimary(db,f.owner,"journal",journal,{stepKey:"draft",userId:f.manager.userId,reason:"Review goods cost independently",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postJournal(f.manager,journal,key(),{expectedVersion:1});
+  const flow=await resolveFlow(db,f.owner,"journal",journal);await assignFlowPrimary(db,f.owner,"journal",journal,{stepKey:"draft",userId:f.manager.userId,reason:"Review goods cost independently",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await markFinanceJournalPosted(db,journal,f.manager.userId);
   await assign("order",orderId,"invoicing",f.owner.userId);
   const invoice=await invoiceFulfillment(f.owner,String(delivered.fulfillmentId),{expectedVersion:1,date:"2026-09-03",dueDate:"2026-09-10",useSalesDefaults:true,additionalFulfillments:[{id:String(completed.fulfillmentId),expectedVersion:1}]},key()),invoiceId=String(invoice.invoiceId);
   const detail=await getInvoice(f.owner,invoiceId);expect(detail.lines.map(line=>[line.description,line.quantity_millis,line.total_minor])).toEqual([["Equipment",1000,10700],["Installation",1000,5350]]);
   expect(detail.invoice.total_minor).toBe(16050);
   expect((await salesWorkspace({...f.owner,branchId:f.branch},{tab:"invoices",currency:"THB"})).page?.items.some(row=>row.id===invoiceId)).toBe(true);
   expect((await salesWorkspace({...f.owner,branchId:"other-branch"},{tab:"invoices"})).page?.items.some(row=>row.id===invoiceId)).toBe(false);
-  await expect(fulfillOrder({...f.owner,branchId:"other-branch"},orderId,fulfillmentSchema.parse({expectedVersion:5,date:"2026-09-04",lines:[{lineId:String(lines[0].id),quantity:"1"}]}),key())).rejects.toMatchObject({code:"ORDER_NOT_FOUND"});
+  await expect(seedCommerceFulfillment(db, {...f.owner,branchId:"other-branch"},orderId,fulfillmentSchema.parse({expectedVersion:5,date:"2026-09-04",lines:[{lineId:String(lines[0].id),quantity:"1"}]}),key())).rejects.toMatchObject({code:"ORDER_NOT_FOUND"});
 });
 
 
@@ -204,7 +206,7 @@ async function zeroLedgerSalesCompany() {
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),salesManager=await actor('sales-manager','sales_manager'),treasury=await actor('treasury','treasury');
-  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
+  const {positionSchema}=await import('@erpx/server-organization/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[salesManager,3],[treasury,4]] as const){
@@ -288,8 +290,8 @@ it('Sales-only service startup creates its empty ledger and independently review
   await transitionOrder(z.owner,String(quote.id),{expectedVersion:1,action:'submit'},key());await transitionOrder(z.salesManager,String(quote.id),{expectedVersion:2,action:'approve'},key());await assignZeroSales(z,'order',String(quote.id),'confirmed',z.owner);
   const conversion=await transitionOrder(z.owner,String(quote.id),{expectedVersion:3,action:'convert'},key()),orderId=String(conversion.salesId);
   await transitionOrder(z.owner,orderId,{expectedVersion:1,action:'submit'},key());await transitionOrder(z.salesManager,orderId,{expectedVersion:2,action:'approve'},key());await assignZeroSales(z,'order',orderId,'confirmed',z.owner);
-  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completeBody=fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Customer accepted the actual installed service',lines:[{lineId,quantity:'1'}]}),completeKey=key(),completion=await fulfillOrder(z.owner,orderId,completeBody,completeKey);
-  expect(await fulfillOrder(z.owner,orderId,completeBody,completeKey)).toEqual(completion);
+  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completeBody=fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Customer accepted the actual installed service',lines:[{lineId,quantity:'1'}]}),completeKey=key(),completion=await seedCommerceFulfillment(db, z.owner,orderId,completeBody,completeKey);
+  expect(await seedCommerceFulfillment(db, z.owner,orderId,completeBody,completeKey)).toEqual(completion);
   expect(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(completion.fulfillmentId).first()).toMatchObject({journal_id:null});
   expect(await db.prepare('SELECT count(*) n FROM commerce_stock WHERE product_id=?').bind(service.id).first('n')).toBe(0);
   expect(await db.prepare('SELECT count(*) n FROM inventory_ledger WHERE product_id=?').bind(service.id).first('n')).toBe(0);
@@ -448,7 +450,7 @@ async function legacyServiceReceiptWithoutPurchase(){
     await transitionOrder(f.owner,String(quote.id),{expectedVersion:1,action:'submit'},key());await transitionOrder(f.head,String(quote.id),{expectedVersion:2,action:'approve'},key());await assign('order',String(quote.id),'confirmed',f.owner.userId);
     const converted=await transitionOrder(f.owner,String(quote.id),{expectedVersion:3,action:'convert'},key()),orderId=String(converted.salesId);
     await transitionOrder(f.owner,orderId,{expectedVersion:1,action:'submit'},key());await transitionOrder(f.head,orderId,{expectedVersion:2,action:'approve'},key());await assign('order',orderId,'confirmed',f.owner.userId);
-    const lineId=String((await getOrder(f.owner,orderId)).lines[0].id),completed=await fulfillOrder(f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original legacy customer confirmed the service',lines:[{lineId,quantity:'1'}]}),key());
+    const lineId=String((await getOrder(f.owner,orderId)).lines[0].id),completed=await seedCommerceFulfillment(db, f.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original legacy customer confirmed the service',lines:[{lineId,quantity:'1'}]}),key());
     await assign('order',orderId,'invoicing',f.owner.userId);
     const invoiced=await invoiceFulfillment(f.owner,String(completed.fulfillmentId),{expectedVersion:1,date:'2026-09-03',dueDate:'2026-09-10'},key()),invoiceId=String(invoiced.invoiceId);
     await assign('invoice',invoiceId,'draft',f.manager.userId);await postInvoice(f.manager,invoiceId,{expectedVersion:1,periodId:f.period,entryDate:'2026-09-03'},key());await assign('invoice',invoiceId,'posted',f.payer.userId);
@@ -589,4 +591,49 @@ it('Sales service catalogue concurrent actual read and original creation retain 
  expect(read).toMatchObject({available:true,currency:'THB',canCreate:true,unavailableReason:null});expect(created).toEqual({id:`products-${command}`,version:1});expect([[],[created.id]]).toContainEqual(read.products.map(product=>product.id));
  expect({deadlockFailures:measured.metrics.deadlockFailures??0,serializationFailures:measured.metrics.serializationFailures??0,transactionRetries:measured.metrics.transactionRetries??0}).toEqual({deadlockFailures:0,serializationFailures:0,transactionRetries:0});
  const before=await zeroSalesCommandImage(command);expect(await api.createSalesServiceProduct(z.owner,input,command)).toEqual(created);expect(await zeroSalesCommandImage(command)).toEqual(before);expect((await api.salesServiceProducts(z.owner)).products).toEqual([{id:created.id,sku:input.sku,name:input.name,unit:'each',priceMinor:1250,taxBps:0,status:'active',version:1}]);expect(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='commerce_product_revision' AND source_id=? AND amount_kind='unit_price'").bind(z.company,`${created.id}:1`).first('n')).toBe(1);
+});
+
+it('resolves current Commerce settings before exact order replay including approved Finance fallback',async()=>{
+  const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Replay settings customer'},key())).id);
+  const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Replay settings service',itemType:'service',price:'100',taxBps:700},key())).id);
+  const command=key(),input=orderSchema.parse({kind:'quote',partyId:customer,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId:product,quantity:'1',price:'100',taxBps:700}]}),receipt=await saveOrder(f.owner,null,input,command),id=String(receipt.id);
+  const {commerceFinanceJoinedFacts}=await import('@erpx/server-finance/public/commerce-joined-facts');
+  type Database=import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  const images=async(database:Database)=>({
+   order:await database.prepare('SELECT to_jsonb(o)::text image FROM commerce_orders o WHERE id=?').bind(id).first(),
+   lines:(await database.prepare('SELECT to_jsonb(l)::text image FROM commerce_order_lines l WHERE order_id=? ORDER BY id').bind(id).all()).results,
+   money:(await database.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${id}:%`,`${id}-line-%`).all()).results,
+   receipts:await Promise.all(['command_receipts','audit_events','outbox_events'].map(async table=>(await database.prepare(`SELECT to_jsonb(r)::text image FROM ${table} r WHERE command_id=? ORDER BY image`).bind(command).all()).results)),
+  });
+  const before=await images(db);expect(before.order).not.toBeNull();expect(before.lines).toHaveLength(1);expect(before.money).toHaveLength(4);for(const rows of before.receipts)expect(rows).toHaveLength(1);
+  const archivedChart=`archived-chart-${key()}`;
+  async function withoutCurrentSettings(tx:Database){
+   await tx.prepare("INSERT INTO finance_charts(id,company_id,name,base_currency,status,created_by,created_at,updated_at) VALUES(?,?,?,'THB','archived',?,1,1)").bind(archivedChart,f.company,archivedChart,f.owner.userId).run();
+   await tx.prepare('UPDATE commerce_settings SET chart_id=? WHERE company_id=?').bind(archivedChart,f.company).run();
+  }
+  await expect(db.transaction(async tx=>{
+   await withoutCurrentSettings(tx);
+   expect(await commerceFinanceJoinedFacts(tx).readCommerceSettings1({companyId:f.company})).toBeNull();
+   await expect(saveOrder(f.owner,null,input,command,tx)).rejects.toMatchObject({status:409,code:'COMMERCE_SETUP_REQUIRED'});
+   expect(await images(tx)).toEqual(before);
+   throw new Error('ROLLBACK_SETTINGS_ORACLE');
+  })).rejects.toThrow('ROLLBACK_SETTINGS_ORACLE');
+  expect(await images(db)).toEqual(before);
+  await defaults();
+  await expect(db.transaction(async tx=>{
+   await withoutCurrentSettings(tx);
+   const fallback=await commerceFinanceJoinedFacts(tx).readCommerceSettings1({companyId:f.company});
+   expect(fallback).toMatchObject({company_id:f.company,chart_id:f.chart,currency:'THB'});expect(fallback?.approved_sales_defaults_id).toBeTruthy();
+   expect(await saveOrder(f.owner,null,input,command,tx)).toEqual(receipt);
+   expect(await images(tx)).toEqual(before);
+   throw new Error('ROLLBACK_SETTINGS_ORACLE');
+  })).rejects.toThrow('ROLLBACK_SETTINGS_ORACLE');
+  await expect(db.transaction(async tx=>{
+   await tx.prepare("UPDATE commerce_settings SET currency='USD' WHERE company_id=?").bind(f.company).run();
+   const settings=await commerceFinanceJoinedFacts(tx).readCommerceSettings1({companyId:f.company});expect(settings?.currency).toBe('USD');
+   expect(await saveOrder(f.owner,null,input,command,tx)).toEqual(receipt);
+   expect(await images(tx)).toEqual(before);
+   throw new Error('ROLLBACK_SETTINGS_ORACLE');
+  })).rejects.toThrow('ROLLBACK_SETTINGS_ORACLE');
+  expect(await images(db)).toEqual(before);
 });

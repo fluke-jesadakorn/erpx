@@ -21,7 +21,6 @@ export async function project(env: JobEnv, message: EventMessage) {
         throw Error('INVALID_HOLDING');
     const { read, write } = registeredDatabases(env, message.holdingId);
     return createJobProjectorApplication({ knownHolding: () => known, clock: { now: Date.now }, production: process.env.NODE_ENV === 'production',
-        pmsEvent: async (event) => (await import('@erpx/server-pms/public/pms/social-events')).projectPmsSocialEvent(write, event),
         customerNotificationId: id => workflowCustomerNotificationId(write, id), deliverCustomerNotification: async (id) => (await import('@erpx/server-sales/public/sales-customer-notifications')).deliverCustomerNotification(write, env, id),
         legalAi: async () => { await (await import('@erpx/server-legal/public/legal/jobs')).drainLegalAi(write, env); }, executiveGeneration: async () => { await (await import('@erpx/server-runtime/public/executive/generation')).drainExecutiveGeneration(write, env); }, socialAgent: async (id) => { await drainSocialAgent(write, env, id, undefined, registeredResources(env, message.holdingId).files, message.holdingId); },
         expenseAi: async (id) => { await drainExpenseAi(write, registeredResources(env, message.holdingId).files, env, id); }, financeAi: async () => { await (await import('@erpx/server-finance/public/finance-ai')).drainFinanceAi(write, env); }, requestAi: async (id) => { await drainRequestAi(write, env, id); },

@@ -200,20 +200,7 @@ function CalendarView({
     qRef.current = query;
     void load(query, false, "push");
   }
-  function changePreset(preset: "mine" | "team" | "coverage") {
-    const query: CalendarQuery = {
-      ...qRef.current,
-      preset,
-      mode: preset === "mine" ? "mine" : "team",
-      view: preset === "coverage" ? "week" : "month",
-      layers: preset === "coverage" ? "roster,leave" : calendarLayers.join(","),
-      person: undefined,
-      search: "",
-      cursor: 0,
-    };
-    qRef.current = query;
-    void load(query, false, "push");
-  }
+
   function open(item: CalendarItem) {
     setSelected(item);
     setEditScope(item.occurrenceId ? "single" : "series");
@@ -671,25 +658,6 @@ function CalendarView({
         description="See your schedule, team plans and coverage in one place."
         action={
           <div className={styles.headerActions}>
-            <div className={styles.presetSwitch} role="group" aria-label="Calendar view">
-              {(
-                [
-                  ["mine", "My"],
-                  ["team", "Team"],
-                  ["coverage", "Coverage"],
-                ] as const
-              ).map(([preset, title]) => (
-                <Button
-                  variant="plain"
-                  key={preset}
-                  type="button"
-                  aria-pressed={activePreset === preset}
-                  onClick={() => changePreset(preset)}
-                >
-                  {title}
-                </Button>
-              ))}
-            </div>
             {(data.canSchedule ||
               data.canAnnounce ||
               data.canManageRoster ||

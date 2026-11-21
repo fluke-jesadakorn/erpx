@@ -8,7 +8,7 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@erpx/ui/components/foundation";
 
-import { financeCommandFetch as workFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
+import { financeCommandFetch as workFetch } from "@erpx/feature-finance/public/client";
 import { useRef, useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";

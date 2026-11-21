@@ -6,7 +6,8 @@ import { beforeAll,beforeEach,afterEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import { accountingProfiles,financialEvents,decideAccountingProfile,prepareAccountingProfile } from "@erpx/server-finance/public/accounting-profiles";
-import {aging,beginClose,calculateCloseReconciliations,createAccount,createChart,createInvoice,createJournal,createJournalSchema,createPeriod,createParty,createTaxCode,createLoan,importAccounts,importBankStatement,invoiceSchema,postInvoice,postJournalBatch,reversePayment,statements,trialBalance} from '@erpx/server-finance/public/finance';
+import {aging,calculateCloseReconciliations,createAccount,createChart,createInvoice,createPeriod,createParty,createTaxCode,createLoan,importAccounts,importBankStatement,invoiceSchema,postInvoice,postJournalBatch,reversePayment,statements,trialBalance} from '@erpx/server-finance/public/finance';
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import {settleInvoice} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 
@@ -23,7 +24,7 @@ async function assign(kind:"journal"|"invoice",id:string,stepKey:string,userId=f
   await assignFlowPrimary(db,f.owner,kind,id,{stepKey,userId,reason:"Independent Thai accounting fixture review",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
 }
 async function draft(lines=2){
-  const journal=await createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-02",currency:"THB",memo:"Accountant checked fixture",lines:Array.from({length:lines},(_,index)=>({accountId:index%2?f.accounts.revenue:f.accounts.cash,debit:index%2?"0":"1",credit:index%2?"1":"0"}))}),key());
+  const journal=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-02",currency:"THB",memo:"Accountant checked fixture",key:key(),createdBy:f.reviewer.userId,lines:Array.from({length:lines},(_,index)=>({accountId:index%2?f.accounts.revenue:f.accounts.cash,debit:index%2?"0":"1",credit:index%2?"1":"0"}))});
   await assign("journal",journal.id,"draft");return {id:journal.id,expectedVersion:1};
 }
 
@@ -161,7 +162,6 @@ describe("Thai accounting foundation",()=>{
     const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<FinanceRow>();
     const reconciliation=await calculateCloseReconciliations(db,f.manager,period!);
     expect(reconciliation).toMatchObject({ready:false,rows:[expect.objectContaining({differenceMinor:0,source:expect.objectContaining({legacyDateCount:1})})]});
-    await expect(beginClose(f.reviewer,f.period,key())).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_FAILED"});
   });
 
   it("imports a quiet-month bank statement and keeps balance-sheet carry-forward separate from period profit",async()=>{

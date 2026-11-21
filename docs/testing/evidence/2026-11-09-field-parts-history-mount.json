@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The committed Inventory Field parts consumption source is mounted into the Field Service parts posting setup prior-history read. A positive Field consumption now sets has_history and blocks a new parts setup mapping. This is a real owner read mount, not a workflow promotion.",
+  "capability": "field-parts-consumption-prior-history",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commit": "eb5989b594faf8a8d0fab7b1bd0bd1627477b859",
+  "scope": {
+    "source": "packages/server-field_service/src/adapters/service_parts_posting.rs",
+    "dependency": "packages/server-field_service/Cargo.toml and Cargo.lock add the existing erpx-server-inventory owner dependency.",
+    "read": "lock_service_parts_field_history now acquires the Inventory Field consumption fence; capture() reads the canonical field_history_consumptions CTE and ORs has_consumption into has_history.",
+    "productConsumer": "src/composition/src/service_parts_posting_setup.rs and service_parts_prerequisite_setup.rs use ServicePartsFieldHistory.has_history to reject prior-stock-history setup.",
+    "test": "tests/integration/field_service/rust-service-parts-history-postgres.test.rs adds field_service_history_includes_field_parts_consumption."
+  },
+  "verification": {
+    "ownerSuite": "PASS: cargo test -p erpx-server-field-service --locked --test service_parts_history_postgres: 5 passed, 0 failed, 0 ignored (5.48s), .scratch/dev/rust-migration/current/field-parts-history-mount3.log.",
+    "productRead": "PASS: cargo test -p erpx-service --locked --test field_service_http_parity_postgres --features finance-field-write service_posting_context_matches_javascript_with_actual_same_unit_sources: 1 passed, 0 failed, 13 filtered (11.48s), .scratch/dev/rust-migration/current/field-parts-history-http.log.",
+    "coverage": "The new owner case seeds a real Field order/event, warehouse/product, finance journal/lines and operational_inventory_consumptions row with deferred guards enabled, then asserts has_consumption and has_history and rollback. The product read case is the existing same-unit setup context oracle."
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "The mount closes the parts-consumption prior-history gap in the Field parts setup read, but the six Field workflows still require the remaining Count/Files/Finance handoff mounts, legacy retirement and authenticated browser gates. No owner is certified."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Mount the remaining Count terminal/Files/Finance History sources into their native reads, then run the full Field workflow gates and authenticated browser verification."
+}

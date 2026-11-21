@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Bounded native Platform Administration control-plane slice implemented and tested over PostgreSQL, owner-local HTTP and Next transport. It covers provisioning read/activation, the operational summary read and reviewed dead-letter recovery. Shared composition mounting, the native migration-run command, Next API route cutover and browser acceptance remain open, so the nine platform_administration workflows remain partial.",
+  "capability": "platform-administration-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "a6c4f5d8a",
+  "scope": {
+    "workflows": [
+      "platform_administration/provisioning",
+      "platform_administration/feature-holdings",
+      "platform_administration/feature-infrastructure",
+      "platform_administration/feature-projections-events",
+      "platform_administration/feature-migration-runs",
+      "platform_administration/feature-platform-audit"
+    ],
+    "domain": "Native Platform Administration facts: resource slots, provisioning rows/results, immutable provisioning event actions, Holding job/dead-letter facts, control service health, migration status and exact operation totals. Pure rules validate the platform_admin/platform_auditor split, Holding/slot identity, reserved slots, slug/display/reason bounds, recovery event identity, attempt snapshots, stable SHA-256 command digests and available-slot derivation.",
+    "application": "Owner use cases for provisioning snapshot, combined operations/provisioning snapshot, provision Holding and recover one dead-letter job. Every command revalidates the current Platform role and typed input before replay, returns a retained receipt for an exact replay and refuses changed keys or incomplete receipts. The operations summary keeps an unavailable configured Holding visible with an explicit error and degrades only its migration receipt state.",
+    "adapters": "PostgreSQL Control adapter reads platform_holding_provisioning and holding_bindings, writes provisioning receipts/events and activates the Control binding in one serializable unit with a per-slot session lock and version CAS. It reads control runtime_health and, per explicitly configured Holding pool, outbox_events plus the runtime migration receipt API. Recovery clears one dead-letter under an attempts/last-error snapshot and writes command_receipts and audit_events in the same Holding transaction. No cross-Holding fallback and no unconfigured Holding SQL.",
+    "http": "Owner-local Router for GET /api/v1/platform/operations, POST /api/v1/platform/operations/provision and POST /api/v1/platform/operations/recover. Exact registered Platform Host, exact HTTPS Origin on commands, one Idempotency-Key, JSON content type, 64 KiB body limit, private/no-store/no-referrer/nosniff responses and bounded BusinessError status mapping. The backend receives typed commands and never mints a session, Platform role or Holding scope.",
+    "transport": "packages/feature-platform_administration/src/adapters/server/native-platform-administration.ts validates ERPX_NATIVE_PLATFORM_ADMIN_CONFIG (loopback only, reserved ports rejected, exact HTTPS Holding origin, unique hosts/slugs/ids, 250..30000 ms), forwards the actual session cookie, Host, work-context CAS and Platform assignment, strictly validates every provisioning/job/migration/context field and bounds responses. Provisioning and recovery commands require the exact incoming origin and idempotency key.",
+    "ssr": "The Manage ERPX presenter composes the provisioning and operations snapshot through the native transport. Unset or malformed configuration fails closed with 503 NATIVE_PLATFORM_ADMIN_UNAVAILABLE; a configured failure maps to a bounded ApiError and never falls back to platformOperationsForPresentation.",
+    "notClaimed": "No browser or authenticated page render, shared composition mount, Next API route cutover, native migration-run command, backup/restore command, connector lifecycle, temporary-access lifecycle or production acceptance."
+  },
+  "changedFiles": [
+    "packages/server-platform_administration/src/domain/platform_operations.rs",
+    "packages/server-platform_administration/src/application/platform_operations.rs",
+    "packages/server-platform_administration/src/adapters/platform_postgres.rs",
+    "packages/server-platform_administration/src/adapters/platform_http.rs",
+    "packages/server-platform_administration/src/public/platform_operations.rs",
+    "packages/server-platform_administration/src/domain/mod.rs",
+    "packages/server-platform_administration/src/application/mod.rs",
+    "packages/server-platform_administration/src/adapters/mod.rs",
+    "packages/server-platform_administration/src/public/mod.rs",
+    "packages/server-platform_administration/Cargo.toml",
+    "packages/feature-platform_administration/src/adapters/server/native-platform-administration.ts",
+    "packages/feature-platform_administration/src/lib/native-platform-administration.ts",
+    "packages/feature-platform_administration/package.json",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manage-erpx/screen.tsx",
+    ".env.example",
+    "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs",
+    "tests/unit/platform_administration/native-platform-administration-transport.test.ts",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-platform-administration --locked -- --test-threads=1",
+      "result": "19 passed, 0 failed, 0 ignored",
+      "targets": {
+        "lib": "14 passed (12 Platform domain/application/HTTP cases plus the existing 2 Legal release/attestation tests)",
+        "legal_release": "2 passed",
+        "platform_administration_postgres": "3 passed",
+        "doc-tests": "0 passed"
+      }
+    },
+    "postgres": {
+      "suite": "platform_administration.rust-platform-administration-postgres.integration",
+      "fixture": "ERPX_TEST_ADMIN_URL on 127.0.0.1:5432 with disposable erpx_dev_rust_* databases",
+      "cases": [
+        "Provisioning snapshot excludes the internal ERPX slot and already bound/pending slots; a healthy slot activates the Control binding once, persists started/validated/activated events and a version-2 receipt, and an exact replay returns the same result without new events.",
+        "Auditor provisioning is forbidden, the same slot cannot be bound to a different slug, and a late provisioning-event failure rolls back the receipt, binding and all events.",
+        "The operations summary reads real runtime_health plus per-Holding pending/dead/claimed counts, the oldest pending timestamp and dead letters; a configured missing Holding stays visible as unavailable and a non-Platform role is denied.",
+        "Dead-letter recovery clears the exact attempts/last-error snapshot once, persists one command receipt and one platform.job.retry audit row, replays exactly, rejects a stale snapshot and an auditor, and a deferred audit fault rolls back the requeue, receipt and audit.",
+        "The actual HTTP router reads and provisions over migrated PostgreSQL, then reads the persisted row back; a foreign origin is 403, a missing key is 422 and an unknown Host is 404."
+      ],
+      "negativeCoverage": "reserved internal slot, binding drift, invalid slug/reason, auditor mutation, changed idempotency key, incomplete retained provisioning, stale failed-job snapshot, unknown Host, foreign Origin, missing key, invalid content type, oversized body and response-shape/foreign-context rejection in the TypeScript transport test."
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-platform-administration --lib --tests --locked --no-deps -- -D warnings",
+      "result": "pass"
+    },
+    "format": {
+      "command": "rustfmt --edition 2024 --check on changed Rust owner and test files",
+      "result": "pass"
+    },
+    "typescript": {
+      "unit": "ERPX_SELECTED_TEST_FILES=[tests/unit/platform_administration/native-platform-administration-transport.test.ts] vitest --config tests/config/vitest.unit.config.mts: 7 passed",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-platform_administration/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p apps/admin/tsconfig.json: pass",
+        "tsc --noEmit -p apps/compat/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted new transport/SSR/test files: pass; only the repository's existing Next pages-directory warning."
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json parses and contains platform_administration.native-platform-administration-transport.unit and platform_administration.rust-platform-administration-postgres.integration",
+      "runner": "Bun is not installed in this worktree, so bun run test:catalogue --check and bun run structure:check were not run. The manifest was parsed with Python's json loader."
+    },
+    "browser": "not run; no browser, authenticated page render, Next dev server or public URL was executed. No workflow is claimed browser-verified."
+  },
+  "behavior": {
+    "authorization": "Reads require a current platform_admin or platform_auditor role; provisioning and recovery require platform_admin. The composition backend must resolve requireManageErpxContext (Holding h003 / slug erpx, manage_erpx.access, matching Platform and Holding identities, selecting Platform assignment and current IAM revision) before calling the owner. The transport forwards the work-context revision/assignment version and the Platform assignment for that revalidation.",
+    "isolation": "Platform reads are Control-plane or explicitly configured Holding-pool reads. The Holding map rejects duplicate ids/slugs and the internal erpx Holding. A missing Holding is a scoped not-found, surfaced as an unavailable row in the summary, never a read from another Holding.",
+    "versions": "Provisioning updates require the previously observed row version and status, and activation advances version once under FOR UPDATE plus a version predicate. Dead-letter recovery requires the exact attempts/last-error snapshot and returns VERSION_CONFLICT when the failed job changed.",
+    "idempotency": "Provisioning and recovery use stable SHA-256 digests over actor, assignment, role, key, Holding and typed input. The receipt is checked before effects and rechecked inside the serializable unit. Same key plus same digest returns the retained result; a different digest is IDEMPOTENCY_CONFLICT; an incomplete retained receipt is COMMAND_INCOMPLETE.",
+    "audit": "Provisioning writes immutable platform_holding_provisioning_events for started/retry_started, validated and activated. Recovery writes one command_receipts row and one audit_events row with action platform.job.retry, the reviewed purpose and Holding authority. Recovery intentionally emits no extra business outbox event.",
+    "rollback": "The provisioning row, events and holding_bindings activation are one Control transaction. Recovery requeues the Holding outbox row, writes its receipt and audit in one Holding transaction. Tests force late failures and assert every source row is unchanged or absent.",
+    "readback": "The PostgreSQL suite reads the provisioning row, binding, event order, outbox status, command receipt and audit back after commit. The HTTP suite reads the provisioned row through GET after the POST.",
+    "migrations": "The summary reads migration status through erpx_server_runtime::public::postgres::inspect_migrations with the composition-supplied Holding-write migration files. The native migration-run command was not added in this slice."
+  },
+  "sharedCompositionDelta": {
+    "applied": [],
+    "required": [
+      "Mount erpx_server_platform_administration::public::platform_operations::platform_router with one PlatformHttpTarget for the registered ERPX Host erpx-internal.jesadakorn.com and exact https://erpx-internal.jesadakorn.com origin. Merge /api/v1/platform/operations, /operations/provision and /operations/recover before the generic fallback.",
+      "Implement PlatformHttpBackend in src/composition: resolve requireManageErpxContext from the normal session/headers, verify the Holding h003 and matching Platform identity, build PlatformActor from the selected Platform assignment/role, and return the rendered context required by the transport (userId, holdingId, holdingSlug, companyId, branchId, departmentId, workAssignmentId, platformAssignmentId, platformRole, assignmentVersion, revision, modules, permissions, expiresAt).",
+      "Build PgPlatformAdministration with the Control pool, one PlatformHoldingDatabase per active customer Holding using its public write pool and identity, and the loaded Holding-write migration files. Use provisioning_snapshot/provision_holding for GET/POST provision and recover_dead_letter_job for POST recover; map PgTransactionError through platform_business_error.",
+      "Set ERPX_NATIVE_PLATFORM_ADMIN_CONFIG to the private loopback origin and the exact h003/erpx Holding target. Without it the Manage ERPX home now fails closed with 503 NATIVE_PLATFORM_ADMIN_UNAVAILABLE; it does not silently use the retained TypeScript snapshot.",
+      "The existing Next API route files in packages/feature-admin and apps/admin remain retained. A later reviewed integration can delegate those GET/POST handlers to the new transport after the composition backend is mounted.",
+      "No PostgreSQL schema change is required. No root Cargo.toml, Cargo.lock, package lockfile, src/composition/** or docs/status/** change was made. server-platform_administration already owned runtime/shared/sqlx/serde/sha2/hex; the HTTP module uses server-runtime's existing http_support re-exports and no new dependency."
+    ],
+    "whyNotAppliedHere": "This implementation subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles, docs/status/** and other owners' implementation. The worktree also contains concurrent sibling changes in manage_erpx, people_payroll and workplace, which were preserved and not modified."
+  },
+  "legacy": {
+    "retained": [
+      "packages/server-platform_administration/src/adapters/operations.ts and public/platform-operations.ts remain the TypeScript provisioning/operations/recovery/migration implementation for the retained Next API routes.",
+      "The existing /api/v1/platform/operations, /provision, /recover and /migrate Next route handlers remain in packages/feature-admin and apps/admin.",
+      "The native migration-run command is not implemented; migration runs remain TypeScript/runtime-owned.",
+      "Connector lifecycle, backup/restore, temporary access and the rest of Platform Executive/audit search remain on their retained owners.",
+      "The mutation widgets still call the retained Next API endpoints; only the SSR operations/provisioning snapshot read is cut over."
+    ],
+    "removed": [
+      "No retained TypeScript Platform Administration implementation was deleted in this bounded slice. Removing it before the composition mount and route cutover would create an unverified second writer."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private/production route serves the owner router yet. The HTTP test backend calls the real owner store over PostgreSQL but is not the composition adapter.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. The Manage ERPX home fails closed without the new environment configuration.",
+    "The Next API routes were not cut over; the TypeScript provisioning/recovery writers and migration-run route remain reachable until the composition backend and a reviewed route change land.",
+    "The native slice does not implement connector lifecycle, backup/restore execution, temporary access, the migration-run command or the Platform Executive/audit search surfaces.",
+    "The operations summary consumes runtime_health and outbox_events as durable infrastructure facts and the public runtime migration receipt API; it does not add a new cross-owner business SQL contract.",
+    "Bun is unavailable in this environment, so bun test/catalogue/structure commands were not run. Python JSON parsing and direct vitest/tsc/eslint/cargo invocations were used instead.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed. No reserved ERPX ports were used; the HTTP tests bind ephemeral 127.0.0.1:0 listeners."
+  ]
+}
