@@ -3548,3 +3548,17 @@ pub async fn finance_pos_party_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance/payroll: match a bank transaction to an "other" remittance (company-scoped).
+pub async fn finance_payroll_other_match_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payroll_remittance',matched_id=?,version=version+1 WHERE id=? AND company_id=? AND version=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
