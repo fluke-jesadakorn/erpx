@@ -8,9 +8,9 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_agent::public::governance::{
     AgentActor, AgentGovernanceHttpBackend, AgentGovernanceHttpCommandRequest,
     AgentGovernanceHttpFuture, AgentGovernanceHttpReadRequest, AgentGovernanceHttpTarget,
-    AgentGovernancePorts, PgAgentGovernance, RecordKind, change_agent_pool,
-    change_agent_record, change_private_session, create_agent, create_agent_pool,
-    create_agent_version, start_agent_assignment,
+    AgentGovernancePorts, PgAgentGovernance, RecordKind, change_agent_pool, change_agent_record,
+    change_private_session, create_agent, create_agent_pool, create_agent_version,
+    start_agent_assignment,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -177,10 +177,8 @@ impl<C: Clock + Send + Sync + 'static> AgentGovernanceService<C> {
                         let now = clock.now().get();
                         let mut ports = PgAgentGovernance::new(connection, &actor, now);
                         let id = body.get("id").and_then(Value::as_str);
-                        let entity = body
-                            .get("entity")
-                            .and_then(Value::as_str)
-                            .ok_or_else(|| {
+                        let entity =
+                            body.get("entity").and_then(Value::as_str).ok_or_else(|| {
                                 invalid(
                                     "AGENT_ENTITY_REQUIRED",
                                     "Choose an Agent governance command.",
@@ -215,7 +213,7 @@ impl<C: Clock + Send + Sync + 'static> AgentGovernanceService<C> {
                                     "AGENT_ENTITY_REQUIRED",
                                     "Choose an Agent governance command.",
                                 )
-                                .into())
+                                .into());
                             }
                         };
                         let _ = ports.actor();

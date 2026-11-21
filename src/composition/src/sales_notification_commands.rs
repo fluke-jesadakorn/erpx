@@ -13,10 +13,10 @@ use erpx_server_identity_access::public::{
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_sales::public::notification_commands::{
-    NotificationActor, NotificationHttpBackend, NotificationHttpCommand,
-    NotificationHttpFuture, NotificationHttpRequest, NotificationHttpResponse,
-    NotificationHttpTarget, PgNotificationCommands, queue_notification,
-    retry_notification, sales_notification_commands_router, update_settings,
+    NotificationActor, NotificationHttpBackend, NotificationHttpCommand, NotificationHttpFuture,
+    NotificationHttpRequest, NotificationHttpResponse, NotificationHttpTarget,
+    PgNotificationCommands, queue_notification, retry_notification,
+    sales_notification_commands_router, update_settings,
 };
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use serde_json::Value;
@@ -64,7 +64,9 @@ fn package_mode() -> PackageEnforcementMode {
 }
 
 fn production() -> bool {
-    std::env::var("NODE_ENV").map(|value| value == "production").unwrap_or(false)
+    std::env::var("NODE_ENV")
+        .map(|value| value == "production")
+        .unwrap_or(false)
 }
 
 #[derive(Clone, Copy)]
@@ -99,7 +101,10 @@ fn actor(current: &AuthorizedWorkContext) -> Result<NotificationActor, BusinessE
     Ok(NotificationActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|id| id.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -169,7 +174,13 @@ impl<C: Clock + Send + Sync + 'static> SalesNotificationCommandService<C> {
         configuration: SalesNotificationCommandConfiguration,
         clock: Arc<C>,
     ) -> Self {
-        Self::new(authorizer, configuration, clock, package_mode(), production())
+        Self::new(
+            authorizer,
+            configuration,
+            clock,
+            package_mode(),
+            production(),
+        )
     }
 
     pub fn company(&self) -> &CompanyId {
@@ -229,7 +240,8 @@ impl<C: Clock + Send + Sync + 'static> SalesNotificationCommandService<C> {
                         let actor = actor(current)?;
                         if !actor.can(permission) {
                             return Err(
-                                erpx_server_sales::public::notification_commands::access_changed().into(),
+                                erpx_server_sales::public::notification_commands::access_changed()
+                                    .into(),
                             );
                         }
                         let now = clock.now().get();
@@ -285,7 +297,6 @@ impl<C: Clock + Send + Sync + 'static> SalesNotificationCommandService<C> {
             .await
     }
 }
-
 
 pub struct SalesNotificationCommandBackend<C> {
     policy: Arc<AccountPolicy>,

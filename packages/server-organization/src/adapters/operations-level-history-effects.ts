@@ -1,3 +1,27 @@
 import "server-only";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-export function operationsLevelHistoryEffects(db:SqlDatabase){return {stageChange:(value:string,engagementId:string,previous:string|null,levelId:string,userId:string,reason:string,key:string,now:number)=>db.prepare("INSERT INTO staff_level_history(id,engagement_id,previous_level_id,level_id,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(value,engagementId,previous,levelId,userId,reason,key,now)};}
+import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
+import { nativeOrgStatement } from "./native-organization-owner-write";
+
+export function operationsLevelHistoryEffects(db: SqlDatabase, companyId = '') {
+    return {
+        /** Native owner SQL, executed inside the caller's own command unit. */
+        stageChange: (
+            value: string,
+            engagementId: string,
+            previous: string | null,
+            levelId: string,
+            userId: string,
+            reason: string,
+            key: string,
+            now: number,
+        ): Promise<SqlStatement> =>
+            nativeOrgStatement(
+                db,
+                companyId,
+                'staff_level_history_insert',
+                [value, engagementId, previous, levelId, userId, reason, key, now],
+                key,
+                now,
+            ),
+    };
+}

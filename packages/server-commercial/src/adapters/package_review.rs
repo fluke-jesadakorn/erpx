@@ -38,7 +38,7 @@ pub struct PackageReviewClaims {
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct PackageReview {
     pub token: String,
     pub expires_at: i64,

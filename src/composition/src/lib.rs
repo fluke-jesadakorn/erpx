@@ -48,12 +48,12 @@ pub mod private_development_api;
 
 #[cfg(feature = "existing-business")]
 pub mod approval_oversight;
-#[cfg(feature = "existing-business")]
-pub mod workflow_projection_worker;
-pub mod native_work_snapshot;
-mod work_card_preferences;
 mod asset_command_wire;
 pub mod asset_http;
+pub mod native_work_snapshot;
+mod work_card_preferences;
+#[cfg(feature = "existing-business")]
+pub mod workflow_projection_worker;
 
 #[cfg(feature = "existing-business")]
 pub mod asset_purchase_image;
@@ -61,11 +61,22 @@ pub mod asset_purchase_image;
 pub mod asset_retirement_work;
 pub mod benefits;
 pub mod billing;
+// Wave-1 native axum command composition (mounted by private_development_api).
+#[cfg(feature = "existing-business")]
+pub mod account_time_preference_http;
+pub mod agent_ai_gateway;
+pub mod agent_ai_providers;
+#[cfg(feature = "existing-business")]
+pub mod agent_governance;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
-pub mod branding;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity_http;
+pub mod branding;
+#[cfg(feature = "existing-business")]
+pub mod collaboration;
+#[cfg(feature = "existing-business")]
+pub mod collaboration_wf1a7;
 #[cfg(feature = "existing-business")]
 pub mod commerce;
 #[cfg(feature = "existing-business")]
@@ -83,7 +94,12 @@ pub mod customer_360_notes;
 #[cfg(feature = "existing-business")]
 pub mod customer_authority;
 #[cfg(feature = "existing-business")]
+pub mod customer_portal_invitation_worker;
+#[cfg(feature = "position-gpo-connector")]
+pub mod directory_operation_worker;
+#[cfg(feature = "existing-business")]
 pub mod ecommerce;
+pub mod executive_connections;
 pub mod files;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_bank_http;
@@ -101,7 +117,6 @@ pub mod finance_supplier_batch;
 pub mod handbook;
 pub mod identity_access;
 pub mod identity_access_review_alerts;
-pub mod staff_task_alert_worker;
 #[cfg(feature = "existing-business")]
 pub mod learning;
 #[cfg(feature = "existing-business")]
@@ -116,56 +131,55 @@ pub mod manage_erpx;
 pub mod manufacturing;
 #[cfg(feature = "existing-business")]
 pub mod marketing;
+#[cfg(feature = "existing-business")]
+pub mod member_profile_http;
 pub mod operations;
 #[cfg(feature = "existing-business")]
-pub mod support_workspace;
-#[cfg(feature = "files-scan-worker")]
-pub mod support_files;
-#[cfg(feature = "existing-business")]
-pub mod collaboration;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_notice;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_request;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_receipt;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_target;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_decision;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_approval;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_access;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_quantity;
-#[cfg(feature = "existing-business")]
-mod procurement_rfq_detail;
-mod procurement_rfq_assertions;
-mod procurement_rfq_materialization;
-#[cfg(feature = "existing-business")]
-pub mod agent_governance;
-pub mod agent_ai_gateway;
-pub mod agent_ai_providers;
-pub mod executive_connections;
-pub mod organization_nodes;
-#[cfg(feature = "existing-business")]
 pub mod organization_access;
+pub mod organization_nodes;
 #[cfg(any(feature = "existing-business", feature = "business-http"))]
 pub mod organization_nodes_http;
+pub mod organization_position;
 #[cfg(feature = "existing-business")]
 pub mod organization_setup;
-pub mod organization_position;
 pub mod people_payroll;
-pub mod people_workforce_ports;
 pub mod people_workforce;
+pub mod people_workforce_ports;
 pub mod platform_administration;
 pub mod platform_iam;
 pub mod pms;
-pub mod routine_commands;
+#[cfg(feature = "existing-business")]
+pub mod pms_import_http;
+#[cfg(feature = "existing-business")]
+pub mod portal_enrollment;
 pub mod pos;
+#[cfg(feature = "existing-business")]
+pub mod pos_day_close_http;
 pub mod pos_effects;
+pub mod pos_stripe_worker;
+#[cfg(feature = "existing-business")]
+pub mod position_gpo_worker;
 pub mod procurement;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_access;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_approval;
+mod procurement_rfq_assertions;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_decision;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_detail;
+mod procurement_rfq_materialization;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_notice;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_quantity;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_receipt;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_request;
+#[cfg(feature = "existing-business")]
+mod procurement_rfq_target;
 #[cfg(feature = "existing-business")]
 pub mod projects;
 pub mod quality;
@@ -174,10 +188,9 @@ pub mod quality_commands;
 pub mod records;
 #[cfg(any(feature = "existing-business", feature = "records-command"))]
 pub mod records_command;
+pub mod routine_commands;
 #[cfg(feature = "existing-business")]
 pub mod sales;
-#[cfg(feature = "existing-business")]
-pub mod talent;
 #[cfg(feature = "existing-business")]
 pub mod sales_cancellation;
 #[cfg(feature = "existing-business")]
@@ -187,19 +200,17 @@ pub mod sales_notification_commands;
 #[cfg(feature = "existing-business")]
 pub mod sales_notification_reconciliation;
 #[cfg(feature = "existing-business")]
-pub mod customer_portal_invitation_worker;
-#[cfg(feature = "existing-business")]
-pub mod position_gpo_worker;
-pub mod pos_stripe_worker;
-pub mod user_management_worker;
-#[cfg(feature = "position-gpo-connector")]
-pub mod directory_operation_worker;
-#[cfg(feature = "existing-business")]
-pub mod portal_enrollment;
-#[cfg(feature = "existing-business")]
 pub mod sales_notification_worker;
+pub mod staff_task_alert_worker;
+#[cfg(feature = "files-scan-worker")]
+pub mod support_files;
+#[cfg(feature = "existing-business")]
+pub mod support_workspace;
+#[cfg(feature = "existing-business")]
+pub mod talent;
 #[cfg(feature = "existing-business")]
 pub mod talent_lifecycle;
+pub mod user_management_worker;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_presentation;
@@ -425,37 +436,37 @@ pub mod field_push_worker;
 pub mod field_reservation_alerts;
 pub mod inventory_availability_http;
 pub mod inventory_availability_read;
-pub mod inventory_reservation_alerts;
-#[cfg(feature = "private-field-api")]
-pub mod quality_alert_worker;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_count_commands;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod quality_count_notices;
-#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod quality_count_origin;
-#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_count_http;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_landed_cost_commands;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_owner_commands_http;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_reorder_commands;
+pub mod inventory_reservation_alerts;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_stock_http;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_stock_read;
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod inventory_transfer_commands;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_transit_commands;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_transit_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod inventory_transfer_commands;
-#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod inventory_landed_cost_commands;
-#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod inventory_reorder_commands;
-#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod inventory_owner_commands_http;
-#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod manufacturing_order_commands;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod manufacturing_order_http;
+#[cfg(feature = "private-field-api")]
+pub mod quality_alert_worker;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod inventory_stock_http;
+pub mod quality_count_notices;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
-pub mod inventory_stock_read;
+pub mod quality_count_origin;
 
 #[cfg(feature = "field-service")]
 pub mod native_work_roles;
@@ -489,6 +500,8 @@ mod finance_field_journal_files_bind;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_receipt_files;
 
+#[cfg(feature = "existing-business")]
+pub mod portal_support_commands;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_evidence_command;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
@@ -513,5 +526,3 @@ pub mod support_ticket_command;
 pub mod support_ticket_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_ticket_read;
-#[cfg(feature = "existing-business")]
-pub mod portal_support_commands;

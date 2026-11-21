@@ -150,7 +150,7 @@ export function createPeopleDirectoryApplication<Effect>(ports: PeopleDirectoryP
             steps.push(repository.stageSaveDirectoryPersonEffect6(`employee-${commandId}`, id, actor.companyId, input.branchId, input.departmentId, input.legalName, now));
         }
         if (levelId) {
-            steps.push(...ports.levelChangeStatements(commandId, actor, engagement, levelId, current?.level_id ? String(current.level_id) : null, "Engagement details updated"), repository.stageSaveDirectoryPersonEffect7(levelId, engagement));
+            steps.push(...await ports.levelChangeStatements(commandId, actor, engagement, levelId, current?.level_id ? String(current.level_id) : null, "Engagement details updated"), repository.stageSaveDirectoryPersonEffect7(levelId, engagement));
         }
         if (input.linkedMemberUserId)
             steps.push(repository.stageSaveDirectoryPersonEffect8(input.linkedMemberUserId, id), repository.stageSaveDirectoryPersonEffect9(input.linkedMemberUserId, id));

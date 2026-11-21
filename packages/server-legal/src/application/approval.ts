@@ -193,9 +193,9 @@ async function legalApprovalCommand(
       )
         fail("The replacement must be independent.");
       steps.push(
-        ports.repository.advanceRoute({now:ports.clock.now(),instanceId:instance.id}),
-        ports.repository.replaceReviewer({approverId:p.approverId,id:current.id}),
-        ports.repository.recordReroute({key:key,instanceId:instance.id,id:current.id,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),approver_user_id:current.approver_user_id,approverId:p.approverId}),
+        await ports.repository.advanceRoute({now:ports.clock.now(),instanceId:instance.id}),
+        await ports.repository.replaceReviewer({approverId:p.approverId,id:current.id}),
+        await ports.repository.recordReroute({key:key,instanceId:instance.id,id:current.id,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),approver_user_id:current.approver_user_id,approverId:p.approverId}),
       );
     } else {
       const decision = z
@@ -219,8 +219,8 @@ async function legalApprovalCommand(
           403,
         );
       steps.push(
-        ports.repository.decideStep({value0:decision === "approve" ? "approved" : "rejected",id:current.id}),
-        ports.repository.recordDecision({key:key,instanceId:instance.id,id:current.id,decision:decision,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),value9:JSON.stringify({
+        await ports.repository.decideStep({value0:decision === "approve" ? "approved" : "rejected",id:current.id}),
+        await ports.repository.recordDecision({key:key,instanceId:instance.id,id:current.id,decision:decision,actorId:a.userId,reason:x.reason,version:item.version,key2:key,now:ports.clock.now(),value9:JSON.stringify({
               role: a.role,
               assignmentId: a.assignmentId,
               documentId: route.document_id,
@@ -231,17 +231,17 @@ async function legalApprovalCommand(
       if (decision !== "approve") {
         state = decision === "revise" ? "draft" : "rejected";
         steps.push(
-          ports.repository.cancelRoute({value0:decision === "revise" ? "cancelled" : "rejected",now:ports.clock.now(),instanceId:instance.id}),
+          await ports.repository.cancelRoute({value0:decision === "revise" ? "cancelled" : "rejected",now:ports.clock.now(),instanceId:instance.id}),
         );
       } else if (next) {
         steps.push(
-          ports.repository.advanceStep({now:ports.clock.now(),instanceId:instance.id}),
+          await ports.repository.advanceStep({now:ports.clock.now(),instanceId:instance.id}),
           await ports.repository.notifyReviewer({identifier:ports.identifiers.next(),companyId:a.companyId,approver_user_id:next.approver_user_id,itemId:item.id,nextVersion:item.version + 1,now:ports.clock.now()}),
         );
       } else {
         state = "approved";
         steps.push(
-          ports.repository.approveRoute({now:ports.clock.now(),instanceId:instance.id}),
+          await ports.repository.approveRoute({now:ports.clock.now(),instanceId:instance.id}),
           await ports.repository.recordApproval({itemId:item.id,nextVersion:item.version + 1,document_id:route.document_id,document_hash:route.document_hash,signerIdsJson:JSON.stringify(signers),actorId:a.userId,now:ports.clock.now()}),
         );
       }

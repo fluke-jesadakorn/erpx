@@ -7,9 +7,9 @@ use crate::domain::identity::{
     ChangePlan, CustomerSnapshot, IdentityChange, IdentityChangeRow, IdentityCustomer,
     IdentityEventRow, IdentityRequest, MAX_CANDIDATES, MAX_HISTORY_ROWS, MAX_WORKSPACE_ROWS,
     REQUEST_OPERATION, RequestPlan, change_identity, change_not_found, change_plan,
-    customer_changed, customer_not_found,
-    idempotency_conflict, independent_approver_required, readback_invalid, request_id,
-    request_identity, request_plan, resubmit_forbidden, reviewer_unavailable, unchanged,
+    customer_changed, customer_not_found, idempotency_conflict, independent_approver_required,
+    readback_invalid, request_id, request_identity, request_plan, resubmit_forbidden,
+    reviewer_unavailable, unchanged,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, RecordId};
 use serde_json::Value;
@@ -57,10 +57,7 @@ fn receipt_value(
         serde_json::from_str(&receipt.result_json).map_err(|_| readback_invalid())?;
     if parsed.id != id
         || parsed.version < 1
-        || !matches!(
-            parsed.status.as_str(),
-            "pending" | "applied" | "rejected"
-        )
+        || !matches!(parsed.status.as_str(), "pending" | "applied" | "rejected")
     {
         return Err(readback_invalid());
     }

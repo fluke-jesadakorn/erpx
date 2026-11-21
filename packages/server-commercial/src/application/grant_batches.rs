@@ -12,7 +12,7 @@ use std::{collections::BTreeSet, future::Future};
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct BatchChange {
     #[serde(deserialize_with = "deserialize_safe_i64")]
     pub expected_version: i64,
@@ -20,7 +20,7 @@ pub struct BatchChange {
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct GrantBatch {
     pub company_id: String,
     pub expected_revision: String,
@@ -86,7 +86,7 @@ pub struct NormalizedGrantBatch {
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct GrantBatchPreview {
     pub company_id: String,
     pub expected_revision: String,

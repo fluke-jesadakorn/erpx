@@ -1,11 +1,12 @@
 pub(crate) mod auxiliary;
+pub(crate) mod destruction_sources;
 pub(crate) mod document_extraction;
 pub(crate) mod document_processing;
-pub(crate) mod destruction_sources;
+pub(crate) mod legal_wave3;
 #[cfg(feature = "pdf-verifier")]
 pub(crate) mod pdf_validation;
 pub(crate) mod pdf_verification;
 pub(crate) mod processing;
-pub(crate) mod retention;
 pub(crate) mod record_policy;
+pub(crate) mod retention;
 pub(crate) mod trust_management;

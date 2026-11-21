@@ -128,10 +128,7 @@ fn private_json(value: &impl Serialize) -> Response {
     response
 }
 
-fn unique_header(
-    headers: &HeaderMap,
-    name: HeaderName,
-) -> Result<Option<&str>, BusinessError> {
+fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {
@@ -437,10 +434,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.code, "BODY_TOO_LARGE");
         // Duplicate origin headers are ambiguous and rejected.
-        let mut duplicate = headers(
-            Some("https://acme.example"),
-            Some("command-key-one"),
-        );
+        let mut duplicate = headers(Some("https://acme.example"), Some("command-key-one"));
         duplicate.append(
             header::ORIGIN,
             HeaderValue::from_static("https://acme.example"),

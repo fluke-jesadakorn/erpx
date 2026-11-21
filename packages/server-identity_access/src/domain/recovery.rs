@@ -24,25 +24,37 @@ fn invalid(message: &'static str) -> BusinessError {
 impl RecoveryInput {
     pub fn parse(value: &Value) -> Result<Self, BusinessError> {
         let Some(object) = value.as_object() else {
-            return Err(invalid("Choose the Company and Holding for emergency access."));
+            return Err(invalid(
+                "Choose the Company and Holding for emergency access.",
+            ));
         };
         let mut seen = Map::new();
         for (name, field) in object {
             let known = matches!(name.as_str(), "holdingSlug" | "companyId" | "reason");
             if !known || seen.insert(name.clone(), field.clone()).is_some() {
-                return Err(invalid("Choose the Company and Holding for emergency access."));
+                return Err(invalid(
+                    "Choose the Company and Holding for emergency access.",
+                ));
             }
         }
         let company_id = match object.get("companyId") {
             Some(Value::String(value)) if !value.is_empty() && value.len() <= 160 => value.clone(),
-            _ => return Err(invalid("Choose the Company and Holding for emergency access.")),
+            _ => {
+                return Err(invalid(
+                    "Choose the Company and Holding for emergency access.",
+                ));
+            }
         };
         let holding_slug = match object.get("holdingSlug") {
             None | Some(Value::Null) => None,
             Some(Value::String(value)) if !value.is_empty() && value.len() <= 120 => {
                 Some(value.clone())
             }
-            _ => return Err(invalid("Choose the Company and Holding for emergency access.")),
+            _ => {
+                return Err(invalid(
+                    "Choose the Company and Holding for emergency access.",
+                ));
+            }
         };
         let reason = match object.get("reason") {
             Some(Value::String(value)) => value

@@ -84,18 +84,25 @@ pub struct NotificationStatement {
 }
 
 fn invalid() -> BusinessError {
-    BusinessError::new(FailureKind::InvalidInput, "NOTIFICATION_STATEMENT_INVALID", "Review the notification request.")
+    BusinessError::new(
+        FailureKind::InvalidInput,
+        "NOTIFICATION_STATEMENT_INVALID",
+        "Review the notification request.",
+    )
 }
 
-async fn ready(connection: &mut PgConnection, company: &CompanyId) -> Result<(), Error> {
+pub(crate) async fn ready(connection: &mut PgConnection, company: &CompanyId) -> Result<(), Error> {
     if !connection.is_in_transaction()
         || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
-            .fetch_one(&mut *connection).await? != "serializable"
+            .fetch_one(&mut *connection)
+            .await?
+            != "serializable"
     {
         return Err(PersistenceError::new("NOTIFICATION_STATEMENT_UNIT_REQUIRED").into());
     }
     let holder: String = sqlx::query_scalar("SELECT current_database()")
-        .fetch_one(&mut *connection).await?;
+        .fetch_one(&mut *connection)
+        .await?;
     if holder.is_empty() {
         return Err(invalid().into());
     }
@@ -109,9 +116,12 @@ pub async fn notification_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    if input.user_id.is_empty() || input.record_id.is_empty()
-        || input.record_type.is_empty() || input.message.is_empty()
-        || input.record_version <= 0 || input.now <= 0
+    if input.user_id.is_empty()
+        || input.record_id.is_empty()
+        || input.record_type.is_empty()
+        || input.message.is_empty()
+        || input.record_version <= 0
+        || input.now <= 0
     {
         return Err(invalid().into());
     }
@@ -133,16 +143,44 @@ pub async fn notification_statement(
 
 #[cfg(test)]
 mod tests {
-    use super::{NotificationStatementInput, INSERT, WORKFLOW_ASSERTION_CLEAR_SQL};
+    use super::{INSERT, NotificationStatementInput, WORKFLOW_ASSERTION_CLEAR_SQL};
     #[test]
     fn insert_shape_matches_legacy_writer() {
         let _i = NotificationStatementInput {
-            company_id: "c".into(), user_id: "u".into(), record_type: "overtime".into(),
-            record_id: "r".into(), record_version: 1, message: "m".into(), now: 1,
-            idempotency_key: "k".into(), kind: None, lead_id: None, identifier: None,
-            approver_user_id: None, item_id: None, bill_id: None, rfq_id: None, audience: None, event: None, order_id: None, change: None, timestamp: None,
-            post_id: None, source_hash: None, ai_draft_id: None, document_table: None, recipient_sql: None, node_id: None, scope_node_id: None, runtime_predicate: None, table_name: None, cte_prefix: None,
-            source_access_sql: None, target_kind: None, target_id: None, values_json: None,
+            company_id: "c".into(),
+            user_id: "u".into(),
+            record_type: "overtime".into(),
+            record_id: "r".into(),
+            record_version: 1,
+            message: "m".into(),
+            now: 1,
+            idempotency_key: "k".into(),
+            kind: None,
+            lead_id: None,
+            identifier: None,
+            approver_user_id: None,
+            item_id: None,
+            bill_id: None,
+            rfq_id: None,
+            audience: None,
+            event: None,
+            order_id: None,
+            change: None,
+            timestamp: None,
+            post_id: None,
+            source_hash: None,
+            ai_draft_id: None,
+            document_table: None,
+            recipient_sql: None,
+            node_id: None,
+            scope_node_id: None,
+            runtime_predicate: None,
+            table_name: None,
+            cte_prefix: None,
+            source_access_sql: None,
+            target_kind: None,
+            target_id: None,
+            values_json: None,
         };
         assert!(INSERT.contains("INSERT INTO staff_notifications"));
         assert!(INSERT.contains("ON CONFLICT DO NOTHING"));
@@ -150,12 +188,14 @@ mod tests {
     }
     #[test]
     fn workflow_assertion_clear_contract_matches_native_sql() {
-        let contract = include_str!("../../../../packages/server-workflow/src/adapters/native-command-assertion-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(contract).expect("invalid command-assertion SQL contract");
+        let contract = include_str!(
+            "../../../../packages/server-workflow/src/adapters/native-command-assertion-sql.json"
+        );
+        let parsed: serde_json::Value =
+            serde_json::from_str(contract).expect("invalid command-assertion SQL contract");
         assert_eq!(parsed["sql"].as_str(), Some(WORKFLOW_ASSERTION_CLEAR_SQL));
     }
 }
-
 
 /// CRM lead notification statement. Reads the persisted lead on the caller's
 /// serializable unit so the owner — not the caller — selects recipient/version.
@@ -169,13 +209,12 @@ pub async fn crm_lead_notification_statement(
     if lead_id.is_empty() || command_key.is_empty() {
         return Err(invalid().into());
     }
-    let exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM crm_leads WHERE id=$1 AND company_id=$2",
-    )
-    .bind(lead_id)
-    .bind(company.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
+    let exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM crm_leads WHERE id=$1 AND company_id=$2")
+            .bind(lead_id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *connection)
+            .await?;
     if exists.is_none() {
         return Err(invalid().into());
     }
@@ -193,7 +232,6 @@ pub async fn crm_lead_notification_statement(
     })
 }
 
-
 #[cfg(test)]
 mod crm_tests {
     #[test]
@@ -205,7 +243,6 @@ mod crm_tests {
         assert!(src.contains("CRM handoff changed"));
     }
 }
-
 
 /// Legal approval reviewer notice. Exact retained SQL shape, generated natively
 /// from the supplied facts so the Legal adapter carries no second copy.
@@ -219,7 +256,11 @@ pub async fn legal_approval_notification_statement(
     now: i64,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    if identifier.is_empty() || approver_user_id.is_empty() || item_id.is_empty() || next_version < 1 {
+    if identifier.is_empty()
+        || approver_user_id.is_empty()
+        || item_id.is_empty()
+        || next_version < 1
+    {
         return Err(invalid().into());
     }
     Ok(NotificationStatement {
@@ -237,7 +278,6 @@ pub async fn legal_approval_notification_statement(
     })
 }
 
-
 #[cfg(test)]
 mod legal_tests {
     #[test]
@@ -249,7 +289,6 @@ mod legal_tests {
         assert_eq!(sql.matches('?').count(), 6);
     }
 }
-
 
 /// Supplier-bill notification statement. The Finance/Identity source clauses are
 /// owned here; the caller supplies only the bill id and command key.
@@ -263,13 +302,12 @@ pub async fn supplier_bill_notification_statement(
     if bill_id.is_empty() || command_key.is_empty() {
         return Err(invalid().into());
     }
-    let exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM procurement_bill_matches WHERE id=$1 AND company_id=$2",
-    )
-    .bind(bill_id)
-    .bind(company.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
+    let exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM procurement_bill_matches WHERE id=$1 AND company_id=$2")
+            .bind(bill_id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *connection)
+            .await?;
     if exists.is_none() {
         return Err(invalid().into());
     }
@@ -303,7 +341,6 @@ pub async fn supplier_bill_notification_statement(
     })
 }
 
-
 /// Procurement RFQ notification statement. Procurement/Identity source clauses
 /// are owned here; the caller supplies only the RFQ id and command key.
 pub async fn rfq_notification_statement(
@@ -316,13 +353,12 @@ pub async fn rfq_notification_statement(
     if rfq_id.is_empty() || command_key.is_empty() {
         return Err(invalid().into());
     }
-    let exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM procurement_rfqs WHERE id=$1 AND company_id=$2",
-    )
-    .bind(rfq_id)
-    .bind(company.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
+    let exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM procurement_rfqs WHERE id=$1 AND company_id=$2")
+            .bind(rfq_id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *connection)
+            .await?;
     if exists.is_none() {
         return Err(invalid().into());
     }
@@ -350,7 +386,6 @@ pub async fn rfq_notification_statement(
     })
 }
 
-
 /// Finance refund notification statement. The Commerce/IAM source clauses and
 /// the four audience eligibility predicates are owned here; the caller supplies
 /// only audience, refund id, message, actor id and command key.
@@ -364,14 +399,24 @@ pub async fn finance_refund_notification_statement(
     audience: &str,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    if refund_id.is_empty() || command_key.is_empty() || message.is_empty() || actor_user_id.is_empty() {
+    if refund_id.is_empty()
+        || command_key.is_empty()
+        || message.is_empty()
+        || actor_user_id.is_empty()
+    {
         return Err(invalid().into());
     }
     let eligibility = match audience {
-        "treasury" => "a.role IN ('holding_owner','finance_approver','treasury') AND a.scope_kind='holding' AND a.user_id<>o.created_by AND a.user_id<>o.approved_by",
-        "approval" => "a.role IN ('holding_owner','finance_approver') AND a.user_id<>o.created_by AND a.user_id<>COALESCE(r.requested_by,c.prepared_by)",
+        "treasury" => {
+            "a.role IN ('holding_owner','finance_approver','treasury') AND a.scope_kind='holding' AND a.user_id<>o.created_by AND a.user_id<>o.approved_by"
+        }
+        "approval" => {
+            "a.role IN ('holding_owner','finance_approver') AND a.user_id<>o.created_by AND a.user_id<>COALESCE(r.requested_by,c.prepared_by)"
+        }
         "review" => "a.role IN ('holding_owner','finance_approver')",
-        "completed" => "a.role IN ('holding_owner','finance_approver','finance_preparer','treasury') AND a.user_id IN (o.created_by,o.approved_by,COALESCE(r.requested_by,c.prepared_by))",
+        "completed" => {
+            "a.role IN ('holding_owner','finance_approver','finance_preparer','treasury') AND a.user_id IN (o.created_by,o.approved_by,COALESCE(r.requested_by,c.prepared_by))"
+        }
         _ => return Err(invalid().into()),
     };
     let exists: Option<String> = sqlx::query_scalar(
@@ -416,7 +461,6 @@ pub async fn finance_refund_notification_statement(
     })
 }
 
-
 /// Organization-change notification statement. Four event variants owned here;
 /// caller supplies only change id, command key and event kind.
 pub async fn organization_change_notification_statement(
@@ -431,10 +475,19 @@ pub async fn organization_change_notification_statement(
         return Err(invalid().into());
     }
     let (recipient, message) = match event {
-        "submitted" => ("NOT iam_same_person(a.user_id,c.requested_by,c.company_id)", "Review organization change: "),
-        "cancelled" => ("EXISTS(SELECT 1 FROM staff_notifications n WHERE n.company_id=c.company_id AND n.record_type='organization_change' AND n.record_id=c.id AND n.user_id=a.user_id) AND a.user_id<>c.requested_by", "Organization change cancelled: "),
+        "submitted" => (
+            "NOT iam_same_person(a.user_id,c.requested_by,c.company_id)",
+            "Review organization change: ",
+        ),
+        "cancelled" => (
+            "EXISTS(SELECT 1 FROM staff_notifications n WHERE n.company_id=c.company_id AND n.record_type='organization_change' AND n.record_id=c.id AND n.user_id=a.user_id) AND a.user_id<>c.requested_by",
+            "Organization change cancelled: ",
+        ),
         "applied" => ("a.user_id=c.requested_by", "Organization change applied: "),
-        "rejected" => ("a.user_id=c.requested_by", "Organization change returned for correction: "),
+        "rejected" => (
+            "a.user_id=c.requested_by",
+            "Organization change returned for correction: ",
+        ),
         _ => return Err(invalid().into()),
     };
     let exists: Option<String> = sqlx::query_scalar(
@@ -476,7 +529,6 @@ pub async fn organization_change_notification_statement(
     })
 }
 
-
 /// Supplier-promise notification statement. Commerce/Identity source clauses
 /// are owned here; caller supplies only order id and command key.
 pub async fn supplier_promise_notification_statement(
@@ -489,13 +541,12 @@ pub async fn supplier_promise_notification_statement(
     if order_id.is_empty() || command_key.is_empty() {
         return Err(invalid().into());
     }
-    let exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM commerce_orders WHERE id=$1 AND company_id=$2",
-    )
-    .bind(order_id)
-    .bind(company.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
+    let exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM commerce_orders WHERE id=$1 AND company_id=$2")
+            .bind(order_id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *connection)
+            .await?;
     if exists.is_none() {
         return Err(invalid().into());
     }
@@ -524,7 +575,6 @@ pub async fn supplier_promise_notification_statement(
     })
 }
 
-
 /// Learning assignment notice statement. The recipient and version are read from
 /// the persisted assignment; caller supplies notice id, assignment id and change.
 pub async fn learning_assignment_notification_statement(
@@ -543,20 +593,20 @@ pub async fn learning_assignment_notification_statement(
         "changed" => "Learning assignment updated: review current status",
         _ => return Err(invalid().into()),
     };
-    let exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM learning_assignments WHERE id=$1 AND company_id=$2",
-    )
-    .bind(assignment_id)
-    .bind(company.as_str())
-    .fetch_optional(&mut *connection)
-    .await?;
+    let exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM learning_assignments WHERE id=$1 AND company_id=$2")
+            .bind(assignment_id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *connection)
+            .await?;
     if exists.is_none() {
         return Err(invalid().into());
     }
     Ok(NotificationStatement {
         sql: "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
  record_version,message,created_at) SELECT ?,company_id,learner_id,'learning_assignment',id,\
- version,?,updated_at FROM learning_assignments WHERE id=?".to_owned(),
+ version,?,updated_at FROM learning_assignments WHERE id=?"
+            .to_owned(),
         values: vec![
             serde_json::Value::String(notice_id.to_owned()),
             serde_json::Value::String(message.to_owned()),
@@ -564,7 +614,6 @@ pub async fn learning_assignment_notification_statement(
         ],
     })
 }
-
 
 /// Legal preservation-hold notification statement. Owns the full CTE (notice
 /// insert plus notification projection) with the Legal owner source clause.
@@ -827,8 +876,7 @@ pub async fn legal_law_source_notification_statement(
         || input.identifier.as_deref().unwrap_or("").is_empty()
         || input.item_id.as_deref().unwrap_or("").is_empty()
         || input.now <= 0
-        || input.event.as_deref() != Some("unchanged")
-            && input.event.as_deref() != Some("changed")
+        || input.event.as_deref() != Some("unchanged") && input.event.as_deref() != Some("changed")
     {
         return Err(invalid().into());
     }
@@ -888,7 +936,6 @@ pub async fn inventory_transit_notification_statement(
     })
 }
 
-
 /// Social task-origin binding. The full source witness is supplied by the
 /// caller; the native owner validates company authority and owns the INSERT.
 pub async fn social_task_origin_statement(
@@ -916,7 +963,11 @@ pub async fn social_task_origin_statement(
             value(&input.record_id),
             serde_json::Value::Number(input.record_version.into()),
             value(input.source_hash.as_deref().unwrap_or("")),
-            input.ai_draft_id.as_deref().map(value).unwrap_or(serde_json::Value::Null),
+            input
+                .ai_draft_id
+                .as_deref()
+                .map(value)
+                .unwrap_or(serde_json::Value::Null),
             value(&input.user_id),
             serde_json::Value::Number(input.now.into()),
         ],
@@ -968,7 +1019,6 @@ pub async fn workflow_invoicing_notification_statement(
     })
 }
 
-
 /// Workflow next-action notice. The fixed document table and recipient
 /// expression are supplied by the native Workflow composition's planning port;
 /// the owner validates company authority and owns the INSERT assembly.
@@ -1016,7 +1066,6 @@ pub async fn workflow_notification_statement(
         ],
     })
 }
-
 
 /// Roster-coverage escalation notice. Eligible roster managers are resolved
 /// through the current organization ancestor chain on the caller's unit.
@@ -1071,7 +1120,11 @@ pub async fn roster_coverage_notification_statement(
             company_value,
             now.clone(),
             now,
-            input.scope_node_id.as_deref().map(value).unwrap_or(serde_json::Value::Null),
+            input
+                .scope_node_id
+                .as_deref()
+                .map(value)
+                .unwrap_or(serde_json::Value::Null),
         ],
     })
 }
@@ -1084,10 +1137,13 @@ pub async fn legal_feature_notice_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: format!(r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
- SELECT 'legal-task-'||md5(f.id||f.due_date||d.days::text||f.owner_id),i.company_id,f.owner_id,'legal',i.id,i.version,'Legal workflow deadline requires attention',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM {} f JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i ON i.id=f.item_id JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled CROSS JOIN LATERAL(SELECT min(t.days) days FROM (SELECT value::int days FROM jsonb_array_elements_text(s.reminder_days) UNION SELECT 0 UNION SELECT -1)t WHERE f.due_date::date-(clock_timestamp() AT TIME ZONE i.timezone)::date<=t.days)d WHERE {} AND f.due_date IS NOT NULL AND d.days IS NOT NULL AND f.state NOT IN ('completed','closed','cancelled','acknowledged','waived','accepted','billed') AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=f.owner_id) ON CONFLICT DO NOTHING"#, input.table_name.as_deref().unwrap_or(""), input.runtime_predicate.as_deref().unwrap_or("")),
-        values: vec![
-        ],
+        sql: format!(
+            r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
+ SELECT 'legal-task-'||md5(f.id||f.due_date||d.days::text||f.owner_id),i.company_id,f.owner_id,'legal',i.id,i.version,'Legal workflow deadline requires attention',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM {} f JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i ON i.id=f.item_id JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled CROSS JOIN LATERAL(SELECT min(t.days) days FROM (SELECT value::int days FROM jsonb_array_elements_text(s.reminder_days) UNION SELECT 0 UNION SELECT -1)t WHERE f.due_date::date-(clock_timestamp() AT TIME ZONE i.timezone)::date<=t.days)d WHERE {} AND f.due_date IS NOT NULL AND d.days IS NOT NULL AND f.state NOT IN ('completed','closed','cancelled','acknowledged','waived','accepted','billed') AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=f.owner_id) ON CONFLICT DO NOTHING"#,
+            input.table_name.as_deref().unwrap_or(""),
+            input.runtime_predicate.as_deref().unwrap_or("")
+        ),
+        values: vec![],
     })
 }
 
@@ -1099,9 +1155,11 @@ pub async fn legal_sla_notice_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: format!(r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'legal-sla-'||md5(i.id||i.sla_due_at::text||recipient.user_id),i.company_id,recipient.user_id,'legal',i.id,i.version,'Legal request SLA breached; review or escalate',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled CROSS JOIN LATERAL(SELECT i.owner_id user_id UNION SELECT i.escalation_owner)recipient WHERE {} AND i.sla_due_at<? AND i.state NOT IN ('closed','completed','cancelled','archived') AND recipient.user_id IS NOT NULL AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=recipient.user_id) ON CONFLICT DO NOTHING"#, input.runtime_predicate.as_deref().unwrap_or("")),
-        values: vec![            serde_json::Value::Number(input.now.into()),
-        ],
+        sql: format!(
+            r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'legal-sla-'||md5(i.id||i.sla_due_at::text||recipient.user_id),i.company_id,recipient.user_id,'legal',i.id,i.version,'Legal request SLA breached; review or escalate',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled CROSS JOIN LATERAL(SELECT i.owner_id user_id UNION SELECT i.escalation_owner)recipient WHERE {} AND i.sla_due_at<? AND i.state NOT IN ('closed','completed','cancelled','archived') AND recipient.user_id IS NOT NULL AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=recipient.user_id) ON CONFLICT DO NOTHING"#,
+            input.runtime_predicate.as_deref().unwrap_or("")
+        ),
+        values: vec![serde_json::Value::Number(input.now.into())],
     })
 }
 
@@ -1113,9 +1171,11 @@ pub async fn legal_escalation_notice_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: format!(r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'legal-escalation-'||md5(i.id||i.due_date||recipient.user_id),i.company_id,recipient.user_id,'legal',i.id,i.version,'Overdue legal commitment escalated to you',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled LEFT JOIN (SELECT "item_id", "data" FROM legal_obligations) o ON o.item_id=i.id CROSS JOIN LATERAL(SELECT coalesce(i.escalation_owner,o.data->>'escalationOwner') user_id)recipient WHERE {} AND i.due_date::date<(clock_timestamp() AT TIME ZONE i.timezone)::date AND i.state NOT IN ('closed','completed','cancelled','archived','terminated','expired') AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=recipient.user_id) ON CONFLICT DO NOTHING"#, input.runtime_predicate.as_deref().unwrap_or("")),
-        values: vec![
-        ],
+        sql: format!(
+            r#"INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT 'legal-escalation-'||md5(i.id||i.due_date||recipient.user_id),i.company_id,recipient.user_id,'legal',i.id,i.version,'Overdue legal commitment escalated to you',floor(extract(epoch FROM clock_timestamp())*1000)::bigint FROM (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i JOIN (SELECT "company_id", "enabled", "ai_enabled", "version", "reminder_days" FROM legal_settings) s ON s.company_id=i.company_id AND s.enabled LEFT JOIN (SELECT "item_id", "data" FROM legal_obligations) o ON o.item_id=i.id CROSS JOIN LATERAL(SELECT coalesce(i.escalation_owner,o.data->>'escalationOwner') user_id)recipient WHERE {} AND i.due_date::date<(clock_timestamp() AT TIME ZONE i.timezone)::date AND i.state NOT IN ('closed','completed','cancelled','archived','terminated','expired') AND EXISTS(SELECT 1 FROM (SELECT "item_id", "user_id", "access" FROM legal_members) m WHERE m.item_id=i.id AND m.user_id=recipient.user_id) ON CONFLICT DO NOTHING"#,
+            input.runtime_predicate.as_deref().unwrap_or("")
+        ),
+        values: vec![],
     })
 }
 
@@ -1127,14 +1187,15 @@ pub async fn legal_deadline_notice_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: format!(r#"{}
+        sql: format!(
+            r#"{}
 INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
- SELECT 'legal-'||md5(a.item_id||a.due_date||a.days::text||a.user_id),i.company_id,a.user_id,'legal',i.id,i.version,'Legal deadline requires attention',a.created_at FROM added a JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i ON i.id=a.item_id ON CONFLICT DO NOTHING"#, input.cte_prefix.as_deref().unwrap_or("")),
-        values: vec![
-        ],
+ SELECT 'legal-'||md5(a.item_id||a.due_date||a.days::text||a.user_id),i.company_id,a.user_id,'legal',i.id,i.version,'Legal deadline requires attention',a.created_at FROM added a JOIN (SELECT "id", "company_id", "branch_id", "department_id", "kind", "title", "description", "classification", "country", "jurisdiction", "language", "currency", "timezone", "priority", "due_date", "owner_id", "created_by", "state", "version", "created_at", "updated_at", "escalation_owner", "sla_started_at", "sla_due_at", "intake_form_id", "intake_answers" FROM legal_items) i ON i.id=a.item_id ON CONFLICT DO NOTHING"#,
+            input.cte_prefix.as_deref().unwrap_or("")
+        ),
+        values: vec![],
     })
 }
-
 
 /// Social mention binding. Full source witness supplied by caller.
 pub async fn social_mention_statement(
@@ -1162,7 +1223,9 @@ pub async fn social_mention_notice_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    if input.company_id != company.as_str() || input.source_access_sql.is_none() { return Err(invalid().into()); }
+    if input.company_id != company.as_str() || input.source_access_sql.is_none() {
+        return Err(invalid().into());
+    }
     let sql = format!(
         "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,\
  record_version,message,created_at) SELECT ?,p.company_id,?,'post',p.id,p.version,\
@@ -1173,9 +1236,13 @@ pub async fn social_mention_notice_statement(
     Ok(NotificationStatement {
         sql,
         values: vec![
-            value(&input.idempotency_key), value(&input.user_id), serde_json::Value::Number(input.now.into()),
-            value(&input.record_id), value(input.target_id.as_deref().unwrap_or("")),
-            serde_json::Value::Number(input.now.into()), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(&input.user_id),
+            serde_json::Value::Number(input.now.into()),
+            value(&input.record_id),
+            value(input.target_id.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
@@ -1222,14 +1289,22 @@ pub async fn social_topic_binding_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let value = |v: &str| serde_json::Value::String(v.to_owned());
-    if input.record_type != "post" && input.record_type != "comment" { return Err(invalid().into()); }
-    let table = if input.record_type == "post" { "social_post_topics(post_id" } else { "social_comment_topics(comment_id" };
+    if input.record_type != "post" && input.record_type != "comment" {
+        return Err(invalid().into());
+    }
+    let table = if input.record_type == "post" {
+        "social_post_topics(post_id"
+    } else {
+        "social_comment_topics(comment_id"
+    };
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO {},tag) VALUES(?,?) ON CONFLICT DO NOTHING", table),
+        sql: format!(
+            "INSERT INTO {},tag) VALUES(?,?) ON CONFLICT DO NOTHING",
+            table
+        ),
         values: vec![value(&input.record_id), value(&input.message)],
     })
 }
-
 
 /// Customer portal attachment preview access audit event.
 pub async fn attachment_access_event_statement(
@@ -1244,16 +1319,18 @@ pub async fn attachment_access_event_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
- variant,outcome,created_at) VALUES(?,?,?,?,?,'preview','allowed',?)".to_owned(),
+ variant,outcome,created_at) VALUES(?,?,?,?,?,'preview','allowed',?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(&input.company_id),
+            value(&input.idempotency_key),
+            value(&input.company_id),
             value(input.identifier.as_deref().unwrap_or("")),
             value(input.record_id.as_str()),
-            value(&input.user_id), serde_json::Value::Number(input.now.into()),
+            value(&input.user_id),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Attachment content-read audit event (POS image source).
 pub async fn attachment_event_statement(
@@ -1268,18 +1345,20 @@ pub async fn attachment_event_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,\
- action,details_json,created_at) VALUES(?,?,?,?,?,?,'content.read',?::jsonb,?)".to_owned(),
+ action,details_json,created_at) VALUES(?,?,?,?,?,?,'content.read',?::jsonb,?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(&input.company_id),
+            value(&input.idempotency_key),
+            value(&input.company_id),
             value(input.identifier.as_deref().unwrap_or("")),
             value(&input.record_id),
             value(input.item_id.as_deref().unwrap_or("")),
-            value(&input.user_id), value(&input.message),
+            value(&input.user_id),
+            value(&input.message),
             serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Legal destruction: retire the attachment source row.
 pub async fn legal_retire_source_statement(
@@ -1326,7 +1405,6 @@ pub async fn legal_retire_event_statement(
     })
 }
 
-
 /// Legal portal: bind an uploaded attachment link.
 pub async fn legal_bind_link_statement(
     connection: &mut PgConnection,
@@ -1370,15 +1448,21 @@ pub async fn legal_bind_event_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,\
- action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(),
+ action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()), value(input.identifier.as_deref().unwrap_or("")),
-            value(&input.record_id), value(input.item_id.as_deref().unwrap_or("")), value(&input.user_id),
-            value(&input.record_type), value(&input.message), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id),
+            value(input.item_id.as_deref().unwrap_or("")),
+            value(&input.user_id),
+            value(&input.record_type),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Expense: withdraw a draft attachment link.
 pub async fn expense_withdraw_link_statement(
@@ -1390,8 +1474,14 @@ pub async fn expense_withdraw_link_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "UPDATE attachment_links SET state='withdrawn',withdrawn_at=?,\
- withdrawn_by=?,withdrawal_reason=? WHERE id=? AND state='draft'".to_owned(),
-        values: vec![serde_json::Value::Number(input.now.into()), value(&input.user_id), value(&input.message), value(&input.record_id)],
+ withdrawn_by=?,withdrawal_reason=? WHERE id=? AND state='draft'"
+            .to_owned(),
+        values: vec![
+            serde_json::Value::Number(input.now.into()),
+            value(&input.user_id),
+            value(&input.message),
+            value(&input.record_id),
+        ],
     })
 }
 
@@ -1405,11 +1495,17 @@ pub async fn expense_withdraw_event_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,\
- action,details_json,created_at) VALUES(?,?,?,?,?,?, 'link.withdrawn',?,?)".to_owned(),
+ action,details_json,created_at) VALUES(?,?,?,?,?,?, 'link.withdrawn',?,?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()), value(input.identifier.as_deref().unwrap_or("")),
-            value(&input.record_id), value(input.item_id.as_deref().unwrap_or("")), value(&input.user_id),
-            value(&input.message), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id),
+            value(input.item_id.as_deref().unwrap_or("")),
+            value(&input.user_id),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
@@ -1424,10 +1520,12 @@ pub async fn expense_revoke_attachment_statement(
     ready(connection, _company).await?;
     Ok(NotificationStatement {
         sql: "UPDATE attachments SET revoked_at=? WHERE id=?".to_owned(),
-        values: vec![serde_json::Value::Number(input.now.into()), value(&input.record_id)],
+        values: vec![
+            serde_json::Value::Number(input.now.into()),
+            value(&input.record_id),
+        ],
     })
 }
-
 
 /// Document derivative: attachment document record.
 pub async fn doc_attachment_record_statement(
@@ -1439,8 +1537,15 @@ pub async fn doc_attachment_record_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_documents(attachment_id,company_id,original_checksum,\
- page_count,created_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING".to_owned(),
-        values: vec![value(&input.record_id), value(company.as_str()), value(&input.idempotency_key), serde_json::Value::Number(input.record_version.into()), serde_json::Value::Number(input.now.into())],
+ page_count,created_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING"
+            .to_owned(),
+        values: vec![
+            value(&input.record_id),
+            value(company.as_str()),
+            value(&input.idempotency_key),
+            serde_json::Value::Number(input.record_version.into()),
+            serde_json::Value::Number(input.now.into()),
+        ],
     })
 }
 
@@ -1474,15 +1579,18 @@ pub async fn doc_storage_ledger_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,\
- object_key,bytes,state,created_at) VALUES(?,?,?,'derivative',?,?,'stored',?)".to_owned(),
+ object_key,bytes,state,created_at) VALUES(?,?,?,'derivative',?,?,'stored',?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()), value(&input.record_id),
-            value(input.identifier.as_deref().unwrap_or("")), serde_json::Value::Number(input.timestamp.unwrap_or_default().into()),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(&input.record_id),
+            value(input.identifier.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.timestamp.unwrap_or_default().into()),
             serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Beta cleanup: expire an unused upload intent.
 pub async fn beta_expire_upload_statement(
@@ -1501,7 +1609,6 @@ pub async fn beta_expire_upload_statement(
     })
 }
 
-
 /// Legal portal: allowed original-variant attachment read access event.
 pub async fn legal_access_allowed_statement(
     connection: &mut PgConnection,
@@ -1512,11 +1619,15 @@ pub async fn legal_access_allowed_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
- variant,outcome,created_at) VALUES(?,?,?,?,?,'original','allowed',?)".to_owned(),
+ variant,outcome,created_at) VALUES(?,?,?,?,?,'original','allowed',?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()),
-            value(input.identifier.as_deref().unwrap_or("")), value(&input.record_id),
-            value(&input.user_id), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id),
+            value(&input.user_id),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
@@ -1531,15 +1642,19 @@ pub async fn legal_access_denied_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_access_events(id,company_id,attachment_id,link_id,actor_id,\
- variant,outcome,reason,created_at) VALUES(?,?,?,?,?,'original','denied',?,?)".to_owned(),
+ variant,outcome,reason,created_at) VALUES(?,?,?,?,?,'original','denied',?,?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()),
-            value(input.identifier.as_deref().unwrap_or("")), value(&input.record_id),
-            value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id),
+            value(&input.user_id),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Legal portal staging: link an upload intent to its attachment source.
 pub async fn legal_link_upload_statement(
@@ -1552,7 +1667,8 @@ pub async fn legal_link_upload_statement(
     Ok(NotificationStatement {
         sql: "UPDATE attachment_links SET upload_intent_id=?,attachment_id=? WHERE id=?".to_owned(),
         values: vec![
-            value(input.identifier.as_deref().unwrap_or("")), value(input.item_id.as_deref().unwrap_or("")),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(input.item_id.as_deref().unwrap_or("")),
             value(&input.record_id),
         ],
     })
@@ -1585,10 +1701,13 @@ pub async fn legal_stored_original_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,\
- object_key,bytes,state,created_at) VALUES(?,?,?,'original',?,?,'stored',?)".to_owned(),
+ object_key,bytes,state,created_at) VALUES(?,?,?,'original',?,?,'stored',?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()),
-            value(input.identifier.as_deref().unwrap_or("")), value(input.item_id.as_deref().unwrap_or("")),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(input.item_id.as_deref().unwrap_or("")),
             serde_json::Value::Number(input.timestamp.unwrap_or_default().into()),
             serde_json::Value::Number(input.now.into()),
         ],
@@ -1605,16 +1724,21 @@ pub async fn legal_quarantine_event_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,\
- actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(),
+ actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()),
-            value(input.identifier.as_deref().unwrap_or("")), value(&input.record_id),
-            value(input.item_id.as_deref().unwrap_or("")), value(&input.user_id),
-            value(&input.record_type), value(&input.message), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.record_id),
+            value(input.item_id.as_deref().unwrap_or("")),
+            value(&input.user_id),
+            value(&input.record_type),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Customer portal: record a portal action (authoritative insert).
 pub async fn customer_portal_action_statement(
@@ -1627,17 +1751,24 @@ pub async fn customer_portal_action_statement(
     Ok(NotificationStatement {
         sql: "INSERT INTO customer_portal_actions(id,company_id,binding_id,order_id,customer_id,\
  user_id,action,note,source_version,request_key,request_hash,status,created_at) \
- VALUES(?,?,?,?,?,?,?,?,?,?,?,'recorded',?)".to_owned(),
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,'recorded',?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()), value(&input.record_id),
-            value(input.order_id.as_deref().unwrap_or("")), value(input.identifier.as_deref().unwrap_or("")),
-            value(&input.user_id), value(&input.record_type), value(&input.message),
-            serde_json::Value::Number(input.record_version.into()), value(input.target_id.as_deref().unwrap_or("")),
-            value(input.source_hash.as_deref().unwrap_or("")), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(&input.record_id),
+            value(input.order_id.as_deref().unwrap_or("")),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(&input.user_id),
+            value(&input.record_type),
+            value(&input.message),
+            serde_json::Value::Number(input.record_version.into()),
+            value(input.target_id.as_deref().unwrap_or("")),
+            value(input.source_hash.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Release acceptance: submitted lifecycle event.
 pub async fn release_event_submitted_statement(
@@ -1649,8 +1780,16 @@ pub async fn release_event_submitted_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,\
- detail_json,created_at) VALUES(?,?,?,1,'submitted',?,?,?)".to_owned(),
-        values: vec![value(&input.idempotency_key), value(company.as_str()), value(&input.record_id), value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into())],
+ detail_json,created_at) VALUES(?,?,?,1,'submitted',?,?,?)"
+            .to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(&input.record_id),
+            value(&input.user_id),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
+        ],
     })
 }
 
@@ -1664,8 +1803,17 @@ pub async fn release_event_reviewed_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,\
- detail_json,created_at) VALUES(?,?,?,?,'reviewed',?,?,?)".to_owned(),
-        values: vec![value(&input.idempotency_key), value(company.as_str()), value(&input.record_id), serde_json::Value::Number(input.record_version.into()), value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into())],
+ detail_json,created_at) VALUES(?,?,?,?,'reviewed',?,?,?)"
+            .to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(&input.record_id),
+            serde_json::Value::Number(input.record_version.into()),
+            value(&input.user_id),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
+        ],
     })
 }
 
@@ -1679,11 +1827,19 @@ pub async fn release_event_revoked_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO company_release_events(id,company_id,release_id,version,action,actor_id,\
- detail_json,created_at) VALUES(?,?,?,?,'revoked',?,?,?)".to_owned(),
-        values: vec![value(&input.idempotency_key), value(company.as_str()), value(&input.record_id), serde_json::Value::Number(input.record_version.into()), value(&input.user_id), value(&input.message), serde_json::Value::Number(input.now.into())],
+ detail_json,created_at) VALUES(?,?,?,?,'revoked',?,?,?)"
+            .to_owned(),
+        values: vec![
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(&input.record_id),
+            serde_json::Value::Number(input.record_version.into()),
+            value(&input.user_id),
+            value(&input.message),
+            serde_json::Value::Number(input.now.into()),
+        ],
     })
 }
-
 
 /// Finance: issue a customer receipt for a settled payment.
 pub async fn customer_receipt_statement(
@@ -1696,22 +1852,32 @@ pub async fn customer_receipt_statement(
     Ok(NotificationStatement {
         sql: "INSERT INTO finance_customer_receipts(id,company_id,payment_id,document_number,\
  receipt_date,currency,amount_minor,snapshot_json,export_html,export_sha256,issued_by,issued_at) \
- VALUES(?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(company.as_str()), value(&input.record_id),
-            value(input.identifier.as_deref().unwrap_or("")), value(input.item_id.as_deref().unwrap_or("")),
-            value(input.target_kind.as_deref().unwrap_or("")), value(input.target_id.as_deref().unwrap_or("")),
-            value(&input.message), value(input.event.as_deref().unwrap_or("")),
-            value(input.source_hash.as_deref().unwrap_or("")), value(&input.user_id),
+            value(&input.idempotency_key),
+            value(company.as_str()),
+            value(&input.record_id),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(input.item_id.as_deref().unwrap_or("")),
+            value(input.target_kind.as_deref().unwrap_or("")),
+            value(input.target_id.as_deref().unwrap_or("")),
+            value(&input.message),
+            value(input.event.as_deref().unwrap_or("")),
+            value(input.source_hash.as_deref().unwrap_or("")),
+            value(&input.user_id),
             serde_json::Value::Number(input.now.into()),
         ],
     })
 }
 
-
-fn values_from_json(input: &NotificationStatementInput) -> Result<Vec<serde_json::Value>, Error> {
+pub(crate) fn values_from_json(
+    input: &NotificationStatementInput,
+) -> Result<Vec<serde_json::Value>, Error> {
     match &input.values_json {
-        Some(raw) => serde_json::from_str::<Vec<serde_json::Value>>(raw).map_err(|_| invalid().into()),
+        Some(raw) => {
+            serde_json::from_str::<Vec<serde_json::Value>>(raw).map_err(|_| invalid().into())
+        }
         None => Err(invalid().into()),
     }
 }
@@ -1756,7 +1922,8 @@ pub async fn legal_uploaded_intent_statement(
         sql: "INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,\
  declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,\
  created_at,updated_at,owner_version,attachment_set_id,attachment_link_id,company_id,\
- detected_media_type,quarantine_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,'uploaded',?,?,?,?,?,?,?,?,?,?)".to_owned(),
+ detected_media_type,quarantine_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,'uploaded',?,?,?,?,?,?,?,?,?,?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -1769,13 +1936,14 @@ pub async fn legal_quarantined_source_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,\
+        sql:
+            "INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,\
  original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,\
- detected_media_type,source_state) VALUES(?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,'quarantined')".to_owned(),
+ detected_media_type,source_state) VALUES(?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,'quarantined')"
+                .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal: preserve an attachment as evidence for an item.
 pub async fn legal_file_preservation_statement(
@@ -1787,15 +1955,18 @@ pub async fn legal_file_preservation_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_file_preservations(item_id,source_type,source_id,object_key,\
- checksum,created_by,created_at) VALUES(?,'attachment',?,?,?,?,?) ON CONFLICT DO NOTHING".to_owned(),
+ checksum,created_by,created_at) VALUES(?,'attachment',?,?,?,?,?) ON CONFLICT DO NOTHING"
+            .to_owned(),
         values: vec![
-            value(&input.record_id), value(input.identifier.as_deref().unwrap_or("")),
-            value(input.item_id.as_deref().unwrap_or("")), value(&input.message),
-            value(&input.user_id), serde_json::Value::Number(input.now.into()),
+            value(&input.record_id),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(input.item_id.as_deref().unwrap_or("")),
+            value(&input.message),
+            value(&input.user_id),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Legal: authorize retention execution for an approved destruction.
 pub async fn legal_retention_authorization_statement(
@@ -1819,7 +1990,6 @@ pub async fn legal_retention_authorization_statement(
     })
 }
 
-
 /// Finance: create a hotel PMS chart-of-account mapping.
 pub async fn finance_hotel_account_statement(
     connection: &mut PgConnection,
@@ -1830,16 +2000,22 @@ pub async fn finance_hotel_account_statement(
     let value = |v: &str| serde_json::Value::String(v.to_owned());
     Ok(NotificationStatement {
         sql: "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,\
- is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',?,?,?,?)".to_owned(),
+ is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',?,?,?,?)"
+            .to_owned(),
         values: vec![
-            value(&input.idempotency_key), value(input.identifier.as_deref().unwrap_or("")),
-            value(company.as_str()), value(&input.record_id), value(&input.message), value(&input.record_type),
-            serde_json::Value::Number(input.record_version.into()), value(input.item_id.as_deref().unwrap_or("")),
-            serde_json::Value::Number(input.now.into()), serde_json::Value::Number(input.now.into()),
+            value(&input.idempotency_key),
+            value(input.identifier.as_deref().unwrap_or("")),
+            value(company.as_str()),
+            value(&input.record_id),
+            value(&input.message),
+            value(&input.record_type),
+            serde_json::Value::Number(input.record_version.into()),
+            value(input.item_id.as_deref().unwrap_or("")),
+            serde_json::Value::Number(input.now.into()),
+            serde_json::Value::Number(input.now.into()),
         ],
     })
 }
-
 
 /// Finance: ignore an unused payroll bank observation.
 pub async fn finance_bank_ignore_statement(
@@ -1852,18 +2028,21 @@ pub async fn finance_bank_ignore_statement(
     Ok(NotificationStatement {
         sql: "UPDATE finance_bank_transactions SET match_status='ignored',matched_type=NULL,\
  matched_id=NULL,version=version+1 WHERE id=? AND company_id=? AND version=? \
- AND match_status IN ('unmatched','proposed')".to_owned(),
+ AND match_status IN ('unmatched','proposed')"
+            .to_owned(),
         values: vec![
-            value(&input.record_id), value(company.as_str()),
+            value(&input.record_id),
+            value(company.as_str()),
             serde_json::Value::Number(input.record_version.into()),
         ],
     })
 }
 
-
 fn safe_table(table: &Option<String>) -> Result<&str, Error> {
     match table {
-        Some(t) if !t.is_empty() && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') => Ok(t.as_str()),
+        Some(t) if !t.is_empty() && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') => {
+            Ok(t.as_str())
+        }
         _ => Err(invalid().into()),
     }
 }
@@ -1877,7 +2056,9 @@ pub async fn legal_feature_create_statement(
     ready(connection, company).await?;
     let table = safe_table(&input.table_name)?;
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO {table}(id,item_id,category,title,owner_id,due_date,state,version,data,created_by,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,1,?::jsonb,?,?,?)"),
+        sql: format!(
+            "INSERT INTO {table}(id,item_id,category,title,owner_id,due_date,state,version,data,created_by,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,1,?::jsonb,?,?,?)"
+        ),
         values: values_from_json(input)?,
     })
 }
@@ -1891,7 +2072,9 @@ pub async fn legal_feature_update_statement(
     ready(connection, company).await?;
     let table = safe_table(&input.table_name)?;
     Ok(NotificationStatement {
-        sql: format!("UPDATE {table} SET state=?,data=?::jsonb,version=version+1,updated_by=?,updated_at=? WHERE id=? AND version=?"),
+        sql: format!(
+            "UPDATE {table} SET state=?,data=?::jsonb,version=version+1,updated_by=?,updated_at=? WHERE id=? AND version=?"
+        ),
         values: values_from_json(input)?,
     })
 }
@@ -1905,7 +2088,8 @@ pub async fn legal_feature_history_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_feature_history(id,item_id,feature_id,category,version,snapshot,\
- actor_id,reason,created_at) VALUES(?,?,?,?,?,?::jsonb,?,?,?)".to_owned(),
+ actor_id,reason,created_at) VALUES(?,?,?,?,?,?::jsonb,?,?,?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -1936,7 +2120,6 @@ pub async fn legal_feature_event_statement(
     })
 }
 
-
 /// Legal approval: lock the source document.
 pub async fn legal_approval_lock_statement(
     connection: &mut PgConnection,
@@ -1944,7 +2127,10 @@ pub async fn legal_approval_lock_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE legal_documents SET locked=true WHERE id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_documents SET locked=true WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Legal approval: retain the approval route with upsert.
@@ -2002,7 +2188,6 @@ pub async fn legal_approval_event_statement(
     })
 }
 
-
 /// Legal executed copy: record the independent review.
 pub async fn legal_executed_review_statement(
     connection: &mut PgConnection,
@@ -2012,7 +2197,8 @@ pub async fn legal_executed_review_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_executed_reviews(id,executed_copy_id,item_version,decision,checks,\
- reason,reviewer_id,created_at) VALUES(?,?,?,?,?::jsonb,?,?,?)".to_owned(),
+ reason,reviewer_id,created_at) VALUES(?,?,?,?,?::jsonb,?,?,?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2026,11 +2212,11 @@ pub async fn legal_executed_copy_state_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "UPDATE legal_executed_copies SET state=?,reviewed_by=?,reviewed_at=?,\
- version=version+1 WHERE id=?".to_owned(),
+ version=version+1 WHERE id=?"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal signing: record a signer's envelope view.
 pub async fn legal_signer_view_statement(
@@ -2072,7 +2258,6 @@ pub async fn legal_native_reference_statement(
     })
 }
 
-
 /// Legal trust: add proposed trust material.
 pub async fn legal_trust_addition_statement(
     connection: &mut PgConnection,
@@ -2082,7 +2267,8 @@ pub async fn legal_trust_addition_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_trust_material(id,company_id,kind,name,source,content,checksum,\
- state,created_by,created_at) VALUES(?,?,?,?,?,?,?,'proposed',?,?)".to_owned(),
+ state,created_by,created_at) VALUES(?,?,?,?,?,?,?,'proposed',?,?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2095,7 +2281,8 @@ pub async fn legal_trust_decision_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE legal_trust_material SET state=?,approved_by=?,version=version+1 WHERE id=?".to_owned(),
+        sql: "UPDATE legal_trust_material SET state=?,approved_by=?,version=version+1 WHERE id=?"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2109,11 +2296,11 @@ pub async fn legal_processing_job_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,\
- state,actor_json,created_by,created_at) VALUES(?,?,?,?,?,?,'queued',?,?,?)".to_owned(),
+ state,actor_json,created_by,created_at) VALUES(?,?,?,?,?,?,'queued',?,?,?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal: record a positional document access event.
 pub async fn legal_access_event_statement(
@@ -2127,7 +2314,6 @@ pub async fn legal_access_event_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal governance: create an intake form.
 pub async fn legal_intake_form_create_statement(
@@ -2179,7 +2365,8 @@ pub async fn legal_authority_create_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_authorities(id,item_id,company_id,user_id,document_id,currency,\
- limit_minor,valid_from,valid_until,state,created_by) VALUES(?,?,?,?,?,?,?,?,?,'proposed',?)".to_owned(),
+ limit_minor,valid_from,valid_until,state,created_by) VALUES(?,?,?,?,?,?,?,?,?,'proposed',?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2192,11 +2379,11 @@ pub async fn legal_authority_decide_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE legal_authorities SET state=?,approved_by=?,version=version+1 WHERE id=?".to_owned(),
+        sql: "UPDATE legal_authorities SET state=?,approved_by=?,version=version+1 WHERE id=?"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal retention: create a retention policy.
 pub async fn legal_retention_policy_create_statement(
@@ -2219,7 +2406,9 @@ pub async fn legal_retention_policy_decide_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE legal_retention_policies SET state=?,approved_by=?,version=version+1 WHERE id=?".to_owned(),
+        sql:
+            "UPDATE legal_retention_policies SET state=?,approved_by=?,version=version+1 WHERE id=?"
+                .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2246,8 +2435,10 @@ pub async fn legal_retention_request_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,\
- reason,manifest,created_at) VALUES(?,?,?,?,?,'requested',?,?::jsonb,?)".to_owned(),
+        sql:
+            "INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,\
+ reason,manifest,created_at) VALUES(?,?,?,?,?,'requested',?,?::jsonb,?)"
+                .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2261,11 +2452,11 @@ pub async fn legal_retention_change_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "UPDATE legal_destructions SET state=?,approved_by=coalesce(?,approved_by),\
- approved_at=coalesce(?,approved_at),version=version+1,error=NULL,attempts=0 WHERE id=?".to_owned(),
+ approved_at=coalesce(?,approved_at),version=version+1,error=NULL,attempts=0 WHERE id=?"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal operations: save a named query view.
 pub async fn legal_saved_view_statement(
@@ -2302,7 +2493,8 @@ pub async fn legal_ai_document_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,\
- created_by,created_at) VALUES(?,?,?,?,'text/plain',?,?,?,?,?)".to_owned(),
+ created_by,created_at) VALUES(?,?,?,?,'text/plain',?,?,?,?,?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2315,11 +2507,12 @@ pub async fn legal_proposal_accept_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE legal_ai_proposals SET state='accepted',proposal=proposal||?::jsonb WHERE id=?".to_owned(),
+        sql:
+            "UPDATE legal_ai_proposals SET state='accepted',proposal=proposal||?::jsonb WHERE id=?"
+                .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal documents: insert an inspection unless a destruction is active.
 pub async fn legal_document_inspection_statement(
@@ -2375,7 +2568,6 @@ pub async fn legal_stored_document_insert_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal corpus: insert a source chunk.
 pub async fn legal_source_chunk_insert_statement(
@@ -2441,7 +2633,8 @@ pub async fn legal_text_review_import_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement {
         sql: "INSERT INTO legal_text_reviews(id,company_id,item_id,document_id,document_checksum,\
- extraction_method,inspection_id,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(),
+ extraction_method,inspection_id,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -2484,7 +2677,6 @@ pub async fn legal_source_check_review_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal service: configure company settings.
 pub async fn legal_settings_configure_statement(
@@ -2549,9 +2741,13 @@ pub async fn legal_requester_route_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let source = input.source_access_sql.as_deref().unwrap_or("");
-    if source.is_empty() { return Err(invalid().into()); }
+    if source.is_empty() {
+        return Err(invalid().into());
+    }
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO legal_members(item_id,user_id,access) SELECT DISTINCT ?,user_id,'edit' FROM ({source}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') ON CONFLICT DO NOTHING"),
+        sql: format!(
+            "INSERT INTO legal_members(item_id,user_id,access) SELECT DISTINCT ?,user_id,'edit' FROM ({source}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') ON CONFLICT DO NOTHING"
+        ),
         values: values_from_json(input)?,
     })
 }
@@ -2582,7 +2778,6 @@ pub async fn legal_hold_targets_expand_statement(
     })
 }
 
-
 /// Legal service: update a legal item's core fields.
 pub async fn legal_item_update_statement(
     connection: &mut PgConnection,
@@ -2611,7 +2806,6 @@ pub async fn legal_subtype_update_statement(
     })
 }
 
-
 /// Legal destruction worker: destruction block.
 pub async fn legal_destruction_block_statement(
     connection: &mut PgConnection,
@@ -2624,7 +2818,6 @@ pub async fn legal_destruction_block_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal destruction worker: destruction start.
 pub async fn legal_destruction_start_statement(
@@ -2639,7 +2832,6 @@ pub async fn legal_destruction_start_statement(
     })
 }
 
-
 /// Legal destruction worker: retention started event.
 pub async fn legal_retention_started_event_statement(
     connection: &mut PgConnection,
@@ -2652,7 +2844,6 @@ pub async fn legal_retention_started_event_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal destruction worker: destruction count attempt.
 pub async fn legal_destruction_count_attempt_statement(
@@ -2667,7 +2858,6 @@ pub async fn legal_destruction_count_attempt_statement(
     })
 }
 
-
 /// Legal destruction worker: destruction retain executing.
 pub async fn legal_destruction_retain_executing_statement(
     connection: &mut PgConnection,
@@ -2680,7 +2870,6 @@ pub async fn legal_destruction_retain_executing_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal destruction worker: disposal retain.
 pub async fn legal_disposal_retain_statement(
@@ -2695,7 +2884,6 @@ pub async fn legal_disposal_retain_statement(
     })
 }
 
-
 /// Legal destruction worker: document erase.
 pub async fn legal_document_erase_statement(
     connection: &mut PgConnection,
@@ -2708,7 +2896,6 @@ pub async fn legal_document_erase_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal destruction worker: processing retire.
 pub async fn legal_processing_retire_statement(
@@ -2723,7 +2910,6 @@ pub async fn legal_processing_retire_statement(
     })
 }
 
-
 /// Legal destruction worker: inspections erase.
 pub async fn legal_inspections_erase_statement(
     connection: &mut PgConnection,
@@ -2736,7 +2922,6 @@ pub async fn legal_inspections_erase_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal destruction worker: ai retire.
 pub async fn legal_ai_retire_statement(
@@ -2751,7 +2936,6 @@ pub async fn legal_ai_retire_statement(
     })
 }
 
-
 /// Legal destruction worker: shares revoke.
 pub async fn legal_shares_revoke_statement(
     connection: &mut PgConnection,
@@ -2760,11 +2944,11 @@ pub async fn legal_shares_revoke_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE legal_shares SET revoked_at=? WHERE item_id=? AND revoked_at IS NULL".to_owned(),
+        sql: "UPDATE legal_shares SET revoked_at=? WHERE item_id=? AND revoked_at IS NULL"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal destruction worker: destruction complete.
 pub async fn legal_destruction_complete_statement(
@@ -2779,7 +2963,6 @@ pub async fn legal_destruction_complete_statement(
     })
 }
 
-
 /// Legal destruction worker: retention destroyed event.
 pub async fn legal_retention_destroyed_event_statement(
     connection: &mut PgConnection,
@@ -2792,7 +2975,6 @@ pub async fn legal_retention_destroyed_event_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal destruction worker: destruction require review.
 pub async fn legal_destruction_require_review_statement(
@@ -2807,7 +2989,6 @@ pub async fn legal_destruction_require_review_statement(
     })
 }
 
-
 /// Legal portal: access event.
 pub async fn legal_portal_access_event_statement(
     connection: &mut PgConnection,
@@ -2820,7 +3001,6 @@ pub async fn legal_portal_access_event_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal portal: accept share.
 pub async fn legal_portal_accept_share_statement(
@@ -2835,7 +3015,6 @@ pub async fn legal_portal_accept_share_statement(
     })
 }
 
-
 /// Legal portal: external comment.
 pub async fn legal_portal_external_comment_statement(
     connection: &mut PgConnection,
@@ -2848,7 +3027,6 @@ pub async fn legal_portal_external_comment_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal portal: counsel entry.
 pub async fn legal_portal_counsel_entry_statement(
@@ -2863,7 +3041,6 @@ pub async fn legal_portal_counsel_entry_statement(
     })
 }
 
-
 /// Legal portal: counsel history.
 pub async fn legal_portal_counsel_history_statement(
     connection: &mut PgConnection,
@@ -2876,7 +3053,6 @@ pub async fn legal_portal_counsel_history_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal portal: interaction event.
 pub async fn legal_portal_interaction_event_statement(
@@ -2891,7 +3067,6 @@ pub async fn legal_portal_interaction_event_statement(
     })
 }
 
-
 /// Legal portal: receipt.
 pub async fn legal_portal_receipt_statement(
     connection: &mut PgConnection,
@@ -2904,7 +3079,6 @@ pub async fn legal_portal_receipt_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal portal: external upload.
 pub async fn legal_portal_external_upload_statement(
@@ -2919,7 +3093,6 @@ pub async fn legal_portal_external_upload_statement(
     })
 }
 
-
 /// Legal portal: advance upload.
 pub async fn legal_portal_advance_upload_statement(
     connection: &mut PgConnection,
@@ -2932,7 +3105,6 @@ pub async fn legal_portal_advance_upload_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal portal: upload event.
 pub async fn legal_portal_upload_event_statement(
@@ -2947,7 +3119,6 @@ pub async fn legal_portal_upload_event_statement(
     })
 }
 
-
 /// Legal reminders: expire signed envelopes and emit lifecycle events.
 pub async fn legal_envelope_expire_statement(
     connection: &mut PgConnection,
@@ -2956,14 +3127,17 @@ pub async fn legal_envelope_expire_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let prefix = input.cte_prefix.as_deref().unwrap_or("");
-    if prefix.is_empty() { return Err(invalid().into()); }
+    if prefix.is_empty() {
+        return Err(invalid().into());
+    }
     Ok(NotificationStatement {
-        sql: format!(r#"{prefix}
- INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT 'expiry-'||e.id,c.id,'signing.expired','system:legal','Expired envelope; a new approval is required',c.version,? FROM changed c JOIN expired e ON e.item_id=c.id"#),
+        sql: format!(
+            r#"{prefix}
+ INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT 'expiry-'||e.id,c.id,'signing.expired','system:legal','Expired envelope; a new approval is required',c.version,? FROM changed c JOIN expired e ON e.item_id=c.id"#
+        ),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: create a book adjustment draft.
 pub async fn finance_book_adjustment_create_statement(
@@ -3004,7 +3178,6 @@ pub async fn finance_book_adjustment_reverse_statement(
     })
 }
 
-
 /// Finance: create a plan edition.
 pub async fn finance_plan_edition_create_statement(
     connection: &mut PgConnection,
@@ -3044,7 +3217,6 @@ pub async fn finance_report_snapshot_statement(
     })
 }
 
-
 /// Finance: create a reversal journal from a posted source journal.
 pub async fn finance_reversal_journal_statement(
     connection: &mut PgConnection,
@@ -3083,7 +3255,6 @@ pub async fn finance_journal_reverse_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: create or update a tax identity (values_json carries ordered binds).
 pub async fn finance_tax_identity_upsert_statement(
@@ -3131,7 +3302,6 @@ pub async fn finance_tax_identity_decide_statement(
     })
 }
 
-
 /// Finance: schedule a due-draft job.
 pub async fn finance_due_draft_schedule_statement(
     connection: &mut PgConnection,
@@ -3157,7 +3327,6 @@ pub async fn finance_due_draft_decide_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: create an intercompany document pair.
 pub async fn finance_intercompany_pair_create_statement(
@@ -3211,7 +3380,6 @@ pub async fn finance_intercompany_claims_clear_statement(
     })
 }
 
-
 /// People/payroll: record an advance repayment deduction consumption.
 pub async fn payroll_deduction_consumption_statement(
     connection: &mut PgConnection,
@@ -3250,7 +3418,6 @@ pub async fn payroll_advances_close_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// People/payroll: record a final-pay cancellation event.
 pub async fn payroll_final_pay_cancel_event_statement(
@@ -3291,7 +3458,6 @@ pub async fn payroll_final_pay_prep_cancel_statement(
     })
 }
 
-
 /// People/payroll: upsert an expense draft (values_json carries ordered binds).
 pub async fn expense_draft_write_statement(
     connection: &mut PgConnection,
@@ -3308,7 +3474,6 @@ pub async fn expense_draft_write_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: create sales defaults draft.
 pub async fn finance_sales_defaults_create_statement(
@@ -3349,7 +3514,6 @@ pub async fn finance_sales_defaults_decide_statement(
     })
 }
 
-
 /// People/payroll: insert a Thai payroll statutory profile.
 pub async fn payroll_statutory_profile_insert_statement(
     connection: &mut PgConnection,
@@ -3375,7 +3539,6 @@ pub async fn payroll_statutory_profile_decide_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: create an accounting profile draft.
 pub async fn finance_accounting_profile_create_statement(
@@ -3403,7 +3566,6 @@ pub async fn finance_accounting_profile_decide_statement(
     })
 }
 
-
 /// Finance/hospitality: record a tax document.
 pub async fn hospitality_tax_doc_record_statement(
     connection: &mut PgConnection,
@@ -3426,11 +3588,12 @@ pub async fn hospitality_tax_doc_decide_statement(
     ready(connection, company).await?;
     let column = safe_table(&input.table_name)?;
     Ok(NotificationStatement {
-        sql: format!("UPDATE hospitality_tax_documents SET state=?,version=?,{column}=?,reason=?,updated_at=? WHERE id=? AND company_id=? AND version=?"),
+        sql: format!(
+            "UPDATE hospitality_tax_documents SET state=?,version=?,{column}=?,reason=?,updated_at=? WHERE id=? AND company_id=? AND version=?"
+        ),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance/PMS import: create a customer party.
 pub async fn finance_pms_party_statement(
@@ -3458,7 +3621,6 @@ pub async fn finance_pms_payment_statement(
     })
 }
 
-
 /// Finance: create a journal from a prepared plan.
 pub async fn finance_journal_create_statement(
     connection: &mut PgConnection,
@@ -3485,7 +3647,6 @@ pub async fn finance_journal_line_create_statement(
     })
 }
 
-
 /// Finance: record a versioned invoice line snapshot.
 pub async fn finance_invoice_line_version_statement(
     connection: &mut PgConnection,
@@ -3498,7 +3659,6 @@ pub async fn finance_invoice_line_version_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: record a review-file evidence manifest.
 pub async fn finance_expansion_review_file_statement(
@@ -3513,7 +3673,6 @@ pub async fn finance_expansion_review_file_statement(
     })
 }
 
-
 /// Finance/commerce: set base carrying amounts on a journal line.
 pub async fn finance_commerce_base_carry_statement(
     connection: &mut PgConnection,
@@ -3526,7 +3685,6 @@ pub async fn finance_commerce_base_carry_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance/payroll: match a bank transaction to a remittance.
 pub async fn finance_payroll_remittance_match_statement(
@@ -3541,7 +3699,6 @@ pub async fn finance_payroll_remittance_match_statement(
     })
 }
 
-
 /// Finance/POS: upsert a daily customer party.
 pub async fn finance_pos_party_statement(
     connection: &mut PgConnection,
@@ -3555,7 +3712,6 @@ pub async fn finance_pos_party_statement(
     })
 }
 
-
 /// Finance/payroll: match a bank transaction to an "other" remittance (company-scoped).
 pub async fn finance_payroll_other_match_statement(
     connection: &mut PgConnection,
@@ -3568,7 +3724,6 @@ pub async fn finance_payroll_other_match_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: prepare a group report edition.
 pub async fn finance_group_edition_prepare_statement(
@@ -3609,7 +3764,6 @@ pub async fn finance_group_edition_decide_statement(
     })
 }
 
-
 /// Finance: set a company tool eligibility flag (upsert).
 pub async fn finance_company_tool_set_statement(
     connection: &mut PgConnection,
@@ -3623,7 +3777,6 @@ pub async fn finance_company_tool_set_statement(
     })
 }
 
-
 /// Finance/payroll: bump the source invoice version when a payment batch is created.
 pub async fn finance_payroll_batch_invoice_version_statement(
     connection: &mut PgConnection,
@@ -3632,7 +3785,9 @@ pub async fn finance_payroll_batch_invoice_version_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=? AND company_id=?".to_owned(),
+        sql:
+            "UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=? AND company_id=?"
+                .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -3649,7 +3804,6 @@ pub async fn finance_payroll_batch_bank_match_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Finance: complete a due draft (worker, holding-keyed).
 pub async fn finance_due_draft_complete_statement(
@@ -3677,7 +3831,6 @@ pub async fn finance_due_draft_block_statement(
     })
 }
 
-
 /// Finance: void an unposted supplier-bill draft invoice.
 pub async fn finance_supplier_bill_draft_void_statement(
     connection: &mut PgConnection,
@@ -3690,7 +3843,6 @@ pub async fn finance_supplier_bill_draft_void_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// People: insert a self-service employee row.
 pub async fn people_self_service_employee_statement(
@@ -3731,7 +3883,6 @@ pub async fn people_expense_payment_cancel_statement(
     })
 }
 
-
 /// People: decide on a leave evidence manifest.
 pub async fn people_leave_evidence_manifest_statement(
     connection: &mut PgConnection,
@@ -3771,7 +3922,6 @@ pub async fn people_prep_task_complete_statement(
     })
 }
 
-
 /// People/payroll: record a statutory remittance.
 pub async fn people_statutory_remittance_statement(
     connection: &mut PgConnection,
@@ -3793,7 +3943,8 @@ pub async fn people_assign_level_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE hr_engagements SET level_id=?,version=version+1,updated_at=? WHERE id=?".to_owned(),
+        sql: "UPDATE hr_engagements SET level_id=?,version=version+1,updated_at=? WHERE id=?"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -3811,7 +3962,6 @@ pub async fn people_attachment_owner_version_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// Native-owned constant SQL for the workflow command-assertion cleanup.
 /// A checked-in JSON contract mirrors this for synchronous TS statement preparation;
@@ -3831,7 +3981,6 @@ pub async fn workflow_command_assertion_clear_statement(
     })
 }
 
-
 /// Workflow: clear assertion rows for several commands at once.
 pub async fn workflow_command_assertion_clear_many_statement(
     connection: &mut PgConnection,
@@ -3840,14 +3989,15 @@ pub async fn workflow_command_assertion_clear_many_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let values = values_from_json(input)?;
-    if values.is_empty() { return Err(invalid().into()); }
+    if values.is_empty() {
+        return Err(invalid().into());
+    }
     let placeholders = vec!["?"; values.len()].join(",");
     Ok(NotificationStatement {
         sql: format!("DELETE FROM command_assertions WHERE command_id IN ({placeholders})"),
         values,
     })
 }
-
 
 /// Collaboration: provision the organization-managed team.
 pub async fn collaboration_org_team_statement(
@@ -3857,9 +4007,13 @@ pub async fn collaboration_org_team_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let source = input.source_access_sql.as_deref().unwrap_or("");
-    if source.is_empty() { return Err(invalid().into()); }
+    if source.is_empty() {
+        return Err(invalid().into());
+    }
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO messaging_teams(id,company_id,name,owner_id,organization_managed,created_at) SELECT 'org-team-' || company_id,company_id,'Organization','organization',true,? {source} WHERE company_id=? AND kind='company' AND status='active' ON CONFLICT DO NOTHING"),
+        sql: format!(
+            "INSERT INTO messaging_teams(id,company_id,name,owner_id,organization_managed,created_at) SELECT 'org-team-' || company_id,company_id,'Organization','organization',true,? {source} WHERE company_id=? AND kind='company' AND status='active' ON CONFLICT DO NOTHING"
+        ),
         values: values_from_json(input)?,
     })
 }
@@ -3872,13 +4026,16 @@ pub async fn collaboration_org_room_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let source = input.source_access_sql.as_deref().unwrap_or("");
-    if source.is_empty() { return Err(invalid().into()); }
+    if source.is_empty() {
+        return Err(invalid().into());
+    }
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,organization_node_id,created_at) SELECT 'org-channel-' || n.id,n.company_id,'channel',n.display_name,'organization','org-team-' || n.company_id,n.id,? {source} WHERE n.company_id=? AND n.kind IN ('company','branch','department') AND n.status='active' AND EXISTS(SELECT 1 FROM messaging_teams t WHERE t.id='org-team-' || n.company_id) AND NOT EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.company_id=n.company_id AND r.organization_node_id=n.id) ON CONFLICT DO NOTHING"),
+        sql: format!(
+            "INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,organization_node_id,created_at) SELECT 'org-channel-' || n.id,n.company_id,'channel',n.display_name,'organization','org-team-' || n.company_id,n.id,? {source} WHERE n.company_id=? AND n.kind IN ('company','branch','department') AND n.status='active' AND EXISTS(SELECT 1 FROM messaging_teams t WHERE t.id='org-team-' || n.company_id) AND NOT EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.company_id=n.company_id AND r.organization_node_id=n.id) ON CONFLICT DO NOTHING"
+        ),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Legal: backfill specialized attachment linkage on a legal document.
 pub async fn legal_backfill_document_attachment_statement(
@@ -3906,7 +4063,6 @@ pub async fn legal_backfill_external_attachment_statement(
     })
 }
 
-
 /// Collaboration: expire stale beta AI usage reservations (holding worker).
 pub async fn beta_ai_usage_expire_statement(
     connection: &mut PgConnection,
@@ -3915,7 +4071,8 @@ pub async fn beta_ai_usage_expire_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE social_ai_usage SET state='failed' WHERE state='reserved' AND lease_until<?".to_owned(),
+        sql: "UPDATE social_ai_usage SET state='failed' WHERE state='reserved' AND lease_until<?"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
@@ -3932,7 +4089,6 @@ pub async fn beta_ai_draft_expire_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// People: create a legacy employee row for a leave request.
 pub async fn people_legacy_leave_employee_statement(
@@ -3960,7 +4116,6 @@ pub async fn people_legacy_leave_request_statement(
     })
 }
 
-
 /// People: record a project-worker starter row (server-chosen table).
 pub async fn people_worker_starter_statement(
     connection: &mut PgConnection,
@@ -3970,7 +4125,9 @@ pub async fn people_worker_starter_statement(
     ready(connection, company).await?;
     let table = safe_table(&input.table_name)?;
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO {table}(person_id,company_id,account_id,engagement_id,command_id,request_hash,proof_json) SELECT ?,?,?,?,?,request_hash,?::jsonb FROM command_receipts WHERE command_id=? AND operation=? AND record_id=?"),
+        sql: format!(
+            "INSERT INTO {table}(person_id,company_id,account_id,engagement_id,command_id,request_hash,proof_json) SELECT ?,?,?,?,?,request_hash,?::jsonb FROM command_receipts WHERE command_id=? AND operation=? AND record_id=?"
+        ),
         values: values_from_json(input)?,
     })
 }
@@ -3984,11 +4141,12 @@ pub async fn people_worker_placement_statement(
     ready(connection, company).await?;
     let table = safe_table(&input.table_name)?;
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO {table}(case_id,company_id,person_id,engagement_id,starter_command_id,command_id,request_hash,proof_json) SELECT ?,?,?,?,?,?,request_hash,?::jsonb FROM command_receipts WHERE command_id=? AND operation='people.lifecycle.submit' AND record_id=?"),
+        sql: format!(
+            "INSERT INTO {table}(case_id,company_id,person_id,engagement_id,starter_command_id,command_id,request_hash,proof_json) SELECT ?,?,?,?,?,?,request_hash,?::jsonb FROM command_receipts WHERE command_id=? AND operation='people.lifecycle.submit' AND record_id=?"
+        ),
         values: values_from_json(input)?,
     })
 }
-
 
 /// People: prepare a beta onboarding person.
 pub async fn people_beta_person_statement(
@@ -4029,7 +4187,6 @@ pub async fn people_beta_engagement_statement(
     })
 }
 
-
 /// People: relocate organization employees and engagements (department move).
 pub async fn people_org_relocation_engagement_statement(
     connection: &mut PgConnection,
@@ -4055,7 +4212,6 @@ pub async fn people_org_relocation_employee_statement(
         values: values_from_json(input)?,
     })
 }
-
 
 /// People: consume a hire handoff person.
 pub async fn people_handoff_person_statement(
@@ -4096,7 +4252,6 @@ pub async fn people_handoff_compensation_statement(
     })
 }
 
-
 /// Collaboration: provision an organization team row.
 pub async fn org_node_team_statement(
     connection: &mut PgConnection,
@@ -4118,9 +4273,13 @@ pub async fn org_node_room_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let source = input.source_access_sql.as_deref().unwrap_or("");
-    if source.is_empty() { return Err(invalid().into()); }
+    if source.is_empty() {
+        return Err(invalid().into());
+    }
     Ok(NotificationStatement {
-        sql: format!("INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,organization_node_id,created_at) SELECT ?,?,'channel',?,'organization',?,?,? WHERE EXISTS(SELECT 1 {source} WHERE id=? AND company_id=? AND status='active') ON CONFLICT DO NOTHING"),
+        sql: format!(
+            "INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,organization_node_id,created_at) SELECT ?,?,'channel',?,'organization',?,?,? WHERE EXISTS(SELECT 1 {source} WHERE id=? AND company_id=? AND status='active') ON CONFLICT DO NOTHING"
+        ),
         values: values_from_json(input)?,
     })
 }
@@ -4133,11 +4292,11 @@ pub async fn org_node_room_rename_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     Ok(NotificationStatement {
-        sql: "UPDATE messaging_rooms SET name=? WHERE company_id=? AND organization_node_id=?".to_owned(),
+        sql: "UPDATE messaging_rooms SET name=? WHERE company_id=? AND organization_node_id=?"
+            .to_owned(),
         values: values_from_json(input)?,
     })
 }
-
 
 /// Collaboration: backfill specialized attachment linkage on a messaging file.
 pub async fn collaboration_backfill_messaging_attachment_statement(
@@ -4152,7 +4311,6 @@ pub async fn collaboration_backfill_messaging_attachment_statement(
     })
 }
 
-
 /// Legal: renew a runtime job health heartbeat.
 pub async fn legal_job_health_renew_statement(
     connection: &mut PgConnection,
@@ -4160,7 +4318,10 @@ pub async fn legal_job_health_renew_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE legal_runtime_health SET heartbeat_at=? WHERE task=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE legal_runtime_health SET heartbeat_at=? WHERE task=?".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Legal: start a runtime job health record.
@@ -4193,7 +4354,6 @@ pub async fn legal_job_health_failure_statement(
     Ok(NotificationStatement { sql: "UPDATE legal_runtime_health SET heartbeat_at=?,failure_count=failure_count+1,last_error=? WHERE task=?".to_owned(), values: values_from_json(input)? })
 }
 
-
 /// Finance: prepare a collection case.
 pub async fn finance_collection_prepare_statement(
     connection: &mut PgConnection,
@@ -4211,7 +4371,11 @@ pub async fn finance_collection_supersede_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE finance_collection_cases SET status='superseded',version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_collection_cases SET status='superseded',version=version+1 WHERE id=?"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance: revise a collection case.
@@ -4244,7 +4408,6 @@ pub async fn finance_collection_decide_statement(
     Ok(NotificationStatement { sql: "UPDATE finance_collection_cases SET status=?,version=version+1,reviewed_by=CASE WHEN ?='approved' THEN ? ELSE reviewed_by END,review_reason=CASE WHEN ?='approved' THEN ? ELSE review_reason END,reviewed_at=CASE WHEN ?='approved' THEN ? ELSE reviewed_at END WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
 
-
 /// Finance: prepare a calculation run.
 pub async fn finance_calc_run_prepare_statement(
     connection: &mut PgConnection,
@@ -4273,7 +4436,12 @@ pub async fn finance_calc_run_decide_statement(
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
     let column = safe_table(&input.table_name)?;
-    Ok(NotificationStatement { sql: format!("UPDATE finance_calculation_runs SET status=?,version=version+1,updated_at=?,{column}=? WHERE id=?"), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: format!(
+            "UPDATE finance_calculation_runs SET status=?,version=version+1,updated_at=?,{column}=? WHERE id=?"
+        ),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance: record a calculation decision event.
@@ -4283,7 +4451,10 @@ pub async fn finance_calc_event_decide_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "INSERT INTO finance_calculation_events VALUES(?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_calculation_events VALUES(?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance: record a period-close check.
@@ -4295,7 +4466,6 @@ pub async fn finance_close_check_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "INSERT INTO finance_close_checks(id,company_id,period_id,check_key,source_version,status,count_value,detail_json,checked_at,checked_by) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(period_id,check_key,source_version) DO NOTHING".to_owned(), values: values_from_json(input)? })
 }
-
 
 /// Finance: record a group entity for intercompany reporting.
 pub async fn finance_group_entity_statement(
@@ -4336,7 +4506,6 @@ pub async fn finance_intercompany_status_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_intercompany_transactions SET status=?,version=version+1 WHERE id=? AND holding_id=?".to_owned(), values: values_from_json(input)? })
 }
-
 
 /// Finance: start a company chart.
 pub async fn finance_starter_chart_statement(
@@ -4388,7 +4557,6 @@ pub async fn finance_starter_dimension_value_statement(
     Ok(NotificationStatement { sql: "INSERT INTO finance_dimension_values(id,company_id,dimension_id,code,name,created_at) VALUES(?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
 }
 
-
 /// People: apply a draft placement to an engagement.
 pub async fn people_draft_engagement_statement(
     connection: &mut PgConnection,
@@ -4406,7 +4574,11 @@ pub async fn people_draft_employee_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE employees SET branch_id=?,department_id=? WHERE company_id=? AND person_id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE employees SET branch_id=?,department_id=? WHERE company_id=? AND person_id=?"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// People: record a draft placement history entry.
@@ -4418,7 +4590,6 @@ pub async fn people_draft_history_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
 }
-
 
 /// Finance: record a prepared statement package.
 pub async fn finance_statement_package_insert_statement(
@@ -4437,7 +4608,10 @@ pub async fn finance_statement_event_prepared_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "INSERT INTO finance_statement_events VALUES(?,?,?,'prepared',?,1,?,?,?)".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_statement_events VALUES(?,?,?,'prepared',?,1,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance: finalize a statement package decision.
@@ -4457,7 +4631,10 @@ pub async fn finance_statement_event_decision_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "INSERT INTO finance_statement_events VALUES(?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_statement_events VALUES(?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance: record a prepared year closing.
@@ -4479,7 +4656,6 @@ pub async fn finance_year_closing_decision_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_year_closings SET status=?,journal_id=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
-
 
 /// Inbox: record an event (idempotent by company/event key).
 pub async fn inbox_event_insert_statement(
@@ -4518,7 +4694,11 @@ pub async fn inbox_staff_notification_read_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Inbox: insert a notice.
@@ -4538,7 +4718,11 @@ pub async fn inbox_notice_target_insert_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "INSERT INTO inbox_notice_targets(notice_id,company_id,user_id) VALUES(?,?,?)".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "INSERT INTO inbox_notice_targets(notice_id,company_id,user_id) VALUES(?,?,?)"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Inbox: mark a notice target delivered.
@@ -4698,7 +4882,10 @@ pub async fn pms_finance_allocation_delete_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "DELETE FROM finance_allocations WHERE invoice_id=? AND company_id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "DELETE FROM finance_allocations WHERE invoice_id=? AND company_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// PMS finance fact: native-owned statement for UPDATE finance_invoices SET outstanding_.
@@ -5058,7 +5245,11 @@ pub async fn asset_retire_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE finance_assets SET status='retired',version=?,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_assets SET status='retired',version=?,updated_at=? WHERE id=?"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance asset: native-owned asset_activate statement.
@@ -5108,7 +5299,11 @@ pub async fn asset_disposal_retire_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE finance_assets SET status='retired',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_assets SET status='retired',version=version+1,updated_at=? WHERE id=?"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance asset: native-owned asset_disposal_decision statement.
@@ -5258,7 +5453,11 @@ pub async fn refund_obligation_bump_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE finance_refund_obligations SET version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_refund_obligations SET version=version+1,updated_at=? WHERE id=?"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance refund: native-owned refund_instruction_export statement.
@@ -5288,7 +5487,11 @@ pub async fn refund_obligation_bump2_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "UPDATE finance_refund_obligations SET version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_refund_obligations SET version=version+1,updated_at=? WHERE id=?"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance refund: native-owned refund_payment_insert statement.
@@ -5421,81 +5624,6 @@ pub async fn wh_bank_match2_statement(
     Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='withholding_remittance_reversal',matched_id=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
 
-/// Native-owned SQL contract for finance asset policy statements. The checked-in
-/// JSON mirror is consumed synchronously by TS; this test enforces parity.
-pub const ASSET_POLICY_SQL_PREPARE_POLICY_EDITION: &str = "INSERT INTO finance_asset_policy_editions(id,company_id,asset_id,parent_id,content_json,source_hash,prepared_by,reason,created_at,updated_at,basis_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const ASSET_POLICY_SQL_SUPERSEDE_POLICY_EDITION: &str = "UPDATE finance_asset_policy_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?";
-pub const ASSET_POLICY_SQL_DECIDE_POLICY_EDITION: &str = "UPDATE finance_asset_policy_editions SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const ASSET_POLICY_SQL_PREPARE_POLICY_RUN: &str = "INSERT INTO finance_asset_policy_runs(id,company_id,asset_id,policy_id,ordinal,entry_date,input_json,result_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const ASSET_POLICY_SQL_UPDATE_ASSET_CARRYING: &str = "UPDATE finance_assets SET accumulated_depreciation_minor=?,version=version+1,updated_at=? WHERE id=?";
-pub const ASSET_POLICY_SQL_BUMP_POLICY_EDITION: &str = "UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?";
-pub const ASSET_POLICY_SQL_ASSET_DEPRECIATION_EVENT: &str = "INSERT INTO finance_asset_events(id,asset_id,company_id,event_type,asset_version,command_id,payload_json,actor_id,created_at) VALUES(?,?,?,'depreciated',?,?,?,?,?)";
-pub const ASSET_POLICY_SQL_DECIDE_POLICY_RUN: &str = "UPDATE finance_asset_policy_runs SET status=?,reviewed_by=?,journal_ids_json=?,version=version+1,updated_at=? WHERE id=?";
-pub const ASSET_POLICY_SQL_REVERSE_ASSET_CARRYING: &str = "UPDATE finance_assets SET accumulated_depreciation_minor=accumulated_depreciation_minor-?,version=version+1,updated_at=? WHERE id=?";
-pub const ASSET_POLICY_SQL_REVERSE_POLICY_VERSION: &str = "UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?";
-pub const ASSET_POLICY_SQL_REVERSE_POLICY_RUN: &str = "UPDATE finance_asset_policy_runs SET status='reversed',reversal_ids_json=?,reversal_entry_date=?,version=version+1,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod asset_policy_contract_tests {
-    use super::*;
-    #[test]
-    fn asset_policy_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-asset-policy-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid asset policy SQL contract");
-        let pairs = [
-            ("prepare_policy_edition", ASSET_POLICY_SQL_PREPARE_POLICY_EDITION),
-            ("supersede_policy_edition", ASSET_POLICY_SQL_SUPERSEDE_POLICY_EDITION),
-            ("decide_policy_edition", ASSET_POLICY_SQL_DECIDE_POLICY_EDITION),
-            ("prepare_policy_run", ASSET_POLICY_SQL_PREPARE_POLICY_RUN),
-            ("update_asset_carrying", ASSET_POLICY_SQL_UPDATE_ASSET_CARRYING),
-            ("bump_policy_edition", ASSET_POLICY_SQL_BUMP_POLICY_EDITION),
-            ("asset_depreciation_event", ASSET_POLICY_SQL_ASSET_DEPRECIATION_EVENT),
-            ("decide_policy_run", ASSET_POLICY_SQL_DECIDE_POLICY_RUN),
-            ("reverse_asset_carrying", ASSET_POLICY_SQL_REVERSE_ASSET_CARRYING),
-            ("reverse_policy_version", ASSET_POLICY_SQL_REVERSE_POLICY_VERSION),
-            ("reverse_policy_run", ASSET_POLICY_SQL_REVERSE_POLICY_RUN),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "asset policy SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for finance business-contract statements.
-pub const BUSINESS_CONTRACT_SQL_PREPARE_CONTRACT: &str = "INSERT INTO finance_business_contracts(id,company_id,root_id,parent_id,number,name,chart_id,party_id,start_date,end_date,edition,content_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const BUSINESS_CONTRACT_SQL_SUPERSEDE_CONTRACT: &str = "UPDATE finance_business_contracts SET status='superseded',version=version+1,updated_at=? WHERE id=?";
-pub const BUSINESS_CONTRACT_SQL_DECIDE_CONTRACT: &str = "UPDATE finance_business_contracts SET status=?,reviewed_by=?,version=?,updated_at=? WHERE id=?";
-pub const BUSINESS_CONTRACT_SQL_VOID_CONTRACT_INVOICE: &str = "UPDATE finance_invoices SET status='voided',outstanding_minor=0,base_outstanding_minor=0,version=version+1,updated_at=? WHERE id=? AND company_id=?";
-pub const BUSINESS_CONTRACT_SQL_PREPARE_BILL: &str = "INSERT INTO finance_business_billing_runs(id,company_id,contract_id,root_id,contract_version,billing_key,service_from,service_to,input_json,result_json,source_hash,invoice_id,invoice_version,created_by,created_at,no_charge_status,parent_run_id,parent_version,bill_edition,contract_content_json,revision_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const BUSINESS_CONTRACT_SQL_PREPARE_RECOGNITION: &str = "INSERT INTO finance_recognition_runs(id,company_id,billing_run_id,item_key,due_date,entry_date,period_id,amount_minor,account_id,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const BUSINESS_CONTRACT_SQL_DECIDE_RECOGNITION: &str = "UPDATE finance_recognition_runs SET status=?,version=?,reviewed_by=?,journal_id=?,reason=?,updated_at=? WHERE id=?";
-pub const BUSINESS_CONTRACT_SQL_REVERSE_RECOGNITION: &str = "UPDATE finance_recognition_runs SET status='reversed',version=version+1,reversal_journal_id=?,reason=?,updated_at=? WHERE id=?";
-pub const BUSINESS_CONTRACT_SQL_APPROVE_NO_CHARGE: &str = "UPDATE finance_business_billing_runs SET no_charge_status=?,reviewed_by=?,review_reason=?,version=version+1 WHERE id=?";
-
-#[cfg(test)]
-mod business_contract_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn business_contract_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-business-contract-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid business contract SQL contract");
-        let pairs = [
-            ("prepare_contract", BUSINESS_CONTRACT_SQL_PREPARE_CONTRACT),
-            ("supersede_contract", BUSINESS_CONTRACT_SQL_SUPERSEDE_CONTRACT),
-            ("decide_contract", BUSINESS_CONTRACT_SQL_DECIDE_CONTRACT),
-            ("void_contract_invoice", BUSINESS_CONTRACT_SQL_VOID_CONTRACT_INVOICE),
-            ("prepare_bill", BUSINESS_CONTRACT_SQL_PREPARE_BILL),
-            ("prepare_recognition", BUSINESS_CONTRACT_SQL_PREPARE_RECOGNITION),
-            ("decide_recognition", BUSINESS_CONTRACT_SQL_DECIDE_RECOGNITION),
-            ("reverse_recognition", BUSINESS_CONTRACT_SQL_REVERSE_RECOGNITION),
-            ("approve_no_charge", BUSINESS_CONTRACT_SQL_APPROVE_NO_CHARGE),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "business contract SQL contract drift: {key}");
-        }
-    }
-}
-
 /// Finance bank automation: native-owned bank_csv_mapping_insert statement.
 pub async fn bank_csv_mapping_insert_statement(
     connection: &mut PgConnection,
@@ -5553,7 +5681,11 @@ pub async fn bank_match_target_insert_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "INSERT INTO finance_bank_match_targets(journal_line_id,group_id) VALUES(?,?)".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_bank_match_targets(journal_line_id,group_id) VALUES(?,?)"
+            .to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance bank automation: native-owned bank_txn_unmatch statement.
@@ -5573,7 +5705,10 @@ pub async fn bank_match_target_delete_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "DELETE FROM finance_bank_match_targets WHERE group_id=?".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "DELETE FROM finance_bank_match_targets WHERE group_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance bank automation: native-owned bank_match_group_decision statement.
@@ -5603,7 +5738,10 @@ pub async fn tax_package_event_statement(
     input: &NotificationStatementInput,
 ) -> Result<NotificationStatement, Error> {
     ready(connection, company).await?;
-    Ok(NotificationStatement { sql: "INSERT INTO finance_statutory_package_events VALUES(?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_statutory_package_events VALUES(?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
 }
 
 /// Finance tax register: native-owned tax_entry_decision statement.
@@ -5715,1367 +5853,3 @@ pub async fn statutory_package_supersede_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_statutory_packages SET status='superseded',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
-
-/// Native-owned SQL contract for finance group-ownership statements.
-pub const GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_INSERT: &str = "INSERT INTO finance_ownership_interests(id,holding_id,company_id,parent_id,investor_entity_id,investee_entity_id,accounting_method,ownership_bps,voting_bps,control_assessment,effective_from,effective_to,created_by,created_at,updated_at,source_hash,source_json,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_RETIRE: &str = "UPDATE finance_ownership_interests SET status='retired',effective_to=?,version=version+1,updated_at=? WHERE id=? AND version=?";
-pub const GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_DECIDE: &str = "UPDATE finance_ownership_interests SET status=?,approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_INSERT: &str = "INSERT INTO finance_calculation_runs(id,company_id,holding_id,kind,policy_version,currency,currency_scale,source_hash,input_json,result_json,explanation_json,status,prepared_by,created_at,updated_at) VALUES(?,?,?,'consolidation',1,?,2,?,?,?,?,'prepared',?,?,?)";
-pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_PREPARE: &str = "INSERT INTO finance_calculation_events VALUES(?,?,1,'prepare',?,?,?,?)";
-pub const GROUP_OWNERSHIP_SQL_ACQUISITION_INSERT: &str = "INSERT INTO finance_acquisitions(id,holding_id,company_id,ownership_id,investee_entity_id,acquisition_date,currency,consideration_minor,previous_interest_minor,nci_measurement,nci_minor,identifiable_net_assets_minor,deferred_tax_minor,goodwill_minor,bargain_purchase_minor,cgu_reference,calculation_run_id,created_by,created_at,updated_at,source_hash,source_json,reason,parent_id,parent_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const GROUP_OWNERSHIP_SQL_ACQUISITION_SUPERSEDE: &str = "UPDATE finance_acquisitions SET status='superseded',version=version+1,updated_at=? WHERE id=?";
-pub const GROUP_OWNERSHIP_SQL_ACQUISITION_DECIDE: &str = "UPDATE finance_acquisitions SET status=?,approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_DECIDE: &str = "UPDATE finance_calculation_runs SET status=?,reviewed_by=?,approved_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='prepared'";
-pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_DECIDE: &str = "INSERT INTO finance_calculation_events VALUES(?,?,2,?,?,?,?,?)";
-
-#[cfg(test)]
-mod group_ownership_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn group_ownership_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-group-ownership-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid group ownership SQL contract");
-        let pairs = [
-            ("ownership_interest_insert", GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_INSERT),
-            ("ownership_interest_retire", GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_RETIRE),
-            ("ownership_interest_decide", GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_DECIDE),
-            ("group_calc_run_insert", GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_INSERT),
-            ("group_calc_event_prepare", GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_PREPARE),
-            ("acquisition_insert", GROUP_OWNERSHIP_SQL_ACQUISITION_INSERT),
-            ("acquisition_supersede", GROUP_OWNERSHIP_SQL_ACQUISITION_SUPERSEDE),
-            ("acquisition_decide", GROUP_OWNERSHIP_SQL_ACQUISITION_DECIDE),
-            ("group_calc_run_decide", GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_DECIDE),
-            ("group_calc_event_decide", GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_DECIDE),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "group ownership SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for commerce finance fact statements.
-pub const COMMERCE_FACTS_SQL_COMMERCE_INVOICE_OUTSTANDING: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=base_outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
-pub const COMMERCE_FACTS_SQL_COMMERCE_REFUND_OBLIGATION_INSERT: &str = "INSERT INTO finance_refund_obligations(id,company_id,branch_id,department_id,return_id,invoice_id,party_id,direction,currency,chart_id,balance_account_id,amount_minor,outstanding_minor,base_amount_minor,base_outstanding_minor,source_credit_journal_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_INSERT: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)";
-pub const COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_LINES_INSERT: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES(?,?,?,?,?,?,?,?)";
-pub const COMMERCE_FACTS_SQL_COMMERCE_INVOICE_INSERT: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,source_version,status,created_by,created_at,updated_at) VALUES(?,?,?,?,CASE WHEN ?='receivable' THEN erpx_sales_document_number(?,'INV',?) ELSE ? END,?,?,?,?,?,?,?,?,?,?,'commerce_fulfillment',?,?,'draft',?,?,?)";
-pub const COMMERCE_FACTS_SQL_COMMERCE_PAYMENT_INSERT: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,base_amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at,payment_slip_id) VALUES(?,?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?,?)";
-pub const COMMERCE_FACTS_SQL_COMMERCE_ALLOCATION_INSERT: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const COMMERCE_FACTS_SQL_COMMERCE_INVOICE_ADJUST: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=GREATEST(0,base_outstanding_minor-?),status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
-pub const COMMERCE_FACTS_SQL_COMMERCE_PARTY_UPDATE: &str = "UPDATE finance_parties SET code=?,name=?,payment_terms_days=?,credit_limit_minor=?,status=?,notification_email=?,notification_consent=?,version=version+1,updated_at=? WHERE id=?";
-pub const COMMERCE_FACTS_SQL_COMMERCE_PARTY_INSERT: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,status,notification_email,notification_consent,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-
-#[cfg(test)]
-mod commerce_facts_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn commerce_facts_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-commerce-facts-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid commerce facts SQL contract");
-        let pairs = [
-            ("commerce_invoice_outstanding", COMMERCE_FACTS_SQL_COMMERCE_INVOICE_OUTSTANDING),
-            ("commerce_refund_obligation_insert", COMMERCE_FACTS_SQL_COMMERCE_REFUND_OBLIGATION_INSERT),
-            ("commerce_journal_insert", COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_INSERT),
-            ("commerce_journal_lines_insert", COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_LINES_INSERT),
-            ("commerce_invoice_insert", COMMERCE_FACTS_SQL_COMMERCE_INVOICE_INSERT),
-            ("commerce_payment_insert", COMMERCE_FACTS_SQL_COMMERCE_PAYMENT_INSERT),
-            ("commerce_allocation_insert", COMMERCE_FACTS_SQL_COMMERCE_ALLOCATION_INSERT),
-            ("commerce_invoice_adjust", COMMERCE_FACTS_SQL_COMMERCE_INVOICE_ADJUST),
-            ("commerce_party_update", COMMERCE_FACTS_SQL_COMMERCE_PARTY_UPDATE),
-            ("commerce_party_insert", COMMERCE_FACTS_SQL_COMMERCE_PARTY_INSERT),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "commerce facts SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for finance consolidation statements.
-pub const CONSOLIDATION_SQL_ELIMINATION_INSERT: &str = "INSERT INTO finance_consolidation_eliminations(id,run_id,description,debit_account_id,credit_account_id,amount_minor,status,journal_id,version,source_transaction_id,created_by,created_at,updated_at,evidence_json)\n      VALUES(?,?,?,?,?,?, 'proposed',NULL,1,?,?,?,?,?)";
-pub const CONSOLIDATION_SQL_ELIMINATION_EVENT_PREPARE: &str = "INSERT INTO finance_consolidation_elimination_events(id,elimination_id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const CONSOLIDATION_SQL_ELIMINATION_APPROVE: &str = "UPDATE finance_consolidation_eliminations SET status='approved',approved_by=?,approved_at=?,version=version+1,updated_at=? WHERE id=? AND version=? AND status='proposed'";
-pub const CONSOLIDATION_SQL_JOURNAL_INSERT: &str = "INSERT INTO finance_consolidation_journals(id,run_id,holding_id,journal_number,entry_date,currency,memo,status,source_hash,version,created_by,posted_by,posted_at,created_at,updated_at)\n        VALUES(?,?,?,?,?,?,?,'posted',?,1,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING";
-pub const CONSOLIDATION_SQL_JOURNAL_LINES_DEBIT: &str = "INSERT INTO finance_consolidation_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,ordinal) VALUES(?,?,?, ?,?,0,?)";
-pub const CONSOLIDATION_SQL_JOURNAL_LINES_CREDIT: &str = "INSERT INTO finance_consolidation_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,ordinal) VALUES(?,?,?, ?,0,?,?)";
-pub const CONSOLIDATION_SQL_JOURNAL_POST: &str = "UPDATE finance_consolidation_journals SET status='posted',version=version+1,posted_by=?,posted_at=?,updated_at=? WHERE id=? AND run_id=?";
-pub const CONSOLIDATION_SQL_ELIMINATION_POST: &str = "UPDATE finance_consolidation_eliminations SET status='posted',consolidation_journal_id=?,posted_by=?,posted_at=?,version=version+1,updated_at=? WHERE id=? AND version=? AND status='approved'";
-pub const CONSOLIDATION_SQL_ELIMINATION_EVENT_DECIDE: &str = "INSERT INTO finance_consolidation_elimination_events(id,elimination_id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const CONSOLIDATION_SQL_RUN_INSERT: &str = "INSERT INTO finance_consolidation_runs(id,holding_id,presentation_currency,as_of_date,status,source_snapshot_json,source_hash,version,created_by,created_at,updated_at) VALUES(?,?,?,?, 'draft',?,?,1,?,?,?)";
-pub const CONSOLIDATION_SQL_RUN_EVENT_PREPARE: &str = "INSERT INTO finance_consolidation_events(id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const CONSOLIDATION_SQL_RUN_EVENT_DECIDE: &str = "INSERT INTO finance_consolidation_events(id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const CONSOLIDATION_SQL_UPDATE_RUN_PREFIX: &str = "UPDATE finance_consolidation_runs SET ";
-pub const CONSOLIDATION_SQL_UPDATE_RUN_SUFFIX: &str = " WHERE id=? AND holding_id=? AND status=? AND version=?";
-
-#[cfg(test)]
-mod consolidation_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn consolidation_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-consolidation-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid consolidation SQL contract");
-        let pairs = [
-            ("elimination_insert", CONSOLIDATION_SQL_ELIMINATION_INSERT),
-            ("elimination_event_prepare", CONSOLIDATION_SQL_ELIMINATION_EVENT_PREPARE),
-            ("elimination_approve", CONSOLIDATION_SQL_ELIMINATION_APPROVE),
-            ("journal_insert", CONSOLIDATION_SQL_JOURNAL_INSERT),
-            ("journal_lines_debit", CONSOLIDATION_SQL_JOURNAL_LINES_DEBIT),
-            ("journal_lines_credit", CONSOLIDATION_SQL_JOURNAL_LINES_CREDIT),
-            ("journal_post", CONSOLIDATION_SQL_JOURNAL_POST),
-            ("elimination_post", CONSOLIDATION_SQL_ELIMINATION_POST),
-            ("elimination_event_decide", CONSOLIDATION_SQL_ELIMINATION_EVENT_DECIDE),
-            ("run_insert", CONSOLIDATION_SQL_RUN_INSERT),
-            ("run_event_prepare", CONSOLIDATION_SQL_RUN_EVENT_PREPARE),
-            ("run_event_decide", CONSOLIDATION_SQL_RUN_EVENT_DECIDE),
-            ("update_run_prefix", CONSOLIDATION_SQL_UPDATE_RUN_PREFIX),
-            ("update_run_suffix", CONSOLIDATION_SQL_UPDATE_RUN_SUFFIX),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "consolidation SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for POS core finance fact statements.
-pub const POS_CORE_SQL_POS_JOURNAL_INSERT: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'pos',?,?,'posted',1,?,?,?,?,?)";
-pub const POS_CORE_SQL_POS_JOURNAL_LINES_INSERT: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const POS_CORE_SQL_POS_PAYMENT_INSERT: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'receipt',?,?,?,?,0,?,'settled',?,?,?,?,?)";
-pub const POS_CORE_SQL_POS_PARTY_INSERT: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer','POS-WALKIN','POS walk-in customer',?,'active',?,?) ON CONFLICT(id) DO NOTHING";
-pub const POS_CORE_SQL_POS_INVOICE_INSERT: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'receivable',?,?,?,?,?,?,?,0,?,?,?,'pos',?,'paid',?,?,?,?,?,?)";
-pub const POS_CORE_SQL_POS_PAYMENT_PARTY_UPDATE: &str = "UPDATE finance_payments SET party_id=? WHERE id=?";
-pub const POS_CORE_SQL_POS_ALLOCATION_INSERT: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)";
-pub const POS_CORE_SQL_POS_ACCOUNT_INSERT: &str = "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const POS_CORE_SQL_POS_BANK_MATCH: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?";
-pub const POS_CORE_SQL_POS_BANK_MATCH_PAYOUT: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='pos_payout',matched_id=?,version=version+1 WHERE id=?";
-pub const POS_CORE_SQL_POS_REFUND_PAYMENT_INSERT: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'refund',?,?,?,?,0,?,'settled',?,?,?,?,?)";
-
-#[cfg(test)]
-mod pos_core_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pos_core_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pos-core-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid POS core SQL contract");
-        let pairs = [
-            ("pos_journal_insert", POS_CORE_SQL_POS_JOURNAL_INSERT),
-            ("pos_journal_lines_insert", POS_CORE_SQL_POS_JOURNAL_LINES_INSERT),
-            ("pos_payment_insert", POS_CORE_SQL_POS_PAYMENT_INSERT),
-            ("pos_party_insert", POS_CORE_SQL_POS_PARTY_INSERT),
-            ("pos_invoice_insert", POS_CORE_SQL_POS_INVOICE_INSERT),
-            ("pos_payment_party_update", POS_CORE_SQL_POS_PAYMENT_PARTY_UPDATE),
-            ("pos_allocation_insert", POS_CORE_SQL_POS_ALLOCATION_INSERT),
-            ("pos_account_insert", POS_CORE_SQL_POS_ACCOUNT_INSERT),
-            ("pos_bank_match", POS_CORE_SQL_POS_BANK_MATCH),
-            ("pos_bank_match_payout", POS_CORE_SQL_POS_BANK_MATCH_PAYOUT),
-            ("pos_refund_payment_insert", POS_CORE_SQL_POS_REFUND_PAYMENT_INSERT),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "POS core SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for company money statements.
-pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT: &str = "INSERT INTO money_transaction_snapshots\n      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)\n      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_BATCH_INSERT: &str = "INSERT INTO money_transaction_snapshots\n            (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)\n            VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?)').join(',')}";
-pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT2: &str = "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,carried_source_type,carried_source_id,carried_amount_kind,carried_allocation_offset_units)\n    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT3: &str = "INSERT INTO money_transaction_snapshots\n      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,\n       original_source_type,original_source_id,original_amount_kind)\n      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const COMPANY_MONEY_SQL_CURRENCY_PREFERENCE_INSERT: &str = "INSERT INTO user_currency_preferences(company_id,user_id,display_currency,updated_at)\n      VALUES(?,?,?,?) ON CONFLICT(company_id,user_id) DO UPDATE SET display_currency=excluded.display_currency,version=user_currency_preferences.version+1,updated_at=excluded.updated_at";
-pub const COMPANY_MONEY_SQL_FX_RATE_INSERT: &str = "INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)";
-pub const COMPANY_MONEY_SQL_CURRENCY_SCALE_INSERT: &str = "INSERT INTO company_currency_scales(company_id,currency,scale,configured_by,configured_at) VALUES(?,?,?,?,?) ON CONFLICT(company_id,currency) DO NOTHING";
-
-#[cfg(test)]
-mod company_money_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn company_money_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-company-money-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid company money SQL contract");
-        let pairs = [
-            ("money_snapshot_insert", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT),
-            ("money_snapshot_batch_insert", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_BATCH_INSERT),
-            ("money_snapshot_insert2", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT2),
-            ("money_snapshot_insert3", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT3),
-            ("currency_preference_insert", COMPANY_MONEY_SQL_CURRENCY_PREFERENCE_INSERT),
-            ("fx_rate_insert", COMPANY_MONEY_SQL_FX_RATE_INSERT),
-            ("currency_scale_insert", COMPANY_MONEY_SQL_CURRENCY_SCALE_INSERT),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "company money SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for finance AI worker statements.
-pub const FINANCE_AI_SQL_AI_STMT_1: &str = "INSERT INTO finance_ai_events(id,company_id,proposal_id,action,actor_id,command_id,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?)";
-pub const FINANCE_AI_SQL_AI_STMT_2: &str = "UPDATE finance_ai_proposals SET claim_until=? WHERE id=? AND state='running' AND lease_token=? AND claim_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
-pub const FINANCE_AI_SQL_AI_STMT_3: &str = "UPDATE finance_ai_proposals SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) RETURNING *";
-pub const FINANCE_AI_SQL_AI_STMT_4: &str = "INSERT INTO finance_ai_policies(company_id,enabled,version,kinds_json,timezone,daily_limit,monthly_limit,owner_actor_json,reason,changed_by,changed_at,next_scan_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,0) ON CONFLICT(company_id) DO UPDATE SET enabled=excluded.enabled,version=excluded.version,kinds_json=excluded.kinds_json,timezone=excluded.timezone,daily_limit=excluded.daily_limit,monthly_limit=excluded.monthly_limit,owner_actor_json=excluded.owner_actor_json,reason=excluded.reason,changed_by=excluded.changed_by,changed_at=excluded.changed_at,next_scan_at=0,last_error=NULL";
-pub const FINANCE_AI_SQL_AI_STMT_5: &str = "UPDATE finance_ai_proposals SET state='queued',version=version+1,error=NULL,attempts=0,lease_token=NULL,claim_until=NULL,actor_json=?,usage_id=?,updated_at=? WHERE id=? AND state IN ('failed','stale')";
-pub const FINANCE_AI_SQL_AI_STMT_6: &str = "INSERT INTO finance_ai_proposals(id,company_id,kind,source_id,source_version,source_hash,source_json,source_query_json,company_revision,policy_version,provider_json,actor_json,state,usage_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'queued',?,?,?)";
-pub const FINANCE_AI_SQL_AI_STMT_7: &str = "INSERT INTO finance_ai_usage(id,proposal_id,company_id,actor_id,month,business_date,state,lease_until,created_at) VALUES(?,?,?,?,?,?,'reserved',?,?)";
-pub const FINANCE_AI_SQL_AI_STMT_8: &str = "UPDATE finance_ai_proposals SET state='ready',result_json=?,error=NULL,lease_token=NULL,claim_until=NULL,version=version+1,updated_at=? WHERE id=? AND lease_token=?";
-pub const FINANCE_AI_SQL_AI_STMT_9: &str = "UPDATE finance_ai_usage SET state='succeeded',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
-pub const FINANCE_AI_SQL_AI_STMT_10: &str = "UPDATE finance_ai_proposals SET state=?,error=?,lease_token=NULL,claim_until=NULL,version=version+1,updated_at=? WHERE id=? AND state='running' AND lease_token=? RETURNING id";
-pub const FINANCE_AI_SQL_AI_STMT_11: &str = "UPDATE finance_ai_usage SET state='failed',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
-pub const FINANCE_AI_SQL_AI_STMT_12: &str = "UPDATE finance_ai_proposals SET state='failed',error='Preparation was interrupted. Retry or continue manually.',lease_token=NULL,claim_until=NULL,version=version+1,updated_at=? WHERE state='running' AND claim_until<? AND attempts>=3";
-pub const FINANCE_AI_SQL_AI_STMT_13: &str = "UPDATE finance_ai_proposals SET state='dismissed',version=version+1,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=?";
-pub const FINANCE_AI_SQL_AI_STMT_14: &str = "UPDATE finance_ai_policies SET next_scan_at=? WHERE company_id=? AND enabled AND version=? AND next_scan_at<=? RETURNING company_id";
-pub const FINANCE_AI_SQL_AI_STMT_15: &str = "UPDATE finance_ai_policies SET last_error=NULL WHERE company_id=? AND version=?";
-pub const FINANCE_AI_SQL_AI_STMT_16: &str = "UPDATE finance_ai_policies SET last_error=?,next_scan_at=? WHERE company_id=? AND version=?";
-pub const FINANCE_AI_SQL_AI_STMT_17: &str = "UPDATE finance_ai_proposals SET state='applied',draft_command_id=?,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_AI_SQL_AI_STMT_18: &str = "UPDATE finance_ai_usage SET state='failed',lease_until=0 WHERE state='reserved' AND proposal_id IN (SELECT id FROM finance_ai_proposals WHERE state IN ('failed','stale','dismissed'))";
-
-#[cfg(test)]
-mod finance_ai_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn finance_ai_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-finance-ai-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid finance AI SQL contract");
-        let pairs = [
-            ("ai_stmt_1", FINANCE_AI_SQL_AI_STMT_1),
-            ("ai_stmt_2", FINANCE_AI_SQL_AI_STMT_2),
-            ("ai_stmt_3", FINANCE_AI_SQL_AI_STMT_3),
-            ("ai_stmt_4", FINANCE_AI_SQL_AI_STMT_4),
-            ("ai_stmt_5", FINANCE_AI_SQL_AI_STMT_5),
-            ("ai_stmt_6", FINANCE_AI_SQL_AI_STMT_6),
-            ("ai_stmt_7", FINANCE_AI_SQL_AI_STMT_7),
-            ("ai_stmt_8", FINANCE_AI_SQL_AI_STMT_8),
-            ("ai_stmt_9", FINANCE_AI_SQL_AI_STMT_9),
-            ("ai_stmt_10", FINANCE_AI_SQL_AI_STMT_10),
-            ("ai_stmt_11", FINANCE_AI_SQL_AI_STMT_11),
-            ("ai_stmt_12", FINANCE_AI_SQL_AI_STMT_12),
-            ("ai_stmt_13", FINANCE_AI_SQL_AI_STMT_13),
-            ("ai_stmt_14", FINANCE_AI_SQL_AI_STMT_14),
-            ("ai_stmt_15", FINANCE_AI_SQL_AI_STMT_15),
-            ("ai_stmt_16", FINANCE_AI_SQL_AI_STMT_16),
-            ("ai_stmt_17", FINANCE_AI_SQL_AI_STMT_17),
-            ("ai_stmt_18", FINANCE_AI_SQL_AI_STMT_18),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "finance AI SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for expense effect statements.
-pub const EXPENSE_EFFECTS_SQL_EXPENSE_EMPLOYEE_PARTY: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,person_id,created_at,updated_at) VALUES(?,?,'employee',?,?,?,0,?,?,?) ON CONFLICT(company_id,person_id) WHERE person_id IS NOT NULL DO UPDATE SET name=excluded.name";
-pub const EXPENSE_EFFECTS_SQL_EXPENSE_PAYABLE_INVOICE: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'payable',?,?,?,?,?,?,?,?,?,?,?,'expense_claim',?,'posted',?,?,?,?,?,?)";
-pub const EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_JOURNAL: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'expense_reversal',?,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?";
-pub const EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_LINES: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?";
-pub const EXPENSE_EFFECTS_SQL_EXPENSE_JOURNAL_REVERSED: &str = "UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?";
-pub const EXPENSE_EFFECTS_SQL_EXPENSE_INVOICE_VOIDED: &str = "UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod expense_effects_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn expense_effects_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-expense-effects-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid expense effects SQL contract");
-        let pairs = [
-            ("expense_employee_party", EXPENSE_EFFECTS_SQL_EXPENSE_EMPLOYEE_PARTY),
-            ("expense_payable_invoice", EXPENSE_EFFECTS_SQL_EXPENSE_PAYABLE_INVOICE),
-            ("expense_reversal_journal", EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_JOURNAL),
-            ("expense_reversal_lines", EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_LINES),
-            ("expense_journal_reversed", EXPENSE_EFFECTS_SQL_EXPENSE_JOURNAL_REVERSED),
-            ("expense_invoice_voided", EXPENSE_EFFECTS_SQL_EXPENSE_INVOICE_VOIDED),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "expense effects SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for main finance statements.
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_1: &str = "INSERT INTO finance_charts(id,company_id,name,base_currency,accounting_basis,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_2: &str = "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,parent_id,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_3: &str = "UPDATE finance_accounts SET status=?,version=version+1,updated_at=? WHERE id=? AND chart_id=? AND company_id=? AND version=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_4: &str = "INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES(?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_5: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,tax_registration,payment_terms_days,credit_limit_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_6: &str = "INSERT INTO finance_tax_codes(id,company_id,code,name,rate_micros,recoverable_micros,effective_from,effective_to,status) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_7: &str = "INSERT INTO finance_budgets(id,company_id,name,fiscal_year,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_8: &str = "INSERT INTO finance_leases(id,company_id,lease_number,counterparty,currency,commencement_date,end_date,payment_frequency,payment_minor,discount_rate_micros,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_9: &str = "INSERT INTO finance_loans(id,company_id,loan_number,lender,currency,principal_minor,annual_rate_micros,commencement_date,maturity_date,outstanding_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_10: &str = "INSERT INTO finance_revenue_contracts(id,company_id,customer_id,contract_number,currency,transaction_price_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_11: &str = "INSERT INTO finance_revenue_obligations(id,contract_id,description,allocated_minor,recognition_method,start_date,end_date,revenue_account_id,deferred_account_id) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_12: &str = "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(chart_id,code) DO UPDATE SET name=excluded.name,category=excluded.category,currency=excluded.currency,is_control=excluded.is_control,control_kind=excluded.control_kind,version=finance_accounts.version+1,updated_at=excluded.updated_at";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_13: &str = "UPDATE finance_journals SET status='posted',version=version+1,posted_by=?,posted_at=?,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_14: &str = "UPDATE finance_invoices SET status='posted',approved_by=?,posted_at=?,version=version+1,updated_at=? WHERE company_id=? AND source_type='opening_import' AND source_id=? AND status='draft'";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_15: &str = "INSERT INTO finance_batch_review_items(command_id,journal_id,company_id,reviewed_version,reviewed_by,assignment_id,evidence_digest,reason,reviewed_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_16: &str = "UPDATE finance_invoices SET party_id=?,kind=?,invoice_number=?,invoice_date=?,due_date=?,currency=?,subtotal_minor=?,tax_minor=?,total_minor=?,outstanding_minor=?,tax_code=?,debit_account_id=?,credit_account_id=?,tax_account_id=?,created_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_17: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,tax_code,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_18: &str = "UPDATE finance_invoices SET line_mode=?,line_revision=? WHERE id=? AND company_id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_19: &str = "UPDATE finance_invoices SET status='posted',journal_id=?,fx_rate_micros=?,base_total_minor=?,base_outstanding_minor=?,approved_by=?,posted_at=?,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_20: &str = "UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_21: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_22: &str = "UPDATE finance_payments SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_23: &str = "UPDATE finance_payments SET status='released',released_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_24: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,realized_fx_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_25: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=base_outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_26: &str = "UPDATE finance_payments SET outstanding_minor=0,status='settled',journal_id=?,fx_rate_micros=?,base_amount_minor=?,fx_journal_id=?,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_27: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_28: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'payment_reversal',?,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_29: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_30: &str = "UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_31: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'payment_fx_reversal',?,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_32: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_33: &str = "UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_34: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor+?,base_outstanding_minor=base_outstanding_minor+?,status=CASE WHEN outstanding_minor+?=total_minor THEN 'posted' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_35: &str = "UPDATE finance_bank_transactions SET match_status='unmatched',matched_type=NULL,matched_id=NULL,version=version+1 WHERE company_id=? AND matched_type='payment' AND matched_id=? AND match_status='matched'";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_36: &str = "UPDATE finance_payments SET status='voided',version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_37: &str = "INSERT INTO finance_payment_reversals(id,payment_id,reversal_journal_id,fx_reversal_journal_id,reason,reversed_by,reversed_at) VALUES(?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_38: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_39: &str = "UPDATE finance_payments SET outstanding_minor=outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'settled' ELSE status END,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_40: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=GREATEST(0,base_outstanding_minor-?),status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_41: &str = "UPDATE finance_accounts SET is_control=1,control_kind='bank',version=version+CASE WHEN control_kind='none' THEN 1 ELSE 0 END,updated_at=? WHERE id=? AND company_id=? AND control_kind='none'";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_42: &str = "INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,closing_fx_rate_micros,base_closing_minor,source_hash,imported_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_43: &str = "INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,description,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_44: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_45: &str = "INSERT INTO finance_fx_revaluation_runs(id,company_id,chart_id,period_id,entry_date,base_currency,rates_json,source_hash,gain_account_id,loss_account_id,preparation_proof,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_46: &str = "INSERT INTO finance_fx_revaluation_lines(id,run_id,invoice_id,kind,currency,control_account_id,transaction_outstanding_minor,prior_base_minor,revalued_base_minor,adjustment_minor,rate_micros) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_47: &str = "UPDATE finance_fx_revaluation_runs SET status='rejected',decision_proof=?,approved_by=?,version=2,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_48: &str = "UPDATE finance_invoices SET base_outstanding_minor=base_outstanding_minor+?,version=version+1,updated_at=? WHERE id=?";
-pub const FINANCE_MAIN_SQL_FINANCE_STMT_49: &str = "UPDATE finance_fx_revaluation_runs SET status='posted',journal_id=?,decision_proof=?,approved_by=?,version=2,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod finance_main_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn finance_main_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-finance-main-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid main finance SQL contract");
-        let pairs = [
-            ("finance_stmt_1", FINANCE_MAIN_SQL_FINANCE_STMT_1),
-            ("finance_stmt_2", FINANCE_MAIN_SQL_FINANCE_STMT_2),
-            ("finance_stmt_3", FINANCE_MAIN_SQL_FINANCE_STMT_3),
-            ("finance_stmt_4", FINANCE_MAIN_SQL_FINANCE_STMT_4),
-            ("finance_stmt_5", FINANCE_MAIN_SQL_FINANCE_STMT_5),
-            ("finance_stmt_6", FINANCE_MAIN_SQL_FINANCE_STMT_6),
-            ("finance_stmt_7", FINANCE_MAIN_SQL_FINANCE_STMT_7),
-            ("finance_stmt_8", FINANCE_MAIN_SQL_FINANCE_STMT_8),
-            ("finance_stmt_9", FINANCE_MAIN_SQL_FINANCE_STMT_9),
-            ("finance_stmt_10", FINANCE_MAIN_SQL_FINANCE_STMT_10),
-            ("finance_stmt_11", FINANCE_MAIN_SQL_FINANCE_STMT_11),
-            ("finance_stmt_12", FINANCE_MAIN_SQL_FINANCE_STMT_12),
-            ("finance_stmt_13", FINANCE_MAIN_SQL_FINANCE_STMT_13),
-            ("finance_stmt_14", FINANCE_MAIN_SQL_FINANCE_STMT_14),
-            ("finance_stmt_15", FINANCE_MAIN_SQL_FINANCE_STMT_15),
-            ("finance_stmt_16", FINANCE_MAIN_SQL_FINANCE_STMT_16),
-            ("finance_stmt_17", FINANCE_MAIN_SQL_FINANCE_STMT_17),
-            ("finance_stmt_18", FINANCE_MAIN_SQL_FINANCE_STMT_18),
-            ("finance_stmt_19", FINANCE_MAIN_SQL_FINANCE_STMT_19),
-            ("finance_stmt_20", FINANCE_MAIN_SQL_FINANCE_STMT_20),
-            ("finance_stmt_21", FINANCE_MAIN_SQL_FINANCE_STMT_21),
-            ("finance_stmt_22", FINANCE_MAIN_SQL_FINANCE_STMT_22),
-            ("finance_stmt_23", FINANCE_MAIN_SQL_FINANCE_STMT_23),
-            ("finance_stmt_24", FINANCE_MAIN_SQL_FINANCE_STMT_24),
-            ("finance_stmt_25", FINANCE_MAIN_SQL_FINANCE_STMT_25),
-            ("finance_stmt_26", FINANCE_MAIN_SQL_FINANCE_STMT_26),
-            ("finance_stmt_27", FINANCE_MAIN_SQL_FINANCE_STMT_27),
-            ("finance_stmt_28", FINANCE_MAIN_SQL_FINANCE_STMT_28),
-            ("finance_stmt_29", FINANCE_MAIN_SQL_FINANCE_STMT_29),
-            ("finance_stmt_30", FINANCE_MAIN_SQL_FINANCE_STMT_30),
-            ("finance_stmt_31", FINANCE_MAIN_SQL_FINANCE_STMT_31),
-            ("finance_stmt_32", FINANCE_MAIN_SQL_FINANCE_STMT_32),
-            ("finance_stmt_33", FINANCE_MAIN_SQL_FINANCE_STMT_33),
-            ("finance_stmt_34", FINANCE_MAIN_SQL_FINANCE_STMT_34),
-            ("finance_stmt_35", FINANCE_MAIN_SQL_FINANCE_STMT_35),
-            ("finance_stmt_36", FINANCE_MAIN_SQL_FINANCE_STMT_36),
-            ("finance_stmt_37", FINANCE_MAIN_SQL_FINANCE_STMT_37),
-            ("finance_stmt_38", FINANCE_MAIN_SQL_FINANCE_STMT_38),
-            ("finance_stmt_39", FINANCE_MAIN_SQL_FINANCE_STMT_39),
-            ("finance_stmt_40", FINANCE_MAIN_SQL_FINANCE_STMT_40),
-            ("finance_stmt_41", FINANCE_MAIN_SQL_FINANCE_STMT_41),
-            ("finance_stmt_42", FINANCE_MAIN_SQL_FINANCE_STMT_42),
-            ("finance_stmt_43", FINANCE_MAIN_SQL_FINANCE_STMT_43),
-            ("finance_stmt_44", FINANCE_MAIN_SQL_FINANCE_STMT_44),
-            ("finance_stmt_45", FINANCE_MAIN_SQL_FINANCE_STMT_45),
-            ("finance_stmt_46", FINANCE_MAIN_SQL_FINANCE_STMT_46),
-            ("finance_stmt_47", FINANCE_MAIN_SQL_FINANCE_STMT_47),
-            ("finance_stmt_48", FINANCE_MAIN_SQL_FINANCE_STMT_48),
-            ("finance_stmt_49", FINANCE_MAIN_SQL_FINANCE_STMT_49),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "main finance SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for people technology provisioning statements.
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_1: &str = "INSERT INTO people_provision_operations(id,company_id,definition,evidence,status,created_by,assignment_id,session_id,created_at,updated_at) VALUES($1,$2,$3,$4,'queued',$5,$6,$7,$8,$8)";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_2: &str = "INSERT INTO people_applied_packages(id,company_id,person_id,engagement_id,position_id,package_id,package_revision,definition,source_kind,scope,operation_id,authorizing_assignment_id,valid_from,valid_until,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$13)";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_3: &str = "INSERT INTO people_provision_grants(id,operation_id,application_id,definition,review_id) VALUES($1,$2,$3,$4,$5)";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_4: &str = "UPDATE people_provision_operations SET steps=$2 WHERE id=$1";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_5: &str = "UPDATE people_provision_grants SET assignment_id=$2 WHERE id=$1";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_6: &str = "UPDATE people_provision_operations SET status=$2,steps=$3,last_error=$4 WHERE id=$1";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_7: &str = "UPDATE people_applied_packages SET ended_at=$3 WHERE company_id=$1 AND person_id=$2 AND operation_id IS DISTINCT FROM $4 AND ended_at IS NULL";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_8: &str = "UPDATE people_access_cutoffs SET restored_at=$3 WHERE company_id=$1 AND person_id=$2 AND cancelled_at IS NULL AND restored_at IS NULL AND effective_at<=$3";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_9: &str = "UPDATE people_preparation_tasks t SET status='completed',version=t.version+1,updated_at=$3 FROM people_lifecycle_cases lc WHERE t.case_id=lc.id AND lc.company_id=$1 AND lc.engagement_id=$2 AND lc.workflow='placement' AND lc.status='completed' AND lc.kind IN ('onboarding','transfer') AND t.title='Prepare access for employee placement' AND t.status='pending'";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_10: &str = "UPDATE people_applied_packages SET ended_at=$2 WHERE id=$1";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_11: &str = "UPDATE people_applied_packages SET ended_at=$2 WHERE id=ANY($1::text[]) AND ended_at IS NULL";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_12: &str = "INSERT INTO people_preparation_tasks(id,company_id,kind,title,updated_at,privileged,application_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_13: &str = "UPDATE people_provision_operations SET status='completed',steps=$2,version=version+1,updated_at=$3,last_error=NULL WHERE id=$1";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_14: &str = "UPDATE people_provision_operations SET status='blocked',last_error=$2,version=version+1,updated_at=$3 WHERE id=$1";
-pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_15: &str = "UPDATE people_provision_operations SET status='queued',session_id=$2,version=version+1,last_error=NULL,updated_at=$3 WHERE id=$1";
-
-#[cfg(test)]
-mod tech_provision_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn tech_provision_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-tech-provision-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid tech provisioning SQL contract");
-        let pairs = [
-            ("tech_provision_stmt_1", TECH_PROVISION_SQL_TECH_PROVISION_STMT_1),
-            ("tech_provision_stmt_2", TECH_PROVISION_SQL_TECH_PROVISION_STMT_2),
-            ("tech_provision_stmt_3", TECH_PROVISION_SQL_TECH_PROVISION_STMT_3),
-            ("tech_provision_stmt_4", TECH_PROVISION_SQL_TECH_PROVISION_STMT_4),
-            ("tech_provision_stmt_5", TECH_PROVISION_SQL_TECH_PROVISION_STMT_5),
-            ("tech_provision_stmt_6", TECH_PROVISION_SQL_TECH_PROVISION_STMT_6),
-            ("tech_provision_stmt_7", TECH_PROVISION_SQL_TECH_PROVISION_STMT_7),
-            ("tech_provision_stmt_8", TECH_PROVISION_SQL_TECH_PROVISION_STMT_8),
-            ("tech_provision_stmt_9", TECH_PROVISION_SQL_TECH_PROVISION_STMT_9),
-            ("tech_provision_stmt_10", TECH_PROVISION_SQL_TECH_PROVISION_STMT_10),
-            ("tech_provision_stmt_11", TECH_PROVISION_SQL_TECH_PROVISION_STMT_11),
-            ("tech_provision_stmt_12", TECH_PROVISION_SQL_TECH_PROVISION_STMT_12),
-            ("tech_provision_stmt_13", TECH_PROVISION_SQL_TECH_PROVISION_STMT_13),
-            ("tech_provision_stmt_14", TECH_PROVISION_SQL_TECH_PROVISION_STMT_14),
-            ("tech_provision_stmt_15", TECH_PROVISION_SQL_TECH_PROVISION_STMT_15),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "tech provisioning SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for leave self-service statements.
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_1: &str = "INSERT INTO leave_requests(id,number,employee_id,person_id,engagement_id,company_id,branch_id,department_id,start_date,days,handover_note,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_2: &str = "UPDATE leave_requests SET start_date=?,days=?,handover_note=?,leave_type_id=?,end_date=?,start_segment=?,end_segment=?,policy_version_id=?,calculated_units=?,calculation_snapshot=?::jsonb,\n    evidence_policy_snapshot=?::jsonb,evidence_due_at=?,submitted_at=CASE WHEN ?='pending_approval' THEN ? ELSE submitted_at END,\n    state=?,version=?,prepared_by=?,decided_by=NULL,decision_note=NULL,last_command_id=?,updated_at=? WHERE id=?";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_3: &str = "DELETE FROM leave_day_segments WHERE request_id=?";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_4: &str = "INSERT INTO leave_day_segments(id,request_id,company_id,leave_date,segment,units,source) VALUES(?,?,?,?,?,?,?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_5: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at) VALUES(?,?,?,?,?,'reservation',?,?,?,?,?,?,?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_6: &str = "INSERT INTO leave_types(id,company_id,code,name,description,tracked,evidence_after_units,evidence_note,effective_from,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_7: &str = "INSERT INTO leave_holiday_calendars(id,company_id,name,timezone,created_by,created_at) VALUES(?,?,?,?,?,?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_8: &str = "INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,effective_to,timezone,workweek_json,allow_negative,created_by,created_at) VALUES(?,?,?,?,?,'active',?,?,?,?::jsonb,?,?,?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_9: &str = "INSERT INTO leave_policy_rules(\n      policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,accrual_period,carryover_limit,employee_eligible,contractor_eligible,\n      evidence_min_units,evidence_purpose,evidence_min_count,evidence_due_stage,evidence_grace_days,evidence_note,evidence_privacy\n    ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'requester_approvers_hr' WHERE EXISTS(SELECT 1 FROM leave_types WHERE id=? AND company_id=?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_10: &str = "INSERT INTO leave_holidays(id,calendar_id,holiday_date,name) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM leave_holiday_calendars WHERE id=? AND company_id=?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_11: &str = "UPDATE leave_policy_assignments SET effective_to=? WHERE id=?";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_12: &str = "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,holiday_calendar_id,effective_from,effective_to,created_by,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?)";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_13: &str = "UPDATE leave_policy_assignments SET effective_to=?,version=version+1 WHERE id=? AND company_id=?";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_14: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,command_key,note,created_by,created_at) VALUES(?,?,?,?,'adjustment',?,?,?,?,?,?) ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING";
-pub const LEAVE_SS_SQL_LEAVE_SS_STMT_15: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,command_key,note,created_by,created_at)\n    SELECT ?,?,?,?,?,?,?,?,?,'system:leave-accrual',? WHERE ${scheduledFeaturePredicate(\"?\", \"people_payroll\")}\n    ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING";
-
-#[cfg(test)]
-mod leave_self_service_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn leave_self_service_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-leave-self-service-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid leave self-service SQL contract");
-        let pairs = [
-            ("leave_ss_stmt_1", LEAVE_SS_SQL_LEAVE_SS_STMT_1),
-            ("leave_ss_stmt_2", LEAVE_SS_SQL_LEAVE_SS_STMT_2),
-            ("leave_ss_stmt_3", LEAVE_SS_SQL_LEAVE_SS_STMT_3),
-            ("leave_ss_stmt_4", LEAVE_SS_SQL_LEAVE_SS_STMT_4),
-            ("leave_ss_stmt_5", LEAVE_SS_SQL_LEAVE_SS_STMT_5),
-            ("leave_ss_stmt_6", LEAVE_SS_SQL_LEAVE_SS_STMT_6),
-            ("leave_ss_stmt_7", LEAVE_SS_SQL_LEAVE_SS_STMT_7),
-            ("leave_ss_stmt_8", LEAVE_SS_SQL_LEAVE_SS_STMT_8),
-            ("leave_ss_stmt_9", LEAVE_SS_SQL_LEAVE_SS_STMT_9),
-            ("leave_ss_stmt_10", LEAVE_SS_SQL_LEAVE_SS_STMT_10),
-            ("leave_ss_stmt_11", LEAVE_SS_SQL_LEAVE_SS_STMT_11),
-            ("leave_ss_stmt_12", LEAVE_SS_SQL_LEAVE_SS_STMT_12),
-            ("leave_ss_stmt_13", LEAVE_SS_SQL_LEAVE_SS_STMT_13),
-            ("leave_ss_stmt_14", LEAVE_SS_SQL_LEAVE_SS_STMT_14),
-            ("leave_ss_stmt_15", LEAVE_SS_SQL_LEAVE_SS_STMT_15),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "leave self-service SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for people evaluation statements.
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_1: &str = "UPDATE hr_evaluation_definitions SET payload_json=?,version=version+1,updated_by=?,reason=?,updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_2: &str = "INSERT INTO hr_evaluation_definitions(id,company_id,kind,payload_json,created_by,updated_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_3: &str = "INSERT INTO hr_evaluation_definitions(id,company_id,kind,payload_json,created_by,updated_by,reason,created_at,updated_at) VALUES(?,?,'benchmark',?,?,?,?,?,?)";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_4: &str = "INSERT INTO hr_evaluation_assessments(id,company_id,engagement_id,cycle_id,role_id,role_version,period_start,period_end,content_json,created_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_5: &str = "UPDATE hr_evaluation_assessments SET period_start=?,period_end=?,content_json=?,reviewed_by=?,updated_by=?,reason=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_6: &str = "UPDATE hr_evaluation_assessments SET status=?,updated_by=?,confirmed_by=?,reviewed_by=CASE WHEN ?='draft' THEN NULL ELSE reviewed_by END,reason=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_7: &str = "INSERT INTO hr_evaluation_evidence(id,company_id,assessment_id,source_type,source_id,description,observed_on,source_json,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_8: &str = "UPDATE hr_evaluation_assessments SET version=version+1,reviewed_by=?,updated_by=?,reason='Evidence added',updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_9: &str = "INSERT INTO hr_evaluation_pay_basis(engagement_id,company_id,version,effective_from,payload_json,confirmed_by,created_at) VALUES(?,?,?,?,?,?,?)";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_10: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,effective_to,pay_frequency,base_amount_minor,hourly_rate_minor,daily_rate_minor,standard_daily_hours,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_11: &str = "INSERT INTO hr_evaluation_compensation_drafts(id,company_id,assessment_id,assessment_version,compensation_id,previous_id,previous_version,engagement_version,policy_id,policy_version,basis_version,reason,created_by,created_at,updated_at,previous_json,proposed_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_12: &str = "UPDATE hr_compensation_revisions SET effective_to=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_13: &str = "UPDATE hr_compensation_revisions SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_14: &str = "UPDATE hr_evaluation_compensation_drafts SET status='approved',approved_by=?,review_reason=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_15: &str = "UPDATE hr_compensation_revisions SET status='superseded',version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_16: &str = "UPDATE hr_evaluation_compensation_drafts SET status='cancelled',review_reason=?,version=version+1,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod people_eval_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn people_eval_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-people-eval-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid people evaluation SQL contract");
-        let pairs = [
-            ("people_eval_stmt_1", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_1),
-            ("people_eval_stmt_2", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_2),
-            ("people_eval_stmt_3", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_3),
-            ("people_eval_stmt_4", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_4),
-            ("people_eval_stmt_5", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_5),
-            ("people_eval_stmt_6", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_6),
-            ("people_eval_stmt_7", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_7),
-            ("people_eval_stmt_8", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_8),
-            ("people_eval_stmt_9", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_9),
-            ("people_eval_stmt_10", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_10),
-            ("people_eval_stmt_11", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_11),
-            ("people_eval_stmt_12", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_12),
-            ("people_eval_stmt_13", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_13),
-            ("people_eval_stmt_14", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_14),
-            ("people_eval_stmt_15", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_15),
-            ("people_eval_stmt_16", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_16),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "people evaluation SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for people roster statements.
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_1: &str = "INSERT INTO people_roster_assignments(id,shift_id,person_id,engagement_id) VALUES(?,?,?,?)";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_2: &str = "INSERT INTO people_roster_history(id,company_id,department_id,week_id,request_id,record_id,action,actor_id,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_3: &str = "UPDATE people_roster_requests SET state='invalidated',decision_note='The referenced shift or assignment changed.',version=version+1,updated_at=?\n    WHERE company_id=? AND state IN ${pending} AND id!=? AND (target_shift_id=ANY(?::text[]) OR source_assignment_id=ANY(?::text[]) OR target_assignment_id=ANY(?::text[])) RETURNING *";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_4: &str = "INSERT INTO people_roster_locks(company_id) VALUES(?) ON CONFLICT(company_id) DO UPDATE SET version=people_roster_locks.version+1";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_5: &str = "UPDATE people_roster_shifts SET local_date=?,start_time=?,end_time=?,starts_at=?,ends_at=?,version=version+1 WHERE id=?";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_6: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=? RETURNING *";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_7: &str = "INSERT INTO people_roster_locks(company_id) VALUES(?) ON CONFLICT(company_id) DO UPDATE SET version=people_roster_locks.version+1";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_8: &str = "INSERT INTO people_roster_templates(id,company_id,department_id,name,start_time,end_time,capacity,active,version,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)\n        ON CONFLICT(id) DO UPDATE SET name=excluded.name,start_time=excluded.start_time,end_time=excluded.end_time,capacity=excluded.capacity,active=excluded.active,version=excluded.version,updated_at=excluded.updated_at";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_9: &str = "INSERT INTO people_roster_weeks(id,company_id,branch_id,department_id,week_start,timezone,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_10: &str = "INSERT INTO people_roster_shifts(id,week_id,template_id,name,local_date,start_time,end_time,starts_at,ends_at,capacity) VALUES(?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_11: &str = "UPDATE people_roster_weeks SET state='published',published_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_12: &str = "INSERT INTO people_roster_shifts(id,week_id,template_id,name,local_date,start_time,end_time,starts_at,ends_at,capacity,version) VALUES(?,?,?,?,?,?,?,?,?,?,?)\n        ON CONFLICT(id) DO UPDATE SET template_id=excluded.template_id,name=excluded.name,local_date=excluded.local_date,start_time=excluded.start_time,end_time=excluded.end_time,starts_at=excluded.starts_at,ends_at=excluded.ends_at,capacity=excluded.capacity,version=excluded.version";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_13: &str = "UPDATE people_roster_assignments SET state='released',version=version+1 WHERE shift_id=? AND state='assigned'";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_14: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_15: &str = "UPDATE people_roster_shifts SET state='cancelled',version=version+1 WHERE id=?";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_16: &str = "UPDATE people_roster_assignments SET state='released',version=version+1 WHERE shift_id=? AND state='assigned'";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_17: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=? RETURNING *";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_18: &str = "INSERT INTO people_roster_requests(id,company_id,department_id,kind,requester_person_id,coworker_person_id,source_assignment_id,source_version,target_shift_id,target_assignment_id,target_version,state,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_19: &str = "UPDATE people_roster_assignments SET state='released',version=version+1 WHERE id=?";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_20: &str = "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=ANY(?::text[])";
-pub const PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_21: &str = "UPDATE people_roster_requests SET state=?,decision_note=?,accepted_by=CASE WHEN ?='accept' THEN ? ELSE accepted_by END,decided_by=?,version=version+1,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod people_roster_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn people_roster_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-people-roster-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid people roster SQL contract");
-        let pairs = [
-            ("people_roster_stmt_1", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_1),
-            ("people_roster_stmt_2", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_2),
-            ("people_roster_stmt_3", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_3),
-            ("people_roster_stmt_4", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_4),
-            ("people_roster_stmt_5", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_5),
-            ("people_roster_stmt_6", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_6),
-            ("people_roster_stmt_7", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_7),
-            ("people_roster_stmt_8", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_8),
-            ("people_roster_stmt_9", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_9),
-            ("people_roster_stmt_10", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_10),
-            ("people_roster_stmt_11", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_11),
-            ("people_roster_stmt_12", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_12),
-            ("people_roster_stmt_13", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_13),
-            ("people_roster_stmt_14", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_14),
-            ("people_roster_stmt_15", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_15),
-            ("people_roster_stmt_16", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_16),
-            ("people_roster_stmt_17", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_17),
-            ("people_roster_stmt_18", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_18),
-            ("people_roster_stmt_19", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_19),
-            ("people_roster_stmt_20", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_20),
-            ("people_roster_stmt_21", PEOPLE_ROSTER_SQL_PEOPLE_ROSTER_STMT_21),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "people roster SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for people lifecycle statements.
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_1: &str = "UPDATE people_lifecycle_cases SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=?";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_2: &str = "UPDATE people_preparation_tasks SET status='cancelled',version=version+1,updated_at=? WHERE company_id=? AND case_id=? AND status='pending'";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_3: &str = "INSERT INTO people_lifecycle_cases(id,company_id,person_id,engagement_id,kind,status,version,effective_at,package_id,package_revision,definition,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,version=excluded.version,effective_at=excluded.effective_at,package_id=excluded.package_id,package_revision=excluded.package_revision,definition=excluded.definition,updated_at=excluded.updated_at";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_4: &str = "UPDATE people_lifecycle_cases SET review_snapshot=?,authorizing_assignment_id=?,workflow=? WHERE id=?";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_5: &str = "INSERT INTO people_access_cutoffs(company_id,person_id,case_id,effective_at) VALUES(?,?,?,?)";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_6: &str = "UPDATE people_lifecycle_cases SET departure_reason=? WHERE id=? AND company_id=?";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_7: &str = "INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged,due_date,responsibility,clearance_type) VALUES(?,?,?,'lifecycle',?,?,?,?,?,?,?)";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_8: &str = "INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,assignee_id,updated_at,privileged) VALUES(?,?,?,'lifecycle',?,?,?,?) ON CONFLICT(id) DO NOTHING";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_9: &str = "UPDATE people_lifecycle_cases SET status='cancelled',version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_10: &str = "UPDATE people_access_cutoffs SET cancelled_at=? WHERE case_id=?";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_11: &str = "UPDATE people_preparation_tasks SET status='cancelled',version=version+1 WHERE case_id=? AND status='pending'";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_12: &str = "INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,position_id,level_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'onboarding',?,?,?,?,?,?)";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_13: &str = "UPDATE hr_people SET status='active',version=version+1,updated_at=? WHERE company_id=? AND id=?";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_14: &str = "INSERT INTO people_lifecycle_settings VALUES(?,?,?) ON CONFLICT(company_id) DO UPDATE SET version=excluded.version,definition=excluded.definition";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_15: &str = "UPDATE people_preparation_tasks SET assignee_id=?,version=version+1 WHERE company_id=? AND assignee_id IS NULL AND status='pending' AND clearance_type IS NULL";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_16: &str = "INSERT INTO people_access_packages(company_id,id,version,published_revision,definition) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,id) DO UPDATE SET version=excluded.version,published_revision=excluded.published_revision,definition=excluded.definition";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_17: &str = "INSERT INTO people_package_revisions VALUES($1,$2,$3,$4,$5,$6)";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_18: &str = "UPDATE people_position_packages SET revision=$3 WHERE company_id=$1 AND package_id=$2";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_19: &str = "INSERT INTO people_position_packages VALUES($1,$2,$3,$4) ON CONFLICT(company_id,position_id) DO UPDATE SET package_id=excluded.package_id,revision=excluded.revision";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_20: &str = "UPDATE people_preparation_tasks SET status='completed',version=version+1,updated_at=$3 WHERE company_id=$1 AND position_id=$2 AND kind='position'";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_21: &str = "INSERT INTO people_lifecycle_grants(id,company_id,case_id,user_id,grant_index,definition,review_id) VALUES($1,$2,$3,$4,$5,$6,$7)";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_22: &str = "UPDATE people_lifecycle_cases SET version=version+1,updated_at=$2 WHERE id=$1";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_23: &str = "UPDATE people_lifecycle_cases SET status='blocked',last_error='ACCESS_REVIEW_REJECTED',version=version+1,updated_at=$2 WHERE id=$1";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_24: &str = "UPDATE people_lifecycle_grants SET assignment_id=$2 WHERE id=$1";
-pub const PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_25: &str = "UPDATE people_lifecycle_cases SET status='scheduled',version=version+1,updated_at=$2 WHERE id=$1";
-
-#[cfg(test)]
-mod people_lifecycle_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn people_lifecycle_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-people-lifecycle-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid people lifecycle SQL contract");
-        let pairs = [
-            ("people_lifecycle_stmt_1", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_1),
-            ("people_lifecycle_stmt_2", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_2),
-            ("people_lifecycle_stmt_3", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_3),
-            ("people_lifecycle_stmt_4", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_4),
-            ("people_lifecycle_stmt_5", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_5),
-            ("people_lifecycle_stmt_6", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_6),
-            ("people_lifecycle_stmt_7", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_7),
-            ("people_lifecycle_stmt_8", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_8),
-            ("people_lifecycle_stmt_9", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_9),
-            ("people_lifecycle_stmt_10", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_10),
-            ("people_lifecycle_stmt_11", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_11),
-            ("people_lifecycle_stmt_12", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_12),
-            ("people_lifecycle_stmt_13", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_13),
-            ("people_lifecycle_stmt_14", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_14),
-            ("people_lifecycle_stmt_15", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_15),
-            ("people_lifecycle_stmt_16", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_16),
-            ("people_lifecycle_stmt_17", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_17),
-            ("people_lifecycle_stmt_18", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_18),
-            ("people_lifecycle_stmt_19", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_19),
-            ("people_lifecycle_stmt_20", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_20),
-            ("people_lifecycle_stmt_21", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_21),
-            ("people_lifecycle_stmt_22", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_22),
-            ("people_lifecycle_stmt_23", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_23),
-            ("people_lifecycle_stmt_24", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_24),
-            ("people_lifecycle_stmt_25", PEOPLE_LIFECYCLE_SQL_PEOPLE_LIFECYCLE_STMT_25),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "people lifecycle SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for main people payroll statements.
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_1: &str = "UPDATE hr_payroll_cost_assignments SET evidence_status='verified',source='hr_attestation',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_2: &str = "INSERT INTO hr_payroll_cost_assignment_verifications(id,company_id,assignment_id,verified_by,evidence_ref,previous_version,created_at) VALUES(?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_3: &str = "UPDATE hr_time_entries t SET cost_assignment_id=a.id,cost_branch_id=a.branch_id,cost_department_id=a.department_id,version=t.version+1,updated_at=?\n      FROM hr_payroll_cost_assignments a WHERE a.id=? AND a.company_id=? AND t.engagement_id=a.engagement_id AND t.status='approved'\n      AND t.work_date>=a.effective_from AND (a.effective_to IS NULL OR t.work_date<=a.effective_to)\n      AND t.cost_assignment_id IS NULL";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_4: &str = "INSERT INTO hr_command_receipts(command_id,operation,request_hash,result_json,created_at) VALUES(?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_5: &str = "INSERT INTO hr_people(id,user_id,company_id,legal_name,preferred_name,email,phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_6: &str = "INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,end_date,manager_person_id,job_title,currency,pay_group_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_7: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,effective_to,pay_frequency,base_amount_minor,hourly_rate_minor,daily_rate_minor,standard_daily_hours,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_8: &str = "UPDATE hr_engagements SET pay_group_id=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_9: &str = "UPDATE hr_compensation_revisions SET status=?,approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_10: &str = "UPDATE hr_engagements SET status=?,end_date=CASE WHEN ?='ended' THEN ? ELSE end_date END,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_11: &str = "UPDATE employees SET status=CASE WHEN EXISTS(SELECT 1 FROM hr_engagements WHERE person_id=? AND status='active') THEN 'active' ELSE 'inactive' END WHERE person_id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_12: &str = "INSERT INTO hr_time_entries(id,engagement_id,company_id,work_date,regular_hours,overtime_hours,note,status,submitted_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_13: &str = "UPDATE hr_time_entries SET work_date=?,regular_hours=?,overtime_hours=?,note=?,status='submitted',approved_by=NULL,rejection_reason=NULL,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_14: &str = "UPDATE hr_time_entries SET status='rejected',rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_15: &str = "UPDATE hr_time_entries SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_16: &str = "INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,overtime_multiplier_bps,proration_method,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_17: &str = "INSERT INTO hr_country_packs(id,country_code,version,status,rules_json,export_formats_json,created_by,created_at,updated_at,adapter_id,source_digest,effective_from,effective_to) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_18: &str = "UPDATE hr_country_packs SET status=?,approval_evidence=?,validated_by=?,record_version=record_version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_19: &str = "INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'final_pay','calculating',?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_20: &str = "INSERT INTO hr_payroll_final_pay_preparations(id,company_id,task_id,case_id,engagement_id,run_id,reason,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_21: &str = "INSERT INTO hr_payroll_final_pay_events(id,preparation_id,task_id,run_id,company_id,action,actor_id,task_version,evidence_json,created_at) VALUES(?,?,?,?,?,'prepared',?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_22: &str = "INSERT INTO hr_payroll_advances(id,company_id,engagement_id,person_id,amount_minor,installment_count,first_deduction_period,currency,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_23: &str = "INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,'requested',?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_24: &str = "UPDATE hr_payroll_advances SET status=?,version=version+1,approved_by=CASE WHEN ?='approved' THEN ? ELSE approved_by END,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_25: &str = "INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_26: &str = "INSERT INTO hr_payroll_advance_repayments(id,advance_id,company_id,sequence,due_period_start,due_period_end,amount_minor,created_at) VALUES(?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_27: &str = "INSERT INTO hr_payroll_account_mappings(id,company_id,pay_group_id,chart_id,accounts_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'draft',?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_28: &str = "UPDATE hr_payroll_account_mappings SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND pay_group_id=? AND status='approved'";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_29: &str = "UPDATE hr_payroll_account_mappings SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_30: &str = "UPDATE hr_payroll_runs SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_31: &str = "INSERT INTO hr_payroll_corrections(id,run_id,company_id,run_version,run_revision,input_digest,totals_json,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_32: &str = "INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?, 'requested',?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_33: &str = "UPDATE hr_payroll_corrections SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_34: &str = "INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_35: &str = "UPDATE hr_payroll_runs SET status='calculating',approved_by=NULL,version=version+1,error_message=?,updated_at=? WHERE id=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_36: &str = "INSERT INTO hr_payroll_review_exports(id,run_id,run_revision,file_key,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_37: &str = "INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,total_minor,bank_account_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_38: &str = "INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_39: &str = "UPDATE hr_payment_batches SET status='draft',retry_requested_by=?,approved_by=NULL,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_40: &str = "UPDATE hr_payment_batches SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='draft' AND version=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_41: &str = "INSERT INTO hr_payment_batch_exports(id,company_id,batch_id,batch_version,file_key,checksum_sha256,item_count,total_minor,exported_by,exported_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_42: &str = "UPDATE hr_payment_batches SET status='exported',file_key=?,file_checksum=?,exported_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_43: &str = "INSERT INTO hr_payroll_payment_settlements(id,company_id,batch_id,batch_item_id,bank_transaction_id,journal_id,confirmed_by,confirmed_at) VALUES(?,?,?,?,?,?,?,?)";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_44: &str = "UPDATE hr_payment_batch_items SET status=?,confirmation_ref=?,settled_at=? WHERE batch_id=? AND reference=? AND status IN ('outstanding','failed')";
-pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_45: &str = "UPDATE hr_payment_batches SET status=?,version=version+1,updated_at=? WHERE id=? AND company_id=?";
-
-#[cfg(test)]
-mod people_payroll_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn people_payroll_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-people-payroll-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid main people payroll SQL contract");
-        let pairs = [
-            ("people_payroll_stmt_1", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_1),
-            ("people_payroll_stmt_2", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_2),
-            ("people_payroll_stmt_3", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_3),
-            ("people_payroll_stmt_4", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_4),
-            ("people_payroll_stmt_5", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_5),
-            ("people_payroll_stmt_6", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_6),
-            ("people_payroll_stmt_7", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_7),
-            ("people_payroll_stmt_8", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_8),
-            ("people_payroll_stmt_9", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_9),
-            ("people_payroll_stmt_10", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_10),
-            ("people_payroll_stmt_11", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_11),
-            ("people_payroll_stmt_12", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_12),
-            ("people_payroll_stmt_13", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_13),
-            ("people_payroll_stmt_14", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_14),
-            ("people_payroll_stmt_15", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_15),
-            ("people_payroll_stmt_16", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_16),
-            ("people_payroll_stmt_17", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_17),
-            ("people_payroll_stmt_18", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_18),
-            ("people_payroll_stmt_19", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_19),
-            ("people_payroll_stmt_20", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_20),
-            ("people_payroll_stmt_21", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_21),
-            ("people_payroll_stmt_22", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_22),
-            ("people_payroll_stmt_23", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_23),
-            ("people_payroll_stmt_24", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_24),
-            ("people_payroll_stmt_25", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_25),
-            ("people_payroll_stmt_26", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_26),
-            ("people_payroll_stmt_27", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_27),
-            ("people_payroll_stmt_28", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_28),
-            ("people_payroll_stmt_29", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_29),
-            ("people_payroll_stmt_30", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_30),
-            ("people_payroll_stmt_31", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_31),
-            ("people_payroll_stmt_32", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_32),
-            ("people_payroll_stmt_33", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_33),
-            ("people_payroll_stmt_34", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_34),
-            ("people_payroll_stmt_35", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_35),
-            ("people_payroll_stmt_36", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_36),
-            ("people_payroll_stmt_37", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_37),
-            ("people_payroll_stmt_38", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_38),
-            ("people_payroll_stmt_39", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_39),
-            ("people_payroll_stmt_40", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_40),
-            ("people_payroll_stmt_41", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_41),
-            ("people_payroll_stmt_42", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_42),
-            ("people_payroll_stmt_43", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_43),
-            ("people_payroll_stmt_44", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_44),
-            ("people_payroll_stmt_45", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_45),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "main people payroll SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_attachments_service_facts statements.
-pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_LEAVE_REQUEST: &str = "UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?";
-pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_PREFIX: &str = "UPDATE ";
-pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID: &str = " SET version=version+1";
-pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID2: &str = ",updated_at=?";
-pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_SUFFIX: &str = " WHERE id=? AND version=?";
-pub const PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_SERVICE_FACTS_STMT_1: &str = "UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?";
-
-#[cfg(test)]
-mod pp_attachments_service_facts_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_attachments_service_facts_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_attachments_service_facts-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_attachments_service_facts SQL contract");
-        let pairs = [
-            ("pp_attachments_leave_request", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_LEAVE_REQUEST),
-            ("pp_attachments_dynamic_prefix", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_PREFIX),
-            ("pp_attachments_dynamic_mid", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID),
-            ("pp_attachments_dynamic_mid2", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_MID2),
-            ("pp_attachments_dynamic_suffix", PP_ATTACHMENTS_SERVICE_FACTS_SQL_PP_ATTACHMENTS_DYNAMIC_SUFFIX),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_attachments_service_facts SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_expense_payments statements.
-pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_1: &str = "UPDATE expense_payment_drafts SET payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_2: &str = "UPDATE expense_payment_drafts SET version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_3: &str = "INSERT INTO expense_payment_drafts(id,expense_id,company_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?)";
-pub const PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_4: &str = "UPDATE expense_payment_drafts SET status='confirmed',payment_id=?,payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod pp_expense_payments_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_expense_payments_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_expense_payments-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expense_payments SQL contract");
-        let pairs = [
-            ("pp_expense_payments_stmt_1", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_1),
-            ("pp_expense_payments_stmt_2", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_2),
-            ("pp_expense_payments_stmt_3", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_3),
-            ("pp_expense_payments_stmt_4", PP_EXPENSE_PAYMENTS_SQL_PP_EXPENSE_PAYMENTS_STMT_4),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_expense_payments SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_expense_workflow statements.
-pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_1: &str = "UPDATE finance_expenses SET category_account_id=?,amount_minor=?,tax_minor=?,accounting_json=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_2: &str = "UPDATE finance_expenses SET employee_id=?,engagement_id=?,branch_id=?,department_id=?,workflow_version=2,workflow_stage=?,status='in_review',accounting_json='{}',approved_by=NULL,rejection_reason=NULL,submitted_at=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_3: &str = "UPDATE finance_expenses SET workflow_stage='cancelled',status='rejected',cancelled_at=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_4: &str = "UPDATE finance_expenses SET status='rejected',workflow_stage='draft',accounting_json='{}',approved_by=NULL,rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_5: &str = "UPDATE finance_expenses SET status='approved',workflow_stage='gl_posting',approved_by=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_6: &str = "UPDATE finance_expenses SET status=?,workflow_stage=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod pp_expense_workflow_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_expense_workflow_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_expense_workflow-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expense_workflow SQL contract");
-        let pairs = [
-            ("pp_expense_workflow_stmt_1", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_1),
-            ("pp_expense_workflow_stmt_2", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_2),
-            ("pp_expense_workflow_stmt_3", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_3),
-            ("pp_expense_workflow_stmt_4", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_4),
-            ("pp_expense_workflow_stmt_5", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_5),
-            ("pp_expense_workflow_stmt_6", PP_EXPENSE_WORKFLOW_SQL_PP_EXPENSE_WORKFLOW_STMT_6),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_expense_workflow SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_identity_applied_package_effects statements.
-pub const PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_SQL_PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_STMT_1: &str = "INSERT INTO people_applied_packages(id,company_id,person_id,engagement_id,position_id,package_id,package_revision,definition,source_kind,scope,case_id,authorizing_assignment_id,valid_from,valid_until,created_at) SELECT 'legacy:'||c.id,c.company_id,c.person_id,c.engagement_id,c.definition->>'positionId',c.package_id,c.package_revision,r.definition,'position',c.review_snapshot,c.id,c.authorizing_assignment_id,c.effective_at,a.valid_until,$2 FROM people_lifecycle_cases c JOIN people_package_revisions r ON r.company_id=c.company_id AND r.package_id=c.package_id AND r.revision=c.package_revision ${lifecycleAppliedPackageAssignmentJoin()} WHERE c.id=$1 ON CONFLICT(id) DO NOTHING";
-
-#[cfg(test)]
-mod pp_identity_applied_package_effects_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_identity_applied_package_effects_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_identity_applied_package_effects-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_identity_applied_package_effects SQL contract");
-        let pairs = [
-            ("pp_identity_applied_package_effects_stmt_1", PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_SQL_PP_IDENTITY_APPLIED_PACKAGE_EFFECTS_STMT_1),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_identity_applied_package_effects SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_identity_person_link_effects statements.
-pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_1: &str = "UPDATE hr_people SET user_id=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_2: &str = "UPDATE employees SET user_id=? WHERE person_id=?";
-pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_3: &str = "UPDATE hr_people SET user_id=$1,version=version+1 WHERE id=$2 AND company_id=$3";
-pub const PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_4: &str = "UPDATE employees SET user_id=$1 WHERE user_id=$2 AND company_id=$3";
-
-#[cfg(test)]
-mod pp_identity_person_link_effects_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_identity_person_link_effects_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_identity_person_link_effects-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_identity_person_link_effects SQL contract");
-        let pairs = [
-            ("pp_identity_person_link_effects_stmt_1", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_1),
-            ("pp_identity_person_link_effects_stmt_2", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_2),
-            ("pp_identity_person_link_effects_stmt_3", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_3),
-            ("pp_identity_person_link_effects_stmt_4", PP_IDENTITY_PERSON_LINK_EFFECTS_SQL_PP_IDENTITY_PERSON_LINK_EFFECTS_STMT_4),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_identity_person_link_effects SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_leave statements.
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_1: &str = "UPDATE leave_requests SET start_date=?,days=?,handover_note=?,state=?,person_id=?,engagement_id=?,branch_id=?,department_id=?,prepared_by=?,decided_by=NULL,decision_note=NULL,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_2: &str = "UPDATE leave_requests SET state=?,decision_note=?,decided_by=?,evidence_version=evidence_version+?,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_3: &str = "INSERT INTO leave_cancellation_reviews(id,request_id,company_id,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)";
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_4: &str = "UPDATE leave_requests SET cancellation_state='pending_review',version=version+1,last_command_id=?,updated_at=? WHERE id=?";
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_5: &str = "UPDATE leave_requests SET state='cancelled',decision_note=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_6: &str = "UPDATE leave_requests SET state=?,cancellation_state=?,version=version+1,last_command_id=?,updated_at=? WHERE id=?";
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_7: &str = "UPDATE leave_cancellation_reviews SET state=?,decided_by=?,decision_note=?,version=version+1,updated_at=? WHERE request_id=? AND state='pending_approval'";
-pub const PP_LEAVE_SQL_PP_LEAVE_STMT_8: &str = "INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at)\n SELECT ?||':'||entitlement_year,company_id,engagement_id,leave_type_id,request_id,?,sum(units)*?,entitlement_year||'-01-01',entitlement_year,?||':'||entitlement_year,?,?,?\n FROM leave_balance_entries WHERE request_id=? AND company_id=? AND kind IN (${source}) GROUP BY company_id,engagement_id,leave_type_id,request_id,entitlement_year HAVING sum(units)<0";
-
-#[cfg(test)]
-mod pp_leave_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_leave_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_leave-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_leave SQL contract");
-        let pairs = [
-            ("pp_leave_stmt_1", PP_LEAVE_SQL_PP_LEAVE_STMT_1),
-            ("pp_leave_stmt_2", PP_LEAVE_SQL_PP_LEAVE_STMT_2),
-            ("pp_leave_stmt_3", PP_LEAVE_SQL_PP_LEAVE_STMT_3),
-            ("pp_leave_stmt_4", PP_LEAVE_SQL_PP_LEAVE_STMT_4),
-            ("pp_leave_stmt_5", PP_LEAVE_SQL_PP_LEAVE_STMT_5),
-            ("pp_leave_stmt_6", PP_LEAVE_SQL_PP_LEAVE_STMT_6),
-            ("pp_leave_stmt_7", PP_LEAVE_SQL_PP_LEAVE_STMT_7),
-            ("pp_leave_stmt_8", PP_LEAVE_SQL_PP_LEAVE_STMT_8),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_leave SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_operations_people_directory_facts statements.
-pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_1: &str = "UPDATE employees SET display_name=?,branch_id=?,department_id=? WHERE person_id=?";
-pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_2: &str = "INSERT INTO employees(id,person_id,company_id,branch_id,department_id,display_name,status,created_at) VALUES(?,?,?,?,?,?,'active',?)";
-pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_3: &str = "UPDATE employees SET user_id=? WHERE person_id=?";
-pub const PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_4: &str = "UPDATE employees SET status=? WHERE person_id=?";
-
-#[cfg(test)]
-mod pp_operations_people_directory_facts_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_operations_people_directory_facts_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_operations_people_directory_facts-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_operations_people_directory_facts SQL contract");
-        let pairs = [
-            ("pp_operations_people_directory_facts_stmt_1", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_1),
-            ("pp_operations_people_directory_facts_stmt_2", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_2),
-            ("pp_operations_people_directory_facts_stmt_3", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_3),
-            ("pp_operations_people_directory_facts_stmt_4", PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_SQL_PP_OPERATIONS_PEOPLE_DIRECTORY_FACTS_STMT_4),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_operations_people_directory_facts SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_operations_people_lifecycle_worker_effects statements.
-pub const PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_1: &str = "UPDATE employees SET status='inactive' WHERE company_id=$1 AND person_id=$2";
-pub const PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_2: &str = "UPDATE employees SET branch_id=$3,department_id=$4,status='active' WHERE company_id=$1 AND person_id=$2";
-pub const PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_3: &str = "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)";
-
-#[cfg(test)]
-mod pp_operations_people_lifecycle_worker_effects_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_operations_people_lifecycle_worker_effects_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_operations_people_lifecycle_worker_effects-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_operations_people_lifecycle_worker_effects SQL contract");
-        let pairs = [
-            ("pp_operations_people_lifecycle_worker_effects_stmt_1", PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_1),
-            ("pp_operations_people_lifecycle_worker_effects_stmt_2", PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_2),
-            ("pp_operations_people_lifecycle_worker_effects_stmt_3", PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_SQL_PP_OPERATIONS_PEOPLE_LIFECYCLE_WORKER_EFFECTS_STMT_3),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_operations_people_lifecycle_worker_effects SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_organization_defaults statements.
-pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_1: &str = "INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,timezone,workweek_json,created_by,created_at) VALUES(?,?,?,?,?,'active',?,'UTC','[1,2,3,4,5]'::jsonb,?,?)";
-pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_2: &str = "INSERT INTO leave_policy_rules(policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,employee_eligible,contractor_eligible) VALUES(?,?,'annual',?,0,true,false)";
-pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_3: &str = "UPDATE hr_engagements SET pay_group_id=? WHERE id=?";
-pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_4: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,'monthly',?,0,0,?,'[]','draft',?,?,?)";
-pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_5: &str = "UPDATE leave_policy_assignments SET effective_to=?,version=version+1 WHERE id=?";
-pub const PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_6: &str = "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,effective_from,created_by,created_at) VALUES(?,?,?,?,?,?,?)";
-
-#[cfg(test)]
-mod pp_organization_defaults_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_organization_defaults_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_organization_defaults-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_organization_defaults SQL contract");
-        let pairs = [
-            ("pp_organization_defaults_stmt_1", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_1),
-            ("pp_organization_defaults_stmt_2", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_2),
-            ("pp_organization_defaults_stmt_3", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_3),
-            ("pp_organization_defaults_stmt_4", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_4),
-            ("pp_organization_defaults_stmt_5", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_5),
-            ("pp_organization_defaults_stmt_6", PP_ORGANIZATION_DEFAULTS_SQL_PP_ORGANIZATION_DEFAULTS_STMT_6),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_organization_defaults SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_overtime statements.
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_1: &str = "INSERT INTO overtime_requests(id,company_id,engagement_id,person_id,branch_id,department_id,created_by,mode,timezone,start_local,end_local,starts_at,ends_at,break_minutes,minutes,reason,late_explanation,roster_shift_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_2: &str = "UPDATE overtime_requests SET start_local=?,end_local=?,timezone=?,starts_at=?,ends_at=?,break_minutes=?,minutes=?,reason=?,late_explanation=?,roster_shift_id=? WHERE id=?";
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_3: &str = "UPDATE overtime_requests SET ${authorization ? 'planned_snapshot' : 'actuals_snapshot'}=?::jsonb,decision_note='' WHERE id=?";
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_4: &str = "INSERT INTO overtime_payroll_handoffs(id,request_id,company_id,engagement_id,request_version,work_date,minutes,timezone,approved_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_5: &str = "UPDATE overtime_requests SET decision_note=? WHERE id=?";
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_6: &str = "UPDATE overtime_requests SET state=?,version=?,updated_at=? WHERE id=?";
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_7: &str = "UPDATE hr_engagements SET self_service_top_level=?,version=version+1 WHERE id=? AND company_id=?";
-pub const PP_OVERTIME_SQL_PP_OVERTIME_STMT_8: &str = "INSERT INTO overtime_eligibility(company_id,engagement_id,eligible,reason,updated_by,updated_at,version) VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,engagement_id) DO UPDATE SET eligible=excluded.eligible,reason=excluded.reason,updated_by=excluded.updated_by,updated_at=excluded.updated_at,version=excluded.version";
-
-#[cfg(test)]
-mod pp_overtime_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_overtime_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_overtime-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_overtime SQL contract");
-        let pairs = [
-            ("pp_overtime_stmt_1", PP_OVERTIME_SQL_PP_OVERTIME_STMT_1),
-            ("pp_overtime_stmt_2", PP_OVERTIME_SQL_PP_OVERTIME_STMT_2),
-            ("pp_overtime_stmt_3", PP_OVERTIME_SQL_PP_OVERTIME_STMT_3),
-            ("pp_overtime_stmt_4", PP_OVERTIME_SQL_PP_OVERTIME_STMT_4),
-            ("pp_overtime_stmt_5", PP_OVERTIME_SQL_PP_OVERTIME_STMT_5),
-            ("pp_overtime_stmt_6", PP_OVERTIME_SQL_PP_OVERTIME_STMT_6),
-            ("pp_overtime_stmt_7", PP_OVERTIME_SQL_PP_OVERTIME_STMT_7),
-            ("pp_overtime_stmt_8", PP_OVERTIME_SQL_PP_OVERTIME_STMT_8),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_overtime SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_payroll_adjustments statements.
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_1: &str = "INSERT INTO hr_payroll_adjustment_revisions(id,run_id,revision,taxable_arrears_minor,non_taxable_arrears_minor,social_security_wage_minor,time_entries_json,reason,evidence_ref,created_by,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_2: &str = "INSERT INTO hr_payroll_adjustment_time_claims(run_id,source_revision,time_entry_id) VALUES(?,?,?)";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_3: &str = "INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,adjustment_of_run_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'THB','production','calculating',?,?,?,?)";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_4: &str = "INSERT INTO hr_payroll_adjustments(run_id,company_id,original_run_id,original_item_id,engagement_id,source_ref,source_snapshot_json,source_digest,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_5: &str = "UPDATE hr_payroll_adjustment_time_claims SET active=false WHERE run_id=? AND active";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_6: &str = "UPDATE hr_payroll_adjustments SET source_revision=source_revision+1 WHERE run_id=?";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_7: &str = "UPDATE hr_payroll_runs SET status='calculating',input_digest=NULL,totals_json='{}',version=version+1,updated_at=? WHERE id=?";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_8: &str = "DELETE FROM hr_payroll_items WHERE run_id=?";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_9: &str = "UPDATE hr_payroll_runs SET status='preview',revision=revision+1,totals_json=?,input_digest=?,version=version+1,error_message=NULL,updated_at=? WHERE id=?";
-pub const PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_10: &str = "INSERT INTO hr_payroll_items(id,run_id,engagement_id,worker_type,input_snapshot_json,result_json,gross_minor,deductions_minor,employer_cost_minor,net_minor,currency,created_at) VALUES(?,?,?,'employee',?,?,?,?,?,?,'THB',?)";
-
-#[cfg(test)]
-mod pp_payroll_adjustments_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_payroll_adjustments_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_payroll_adjustments-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_adjustments SQL contract");
-        let pairs = [
-            ("pp_payroll_adjustments_stmt_1", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_1),
-            ("pp_payroll_adjustments_stmt_2", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_2),
-            ("pp_payroll_adjustments_stmt_3", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_3),
-            ("pp_payroll_adjustments_stmt_4", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_4),
-            ("pp_payroll_adjustments_stmt_5", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_5),
-            ("pp_payroll_adjustments_stmt_6", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_6),
-            ("pp_payroll_adjustments_stmt_7", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_7),
-            ("pp_payroll_adjustments_stmt_8", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_8),
-            ("pp_payroll_adjustments_stmt_9", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_9),
-            ("pp_payroll_adjustments_stmt_10", PP_PAYROLL_ADJUSTMENTS_SQL_PP_PAYROLL_ADJUSTMENTS_STMT_10),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_adjustments SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_payroll_other_remittance statements.
-pub const PP_PAYROLL_OTHER_REMITTANCE_SQL_PP_PAYROLL_OTHER_REMITTANCE_STMT_1: &str = "INSERT INTO hr_payroll_statutory_remittances(id,company_id,run_id,kind,amount_minor,liability_account_id,bank_account_id,bank_transaction_id,journal_id,bank_reference,recorded_by,recorded_at,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
-
-#[cfg(test)]
-mod pp_payroll_other_remittance_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_payroll_other_remittance_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_payroll_other_remittance-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_other_remittance SQL contract");
-        let pairs = [
-            ("pp_payroll_other_remittance_stmt_1", PP_PAYROLL_OTHER_REMITTANCE_SQL_PP_PAYROLL_OTHER_REMITTANCE_STMT_1),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_other_remittance SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_payroll_readiness statements.
-pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_1: &str = "UPDATE hr_payroll_runs SET status='in_review',submitted_by=?,submitted_digest=?,submitted_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='preview' AND version=?";
-pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_2: &str = "UPDATE hr_pay_groups SET schedule_enabled=?,pay_delay_days=?,schedule_anchor_date=?,schedule_version=schedule_version+1,updated_at=? WHERE id=? AND company_id=? AND schedule_version=?";
-pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_3: &str = "INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) SELECT ?,?,?,NULL,?,?,?,?,'preview','draft','system:payroll-schedule',?,? WHERE NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND period_start=? AND period_end=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled') ON CONFLICT DO NOTHING";
-pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_4: &str = "UPDATE hr_payroll_runs SET status='preview',revision=revision+1,totals_json=?,input_digest=?,\n          submitted_by=NULL,submitted_digest=NULL,submitted_at=NULL,version=version+1,updated_at=?,error_message=NULL WHERE id=?";
-pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_5: &str = "INSERT INTO hr_payroll_items(id,run_id,engagement_id,worker_type,input_snapshot_json,result_json,\n            gross_minor,deductions_minor,employer_cost_minor,net_minor,currency,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_6: &str = "UPDATE hr_payroll_runs SET status='failed',error_message=?,updated_at=?\n        WHERE id=? AND status IN ('draft','failed') AND created_by='system:payroll-schedule'";
-
-#[cfg(test)]
-mod pp_payroll_readiness_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_payroll_readiness_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_payroll_readiness-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_readiness SQL contract");
-        let pairs = [
-            ("pp_payroll_readiness_stmt_1", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_1),
-            ("pp_payroll_readiness_stmt_2", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_2),
-            ("pp_payroll_readiness_stmt_3", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_3),
-            ("pp_payroll_readiness_stmt_4", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_4),
-            ("pp_payroll_readiness_stmt_5", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_5),
-            ("pp_payroll_readiness_stmt_6", PP_PAYROLL_READINESS_SQL_PP_PAYROLL_READINESS_STMT_6),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_readiness SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_payroll_recoveries statements.
-pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_1: &str = "INSERT INTO hr_payroll_recovery_events(id,recovery_id,company_id,action,actor_id,recovery_version,evidence_json,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_2: &str = "INSERT INTO hr_payroll_recoveries(id,company_id,original_run_id,original_item_id,engagement_id,person_id,employee_user_id,source_ref,source_snapshot_json,source_digest,policy_json,policy_digest,amount_minor,currency,installment_count,first_deduction_period,reason,evidence_ref,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,\\'THB\\',?,?,?,?,?,?,?)";
-pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_3: &str = "UPDATE hr_payroll_recoveries SET status=?,version=version+1,consent_by=?,consent_at=?,consent_html=?,consent_sha256=?,updated_at=? WHERE id=?";
-pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_4: &str = "UPDATE hr_payroll_recoveries SET status=?,version=version+1,reviewed_by=?,legal_basis_ref=?,updated_at=? WHERE id=?";
-pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_5: &str = "INSERT INTO hr_payroll_advances(id,company_id,engagement_id,person_id,status,version,amount_minor,installment_count,first_deduction_period,currency,reason,requested_by,approved_by,review_reason,created_at,reviewed_at,updated_at,recovery_id) VALUES(?,?,?,?,'approved',2,?,?,?,'THB',?,?,?,?,?,?,?,?)";
-pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_6: &str = "UPDATE hr_payroll_recoveries SET status='recognized',version=version+1,journal_id=?,advance_id=?,recognized_by=?,updated_at=? WHERE id=?";
-pub const PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_7: &str = "INSERT INTO hr_payroll_advance_repayments(id,advance_id,company_id,sequence,due_period_start,due_period_end,amount_minor,created_at) VALUES(?,?,?,?,?,?,?,?)";
-
-#[cfg(test)]
-mod pp_payroll_recoveries_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_payroll_recoveries_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_payroll_recoveries-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_payroll_recoveries SQL contract");
-        let pairs = [
-            ("pp_payroll_recoveries_stmt_1", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_1),
-            ("pp_payroll_recoveries_stmt_2", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_2),
-            ("pp_payroll_recoveries_stmt_3", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_3),
-            ("pp_payroll_recoveries_stmt_4", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_4),
-            ("pp_payroll_recoveries_stmt_5", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_5),
-            ("pp_payroll_recoveries_stmt_6", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_6),
-            ("pp_payroll_recoveries_stmt_7", PP_PAYROLL_RECOVERIES_SQL_PP_PAYROLL_RECOVERIES_STMT_7),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_payroll_recoveries SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_people_directory statements.
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_1: &str = "UPDATE hr_people SET legal_name=?,preferred_name=?,email=?,phone=?,work_email=?,work_phone=?,country_code=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_2: &str = "UPDATE hr_engagements SET branch_id=?,department_id=?,job_title=?,worker_type=?,employment_type=?,start_date=?,currency=?,manager_person_id=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_3: &str = "INSERT INTO hr_people(id,company_id,legal_name,preferred_name,email,phone,work_email,work_phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_4: &str = "INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,manager_person_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'onboarding',?,?,?,?,?,?,?)";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_5: &str = "UPDATE hr_engagements SET level_id=? WHERE id=?";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_6: &str = "UPDATE hr_people SET user_id=? WHERE id=?";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_7: &str = "UPDATE hr_engagements SET position_id=? WHERE id=?";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_8: &str = "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_9: &str = "UPDATE hr_people SET status=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_10: &str = "UPDATE hr_engagements SET status=?,version=version+1,updated_at=? WHERE person_id=? AND status!='ended'";
-
-#[cfg(test)]
-mod pp_people_directory_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_people_directory_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_people_directory-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_directory SQL contract");
-        let pairs = [
-            ("pp_people_directory_stmt_1", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_1),
-            ("pp_people_directory_stmt_2", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_2),
-            ("pp_people_directory_stmt_3", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_3),
-            ("pp_people_directory_stmt_4", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_4),
-            ("pp_people_directory_stmt_5", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_5),
-            ("pp_people_directory_stmt_6", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_6),
-            ("pp_people_directory_stmt_7", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_7),
-            ("pp_people_directory_stmt_8", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_8),
-            ("pp_people_directory_stmt_9", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_9),
-            ("pp_people_directory_stmt_10", PP_PEOPLE_DIRECTORY_SQL_PP_PEOPLE_DIRECTORY_STMT_10),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_directory SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_people_evaluation_ai statements.
-pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_1: &str = "INSERT INTO hr_evaluation_ai_jobs(id,company_id,actor_json,query_json,source_hash,provider_json,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
-pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_2: &str = "UPDATE hr_evaluation_ai_jobs SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) RETURNING *";
-pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_3: &str = "UPDATE hr_evaluation_ai_jobs SET claim_until=? WHERE id=? AND lease_token=? AND state='running'";
-pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_4: &str = "UPDATE hr_evaluation_ai_jobs SET state='ready',result_json=?,error=NULL,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=? AND lease_token=?";
-pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_5: &str = "UPDATE hr_evaluation_ai_jobs SET state=?,error=?,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=? AND lease_token=?";
-pub const PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_6: &str = "UPDATE hr_evaluation_ai_jobs SET state='failed',error='AI was interrupted. Continue manually.',lease_token=NULL,claim_until=NULL,updated_at=? WHERE state='running' AND claim_until<? AND attempts>=3";
-
-#[cfg(test)]
-mod pp_people_evaluation_ai_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_people_evaluation_ai_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_people_evaluation_ai-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_evaluation_ai SQL contract");
-        let pairs = [
-            ("pp_people_evaluation_ai_stmt_1", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_1),
-            ("pp_people_evaluation_ai_stmt_2", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_2),
-            ("pp_people_evaluation_ai_stmt_3", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_3),
-            ("pp_people_evaluation_ai_stmt_4", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_4),
-            ("pp_people_evaluation_ai_stmt_5", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_5),
-            ("pp_people_evaluation_ai_stmt_6", PP_PEOPLE_EVALUATION_AI_SQL_PP_PEOPLE_EVALUATION_AI_STMT_6),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_evaluation_ai SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_people_lifecycle_jobs statements.
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_1: &str = "UPDATE hr_engagements SET status=$2,end_date=CASE WHEN $2='ended' THEN $3 ELSE end_date END,version=version+1,updated_at=$4 WHERE id=$1";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_2: &str = "UPDATE people_access_cutoffs SET restored_at=$3 WHERE company_id=$1 AND person_id=$2 AND cancelled_at IS NULL AND restored_at IS NULL AND effective_at<=$3";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_3: &str = "UPDATE people_applied_packages SET ended_at=$3 WHERE company_id=$1 AND person_id=$2 AND source_kind='position' AND ended_at IS NULL";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_4: &str = "UPDATE people_lifecycle_cases SET status='completed' WHERE id=$1";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_5: &str = "UPDATE hr_engagements SET position_id=$2,branch_id=$3,department_id=$4,level_id=$5,manager_person_id=$6,job_title=$7,status='active',version=version+1,updated_at=$8 WHERE id=$1";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_6: &str = "UPDATE hr_engagements SET pay_group_id=$2 WHERE id=$1";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_7: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES($1,$2,$3,'monthly',$4,0,0,$5,'[]','draft',$6,$7,$7) ON CONFLICT(id) DO NOTHING";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_8: &str = "UPDATE leave_policy_assignments SET effective_to=$1,version=version+1 WHERE id=$2";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_9: &str = "INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,effective_from,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_10: &str = "UPDATE people_lifecycle_cases SET status='completed',version=version+1,updated_at=$2 WHERE id=$1";
-pub const PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_11: &str = "UPDATE people_lifecycle_cases SET attempts=attempts+1,next_attempt_at=$2+LEAST(3600000,1000*power(2,LEAST(attempts,12)))::bigint,last_error=$3 WHERE id=$1 AND status='scheduled'";
-
-#[cfg(test)]
-mod pp_people_lifecycle_jobs_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_people_lifecycle_jobs_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_people_lifecycle_jobs-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_lifecycle_jobs SQL contract");
-        let pairs = [
-            ("pp_people_lifecycle_jobs_stmt_1", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_1),
-            ("pp_people_lifecycle_jobs_stmt_2", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_2),
-            ("pp_people_lifecycle_jobs_stmt_3", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_3),
-            ("pp_people_lifecycle_jobs_stmt_4", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_4),
-            ("pp_people_lifecycle_jobs_stmt_5", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_5),
-            ("pp_people_lifecycle_jobs_stmt_6", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_6),
-            ("pp_people_lifecycle_jobs_stmt_7", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_7),
-            ("pp_people_lifecycle_jobs_stmt_8", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_8),
-            ("pp_people_lifecycle_jobs_stmt_9", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_9),
-            ("pp_people_lifecycle_jobs_stmt_10", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_10),
-            ("pp_people_lifecycle_jobs_stmt_11", PP_PEOPLE_LIFECYCLE_JOBS_SQL_PP_PEOPLE_LIFECYCLE_JOBS_STMT_11),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_lifecycle_jobs SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_people_templates statements.
-pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_1: &str = "UPDATE people_holding_templates SET version=version+1,name=$1,definition=$2,updated_at=$3 WHERE id=$4";
-pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_2: &str = "INSERT INTO people_holding_templates(id,holding_id,name,definition,created_by,updated_at) VALUES($1,$2,$3,$4,$5,$6)";
-pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_3: &str = "INSERT INTO people_lifecycle_settings(company_id,version,definition) VALUES($1,1,$2) ON CONFLICT(company_id) DO UPDATE SET version=people_lifecycle_settings.version+1,definition=excluded.definition";
-pub const PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_4: &str = "INSERT INTO people_template_adoptions(company_id,template_id,template_version,definition) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,template_id) DO UPDATE SET template_version=excluded.template_version,version=people_template_adoptions.version+1,definition=excluded.definition";
-
-#[cfg(test)]
-mod pp_people_templates_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_people_templates_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_people_templates-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_people_templates SQL contract");
-        let pairs = [
-            ("pp_people_templates_stmt_1", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_1),
-            ("pp_people_templates_stmt_2", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_2),
-            ("pp_people_templates_stmt_3", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_3),
-            ("pp_people_templates_stmt_4", PP_PEOPLE_TEMPLATES_SQL_PP_PEOPLE_TEMPLATES_STMT_4),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_people_templates SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_commerce_expense_payment_effects statements.
-pub const PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_SQL_PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_STMT_1: &str = "UPDATE finance_expenses SET status=CASE WHEN ?=0 THEN 'reimbursed' ELSE 'posted' END,workflow_stage=CASE WHEN ?=0 THEN 'completed' ELSE 'payment' END,reimbursed_at=CASE WHEN ?=0 THEN ?::bigint ELSE NULL END,version=version+1,updated_at=? WHERE id=?";
-
-#[cfg(test)]
-mod pp_commerce_expense_payment_effects_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_commerce_expense_payment_effects_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_commerce_expense_payment_effects-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_commerce_expense_payment_effects SQL contract");
-        let pairs = [
-            ("pp_commerce_expense_payment_effects_stmt_1", PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_SQL_PP_COMMERCE_EXPENSE_PAYMENT_EFFECTS_STMT_1),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_commerce_expense_payment_effects SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_expense_ai statements.
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_1: &str = "UPDATE expense_ai_proposals SET state='stale',updated_at=? WHERE id=? AND company_id=? AND state='ready'";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_2: &str = "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at,actor_json,finance_policy_version) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?,?,?)";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_3: &str = "INSERT INTO expense_ai_usage(id,company_id,actor_id,month,state,lease_until,created_at) VALUES(?,?,?,?,'reserved',?,?)";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_4: &str = "UPDATE expense_ai_proposals SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND (state='queued' OR (state='running' AND claim_until<?))";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_5: &str = "UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_6: &str = "UPDATE expense_ai_proposals SET state='ready',result_json=?,error=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=?";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_7: &str = "UPDATE expense_ai_usage SET state='succeeded',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_8: &str = "UPDATE expense_ai_proposals SET state=?,error=?,result_json=NULL,claim_until=NULL,lease_token=NULL,updated_at=? WHERE id=? AND lease_token=?";
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_9: &str = "UPDATE expense_ai_usage SET state='failed',lease_until=0,input_tokens=?,output_tokens=? WHERE id=?";
-
-#[cfg(test)]
-mod pp_expense_ai_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_expense_ai_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_expense_ai-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expense_ai SQL contract");
-        let pairs = [
-            ("pp_expense_ai_stmt_1", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_1),
-            ("pp_expense_ai_stmt_2", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_2),
-            ("pp_expense_ai_stmt_3", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_3),
-            ("pp_expense_ai_stmt_4", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_4),
-            ("pp_expense_ai_stmt_5", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_5),
-            ("pp_expense_ai_stmt_6", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_6),
-            ("pp_expense_ai_stmt_7", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_7),
-            ("pp_expense_ai_stmt_8", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_8),
-            ("pp_expense_ai_stmt_9", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_STMT_9),
-            ("pp_expense_ai_renew", PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_RENEW),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_expense_ai SQL contract drift: {key}");
-        }
-    }
-}
-
-/// Native-owned SQL contract for pp_expenses statements.
-pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_1: &str = "UPDATE finance_expenses SET branch_id=?,department_id=? WHERE id=?";
-pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_2: &str = "UPDATE finance_expenses SET status=?,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,approved_by=CASE WHEN ?='approve' THEN ? WHEN ?='submit' THEN NULL ELSE approved_by END,rejection_reason=?,cancelled_at=CASE WHEN ?='cancel' THEN ? ELSE cancelled_at END,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_3: &str = "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)";
-pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_4: &str = "UPDATE finance_expenses SET version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_5: &str = "UPDATE finance_expenses SET status='posted',workflow_stage='payment',invoice_id=?,journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_6: &str = "UPDATE finance_expenses SET status='rejected',cancelled_at=?,rejection_reason=?,reversal_journal_id=?,version=version+1,updated_at=? WHERE id=?";
-pub const PP_EXPENSES_SQL_PP_EXPENSES_STMT_7: &str = "INSERT INTO expense_decisions(id,expense_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,'cancel',?,?,?,?)";
-
-#[cfg(test)]
-mod pp_expenses_sql_contract_tests {
-    use super::*;
-    #[test]
-    fn pp_expenses_sql_contract_matches_native_consts() {
-        let raw = include_str!("native-pp_expenses-sql.json");
-        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid pp_expenses SQL contract");
-        let pairs = [
-            ("pp_expenses_stmt_1", PP_EXPENSES_SQL_PP_EXPENSES_STMT_1),
-            ("pp_expenses_stmt_2", PP_EXPENSES_SQL_PP_EXPENSES_STMT_2),
-            ("pp_expenses_stmt_3", PP_EXPENSES_SQL_PP_EXPENSES_STMT_3),
-            ("pp_expenses_stmt_4", PP_EXPENSES_SQL_PP_EXPENSES_STMT_4),
-            ("pp_expenses_stmt_5", PP_EXPENSES_SQL_PP_EXPENSES_STMT_5),
-            ("pp_expenses_stmt_6", PP_EXPENSES_SQL_PP_EXPENSES_STMT_6),
-            ("pp_expenses_stmt_7", PP_EXPENSES_SQL_PP_EXPENSES_STMT_7),
-        ];
-        for (key, native) in pairs {
-            assert_eq!(parsed[key].as_str(), Some(native), "pp_expenses SQL contract drift: {key}");
-        }
-    }
-}
-pub const PP_EXPENSE_AI_SQL_PP_EXPENSE_AI_RENEW: &str = "UPDATE expense_ai_proposals SET claim_until=? WHERE id=? AND lease_token=? AND state='running'";

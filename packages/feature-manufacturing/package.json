@@ -29,6 +29,7 @@
     "./public/native-planning-workspace": "./src/public/native-planning-workspace.ts",
     "./public/native-planning-workspace-page": "./src/public/native-planning-workspace-page.ts",
     "./public/native-planning-workspace-owned": "./src/public/native-planning-workspace-owned.ts",
+    "./adapters/server/native-manufacturing-wave3": "./src/adapters/server/native-manufacturing-wave3.ts",
     "./adapters/server/next-native-manufacturing-bom": "./src/adapters/server/next-native-manufacturing-bom.ts",
     "./adapters/server/next-native-planning-workspace": "./src/adapters/server/next-native-planning-workspace.ts",
     "./routes/holdings/[holdingSlug]/production/planning/records/planning_scenario/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/production/planning/records/planning_scenario/[id]/[recordSection]/page.tsx",

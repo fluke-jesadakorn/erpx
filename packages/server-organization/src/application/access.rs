@@ -5,8 +5,9 @@
 //! bounded projection. It never opens a transaction or exports more rows than
 //! the same transaction authorizes.
 use crate::domain::access::{
-    assert_organization_access, project_organization_access, AccessLevel, AccessNode, AccessPerson,
-    AccessPosition, OrganizationAccessActor, OrganizationAccessData, OrganizationAccessSnapshot,
+    AccessLevel, AccessNode, AccessPerson, AccessPosition, OrganizationAccessActor,
+    OrganizationAccessData, OrganizationAccessSnapshot, assert_organization_access,
+    project_organization_access,
 };
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId};
 use std::future::Future;

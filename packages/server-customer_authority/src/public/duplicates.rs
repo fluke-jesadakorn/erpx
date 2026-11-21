@@ -5,6 +5,7 @@ pub use crate::application::duplicates::{
     change_duplicate_review, duplicate_review_detail, duplicate_review_work,
     duplicate_review_workspace, request_duplicate_review,
 };
+pub use crate::domain::access::AccessActor;
 pub use crate::domain::duplicates::{
     ChangePlan, DuplicateAction, DuplicateChange, DuplicateReceipt, DuplicateReviewCustomer,
     DuplicateReviewEventRow, DuplicateReviewRequest, DuplicateReviewRow, MAX_EVIDENCE,
@@ -15,4 +16,3 @@ pub use crate::domain::duplicates::{
     merge_source_changed, readback_invalid, request_id, request_invalid, request_plan,
     review_changed, review_not_found, reviewer_unavailable, source_not_found,
 };
-pub use crate::domain::access::AccessActor;

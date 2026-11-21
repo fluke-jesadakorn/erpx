@@ -1,3 +1,4 @@
+import { nativePosOne, nativePosRun } from './native-owner-write';
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -5,6 +6,11 @@ import { createHash } from 'node:crypto';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {all,one,run} from '@erpx/server-runtime/public/runtime/sql';
+/** Day-close writes are owned by the native axum service; the retained TS
+ * planner must never write them. Fail closed rather than fake a durable write. */
+function requireNativeDayClose(): never {
+    throw Object.assign(new Error('POS day-close writes require the native owner service.'), { code: 'POS_NATIVE_DAY_CLOSE_REQUIRED', status: 503 });
+}
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { createPosDay, type PosDayUnit, type PosReceiptSnapshot } from "@erpx/server-pos/application/pos-daily";
@@ -35,7 +41,7 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
             branch_id: string | number | boolean | null;
             fact3: string;
             fact4: number;
-        }) => run(db, 'INSERT INTO pos_sale_documents(sale_id,company_id,branch_id,snapshot_json,created_at) VALUES(?,?,?,?::jsonb,?) ON CONFLICT(sale_id) DO NOTHING', facts.saleId, facts.company_id, facts.branch_id, facts.fact3, facts.fact4),
+        }) => nativePosRun(db, String(facts.company_id ?? ''), 'daily_writepossaledocuments1_43', [facts.saleId, facts.company_id, facts.branch_id, facts.fact3, facts.fact4]),
         readFinanceParties2: facts => PosDayFinanceFacts(db).readFinanceParties2(facts),
         readFinanceParties3: facts => PosDayFinanceFacts(db).readFinanceParties3(facts),
         readPosSettings1: (facts: {
@@ -99,25 +105,11 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
             company: string;
         }) => all(db, "SELECT id,kind,state,amount_minor,fee_minor,amount_minor-fee_minor net_minor FROM pos_settlements WHERE company_id=? AND ((kind='payout' AND state<>'matched') OR (kind='balance' AND state='unmapped')) ORDER BY id", facts.company),
         readFinanceJournalLines3: facts => PosDayFinanceFacts(db).readFinanceJournalLines3(facts),
-        writePosDayCloses1: (facts: {
-            close: `${string}-${string}-${string}-${string}-${string}`;
-            companyId: string;
-            branchId: string;
-            businessDate: string;
-            currency: string;
-            fact5: string;
-            digest: string;
-            userId: string;
-            fact8: number;
-        }) => run(db, "INSERT INTO pos_day_closes(id,company_id,branch_id,business_date,currency,state,snapshot_json,source_digest,prepared_by,prepared_at) VALUES(?,?,?,?,?,'prepared',?::jsonb,?,?,?)", facts.close, facts.companyId, facts.branchId, facts.businessDate, facts.currency, facts.fact5, facts.digest, facts.userId, facts.fact8),
+        writePosDayCloses1: () => requireNativeDayClose(),
         readPosDayCloses2: (facts: {
             id: string;
         }) => one(db, 'SELECT * FROM pos_day_closes WHERE id=? FOR UPDATE', facts.id),
-        writePosDayCloses2: (facts: {
-            userId: string;
-            fact1: number;
-            id: string | number | boolean | null;
-        }) => run(db, "UPDATE pos_day_closes SET state='confirmed',confirmed_by=?,confirmed_at=?,version=version+1 WHERE id=?", facts.userId, facts.fact1, facts.id), batch: effects => db.batch(effects)
+        writePosDayCloses2: () => requireNativeDayClose(), batch: effects => db.batch(effects)
     };
 }
 const application = createPosDay<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), environment: key => process.env[key], require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write) });

@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import {
   createNativeBillingClient,
+  createNativeEvidenceAccessClient,
   nativeBillingAvailable,
   nativeBillingCommandRequest,
   nativeBillingConfiguration,
@@ -144,6 +145,63 @@ export async function nativeBillingInvoiceCommand(
       { ...actor, holdingSlug: holding.holdingSlug },
       { holdingId: holding.holdingId, holdingSlug: holding.holdingSlug, route, body, key },
     );
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+/**
+ * Append one evidence-access audit decision through the owner axum command
+ * route. The retained `billingHandler` repository calls this instead of raw
+ * SQL: with no exact private configuration it fails closed and never falls
+ * back to a TypeScript writer. The event id doubles as the Idempotency-Key so
+ * an exact retry cannot duplicate an audit row.
+ */
+export async function nativeEvidenceAccessEvent(input: {
+  holdingId: string;
+  actorId: string;
+  platform: boolean;
+  eventId: string;
+  evidenceId: string;
+  outcome: "denied" | "allowed";
+  reason: string;
+}): Promise<void> {
+  const raw = process.env.ERPX_NATIVE_BILLING_CONFIG;
+  if (raw === undefined)
+    throw new ApiError(
+      503,
+      "NATIVE_BILLING_UNAVAILABLE",
+      "The native Billing evidence audit is not configured.",
+    );
+  const holding = createNativeBillingClient(nativeBillingConfiguration(raw)).holding(
+    input.holdingId,
+  );
+  if (!holding)
+    throw new ApiError(
+      503,
+      "NATIVE_BILLING_UNAVAILABLE",
+      "The native Billing Holding target is not configured.",
+    );
+  const actor: NativeBillingPageContext = {
+    userId: input.actorId,
+    holdingId: input.holdingId,
+    holdingSlug: holding.holdingSlug,
+    platform: input.platform,
+    role: input.platform ? "platform_admin" : "holding_owner",
+    assignmentId: "",
+    expiresAt: null,
+  };
+  const append = createNativeEvidenceAccessClient(nativeBillingConfiguration(raw));
+  try {
+    await append(await headers(), actor, {
+      holdingId: input.holdingId,
+      holdingSlug: holding.holdingSlug,
+      eventId: input.eventId,
+      evidenceId: input.evidenceId,
+      outcome: input.outcome,
+      reason: input.reason,
+      key: input.eventId,
+    });
   } catch (error) {
     ownedFailure(error);
   }

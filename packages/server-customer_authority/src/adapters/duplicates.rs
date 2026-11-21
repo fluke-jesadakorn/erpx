@@ -45,7 +45,11 @@ fn row_sql(lock: bool) -> String {
          JOIN finance_parties l ON l.id=r.left_customer_id AND l.company_id=r.company_id \
          JOIN finance_parties q ON q.id=r.right_customer_id AND q.company_id=r.company_id \
          WHERE r.company_id=$1{}",
-        if lock { " AND r.id=$3 FOR UPDATE OF r" } else { "" }
+        if lock {
+            " AND r.id=$3 FOR UPDATE OF r"
+        } else {
+            ""
+        }
     )
 }
 
@@ -349,16 +353,15 @@ impl<'c> PgCustomerDuplicateReview<'c> {
 impl DuplicateReviewCommandRepository for PgCustomerDuplicateReview<'_> {
     type Error = Error;
 
-    fn digest<'a>(
-        &'a mut self,
-        value: &'a str,
-    ) -> DuplicateAccessFuture<'a, String, Self::Error> {
+    fn digest<'a>(&'a mut self, value: &'a str) -> DuplicateAccessFuture<'a, String, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
-            Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to($1,'UTF8')),'hex')")
-                .bind(value)
-                .fetch_one(&mut *self.connection)
-                .await?)
+            Ok(
+                sqlx::query_scalar("SELECT encode(sha256(convert_to($1,'UTF8')),'hex')")
+                    .bind(value)
+                    .fetch_one(&mut *self.connection)
+                    .await?,
+            )
         })
     }
 
@@ -852,7 +855,10 @@ impl DuplicateReviewReadRepository for PgCustomerDuplicateReview<'_> {
     ) -> DuplicateAccessFuture<'a, Vec<DuplicateReviewRow>, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
-            let sql = format!("{} ORDER BY r.updated_at DESC,r.id LIMIT 200", row_sql(false));
+            let sql = format!(
+                "{} ORDER BY r.updated_at DESC,r.id LIMIT 200",
+                row_sql(false)
+            );
             let rows = sqlx::query(AssertSqlSafe(sql))
                 .bind(actor.company_id.as_str())
                 .bind(actor.user_id.as_str())

@@ -10,9 +10,7 @@ use crate::adapters::social::{
     CurrentSocialEffects, FeedComment, FeedFilter, FeedPost, apply_plan, read_comment,
     read_comments, read_feed, read_post, read_thread, retain_effects,
 };
-use crate::adapters::social_upload_files::{
-    SocialUploadFilesPort, UnavailableSocialUploadFiles,
-};
+use crate::adapters::social_upload_files::{SocialUploadFilesPort, UnavailableSocialUploadFiles};
 use crate::application::social::{Access, SocialUnit};
 use crate::domain::social::{
     Change, CommentSnapshot, DraftSnapshot, FeedCursor, FollowTarget, OwnerPlan, PostSnapshot,
@@ -196,10 +194,7 @@ impl<'c> PgSocialUnit<'c> {
 
     /// Bind the Files owner cleanup port used by canceled upload drafts.
     /// Composition supplies it; without it those commands fail closed.
-    pub fn with_upload_files(
-        mut self,
-        uploads: &'c mut dyn SocialUploadFilesPort,
-    ) -> Self {
+    pub fn with_upload_files(mut self, uploads: &'c mut dyn SocialUploadFilesPort) -> Self {
         self.uploads = Some(uploads);
         self
     }
@@ -381,7 +376,13 @@ impl<'c> PgSocialUnit<'c> {
         cursor: Option<&FeedCursor>,
         limit: usize,
         history_limit: usize,
-    ) -> Result<(Vec<crate::adapters::social::CommentPageRow>, Option<FeedCursor>), Error> {
+    ) -> Result<
+        (
+            Vec<crate::adapters::social::CommentPageRow>,
+            Option<FeedCursor>,
+        ),
+        Error,
+    > {
         let actor = self.verify_authority().await?;
         crate::adapters::social::read_comment_page(
             &mut *self.connection,
@@ -667,31 +668,25 @@ impl SocialUnit for PgSocialUnit<'_> {
                 "Report workplace update",
                 "social.post.reported",
             ),
-            OwnerPlan::SaveDraft { .. } => (
-                "social_post",
-                "Save workplace draft",
-                "social.draft.saved",
-            ),
+            OwnerPlan::SaveDraft { .. } => {
+                ("social_post", "Save workplace draft", "social.draft.saved")
+            }
             OwnerPlan::PublishDraftPost { .. } => (
                 "social_post",
                 "Publish workplace update",
                 "social.post.published",
             ),
-            OwnerPlan::EditPost { .. } => (
-                "social_post",
-                "Edit workplace update",
-                "social.post.edited",
-            ),
+            OwnerPlan::EditPost { .. } => {
+                ("social_post", "Edit workplace update", "social.post.edited")
+            }
             OwnerPlan::RetractPost { .. } => (
                 "social_post",
                 "Retract workplace update",
                 "social.post.retracted",
             ),
-            OwnerPlan::UploadDraftCreate { .. } => (
-                "social_post",
-                "Save workplace draft",
-                "social.draft.saved",
-            ),
+            OwnerPlan::UploadDraftCreate { .. } => {
+                ("social_post", "Save workplace draft", "social.draft.saved")
+            }
             OwnerPlan::UploadDraftCancel { .. } => (
                 "social_post",
                 "Cancel workplace draft upload",

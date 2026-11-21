@@ -24,8 +24,13 @@ pub type PeopleRelationshipsHttpFuture<'a, T> =
 /// `Apply` carries the reviewed token and the caller's Idempotency-Key.
 #[derive(Clone, Debug)]
 pub enum PeopleRelationshipsHttpCommand {
-    Preview { change: Value },
-    Apply { token: String, idempotency_key: String },
+    Preview {
+        change: Value,
+    },
+    Apply {
+        token: String,
+        idempotency_key: String,
+    },
 }
 
 pub struct PeopleRelationshipsHttpRequest<'a> {

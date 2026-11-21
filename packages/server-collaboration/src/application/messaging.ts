@@ -15,11 +15,11 @@ export interface MessagingRepository<Effect> {
         }[];
     }>;
     guardMember(key: string, value: string, companyId: string, id: string, value2: string[], teamId: string | undefined): Effect;
-    prepareRoom(id: string, companyId: string, kind: "direct" | "group", name: string, userId: string, directKey: string | null, now: number): Effect;
-    prepareTeam(id: string, companyId: string, name: string, userId: string, now: number): Effect;
-    prepareGeneral(roomId: string, companyId: string, userId: string, id: string, now: number): Effect;
+    prepareRoom(id: string, companyId: string, kind: "direct" | "group", name: string, userId: string, directKey: string | null, now: number): Promise<Effect>;
+    prepareTeam(id: string, companyId: string, name: string, userId: string, now: number): Promise<Effect>;
+    prepareGeneral(roomId: string, companyId: string, userId: string, id: string, now: number): Promise<Effect>;
     guardTeamOwner(key: string, value: "team-owner", teamId: string, companyId: string, userId: string): Effect;
-    prepareChannel(id: string, companyId: string, name: string, userId: string, teamId: string, privateRoom: boolean, now: number): Effect;
+    prepareChannel(id: string, companyId: string, name: string, userId: string, teamId: string, privateRoom: boolean, now: number): Promise<Effect>;
     organizationMembers(companyId: string, value: (string | null | undefined)[], isTeam: boolean): Promise<{
         results: {
             user_id: string;
@@ -31,9 +31,9 @@ export interface MessagingRepository<Effect> {
         }[];
     }>;
     guardOwnerVersion(key: string, value: "owner-version", id: string, companyId: string, userId: string, expectedVersion: number, isTeam: boolean): Effect;
-    rename(name: string, id: string, isTeam: boolean): Effect;
-    removeMembers(id: string, members: string[], isTeam: boolean): Effect;
-    removeChannelMembers(id: string, members: string[]): Effect;
+    rename(name: string, id: string, isTeam: boolean): Promise<Effect>;
+    removeMembers(id: string, members: string[], isTeam: boolean): Promise<Effect>;
+    removeChannelMembers(id: string, members: string[]): Promise<Effect>;
     teams(companyId: string, userId: string, userId2: string): Promise<{
         results: MessagingTeam[];
     }>;
@@ -61,9 +61,9 @@ export interface MessagingRepository<Effect> {
         }[];
     }>;
     guardFile(key: string, value: string, file: string, roomId: string, userId: string): Effect;
-    advanceRoom(roomId: string, hasBinding: boolean): Effect;
-    prepareMessage(id: string, userId: string, name: string, body: string, now: number, roomId: string): Effect;
-    bindFile(id: string, file: string): Effect;
+    advanceRoom(roomId: string, hasBinding: boolean): Promise<Effect>;
+    prepareMessage(id: string, userId: string, name: string, body: string, now: number, roomId: string): Promise<Effect>;
+    bindFile(id: string, file: string): Promise<Effect>;
     read(userId: string, seq: number, roomId: string, companyId: string, value: string[]): Promise<unknown>;
     download(id: string, companyId: string, value: string[], userId: string): Promise<MessagingFile & {
         object_key: string;
@@ -84,7 +84,7 @@ export interface MessagingPorts<Effect> {
     digest(value: string): Promise<string>;
     accountNames(ids: string[]): Promise<MessagingPerson[]>;
     ensureOrganizationChannels(company: string): Promise<unknown>;
-    memberBinding(kind: 'room' | 'team', id: string, user: string): Effect;
+    memberBinding(kind: 'room' | 'team', id: string, user: string): Promise<Effect>;
     prepareAttachmentBinding(actor: WorkContext, input: Parameters<typeof prepareAttachmentBinding>[2], options: {
         compatibilityAdapter: true;
     }): Promise<{
@@ -124,7 +124,7 @@ const{messagingRoom}=createMessagingRead(ports);
             throw new BusinessRuleError(422, "MEMBER_UNAVAILABLE", "Select active user accounts.");
         return ids.map((id, i) => r.guardMember(key, `member-${i}`, actor.companyId, id, (teamId ? [teamId, id] : []), teamId));
     }
-    function insertMembers(kind: 'room' | 'team', id: string, members: string[]) { return members.map(user => ports.memberBinding(kind, id, user)); }
+    async function insertMembers(kind: 'room' | 'team', id: string, members: string[]) { return Promise.all(members.map(user => ports.memberBinding(kind, id, user))); }
     async function createMessagingRoom(actor: WorkContext, input: z.infer<typeof roomSchema>, key: string) {
         const members = [...new Set([actor.userId, ...input.members])].sort();
         if (input.kind === "direct" && members.length !== 2)
@@ -139,17 +139,17 @@ const{messagingRoom}=createMessagingRead(ports);
         const steps = await memberGuards(actor, key, members);
         return ports.commands.commit(actor, key, "messaging.create", input, id, 1, { id }, [
             ...steps,
-            r.prepareRoom(id, actor.companyId, input.kind, input.name, actor.userId, directKey, ports.clock.now()),
-            ...insertMembers("room", id, members),
+            await r.prepareRoom(id, actor.companyId, input.kind, input.name, actor.userId, directKey, ports.clock.now()),
+            ...(await insertMembers("room", id, members)),
         ]);
     }
     async function createMessagingTeam(actor: WorkContext, input: z.infer<typeof teamSchema>, key: string) {
         const id = `team-${key}`, roomId = `general-${key}`, members = [...new Set([actor.userId, ...input.members])];
         return ports.commands.commit(actor, key, "messaging.team-create", input, id, 1, { id, roomId }, [
             ...(await memberGuards(actor, key, members)),
-            r.prepareTeam(id, actor.companyId, input.name, actor.userId, ports.clock.now()),
-            ...insertMembers("team", id, members),
-            r.prepareGeneral(roomId, actor.companyId, actor.userId, id, ports.clock.now()),
+            await r.prepareTeam(id, actor.companyId, input.name, actor.userId, ports.clock.now()),
+            ...(await insertMembers("team", id, members)),
+            await r.prepareGeneral(roomId, actor.companyId, actor.userId, id, ports.clock.now()),
         ]);
     }
     async function createMessagingChannel(actor: WorkContext, teamId: string, input: z.infer<typeof channelSchema>, key: string) {
@@ -158,8 +158,8 @@ const{messagingRoom}=createMessagingRead(ports);
         return ports.commands.commit(actor, key, "messaging.channel-create", input, id, 1, { id }, [
             r.guardTeamOwner(key, "team-owner", teamId, actor.companyId, actor.userId),
             ...(await memberGuards(actor, key, members, teamId)),
-            r.prepareChannel(id, actor.companyId, input.name, actor.userId, teamId, input.private, ports.clock.now()),
-            ...insertMembers("room", id, input.private ? members : []),
+            await r.prepareChannel(id, actor.companyId, input.name, actor.userId, teamId, input.private, ports.clock.now()),
+            ...(await insertMembers("room", id, input.private ? members : [])),
         ]);
     }
     async function messagingMembers(actor: WorkContext, id: string, isTeam: boolean) {
@@ -190,13 +190,13 @@ const{messagingRoom}=createMessagingRead(ports);
         const steps: Effect[] = [
             ...(await memberGuards(actor, key, members, !isTeam && room.kind === "channel" ? room.team_id! : undefined)),
             r.guardOwnerVersion(key, "owner-version", id, actor.companyId, actor.userId, input.expectedVersion, isTeam),
-            r.rename(input.name, id, isTeam),
+            await r.rename(input.name, id, isTeam),
         ];
         if (isTeam || room.kind === "group" || room.private) {
-            steps.push(r.removeMembers(id, members, isTeam), ...insertMembers(isTeam ? "team" : "room", id, members));
+            steps.push(await r.removeMembers(id, members, isTeam), ...(await insertMembers(isTeam ? "team" : "room", id, members)));
         }
         if (isTeam)
-            steps.push(r.removeChannelMembers(id, members));
+            steps.push(await r.removeChannelMembers(id, members));
         if (!isTeam)
             steps.unshift(messagingGuard(actor, key, id));
         return ports.commands.commit(actor, key, "messaging.manage", { ...input, isTeam }, id, input.expectedVersion + 1, { id }, steps);
@@ -272,9 +272,9 @@ const{messagingRoom}=createMessagingRead(ports);
             ...(prepared?.guards ?? []),
         ];
         input.files.forEach((file, i) => steps.push(r.guardFile(key, `file-${i}`, file, roomId, actor.userId)));
-        steps.push(r.advanceRoom(roomId, Boolean(prepared)), r.prepareMessage(id, actor.userId, actor.name, input.body, ports.clock.now(), roomId));
+        steps.push(await r.advanceRoom(roomId, Boolean(prepared)), await r.prepareMessage(id, actor.userId, actor.name, input.body, ports.clock.now(), roomId));
         for (const file of input.files)
-            steps.push(r.bindFile(id, file));
+            steps.push(await r.bindFile(id, file));
         steps.push(...(prepared?.steps ?? []));
         return ports.commands.commit(actor, key, operation, input, roomId, Number(room.version) + (prepared ? 1 : 0), { id }, steps);
     }

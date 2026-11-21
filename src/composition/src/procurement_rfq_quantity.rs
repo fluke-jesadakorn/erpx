@@ -201,8 +201,12 @@ pub(crate) fn rfq_quotation_items_json(
     // NUMERIC is decoded by node-postgres safeNumber before any item map or
     // quantity evaluation, including rows whose ordinal has no matching item.
     for row in rows {
-        let number: f64 = row.allocated_milli_decimal.parse().map_err(|_| RfqItemMapError::AllocationNumber)?;
-        if !number.is_finite() || (number.fract() == 0.0 && number.abs() > 9_007_199_254_740_991.0) {
+        let number: f64 = row
+            .allocated_milli_decimal
+            .parse()
+            .map_err(|_| RfqItemMapError::AllocationNumber)?;
+        if !number.is_finite() || (number.fract() == 0.0 && number.abs() > 9_007_199_254_740_991.0)
+        {
             return Err(RfqItemMapError::DatabaseNumberOutOfRange);
         }
     }

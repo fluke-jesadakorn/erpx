@@ -1,3 +1,4 @@
+import { nativeOwnerWrite } from './native-owner-write';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -19,16 +20,13 @@ export function GuidedIntakeAgentFacts(database: SqlDatabase) {
             }>();
         },
         guard3(id: string, value: "assistant-rate", companyId: string, value2: number) { return assertion(database, id, value, "(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>?)<20", [companyId, value2]); },
-        stagePrepareGuidedIntakeEffect(id: string, companyId: string, userId: string, assignmentId: string, value: string, value2: string, message: string, value3: string, now: number, now2: number, sessionId: string) {
-            return database.prepare("INSERT INTO ai_workspace_turns(id,company_id,user_id,assignment_id,scope_key,conversation_key,question,paths_json,state,created_at,updated_at,private_session_id) VALUES(?,?,?,?,?,?,?,?,'running',?,?,?)")
-                .bind(id, companyId, userId, assignmentId, value, value2, message, value3, now, now2, sessionId);
+        async stagePrepareGuidedIntakeEffect(id: string, companyId: string, userId: string, assignmentId: string, value: string, value2: string, message: string, value3: string, now: number, now2: number, sessionId: string) {
+            return nativeOwnerWrite('ag_workspace_turn_insert',[id,companyId,userId,assignmentId,value,value2,message,value3,now,now2,sessionId],`ag-guided-turn:${id}`,{companyId,now},()=>database.prepare("SELECT 1"));
         },
-        stagePrepareGuidedIntakeEffect3(value: string, sourcesJson: string, now: number, id: string) {
-            return database.prepare("UPDATE ai_workspace_turns SET state='ready',answer_json=?,sources_json=?,updated_at=? WHERE id=? AND state='running'")
-                .bind(value, sourcesJson, now, id);
+        async stagePrepareGuidedIntakeEffect3(value: string, sourcesJson: string, now: number, id: string) {
+            return nativeOwnerWrite('ag_workspace_turn_ready',[value,sourcesJson,now,id],`ag-guided-ready:${id}`,{now},()=>database.prepare("SELECT 1"));
         },
-        stagePrepareGuidedIntakeEffect4(value: string, now: number, id: string) {
-            return database.prepare("UPDATE ai_workspace_turns SET state='failed',error=?,updated_at=? WHERE id=? AND state='running'")
-                .bind(value, now, id);
+        async stagePrepareGuidedIntakeEffect4(value: string, now: number, id: string) {
+            return nativeOwnerWrite('ag_workspace_turn_failed',[value,now,id],`ag-guided-failed:${id}`,{now},()=>database.prepare("SELECT 1"));
         } };
 }

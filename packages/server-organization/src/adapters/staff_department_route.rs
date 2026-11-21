@@ -261,11 +261,7 @@ async fn resolve(
     };
     let selectors = match &policy {
         Some(policy) => policy.steps.clone(),
-        None => head_id
-            .clone()
-            .map(Selector::Person)
-            .into_iter()
-            .collect(),
+        None => head_id.clone().map(Selector::Person).into_iter().collect(),
     };
     if selectors.is_empty() {
         return Err(RouteFailure::Blocked(
@@ -299,19 +295,20 @@ async fn resolve(
         let original = matches[0];
         let mut chosen = original;
         if forbidden.contains(&chosen.user_id) || chosen.person_id == requester.person_id {
-            let above = reporting_chain(people, &chosen.person_id)?.into_iter().find(|person| {
-                person.level_number.is_some()
-                    && chosen.level_number.is_some()
-                    && person.level_number < chosen.level_number
-                    && !forbidden.contains(&person.user_id)
-            });
+            let above = reporting_chain(people, &chosen.person_id)?
+                .into_iter()
+                .find(|person| {
+                    person.level_number.is_some()
+                        && chosen.level_number.is_some()
+                        && person.level_number < chosen.level_number
+                        && !forbidden.contains(&person.user_id)
+                });
             match above {
                 Some(manager) => chosen = manager,
                 None => {
                     let ceo_person = match read_ceo_person(c, company).await? {
                         Some(person_id) => people.iter().find(|person| {
-                            person.person_id == person_id
-                                && !forbidden.contains(&person.user_id)
+                            person.person_id == person_id && !forbidden.contains(&person.user_id)
                         }),
                         None => None,
                     };

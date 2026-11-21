@@ -93,9 +93,7 @@ impl PmsStayRoomCommand {
 }
 
 fn valid_id(value: &str) -> bool {
-    !value.is_empty()
-        && cp_len(value) <= 200
-        && !value.chars().any(char::is_control)
+    !value.is_empty() && cp_len(value) <= 200 && !value.chars().any(char::is_control)
 }
 
 pub fn invalid() -> BusinessError {
@@ -262,7 +260,9 @@ fn integer(data: &serde_json::Value, key: &'static str) -> Result<i64, BusinessE
         .ok_or_else(record_invalid)
 }
 
-fn object(data: &serde_json::Value) -> Result<&serde_json::Map<String, serde_json::Value>, BusinessError> {
+fn object(
+    data: &serde_json::Value,
+) -> Result<&serde_json::Map<String, serde_json::Value>, BusinessError> {
     data.as_object().ok_or_else(record_invalid)
 }
 
@@ -445,9 +445,13 @@ pub fn plan_stay_room(
             "Post the night before moving rooms.",
         ));
     }
-    if facts.stays.len() > MAX_STAYS || facts.blocks.len() > MAX_BLOCKS || facts.tasks.len() > MAX_TASKS
+    if facts.stays.len() > MAX_STAYS
+        || facts.blocks.len() > MAX_BLOCKS
+        || facts.tasks.len() > MAX_TASKS
     {
-        return Err(read_limit("The hotel has more stay facts than this command can read."));
+        return Err(read_limit(
+            "The hotel has more stay facts than this command can read.",
+        ));
     }
     if !target.active || target.type_id != stay.type_id {
         return Err(conflict(
@@ -513,9 +517,8 @@ pub fn plan_stay_room(
 
     let mut stay_record = facts.stay.clone();
     let mut segments = stay.segments.clone();
-    let moving_in_house = stay.state == "in_house"
-        && !stay.room_id.is_empty()
-        && stay.room_id != command.room_id;
+    let moving_in_house =
+        stay.state == "in_house" && !stay.room_id.is_empty() && stay.room_id != command.room_id;
     if moving_in_house {
         segments = segments
             .into_iter()
@@ -589,10 +592,7 @@ pub fn plan_stay_room(
     let mut superseded_tasks = Vec::new();
     let mut departure_task = None;
     if moving_in_house {
-        let mut room = facts
-            .old_room
-            .clone()
-            .ok_or_else(|| record_not_found())?;
+        let mut room = facts.old_room.clone().ok_or_else(|| record_not_found())?;
         let old = room_facts(&room)?;
         room.data["cleanliness"] = serde_json::Value::String("dirty".to_owned());
         room.data["cleaningCycle"] = serde_json::Value::from(old.cleaning_cycle + 1);
@@ -614,8 +614,7 @@ pub fn plan_stay_room(
         let existing = facts.tasks.iter().any(|task| {
             task.data.get("roomId").and_then(serde_json::Value::as_str) == Some(room.id.as_str())
                 && task.data.get("type").and_then(serde_json::Value::as_str) == Some("departure")
-                && task.data.get("date").and_then(serde_json::Value::as_str)
-                    == Some(business_date)
+                && task.data.get("date").and_then(serde_json::Value::as_str) == Some(business_date)
                 && task.data.get("stayId").and_then(serde_json::Value::as_str)
                     == Some(facts.stay.id.as_str())
                 && task
@@ -675,8 +674,7 @@ pub fn plan_stay_room(
 
 fn departure_task_id(stay: &str, business_date: &str, cycle: i64) -> String {
     use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(
-        format!("pms-departure-task:{stay}:{business_date}:{cycle}").as_bytes(),
-    );
+    let digest =
+        Sha256::digest(format!("pms-departure-task:{stay}:{business_date}:{cycle}").as_bytes());
     format!("pms-task-{}", hex::encode(&digest[..16]))
 }

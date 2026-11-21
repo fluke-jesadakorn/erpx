@@ -2,24 +2,16 @@
 //! idempotent due-soon/overdue escalations; this loop is its composition caller.
 use erpx_server_identity_access::public::SystemAccountClock;
 use erpx_server_quality::public::quality_alerts::{
-    QUALITY_ALERT_WARNING_WINDOW_MS, drain_quality_alerts,
-    route_quality_alert_notifications_pooled,
+    QUALITY_ALERT_WARNING_WINDOW_MS, drain_quality_alerts, route_quality_alert_notifications_pooled,
 };
 use erpx_server_runtime::public::postgres::{DatabasePool, PoolLimits};
 use erpx_server_shared::public::{BusinessError, Clock};
 use std::time::Duration;
 
 /// One scheduled sweep of the caller's Holding database.
-pub async fn run_once(
-    write: &DatabasePool,
-    now: i64,
-) -> Result<(u64, u64), BusinessError> {
-    let escalated = drain_quality_alerts(
-        write.clone(),
-        now,
-        QUALITY_ALERT_WARNING_WINDOW_MS,
-    )
-    .await?;
+pub async fn run_once(write: &DatabasePool, now: i64) -> Result<(u64, u64), BusinessError> {
+    let escalated =
+        drain_quality_alerts(write.clone(), now, QUALITY_ALERT_WARNING_WINDOW_MS).await?;
     let production = std::env::var("NODE_ENV").ok().as_deref() == Some("production");
     let notified = route_quality_alert_notifications_pooled(write.clone(), now, production).await?;
     Ok((escalated.0, escalated.1 + notified))

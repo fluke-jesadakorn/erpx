@@ -1,4 +1,6 @@
 import "server-only";
+import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
+import { nativeOwnerStatement } from "@erpx/server-commercial/adapters/native-owner-write";
 import { createHash } from "node:crypto";
 import type { SqlDatabase, SqlResult } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -60,8 +62,25 @@ export function purchaseCommandBoundary(database: SqlDatabase, mode: PackageEnfo
   if (mode === "disabled") return undefined;
   const predicate = purchasedCapabilityPredicate("purchase_scope.company_id", input.capability, input.purpose, "purchase_scope.now");
   const clock = "WITH purchase_scope AS MATERIALIZED (SELECT ?::text company_id," + packageClockSql + " now) ";
-  const guard = (phase: string) => database.prepare(clock + `INSERT INTO command_assertions(command_id,step,ok) SELECT ?,?,CASE WHEN ${predicate} THEN 1 ELSE 0 END FROM purchase_scope`)
-    .bind(input.companyId, key, `commercial-purchase-${phase}`);
+  // The capability predicate is evaluated as a read on the caller's owned
+  // snapshot; the resulting typed boolean is written by the native Commercial
+  // axum command. No SQL text is sent to Rust and no TS writer remains.
+  const guard = (phase: string) => {
+    const step = `commercial-purchase-${phase}`;
+    const statement: SqlStatement = {
+      bind() { return statement; },
+      async run<T>(): Promise<SqlResult<T>> {
+        const row = await database.prepare(clock + `SELECT CASE WHEN ${predicate} THEN 1 ELSE 0 END ok FROM purchase_scope`)
+          .bind(input.companyId).first<{ ok: number }>();
+        await nativeOwnerStatement('purchase.assertion', [key, step, Number(row?.ok ?? 0)], input.companyId, 'system', key).run();
+        return { results: [], success: true, meta: { changes: 1, duration: 0 } };
+      },
+      async first<T>(): Promise<T | null> { throw new Error('COMMERCIAL_OWNER_WRITE_READ_UNSUPPORTED'); },
+      async all<T>(): Promise<SqlResult<T>> { throw new Error('COMMERCIAL_OWNER_WRITE_READ_UNSUPPORTED'); },
+      async raw<T>(): Promise<T[]> { throw new Error('COMMERCIAL_OWNER_WRITE_READ_UNSUPPORTED'); },
+    };
+    return statement;
+  };
   const before = [...companyPurchaseReadLocks(database, input.companyId),
     ...(mode === "enforced" ? [guard("before")] : [])];
   const after = mode === "enforced" ? [guard("after")] : [database.prepare(clock + `SELECT true commercial_purchase_observation,purchase_scope.company_id,?::text capability,?::text purpose,${predicate} allowed,purchase_scope.now observed_at,

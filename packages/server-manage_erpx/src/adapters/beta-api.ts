@@ -28,6 +28,7 @@ import { addBetaBranch, inviteMember } from "@erpx/server-manage_erpx/adapters/b
 import { executeCommand } from "@erpx/server-workflow/public/commands";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { sendBetaEmail } from "@erpx/server-manage_erpx/adapters/beta-email";
+import { nativeOwnerWrite } from "./native-owner-write";
 import { billingLink } from "@erpx/server-billing/public/beta-billing";
 
 import type {SqlDatabase,SqlStatement} from '@erpx/server-runtime/public/runtime/types';
@@ -67,12 +68,10 @@ async feedback(companyId:string){return (await db
                 )
                 .bind(companyId)
                 .all()).results;},
-prepareFeedback(key:string,companyId:string,userId:string,body:string,month:number){return db
-                .prepare(
-                  "INSERT INTO beta_feedback(id,company_id,actor_id,body,created_at) VALUES(?,?,?,?,?)",
-                )
-                .bind(key, companyId, userId, body, month);},
-prepareMembershipRemoval(user:string){return db.prepare("DELETE FROM beta_members WHERE user_id=?").bind(user);},...owner0(db),...owner1(db),...owner2(db),...owner3(env.CONTROL_DB),...owner4(db),commit:(...args)=>executeCommand(db,...args),authorityGuard:(...args)=>authorityGuard(db,...args)};}
+// Native axum owner-write commands execute both writes in Rust. The returned
+// statements are inert placeholders; no write SQL remains in TypeScript.
+async prepareFeedback(key:string,companyId:string,userId:string,body:string,month:number){return nativeOwnerWrite('me_beta_feedback_insert',[key,companyId,userId,body,month],`me-feedback:${key}`,{companyId,now:month},()=>db.prepare("SELECT 1"));},
+async prepareMembershipRemoval(user:string){return nativeOwnerWrite('me_beta_membership_delete',[user],`me-member-remove:${user}`,{},()=>db.prepare("SELECT 1"));},...owner0(db),...owner1(db),...owner2(db),...owner3(env.CONTROL_DB),...owner4(db),commit:(...args)=>executeCommand(db,...args),authorityGuard:(...args)=>authorityGuard(db,...args)};}
 function application(db:SqlDatabase,env:RuntimeEnv,action:(name:string)=>void){return createBetaApiApplication({repository:repository(db,env),clock:{now:()=>Date.now()},schemas:{postDraftSchema,postContentSchema,mentionsSchema,taskSourceSchema,taskSchema,aiRequest:aiRequestSchema},services:{homePosts:(...args)=>inward(()=>homePosts(db,...args)),postAction:(...args)=>inward(()=>postAction(db,...args)),postView:(...args)=>inward(()=>postView(db,...args)),publishPost:(...args)=>inward(()=>publishPost(db,...args)),savePostDraft:(...args)=>inward(()=>savePostDraft(db,...args)),socialAudienceOptions:(...args)=>inward(()=>socialAudienceOptions(db,...args)),sourceSnapshot:(...args)=>inward(()=>sourceSnapshot(db,...args)),readablePost:(...args)=>inward(()=>readablePost(db,...args)),textSuggestions:(...args)=>inward(()=>textSuggestions(db,...args)),retryAgentReply:(...args)=>inward(()=>retryAgentReply(db,...args)),getTask:(...args)=>inward(()=>getTask(db,...args)),saveTask:(...args)=>inward(()=>saveTaskNative(...args)),listTasks:(...args)=>inward(()=>listTasks(db,...args)),staffPeople:(...args)=>inward(()=>staffPeople(db,...args)),addBetaBranch:(...args)=>inward(()=>addBetaBranch(db,...args)),inviteMember:(...args)=>inward(()=>inviteMember(db,...args))},workspaceBase:actor=>workspaceBase(publicScope(actor)),action,requireCompanyAuthority:(...args)=>inward(()=>requireCompanyAuthority(db,...args)),invitationToken:(actor,key)=>sha256(`${env.BETTER_AUTH_SECRET}:beta-invite:${actor.holdingId}:${key}`),invitationUrl:(slug,token)=>new URL(`/join?holding=${slug}&token=${token}`,applicationOrigin("account",env.BETTER_AUTH_URL)).toString(),email:(...args)=>sendBetaEmail(env,...args),billingLink:(...args)=>inward(()=>billingLink(env,...args)),createAiDraft:(actor,id,input,key)=>inward(()=>createAiDraft(db,actor,id,input,env,undefined,key))});}
 type Context = {
   params: Promise<{ holdingSlug: string; path?: string[]; id?: string }>;

@@ -2,18 +2,6 @@
 //! remains with the selected coordinator; owner ports supply the bounded
 //! payroll summary and run-list facts.
 use crate::business_http::BusinessScopeSlugs;
-use erpx_server_identity_access::public::{
-    AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
-    effective_authority::{
-        AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
-        WorkAuthorizationRequest, WorkPermissionRequirement,
-    },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
-};
-use erpx_server_people_payroll::public::payroll_summary::{
-    PayrollReadActor, PayrollWorkRow, PgPayrollRead, payroll_history, payroll_runs, payroll_summary,
-};
 use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
 use erpx_server_commercial::public::purchase_command_boundary::{
     PurchaseCommandBoundary, PurchaseCommandScope,
@@ -26,15 +14,27 @@ use erpx_server_finance::public::{
     FinanceActor, FinanceCollation, JournalAuthority, JournalDraft, JournalError, JournalStatus,
     PgJournalPreparation, PgJournalStore, embedded_currency_rules, prepare_journal,
 };
+use erpx_server_identity_access::public::{
+    AccountPolicy, DeviceProof, RequestAudience,
+    account_inbound_http::parse_inbound_account_request,
+    effective_authority::{
+        AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
+        WorkAuthorizationRequest, WorkPermissionRequirement,
+    },
+    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+};
+use erpx_server_people_payroll::public::payroll_run::PgPayrollCommand;
 use erpx_server_people_payroll::public::payroll_run::{
     PayrollCommandActor, PayrollCommandFuture, PayrollJournalDraft, PayrollJournalPort,
     PayrollJournalRequest, PayrollPreparedJournal, calculate_payroll_run, cancel_payroll_run,
     create_payroll_run, post_payroll,
 };
-use erpx_server_people_payroll::public::payroll_run::PgPayrollCommand;
 use erpx_server_people_payroll::public::payroll_run_http::{
     PayrollCommandHttpBackend, PayrollCommandHttpFuture, PayrollCommandHttpKind,
     PayrollCommandHttpRequest, PayrollCommandHttpResponse, PayrollCommandHttpTarget,
+};
+use erpx_server_people_payroll::public::payroll_summary::{
+    PayrollReadActor, PayrollWorkRow, PgPayrollRead, payroll_history, payroll_runs, payroll_summary,
 };
 use erpx_server_people_payroll::public::payroll_summary_http::{
     PayrollReadHttpBackend, PayrollReadHttpFuture, PayrollReadHttpKind, PayrollReadHttpRequest,
@@ -124,8 +124,8 @@ fn payroll_actor(current: &AuthorizedWorkContext) -> Result<PayrollReadActor, Bu
 /// split and the caller's serializable transaction before returning any row.
 pub mod payroll_flow_read {
     use super::{
-        AuthorizedWorkContext, BusinessError, PgConnection, PayrollCommandActor, PayrollReadActor,
-        PayrollWorkRow, TimestampMillis, Value, payroll_actor, payroll_command_actor,
+        AuthorizedWorkContext, BusinessError, PayrollCommandActor, PayrollReadActor,
+        PayrollWorkRow, PgConnection, TimestampMillis, Value, payroll_actor, payroll_command_actor,
     };
 
     /// Owner command actor for one native payroll run detail read. Workflow
@@ -367,7 +367,11 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
         let clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
-                host, proof, self.input(input), Self::access(), PeoplePayrollSources,
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                PeoplePayrollSources,
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
@@ -380,10 +384,13 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                             return Err(scope().into());
                         }
                         let now = clock.now();
-                        let witness = payroll_read_witness(connection, &holding, &company, now).await?;
+                        let witness =
+                            payroll_read_witness(connection, &holding, &company, now).await?;
                         let actor = payroll_actor(current)?;
-                        let data = payroll_history(connection, &actor, cursor.as_deref(), now).await?;
-                        revalidate_payroll_witness(connection, &holding, &company, witness, now).await?;
+                        let data =
+                            payroll_history(connection, &actor, cursor.as_deref(), now).await?;
+                        revalidate_payroll_witness(connection, &holding, &company, witness, now)
+                            .await?;
                         Ok(PayrollReadHttpResponse {
                             data: serde_json::to_value(data).map_err(|_| unavailable())?,
                             context: context(current),
@@ -426,10 +433,9 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                         }
                         current.require_permission("payroll.read")?;
                         let now = clock.now();
-                        let rows = payroll_flow_read::read_payroll_work_rows(
-                            connection, current, now,
-                        )
-                        .await?;
+                        let rows =
+                            payroll_flow_read::read_payroll_work_rows(connection, current, now)
+                                .await?;
                         let data = serde_json::to_value(rows).map_err(|_| unavailable())?;
                         Ok(PayrollReadHttpResponse {
                             data,
@@ -449,8 +455,8 @@ const PAYROLL_PURCHASE_CAPABILITY: &str = "people.payroll";
 /// enforcement. Disabled mode keeps the native command path unguarded exactly
 /// like the retired TypeScript wrapper.
 fn payroll_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
-    let raw = std::env::var("ERPX_PEOPLE_PACKAGE_ENFORCEMENT")
-        .unwrap_or_else(|_| "disabled".to_owned());
+    let raw =
+        std::env::var("ERPX_PEOPLE_PACKAGE_ENFORCEMENT").unwrap_or_else(|_| "disabled".to_owned());
     let mode = match raw.as_str() {
         "disabled" => PackageEnforcementMode::Disabled,
         "shadow" => PackageEnforcementMode::Shadow,
@@ -565,12 +571,8 @@ async fn payroll_read_witness(
         return Ok(None);
     }
     let catalogue = current_package_catalogue()?;
-    let mut reader = PgCompanyPurchaseReader::new(
-        holding.clone(),
-        company.clone(),
-        connection,
-        &catalogue,
-    );
+    let mut reader =
+        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
     let inspection = reader
         .inspect(
             &PurchaseRequest {
@@ -582,9 +584,10 @@ async fn payroll_read_witness(
         )
         .await
         .map_err(business)?;
-    let allowed = inspection.access.iter().any(|access| {
-        access.capability == PAYROLL_PURCHASE_CAPABILITY && access.allowed_by_mode
-    });
+    let allowed = inspection
+        .access
+        .iter()
+        .any(|access| access.capability == PAYROLL_PURCHASE_CAPABILITY && access.allowed_by_mode);
     if !allowed {
         return Err(payroll_purchase_forbidden().into());
     }
@@ -1027,7 +1030,6 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollBackend<C> {
         ))
     }
 }
-
 
 impl<C: Clock + Send + Sync + 'static> PayrollCommandHttpBackend for PeoplePayrollBackend<C> {
     fn command<'a>(

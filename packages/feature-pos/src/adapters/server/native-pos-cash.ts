@@ -50,11 +50,14 @@ export const NATIVE_POS_COMMANDS = new Set([
   'refund.request', 'refund.approve', 'refund.reject',
   'settings.operations', 'accounting.approve', 'table.create',
 ]);
+/** Day-close commands are served by the dedicated native axum day router. */
+export const NATIVE_POS_DAY_COMMANDS = new Set(['day.prepare', 'day.confirm']);
 /** Operations in the five POS owner workflows. Once the native transport is
  * configured, an operation here without a native implementation must close
  * rather than silently use the retained TypeScript writer. */
 export const POS_NATIVE_WORKFLOW_OPERATIONS = new Set([
   ...NATIVE_POS_COMMANDS,
+  ...NATIVE_POS_DAY_COMMANDS,
   'cash.create',
   'sale.add', 'sale.update_line', 'sale.discount', 'sale.remove',
   'sale.customer', 'sale.move_table', 'sale.complete', 'sale.approve_discount',
@@ -85,6 +88,12 @@ export function nativePosCommandCapability(operation: string): {
  * a configured native failure is surfaced by the caller and never falls back. */
 export function nativePosCommandScope(operation: string) {
   return nativePosCommandAvailable() ? nativePosCommandCapability(operation) : undefined;
+}
+/** Day close settles a business date and requires an independent reviewer. */
+export function nativePosDayCommandScope(operation: string) {
+  return nativePosCommandAvailable() && NATIVE_POS_DAY_COMMANDS.has(operation)
+    ? ({ capability: 'pos.shifts', purpose: 'settle-existing' } as const)
+    : undefined;
 }
 
 export type NativePosCashTransport = (
@@ -522,6 +531,80 @@ function commandTransportCall(
   });
 }
 
+function dayTransportCall(
+  transport: NativePosCashTransport,
+  config: ReturnType<typeof resolveNativePosCashConfiguration>,
+  incoming: Pick<Headers, 'get'>,
+  actor: NativePosCashActor,
+  operation: string,
+  key: string,
+  rawBody: string,
+  timeout: number,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const host = incoming.get('host');
+  const target = host ? config.holdings.get(host) : undefined;
+  if (!target || target.holdingSlug !== actor.holdingSlug || target.holdingId !== actor.holdingId)
+    return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_AUTHORITY_INVALID'));
+  const origin = incoming.get('origin');
+  if (origin && origin !== target.origin)
+    return Promise.reject(new NativePosCashError('ORIGIN_FORBIDDEN', 403));
+  const headers = new Headers({
+    host: host!,
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+    'content-type': 'application/json',
+    'idempotency-key': key,
+    'x-erpx-context-user': actor.userId,
+    'x-erpx-context-holding': actor.holdingId,
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(actor.authority?.revision ?? ''),
+    'x-erpx-context-assignment-version': String(actor.authority?.assignmentVersion ?? ''),
+  });
+  if (origin) headers.set('origin', origin);
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_COOKIE_LIMIT'));
+    headers.set('cookie', cookie);
+  }
+  if (actor.scope.kind === 'branch' || actor.scope.kind === 'department') {
+    const branch = actor.scope.branchSlug;
+    if (!branch || !/^[a-z0-9_-]+$/.test(branch))
+      return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_REQUEST_INVALID'));
+    headers.set('x-erpx-workspace-branch', branch);
+  }
+  if (actor.branchId && actor.scope.kind === 'holding')
+    return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_AUTHORITY_INVALID'));
+  if (new TextEncoder().encode(rawBody).length > 8 * 1024)
+    return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_REQUEST_INVALID'));
+  const step = operation === 'day.prepare' ? 'prepare' : 'confirm';
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/pos/day/${step}`,
+    config.base,
+  );
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(cancel, timeout);
+  return transport('POST', url, headers, rawBody, controller.signal).finally(() => {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  });
+}
+
+function dayReceipt(operation: string, value: unknown): { id: string; state: string } {
+  if (!record(value) || typeof value.id !== 'string' || !value.id || value.id.length > 200)
+    return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  if (Object.keys(value).some((key) => key !== 'id' && key !== 'state'))
+    return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  const state = operation === 'day.prepare' ? 'prepared' : 'confirmed';
+  if (value.state !== state) return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  return { id: value.id, state };
+}
+
 function commandReceipt(operation: string, value: unknown): NativePosCommandReceipt {
   if (!record(value) || typeof value.id !== 'string' || !value.id || value.id.length > 200)
     return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
@@ -641,7 +724,60 @@ export function createNativePosCashClient(
     context(value.context, actor);
     return commandReceipt(operation, value.data);
   };
-  return { cash, command };
+  const day = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativePosCashActor,
+    operation: string,
+    key: string,
+    rawBody: string,
+    signal?: AbortSignal,
+  ): Promise<{ id: string; state: string }> => {
+    if (
+      !NATIVE_POS_DAY_COMMANDS.has(operation) ||
+      !actor.authority ||
+      !actor.iam ||
+      !keyPattern.test(key)
+    )
+      return failure('NATIVE_POS_CASH_REQUEST_INVALID');
+    const permission = operation === 'day.prepare' ? 'pos.reports' : 'finance.approve';
+    const additional = operation === 'day.prepare' ? 'pos.approve' : 'pos.reports';
+    for (const required of [permission, additional])
+      if (!(actor.iam.permissions ?? []).includes(required))
+        return failure(
+          'POS_PERMISSION_REQUIRED',
+          403,
+          'Your selected role does not grant this POS day-close command.',
+        );
+    if (!actor.modules.includes('pos'))
+      return failure('POS_MODULE_FORBIDDEN', 403, 'Your current role cannot access POS.');
+    if (actor.departmentId)
+      return failure('POS_BRANCH_REQUIRED', 403, 'Select a Company or branch for POS.');
+    try {
+      JSON.parse(rawBody);
+    } catch {
+      return failure('NATIVE_POS_CASH_REQUEST_INVALID');
+    }
+    const response = await dayTransportCall(
+      transport,
+      config,
+      incoming,
+      actor,
+      operation,
+      key,
+      rawBody,
+      config.timeout,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativePosCashError) throw error;
+      return failure('NATIVE_POS_CASH_UNAVAILABLE');
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+    context(value.context, actor);
+    return dayReceipt(operation, value.data);
+  };
+  return { cash, command, day };
 }
 
 /** Retained WorkContext render input; the native owner still re-checks scope. */

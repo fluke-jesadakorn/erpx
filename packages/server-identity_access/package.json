@@ -189,6 +189,8 @@
     "./public/public-surface-entry": "./src/public/public-surface-entry.ts",
     "./public/user-management": "./src/public/user-management.ts",
     "./public/native-user-management": "./src/public/native-user-management.ts",
+    "./adapters/native-identity-write": "./src/adapters/native-identity-write.ts",
+    "./public/native-identity-write": "./src/public/native-identity-write.ts",
     "./public/payroll-payslip-grant": "./src/public/payroll-payslip-grant.ts",
     "./public/people-package-obligation-sources": "./src/public/people-package-obligation-sources.ts",
     "./public/pms-hospitality-setup-facts": "./src/public/pms-hospitality-setup-facts.ts",

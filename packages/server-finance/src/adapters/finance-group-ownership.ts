@@ -1,5 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
-import { nativeGroupOwnershipSql } from '@erpx/server-collaboration/adapters/native-group-ownership-sql';
+import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { groupCompanyPurchases, groupRecordPurchases, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
 import "server-only";
 import { z } from "zod";
@@ -39,37 +39,31 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .bind(holdingId, id, id2, value, value2, effectiveFrom)
                 .first();
         },
-        stagePrepareOwnershipEditionEffect(id: string, holdingId: string, companyId: string, value: string | null, id2: string | number | null, id3: string | number | null, method: "subsidiary" | "equity" | "cost" | "excluded", ownershipBps: number, votingBps: number, controlAssessment: string, effectiveFrom: string, value2: string | null, userId: string, now: number, now2: number, hash: string, value3: string, reason: string) {
-            return database.prepare(nativeGroupOwnershipSql('ownership_interest_insert'))
-                .bind(id, holdingId, companyId, value, id2, id3, method, ownershipBps, votingBps, controlAssessment, effectiveFrom, value2, userId, now, now2, hash, value3, reason);
+        async stagePrepareOwnershipEditionEffect(id: string, holdingId: string, companyId: string, value: string | null, id2: string | number | null, id3: string | number | null, method: "subsidiary" | "equity" | "cost" | "excluded", ownershipBps: number, votingBps: number, controlAssessment: string, effectiveFrom: string, value2: string | null, userId: string, now: number, now2: number, hash: string, value3: string, reason: string) {
+            return await nativeFinanceOwnerWriteSystem(database, companyId, 'ownership_interest_insert', [id, holdingId, companyId, value, id2, id3, method, ownershipBps, votingBps, controlAssessment, effectiveFrom, value2, userId, now, now2, hash, value3, reason]);
         },
-        stageDecideOwnershipEditionEffect(end: string, now: number, id: string | number | null, version: string | number | null) {
-            return database.prepare(nativeGroupOwnershipSql('ownership_interest_retire'))
-                .bind(end, now, id, version);
+        async stageDecideOwnershipEditionEffect(end: string, now: number, id: string | number | null, version: string | number | null) {
+            return await nativeFinanceOwnerWriteSystem(database, 'system', 'ownership_interest_retire', [end, now, id, version]);
         },
         guard6(key: string, value: "ownership-version", id: string, holdingId: string, companyId: string, expectedVersion: number) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM finance_ownership_interests WHERE id=? AND holding_id=? AND company_id=? AND status='draft' AND version=?)", [id, holdingId, companyId, expectedVersion]);
         },
-        stageDecideOwnershipEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string) {
-            return database.prepare(nativeGroupOwnershipSql('ownership_interest_decide'))
-                .bind(value, userId, now, id);
+        async stageDecideOwnershipEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string) {
+            return await nativeFinanceOwnerWriteSystem(database, 'system', 'ownership_interest_decide', [value, userId, now, id]);
         },
         readAcquisitionSourceEffect(companyId: string, ownershipId: string, acquisitionDate: string, currency: string, value: string | number, currentId: string) {
             return database.prepare("SELECT 1 FROM finance_acquisitions WHERE company_id=? AND ownership_id=? AND acquisition_date=? AND currency=? AND source_hash IS NOT NULL AND status IN ('draft','approved','impaired') AND id NOT IN (?,?)")
                 .bind(companyId, ownershipId, acquisitionDate, currency, value, currentId)
                 .first();
         },
-        stagePrepareAcquisitionEditionEffect(calcId: string, companyId: string, holdingId: string, currency: string, calcHash: string, value: string, value2: string, value3: string, userId: string, now: number, now2: number) {
-            return database.prepare(nativeGroupOwnershipSql('group_calc_run_insert'))
-                .bind(calcId, companyId, holdingId, currency, calcHash, value, value2, value3, userId, now, now2);
+        async stagePrepareAcquisitionEditionEffect(calcId: string, companyId: string, holdingId: string, currency: string, calcHash: string, value: string, value2: string, value3: string, userId: string, now: number, now2: number) {
+            return await nativeFinanceOwnerWriteSystem(database, companyId, 'group_calc_run_insert', [calcId, companyId, holdingId, currency, calcHash, value, value2, value3, userId, now, now2]);
         },
-        stagePrepareAcquisitionEditionEffect2(value: string, calcId: string, userId: string, reason: string, value2: string, now: number) {
-            return database.prepare(nativeGroupOwnershipSql('group_calc_event_prepare'))
-                .bind(value, calcId, userId, reason, value2, now);
+        async stagePrepareAcquisitionEditionEffect2(value: string, calcId: string, userId: string, reason: string, value2: string, now: number) {
+            return await nativeFinanceOwnerWriteSystem(database, 'system', 'group_calc_event_prepare', [value, calcId, userId, reason, value2, now]);
         },
-        stagePrepareAcquisitionEditionEffect3(id: string, holdingId: string, companyId: string, ownershipId: string, investee_entity_id: string | number | null, acquisitionDate: string, currency: string, value: string, value2: string, nciMeasurement: "fair_value" | "proportionate", value3: string, value4: string, value5: string, value6: string, value7: string, cguReference: string, calcId: string, userId: string, now: number, now2: number, hash: string, value8: string, reason: string, value9: string | null, value10: number | null) {
-            return database.prepare(nativeGroupOwnershipSql('acquisition_insert'))
-                .bind(id, holdingId, companyId, ownershipId, investee_entity_id, acquisitionDate, currency, value, value2, nciMeasurement, value3, value4, value5, value6, value7, cguReference, calcId, userId, now, now2, hash, value8, reason, value9, value10);
+        async stagePrepareAcquisitionEditionEffect3(id: string, holdingId: string, companyId: string, ownershipId: string, investee_entity_id: string | number | null, acquisitionDate: string, currency: string, value: string, value2: string, nciMeasurement: "fair_value" | "proportionate", value3: string, value4: string, value5: string, value6: string, value7: string, cguReference: string, calcId: string, userId: string, now: number, now2: number, hash: string, value8: string, reason: string, value9: string | null, value10: number | null) {
+            return await nativeFinanceOwnerWriteSystem(database, companyId, 'acquisition_insert', [id, holdingId, companyId, ownershipId, investee_entity_id, acquisitionDate, currency, value, value2, nciMeasurement, value3, value4, value5, value6, value7, cguReference, calcId, userId, now, now2, hash, value8, reason, value9, value10]);
         },
         readDecideAcquisitionEditionCalc(calculation_run_id: string | number | null, companyId: string, holdingId: string) {
             return database.prepare("SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=? AND holding_id=? AND status='prepared'")
@@ -84,24 +78,20 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 value2,
             ]);
         },
-        stageDecideAcquisitionEditionEffect(now: number, id: string | number | null) {
-            return database.prepare(nativeGroupOwnershipSql('acquisition_supersede'))
-                .bind(now, id);
+        async stageDecideAcquisitionEditionEffect(now: number, id: string | number | null) {
+            return await nativeFinanceOwnerWriteSystem(database, 'system', 'acquisition_supersede', [now, id]);
         },
         guard15(key: string, value: "acquisition-version", id: string, companyId: string, holdingId: string, expectedVersion: number) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM finance_acquisitions WHERE id=? AND company_id=? AND holding_id=? AND status='draft' AND version=?)", [id, companyId, holdingId, expectedVersion]);
         },
-        stageDecideAcquisitionEditionEffect2(status: "approved" | "rejected", userId: string, now: number, id: string) {
-            return database.prepare(nativeGroupOwnershipSql('acquisition_decide'))
-                .bind(status, userId, now, id);
+        async stageDecideAcquisitionEditionEffect2(status: "approved" | "rejected", userId: string, now: number, id: string) {
+            return await nativeFinanceOwnerWriteSystem(database, 'system', 'acquisition_decide', [status, userId, now, id]);
         },
-        stageDecideAcquisitionEditionEffect3(status: "approved" | "rejected", userId: string, userId2: string, now: number, calculation_run_id: string | number | null, companyId: string) {
-            return database.prepare(nativeGroupOwnershipSql('group_calc_run_decide'))
-                .bind(status, userId, userId2, now, calculation_run_id, companyId);
+        async stageDecideAcquisitionEditionEffect3(status: "approved" | "rejected", userId: string, userId2: string, now: number, calculation_run_id: string | number | null, companyId: string) {
+            return await nativeFinanceOwnerWriteSystem(database, companyId, 'group_calc_run_decide', [status, userId, userId2, now, calculation_run_id, companyId]);
         },
-        stageDecideAcquisitionEditionEffect4(value: string, calculation_run_id: string | number | null, action: "approve" | "reject", userId: string, reason: string, value2: string, now: number) {
-            return database.prepare(nativeGroupOwnershipSql('group_calc_event_decide'))
-                .bind(value, calculation_run_id, action, userId, reason, value2, now);
+        async stageDecideAcquisitionEditionEffect4(value: string, calculation_run_id: string | number | null, action: "approve" | "reject", userId: string, reason: string, value2: string, now: number) {
+            return await nativeFinanceOwnerWriteSystem(database, 'system', 'group_calc_event_decide', [value, calculation_run_id, action, userId, reason, value2, now]);
         },
         readGroupOwnershipWorkspaceOwnershipacquisitionsentities(holdingId: string, companyId: string) {
             return database.prepare(groupSourceSql("SELECT o.*,i.company_id investor_company,v.company_id investee_company,i.reporting_name investor_name,v.reporting_name investee_name FROM finance_ownership_interests o JOIN finance_group_entities i ON i.id=o.investor_entity_id JOIN finance_group_entities v ON v.id=o.investee_entity_id WHERE o.holding_id=? AND o.company_id=? ORDER BY o.created_at DESC,o.id LIMIT 200", [groupRecordHistorySql("ownership","o",historySql)]))

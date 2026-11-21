@@ -4,12 +4,12 @@
 //! the reviewed snapshot, delegation facts and persisted readback. This layer
 //! never opens a transaction or reads an HTTP request.
 use crate::domain::people_grants::{
-    GrantApplyPlan, GrantPreviewPlan, GrantPreviewRow, GrantReceipt,
+    GRANT_APPLY_OPERATION, GrantApplyPlan, GrantPreviewPlan, GrantPreviewRow, GrantReceipt,
     GrantSnapshot, MAX_ASSIGNMENTS, MAX_ROLES, MAX_SUBJECTS, MAX_UNITS, PREVIEW_LIFETIME_MS,
-    PeopleGrantActor, PeopleGrantChange, access_object_changed, grant_apply_identity,
-    grant_id, idempotency_conflict, invitation_id, preview_changed, preview_expired,
-    preview_summary, readback_invalid, request_invalid, source_invalid, valid_token,
-    validate_change, validate_snapshot, GRANT_APPLY_OPERATION,
+    PeopleGrantActor, PeopleGrantChange, access_object_changed, grant_apply_identity, grant_id,
+    idempotency_conflict, invitation_id, preview_changed, preview_expired, preview_summary,
+    readback_invalid, request_invalid, source_invalid, valid_token, validate_change,
+    validate_snapshot,
 };
 use crate::domain::permission_catalog::PermissionCatalog;
 use erpx_server_shared::public::{BusinessError, CommandKey};
@@ -133,9 +133,7 @@ pub async fn preview_grant_change<R: PeopleGrantRepository>(
         return Err(crate::domain::people_grants::self_access_change().into());
     }
     let change_json = serde_json::to_string(&change).map_err(|_| readback_invalid())?;
-    let fingerprint = repository
-        .digest(&snapshot.fingerprint_input()?)
-        .await?;
+    let fingerprint = repository.digest(&snapshot.fingerprint_input()?).await?;
     if !valid_hash(&fingerprint) {
         return Err(readback_invalid().into());
     }
@@ -233,19 +231,18 @@ pub async fn apply_grant_change<R: PeopleGrantRepository>(
     require_current(repository, actor, permission, now).await?;
     let snapshot = repository.snapshot(actor).await?;
     bounded(&snapshot)?;
-    let fingerprint = repository
-        .digest(&snapshot.fingerprint_input()?)
-        .await?;
+    let fingerprint = repository.digest(&snapshot.fingerprint_input()?).await?;
     if fingerprint != preview.fingerprint {
         return Err(preview_changed().into());
     }
     validate_snapshot(&snapshot, actor, catalog, &change, now)?;
     let plan = apply_plan(&snapshot, &change, token, &hash, now)?;
     if matches!(change, PeopleGrantChange::Revoke { .. })
-        && plan
-            .assignment_id
-            .as_deref()
-            .is_some_and(|id| snapshot.assignment(id).is_some_and(|row| row.user_id == actor.user_id))
+        && plan.assignment_id.as_deref().is_some_and(|id| {
+            snapshot
+                .assignment(id)
+                .is_some_and(|row| row.user_id == actor.user_id)
+        })
     {
         return Err(crate::domain::people_grants::self_access_change().into());
     }
@@ -288,7 +285,9 @@ fn apply_plan(
     match change {
         PeopleGrantChange::Account { .. } => {}
         PeopleGrantChange::Role {
-            id, expected_version, ..
+            id,
+            expected_version,
+            ..
         } => {
             plan.expected_version = *expected_version;
             plan.id = id.clone().unwrap_or(plan.id);

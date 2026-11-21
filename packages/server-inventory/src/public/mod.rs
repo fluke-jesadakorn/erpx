@@ -1,4 +1,6 @@
 pub mod commerce_order_cancellation;
+pub mod native_command;
+pub mod native_command_http;
 pub mod quality_origin_allocation_join;
 pub mod quality_lineage_counts;
 pub use crate::domain::valuation::{

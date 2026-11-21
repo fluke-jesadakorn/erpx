@@ -226,8 +226,7 @@ impl<Identity: LegalTrustIdentityBridge + Send> PgLegalTrustWorkflow
         if id != actor.company_id.as_str() {
             return Err(corrupt("LEGAL_TRUST_CORRUPT_RECEIPT"));
         }
-        let version = u32::try_from(version)
-            .map_err(|_| corrupt("LEGAL_TRUST_CORRUPT_RECEIPT"))?;
+        let version = u32::try_from(version).map_err(|_| corrupt("LEGAL_TRUST_CORRUPT_RECEIPT"))?;
         Ok(Some(LegalTrustReceipt {
             id: actor.company_id.clone(),
             version,
@@ -343,11 +342,8 @@ where
 {
     let holding_id = actor.holding_id.clone();
     let company_id = actor.company_id.clone();
-    let mut workflow = PgLegalTrustWorkflowBridge::new(
-        identity,
-        assignment_id.clone(),
-        clock.now().get(),
-    );
+    let mut workflow =
+        PgLegalTrustWorkflowBridge::new(identity, assignment_id.clone(), clock.now().get());
     super::postgres_trust_commands::execute_legal_trust_command(
         connection,
         holding_id,
@@ -377,13 +373,19 @@ mod tests {
             source: "https://ca.example/root.cer".into(),
             content: "MIIBszCCAVmgAwIBAgIUexamplecontent".into(),
         };
-        assert_eq!(trust_command_request_hash(&add), trust_command_request_hash(&add.clone()));
+        assert_eq!(
+            trust_command_request_hash(&add),
+            trust_command_request_hash(&add.clone())
+        );
         assert_eq!(trust_command_request_hash(&add).len(), 64);
         let mut other = add.clone();
         if let LegalTrustCommand::Add { name, .. } = &mut other {
             *name = "Other root".into();
         }
-        assert_ne!(trust_command_request_hash(&add), trust_command_request_hash(&other));
+        assert_ne!(
+            trust_command_request_hash(&add),
+            trust_command_request_hash(&other)
+        );
 
         let approve = LegalTrustCommand::Approve {
             id: RecordId::new("material-one").unwrap(),
@@ -397,9 +399,12 @@ mod tests {
             trust_command_request_hash(&approve),
             trust_command_request_hash(&retire)
         );
-        assert_eq!(trust_command_request_hash(&approve), trust_command_request_hash(&LegalTrustCommand::Approve {
-            id: RecordId::new("material-one").unwrap(),
-            version: 3,
-        }));
+        assert_eq!(
+            trust_command_request_hash(&approve),
+            trust_command_request_hash(&LegalTrustCommand::Approve {
+                id: RecordId::new("material-one").unwrap(),
+                version: 3,
+            })
+        );
     }
 }

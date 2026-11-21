@@ -9,7 +9,9 @@ use crate::application::activities_native::{
     ActivitiesFuture, ActivityFacts, ActivityRepository, LeadFacts,
 };
 use crate::domain::activities_native::{
-    ActivityActor, ActivityChangeInput, ActivityChangePlan, ActivityCreateInput, ActivityCreatePlan, ActivityReassignIntent, prepare_activity_reassign, validate_change_schema_and_permissions,
+    ActivityActor, ActivityChangeInput, ActivityChangePlan, ActivityCreateInput,
+    ActivityCreatePlan, ActivityReassignIntent, prepare_activity_reassign,
+    validate_change_schema_and_permissions,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -212,14 +214,20 @@ pub struct PreparedCrmActivityReassign {
     activity_id: String,
     command_key: String,
     intent: ActivityReassignIntent,
-    unit: (String,i32,String,String),
+    unit: (String, i32, String, String),
 }
 impl PreparedCrmActivityReassign {
     /// Validated normalized recipient for the caller's Sales eligibility and
     /// notification preparation. This is not an eligibility proof.
-    pub fn owner_id(&self) -> &str { &self.intent.owner_id }
-    pub fn due_date(&self) -> &str { &self.intent.due_date }
-    pub fn expected_version(&self) -> i64 { self.intent.expected_version }
+    pub fn owner_id(&self) -> &str {
+        &self.intent.owner_id
+    }
+    pub fn due_date(&self) -> &str {
+        &self.intent.due_date
+    }
+    pub fn expected_version(&self) -> i64 {
+        self.intent.expected_version
+    }
 }
 
 /// Owner-local after-image and event witness; it does not attest recipient,
@@ -230,36 +238,85 @@ pub struct RetainedCrmActivityReassign {
     command_key: String,
     intent: ActivityReassignIntent,
     now: i64,
-    unit: (String,i32,String,String),
+    unit: (String, i32, String, String),
 }
 
-async fn activity_unit(c:&mut PgConnection)->Result<(String,i32,String,String),Error> {
+async fn activity_unit(c: &mut PgConnection) -> Result<(String, i32, String, String), Error> {
     serializable(c).await?;
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
 }
-fn activity_conflict()->BusinessError {
-    BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.")
+fn activity_conflict() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Conflict,
+        "CONFLICT",
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+    )
 }
 impl PgCrmActivityCommands<'_> {
-    pub async fn prepare_reassign(&mut self, actor:&ActivityActor, activity_id:&str, command_key:&str, input:&ActivityChangeInput)->Result<PreparedCrmActivityReassign,Error> {
-        validate_change_schema_and_permissions(actor,input)?;
-        if command_key.is_empty() {return Err(BusinessError::invalid("CRM_ACTIVITY_INPUT_INVALID","A command key is required.").into());}
-        let record=self.activity(actor,activity_id).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound,"CRM_ACTIVITY_NOT_FOUND","CRM activity not found in this scope."))?;
-        let intent=prepare_activity_reassign(actor,input,&record.status)?;
-        if record.version != intent.expected_version {return Err(activity_conflict().into());}
-        let unit=activity_unit(&mut *self.connection).await?;
-        Ok(PreparedCrmActivityReassign{actor:actor.clone(),activity_id:activity_id.to_owned(),command_key:command_key.to_owned(),intent,unit})
+    pub async fn prepare_reassign(
+        &mut self,
+        actor: &ActivityActor,
+        activity_id: &str,
+        command_key: &str,
+        input: &ActivityChangeInput,
+    ) -> Result<PreparedCrmActivityReassign, Error> {
+        validate_change_schema_and_permissions(actor, input)?;
+        if command_key.is_empty() {
+            return Err(BusinessError::invalid(
+                "CRM_ACTIVITY_INPUT_INVALID",
+                "A command key is required.",
+            )
+            .into());
+        }
+        let record = self.activity(actor, activity_id).await?.ok_or_else(|| {
+            BusinessError::new(
+                erpx_server_shared::public::FailureKind::NotFound,
+                "CRM_ACTIVITY_NOT_FOUND",
+                "CRM activity not found in this scope.",
+            )
+        })?;
+        let intent = prepare_activity_reassign(actor, input, &record.status)?;
+        if record.version != intent.expected_version {
+            return Err(activity_conflict().into());
+        }
+        let unit = activity_unit(&mut *self.connection).await?;
+        Ok(PreparedCrmActivityReassign {
+            actor: actor.clone(),
+            activity_id: activity_id.to_owned(),
+            command_key: command_key.to_owned(),
+            intent,
+            unit,
+        })
     }
-    pub async fn apply_reassign(&mut self, prepared:PreparedCrmActivityReassign, now:i64)->Result<RetainedCrmActivityReassign,Error> {
-        if activity_unit(&mut *self.connection).await? != prepared.unit {return Err(activity_conflict().into());}
-        let next=prepared.intent.expected_version.checked_add(1).ok_or_else(activity_conflict)?;
+    pub async fn apply_reassign(
+        &mut self,
+        prepared: PreparedCrmActivityReassign,
+        now: i64,
+    ) -> Result<RetainedCrmActivityReassign, Error> {
+        if activity_unit(&mut *self.connection).await? != prepared.unit {
+            return Err(activity_conflict().into());
+        }
+        let next = prepared
+            .intent
+            .expected_version
+            .checked_add(1)
+            .ok_or_else(activity_conflict)?;
         let changed=sqlx::query("UPDATE public.crm_lead_activities x SET owner_id=$1,due_date=$2,status='open',outcome=NULL,version=x.version+1,updated_at=$3 FROM public.crm_leads l WHERE x.id=$4 AND x.company_id=$5 AND x.version=$6 AND x.status='open' AND l.id=x.lead_id AND l.company_id=$5 AND ($7::text IS NULL OR l.branch_id=$7) AND ($8::text IS NULL OR l.department_id=$8)")
             .bind(&prepared.intent.owner_id).bind(&prepared.intent.due_date).bind(now).bind(&prepared.activity_id).bind(&prepared.actor.company_id).bind(prepared.intent.expected_version).bind(prepared.actor.branch_id.as_deref()).bind(prepared.actor.department_id.as_deref()).execute(&mut *self.connection).await?.rows_affected();
-        if changed != 1 {return Err(activity_conflict().into());}
-        let snapshot=serde_json::json!({"action":"reassign","expectedVersion":prepared.intent.expected_version,"ownerId":prepared.intent.owner_id,"dueDate":prepared.intent.due_date,"reason":prepared.intent.reason});
+        if changed != 1 {
+            return Err(activity_conflict().into());
+        }
+        let snapshot = serde_json::json!({"action":"reassign","expectedVersion":prepared.intent.expected_version,"ownerId":prepared.intent.owner_id,"dueDate":prepared.intent.due_date,"reason":prepared.intent.reason});
         sqlx::query("INSERT INTO public.crm_lead_activity_events(id,activity_id,version,action,actor_id,owner_id,due_date,note,snapshot_json,created_at) VALUES($1,$2,$3,'reassign',$4,$5,$6,$7,$8,$9)")
             .bind(format!("crm-activity-event-{}",prepared.command_key)).bind(&prepared.activity_id).bind(next).bind(&prepared.actor.user_id).bind(&prepared.intent.owner_id).bind(&prepared.intent.due_date).bind(&prepared.intent.reason).bind(&snapshot).bind(now).execute(&mut *self.connection).await?;
-        let retained=RetainedCrmActivityReassign{actor:prepared.actor,activity_id:prepared.activity_id,command_key:prepared.command_key,intent:prepared.intent,now,unit:prepared.unit};
+        let retained = RetainedCrmActivityReassign {
+            actor: prepared.actor,
+            activity_id: prepared.activity_id,
+            command_key: prepared.command_key,
+            intent: prepared.intent,
+            now,
+            unit: prepared.unit,
+        };
         retained.require_current(&mut *self.connection).await?;
         Ok(retained)
     }
@@ -281,17 +338,26 @@ impl RetainedCrmActivityReassign {
     /// and after the Collaboration effect in the same transaction.
     pub fn notification_facts(&self) -> CrmReassignNotificationFacts {
         CrmReassignNotificationFacts {
-            command_key:self.command_key.clone(), company_id:self.actor.company_id.clone(),
-            recipient:self.intent.owner_id.clone(), activity_id:self.activity_id.clone(),
-            version:self.intent.expected_version+1, status:"open", updated_at:self.now,
+            command_key: self.command_key.clone(),
+            company_id: self.actor.company_id.clone(),
+            recipient: self.intent.owner_id.clone(),
+            activity_id: self.activity_id.clone(),
+            version: self.intent.expected_version + 1,
+            status: "open",
+            updated_at: self.now,
         }
     }
-    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error> {
-        if activity_unit(&mut *c).await? != self.unit {return Err(activity_conflict().into());}
-        let snapshot=serde_json::json!({"action":"reassign","expectedVersion":self.intent.expected_version,"ownerId":self.intent.owner_id,"dueDate":self.intent.due_date,"reason":self.intent.reason});
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if activity_unit(&mut *c).await? != self.unit {
+            return Err(activity_conflict().into());
+        }
+        let snapshot = serde_json::json!({"action":"reassign","expectedVersion":self.intent.expected_version,"ownerId":self.intent.owner_id,"dueDate":self.intent.due_date,"reason":self.intent.reason});
         let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.crm_lead_activities x JOIN public.crm_leads l ON l.id=x.lead_id AND l.company_id=x.company_id JOIN public.crm_lead_activity_events e ON e.activity_id=x.id WHERE x.id=$1 AND x.company_id=$2 AND ($3::text IS NULL OR l.branch_id=$3) AND ($4::text IS NULL OR l.department_id=$4) AND x.owner_id=$5 AND x.due_date=$6 AND x.status='open' AND x.outcome IS NULL AND x.version=$7 AND x.updated_at=$8 AND e.id=$9 AND e.version=$7 AND e.action='reassign' AND e.actor_id=$10 AND e.owner_id=$5 AND e.due_date=$6 AND e.note=$11 AND e.snapshot_json=$12 AND e.created_at=$8)")
             .bind(&self.activity_id).bind(&self.actor.company_id).bind(self.actor.branch_id.as_deref()).bind(self.actor.department_id.as_deref()).bind(&self.intent.owner_id).bind(&self.intent.due_date).bind(self.intent.expected_version+1).bind(self.now).bind(format!("crm-activity-event-{}",self.command_key)).bind(&self.actor.user_id).bind(&self.intent.reason).bind(snapshot).fetch_one(c).await?;
-        if !valid {return Err(activity_conflict().into());} Ok(())
+        if !valid {
+            return Err(activity_conflict().into());
+        }
+        Ok(())
     }
 }
 
@@ -311,9 +377,7 @@ impl ActivityRepository for PgCrmActivityCommands<'_> {
         actor: &'a ActivityActor,
         activity_id: &'a str,
     ) -> ActivitiesFuture<'a, Option<ActivityFacts>, Self::Error> {
-        Box::pin(
-            async move { PgCrmActivityCommands::activity(self, actor, activity_id).await },
-        )
+        Box::pin(async move { PgCrmActivityCommands::activity(self, actor, activity_id).await })
     }
 
     fn insert_activity<'a>(

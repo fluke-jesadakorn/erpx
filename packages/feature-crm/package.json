@@ -12,7 +12,8 @@
     "./lib/command-fetch": "./src/lib/command-fetch.ts",
     "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
     "./lib/analytics-access": "./src/lib/analytics-access.ts",
-    "./lib/command-attempt": "./src/lib/command-attempt.ts"
+    "./lib/command-attempt": "./src/lib/command-attempt.ts",
+    "./adapters/server/native-crm-command": "./src/adapters/server/native-crm-command.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -40,7 +40,7 @@ guardCapacity(key:string,value:"capacity",company_id:string,company_id2:string):
 guardReviewedParent(key:string,value:"reviewed-parent",parentId:string,now:number,id:string,company_id:string,now2:number):Effect;
 guardReviewedRole(key:string,value:string,roleId:string,company_id:string,expectedRoleRevision:number):Effect;
 prepareItAssignment(value:string,id:string,company_id:string,now:number,validUntil:number,parentId:string):Effect;
-prepareAcceptedInvitation(id:string,now:number,id2:string):Effect;
+prepareAcceptedInvitation(id:string,now:number,id2:string):Promise<Effect>;
 prepareAcceptanceAudit(value:string,key:string,id:string,value2:string,id2:string,now:number):Effect;
 clearAcceptanceAssertions(key:string,companyId:string):Promise<Effect>;
 acceptedUser(id:string):Promise<{ accepted_user_id: string }|null>;
@@ -203,7 +203,7 @@ async function acceptMember(
                   .validUntil,authorization.parentId),
           ]
         : []),
-      r.prepareAcceptedInvitation(user.id,now,row.id),
+      await r.prepareAcceptedInvitation(user.id,now,row.id),
       r.prepareAcceptanceAudit(ports.identifiers.next(),key,user.id,`beta-assignment-${user.id}`,user.id,now),
       await r.clearAcceptanceAssertions(key, branch.company_id),
     ]);

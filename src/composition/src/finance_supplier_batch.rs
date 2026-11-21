@@ -17,14 +17,15 @@ use erpx_server_files::public::business_evidence::{
 };
 use erpx_server_finance::public::sales_invoice_create::SalesInvoiceCommandActor;
 use erpx_server_finance::public::supplier_batch::{
-    PgSupplierBatchNotifications, PgSupplierInstructionEvidence, SUPPLIER_BATCH_EVIDENCE_COMPONENT_KIND,
-    SUPPLIER_BATCH_EVIDENCE_PURPOSE_KEY, SUPPLIER_BATCH_EVIDENCE_TARGET_TYPE,
-    SupplierBatchCreateInput, SupplierBatchDecisionInput, SupplierBatchExportInput,
-    SupplierBatchExportResult, SupplierBatchResult, SupplierInstructionConfirmInput,
-    SupplierInstructionConfirmResult, SupplierInstructionEvidenceRequest, SupplierInstructionResult,
-    SupplierInstructionResultInput, confirm_supplier_instruction, create_supplier_batch,
-    decide_supplier_batch, export_supplier_batch, lock_supplier_batch_read_sources,
-    lock_supplier_batch_sources, recover_supplier_export, record_supplier_instruction_result,
+    PgSupplierBatchNotifications, PgSupplierInstructionEvidence,
+    SUPPLIER_BATCH_EVIDENCE_COMPONENT_KIND, SUPPLIER_BATCH_EVIDENCE_PURPOSE_KEY,
+    SUPPLIER_BATCH_EVIDENCE_TARGET_TYPE, SupplierBatchCreateInput, SupplierBatchDecisionInput,
+    SupplierBatchExportInput, SupplierBatchExportResult, SupplierBatchResult,
+    SupplierInstructionConfirmInput, SupplierInstructionConfirmResult,
+    SupplierInstructionEvidenceRequest, SupplierInstructionResult, SupplierInstructionResultInput,
+    confirm_supplier_instruction, create_supplier_batch, decide_supplier_batch,
+    export_supplier_batch, lock_supplier_batch_read_sources, lock_supplier_batch_sources,
+    record_supplier_instruction_result, recover_supplier_export,
 };
 use erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation;
 use erpx_server_records::public::business_evidence::{
@@ -63,8 +64,8 @@ fn unavailable() -> BusinessError {
 /// `ERPX_FINANCE_PACKAGE_ENFORCEMENT` mirrors the retained development rollout
 /// switch; invalid values fail closed and enforcement stays local-only.
 pub(crate) fn supplier_batch_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
-    let raw = std::env::var("ERPX_FINANCE_PACKAGE_ENFORCEMENT")
-        .unwrap_or_else(|_| "disabled".to_owned());
+    let raw =
+        std::env::var("ERPX_FINANCE_PACKAGE_ENFORCEMENT").unwrap_or_else(|_| "disabled".to_owned());
     let mode = match raw.as_str() {
         "disabled" => PackageEnforcementMode::Disabled,
         "shadow" => PackageEnforcementMode::Shadow,
@@ -178,7 +179,11 @@ struct Boundary {
 }
 
 impl Boundary {
-    async fn complete(mut self, c: &mut PgConnection, configuration: &FinanceJournalReadConfiguration) -> Result<(), Error> {
+    async fn complete(
+        mut self,
+        c: &mut PgConnection,
+        configuration: &FinanceJournalReadConfiguration,
+    ) -> Result<(), Error> {
         if let Some(boundary) = self.boundary.as_mut() {
             boundary
                 .complete(c, &self.holding, configuration.purchases())

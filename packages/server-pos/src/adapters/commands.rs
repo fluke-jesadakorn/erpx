@@ -4,12 +4,11 @@
 use crate::application::commands::{PosCommandRepository, PosFuture};
 use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosFulfillment, PosFulfillmentInsert,
-    PosFulfillmentSplitFacts, PosLine, PosLineDetail, PosLineDiscountRow, PosLineInsert,
-    PosFulfillmentReturnFacts, PosFulfillmentStock, PosLineSplitRow, PosPayment, PosPaymentInsert,
-    PosPaymentRefundRow, PosReceipt, PosRefund, PosRefundDetail, PosRefundLineRow, PosRegister,
-    PosSale, PosSettings,
-    PosSettledPayment,
-    PosShift, RefundRequestInput, SaleCreateInput,
+    PosFulfillmentReturnFacts, PosFulfillmentSplitFacts, PosFulfillmentStock, PosLine,
+    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosPayment,
+    PosPaymentInsert, PosPaymentRefundRow, PosReceipt, PosRefund, PosRefundDetail,
+    PosRefundLineRow, PosRegister, PosSale, PosSettings, PosSettledPayment, PosShift,
+    RefundRequestInput, SaleCreateInput,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
@@ -233,11 +232,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(changed == 1)
         })
     }
-    fn table_name_exists<'a>(
-        &'a mut self,
-        register_id: &'a str,
-        name: &'a str,
-    ) -> Fut<'a, bool> {
+    fn table_name_exists<'a>(&'a mut self, register_id: &'a str, name: &'a str) -> Fut<'a, bool> {
         Box::pin(async move {
             self.ready().await?;
             Ok(sqlx::query_scalar::<_, bool>(
@@ -852,10 +847,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn insert_fulfillment<'a>(
-        &'a mut self,
-        fulfillment: &'a PosFulfillmentInsert,
-    ) -> Fut<'a, ()> {
+    fn insert_fulfillment<'a>(&'a mut self, fulfillment: &'a PosFulfillmentInsert) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query(
@@ -922,7 +914,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(rows.rows_affected() == 1)
         })
     }
-    fn sale_line<'a>(&'a mut self, sale_id: &'a str, line_id: &'a str) -> Fut<'a, Option<PosLineDetail>> {
+    fn sale_line<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        line_id: &'a str,
+    ) -> Fut<'a, Option<PosLineDetail>> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
@@ -988,7 +984,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn set_sale_party<'a>(&'a mut self, sale_id: &'a str, party_id: Option<&'a str>) -> Fut<'a, ()> {
+    fn set_sale_party<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        party_id: Option<&'a str>,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("UPDATE pos_sales SET party_id=$1 WHERE id=$2")
@@ -1096,7 +1096,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn sale_line_split<'a>(&'a mut self, sale_id: &'a str, line_id: &'a str) -> Fut<'a, Option<PosLineSplitRow>> {
+    fn sale_line_split<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        line_id: &'a str,
+    ) -> Fut<'a, Option<PosLineSplitRow>> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
@@ -1120,13 +1124,18 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             .transpose()
         })
     }
-    fn fulfillment_split<'a>(&'a mut self, fulfillment_id: &'a str) -> Fut<'a, Option<PosFulfillmentSplitFacts>> {
+    fn fulfillment_split<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> Fut<'a, Option<PosFulfillmentSplitFacts>> {
         Box::pin(async move {
             self.ready().await?;
-            let row = sqlx::query("SELECT kind,state,reserved FROM pos_fulfillments WHERE id=$1 FOR UPDATE")
-                .bind(fulfillment_id)
-                .fetch_optional(&mut *self.connection)
-                .await?;
+            let row = sqlx::query(
+                "SELECT kind,state,reserved FROM pos_fulfillments WHERE id=$1 FOR UPDATE",
+            )
+            .bind(fulfillment_id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
             row.map(|row| {
                 Ok::<_, Error>(PosFulfillmentSplitFacts {
                     kind: row.try_get("kind")?,
@@ -1192,7 +1201,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn reduce_fulfillment<'a>(&'a mut self, source_id: &'a str, quantity_milli: i64) -> Fut<'a, ()> {
+    fn reduce_fulfillment<'a>(
+        &'a mut self,
+        source_id: &'a str,
+        quantity_milli: i64,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("UPDATE pos_fulfillments SET quantity_milli=quantity_milli-$1,version=version+1 WHERE id=$2")
@@ -1279,7 +1292,10 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             .await?)
         })
     }
-    fn sale_fulfillment_stock<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, Vec<PosFulfillmentStock>> {
+    fn sale_fulfillment_stock<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> Fut<'a, Vec<PosFulfillmentStock>> {
         Box::pin(async move {
             self.ready().await?;
             let rows = sqlx::query(
@@ -1307,7 +1323,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
     fn insert_payment<'a>(&'a mut self, payment: &'a PosPaymentInsert) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
-            let state = if payment.method == "transfer" { "pending" } else { "requested" };
+            let state = if payment.method == "transfer" {
+                "pending"
+            } else {
+                "requested"
+            };
             sqlx::query(
                 "INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)",
             )
@@ -1337,7 +1357,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn attach_finance_payment<'a>(&'a mut self, payment_id: &'a str, finance_payment_id: &'a str) -> Fut<'a, ()> {
+    fn attach_finance_payment<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+        finance_payment_id: &'a str,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("UPDATE pos_payments SET finance_payment_id=$1 WHERE id=$2")
@@ -1348,7 +1372,13 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn reserve_stock<'a>(&'a mut self, fulfillment_id: &'a str, warehouse_id: &'a str, product_id: &'a str, quantity_milli: i64) -> Fut<'a, ()> {
+    fn reserve_stock<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        warehouse_id: &'a str,
+        product_id: &'a str,
+        quantity_milli: i64,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("INSERT INTO pos_reservations(fulfillment_id,warehouse_id,product_id,quantity_milli) VALUES($1,$2,$3,$4)")
@@ -1371,7 +1401,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn bump_payment_pending<'a>(&'a mut self, sale_id: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+    fn bump_payment_pending<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        now: TimestampMillis,
+    ) -> Fut<'a, bool> {
         Box::pin(async move {
             self.ready().await?;
             let rows = sqlx::query("UPDATE pos_sales SET state='payment_pending',version=version+1,updated_at=$1 WHERE id=$2")
@@ -1404,7 +1438,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             .await?)
         })
     }
-    fn delete_reservation<'a>(&'a mut self, fulfillment_id: &'a str, product_id: &'a str) -> Fut<'a, ()> {
+    fn delete_reservation<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        product_id: &'a str,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("DELETE FROM pos_reservations WHERE fulfillment_id=$1 AND product_id=$2")
@@ -1448,7 +1486,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn mark_fulfillment_delivered<'a>(&'a mut self, fulfillment_id: &'a str, cost_minor: i64) -> Fut<'a, ()> {
+    fn mark_fulfillment_delivered<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        cost_minor: i64,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("UPDATE pos_fulfillments SET state='delivered',cost_minor=$1,version=version+1 WHERE id=$2")
@@ -1522,15 +1564,22 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn reopen_sale<'a>(&'a mut self, sale_id: &'a str, state: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+    fn reopen_sale<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        state: &'a str,
+        now: TimestampMillis,
+    ) -> Fut<'a, bool> {
         Box::pin(async move {
             self.ready().await?;
-            let rows = sqlx::query("UPDATE pos_sales SET state=$1,version=version+1,updated_at=$2 WHERE id=$3")
-                .bind(state)
-                .bind(now.get())
-                .bind(sale_id)
-                .execute(&mut *self.connection)
-                .await?;
+            let rows = sqlx::query(
+                "UPDATE pos_sales SET state=$1,version=version+1,updated_at=$2 WHERE id=$3",
+            )
+            .bind(state)
+            .bind(now.get())
+            .bind(sale_id)
+            .execute(&mut *self.connection)
+            .await?;
             Ok(rows.rows_affected() == 1)
         })
     }
@@ -1568,7 +1617,10 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             .transpose()
         })
     }
-    fn sale_succeeded_payments<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, Vec<PosPaymentRefundRow>> {
+    fn sale_succeeded_payments<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> Fut<'a, Vec<PosPaymentRefundRow>> {
         Box::pin(async move {
             self.ready().await?;
             let rows = sqlx::query(
@@ -1589,7 +1641,10 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                 .collect()
         })
     }
-    fn sale_settled_payments<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, Vec<PosSettledPayment>> {
+    fn sale_settled_payments<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> Fut<'a, Vec<PosSettledPayment>> {
         Box::pin(async move {
             self.ready().await?;
             let rows = sqlx::query(
@@ -1612,7 +1667,11 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                 .collect()
         })
     }
-    fn refund_line<'a>(&'a mut self, sale_id: &'a str, line_id: &'a str) -> Fut<'a, Option<PosRefundLineRow>> {
+    fn refund_line<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        line_id: &'a str,
+    ) -> Fut<'a, Option<PosRefundLineRow>> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
@@ -1635,7 +1694,10 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             .transpose()
         })
     }
-    fn fulfillment_return_facts<'a>(&'a mut self, fulfillment_id: &'a str) -> Fut<'a, Option<PosFulfillmentReturnFacts>> {
+    fn fulfillment_return_facts<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> Fut<'a, Option<PosFulfillmentReturnFacts>> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
@@ -1715,7 +1777,13 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn insert_refund_payment<'a>(&'a mut self, id: &'a str, refund_id: &'a str, payment_id: &'a str, amount_minor: i64) -> Fut<'a, ()> {
+    fn insert_refund_payment<'a>(
+        &'a mut self,
+        id: &'a str,
+        refund_id: &'a str,
+        payment_id: &'a str,
+        amount_minor: i64,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("INSERT INTO pos_refund_payments(id,refund_id,payment_id,amount_minor,state) VALUES($1,$2,$3,$4,'succeeded')")
@@ -1728,7 +1796,12 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn bump_payment_refunded<'a>(&'a mut self, payment_id: &'a str, amount_minor: i64, now: TimestampMillis) -> Fut<'a, ()> {
+    fn bump_payment_refunded<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+        amount_minor: i64,
+        now: TimestampMillis,
+    ) -> Fut<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("UPDATE pos_payments SET refunded_minor=refunded_minor+$1,version=version+1,updated_at=$2 WHERE id=$3")
@@ -1740,7 +1813,12 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
-    fn complete_refund<'a>(&'a mut self, refund_id: &'a str, actor_id: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+    fn complete_refund<'a>(
+        &'a mut self,
+        refund_id: &'a str,
+        actor_id: &'a str,
+        now: TimestampMillis,
+    ) -> Fut<'a, bool> {
         Box::pin(async move {
             self.ready().await?;
             let rows = sqlx::query("UPDATE pos_refunds SET state='completed',approved_by=$1,version=version+1 WHERE id=$2")

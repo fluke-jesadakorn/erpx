@@ -1,7 +1,7 @@
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
 
-import { nativePpExpensePaymentsSql } from '@erpx/server-collaboration/adapters/native-pp-expense_payments-sql';
 import { withExpensePurchasedCommand } from "@erpx/server-people_payroll/adapters/expense-purchases";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
@@ -161,10 +161,7 @@ function originalNativeExpensePaymentPreparation(write: SqlDatabase) {
         "EXISTS(SELECT 1 FROM expense_payment_drafts WHERE id=? AND version=? AND status='draft')",
         [id, input.expectedVersion],
       ),
-      write
-        .prepare(
-          nativePpExpensePaymentsSql('pp_expense_payments_stmt_1'),
-        )
+      nativePpStatement('pp_expense_payments_stmt_1')
         .bind(input.date, amount, input.reference, Date.now(), id),
       ...(evidence?.steps ?? []),
     ]);
@@ -217,10 +214,7 @@ function originalNativeExpensePaymentSlipRemoval(write: SqlDatabase) {
           ]
         : []),
       await filesExpenseEffects(write).revokeAttachment({at:now,attachmentId:attachmentId,companyId:actor.companyId}),
-      write
-        .prepare(
-          nativePpExpensePaymentsSql('pp_expense_payments_stmt_2'),
-        )
+      nativePpStatement('pp_expense_payments_stmt_2')
         .bind(now, id),
     ]);
     },
@@ -248,10 +242,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
         "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='posted' AND workflow_stage='payment')",
         [id, actor.companyId, expectedVersion],
       ),
-      write
-        .prepare(
-          nativePpExpensePaymentsSql('pp_expense_payments_stmt_3'),
-        )
+      nativePpStatement('pp_expense_payments_stmt_3')
         .bind(draftId, id, actor.companyId, actor.userId, now, now),
     ]);
     },
@@ -296,10 +287,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
       ),
       ...prepared.steps,
       ...(evidence?.steps ?? []),
-      write
-        .prepare(
-          nativePpExpensePaymentsSql('pp_expense_payments_stmt_4'),
-        )
+      nativePpStatement('pp_expense_payments_stmt_4')
         .bind(
           prepared.result.paymentId,
           input.date,

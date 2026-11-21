@@ -338,22 +338,49 @@ pub(crate) struct FreshRfqReplayWitness<'a> {
     record_id: String,
 }
 impl FreshRfqReplayWitness<'_> {
-    pub(crate) async fn require_for(&self, c: &mut PgConnection, actor: &AuthorizedWorkContext,
-        input: &NormalizedRfqTransition, key: &str, record_id: &str) -> Result<bool, Error> {
-        if !std::ptr::eq(actor,self.actor) || !std::ptr::eq(input,self.input)
-            || key != self.key || record_id != self.record_id || !self.receipt.matches_key(key) {
+    pub(crate) async fn require_for(
+        &self,
+        c: &mut PgConnection,
+        actor: &AuthorizedWorkContext,
+        input: &NormalizedRfqTransition,
+        key: &str,
+        record_id: &str,
+    ) -> Result<bool, Error> {
+        if !std::ptr::eq(actor, self.actor)
+            || !std::ptr::eq(input, self.input)
+            || key != self.key
+            || record_id != self.record_id
+            || !self.receipt.matches_key(key)
+        {
             return Ok(false);
         }
         erpx_server_identity_access::public::rfq_request_membership::require_rfq_request_actor_unit(&mut *c,actor).await?;
-        Ok(matches!(compare_rfq_receipt(c,actor,self.receipt,record_id,input).await?,RfqReceiptMatch::Missing))
+        Ok(matches!(
+            compare_rfq_receipt(c, actor, self.receipt, record_id, input).await?,
+            RfqReceiptMatch::Missing
+        ))
     }
 }
-pub(crate) async fn fresh_rfq_replay_witness<'a>(c: &mut PgConnection,
-    actor: &'a AuthorizedWorkContext, receipt: &'a CurrentRfqReceipt,
-    input: &'a NormalizedRfqTransition, key: &str, record_id: &str,
+pub(crate) async fn fresh_rfq_replay_witness<'a>(
+    c: &mut PgConnection,
+    actor: &'a AuthorizedWorkContext,
+    receipt: &'a CurrentRfqReceipt,
+    input: &'a NormalizedRfqTransition,
+    key: &str,
+    record_id: &str,
 ) -> Result<Option<FreshRfqReplayWitness<'a>>, Error> {
-    let witness=FreshRfqReplayWitness { actor, receipt, input, key:key.into(), record_id:record_id.into() };
-    if witness.require_for(c,actor,input,key,record_id).await? { Ok(Some(witness)) } else { Ok(None) }
+    let witness = FreshRfqReplayWitness {
+        actor,
+        receipt,
+        input,
+        key: key.into(),
+        record_id: record_id.into(),
+    };
+    if witness.require_for(c, actor, input, key, record_id).await? {
+        Ok(Some(witness))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Combines only the historical assertion and fresh receipt observations. It
@@ -367,6 +394,13 @@ pub(crate) async fn rfq_observations_match(
     input: &NormalizedRfqTransition,
     key: &str,
 ) -> bool {
-    matches!(fresh.require_for(&mut *c,actor,input,key,&target.facts().id).await,Ok(true))
-        && assertion.require_for(c,actor,target,input,key).await.is_ok()
+    matches!(
+        fresh
+            .require_for(&mut *c, actor, input, key, &target.facts().id)
+            .await,
+        Ok(true)
+    ) && assertion
+        .require_for(c, actor, target, input, key)
+        .await
+        .is_ok()
 }

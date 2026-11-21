@@ -4,7 +4,7 @@ import type {WorkSnapshot} from "@erpx/server-work_projection/domain/work-items"
 import {dailyPlanSaveSchema,dailyPlanReferenceKey,currentItems,type DailyPlanView,type DailyPlanSave,type PlanRow,type StoredItem} from "@erpx/server-work_projection/domain/daily-plan";
 import type {Clock} from "@erpx/server-shared/application/ports";
 export type DailyPlanResult={date:string;version:number};
-export type DailyPlanUnit<Effect>={read(companyId:string,userId:string,date:string):Promise<PlanRow|null>;lock(companyId:string,userId:string,date:string):Effect;version(key:string,companyId:string,userId:string,date:string,version:number):Effect;write(companyId:string,userId:string,date:string,items:string,version:number,key:string,now:number,expected:number):Effect;written(key:string,companyId:string,userId:string,date:string,version:number):Effect;replay(actor:WorkContext,key:string,id:string,input:DailyPlanSave):Promise<DailyPlanResult|null>;execute(actor:WorkContext,key:string,input:DailyPlanSave,id:string,result:DailyPlanResult,effects:Effect[]):Promise<DailyPlanResult>};
+export type DailyPlanUnit<Effect>={read(companyId:string,userId:string,date:string):Promise<PlanRow|null>;lock(companyId:string,userId:string,date:string):Effect;version(key:string,companyId:string,userId:string,date:string,version:number):Effect;write(companyId:string,userId:string,date:string,items:string,version:number,key:string,now:number,expected:number):Promise<Effect>;written(key:string,companyId:string,userId:string,date:string,version:number):Effect;replay(actor:WorkContext,key:string,id:string,input:DailyPlanSave):Promise<DailyPlanResult|null>;execute(actor:WorkContext,key:string,input:DailyPlanSave,id:string,result:DailyPlanResult,effects:Effect[]):Promise<DailyPlanResult>};
 export function createDailyPlan<Effect>(ports:{clock:Clock;error(status:number,code:string,message:string):Error}){
 /** The plan contains references only. Each read resolves current, authorized work. */
 async function readDailyPlan(
@@ -64,7 +64,8 @@ async function saveDailyPlan(
   }));
   const result = { date: input.date, version: input.expectedVersion + 1 };
   const now = ports.clock.now();
-  return db.execute(actor,commandKey,input,recordId,result,[db.lock(actor.companyId,actor.userId,input.date),db.version(commandKey,actor.companyId,actor.userId,input.date,input.expectedVersion),db.write(actor.companyId,actor.userId,input.date,JSON.stringify(stored),result.version,commandKey,now,input.expectedVersion),db.written(commandKey,actor.companyId,actor.userId,input.date,result.version)]);
+  const write = await db.write(actor.companyId,actor.userId,input.date,JSON.stringify(stored),result.version,commandKey,now,input.expectedVersion);
+  return db.execute(actor,commandKey,input,recordId,result,[db.lock(actor.companyId,actor.userId,input.date),db.version(commandKey,actor.companyId,actor.userId,input.date,input.expectedVersion),write,db.written(commandKey,actor.companyId,actor.userId,input.date,result.version)]);
 }
 
 return {readDailyPlan,saveDailyPlan};}

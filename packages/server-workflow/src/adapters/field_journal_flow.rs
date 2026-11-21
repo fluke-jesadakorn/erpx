@@ -26,7 +26,7 @@ pub async fn lock_field_journal_flow_sources(c: &mut PgConnection) -> Result<(),
         .await?;
     Ok(())
 }
-#[derive(Clone,PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct FieldJournalFlowBasis {
     unit: (String, i32, String, String),
     company: CompanyId,
@@ -274,8 +274,7 @@ impl FieldJournalFlowAssignment {
         }
         let e = &self.event;
         sqlx::query("INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,actor_user_id,actor_name,reason,record_version,created_at)VALUES($1,$2,$3,'journal',$4,$5,$11,$6,$7,$8,$9,$10)").bind(e["id"].as_str().ok_or_else(changed)?).bind(e["command_id"].as_str().ok_or_else(changed)?).bind(self.before.company.as_str()).bind(&self.before.id).bind(e["step_key"].as_str().ok_or_else(changed)?).bind(e["actor_user_id"].as_str().ok_or_else(changed)?).bind(e["actor_name"].as_str().ok_or_else(changed)?).bind(e["reason"].as_str()).bind(e["record_version"].as_i64().ok_or_else(changed)?).bind(e["created_at"].as_i64().ok_or_else(changed)?).bind(e["action"].as_str().ok_or_else(changed)?).execute(&mut *c).await?;
-        let after =
-            read_field_journal_flow_basis(c, &self.before.company, &self.before.id).await?;
+        let after = read_field_journal_flow_basis(c, &self.before.company, &self.before.id).await?;
         let mut events = self.before.events.clone();
         events.push(e.clone());
         events.sort_by(|a, b| {

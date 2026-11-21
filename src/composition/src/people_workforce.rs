@@ -97,10 +97,7 @@ pub struct WorkforceConfiguration {
 }
 
 impl WorkforceConfiguration {
-    pub fn new(
-        holding: HoldingId,
-        company: erpx_server_shared::public::CompanyId,
-    ) -> Self {
+    pub fn new(holding: HoldingId, company: erpx_server_shared::public::CompanyId) -> Self {
         Self { holding, company }
     }
 }
@@ -210,8 +207,7 @@ impl<C: Clock + Send + Sync + 'static> WorkforceService<C> {
                         {
                             return Err(scope().into());
                         }
-                        let actor =
-                            actor(current).map_err(PgTransactionError::Business)?;
+                        let actor = actor(current).map_err(PgTransactionError::Business)?;
                         let now = clock.now();
                         let (person_id, raw) = match kind {
                             WorkforceHttpKind::Create => (None, body),

@@ -386,15 +386,14 @@ impl<'c> PgLegalRecords<'c> {
                         .execute(&mut *self.connection)
                         .await?;
                 } else {
-                    let eligible: bool = sqlx::query_scalar(
-                        "SELECT legal_person_eligible($1,$2,$3,$4,NULL)",
-                    )
-                    .bind(actor.company_id.as_str())
-                    .bind(user_id)
-                    .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
-                    .bind(actor.department_id.as_ref().map(|value| value.as_str()))
-                    .fetch_one(&mut *self.connection)
-                    .await?;
+                    let eligible: bool =
+                        sqlx::query_scalar("SELECT legal_person_eligible($1,$2,$3,$4,NULL)")
+                            .bind(actor.company_id.as_str())
+                            .bind(user_id)
+                            .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+                            .bind(actor.department_id.as_ref().map(|value| value.as_str()))
+                            .fetch_one(&mut *self.connection)
+                            .await?;
                     if !eligible {
                         return Err(BusinessError::new(
                             FailureKind::InvalidInput,
@@ -536,7 +535,11 @@ impl<'c> PgLegalRecords<'c> {
                      SET state=$1,reviewed_by=$2,reviewed_at=$3,version=version+1 \
                      WHERE id=$4 AND item_id=$5 AND state<>'confirmed'",
                 )
-                .bind(if confirmed { "confirmed" } else { "changes_required" })
+                .bind(if confirmed {
+                    "confirmed"
+                } else {
+                    "changes_required"
+                })
                 .bind(if confirmed {
                     Some(actor.user_id.as_str())
                 } else {
@@ -574,7 +577,9 @@ impl<'c> PgLegalRecords<'c> {
                 .ok_or_else(not_found)?;
                 let kind: String = item.try_get("kind")?;
                 let item_state: String = item.try_get("state")?;
-                if kind != "contract" || !matches!(item_state.as_str(), "approved" | "executed" | "active") {
+                if kind != "contract"
+                    || !matches!(item_state.as_str(), "approved" | "executed" | "active")
+                {
                     return Err(BusinessError::new(
                         FailureKind::Conflict,
                         "LEGAL_EXECUTED_STATE",
@@ -585,7 +590,12 @@ impl<'c> PgLegalRecords<'c> {
                 let approved_document_id = metadata
                     .get("approvedDocumentId")
                     .and_then(Value::as_str)
-                    .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the approved document version."))?;
+                    .ok_or_else(|| {
+                        invalid(
+                            "LEGAL_IMPORT_REQUIRED",
+                            "Choose the approved document version.",
+                        )
+                    })?;
                 if metadata
                     .get("signedDate")
                     .and_then(Value::as_str)
@@ -603,7 +613,11 @@ impl<'c> PgLegalRecords<'c> {
                         .and_then(Value::as_i64)
                         .is_none_or(|value| !(1..=1000).contains(&value))
                 {
-                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "Supply complete executed-copy signing details.").into());
+                    return Err(invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "Supply complete executed-copy signing details.",
+                    )
+                    .into());
                 }
                 let evidence = erpx_server_files::public::legal_import_evidence::inspect_legal_import_evidence(
                     &mut *self.connection,
@@ -615,9 +629,16 @@ impl<'c> PgLegalRecords<'c> {
                 if evidence.checksum_sha256.len() != 64
                     || evidence.bytes < 1
                     || evidence.bytes > 10 * 1024 * 1024
-                    || !matches!(evidence.media_type.as_str(), "application/pdf" | "image/png" | "image/jpeg")
+                    || !matches!(
+                        evidence.media_type.as_str(),
+                        "application/pdf" | "image/png" | "image/jpeg"
+                    )
                 {
-                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "Import an executed copy as a PDF or scanned image.").into());
+                    return Err(invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "Import an executed copy as a PDF or scanned image.",
+                    )
+                    .into());
                 }
                 let approval = sqlx::query(
                     "SELECT cycle::bigint cycle,document_id,document_hash FROM legal_approvals                      WHERE item_id=$1 AND decision='approved' ORDER BY cycle DESC LIMIT 1",
@@ -636,7 +657,12 @@ impl<'c> PgLegalRecords<'c> {
                 .bind(&plan.item_id)
                 .fetch_optional(&mut *self.connection)
                 .await?
-                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the approved document version."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "Choose the approved document version.",
+                    )
+                })?;
                 if current_document != approved_document_id || !locked {
                     return Err(BusinessError::new(
                         FailureKind::Conflict,
@@ -653,7 +679,11 @@ impl<'c> PgLegalRecords<'c> {
                 .await?;
                 let name: String = evidence.original_name.chars().take(200).collect::<String>();
                 if name.is_empty() {
-                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "The signed original needs a file name.").into());
+                    return Err(invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "The signed original needs a file name.",
+                    )
+                    .into());
                 }
                 sqlx::query(
                     "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,object_key,locked,created_by,created_at,attachment_link_id,attachment_source_id)                      VALUES($1,$2,$3,$4,$5,$6,$7,'',$8,false,$9,$10,$11,$12)",
@@ -739,7 +769,11 @@ impl<'c> PgLegalRecords<'c> {
                             | "image/jpeg"
                     )
                 {
-                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "Upload a PDF, DOCX, PNG or JPEG with the current attachment intake.").into());
+                    return Err(invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "Upload a PDF, DOCX, PNG or JPEG with the current attachment intake.",
+                    )
+                    .into());
                 }
                 let next_version: i64 = sqlx::query_scalar(
                     "SELECT (COALESCE(MAX(version),0)+1)::bigint FROM legal_documents WHERE item_id=$1",
@@ -824,7 +858,9 @@ impl<'c> PgLegalRecords<'c> {
                 let item_created_by: String = item.try_get("created_by")?;
                 let branch_id: Option<String> = item.try_get("branch_id")?;
                 let department_id: Option<String> = item.try_get("department_id")?;
-                if kind != "contract" || !matches!(item_state.as_str(), "draft" | "review" | "approval") {
+                if kind != "contract"
+                    || !matches!(item_state.as_str(), "draft" | "review" | "approval")
+                {
                     return Err(BusinessError::new(
                         FailureKind::Conflict,
                         "LEGAL_APPROVAL_STATE",
@@ -839,7 +875,12 @@ impl<'c> PgLegalRecords<'c> {
                 .bind(&plan.item_id)
                 .fetch_optional(&mut *self.connection)
                 .await?
-                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this contract."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_DOCUMENT_REQUIRED",
+                        "Select a document from this contract.",
+                    )
+                })?;
                 let document_checksum: String = document.try_get("checksum")?;
                 let document_author: String = document.try_get("created_by")?;
                 let executed: bool = sqlx::query_scalar(
@@ -881,7 +922,11 @@ impl<'c> PgLegalRecords<'c> {
                         )
                         .into());
                     }
-                    for author in [actor.user_id.as_str(), item_created_by.as_str(), document_author.as_str()] {
+                    for author in [
+                        actor.user_id.as_str(),
+                        item_created_by.as_str(),
+                        document_author.as_str(),
+                    ] {
                         if self
                             .same_person(approver, author, &actor.company_id)
                             .await?
@@ -980,13 +1025,11 @@ impl<'c> PgLegalRecords<'c> {
                 .bind(actor.user_id.as_str())
                 .execute(&mut *self.connection)
                 .await?;
-                sqlx::query(
-                    "UPDATE legal_documents SET locked=true WHERE id=$1 AND item_id=$2",
-                )
-                .bind(document_id)
-                .bind(&plan.item_id)
-                .execute(&mut *self.connection)
-                .await?;
+                sqlx::query("UPDATE legal_documents SET locked=true WHERE id=$1 AND item_id=$2")
+                    .bind(document_id)
+                    .bind(&plan.item_id)
+                    .execute(&mut *self.connection)
+                    .await?;
                 if let Some(first) = approver_ids.first() {
                     sqlx::query(
                         "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)                          VALUES($1,$2,$3,'legal',$4,$5,'Request approval needs your decision',$6) ON CONFLICT DO NOTHING",
@@ -1040,7 +1083,9 @@ impl<'c> PgLegalRecords<'c> {
                 let approver: String = step.try_get("approver_user_id")?;
                 let step_state: String = step.try_get("state")?;
                 if step_state != "pending"
-                    || !self.same_person(actor.user_id.as_str(), &approver, &actor.company_id).await?
+                    || !self
+                        .same_person(actor.user_id.as_str(), &approver, &actor.company_id)
+                        .await?
                 {
                     return Err(BusinessError::new(
                         FailureKind::Forbidden,
@@ -1066,7 +1111,12 @@ impl<'c> PgLegalRecords<'c> {
                     "documentId": document_id,
                     "documentHash": document_hash,
                 }))
-                .map_err(|_| invalid("LEGAL_APPROVAL_INVALID", "The approval decision is invalid."))?;
+                .map_err(|_| {
+                    invalid(
+                        "LEGAL_APPROVAL_INVALID",
+                        "The approval decision is invalid.",
+                    )
+                })?;
                 sqlx::query(
                     "INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,previous_approver_user_id,approver_user_id,reason,reviewed_version,command_id,created_at,authority_json)                      VALUES($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11)",
                 )
@@ -1083,7 +1133,11 @@ impl<'c> PgLegalRecords<'c> {
                 .bind(&authority)
                 .execute(&mut *self.connection)
                 .await?;
-                let step_decision = if decision == "approve" { "approved" } else { "rejected" };
+                let step_decision = if decision == "approve" {
+                    "approved"
+                } else {
+                    "rejected"
+                };
                 sqlx::query("UPDATE approval_steps SET state=$1 WHERE id=$2")
                     .bind(step_decision)
                     .bind(&step_id)
@@ -1098,7 +1152,14 @@ impl<'c> PgLegalRecords<'c> {
                     .bind(&instance_id)
                     .execute(&mut *self.connection)
                     .await?;
-                    return Ok(Some(if decision == "revise" { "draft" } else { "rejected" }.to_owned()));
+                    return Ok(Some(
+                        if decision == "revise" {
+                            "draft"
+                        } else {
+                            "rejected"
+                        }
+                        .to_owned(),
+                    ));
                 }
                 let next: Option<String> = sqlx::query_scalar(
                     "SELECT approver_user_id FROM approval_steps WHERE instance_id=$1 AND ordinal=$2",
@@ -1184,12 +1245,11 @@ impl<'c> PgLegalRecords<'c> {
                 .ok_or_else(|| invalid("LEGAL_APPROVAL_ROUTE", "Approval step unavailable."))?;
                 let step_id: String = step.try_get("id")?;
                 let previous: String = step.try_get("approver_user_id")?;
-                let item_author: String = sqlx::query_scalar(
-                    "SELECT created_by FROM legal_items WHERE id=$1",
-                )
-                .bind(&plan.item_id)
-                .fetch_one(&mut *self.connection)
-                .await?;
+                let item_author: String =
+                    sqlx::query_scalar("SELECT created_by FROM legal_items WHERE id=$1")
+                        .bind(&plan.item_id)
+                        .fetch_one(&mut *self.connection)
+                        .await?;
                 let eligible: bool = sqlx::query_scalar(
                     "SELECT legal_person_eligible($1,$2,NULL,NULL,'legal.approve') AND EXISTS(SELECT 1 FROM legal_members WHERE item_id=$3 AND user_id=$2)",
                 )
@@ -1198,7 +1258,11 @@ impl<'c> PgLegalRecords<'c> {
                 .bind(&plan.item_id)
                 .fetch_one(&mut *self.connection)
                 .await?;
-                if !eligible || self.same_person(approver_id, &item_author, &actor.company_id).await? {
+                if !eligible
+                    || self
+                        .same_person(approver_id, &item_author, &actor.company_id)
+                        .await?
+                {
                     return Err(BusinessError::new(
                         FailureKind::InvalidInput,
                         "LEGAL_REVIEWER_UNAVAILABLE",
@@ -1247,15 +1311,14 @@ impl<'c> PgLegalRecords<'c> {
                 return Ok(Some("approval".to_owned()));
             }
             LegalCommandEffect::AssignOwner { owner_id } => {
-                let eligible: bool = sqlx::query_scalar(
-                    "SELECT legal_person_eligible($1,$2,$3,$4,'legal.edit')",
-                )
-                .bind(actor.company_id.as_str())
-                .bind(owner_id)
-                .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
-                .bind(actor.department_id.as_ref().map(|value| value.as_str()))
-                .fetch_one(&mut *self.connection)
-                .await?;
+                let eligible: bool =
+                    sqlx::query_scalar("SELECT legal_person_eligible($1,$2,$3,$4,'legal.edit')")
+                        .bind(actor.company_id.as_str())
+                        .bind(owner_id)
+                        .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+                        .bind(actor.department_id.as_ref().map(|value| value.as_str()))
+                        .fetch_one(&mut *self.connection)
+                        .await?;
                 if !eligible {
                     return Err(BusinessError::new(
                         FailureKind::InvalidInput,
@@ -1264,15 +1327,14 @@ impl<'c> PgLegalRecords<'c> {
                     )
                     .into());
                 }
-                let changed = sqlx::query(
-                    "UPDATE legal_items SET owner_id=$1,updated_at=$2 WHERE id=$3",
-                )
-                .bind(owner_id)
-                .bind(self.now)
-                .bind(&plan.item_id)
-                .execute(&mut *self.connection)
-                .await?
-                .rows_affected();
+                let changed =
+                    sqlx::query("UPDATE legal_items SET owner_id=$1,updated_at=$2 WHERE id=$3")
+                        .bind(owner_id)
+                        .bind(self.now)
+                        .bind(&plan.item_id)
+                        .execute(&mut *self.connection)
+                        .await?
+                        .rows_affected();
                 if changed != 1 {
                     return Err(not_found().into());
                 }
@@ -1419,10 +1481,18 @@ impl<'c> PgLegalRecords<'c> {
                 .bind(actor.company_id.as_str())
                 .fetch_optional(&mut *self.connection)
                 .await?
-                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document belonging to this contract."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_DOCUMENT_REQUIRED",
+                        "Choose a document belonging to this contract.",
+                    )
+                })?;
                 let checksum: String = document.try_get("checksum")?;
                 let author: String = document.try_get("created_by")?;
-                if self.same_person(actor.user_id.as_str(), &author, &actor.company_id).await? {
+                if self
+                    .same_person(actor.user_id.as_str(), &author, &actor.company_id)
+                    .await?
+                {
                     return Err(BusinessError::new(
                         FailureKind::Forbidden,
                         "LEGAL_INDEPENDENT_REVIEW",
@@ -2071,13 +2141,10 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
                 .map(document)
                 .transpose()?
                 .ok_or_else(not_found)?;
-            let requires_provider = document.object_key.is_none()
-                && matches!(format, Some("pdf") | Some("docx"));
+            let requires_provider =
+                document.object_key.is_none() && matches!(format, Some("pdf") | Some("docx"));
             if !requires_provider {
-                let action = format!(
-                    "document.export.{}",
-                    format.unwrap_or("original")
-                );
+                let action = format!("document.export.{}", format.unwrap_or("original"));
                 let event_id = derived_id(
                     "legal-export",
                     &format!(

@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import "server-only";
@@ -37,11 +38,9 @@ function commandPorts(owner: PostgresDatabase, actor: { userId: string; sessionI
         save: async input => {
           const instant = Date.now();
           const row = input.expectedVersion === 0
-            ? await transaction.prepare(`INSERT INTO account_preferences(user_id,language,appearance,version,updated_at)
-                VALUES(?,?,?,1,?) ON CONFLICT(user_id) DO NOTHING RETURNING version`)
+            ? await nativePrepare("w_884158937ec5")
               .bind(actor.userId, input.language, input.appearance, instant).first()
-            : await transaction.prepare(`UPDATE account_preferences SET language=?,appearance=?,version=version+1,updated_at=?
-                WHERE user_id=? AND version=? RETURNING version`)
+            : await nativePrepare("w_3317045d0c3e")
               .bind(input.language, input.appearance, instant, actor.userId, input.expectedVersion).first();
           if (!row) throw new ApiError(409, "ACCOUNT_PREFERENCES_CHANGED", "Your account settings changed. Reload and review the current settings.");
           if (input.name !== input.expectedName) await transaction.prepare('UPDATE "user" SET name=?,"updatedAt"=? WHERE id=?')

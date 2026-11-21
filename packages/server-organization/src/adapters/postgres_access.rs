@@ -11,7 +11,7 @@ use crate::{
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
-use sqlx::{postgres::PgRow, Connection, PgConnection, Row};
+use sqlx::{Connection, PgConnection, Row, postgres::PgRow};
 
 type Error = PgTransactionError<BusinessError>;
 

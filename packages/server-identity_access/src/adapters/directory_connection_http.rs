@@ -18,10 +18,25 @@ pub type DirectoryConnectionHttpFuture<'a, T> =
 
 #[derive(Clone, Debug)]
 pub enum DirectoryConnectionHttpCommand {
-    Save { input: Value, idempotency_key: String },
-    Test { id: String, version: i64, idempotency_key: String },
-    Activate { id: String, version: i64, idempotency_key: String },
-    Disable { id: String, version: i64, idempotency_key: String },
+    Save {
+        input: Value,
+        idempotency_key: String,
+    },
+    Test {
+        id: String,
+        version: i64,
+        idempotency_key: String,
+    },
+    Activate {
+        id: String,
+        version: i64,
+        idempotency_key: String,
+    },
+    Disable {
+        id: String,
+        version: i64,
+        idempotency_key: String,
+    },
 }
 
 pub struct DirectoryConnectionHttpRequest<'a> {
@@ -177,21 +192,39 @@ fn plan(path: &[&str]) -> Option<Plan> {
         ["", "api", "v1", "holdings", slug, "iam", "connections"] if valid_slug(slug) => {
             RequestPlan::Save
         }
-        ["", "api", "v1", "holdings", slug, "iam", "connections", id, "test"]
-            if valid_slug(slug) && !id.is_empty() =>
-        {
-            RequestPlan::Test
-        }
-        ["", "api", "v1", "holdings", slug, "iam", "connections", id, "activate"]
-            if valid_slug(slug) && !id.is_empty() =>
-        {
-            RequestPlan::Activate
-        }
-        ["", "api", "v1", "holdings", slug, "iam", "connections", id, "disable"]
-            if valid_slug(slug) && !id.is_empty() =>
-        {
-            RequestPlan::Disable
-        }
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "iam",
+            "connections",
+            id,
+            "test",
+        ] if valid_slug(slug) && !id.is_empty() => RequestPlan::Test,
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "iam",
+            "connections",
+            id,
+            "activate",
+        ] if valid_slug(slug) && !id.is_empty() => RequestPlan::Activate,
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "iam",
+            "connections",
+            id,
+            "disable",
+        ] if valid_slug(slug) && !id.is_empty() => RequestPlan::Disable,
         _ => return None,
     };
     Some(Plan { command })
@@ -240,7 +273,10 @@ async fn handle(state: Arc<StateValue>, request: Request) -> Response {
     if origin != target.origin || !valid_origin(origin) {
         return bounded_error(origin_forbidden());
     }
-    let key = match unique_header(request.headers(), HeaderName::from_static("idempotency-key")) {
+    let key = match unique_header(
+        request.headers(),
+        HeaderName::from_static("idempotency-key"),
+    ) {
         Ok(Some(key)) if !key.is_empty() && key.len() <= 256 => key.to_owned(),
         _ => {
             return bounded_error(BusinessError::invalid(
@@ -355,7 +391,9 @@ pub fn directory_connection_http_router(
             return Err(configuration_invalid());
         }
     }
-    let state = Arc::new(StateValue { targets: registered });
+    let state = Arc::new(StateValue {
+        targets: registered,
+    });
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/iam/connections",

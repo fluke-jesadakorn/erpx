@@ -1,4 +1,4 @@
-import { nativePpPeopleTemplatesSql } from '@erpx/server-collaboration/adapters/native-pp-people_templates-sql';
+import { nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -23,10 +23,10 @@ function repository(client: PoolClient | Pool): PeopleTemplateRepository {
             return client.query<TemplateRow>("SELECT * FROM people_holding_templates WHERE id=$1 AND holding_id=$2 FOR UPDATE", [id, holdingId]);
         },
         updateTemplate(name: string, value: string, now: number, id: string) {
-            return client.query<TemplateRow>(nativePpPeopleTemplatesSql('pp_people_templates_stmt_1'), [name, value, now, id]);
+            return nativePpQuery<TemplateRow>('pp_people_templates_stmt_1', [name, value, now, id]);
         },
         insertTemplate(id: string, holdingId: string | null, name: string, value: string, userId: string, now: number) {
-            return client.query<TemplateRow>(nativePpPeopleTemplatesSql('pp_people_templates_stmt_2'), [
+            return nativePpQuery<TemplateRow>('pp_people_templates_stmt_2', [
                 id,
                 holdingId,
                 name,
@@ -47,10 +47,10 @@ function repository(client: PoolClient | Pool): PeopleTemplateRepository {
         upsertAttribute(...args) { return peopleTemplateAttributes(client as PoolClient).upsertAttribute(...args); },
         attributeHistory(...args) { return peopleTemplateAttributes(client as PoolClient).attributeHistory(...args); },
         updateSettings(companyId: string, value: string) {
-            return client.query<Record<string, unknown>>(nativePpPeopleTemplatesSql('pp_people_templates_stmt_3'), [companyId, value]);
+            return nativePpQuery<Record<string, unknown>>('pp_people_templates_stmt_3', [companyId, value]);
         },
         recordAdoption(companyId: string, id: unknown, version: unknown, value: string) {
-            return client.query<Record<string, unknown>>(nativePpPeopleTemplatesSql('pp_people_templates_stmt_4'), [companyId, id, version, value]);
+            return nativePpQuery<Record<string, unknown>>('pp_people_templates_stmt_4', [companyId, id, version, value]);
         } };
 }
 async function external<Result>(run: () => Promise<Result>) { try {

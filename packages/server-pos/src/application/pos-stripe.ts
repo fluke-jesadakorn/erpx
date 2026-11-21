@@ -104,7 +104,7 @@ export type PosStripeUnit = {
     writePmsStripePayments1(facts: {
         provider_created_at: string | number | true;
         counterId: string;
-    }): Promise<PosRows<Record<string, unknown>>>;
+    }): Promise<unknown>;
     readPmsBookingPayments1(facts: {
         bookingId: string;
         company_id: string | number | boolean | null;
@@ -114,7 +114,7 @@ export type PosStripeUnit = {
     writePmsBookingPayments1(facts: {
         provider_created_at: string | number | true;
         bookingId: string;
-    }): Promise<PosRows<Record<string, unknown>>>;
+    }): Promise<unknown>;
     readPosPayments5(facts: {
         pid: string;
         company_id: string | number | boolean | null;

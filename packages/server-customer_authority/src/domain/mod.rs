@@ -1,8 +1,9 @@
 pub mod access;
+pub(crate) mod customer_authority_wave3;
 pub mod duplicates;
 pub mod identity;
-pub mod portal_session;
+pub mod portal_enrollment;
 pub mod portal_invitation_delivery;
 pub mod portal_invitations;
-pub mod portal_enrollment;
+pub mod portal_session;
 pub(crate) mod portal_support_commands;

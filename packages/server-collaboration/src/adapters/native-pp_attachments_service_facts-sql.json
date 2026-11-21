@@ -1,9 +1,0 @@
-{
-  "pp_attachments_service_facts_stmt_1": "UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?",
-  "pp_attachments_service_facts_stmt_2": "UPDATE ${descriptor.table} SET version=version+1${[\"inventory_lots\", \"commerce_products\", \"marketing_campaigns\"].includes(descriptor.table) ? \"\" : \",updated_at=?\"} WHERE id=? AND version=?${descriptor.extra ? ",
-  "pp_attachments_leave_request": "UPDATE leave_requests SET version=version+1,evidence_version=evidence_version+1,updated_at=? WHERE id=? AND version=?",
-  "pp_attachments_dynamic_prefix": "UPDATE ",
-  "pp_attachments_dynamic_mid": " SET version=version+1",
-  "pp_attachments_dynamic_mid2": ",updated_at=?",
-  "pp_attachments_dynamic_suffix": " WHERE id=? AND version=?"
-}

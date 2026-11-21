@@ -666,18 +666,17 @@ impl<C: Clock + Send + Sync + 'static> LearningHttpBackend for LearningBackend<C
                 LearningHttpCommand::ConsumeBenefit {
                     input,
                     idempotency_key,
-                } => {
-                    self.service
-                        .consume_benefit(
-                            request.host,
-                            proof,
-                            move || Ok(selection),
-                            input,
-                            idempotency_key,
-                        )
-                        .await
-                        .map_err(business)
-                }
+                } => self
+                    .service
+                    .consume_benefit(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        input,
+                        idempotency_key,
+                    )
+                    .await
+                    .map_err(business),
                 LearningHttpCommand::CreateCourse {
                     input,
                     idempotency_key,

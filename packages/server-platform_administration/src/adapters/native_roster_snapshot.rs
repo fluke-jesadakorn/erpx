@@ -54,7 +54,8 @@ impl NativeRosterSnapshot {
         source: &str,
         manifest: &str,
     ) -> bool {
-        capture_native_roster_snapshot(directory, seal, run, source, manifest).as_ref() == Some(self)
+        capture_native_roster_snapshot(directory, seal, run, source, manifest).as_ref()
+            == Some(self)
     }
 }
 /// Attested, artifact-bound wrapper around the roster bytes. The exact seal,
@@ -102,11 +103,7 @@ fn private_roster_bytes(directory: &Path) -> Option<RosterFile> {
         sys::stat::Mode,
         unistd::getuid,
     };
-    use std::{
-        io::Read,
-        os::unix::fs::MetadataExt,
-        path::Component,
-    };
+    use std::{io::Read, os::unix::fs::MetadataExt, path::Component};
     // Resolve the caller's path once, then pin every component through directory
     // descriptors. A rename or symlink swap cannot redirect the final open
     // outside the validated chain.

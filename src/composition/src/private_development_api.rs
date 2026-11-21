@@ -1,6 +1,8 @@
 //! Explicit private development assembly. No environment discovery, migrations,
 //! public listener, installed service, business readiness or legacy backend proxy.
 use crate::runtime_database::RuntimeDatabase;
+#[cfg(feature = "files-scan-worker")]
+use crate::support_files::{SupportFilesBackend, SupportFilesService};
 #[cfg(feature = "finance-field-write")]
 use crate::{
     business_http::{BusinessHttpTarget, business_router},
@@ -37,12 +39,10 @@ use crate::{
     },
     inventory_reorder_commands::InventoryReorderCommand,
     inventory_transfer_commands::InventoryTransferCommand,
-    manufacturing_order_commands::ManufacturingOrderCommand,
-    manufacturing_order_http::{
-        ManufacturingOrderHttpTarget, manufacturing_order_http_router,
-    },
     inventory_transit_commands::InventoryTransitCommand,
     inventory_transit_http::{InventoryTransitHttpTarget, inventory_transit_http_router},
+    manufacturing_order_commands::ManufacturingOrderCommand,
+    manufacturing_order_http::{ManufacturingOrderHttpTarget, manufacturing_order_http_router},
     support_evidence_command::SupportEvidenceCommand,
     support_evidence_http::{SupportEvidenceHttpTarget, support_evidence_http_router},
     support_incident_command::SupportIncidentCommand,
@@ -56,8 +56,6 @@ use crate::{
     support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router},
     support_ticket_read::SupportTicketReadService,
 };
-#[cfg(feature = "files-scan-worker")]
-use crate::support_files::{SupportFilesBackend, SupportFilesService};
 #[cfg(feature = "finance-field-write")]
 use crate::{
     finance_journal_create::FinanceJournalCreateConfiguration as InvoicePostConfiguration,
@@ -237,7 +235,10 @@ struct DirectoryProvenanceKeyDocument {
 /// pair, so an unconfigured document keeps the previous surface exactly.
 #[cfg_attr(
     not(feature = "directory-ldaps"),
-    allow(dead_code, reason = "Decoded only to reject an unavailable feature in this build")
+    allow(
+        dead_code,
+        reason = "Decoded only to reject an unavailable feature in this build"
+    )
 )]
 struct DirectoryConfiguration {
     profiles: std::path::PathBuf,
@@ -1854,7 +1855,8 @@ impl DevelopmentApiConfiguration {
 struct CheckedAssembly {
     router: Router,
     #[cfg(feature = "files-scan-worker")]
-    files_workers: Arc<tokio::sync::Mutex<Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>>>,
+    files_workers:
+        Arc<tokio::sync::Mutex<Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>>>,
 }
 /// The assembled private API runtime. Development and production share the
 /// same owner routers; only the database binding and environment label differ.
@@ -1863,7 +1865,8 @@ pub struct DevelopmentApiRuntime {
     listen: SocketAddr,
     pools: Vec<DatabasePool>,
     #[cfg(feature = "files-scan-worker")]
-    files_workers: Arc<tokio::sync::Mutex<Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>>>,
+    files_workers:
+        Arc<tokio::sync::Mutex<Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>>>,
 }
 impl DevelopmentApiRuntime {
     pub fn router(&self) -> Router {
@@ -1874,7 +1877,12 @@ impl DevelopmentApiRuntime {
     }
     pub async fn close(self) {
         #[cfg(feature = "files-scan-worker")]
-        let workers = self.files_workers.lock().await.drain(..).collect::<Vec<_>>();
+        let workers = self
+            .files_workers
+            .lock()
+            .await
+            .drain(..)
+            .collect::<Vec<_>>();
         #[cfg(feature = "files-scan-worker")]
         for worker in workers {
             worker.close().await;
@@ -2140,6 +2148,79 @@ fn legal_enrollment_router(state: Arc<LegalEnrollmentState>) -> Router {
         .with_state(state)
 }
 
+/// Company-keyed executor for the native Collaboration owner-write routes.
+/// It opens one serializable Holding transaction per write and builds the owner
+/// statement there; the Company-to-pool binding comes from the same registered
+/// Holding set used by the sibling Collaboration routers.
+struct Wf1a7Executor {
+    pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+}
+
+impl crate::collaboration_wf1a7::OwnerWriteExecutor for Wf1a7Executor {
+    fn execute<'a>(
+        &'a self,
+        company_id: &'a str,
+        kind: &'a str,
+        values: &'a [serde_json::Value],
+        now: i64,
+        key: &'a str,
+        predicate: Option<&'a str>,
+        target: Option<&'a str>,
+    ) -> erpx_server_collaboration::public::wf1a7_http::OwnerWriteFuture<'a> {
+        use erpx_server_runtime::public::postgres::{
+            PgTransactionError, PgUnitOfWork, TransactionOptions,
+        };
+        let pool = self.pools.get(company_id).cloned();
+        let company_id = company_id.to_owned();
+        let kind = kind.to_owned();
+        let values = values.to_vec();
+        let key = key.to_owned();
+        let predicate = predicate.map(str::to_owned);
+        let target = target.map(str::to_owned);
+        Box::pin(async move {
+            let pool = pool.ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "COLLABORATION_UNAVAILABLE",
+                    "The native Collaboration service is unavailable.",
+                )
+            })?;
+            PgUnitOfWork::new(pool)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let company_id = company_id.clone();
+                    let kind = kind.clone();
+                    let values = values.clone();
+                    let key = key.clone();
+                    let predicate = predicate.clone();
+                    let target = target.clone();
+                    Box::pin(async move {
+                        crate::collaboration_wf1a7::execute_on_unit(
+                            connection,
+                            &company_id,
+                            &kind,
+                            values,
+                            now,
+                            &key,
+                            predicate.as_deref(),
+                            target.as_deref(),
+                        )
+                        .await
+                        .map_err(PgTransactionError::Business)
+                    })
+                })
+                .await
+                .map_err(|error| match error {
+                    PgTransactionError::Business(error) => error,
+                    PgTransactionError::Persistence(_) => BusinessError::new(
+                        FailureKind::Unavailable,
+                        "COLLABORATION_UNAVAILABLE",
+                        "The native Collaboration service is unavailable.",
+                    ),
+                })
+        })
+    }
+}
+
 pub async fn assemble_development_api(
     config: DevelopmentApiConfiguration,
     clock: Arc<dyn Clock + Send + Sync>,
@@ -2243,8 +2324,7 @@ async fn directory_routers(
 ) -> Result<Option<DirectoryRouters>, &'static str> {
     use erpx_server_identity_access::public::directory::{
         DirectoryAuthentication, DirectoryDatabaseBindings, DirectoryHoldingDatabase,
-        DirectoryProfileStore, LdapDirectoryProvider, PostgresDirectory,
-        directory_account_router,
+        DirectoryProfileStore, LdapDirectoryProvider, PostgresDirectory, directory_account_router,
         provenance::ProvenanceKeyRing,
     };
     let Some(configuration) = &config.directory else {
@@ -2293,9 +2373,8 @@ async fn directory_routers(
         )
         .map_err(|_| "PRIVATE_API_DIRECTORY_CONFIGURATION_INVALID")?,
     );
-    let provider: Arc<
-        dyn erpx_server_identity_access::public::directory::DirectoryProviderRead,
-    > = Arc::new(LdapDirectoryProvider::new(profiles, clock.clone()));
+    let provider: Arc<dyn erpx_server_identity_access::public::directory::DirectoryProviderRead> =
+        Arc::new(LdapDirectoryProvider::new(profiles, clock.clone()));
     let sign_in = directory_account_router(
         account,
         Arc::new(DirectoryAuthentication::new(
@@ -2809,7 +2888,7 @@ async fn assemble_checked(
     // Platform Administration has its own explicit Company binding. Its target
     // must not depend on a Finance journal read or another business scope.
     let mut platform_administration_targets = Vec::new();
-        let mut platform_projection_targets = Vec::new();
+    let mut platform_projection_targets = Vec::new();
     let mut platform_executive_targets = Vec::new();
     let mut platform_iam_targets = Vec::new();
     for (i, holding) in config.holdings.iter().enumerate() {
@@ -2963,11 +3042,13 @@ async fn assemble_checked(
                 Arc::new(SharedClock(clock.clone())),
             ),
         );
-        let backend = Arc::new(crate::executive_connections::ExecutiveConnectionsBackend::new(
-            config.policy.clone(),
-            Arc::new(FinanceJournalReadScopeHeaders),
-            service,
-        ));
+        let backend = Arc::new(
+            crate::executive_connections::ExecutiveConnectionsBackend::new(
+                config.policy.clone(),
+                Arc::new(FinanceJournalReadScopeHeaders),
+                service,
+            ),
+        );
         executive_connection_targets.push(
             crate::executive_connections::executive_connections_target(
                 holding.host.clone(),
@@ -3035,21 +3116,19 @@ async fn assemble_checked(
                 erpx_server_commercial::public::purchases::PackageGrantsHttpTarget {
                     host: holding.host.clone(),
                     origin: format!("https://{}", holding.host),
-                    backend: Arc::new(
-                        crate::commercial::CommercialPackageGrantsBackend::new(
-                            crate::commercial::CommercialPackageGrantsConfiguration::new(
-                                holding.host.clone(),
-                                holding.registration.holding_id.clone(),
-                                holding.registration.slug.clone(),
-                                pools[0].clone(),
-                                config.policy.clone(),
-                                config.holdings_registry.clone(),
-                                holdings.clone(),
-                                grants.signer.clone(),
-                                clock.clone(),
-                            ),
+                    backend: Arc::new(crate::commercial::CommercialPackageGrantsBackend::new(
+                        crate::commercial::CommercialPackageGrantsConfiguration::new(
+                            holding.host.clone(),
+                            holding.registration.holding_id.clone(),
+                            holding.registration.slug.clone(),
+                            pools[0].clone(),
+                            config.policy.clone(),
+                            config.holdings_registry.clone(),
+                            holdings.clone(),
+                            grants.signer.clone(),
+                            clock.clone(),
                         ),
-                    ),
+                    )),
                 },
             );
         }
@@ -3076,9 +3155,11 @@ async fn assemble_checked(
                 )
             })
             .collect();
-        if let Some(platform) = config.holdings.iter().find(|holding| {
-            matches!(holding.registration.holding_id.as_str(), "h003" | "erpx")
-        }) {
+        if let Some(platform) = config
+            .holdings
+            .iter()
+            .find(|holding| matches!(holding.registration.holding_id.as_str(), "h003" | "erpx"))
+        {
             if !holdings.is_empty() {
                 router = router.merge(
                     erpx_server_agent::public::gateway::ai_gateway_http_router(vec![
@@ -3148,6 +3229,17 @@ async fn assemble_checked(
         let mut billing_retry_targets = Vec::new();
         let mut billing_evidence_targets = Vec::new();
         let mut billing_rate_targets = Vec::new();
+        // Wave-1 native axum command routers.
+        let mut billing_access_event_targets = Vec::new();
+        let mut account_time_preference_targets = Vec::new();
+        let mut pms_import_targets = Vec::new();
+        let mut pos_day_close_targets = Vec::new();
+        let mut member_profile_targets = Vec::new();
+        let mut wf1a7_targets: Vec<(String, String, String)> = Vec::new();
+        let mut wf1a7_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
         let mut pos_targets = Vec::new();
         let mut pos_command_targets = Vec::new();
         let mut pos_workspace_targets = Vec::new();
@@ -3180,7 +3272,10 @@ async fn assemble_checked(
         let mut crm_activity_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut manage_erpx_command_targets = Vec::new();
-        let onboarding_holdings: BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool> = config
+        let onboarding_holdings: BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = config
             .holdings
             .iter()
             .enumerate()
@@ -3191,26 +3286,32 @@ async fn assemble_checked(
                 )
             })
             .collect();
-        let onboarding_resources: Vec<erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource> = config
+        let onboarding_resources: Vec<
+            erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource,
+        > = config
             .holdings
             .iter()
-            .map(|holding| erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource {
-                holding_id: holding.registration.holding_id.as_str().to_owned(),
-                write_binding: holding.registration.write_binding.clone(),
-                read_binding: holding.registration.read_binding.clone(),
-                files_binding: holding.registration.files_binding.clone(),
-                beta: true,
+            .map(|holding| {
+                erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource {
+                    holding_id: holding.registration.holding_id.as_str().to_owned(),
+                    write_binding: holding.registration.write_binding.clone(),
+                    read_binding: holding.registration.read_binding.clone(),
+                    files_binding: holding.registration.files_binding.clone(),
+                    beta: true,
+                }
             })
             .collect();
-        let onboarding_limits = erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandLimits {
-            members: onboarding_limit("BETA_MEMBER_LIMIT", 20),
-            branches: onboarding_limit("BETA_BRANCH_LIMIT", 5),
-            ai: onboarding_limit("BETA_AI_LIMIT", 100),
-            storage: onboarding_limit("BETA_STORAGE_BYTES", 1_073_741_824),
-        };
-        let onboarding_enabled = std::env::var("ERPX_PUBLIC_BETA").is_ok_and(|value| value == "true");
-        let onboarding_backend = Arc::new(
-            crate::manage_erpx::ManageErpxOnboardingCommandBackend::new(
+        let onboarding_limits =
+            erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandLimits {
+                members: onboarding_limit("BETA_MEMBER_LIMIT", 20),
+                branches: onboarding_limit("BETA_BRANCH_LIMIT", 5),
+                ai: onboarding_limit("BETA_AI_LIMIT", 100),
+                storage: onboarding_limit("BETA_STORAGE_BYTES", 1_073_741_824),
+            };
+        let onboarding_enabled =
+            std::env::var("ERPX_PUBLIC_BETA").is_ok_and(|value| value == "true");
+        let onboarding_backend =
+            Arc::new(crate::manage_erpx::ManageErpxOnboardingCommandBackend::new(
                 config.policy.clone(),
                 config.holdings_registry.clone(),
                 pools[0].clone(),
@@ -3219,8 +3320,7 @@ async fn assemble_checked(
                 onboarding_limits,
                 onboarding_enabled,
                 clock.clone(),
-            ),
-        );
+            ));
         let mut agent_evidence_targets = Vec::new();
         let mut records_context_targets = Vec::new();
         let mut records_details_targets = Vec::new();
@@ -3566,23 +3666,24 @@ async fn assemble_checked(
         // root already parsed for the Field Files providers. Parsing happens
         // once per assembly; absence keeps every attachment route fail-closed.
         #[cfg(feature = "files-scan-worker")]
-        let messaging_files_roots: BTreeMap<HoldingId, std::path::PathBuf> =
-            match config.field_files_providers.as_ref() {
-                Some(raw) => {
-                    let bytes = serde_json::to_vec(raw).map_err(|_| {
-                        "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID"
-                    })?;
-                    crate::field_files_runtime_configuration::parse_field_files_runtime_configuration(
-                        &bytes,
-                        &config.holdings_registry,
-                    )
-                    .map_err(|_| "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?
-                    .into_iter()
-                    .map(|target| (target.holding_id, target.files_root))
-                    .collect()
-                }
-                None => BTreeMap::new(),
-            };
+        let messaging_files_roots: BTreeMap<HoldingId, std::path::PathBuf> = match config
+            .field_files_providers
+            .as_ref()
+        {
+            Some(raw) => {
+                let bytes = serde_json::to_vec(raw)
+                    .map_err(|_| "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
+                crate::field_files_runtime_configuration::parse_field_files_runtime_configuration(
+                    &bytes,
+                    &config.holdings_registry,
+                )
+                .map_err(|_| "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?
+                .into_iter()
+                .map(|target| (target.holding_id, target.files_root))
+                .collect()
+            }
+            None => BTreeMap::new(),
+        };
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(companies) = config
                 .operations_companies
@@ -3807,19 +3908,17 @@ async fn assemble_checked(
                             origin: format!("https://{}", holding.host),
                             pool: pools[i + 1].clone(),
                             clock: Arc::new(SharedClock(clock.clone())),
-                            backend: Arc::new(
-                                crate::legal::LegalRetentionBackend::new(
-                                    config.policy.clone(),
-                                    Arc::new(FinanceJournalReadScopeHeaders),
-                                    authorizer.clone(),
-                                    crate::legal::LegalConfiguration::new(
-                                        holding.registration.holding_id.clone(),
-                                        holding.registration.slug.clone(),
-                                        company.clone(),
-                                    ),
-                                    Arc::new(SharedClock(clock.clone())),
+                            backend: Arc::new(crate::legal::LegalRetentionBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                authorizer.clone(),
+                                crate::legal::LegalConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    holding.registration.slug.clone(),
+                                    company.clone(),
                                 ),
-                            ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         },
                     );
                     legal_auxiliary_targets.push(
@@ -3830,25 +3929,24 @@ async fn assemble_checked(
                             backend: legal_backend.clone(),
                         },
                     );
-                    legal_targets.push(
-                        erpx_server_legal::public::legal_records::LegalHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::legal::LegalBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::legal::LegalService::new(
-                            authorizer.clone(),
-                            crate::legal::LegalConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                holding.registration.slug.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                    legal_targets.push(erpx_server_legal::public::legal_records::LegalHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::legal::LegalBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::legal::LegalService::new(
+                                authorizer.clone(),
+                                crate::legal::LegalConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    holding.registration.slug.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                });
+                    });
                 }
                 #[cfg(feature = "existing-business")]
                 {
@@ -3873,6 +3971,12 @@ async fn assemble_checked(
                     );
                     notification_statement_companies.push(company.clone());
                     notification_statement_holdings.push(holding.registration.holding_id.clone());
+                    wf1a7_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    wf1a7_targets.push((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                    ));
                     collaboration_work_targets.push(
                         erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpTarget {
                             host: holding.host.clone(),
@@ -3966,21 +4070,19 @@ async fn assemble_checked(
                             host: holding.host.clone(),
                             holding_slug: holding.registration.slug.clone(),
                             origin: format!("https://{}", holding.host),
-                            backend: Arc::new(
-                                crate::collaboration::MessagingBackend::new(
-                                    config.policy.clone(),
-                                    Arc::new(FinanceJournalReadScopeHeaders),
-                                    Arc::new(crate::collaboration::MessagingService::new(
-                                        authorizer.clone(),
-                                        crate::collaboration::SocialConfiguration::new(
-                                            holding.registration.holding_id.clone(),
-                                            company.clone(),
-                                        ),
-                                        pools[0].clone(),
-                                        Arc::new(SharedClock(clock.clone())),
-                                    )),
-                                ),
-                            ),
+                            backend: Arc::new(crate::collaboration::MessagingBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::collaboration::MessagingService::new(
+                                    authorizer.clone(),
+                                    crate::collaboration::SocialConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    pools[0].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            )),
                             files,
                         },
                     );
@@ -4046,21 +4148,19 @@ async fn assemble_checked(
                 {
                     let support_workspace_backend =
                         Arc::new(crate::support_workspace::SupportWorkspaceBackend::new(
-                            Arc::new(
-                                crate::support_workspace::SupportWorkspaceService::new(
-                                    config.policy.clone(),
-                                    Arc::new(FinanceJournalReadScopeHeaders),
-                                    authorizer.clone(),
-                                    crate::support_workspace::SupportWorkspaceConfiguration::new(
-                                        holding.registration.holding_id.clone(),
-                                        holding.registration.slug.clone(),
-                                        company.clone(),
-                                    ),
-                                    pools[0].clone(),
-                                    pools[i + 1].clone(),
-                                    Arc::new(SharedClock(clock.clone())),
+                            Arc::new(crate::support_workspace::SupportWorkspaceService::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                authorizer.clone(),
+                                crate::support_workspace::SupportWorkspaceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    holding.registration.slug.clone(),
+                                    company.clone(),
                                 ),
-                            ),
+                                pools[0].clone(),
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         ));
                     support_ticket_portal_targets.push(
                         erpx_server_support::public::ticket_portal_http::TicketPortalHttpTarget {
@@ -4087,19 +4187,18 @@ async fn assemble_checked(
                         },
                     );
                 }
-                let procurement_backend =
-                    Arc::new(crate::procurement::ProcurementBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::procurement::ProcurementService::new(
-                            authorizer.clone(),
-                            crate::procurement::ProcurementConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    ));
+                let procurement_backend = Arc::new(crate::procurement::ProcurementBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::procurement::ProcurementService::new(
+                        authorizer.clone(),
+                        crate::procurement::ProcurementConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
                 procurement_targets.push(
                     erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
                         host: holding.host.clone(),
@@ -4138,8 +4237,8 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                let identity_backend = Arc::new(
-                    crate::identity_access::IdentityAccessBackend::new(
+                let identity_backend =
+                    Arc::new(crate::identity_access::IdentityAccessBackend::new(
                         config.policy.clone(),
                         Arc::new(FinanceJournalReadScopeHeaders),
                         Arc::new(crate::identity_access::IdentityAccessService::new(
@@ -4150,8 +4249,7 @@ async fn assemble_checked(
                             ),
                             Arc::new(SharedClock(clock.clone())),
                         )),
-                    ),
-                );
+                    ));
                 iam_roles_targets.push(
                     erpx_server_identity_access::public::iam_roles_http::IamRolesReviewsHttpTarget {
                         host: holding.host.clone(),
@@ -4168,8 +4266,8 @@ async fn assemble_checked(
                         backend: identity_backend.clone(),
                     },
                 );
-                let position_gpo_backend = Arc::new(
-                    crate::identity_access::IdentityAccessBackend::new(
+                let position_gpo_backend =
+                    Arc::new(crate::identity_access::IdentityAccessBackend::new(
                         config.policy.clone(),
                         Arc::new(FinanceJournalReadScopeHeaders),
                         Arc::new(
@@ -4183,8 +4281,7 @@ async fn assemble_checked(
                             )
                             .with_control_pool(pools[0].clone()),
                         ),
-                    ),
-                );
+                    ));
                 position_gpo_targets.push(
                     erpx_server_identity_access::public::position_gpo_http::PositionGpoHttpTarget {
                         host: holding.host.clone(),
@@ -4412,24 +4509,20 @@ async fn assemble_checked(
                             holding.registration.holding_id.clone(),
                             company.clone(),
                         );
-                    organization_access_targets.push(
-                        crate::organization_access::access_target(
-                            holding.host.clone(),
-                            holding.registration.slug.clone(),
-                            format!("https://{}", holding.host),
-                            Arc::new(crate::organization_access::OrganizationAccessBackend::new(
-                                config.policy.clone(),
-                                Arc::new(FinanceJournalReadScopeHeaders),
-                                Arc::new(
-                                    crate::organization_access::OrganizationAccessService::new(
-                                        authorizer.clone(),
-                                        access_configuration.clone(),
-                                        Arc::new(SharedClock(clock.clone())),
-                                    ),
-                                ),
+                    organization_access_targets.push(crate::organization_access::access_target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        Arc::new(crate::organization_access::OrganizationAccessBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::organization_access::OrganizationAccessService::new(
+                                authorizer.clone(),
+                                access_configuration.clone(),
+                                Arc::new(SharedClock(clock.clone())),
                             )),
-                        ),
-                    );
+                        )),
+                    ));
                     position_move_targets.push(crate::organization_access::position_target(
                         holding.host.clone(),
                         holding.registration.slug.clone(),
@@ -4681,19 +4774,18 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                let planning_backend =
-                    Arc::new(crate::manufacturing::ManufacturingBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::manufacturing::ManufacturingService::new(
-                            authorizer.clone(),
-                            crate::manufacturing::ManufacturingConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    ));
+                let planning_backend = Arc::new(crate::manufacturing::ManufacturingBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::manufacturing::ManufacturingService::new(
+                        authorizer.clone(),
+                        crate::manufacturing::ManufacturingConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
                 planning_targets.push(
                     erpx_server_planning::public::planning_http::PlanningHttpTarget {
                         host: holding.host.clone(),
@@ -4965,6 +5057,85 @@ async fn assemble_checked(
                         backend: billing_backend.clone(),
                     },
                 );
+                billing_access_event_targets.push(
+                    erpx_server_billing::public::access_event_http::BillingAccessEventHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: billing_backend.clone(),
+                    },
+                );
+                account_time_preference_targets.push(
+                    erpx_server_identity_access::public::account_time_preference_http::AccountTimePreferenceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::account_time_preference_http::AccountTimePreferenceBackend::new(
+                                pools[0].clone(),
+                                "control",
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
+                let pms_import_backend = Arc::new(crate::pms_import_http::PmsImportBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::pms_import_http::PmsImportService::new(
+                        authorizer.clone(),
+                        crate::pms_import_http::PmsImportConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
+                pms_import_targets.push(erpx_server_pms::public::pms_import::PmsImportHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: pms_import_backend,
+                });
+                let day_close_backend = Arc::new(crate::pos_day_close_http::DayCloseBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::pos_day_close_http::DayCloseService::new(
+                        authorizer.clone(),
+                        crate::pos_day_close_http::DayCloseConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
+                pos_day_close_targets.push(
+                    erpx_server_pos::public::day_close_http::DayCloseHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: day_close_backend,
+                    },
+                );
+                member_profile_targets.push(
+                    erpx_server_organization::public::member_profile::MemberProfileCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::member_profile_http::MemberProfileBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::member_profile_http::MemberProfileService::new(
+                                authorizer.clone(),
+                                crate::member_profile_http::MemberProfileConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 billing_evidence_targets.push(
                     erpx_server_billing::public::target_evidence_http::BillingTargetEvidenceHttpTarget {
                         host: holding.host.clone(),
@@ -5085,14 +5256,16 @@ async fn assemble_checked(
                     Arc::new(crate::portal_support_commands::PortalSupportBackend::new(
                         config.policy.clone(),
                         Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::portal_support_commands::PortalSupportService::from_runtime(
-                            authorizer.clone(),
-                            crate::portal_support_commands::PortalSupportConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
+                        Arc::new(
+                            crate::portal_support_commands::PortalSupportService::from_runtime(
+                                authorizer.clone(),
+                                crate::portal_support_commands::PortalSupportConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
                             ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
+                        ),
                     )),
                 ));
                 #[cfg(feature = "existing-business")]
@@ -5956,6 +6129,44 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_BILLING_RATE_CONFIGURATION_INVALID")?,
             );
         }
+        if !billing_access_event_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::access_event_http::billing_access_event_router(
+                    billing_access_event_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BILLING_ACCESS_EVENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !account_time_preference_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::account_time_preference_http::account_time_preference_http_router(
+                    account_time_preference_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ACCOUNT_TIME_PREFERENCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pms_import_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pms::public::pms_import::pms_import_router(pms_import_targets)
+                    .map_err(|_| "PRIVATE_API_PMS_IMPORT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pos_day_close_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pos::public::day_close_http::pos_day_close_router(
+                    pos_day_close_targets,
+                )
+                .map_err(|_| "PRIVATE_API_POS_DAY_CLOSE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !member_profile_targets.is_empty() {
+            router = router.merge(
+                erpx_server_organization::public::member_profile::member_profile_command_router(
+                    member_profile_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MEMBER_PROFILE_CONFIGURATION_INVALID")?,
+            );
+        }
         if !pos_targets.is_empty() {
             router = router.merge(
                 erpx_server_pos::public::cash_movement_http::cash_movement_router(pos_targets)
@@ -6137,35 +6348,45 @@ async fn assemble_checked(
                 .iter()
                 .find(|product| product.audience == "account")
                 .map(|product| product.host.clone());
-            let secret = std::env::var("BETTER_AUTH_SECRET").ok().filter(|value| !value.is_empty());
+            let secret = std::env::var("BETTER_AUTH_SECRET")
+                .ok()
+                .filter(|value| !value.is_empty());
             if let (Some(host), Some(secret)) = (account_host, secret) {
                 let holdings: BTreeMap<String, DatabasePool> = config
                     .holdings
                     .iter()
                     .enumerate()
-                    .map(|(index, holding)| (holding.registration.slug.clone(), pools[index + 1].clone()))
+                    .map(|(index, holding)| {
+                        (holding.registration.slug.clone(), pools[index + 1].clone())
+                    })
                     .collect();
                 let mode = match std::env::var("ERPX_COMMERCE_PACKAGE_ENFORCEMENT")
                     .unwrap_or_else(|_| "disabled".to_owned())
                     .as_str()
                 {
-                    "shadow" => erpx_server_commercial::public::purchases::PackageEnforcementMode::Shadow,
+                    "shadow" => {
+                        erpx_server_commercial::public::purchases::PackageEnforcementMode::Shadow
+                    }
                     "enforced"
                         if std::env::var("ERPX_ENVIRONMENT").ok().as_deref() == Some("local") =>
                     {
                         erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced
                     }
-                    _ => erpx_server_commercial::public::purchases::PackageEnforcementMode::Disabled,
+                    _ => {
+                        erpx_server_commercial::public::purchases::PackageEnforcementMode::Disabled
+                    }
                 };
                 let service = Arc::new(crate::portal_enrollment::PortalEnrollmentService::new(
-                    Arc::new(crate::portal_enrollment::PortalEnrollmentConfiguration::new(
-                        pools[0].clone(),
-                        holdings,
-                        config.environment.clone(),
-                        secret,
-                        mode,
-                        std::env::var("NODE_ENV").ok().as_deref() == Some("production"),
-                    )),
+                    Arc::new(
+                        crate::portal_enrollment::PortalEnrollmentConfiguration::new(
+                            pools[0].clone(),
+                            holdings,
+                            config.environment.clone(),
+                            secret,
+                            mode,
+                            std::env::var("NODE_ENV").ok().as_deref() == Some("production"),
+                        ),
+                    ),
                     clock.clone(),
                 ));
                 router = router.merge(
@@ -6297,6 +6518,28 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_HOLDING_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
             );
+        }
+        if !wf1a7_targets.is_empty() || !wf1a7_company_pools.is_empty() {
+            let wf1a7_companies: Vec<String> = wf1a7_company_pools.keys().cloned().collect();
+            if !wf1a7_targets.is_empty() {
+                let executor = Arc::new(Wf1a7Executor {
+                    pools: wf1a7_company_pools.clone(),
+                });
+                router = router.merge(
+                    crate::collaboration_wf1a7::wf1a7_router(executor, wf1a7_targets).map_err(
+                        |_| "PRIVATE_API_COLLABORATION_OWNER_WRITE_CONFIGURATION_INVALID",
+                    )?,
+                );
+            }
+            if !wf1a7_companies.is_empty() {
+                let executor = Arc::new(Wf1a7Executor {
+                    pools: wf1a7_company_pools,
+                });
+                router = router.merge(
+                    crate::collaboration_wf1a7::wf1a7_company_router(executor, wf1a7_companies)
+                        .map_err(|_| "PRIVATE_API_COLLABORATION_OWNER_WRITE_COMPANY_CONFIGURATION_INVALID")?,
+                );
+            }
         }
         #[cfg(feature = "existing-business")]
         if !collaboration_inbox_targets.is_empty() {
@@ -7492,21 +7735,17 @@ async fn assemble_checked(
                         .find(|registered| registered.host == holding.host)
                         .map(|registered| registered.origin.clone())
                         .unwrap_or_else(|| format!("https://{}", holding.host)),
-                    backend: Arc::new(
-                        crate::native_work_snapshot::NativeWorkSnapshotBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(
-                                crate::native_work_snapshot::NativeWorkSnapshotService::new(
-                                    work_authorizer,
-                                    crate::native_work_snapshot::NativeWorkSnapshotConfiguration::new(
-                                        holding.registration.holding_id.clone(),
-                                    ),
-                                    Arc::new(SharedClock(clock.clone())),
-                                ),
+                    backend: Arc::new(crate::native_work_snapshot::NativeWorkSnapshotBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::native_work_snapshot::NativeWorkSnapshotService::new(
+                            work_authorizer,
+                            crate::native_work_snapshot::NativeWorkSnapshotConfiguration::new(
+                                holding.registration.holding_id.clone(),
                             ),
-                        ),
-                    ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
                 },
             );
             work_home_unread_targets.push(
@@ -10953,9 +11192,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice()
         {
-            ["", "api", "v1", "holdings", slug, "iam", "connections"]
-                if !slug.is_empty() =>
-            {
+            ["", "api", "v1", "holdings", slug, "iam", "connections"] if !slug.is_empty() => {
                 state.policy.audience(host).is_some()
             }
             [
@@ -11011,7 +11248,15 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ) if !order_id.is_empty() => state.policy.audience(host).is_some(),
         (
             &axum::http::Method::GET | &axum::http::Method::POST,
-            ["", "api", "v1", "holdings", _, "supplier-promises", order_id],
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                _,
+                "supplier-promises",
+                order_id,
+            ],
         ) if !order_id.is_empty() => state.policy.audience(host).is_some(),
         _ => false,
     };
@@ -11554,8 +11799,7 @@ pub async fn run_position_move_worker_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), &'static str> {
-    let config =
-        DevelopmentApiConfiguration::read_configuration_file(path, Profile::Development)?;
+    let config = DevelopmentApiConfiguration::read_configuration_file(path, Profile::Development)?;
     if config.holdings.is_empty() {
         return Err("POSITION_MOVE_WORKER_TARGET_REQUIRED");
     }
@@ -11991,9 +12235,9 @@ async fn run_position_move_supervisor(
             )
             .await
             {
-                Ok(processed) if processed > 0 => eprintln!(
-                    "{{\"event\":\"position_move_drain\",\"processed\":{processed}}}"
-                ),
+                Ok(processed) if processed > 0 => {
+                    eprintln!("{{\"event\":\"position_move_drain\",\"processed\":{processed}}}")
+                }
                 Ok(_) => {}
                 Err(error) => eprintln!(
                     "{{\"event\":\"position_move_drain_failed\",\"code\":\"{}\"}}",
@@ -12057,7 +12301,10 @@ pub(crate) async fn run_workflow_projection_worker_with_profile(
             let proof = crate::workflow_projection_worker::attest_projection_holding(
                 &pool,
                 id,
-                holding.database.durable_identity().map(|(database, _)| database.as_str()),
+                holding
+                    .database
+                    .durable_identity()
+                    .map(|(database, _)| database.as_str()),
                 &write_files,
             )
             .await?;
@@ -12070,9 +12317,7 @@ pub(crate) async fn run_workflow_projection_worker_with_profile(
         )
         .await?;
         crate::workflow_projection_worker::run_workflow_projection_supervisor(
-            holdings,
-            clock,
-            shutdown,
+            holdings, clock, shutdown,
         )
         .await
     }
@@ -12352,8 +12597,7 @@ mod control_read_configuration_tests {
 
     #[test]
     fn control_read_must_not_alias_the_control_database() {
-        let control =
-            database("postgresql://erpx_dev_control_app@127.0.0.1:5432/erpx_dev_control");
+        let control = database("postgresql://erpx_dev_control_app@127.0.0.1:5432/erpx_dev_control");
         assert!(!control_read_aliases_control(&control, None));
         assert!(control_read_aliases_control(
             &control,
@@ -12373,9 +12617,7 @@ mod directory_configuration_tests {
     use super::DevelopmentApiConfiguration;
 
     fn document() -> serde_json::Value {
-        let database = |token: &str| {
-            serde_json::json!({"url":format!("postgres://erpx_test_admin:synthetic@127.0.0.1:5432/erpx_dev_rust_{token}"),"leaseToken":token})
-        };
+        let database = |token: &str| serde_json::json!({"url":format!("postgres://erpx_test_admin:synthetic@127.0.0.1:5432/erpx_dev_rust_{token}"),"leaseToken":token});
         serde_json::json!({
             "version":1,"mode":"development","transport":"direct-loopback",
             "listen":"127.0.0.1:43117","accountHost":"account.example.test",
@@ -12415,8 +12657,14 @@ mod directory_configuration_tests {
     fn an_explicit_absolute_profile_and_provenance_ring_configure_the_router() {
         let parsed = DevelopmentApiConfiguration::parse(&configured().to_string()).unwrap();
         let directory = parsed.directory.expect("directory configuration");
-        assert_eq!(directory.profiles, std::path::Path::new("/run/erpx/directory-profiles.json"));
-        assert_eq!(directory.provenance_keys, vec![("current".to_owned(), [7u8; 32])]);
+        assert_eq!(
+            directory.profiles,
+            std::path::Path::new("/run/erpx/directory-profiles.json")
+        );
+        assert_eq!(
+            directory.provenance_keys,
+            vec![("current".to_owned(), [7u8; 32])]
+        );
     }
 
     #[cfg(not(feature = "directory-ldaps"))]

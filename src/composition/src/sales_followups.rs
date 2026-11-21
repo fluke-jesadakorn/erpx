@@ -94,7 +94,10 @@ fn actor(current: &AuthorizedWorkContext) -> Result<FollowupActor, BusinessError
     Ok(FollowupActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|id| id.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()

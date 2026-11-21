@@ -77,7 +77,10 @@ pub async fn allocate_payment(
     serializable(c).await?;
     let amount = service_receipt_amount(&input.amount)?;
     if amount <= 0 || input.expected_version <= 0 || input.invoice_id.is_empty() {
-        return Err(invalid("INVALID_ALLOCATION", "Allocation must be positive."));
+        return Err(invalid(
+            "INVALID_ALLOCATION",
+            "Allocation must be positive.",
+        ));
     }
     let reserved: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=$1 \
@@ -199,20 +202,18 @@ pub async fn allocate_payment(
             "The invoice balance changed before the allocation committed.",
         ));
     }
-    let payment_version: i64 = sqlx::query_scalar(
-        "SELECT version FROM finance_payments WHERE id=$1 AND company_id=$2",
-    )
-    .bind(payment_id)
-    .bind(actor.company_id.as_str())
-    .fetch_one(&mut *c)
-    .await?;
-    let invoice_version: i64 = sqlx::query_scalar(
-        "SELECT version FROM finance_invoices WHERE id=$1 AND company_id=$2",
-    )
-    .bind(&input.invoice_id)
-    .bind(actor.company_id.as_str())
-    .fetch_one(&mut *c)
-    .await?;
+    let payment_version: i64 =
+        sqlx::query_scalar("SELECT version FROM finance_payments WHERE id=$1 AND company_id=$2")
+            .bind(payment_id)
+            .bind(actor.company_id.as_str())
+            .fetch_one(&mut *c)
+            .await?;
+    let invoice_version: i64 =
+        sqlx::query_scalar("SELECT version FROM finance_invoices WHERE id=$1 AND company_id=$2")
+            .bind(&input.invoice_id)
+            .bind(actor.company_id.as_str())
+            .fetch_one(&mut *c)
+            .await?;
     let allocated = crate::domain::money::units_to_decimal(&amount.into(), 2)
         .map_err(|_| invalid("MONEY_OVERFLOW", "Money exceeds supported precision."))?;
     Ok(json!({

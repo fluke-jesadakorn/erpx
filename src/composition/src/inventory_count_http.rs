@@ -149,11 +149,21 @@ async fn run_transition<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let action = match action.as_str() {
-            "submit" => erpx_server_inventory::public::service_initial_physical_count::CountAction::Submit,
-            "approve" => erpx_server_inventory::public::service_initial_physical_count::CountAction::Approve,
-            "post" => erpx_server_inventory::public::service_initial_physical_count::CountAction::Post,
-            "reject" => erpx_server_inventory::public::service_initial_physical_count::CountAction::Reject,
-            "cancel" => erpx_server_inventory::public::service_initial_physical_count::CountAction::Cancel,
+            "submit" => {
+                erpx_server_inventory::public::service_initial_physical_count::CountAction::Submit
+            }
+            "approve" => {
+                erpx_server_inventory::public::service_initial_physical_count::CountAction::Approve
+            }
+            "post" => {
+                erpx_server_inventory::public::service_initial_physical_count::CountAction::Post
+            }
+            "reject" => {
+                erpx_server_inventory::public::service_initial_physical_count::CountAction::Reject
+            }
+            "cancel" => {
+                erpx_server_inventory::public::service_initial_physical_count::CountAction::Cancel
+            }
             _ => return Err(not_found()),
         };
         let host = headers

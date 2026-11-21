@@ -1,5 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
-import { nativeAssetPolicySql } from '@erpx/server-collaboration/adapters/native-asset-policy-sql';
+import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { assetPolicyRunSchema } from '@erpx/server-finance/domain/due-inputs';
 import "server-only";
 import { z } from "zod";
@@ -97,24 +97,18 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .prepare("SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'")
                 .bind(id)
                 .first();
-        }, preparePolicy(id: string, companyId: string, assetId: string, value: string | number | null, value2: string, hash: string, userId: string, reason: string, now: number, now2: number, value3: string) {
+        }, async preparePolicy(id: string, companyId: string, assetId: string, value: string | number | null, value2: string, hash: string, userId: string, reason: string, now: number, now2: number, value3: string) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('prepare_policy_edition'))
-                .bind(id, companyId, assetId, value, value2, hash, userId, reason, now, now2, value3);
-        }, supersedePolicy(now: number, id: string | number | null) {
+            return await nativeFinanceOwnerWriteSystem(db, companyId, 'prepare_policy_edition', [id, companyId, assetId, value, value2, hash, userId, reason, now, now2, value3]);
+        }, async supersedePolicy(now: number, id: string | number | null) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('supersede_policy_edition'))
-                .bind(now, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'supersede_policy_edition', [now, id]);
         }, guardPolicyVersion(key: string, value: "asset-policy-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_asset_policy_editions WHERE id=? AND company_id=? AND version=? AND status='draft')", [id, companyId, expectedVersion]);
-        }, decidePolicy(value: "active" | "rejected", userId: string, now: number, id: string) {
+        }, async decidePolicy(value: "active" | "rejected", userId: string, now: number, id: string) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('decide_policy_edition'))
-                .bind(value, userId, now, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_policy_edition', [value, userId, now, id]);
         }, async openPeriod(periodId: string, companyId: string, entryDate: string, entryDate2: string) {
             const db = read();
             return db
@@ -127,40 +121,30 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .prepare("SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?")
                 .bind(id)
                 .first<number>("n");
-        }, prepareRun(runId: string, companyId: string, id: string | number | null, id2: string, ordinal: number, entryDate: string, value: string, value2: string, hash: string, userId: string, reason: string, now: number, now2: number) {
+        }, async prepareRun(runId: string, companyId: string, id: string | number | null, id2: string, ordinal: number, entryDate: string, value: string, value2: string, hash: string, userId: string, reason: string, now: number, now2: number) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('prepare_policy_run'))
-                .bind(runId, companyId, id, id2, ordinal, entryDate, value, value2, hash, userId, reason, now, now2);
+            return await nativeFinanceOwnerWriteSystem(db, companyId, 'prepare_policy_run', [runId, companyId, id, id2, ordinal, entryDate, value, value2, hash, userId, reason, now, now2]);
         }, async run(id: string, companyId: string) {
             const db = read();
             return db
                 .prepare("SELECT * FROM finance_asset_policy_runs WHERE id=? AND company_id=?")
                 .bind(id, companyId)
                 .first<Row>();
-        }, updateAssetCarrying(value: string, now: number, id: string | number | null) {
+        }, async updateAssetCarrying(value: string, now: number, id: string | number | null) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('update_asset_carrying'))
-                .bind(value, now, id);
-        }, updatePolicyVersion(now: number, id: string | number | null) {
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'update_asset_carrying', [value, now, id]);
+        }, async updatePolicyVersion(now: number, id: string | number | null) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('bump_policy_edition'))
-                .bind(now, id);
-        }, assetEvent(value: string, id: string | number | null, companyId: string, value2: number, key: string, value3: string, userId: string, now: number) {
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'bump_policy_edition', [now, id]);
+        }, async assetEvent(value: string, id: string | number | null, companyId: string, value2: number, key: string, value3: string, userId: string, now: number) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('asset_depreciation_event'))
-                .bind(value, id, companyId, value2, key, value3, userId, now);
+            return await nativeFinanceOwnerWriteSystem(db, companyId, 'asset_depreciation_event', [value, id, companyId, value2, key, value3, userId, now]);
         }, guardRunVersion(key: string, value: "asset-policy-run-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_asset_policy_runs WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, companyId, expectedVersion]);
-        }, decideRun(value: "posted" | "rejected", userId: string, value2: string, now: number, id: string) {
+        }, async decideRun(value: "posted" | "rejected", userId: string, value2: string, now: number, id: string) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('decide_policy_run'))
-                .bind(value, userId, value2, now, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_policy_run', [value, userId, value2, now, id]);
         }, async laterRuns(id: string | number | null, ordinal: string | number | null) {
             const db = read();
             return db
@@ -173,21 +157,15 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .prepare("SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'")
                 .bind(id)
                 .first();
-        }, reverseAssetCarrying(value: string, now: number, id: string | number | null) {
+        }, async reverseAssetCarrying(value: string, now: number, id: string | number | null) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('reverse_asset_carrying'))
-                .bind(value, now, id);
-        }, reversePolicyVersion(now: number, id: string | number | null) {
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'reverse_asset_carrying', [value, now, id]);
+        }, async reversePolicyVersion(now: number, id: string | number | null) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('reverse_policy_version'))
-                .bind(now, id);
-        }, reverseRun(value: string, entryDate: string, now: number, id: string) {
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'reverse_policy_version', [now, id]);
+        }, async reverseRun(value: string, entryDate: string, now: number, id: string) {
             const db = read();
-            return db
-                .prepare(nativeAssetPolicySql('reverse_policy_run'))
-                .bind(value, entryDate, now, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'reverse_policy_run', [value, entryDate, now, id]);
         }, async workspacePolicies(companyId: string) {
             const db = read();
             return db

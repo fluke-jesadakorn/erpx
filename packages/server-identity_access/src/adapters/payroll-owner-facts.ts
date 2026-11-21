@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {stagePayrollAdvanceNotification,stagePayrollCorrectionNotification} from "@erpx/server-collaboration/adapters/native-payroll-notification";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -5,7 +6,7 @@ const peoplepayrollSources=peoplepayrollSnapshotSources();
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export function payrollIdentityFacts(database: SqlDatabase, actor?: WorkContext) {
-    return { stageTransitionEngagementEffect3(now: number, user_id: string, companyId: string, person_id: string) { return database.prepare(`UPDATE assignments SET revoked_at=?,version=version+1 WHERE user_id=? AND company_id=? AND revoked_at IS NULL AND NOT EXISTS(SELECT 1 ${peoplepayrollSources.payroll_owner_facts_hr_engagements_from} WHERE person_id=? AND status='active')`).bind(now, user_id, companyId, person_id); },
+    return { stageTransitionEngagementEffect3(now: number, user_id: string, companyId: string, person_id: string) { return nativePrepare("w_owner_revoke_engagement").bind(now, user_id, companyId, person_id); },
         async stageRequestPayrollAdvanceEffect3(id:string,companyId:string,id2:string,now:number,companyId2:string,now2:number,userId:string) {if(!actor)throw new Error("PAYROLL_NOTICE_ACTOR_REQUIRED");return stagePayrollAdvanceNotification(database,actor,id,now);},
         readPayrollAdvanceAlertTargetEffect(advanceId: string, companyId: string, userId: string, userId2: string, now: number) {
             return database.prepare(`SELECT a.id ${peoplepayrollSources.payroll_owner_facts_hr_payroll_advances_a_from} ${peoplepayrollSources.payroll_owner_facts_hr_people_p_join} ON p.id=a.person_id

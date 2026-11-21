@@ -759,15 +759,8 @@ pub async fn publish_handover(
     request: Request,
 ) -> Response {
     let headers = request.headers().clone();
-    let prepared = prepare_command(
-        state,
-        slug,
-        request,
-        "social.handover.publish",
-        None,
-        None,
-    )
-    .await;
+    let prepared =
+        prepare_command(state, slug, request, "social.handover.publish", None, None).await;
     command_response(prepared, headers).await
 }
 

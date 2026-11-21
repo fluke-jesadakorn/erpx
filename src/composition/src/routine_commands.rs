@@ -4,39 +4,6 @@
 //! supplies the current Account/IAM selection and the People, Projects,
 //! Organization and Identity facts the retained routine validation consumes.
 use crate::business_http::BusinessScopeSlugs;
-use erpx_server_identity_access::public::{
-    AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
-    effective_authority::{
-        AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest,
-    },
-    routine_owner::company_owner,
-    work_context::HoldingWorkspaceRequest,
-};
-use erpx_server_operations::public::routine_commands::{
-    PgRoutineCommands, PgRoutineSources, RoutineAuthority, RoutineCapture, RoutineCommandRepository,
-    RoutineFuture, RunRoutineTemplateCommand, change_schedule_state,
-    end_schedule, fingerprint_json, lock_routine_sources, run_template, run_template_source,
-    save_schedule, save_template,
-};
-use erpx_server_operations::public::routine_occurrences::{
-    OccurrenceOutcome, OccurrencePass, OccurrencePolicy, OccurrenceSourceFacts,
-    RoutineExecutionAuthorization, RoutineOccurrenceFuture, RoutineOccurrenceUnit as OccurrenceUnit,
-    authorization as occurrence_authorization, generate_due_occurrences as generate_occurrences,
-    lock_occurrence_sources, occurrence_image, plan_occurrence, production_enabled,
-    production_forbidden, require_authorization_source, require_current_authority,
-    require_lineage, source as occurrence_source, source_changed, stage_occurrence,
-};
-use erpx_server_operations::public::routine_commands_http::{
-    RoutineHttpBackend, RoutineHttpCommand, RoutineHttpCommandRequest, RoutineHttpFuture,
-    RoutineHttpResponse,
-};
-use erpx_server_operations::public::staff_tasks::{
-    PgStaffTaskSources, PgStaffTasks, ProjectFact, RouteFact, RoutineTaskWrite, SaveTaskCommand,
-    SaveTaskMode, StaffFact, StaffTaskActor, StaffTaskFactDelegates, StaffTaskFuture,
-    StaffTaskRepository, StaffTaskSources, TaskRow, TaskScope, lock_staff_task_sources,
-    notify_staff_task_approval, save_task_mode,
-};
 use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
 use erpx_server_commercial::public::purchase_command_boundary::{
     PurchaseCommandBoundary, PurchaseCommandScope, lock_company_purchase_read_sources,
@@ -44,8 +11,37 @@ use erpx_server_commercial::public::purchase_command_boundary::{
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, current_package_catalogue,
 };
-use erpx_server_workflow::public::staff_approval::{
-    OpenStaffApproval, StaffApprovalStep, open_staff_approval,
+use erpx_server_identity_access::public::{
+    AccountPolicy, DeviceProof, RequestAudience,
+    account_inbound_http::parse_inbound_account_request,
+    effective_authority::{AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest},
+    routine_owner::company_owner,
+    work_context::HoldingWorkspaceRequest,
+};
+use erpx_server_operations::public::routine_commands::{
+    PgRoutineCommands, PgRoutineSources, RoutineAuthority, RoutineCapture,
+    RoutineCommandRepository, RoutineFuture, RunRoutineTemplateCommand, change_schedule_state,
+    end_schedule, fingerprint_json, lock_routine_sources, run_template, run_template_source,
+    save_schedule, save_template,
+};
+use erpx_server_operations::public::routine_commands_http::{
+    RoutineHttpBackend, RoutineHttpCommand, RoutineHttpCommandRequest, RoutineHttpFuture,
+    RoutineHttpResponse,
+};
+use erpx_server_operations::public::routine_occurrences::{
+    OccurrenceOutcome, OccurrencePass, OccurrencePolicy, OccurrenceSourceFacts,
+    RoutineExecutionAuthorization, RoutineOccurrenceFuture,
+    RoutineOccurrenceUnit as OccurrenceUnit, authorization as occurrence_authorization,
+    generate_due_occurrences as generate_occurrences, lock_occurrence_sources, occurrence_image,
+    plan_occurrence, production_enabled, production_forbidden, require_authorization_source,
+    require_current_authority, require_lineage, source as occurrence_source, source_changed,
+    stage_occurrence,
+};
+use erpx_server_operations::public::staff_tasks::{
+    PgStaffTaskSources, PgStaffTasks, ProjectFact, RouteFact, RoutineTaskWrite, SaveTaskCommand,
+    SaveTaskMode, StaffFact, StaffTaskActor, StaffTaskFactDelegates, StaffTaskFuture,
+    StaffTaskRepository, StaffTaskSources, TaskRow, TaskScope, lock_staff_task_sources,
+    notify_staff_task_approval, save_task_mode,
 };
 use erpx_server_organization::public::staff_department_route::{
     DepartmentPersonFact, staff_department_route,
@@ -56,6 +52,9 @@ use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
+use erpx_server_workflow::public::staff_approval::{
+    OpenStaffApproval, StaffApprovalStep, open_staff_approval,
 };
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -85,20 +84,27 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     }
 }
 
-fn actor(current: &AuthorizedWorkContext) -> Result<erpx_server_operations::public::staff_tasks::StaffTaskActor, BusinessError> {
+fn actor(
+    current: &AuthorizedWorkContext,
+) -> Result<erpx_server_operations::public::staff_tasks::StaffTaskActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
-    Ok(erpx_server_operations::public::staff_tasks::StaffTaskActor {
-        user_id: current.user_id().as_str().to_owned(),
-        assignment_id: assignment.id.as_str().to_owned(),
-        company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|v| v.as_str().to_owned()),
-        department_id: workspace.department_id.as_ref().map(|v| v.as_str().to_owned()),
-        permissions: current.command_iam_metadata().permissions.clone(),
-        modules: current.modules().to_vec(),
-        expires_at: current.expires_at(),
-    })
+    Ok(
+        erpx_server_operations::public::staff_tasks::StaffTaskActor {
+            user_id: current.user_id().as_str().to_owned(),
+            assignment_id: assignment.id.as_str().to_owned(),
+            company_id: workspace.company_id.as_str().to_owned(),
+            branch_id: workspace.branch_id.as_ref().map(|v| v.as_str().to_owned()),
+            department_id: workspace
+                .department_id
+                .as_ref()
+                .map(|v| v.as_str().to_owned()),
+            permissions: current.command_iam_metadata().permissions.clone(),
+            modules: current.modules().to_vec(),
+            expires_at: current.expires_at(),
+        },
+    )
 }
 
 fn context(current: &AuthorizedWorkContext) -> serde_json::Value {
@@ -145,15 +151,19 @@ impl erpx_server_operations::public::routine_commands::RoutineFactDelegates for 
         unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         user_id: &'a str,
-    ) -> RoutineFuture<'a, Option<erpx_server_operations::public::staff_tasks::StaffFact>, BusinessError> {
+    ) -> RoutineFuture<
+        'a,
+        Option<erpx_server_operations::public::staff_tasks::StaffFact>,
+        BusinessError,
+    > {
         Box::pin(async move {
             let c = unit.ok_or_else(unavailable)?;
-            Ok(active_staff(c, company_id, user_id)
-                .await?
-                .map(|fact| erpx_server_operations::public::staff_tasks::StaffFact {
+            Ok(active_staff(c, company_id, user_id).await?.map(|fact| {
+                erpx_server_operations::public::staff_tasks::StaffFact {
                     branch_id: fact.branch_id,
                     department_id: fact.department_id,
-                }))
+                }
+            }))
         })
     }
 
@@ -162,15 +172,19 @@ impl erpx_server_operations::public::routine_commands::RoutineFactDelegates for 
         unit: Option<&'a mut PgConnection>,
         company_id: &'a str,
         project_id: &'a str,
-    ) -> RoutineFuture<'a, Option<erpx_server_operations::public::staff_tasks::ProjectFact>, BusinessError> {
+    ) -> RoutineFuture<
+        'a,
+        Option<erpx_server_operations::public::staff_tasks::ProjectFact>,
+        BusinessError,
+    > {
         Box::pin(async move {
             let c = unit.ok_or_else(unavailable)?;
-            Ok(staff_project(c, company_id, project_id)
-                .await?
-                .map(|fact| erpx_server_operations::public::staff_tasks::ProjectFact {
+            Ok(staff_project(c, company_id, project_id).await?.map(|fact| {
+                erpx_server_operations::public::staff_tasks::ProjectFact {
                     owner_user_id: fact.owner_user_id,
                     title: fact.title,
-                }))
+                }
+            }))
         })
     }
 
@@ -183,11 +197,16 @@ impl erpx_server_operations::public::routine_commands::RoutineFactDelegates for 
         phase: &'a str,
         approvers: &'a [String],
         service_task: bool,
-    ) -> RoutineFuture<'a, erpx_server_operations::public::staff_tasks::RouteFact, BusinessError> {
+    ) -> RoutineFuture<'a, erpx_server_operations::public::staff_tasks::RouteFact, BusinessError>
+    {
         Box::pin(async move {
             let c = unit.ok_or_else(unavailable)?;
             if approvers.len() > 20
-                || approvers.iter().collect::<std::collections::BTreeSet<_>>().len() != approvers.len()
+                || approvers
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    != approvers.len()
             {
                 return Ok(erpx_server_operations::public::staff_tasks::RouteFact {
                     blocked_reason: Some(
@@ -195,7 +214,10 @@ impl erpx_server_operations::public::routine_commands::RoutineFactDelegates for 
                     ),
                 });
             }
-            if active_staff(c, &scope.company_id, assignee_user_id).await?.is_none() {
+            if active_staff(c, &scope.company_id, assignee_user_id)
+                .await?
+                .is_none()
+            {
                 return Ok(erpx_server_operations::public::staff_tasks::RouteFact {
                     blocked_reason: Some("Choose a current active staff member.".into()),
                 });
@@ -287,9 +309,7 @@ async fn compute_run_route(
     approvers: &[String],
 ) -> Result<RunRoute, BusinessError> {
     use std::collections::BTreeSet;
-    if approvers.len() > 20
-        || approvers.iter().collect::<BTreeSet<_>>().len() != approvers.len()
-    {
+    if approvers.len() > 20 || approvers.iter().collect::<BTreeSet<_>>().len() != approvers.len() {
         return Ok(run_blocked(
             "Choose up to twenty different ordered approvers per phase.",
         ));
@@ -314,9 +334,7 @@ async fn compute_run_route(
         }
     }
     let mut steps = Vec::new();
-    if !approvers.is_empty()
-        && creator_user_id == assignee_user_id
-        && scope.department_id.is_some()
+    if !approvers.is_empty() && creator_user_id == assignee_user_id && scope.department_id.is_some()
     {
         let people = staff_people(connection, &scope.company_id).await?;
         let facts: Vec<DepartmentPersonFact> = people
@@ -538,9 +556,7 @@ impl StaffTaskFactDelegates for RoutineRunTaskSources {
 /// Retained development package switch for the manual routine run. Invalid
 /// values and non-local enforcement fail closed; disabled keeps the command
 /// path unguarded exactly like the retired TypeScript wrapper.
-fn routine_purchase_mode(
-    name: &'static str,
-) -> Result<PackageEnforcementMode, BusinessError> {
+fn routine_purchase_mode(name: &'static str) -> Result<PackageEnforcementMode, BusinessError> {
     let raw = std::env::var(name).unwrap_or_else(|_| "disabled".to_owned());
     let mode = match raw.as_str() {
         "disabled" => PackageEnforcementMode::Disabled,
@@ -695,9 +711,7 @@ fn purchased_capability_sql(
 /// Retained queued selection scope for one Holding. In development or disabled
 /// package mode the scheduler keeps `TRUE`; enforced mode filters invalid
 /// authority, staff, Project membership, purchase and release before LIMIT.
-pub(crate) fn occurrence_policy(
-    production: bool,
-) -> Result<OccurrencePolicy, BusinessError> {
+pub(crate) fn occurrence_policy(production: bool) -> Result<OccurrencePolicy, BusinessError> {
     let apps_mode = routine_purchase_mode("ERPX_APPS_PACKAGE_ENFORCEMENT")?;
     if apps_mode != PackageEnforcementMode::Enforced {
         return Ok(OccurrencePolicy {
@@ -723,16 +737,12 @@ pub(crate) fn occurrence_policy(
     );
     let apps = ["work.actions", "work.advanced-routines"]
         .iter()
-        .map(|capability| {
-            purchased_capability_sql(&catalogue, "t.company_id", capability, now)
-        })
+        .map(|capability| purchased_capability_sql(&catalogue, "t.company_id", capability, now))
         .collect::<Vec<_>>()
         .join(" AND ");
     let project_purchase = ["projects.wbs", "projects.tasks"]
         .iter()
-        .map(|capability| {
-            purchased_capability_sql(&catalogue, "t.company_id", capability, now)
-        })
+        .map(|capability| purchased_capability_sql(&catalogue, "t.company_id", capability, now))
         .collect::<Vec<_>>()
         .join(" AND ");
     let project = if projects_mode == PackageEnforcementMode::Enforced {
@@ -861,20 +871,15 @@ async fn occurrence_project(
     role: &str,
     project_id: &str,
 ) -> Result<OccurrenceProject, PgTransactionError<BusinessError>> {
-    let source = routine_project_source(
-        connection,
-        &actor.company_id,
-        &actor.user_id,
-        project_id,
-    )
-    .await?
-    .ok_or_else(|| {
-        BusinessError::new(
-            FailureKind::NotFound,
-            "PROJECT_NOT_FOUND",
-            "Project not found in the current workspace.",
-        )
-    })?;
+    let source = routine_project_source(connection, &actor.company_id, &actor.user_id, project_id)
+        .await?
+        .ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::NotFound,
+                "PROJECT_NOT_FOUND",
+                "Project not found in the current workspace.",
+            )
+        })?;
     let allowed: bool = sqlx::query_scalar(
         "SELECT iam_role_allows($1,$2,'records.read') \
          AND EXISTS(SELECT 1 FROM assignments g WHERE g.id=$3 AND g.user_id=$4 \
@@ -903,7 +908,9 @@ async fn occurrence_project(
     Ok(OccurrenceProject { source })
 }
 
-fn occurrence_actor(authority: &erpx_server_operations::public::routine_occurrences::StoredRoutineAuthority) -> StaffTaskActor {
+fn occurrence_actor(
+    authority: &erpx_server_operations::public::routine_occurrences::StoredRoutineAuthority,
+) -> StaffTaskActor {
     StaffTaskActor {
         user_id: authority.user_id.clone(),
         assignment_id: authority.assignment_id.clone(),
@@ -963,13 +970,8 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
         now: i64,
     ) -> RoutineOccurrenceFuture<'a, Option<OccurrenceOutcome>> {
         Box::pin(async move {
-            let Some(source) = occurrence_source(
-                connection,
-                &selected.company_id,
-                &selected.id,
-                at,
-            )
-            .await?
+            let Some(source) =
+                occurrence_source(connection, &selected.company_id, &selected.id, at).await?
             else {
                 return Ok(None);
             };
@@ -1035,16 +1037,23 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
                         )
                     })?;
                 let stored_actor = stored.actor()?;
-                require_authorization_source(connection, &stored, template, original, &stored_actor)
-                    .await?;
+                require_authorization_source(
+                    connection,
+                    &stored,
+                    template,
+                    original,
+                    &stored_actor,
+                )
+                .await?;
                 require_lineage(connection, &stored, Some(at)).await?;
                 require_current_authority(connection, &stored, &stored_actor, now).await?;
                 actor = occurrence_actor(&stored_actor);
                 let base = format!("occurrence-{}-{at}", original.id);
                 if template.project_id.is_none() {
                     if self.apps_mode == PackageEnforcementMode::Enforced {
-                        for (index, capability) in
-                            ["work.actions", "work.advanced-routines"].iter().enumerate()
+                        for (index, capability) in ["work.actions", "work.advanced-routines"]
+                            .iter()
+                            .enumerate()
                         {
                             let key = format!("{base}:apps:{index}");
                             if let Some(mut boundary) = PurchaseCommandBoundary::new(
@@ -1056,7 +1065,9 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
                                     purpose: CapabilityPurpose::NewWork,
                                 },
                             )? {
-                                boundary.begin(connection, &self.holding, &self.catalogue).await?;
+                                boundary
+                                    .begin(connection, &self.holding, &self.catalogue)
+                                    .await?;
                                 boundaries.push(boundary);
                                 assertion_keys.push(key);
                             }
@@ -1064,10 +1075,11 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
                     }
                 } else if project_mode {
                     let project_id = template.project_id.as_deref().expect("project checked");
-                    let project = occurrence_project(connection, &actor, &stored_actor.role, project_id).await?;
+                    let project =
+                        occurrence_project(connection, &actor, &stored_actor.role, project_id)
+                            .await?;
                     project_before = Some(project.source);
-                    for (index, capability) in
-                        ["projects.wbs", "projects.tasks"].iter().enumerate()
+                    for (index, capability) in ["projects.wbs", "projects.tasks"].iter().enumerate()
                     {
                         let key = format!("{base}:project:{index}");
                         if let Some(mut boundary) = PurchaseCommandBoundary::new(
@@ -1079,7 +1091,9 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
                                 purpose: CapabilityPurpose::NewWork,
                             },
                         )? {
-                            boundary.begin(connection, &self.holding, &self.catalogue).await?;
+                            boundary
+                                .begin(connection, &self.holding, &self.catalogue)
+                                .await?;
                             boundaries.push(boundary);
                             assertion_keys.push(key);
                         }
@@ -1217,7 +1231,8 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
                 &assertion_keys,
             )
             .await?;
-            if let (Some(_authorization), Some(_completed)) = (authorization.as_ref(), completed.as_ref())
+            if let (Some(_authorization), Some(_completed)) =
+                (authorization.as_ref(), completed.as_ref())
             {
                 let after = occurrence_image(
                     connection,
@@ -1264,10 +1279,7 @@ impl OccurrenceUnit for RoutineOccurrencePassUnit {
                     .complete(connection, &self.holding, &self.catalogue)
                     .await?;
                 if let Some(observation) = receipt.observation {
-                    write_purchase_shadow_checked_observation(
-                        &mut std::io::stderr(),
-                        &observation,
-                    );
+                    write_purchase_shadow_checked_observation(&mut std::io::stderr(), &observation);
                 }
             }
             Ok(Some(OccurrenceOutcome {
@@ -1361,7 +1373,10 @@ async fn begin_routine_run_admission(
         Ok::<_, BusinessError>(boundary)
     };
     if apps_mode != PackageEnforcementMode::Disabled {
-        for (index, capability) in ["work.actions", "work.advanced-routines"].iter().enumerate() {
+        for (index, capability) in ["work.actions", "work.advanced-routines"]
+            .iter()
+            .enumerate()
+        {
             let suffix = format!(":apps:{index}");
             if let Some(mut boundary) = begin(apps_mode, capability, &suffix)? {
                 boundary.begin(connection, holding, &catalogue).await?;
@@ -1534,7 +1549,11 @@ impl<C: Clock + Send + Sync + 'static> RoutineService<C> {
                             role: current.selection().assignment().role.clone(),
                         };
                         let data = match command {
-                            RoutineHttpCommand::SaveTemplate { id, clone_id, command } => {
+                            RoutineHttpCommand::SaveTemplate {
+                                id,
+                                clone_id,
+                                command,
+                            } => {
                                 let mut repository = PgRoutineCommands::new(connection);
                                 let mut sources = PgRoutineSources::new(RoutineDelegates);
                                 save_template(
@@ -1550,7 +1569,11 @@ impl<C: Clock + Send + Sync + 'static> RoutineService<C> {
                                 .await
                                 .map(|receipt| serde_json::to_value(receipt).unwrap_or_default())?
                             }
-                            RoutineHttpCommand::SaveSchedule { template_id, id, command } => {
+                            RoutineHttpCommand::SaveSchedule {
+                                template_id,
+                                id,
+                                command,
+                            } => {
                                 let mut repository = PgRoutineCommands::new(connection);
                                 let mut sources = PgRoutineSources::new(RoutineDelegates);
                                 save_schedule(
@@ -1570,7 +1593,11 @@ impl<C: Clock + Send + Sync + 'static> RoutineService<C> {
                                 .await
                                 .map(|receipt| serde_json::to_value(receipt).unwrap_or_default())?
                             }
-                            RoutineHttpCommand::ChangeScheduleState { id, resume, command } => {
+                            RoutineHttpCommand::ChangeScheduleState {
+                                id,
+                                resume,
+                                command,
+                            } => {
                                 let mut repository = PgRoutineCommands::new(connection);
                                 let mut sources = PgRoutineSources::new(RoutineDelegates);
                                 change_schedule_state(
@@ -1609,7 +1636,10 @@ impl<C: Clock + Send + Sync + 'static> RoutineService<C> {
                                 .await
                                 .map(|receipt| serde_json::to_value(receipt).unwrap_or_default())?
                             }
-                            RoutineHttpCommand::RunTemplate { template_id, due_at } => {
+                            RoutineHttpCommand::RunTemplate {
+                                template_id,
+                                due_at,
+                            } => {
                                 let stored = {
                                     let mut repository = PgRoutineCommands::new(connection);
                                     repository.stored_receipt(key.as_str()).await?
@@ -1621,9 +1651,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineService<C> {
                                 });
                                 let existing_template = {
                                     let mut repository = PgRoutineCommands::new(connection);
-                                    repository
-                                        .template(&actor.company_id, &template_id)
-                                        .await?
+                                    repository.template(&actor.company_id, &template_id).await?
                                 };
                                 let template = if replay {
                                     None
@@ -1648,8 +1676,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineService<C> {
                                             .as_ref()
                                             .and_then(|row| row.project_id.clone())
                                     });
-                                let project_before = if let Some(project_id) =
-                                    project_id.as_deref()
+                                let project_before = if let Some(project_id) = project_id.as_deref()
                                 {
                                     Some(
                                         require_routine_project(
@@ -1751,7 +1778,11 @@ impl<C: Clock + Send + Sync + 'static> RoutineBackend<C> {
     ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
         let inbound = parse_inbound_account_request(&self.policy, headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
-            return Err(BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."));
+            return Err(BusinessError::new(
+                FailureKind::NotFound,
+                "NOT_FOUND",
+                "Not found.",
+            ));
         }
         let (branch, department) = self.scopes.slugs(headers)?;
         Ok((
@@ -1775,13 +1806,7 @@ impl<C: Clock + Send + Sync + 'static> RoutineHttpBackend for RoutineBackend<C> 
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .command(
-                    request.host,
-                    proof,
-                    selection,
-                    request.key,
-                    request.command,
-                )
+                .command(request.host, proof, selection, request.key, request.command)
                 .await
                 .map_err(business)
         })

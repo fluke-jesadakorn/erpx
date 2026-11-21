@@ -157,24 +157,24 @@ Return a complete JSON proposal matching: ${JSON.stringify(z.toJSONSchema(propos
             const fresh = await ports.reportAccess(a, j.report_id);
             if (!fresh.canEdit || fresh.r.version !== input.version)
                 throw new BusinessRuleError(409, "REPORT_CHANGED", "The report changed during generation. Retry with its current design.");
-            await ports.commands.commit(a, `${j.id}:complete`, "executive.generation.complete", { id: j.id }, j.report_id, input.version, { id: j.id }, [
+            await ports.commands.commit(a, `${j.id}:complete`, "executive.generation.complete", { id: j.id }, j.report_id, input.version, { id: j.id }, await Promise.all([
                 ...ports.generationFeatureGuards(`${j.id}:complete`, j.company_id),
                 r.guard13(j.id, "generation-lease", j.id, token, ports.clock.now()),
                 ports.aiSnapshotGuard(`${j.id}:complete`, provider.snapshot),
                 r.source13(JSON.stringify(proposal), ports.clock.now(), j.id),
                 ports.aiUsageStatement(j.id, provider.snapshot, "executive-canvas", "succeeded", result.inputTokens, result.outputTokens, a.branchId),
                 await r.source14(j.id, j.company_id),
-            ]);
+            ]));
         }
         catch (e) {
             if (e instanceof z.ZodError)
                 ports.schemaRejected(e.issues.map(({ path, code }) => ({ path, code })));
-            await ports.batch([
+            await ports.batch(await Promise.all([
                 ...ports.generationFeatureGuards(`${j.id}:failed`, j.company_id),
                 r.source15(e instanceof BusinessRuleError ? e.message : "AI could not produce a valid English report. Your saved report is unchanged. Try a simpler request.", ports.clock.now(), j.id, token),
                 ...(provider ? [ports.aiUsageStatement(j.id, provider.snapshot, "executive-canvas", "failed", 0, 0, (JSON.parse(j.actor_json) as WorkContext).branchId)] : []),
                 await r.source16(`${j.id}:failed`, j.company_id),
-            ]);
+            ]));
         }
         return true;
     }

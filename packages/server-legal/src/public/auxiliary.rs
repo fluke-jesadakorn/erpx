@@ -5,20 +5,23 @@
 //! The retained TypeScript GET surface is replaced only for the reads exported
 //! here; unported paths are named in `UNPORTED_READS` and must keep the retained
 //! route until their own native slice lands.
+pub use crate::adapters::citation_source::{
+    CurrentLegalCitationSource, LegalCitationDocument, RetainedLegalCitationAudit,
+    inspect_legal_citation_source, lock_legal_citation_sources,
+};
 pub use crate::adapters::legal_http_auxiliary::{
     LegalAuxiliaryHttpBackend, LegalAuxiliaryHttpFuture, LegalAuxiliaryHttpRequest,
-    LegalAuxiliaryHttpService, LegalAuxiliaryHttpTarget, LegalAuxiliaryQueryWire,
-    UNPORTED_READS, legal_auxiliary_router,
+    LegalAuxiliaryHttpService, LegalAuxiliaryHttpTarget, LegalAuxiliaryQueryWire, UNPORTED_READS,
+    legal_auxiliary_router,
 };
-pub use crate::adapters::postgres_auxiliary_reads::{
-    PgLegalAuxiliaryReads, legal_auxiliary_business_error, require_auxiliary_transaction,
-};
-pub use crate::adapters::citation_source::{CurrentLegalCitationSource, LegalCitationDocument, RetainedLegalCitationAudit, inspect_legal_citation_source, lock_legal_citation_sources};
 pub use crate::adapters::legal_http_retention::{
     LegalRetentionActorFuture, LegalRetentionCommandReply, LegalRetentionHttpBackend,
     LegalRetentionHttpCommandRequest, LegalRetentionHttpFuture, LegalRetentionHttpService,
     LegalRetentionHttpSessionRequest, LegalRetentionHttpTarget, RETENTION_BODY_LIMIT,
     legal_retention_router,
+};
+pub use crate::adapters::postgres_auxiliary_reads::{
+    PgLegalAuxiliaryReads, legal_auxiliary_business_error, require_auxiliary_transaction,
 };
 pub use crate::adapters::postgres_retention::{
     PgLegalRetention, execute_retention, legal_retention, legal_retention_business_error,
@@ -35,7 +38,7 @@ pub use crate::domain::auxiliary::{
     AUXILIARY_CHUNK_LIMIT, AUXILIARY_ID_MAX, AUXILIARY_JOB_LIMIT, AUXILIARY_ROW_LIMIT,
     LegalAuxiliaryActor, LegalAuxiliaryRead, LegalRetentionAction, READ_PERMISSION, REASON_MAX,
     REASON_MIN, RETENTION_DAYS_MAX, RETENTION_POLICY_PERMISSION, RETENTION_RECORD_PERMISSION,
-    TRUST_VIEW_PERMISSION, auxiliary_command_selected, authorize_read, bangkok_date,
-    parse_as_of, parse_identifier, parse_search, provider_gated, provider_unavailable,
-    visibility_for, visibility_predicate,
+    TRUST_VIEW_PERMISSION, authorize_read, auxiliary_command_selected, bangkok_date, parse_as_of,
+    parse_identifier, parse_search, provider_gated, provider_unavailable, visibility_for,
+    visibility_predicate,
 };

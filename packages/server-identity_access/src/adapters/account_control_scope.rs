@@ -74,8 +74,14 @@ impl HoldingAccountControlScope {
             return Err(changed());
         }
         self.binding.require_current(c).await?;
-        let name:String=sqlx::query_scalar("SELECT display_name FROM holding_bindings WHERE holding_id=$1").bind(self.holding_id().as_str()).fetch_one(&mut *c).await?;
-        if name!=self.holding_name{return Err(changed());}
+        let name: String =
+            sqlx::query_scalar("SELECT display_name FROM holding_bindings WHERE holding_id=$1")
+                .bind(self.holding_id().as_str())
+                .fetch_one(&mut *c)
+                .await?;
+        if name != self.holding_name {
+            return Err(changed());
+        }
         Ok(())
     }
 }

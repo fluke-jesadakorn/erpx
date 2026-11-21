@@ -145,8 +145,7 @@ pub fn rate_limited() -> BusinessError {
 // lockfile unchanged.
 // ---------------------------------------------------------------------------
 
-const BASE64URL: &[u8; 64] =
-    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const BASE64URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 fn base64url_encode(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
@@ -258,7 +257,10 @@ pub fn booking_link_token(secret: &str, kind: PmsBookingLinkKind, id: &str) -> S
 
 /// Split a presented link into id and signature. Bounds and character class are
 /// enforced here so an oversized or structured token never reaches the store.
-pub fn split_booking_link(kind: PmsBookingLinkKind, token: &str) -> Result<(&str, &str), BusinessError> {
+pub fn split_booking_link(
+    kind: PmsBookingLinkKind,
+    token: &str,
+) -> Result<(&str, &str), BusinessError> {
     if token.is_empty() || token.len() > MAX_TOKEN_LEN || token.chars().any(char::is_control) {
         return Err(link_expired());
     }
@@ -296,8 +298,18 @@ pub fn encode_uri_component(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for byte in value.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'!' | b'~' | b'*'
-            | b'\'' | b'(' | b')' => out.push(byte as char),
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'!'
+            | b'~'
+            | b'*'
+            | b'\''
+            | b'('
+            | b')' => out.push(byte as char),
             _ => out.push_str(&format!("%{byte:02X}")),
         }
     }
@@ -329,7 +341,10 @@ pub enum PmsBookingDeliveryOutcome {
     Sent,
     /// Retryable failure: `state` is `pending` until the attempt budget is
     /// exhausted, then `failed`.
-    Retry { state: &'static str, next_attempt_at: i64 },
+    Retry {
+        state: &'static str,
+        next_attempt_at: i64,
+    },
     /// Commercial package refusal: return the mail to `pending` without
     /// consuming the attempt and retry after one minute.
     Blocked { code: String, next_attempt_at: i64 },
@@ -523,10 +538,7 @@ fn record_state(record: &PmsRecord) -> Option<String> {
 }
 
 fn reservation_id_of(record: &PmsRecord) -> Option<&str> {
-    record
-        .data
-        .get("reservationId")
-        .and_then(Value::as_str)
+    record.data.get("reservationId").and_then(Value::as_str)
 }
 
 fn source_key_of(record: &PmsRecord) -> Option<&str> {
@@ -538,10 +550,7 @@ fn booking_config(config: &Value) -> Option<&Value> {
 }
 
 /// Retained `cancellationEligibility` guard.
-pub fn cancellation_eligibility(
-    facts: &PmsBookingMailFacts,
-    now: i64,
-) -> PmsBookingCancellation {
+pub fn cancellation_eligibility(facts: &PmsBookingMailFacts, now: i64) -> PmsBookingCancellation {
     let reservation = &facts.reservation;
     let denied = |reason: &str| PmsBookingCancellation {
         allowed: false,
@@ -557,20 +566,23 @@ pub fn cancellation_eligibility(
     let deadline = reservation_policy
         .and_then(|policy| policy.get("deadline"))
         .and_then(Value::as_i64);
-    let deadline_passed = facts.stays.iter().any(|stay| match stay.data.get("bookingPolicy") {
-        Some(policy) => {
-            policy
-                .get("deadline")
-                .and_then(Value::as_i64)
-                .is_some_and(|deadline| now >= deadline)
-                || policy
-                    .get("collection")
-                    .and_then(|collection| collection.get("cancellationsAllowed"))
-                    .and_then(Value::as_bool)
-                    == Some(false)
-        }
-        None => deadline.is_some_and(|deadline| now >= deadline),
-    });
+    let deadline_passed = facts
+        .stays
+        .iter()
+        .any(|stay| match stay.data.get("bookingPolicy") {
+            Some(policy) => {
+                policy
+                    .get("deadline")
+                    .and_then(Value::as_i64)
+                    .is_some_and(|deadline| now >= deadline)
+                    || policy
+                        .get("collection")
+                        .and_then(|collection| collection.get("cancellationsAllowed"))
+                        .and_then(Value::as_bool)
+                        == Some(false)
+            }
+            None => deadline.is_some_and(|deadline| now >= deadline),
+        });
     if reservation_policy.is_none() || deadline_passed {
         return denied("The free-cancellation deadline has passed. Contact the hotel");
     }
@@ -688,7 +700,8 @@ pub fn booking_summary(
                 break;
             }
             if source_key_of(node).is_some_and(|key| key.starts_with("night:")) {
-                posted_room_total = posted_room_total.saturating_add(money_field(&entry.data, "total")?);
+                posted_room_total =
+                    posted_room_total.saturating_add(money_field(&entry.data, "total")?);
                 break;
             }
             current = node
@@ -701,10 +714,7 @@ pub fn booking_summary(
     let mut total = 0_i64;
     let mut rooms = Vec::with_capacity(stays.len());
     for stay in &stays {
-        if matches!(
-            record_state(stay).as_deref(),
-            Some("cancelled" | "no_show")
-        ) {
+        if matches!(record_state(stay).as_deref(), Some("cancelled" | "no_show")) {
             continue;
         }
         let prices = stay
@@ -762,8 +772,7 @@ pub fn booking_summary(
     let mut guest_account_due = 0_i64;
     for account in &accounts {
         advance = advance.saturating_add(money_field(&account.data, "advance")?);
-        guest_account_due =
-            guest_account_due.saturating_add(money_field(&account.data, "due")?);
+        guest_account_due = guest_account_due.saturating_add(money_field(&account.data, "due")?);
     }
     let payment_state = if entries
         .iter()
@@ -978,7 +987,15 @@ mod tests {
 
     #[test]
     fn base64url_round_trip() {
-        for bytes in [b"".as_slice(), b"f", b"fo", b"foo", b"foob", b"fooba", b"foobar"] {
+        for bytes in [
+            b"".as_slice(),
+            b"f",
+            b"fo",
+            b"foo",
+            b"foob",
+            b"fooba",
+            b"foobar",
+        ] {
             let encoded = base64url_encode(bytes);
             assert!(!encoded.contains('='));
             assert_eq!(base64url_decode(&encoded).unwrap(), bytes);
@@ -1212,7 +1229,11 @@ mod tests {
         assert_eq!(payload.to, vec!["ada@example.com".to_owned()]);
         assert_eq!(payload.subject, "Riverside · Booking confirmation BK-1");
         assert!(payload.text.contains("Deluxe: 2026-11-10 to 2026-11-12"));
-        assert!(payload.text.contains("View your booking: https://acme.jesadakorn.com/book/manage#token=abc"));
+        assert!(
+            payload
+                .text
+                .contains("View your booking: https://acme.jesadakorn.com/book/manage#token=abc")
+        );
         assert!(payload.text.contains("+66 2 000 0000"));
         assert_eq!(
             booking_mail_subject(PmsBookingMailKind::Refund, "Riverside", "BK-1"),

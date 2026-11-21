@@ -104,7 +104,9 @@ impl PlatformOperationsProjectionHttpService {
                 || name
                     .bytes()
                     .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
-                || port.map_or(false, |port| port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit()))
+                || port.map_or(false, |port| {
+                    port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit())
+                })
                 || configured.insert(target.host.clone(), target).is_some()
             {
                 return Err(BusinessError::invalid(

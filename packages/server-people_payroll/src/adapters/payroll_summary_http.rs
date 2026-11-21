@@ -17,10 +17,14 @@ pub type PayrollReadHttpFuture<'a, T> =
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PayrollReadHttpKind {
-    Summary { pay_month: Option<String> },
+    Summary {
+        pay_month: Option<String>,
+    },
     Runs,
     /// Full unredacted Company Payroll history with the legacy list cursor.
-    History { cursor: Option<String> },
+    History {
+        cursor: Option<String>,
+    },
     /// Bounded Work payload rows for the retained Workflow Work selector.
     WorkRows,
 }
@@ -159,13 +163,18 @@ fn form_decode(value: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut index = 0;
     while index < bytes.len() {
-        if bytes[index] == b'%' && index + 2 < bytes.len()
+        if bytes[index] == b'%'
+            && index + 2 < bytes.len()
             && let (Some(high), Some(low)) = (hex(bytes[index + 1]), hex(bytes[index + 2]))
         {
             out.push(high * 16 + low);
             index += 3;
         } else {
-            out.push(if bytes[index] == b'+' { b' ' } else { bytes[index] });
+            out.push(if bytes[index] == b'+' {
+                b' '
+            } else {
+                bytes[index]
+            });
             index += 1;
         }
     }
@@ -345,13 +354,17 @@ async fn read_history(
     let result = async move {
         let target = target(&state, request.headers(), &slug)?;
         let cursor = query_history_cursor(&request);
-        target.backend.read(PayrollReadHttpRequest {
-            host: &target.host,
-            holding_slug: &target.holding_slug,
-            headers: request.headers(),
-            kind: PayrollReadHttpKind::History { cursor },
-        }).await
-    }.await;
+        target
+            .backend
+            .read(PayrollReadHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: request.headers(),
+                kind: PayrollReadHttpKind::History { cursor },
+            })
+            .await
+    }
+    .await;
     match result {
         Ok(reply) => bounded(reply.value()),
         Err(error) => error_response(error),
@@ -498,11 +511,8 @@ mod tests {
         assert_eq!(status, 200);
         let (status, _) = http(addr, get("/api/v1/holdings/acme/people/payroll/runs-page?%63ursor=a%2Bb+c%2F%FF%ZZ&cursor=ignored")).await;
         assert_eq!(status, 200);
-        let (status, body) = http(
-            addr,
-            get("/api/v1/holdings/acme/people/payroll/work-rows"),
-        )
-        .await;
+        let (status, body) =
+            http(addr, get("/api/v1/holdings/acme/people/payroll/work-rows")).await;
         assert_eq!(status, 200);
         assert_eq!(body["data"], serde_json::json!([]));
         let (status, _) = http(addr, get("/api/v1/holdings/missing/people/payroll/summary")).await;
@@ -524,8 +534,14 @@ mod tests {
                 .any(|value| value == "read:Summary { pay_month: Some(\"2026-10\") }")
         );
         assert!(seen.iter().any(|value| value == "read:Runs"));
-        assert!(seen.iter().any(|value| value == "read:History { cursor: None }"));
-        assert!(seen.iter().any(|value| value == "read:History { cursor: Some(\"a+b c/�%ZZ\") }"));
+        assert!(
+            seen.iter()
+                .any(|value| value == "read:History { cursor: None }")
+        );
+        assert!(
+            seen.iter()
+                .any(|value| value == "read:History { cursor: Some(\"a+b c/�%ZZ\") }")
+        );
         assert!(seen.iter().any(|value| value == "read:WorkRows"));
         server.abort();
     }

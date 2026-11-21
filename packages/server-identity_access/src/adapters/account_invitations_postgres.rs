@@ -157,7 +157,10 @@ async fn activate_holding(
         .execute(&mut *connection)
         .await?;
     let now = clock.now().get();
-    if let Some(grant) = InvitationGrant::parse(&request.role_payload)?.direct().cloned() {
+    if let Some(grant) = InvitationGrant::parse(&request.role_payload)?
+        .direct()
+        .cloned()
+    {
         return activate_direct_holding(connection, request, &grant, clock).await;
     }
     inspect_current(connection, request, now, true).await?;

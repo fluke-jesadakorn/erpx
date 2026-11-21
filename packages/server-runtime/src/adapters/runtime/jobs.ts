@@ -1,3 +1,4 @@
+import { nativeRuntimeStatement } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
 import { applicationOrigin } from "@erpx/feature-runtime/lib/application-origins";
 import {holdingRoutingEnabled,activeHoldingHosts} from '@erpx/feature-runtime/lib/holding-hosts';
 import { drainProvisioning } from "@erpx/server-identity_access/public/technology";
@@ -133,7 +134,7 @@ export async function billingWork(env: JobEnv) {
       console.warn(JSON.stringify({event:"usage_projection_failed",code:error instanceof Error?error.name:"ProjectionError"}));
     }
   }
-  await env.CONTROL_DB.prepare("INSERT INTO runtime_health(service,heartbeat_at,details_json) VALUES('billing',?,'{}') ON CONFLICT(service) DO UPDATE SET heartbeat_at=excluded.heartbeat_at").bind(Date.now()).run();
+  await nativeRuntimeStatement('runtime_stmt_19', { companyId: '', now: Date.now(), actor: undefined }).bind(Date.now()).run();
 }
 
 let attachmentCleanupAt = 0;

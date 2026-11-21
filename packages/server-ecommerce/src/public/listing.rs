@@ -13,10 +13,9 @@ pub use crate::application::{AuditEntry, EcommerceFuture, OutboxEntry, ReceiptEn
 pub use crate::domain::actor::EcommerceActor;
 pub use crate::domain::command::{CommandReceipt, EcommerceReceipt};
 pub use crate::domain::listing::{
-    CHANGE_OPERATION, CREATE_OPERATION, ChangeListing, CreateListing,
-    EcommerceFunctionalCurrency, EcommerceListingMoneyRequest, EcommerceListingMoneySnapshot,
-    ListingDraft, ListingRecord, RECORD_TYPE, ValidatedListing, ValidatedListingChange,
-    author_required, channel_not_active, currency_mapping_required, listing_exists,
-    money_evidence_invalid, money_source_unavailable, product_not_active, replay_change,
-    replay_create, source_port_unavailable,
+    CHANGE_OPERATION, CREATE_OPERATION, ChangeListing, CreateListing, EcommerceFunctionalCurrency,
+    EcommerceListingMoneyRequest, EcommerceListingMoneySnapshot, ListingDraft, ListingRecord,
+    RECORD_TYPE, ValidatedListing, ValidatedListingChange, author_required, channel_not_active,
+    currency_mapping_required, listing_exists, money_evidence_invalid, money_source_unavailable,
+    product_not_active, replay_change, replay_create, source_port_unavailable,
 };

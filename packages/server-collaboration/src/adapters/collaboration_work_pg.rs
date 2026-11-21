@@ -887,7 +887,9 @@ where
     async fn require_unit_current(&mut self) -> Result<(), Error> {
         for witness in std::mem::take(&mut self.witnesses) {
             let connection = &mut *self.connection;
-            self.sources.require_current_with(connection, &witness).await?;
+            self.sources
+                .require_current_with(connection, &witness)
+                .await?;
             self.witnesses.push(witness);
         }
         self.actor = None;

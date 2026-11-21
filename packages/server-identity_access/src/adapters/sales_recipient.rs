@@ -119,16 +119,25 @@ impl CurrentSalesAssignmentJoin {
 }
 /// All owner locks must have been acquired before the first snapshot; this
 /// checks current lock possession and unit, not lock timing or row contents.
-pub async fn inspect_sales_assignment_join(c: &mut PgConnection, locks: &SalesRecipientSourceLocks) -> Result<CurrentSalesAssignmentJoin, Error> {
+pub async fn inspect_sales_assignment_join(
+    c: &mut PgConnection,
+    locks: &SalesRecipientSourceLocks,
+) -> Result<CurrentSalesAssignmentJoin, Error> {
     let unit = unit(c).await?;
-    if unit != locks.unit { return Err(PersistenceError::new("IAM_SALES_RECIPIENT_LOCKS_REQUIRED").into()); }
+    if unit != locks.unit {
+        return Err(PersistenceError::new("IAM_SALES_RECIPIENT_LOCKS_REQUIRED").into());
+    }
     let boundary = assignment_join_boundary(c).await?;
     Ok(CurrentSalesAssignmentJoin { unit, boundary })
 }
-async fn assignment_join_boundary(c: &mut PgConnection) -> Result<(String, String, String, i64), Error> {
+async fn assignment_join_boundary(
+    c: &mut PgConnection,
+) -> Result<(String, String, String, i64), Error> {
     let (held, visible, role, session, path, oid): (bool, bool, String, String, String, i64) = sqlx::query_as("SELECT c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')),NOT row_security_active(c.oid),current_user::text,session_user::text,current_setting('search_path'),c.oid::bigint FROM pg_class c WHERE c.oid='public.assignments'::regclass").fetch_one(c).await?;
-    if !held || !visible { return Err(PersistenceError::new("IAM_SALES_ASSIGNMENT_SOURCE_REQUIRED").into()); }
-    Ok((role,session,path,oid))
+    if !held || !visible {
+        return Err(PersistenceError::new("IAM_SALES_ASSIGNMENT_SOURCE_REQUIRED").into());
+    }
+    Ok((role, session, path, oid))
 }
 
 async fn read(c: &mut PgConnection, r: &SalesRecipientRequest) -> Result<bool, Error> {
@@ -171,14 +180,21 @@ impl CurrentSalesIamBoundary {
 /// The coordinator must set the canonical search path before taking source
 /// locks and acquire all owner locks before the first snapshot. This operation
 /// verifies present locks, current role/RLS and function resolution only.
-pub async fn inspect_sales_iam_boundary(c: &mut PgConnection, locks: &SalesRecipientSourceLocks) -> Result<CurrentSalesIamBoundary, Error> {
+pub async fn inspect_sales_iam_boundary(
+    c: &mut PgConnection,
+    locks: &SalesRecipientSourceLocks,
+) -> Result<CurrentSalesIamBoundary, Error> {
     let unit = unit(c).await?;
-    if unit != locks.unit { return Err(PersistenceError::new("IAM_SALES_RECIPIENT_LOCKS_REQUIRED").into()); }
+    if unit != locks.unit {
+        return Err(PersistenceError::new("IAM_SALES_RECIPIENT_LOCKS_REQUIRED").into());
+    }
     let boundary = sales_iam_boundary(c).await?;
     Ok(CurrentSalesIamBoundary { unit, boundary })
 }
 
-async fn sales_iam_boundary(c: &mut PgConnection) -> Result<(String, String, Vec<i64>, String), Error> {
+async fn sales_iam_boundary(
+    c: &mut PgConnection,
+) -> Result<(String, String, Vec<i64>, String), Error> {
     // Function signatures are finite, owner-controlled identifiers. Function
     // body fingerprints detect later drift, but do not establish migration
     // provenance or prevent concurrent DDL; those remain coordinator duties.
@@ -204,6 +220,8 @@ async fn sales_iam_boundary(c: &mut PgConnection) -> Result<(String, String, Vec
        (SELECT array_agg(r.oid::oid::bigint ORDER BY r.name) FROM rels r),
        (SELECT coalesce(jsonb_agg(jsonb_build_array(f.sig,p.oid::bigint,p.proowner::bigint,p.provolatile,p.prosecdef,p.proconfig,md5(pg_get_functiondef(p.oid))) ORDER BY f.sig),'[]'::jsonb)::text FROM funcs f LEFT JOIN pg_proc p ON p.oid=f.oid)
     "#).fetch_one(c).await?;
-    if !valid { return Err(PersistenceError::new("IAM_SALES_AUTHORITY_SOURCE_REQUIRED").into()); }
+    if !valid {
+        return Err(PersistenceError::new("IAM_SALES_AUTHORITY_SOURCE_REQUIRED").into());
+    }
     Ok((role, session, oids, functions))
 }

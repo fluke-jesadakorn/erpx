@@ -144,7 +144,11 @@ impl<'c> PgPeopleRelationships<'c> {
         })
     }
 
-    async fn upsert(&mut self, actor: &PeopleAccessActor, plan: &RelationshipApplyPlan) -> Result<(), Error> {
+    async fn upsert(
+        &mut self,
+        actor: &PeopleAccessActor,
+        plan: &RelationshipApplyPlan,
+    ) -> Result<(), Error> {
         let company = actor.company_id.as_str();
         match &plan.change {
             RelationshipChange::Organization { name, kind, .. } => {
@@ -577,8 +581,16 @@ impl PeopleRelationshipRepository for PgPeopleRelationships<'_> {
             if let Some(object) = evidence.as_object_mut() {
                 object.insert("outbox".into(), outbox.clone());
             }
-            self.effects(actor, key, request_hash, plan, &result.to_string(), &evidence, &outbox)
-                .await?;
+            self.effects(
+                actor,
+                key,
+                request_hash,
+                plan,
+                &result.to_string(),
+                &evidence,
+                &outbox,
+            )
+            .await?;
             Ok(result)
         })
     }
@@ -593,10 +605,10 @@ impl PeopleRelationshipRepository for PgPeopleRelationships<'_> {
 /// suite once the catalogue/Cargo test target is added.
 #[cfg(test)]
 mod postgres_tests {
+    use super::PgPeopleRelationships;
     use crate::application::people_access::{apply_relationship, preview_relationship};
     use crate::domain::people_access::PeopleAccessActor;
     use crate::people_fixture as fixture;
-    use super::PgPeopleRelationships;
     use erpx_server_runtime::public::postgres::{
         DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
     };
@@ -862,7 +874,12 @@ mod postgres_tests {
                 .await
                 .unwrap();
             assert_eq!(
-                business(apply(&pool, &actor, &stale_token, "command-2").await.unwrap_err()).code,
+                business(
+                    apply(&pool, &actor, &stale_token, "command-2")
+                        .await
+                        .unwrap_err()
+                )
+                .code,
                 "PREVIEW_CHANGED"
             );
 
@@ -870,12 +887,7 @@ mod postgres_tests {
             let mut stale_version = organization_change("Partner", 0);
             stale_version["id"] = json!(id);
             assert_eq!(
-                business(
-                    preview(&pool, &actor, stale_version)
-                        .await
-                        .unwrap_err()
-                )
-                .code,
+                business(preview(&pool, &actor, stale_version).await.unwrap_err()).code,
                 "ACCESS_OBJECT_CHANGED"
             );
             let mut current_version = organization_change("Partner", 1);

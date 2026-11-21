@@ -211,38 +211,49 @@ impl RetainedServiceNoCharge {
     }
 }
 
-#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
-#[serde(rename_all="camelCase")]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
 pub struct ServiceNoChargeInput {
-    #[cfg_attr(feature="contracts",ts(type="number"))]
-    pub expected_version:i64,
-    pub context_key:String,
-    pub reason:String,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    pub expected_version: i64,
+    pub context_key: String,
+    pub reason: String,
 }
 #[derive(Clone)]
-pub struct ServiceNoChargeWire { input:ServiceNoChargeInput, normalized:CommandJson }
+pub struct ServiceNoChargeWire {
+    input: ServiceNoChargeInput,
+    normalized: CommandJson,
+}
 impl ServiceNoChargeWire {
-    pub fn input(&self)->&ServiceNoChargeInput{&self.input}
-    pub fn normalized(&self)->&CommandJson{&self.normalized}
+    pub fn input(&self) -> &ServiceNoChargeInput {
+        &self.input
+    }
+    pub fn normalized(&self) -> &CommandJson {
+        &self.normalized
+    }
 }
-#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
-#[serde(rename_all="snake_case")]
-pub enum ServiceNoChargeStatus { NoChargeConfirmed }
-#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
-#[serde(rename_all="camelCase")]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum ServiceNoChargeStatus {
+    NoChargeConfirmed,
+}
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
 pub struct ServiceNoChargeResult {
-    pub id:String,
-    pub status:ServiceNoChargeStatus,
-    #[cfg_attr(feature="contracts",ts(type="number"))]
-    pub version:i64,
-    pub confirmation_id:String,
+    pub id: String,
+    pub status: ServiceNoChargeStatus,
+    #[cfg_attr(feature = "contracts", ts(type = "number"))]
+    pub version: i64,
+    pub confirmation_id: String,
 }
-#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
-pub struct ServiceNoChargeResponse {pub data:ServiceNoChargeResult}
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct ServiceNoChargeResponse {
+    pub data: ServiceNoChargeResult,
+}
 /// Keep the original schema order, JS UTF-16 length/trim and unknown-key strip.
 /// The logical receipt payload must not be rebuilt from lossy physical strings.
 pub fn normalize_service_no_charge(body: &[u8]) -> Result<ServiceNoChargeWire, BusinessError> {
@@ -298,7 +309,11 @@ pub fn normalize_service_no_charge(body: &[u8]) -> Result<ServiceNoChargeWire, B
         CommandJson::from_utf16_string(reason)?.as_str()
     ))?;
     Ok(ServiceNoChargeWire {
-        input:ServiceNoChargeInput{expected_version:n as i64,context_key:context,reason:String::from_utf16_lossy(reason)},
+        input: ServiceNoChargeInput {
+            expected_version: n as i64,
+            context_key: context,
+            reason: String::from_utf16_lossy(reason),
+        },
         normalized,
     })
 }

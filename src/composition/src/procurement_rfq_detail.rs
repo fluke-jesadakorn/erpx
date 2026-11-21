@@ -210,8 +210,9 @@ pub(crate) async fn prepare_rfq_request_detail_enabled<'a>(
     {
         return Err(PersistenceError::new("RFQ_REQUEST_TARGET_MISMATCH").into());
     }
-    use crate::procurement_rfq_materialization::{rfq_records_materialization,RfqMaterialization};
-    match rfq_records_materialization(&mut *c,source.id(),source.company().as_str(),true).await? {
+    use crate::procurement_rfq_materialization::{RfqMaterialization, rfq_records_materialization};
+    match rfq_records_materialization(&mut *c, source.id(), source.company().as_str(), true).await?
+    {
         None => return Ok(NotFound),
         Some(RfqMaterialization::NumberOutOfRange) => return Ok(DatabaseNumberOutOfRange),
         Some(RfqMaterialization::UnsupportedNumeric) => return Ok(NumericMaterializationPending),
@@ -250,10 +251,14 @@ pub(crate) async fn prepare_rfq_request_detail_enabled<'a>(
     let mut children = Vec::new();
     for child in candidates {
         let witness = observe_rfq_quotation_row(&mut *c, source.company(), &child.id).await?;
-        match rfq_records_materialization(&mut *c,&child.id,source.company().as_str(),true).await? {
+        match rfq_records_materialization(&mut *c, &child.id, source.company().as_str(), true)
+            .await?
+        {
             None => continue,
             Some(RfqMaterialization::NumberOutOfRange) => return Ok(DatabaseNumberOutOfRange),
-            Some(RfqMaterialization::UnsupportedNumeric) => return Ok(NumericMaterializationPending),
+            Some(RfqMaterialization::UnsupportedNumeric) => {
+                return Ok(NumericMaterializationPending);
+            }
             Some(RfqMaterialization::Safe) => {}
         }
         match initial_rfq_request_access(&mut *c, current, &witness, policy_now).await? {

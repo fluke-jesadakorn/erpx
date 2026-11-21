@@ -1,3 +1,4 @@
+import { nativeCreateCampaign } from '@erpx/feature-marketing/adapters/server/native-marketing-wave2';
 import 'server-only';
 
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -20,13 +21,9 @@ function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<S
 async campaigns(){return ((await database()).prepare('SELECT id,code,name,version FROM marketing_campaigns WHERE company_id=? ORDER BY code').bind(a.companyId).all<Row>()).then(x=>x.results);},
 costSources:async()=>marketingExpenseSources(await database(),a.companyId),replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),commit:async(mutation,result)=>commit(await database(),a,mutation,result),
 });}
-async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingCampaignMutation,result:Result):Promise<Result>{const {input:i,key,id,operation:op,now}=m;
- const steps=i.action==='create'?[write.prepare('INSERT INTO marketing_campaigns(id,company_id,code,name,created_by,created_at) VALUES(?,?,?,?,?,?)').bind(id,a.companyId,i.code,i.name,a.userId,now)]:[
-  assertion(write,key,'campaign','EXISTS(SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?)',[i.campaignId,a.companyId]),
-  prepareMarketingExpenseGuard(write,key,a.companyId,i.journalLineId),
-  write.prepare('INSERT INTO marketing_campaign_costs(id,company_id,campaign_id,journal_line_id,evidence,reviewed_by,created_at) VALUES(?,?,?,?,?,?,?)').bind(id,a.companyId,i.campaignId,i.journalLineId,i.evidence,a.userId,now)
- ];
- return executeCommand(write,a,key,op,i,id,1,result,steps);
+async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingCampaignMutation,result:Result):Promise<Result>{
+  if(m.input.action==='create'){await nativeCreateCampaign(a,m.input,m.key);return result;}
+  throw new ApiError(503,'MARKETING_COMMAND_UNAVAILABLE','Campaign cost linking is not available on the native Marketing path.');
 }
 export async function marketingCampaigns(a:WorkContext){const db=(await holdingResources(a.holdingId)).write;await requireMarketingPurchasedRead(db,a);return application(a,db).campaigns();}
 export async function marketingCostSources(a:WorkContext){const db=(await holdingResources(a.holdingId)).write;await requireMarketingPurchasedRead(db,a);return await marketingFinanceHistory(db,a)?application(a,db).costSources():[];}

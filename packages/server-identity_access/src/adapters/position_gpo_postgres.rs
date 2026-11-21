@@ -15,13 +15,13 @@ use crate::application::position_gpo::{
 };
 use crate::domain::iam_roles::IamRoleActor;
 use crate::domain::position_gpo::{
-    idempotency_conflict, readback_invalid, version_conflict, ClaimRow, ConfigRetryInput,
-    ConfigRow, ConnectionRow, DesiredRow, DirectoryState, GpoAuthority, HolderRow, JobRetryInput,
-    JobRow, JobStateRow, MappingRow, OwnershipRow, PolicyRow, PositionFacts, RuleStatusRow,
+    ClaimRow, ConfigRetryInput, ConfigRow, ConnectionRow, DesiredRow, DirectoryState, GpoAuthority,
+    HolderRow, JobRetryInput, JobRow, JobStateRow, MappingRow, OwnershipRow, PolicyRow,
+    PositionFacts, RuleStatusRow, idempotency_conflict, readback_invalid, version_conflict,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;

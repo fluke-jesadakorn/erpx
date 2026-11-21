@@ -14,12 +14,11 @@
 //! secret.
 use crate::application::people_grants::{PeopleGrantFuture, PeopleGrantRepository};
 use crate::domain::people_grants::{
-    GrantApplyPlan, GrantAssignmentRow, GrantPreviewPlan,
-    GrantPreviewRow, GrantReceipt, GrantRoleRow, GrantSnapshot, GrantSubjectRow, GrantUnitRow,
-    GRANT_APPLY_OPERATION, PeopleGrantActor, PeopleGrantChange, access_object_changed,
-    account_already_linked, directory_account_link_required, directory_identity_review_required,
-    grant_apply_result, identity_inactive, idempotency_conflict, readback_invalid, role_changed,
-    scope_unavailable,
+    GRANT_APPLY_OPERATION, GrantApplyPlan, GrantAssignmentRow, GrantPreviewPlan, GrantPreviewRow,
+    GrantReceipt, GrantRoleRow, GrantSnapshot, GrantSubjectRow, GrantUnitRow, PeopleGrantActor,
+    PeopleGrantChange, access_object_changed, account_already_linked,
+    directory_account_link_required, directory_identity_review_required, grant_apply_result,
+    idempotency_conflict, identity_inactive, readback_invalid, role_changed, scope_unavailable,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -243,7 +242,9 @@ impl<'c> PgPeopleGrants<'c> {
         .bind(revision)
         .fetch_optional(&mut *self.connection)
         .await?;
-        Ok(row.map(|row| json_list(row.get("permissions_json"))).unwrap_or_default())
+        Ok(row
+            .map(|row| json_list(row.get("permissions_json")))
+            .unwrap_or_default())
     }
 
     async fn published_revision(
@@ -902,7 +903,8 @@ impl PeopleGrantRepository for PgPeopleGrants<'_> {
             {
                 object.insert("assignmentId".into(), json!(assignment_id));
             }
-            self.effects(actor, key, request_hash, plan, &result).await?;
+            self.effects(actor, key, request_hash, plan, &result)
+                .await?;
             Ok(result)
         })
     }
@@ -1083,7 +1085,10 @@ pub async fn stage_direct_invitation_delivery(
          state,next_attempt_at,created_at,updated_at) \
          VALUES($1,$2,$3,$4,'queued',$5,$5,$5) ON CONFLICT(invitation_id) DO NOTHING",
     )
-    .bind(format!("account-invite-delivery-{}", delivery.invitation_id))
+    .bind(format!(
+        "account-invite-delivery-{}",
+        delivery.invitation_id
+    ))
     .bind(&delivery.invitation_id)
     .bind(&delivery.holding_id)
     .bind(&delivery.company_id)
@@ -1101,9 +1106,7 @@ pub async fn stage_direct_invitation_delivery(
 /// composition does; no commit happens inside the adapter.
 #[cfg(test)]
 mod postgres_tests {
-    use super::{
-        DirectInvitationDelivery, PgPeopleGrants, read_direct_invitation,
-    };
+    use super::{DirectInvitationDelivery, PgPeopleGrants, read_direct_invitation};
     use crate::adapters::permission_catalog::permission_catalog;
     use crate::application::people_grants::{apply_grant_change, preview_grant_change};
     use crate::domain::people_grants::PeopleGrantActor;
@@ -1124,7 +1127,10 @@ mod postgres_tests {
             company_id: "company".into(),
             assignment_id: "assignment-actor".into(),
             scope_kind: "holding".into(),
-            permissions: permissions.iter().map(|value| (*value).to_owned()).collect(),
+            permissions: permissions
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect(),
             platform: false,
             expires_at: 1_000_000,
         }
@@ -1344,7 +1350,12 @@ mod postgres_tests {
                 applied
             );
             assert_eq!(
-                business(apply(&pool, &actor, &token, "command-role-2").await.unwrap_err()).code,
+                business(
+                    apply(&pool, &actor, &token, "command-role-2")
+                        .await
+                        .unwrap_err()
+                )
+                .code,
                 "PREVIEW_EXPIRED"
             );
 
@@ -1389,7 +1400,9 @@ mod postgres_tests {
                 "Visitor → Published reader · department · 1970-01-01T00:15:00.000Z"
             );
             let token = reviewed["token"].as_str().unwrap().to_owned();
-            let applied = apply(&pool, &actor, &token, "command-invite").await.unwrap();
+            let applied = apply(&pool, &actor, &token, "command-invite")
+                .await
+                .unwrap();
             let invitation = applied["invitationId"].as_str().unwrap().to_owned();
             let assignment = applied["assignmentId"].as_str().unwrap().to_owned();
             assert_eq!(applied["id"], "subject-external");
@@ -1460,10 +1473,14 @@ mod postgres_tests {
             // The committed review row is the Control-database delivery source.
             let pool_ref = pool.clone();
             let invitation_id = invitation.clone();
-            let delivery =
-                read_direct_invitation(&mut *pool_ref.raw().acquire().await.unwrap(), "h001", "company", &invitation_id)
-                    .await
-                    .unwrap();
+            let delivery = read_direct_invitation(
+                &mut *pool_ref.raw().acquire().await.unwrap(),
+                "h001",
+                "company",
+                &invitation_id,
+            )
+            .await
+            .unwrap();
             assert_eq!(
                 delivery,
                 DirectInvitationDelivery {

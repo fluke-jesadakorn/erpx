@@ -135,7 +135,9 @@ pub(crate) async fn rfq_request_detail_events(
             .bind(company)
             .fetch_all(c)
             .await?;
-    if rows.iter().any(|row| row.6.unsigned_abs()>9_007_199_254_740_991 || row.7.unsigned_abs()>9_007_199_254_740_991) {
+    if rows.iter().any(|row| {
+        row.6.unsigned_abs() > 9_007_199_254_740_991 || row.7.unsigned_abs() > 9_007_199_254_740_991
+    }) {
         // Unmounted signal; HTTP must preserve JS RangeError, not map this to
         // access denial. The cross-command error boundary remains pending.
         return Err(PersistenceError::new("DATABASE_NUMBER_OUT_OF_RANGE").into());

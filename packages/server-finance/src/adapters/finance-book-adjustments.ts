@@ -15,7 +15,7 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {createBookAdjustments,type BookAdjustmentRepository} from '@erpx/server-finance/application/book-adjustments';
 import type {BookAdjustmentRow as Row,bookAdjustmentSchema,bookAdjustmentReversalSchema} from '@erpx/server-finance/domain/book-adjustments';
-import {stageBookAdjustmentDecision} from '@erpx/server-workflow/public/finance-book-adjustment-effects';
+import {nativeWorkflowWrite} from '@erpx/server-workflow/public/native-workflow-evidence';
 import { financeBookAdjustments } from '@erpx/server-collaboration/adapters/native-finance-book-adjustments';
 export {bookAdjustmentSchema,bookAdjustmentReversalSchema} from '@erpx/server-finance/domain/book-adjustments';
 async function nativeBookAdjustmentWorkspace(write:SqlDatabase,actor:WorkContext){  return (
@@ -119,7 +119,7 @@ preparePosting:async(actor,content,id,currency,key)=>{const journal=await prepar
             "posted",
           )
 ;journals.set(String(journal.result.id),journal);return String(journal.result.id);},
-decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journalId,updatedAt,evidenceId,inputHash,evidenceAt}=facts;const journal=journalId?journals.get(journalId):null;return executeCommand(
+decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journalId,updatedAt,evidenceId,inputHash,evidenceAt}=facts;const journal=journalId?journals.get(journalId):null; return executeCommand(
       db,
       actor,
       key,
@@ -138,7 +138,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journa
         ),
         ...(journal?.steps ?? []),
         await financeBookAdjustments(db, actor.companyId).decide({ status, version, reviewedBy: actor.userId, journalId: journal?.result.id ?? null, updatedAt, id }),
-        stageBookAdjustmentDecision(db,{evidenceId,key,id,op,userId:actor.userId,assignmentId:actor.assignmentId,expectedVersion:input.expectedVersion,inputHash,evidenceAt}),
+        nativeWorkflowWrite('wf_native_finance_book_adjustment_effects_4', [evidenceId, key, id, op, actor.userId, actor.assignmentId, input.expectedVersion, inputHash, evidenceAt]),
       ],
     );},
 rowForReversal:async(actor,id)=>db

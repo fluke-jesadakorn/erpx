@@ -1,3 +1,4 @@
+import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { grantTransaction } from '@erpx/server-identity_access/adapters/iam-grant-transaction';
 import {preparePeopleLifecycleIamReview} from "@erpx/server-people_payroll/public/iam-purchases";
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
@@ -28,7 +29,7 @@ function serviceTransaction(c: PoolClient, actor: IamActor): IamServiceTransacti
     return { ...grantTransaction(c, actor),
 insertIndependentReview: async (facts) => {
             const { id, kind, payload, observedNow, reason } = facts;
-            return void await c.query("INSERT INTO iam_reviews(id,company_id,kind,payload,created_by,created_person,created_at,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", [
+            return void await nativeIdentityWrite("w_79a0164b4d68", [
                 id,
                 actor.companyId,
                 kind,
@@ -79,7 +80,7 @@ revokeAssignment: async (facts) => {
         },
 clearRevokedWorkSelection: async (facts) => {
             const { id } = facts;
-            return void await c.query("UPDATE active_work_contexts SET revision=revision+1,assignment_id=NULL,assignment_version=NULL WHERE company_id=$1 AND assignment_id=$2", [actor.companyId, id]);
+            return void await nativeIdentityWrite("w_c776f688394b", [actor.companyId, id]);
         },
 lockIndependentReview: async (facts) => {
             const { id } = facts;
@@ -124,7 +125,7 @@ lockRolePublication: async (facts) => {
         },
 publishRoleRevision: async (facts) => {
             const { p } = facts;
-            return void await c.query("UPDATE iam_roles SET published_revision=$1,name=$2 WHERE company_id=$3 AND id=$4", [p.revision, p.name, actor.companyId, p.id]);
+            return void await nativeIdentityWrite("w_f8fd74c3cf17", [p.revision, p.name, actor.companyId, p.id]);
         },
 invalidateRoleAssignments: async (facts) => {
             const { p } = facts;
@@ -132,11 +133,11 @@ invalidateRoleAssignments: async (facts) => {
         },
 clearPublishedWorkSelections: async (facts) => {
             const { p } = facts;
-            return void await c.query("UPDATE active_work_contexts SET assignment_id=NULL,assignment_version=NULL,revision=revision+1 WHERE company_id=$1 AND assignment_id IN (SELECT id FROM assignments WHERE role=$2 AND company_id=$1)", [actor.companyId, p.id]);
+            return void await nativeIdentityWrite("w_ae6018c55c7e", [actor.companyId, p.id]);
         },
 recordIndependentDecision: async (facts) => {
             const { input, observedNow, id } = facts;
-            return void await c.query("UPDATE iam_reviews SET status=$1,reviewed_by=$2,reviewed_at=$3,reason=reason||$4,version=version+1 WHERE id=$5", [
+            return void await nativeIdentityWrite("w_4d2ef3dd1ce6", [
                 input.decision === "approve" ? "approved" : "rejected",
                 actor.userId,
                 observedNow,

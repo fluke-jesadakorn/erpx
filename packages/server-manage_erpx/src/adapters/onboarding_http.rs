@@ -59,7 +59,10 @@ pub(crate) fn invalid_request() -> BusinessError {
     )
 }
 
-pub(crate) fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
+pub(crate) fn unique_header(
+    headers: &HeaderMap,
+    name: HeaderName,
+) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {

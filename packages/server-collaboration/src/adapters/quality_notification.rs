@@ -341,19 +341,28 @@ async fn stage_quality_count_notices_inner<S: PgQualityCountNoticeSource>(
     let mut before_by_id = std::collections::BTreeMap::new();
     for row in &prefix_before {
         let id = row["notice"]["id"].as_str().ok_or_else(changed)?;
-        if before_by_id.insert(id, row).is_some() { return Err(changed()); }
+        if before_by_id.insert(id, row).is_some() {
+            return Err(changed());
+        }
     }
     let mut after_by_id = std::collections::BTreeMap::new();
     for row in &prefix_after {
         let id = row["notice"]["id"].as_str().ok_or_else(changed)?;
-        if after_by_id.insert(id, row).is_some() { return Err(changed()); }
+        if after_by_id.insert(id, row).is_some() {
+            return Err(changed());
+        }
     }
-    let allowed: std::collections::BTreeSet<String> = f.recipients.iter().map(|r| count_notice_id(f, r)).collect();
+    let allowed: std::collections::BTreeSet<String> =
+        f.recipients.iter().map(|r| count_notice_id(f, r)).collect();
     for (id, before) in &before_by_id {
-        if after_by_id.get(id) != Some(before) { return Err(changed()); }
+        if after_by_id.get(id) != Some(before) {
+            return Err(changed());
+        }
     }
     for id in after_by_id.keys() {
-        if !before_by_id.contains_key(id) && !allowed.contains(*id) { return Err(changed()); }
+        if !before_by_id.contains_key(id) && !allowed.contains(*id) {
+            return Err(changed());
+        }
     }
     source.require_current(c).await?;
     Ok(RetainedQualityCountNotices {

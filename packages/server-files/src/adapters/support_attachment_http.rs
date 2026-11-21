@@ -14,12 +14,7 @@ use erpx_server_runtime::public::http_support::{
     body::to_bytes, header, routing::post, routing::put, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
-use std::{
-    collections::BTreeMap,
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const CREATE_LIMIT: usize = 8 * 1024;
 const RESERVE_LIMIT: usize = 64 * 1024;

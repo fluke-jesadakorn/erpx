@@ -4,13 +4,13 @@
 //! the reviewed snapshot and persisted readback. This layer never opens a
 //! transaction or reads an HTTP request.
 use crate::domain::people_access::{
-    PeopleAccessActor, RELATIONSHIP_APPLY_OPERATION, RELATIONSHIP_MANAGE_PERMISSION,
-    RelationshipApplyPlan, RelationshipChange, RelationshipPreviewPlan, RelationshipPreviewRow,
-    RelationshipReceipt, RelationshipSnapshot, access_object_unavailable, access_object_changed,
-    idempotency_conflict, preview_changed, preview_expired, preview_summary, readback_invalid,
-    relationship_apply_identity, relationship_id, protected_account,
-    self_access_change, source_invalid, sponsor_unavailable, validate_change, validate_snapshot,
-    valid_token, MAX_ORGANIZATIONS, MAX_SUBJECTS, MAX_TEAMS, MAX_UNITS, PREVIEW_LIFETIME_MS,
+    MAX_ORGANIZATIONS, MAX_SUBJECTS, MAX_TEAMS, MAX_UNITS, PREVIEW_LIFETIME_MS, PeopleAccessActor,
+    RELATIONSHIP_APPLY_OPERATION, RELATIONSHIP_MANAGE_PERMISSION, RelationshipApplyPlan,
+    RelationshipChange, RelationshipPreviewPlan, RelationshipPreviewRow, RelationshipReceipt,
+    RelationshipSnapshot, access_object_changed, access_object_unavailable, idempotency_conflict,
+    preview_changed, preview_expired, preview_summary, protected_account, readback_invalid,
+    relationship_apply_identity, relationship_id, self_access_change, source_invalid,
+    sponsor_unavailable, valid_token, validate_change, validate_snapshot,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey};
 use serde_json::Value;
@@ -292,7 +292,9 @@ pub async fn apply_relationship<R: PeopleRelationshipRepository>(
         retained_person_id: retained.and_then(|row| row.person_id.clone()),
         now,
     };
-    let result = repository.commit_apply(actor, key.as_str(), &plan, &hash).await?;
+    let result = repository
+        .commit_apply(actor, key.as_str(), &plan, &hash)
+        .await?;
     repository.consume_preview(actor, token).await?;
     if result["id"].as_str() != Some(id.as_str())
         || result["version"].as_i64() != Some(expected_version + 1)

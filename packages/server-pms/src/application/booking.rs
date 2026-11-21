@@ -9,13 +9,13 @@
 //! request bucket that fails only above the limit.
 use crate::application::room_board::PmsBoardFuture;
 use crate::domain::booking::{
-    DELIVERY_BATCH, DEFAULT_RATE_LIMIT, PmsBookingEmailClaim, PmsBookingEmailRow, PmsBookingMailFacts,
-    PmsBookingMailKind, PmsBookingMailPayload, PmsBookingQueuedMail, PmsBookingTokenRef,
-    PmsBookingTokenRow, TOKEN_TTL_MS, booking_link_token, booking_mail_payload,
-    booking_public_url, booking_summary, booking_token_hash, delivery_failure_outcome,
-    mail_lease_deadline, rate_limit_bucket, rate_limit_exceeded, rate_limited, record_invalid,
-    split_booking_link, stale_rate_limit_bucket, validate_presented_token,
-    PmsBookingLinkKind,
+    DEFAULT_RATE_LIMIT, DELIVERY_BATCH, PmsBookingEmailClaim, PmsBookingEmailRow,
+    PmsBookingLinkKind, PmsBookingMailFacts, PmsBookingMailKind, PmsBookingMailPayload,
+    PmsBookingQueuedMail, PmsBookingTokenRef, PmsBookingTokenRow, TOKEN_TTL_MS, booking_link_token,
+    booking_mail_payload, booking_public_url, booking_summary, booking_token_hash,
+    delivery_failure_outcome, mail_lease_deadline, rate_limit_bucket, rate_limit_exceeded,
+    rate_limited, record_invalid, split_booking_link, stale_rate_limit_bucket,
+    validate_presented_token,
 };
 use erpx_server_shared::public::BusinessError;
 use std::collections::BTreeMap;
@@ -82,10 +82,8 @@ pub trait PmsBookingMailProvider: Send + Sync {
 /// Commercial package authority for the mail's property. A refusal pauses the
 /// mail without consuming its attempt budget.
 pub trait PmsBookingPurchaseGuard: Send + Sync {
-    fn require_history<'a>(
-        &'a self,
-        property_id: &'a str,
-    ) -> PmsBoardFuture<'a, (), BusinessError>;
+    fn require_history<'a>(&'a self, property_id: &'a str)
+    -> PmsBoardFuture<'a, (), BusinessError>;
 }
 
 /// PMS-owned persistence used by link issuing, delivery turns and the public
@@ -189,10 +187,7 @@ where
     }
     let summary = booking_summary(&facts, now)?;
     let token = booking_link_token(&config.secret, PmsBookingLinkKind::Access, token_id);
-    let link = config.public_url(
-        holding_slug,
-        &format!("/manage#token={token}"),
-    );
+    let link = config.public_url(holding_slug, &format!("/manage#token={token}"));
     let payload = booking_mail_payload(kind, &config.from, &summary, &link);
     let plaintext = serde_json::to_string(&payload).map_err(|_| record_invalid())?;
     let sealed = cipher.protect(email_id, &plaintext)?;
@@ -537,7 +532,10 @@ mod tests {
     struct ReverseCipher;
     impl PmsBookingMailCipher for ReverseCipher {
         fn protect(&self, _mail_id: &str, plaintext: &str) -> Result<String, BusinessError> {
-            Ok(format!("sealed:{}", plaintext.chars().rev().collect::<String>()))
+            Ok(format!(
+                "sealed:{}",
+                plaintext.chars().rev().collect::<String>()
+            ))
         }
         fn unprotect(&self, _mail_id: &str, sealed: &str) -> Result<String, BusinessError> {
             sealed
@@ -730,7 +728,10 @@ mod tests {
         .unwrap();
         assert_eq!(report.sent, 1);
         assert_eq!(repository.sent, vec!["mail-1"]);
-        assert_eq!(repository.renewed, vec![("token-1".to_owned(), 1_000 + TOKEN_TTL_MS)]);
+        assert_eq!(
+            repository.renewed,
+            vec![("token-1".to_owned(), 1_000 + TOKEN_TTL_MS)]
+        );
         assert_eq!(repository.pruned, vec![-60]);
 
         let mut repository = FakeRepository {
@@ -816,7 +817,9 @@ mod tests {
     #[tokio::test]
     async fn delivery_stops_at_the_retained_batch_bound() {
         let mut repository = FakeRepository {
-            claims: (0..25).map(|index| claim(&format!("mail-{index}"))).collect(),
+            claims: (0..25)
+                .map(|index| claim(&format!("mail-{index}")))
+                .collect(),
             ..Default::default()
         };
         let report = deliver_booking_emails(
@@ -916,13 +919,15 @@ mod tests {
                 .unwrap();
         assert_eq!(summary.number, "BK-1");
         assert_eq!(booking_mail_idempotency_key("mail-1"), "pms-booking-mail-1");
-        assert!(booking_mail_body(&PmsBookingMailPayload {
-            from: "a".into(),
-            to: vec!["b".into()],
-            subject: "c".into(),
-            text: "d".into(),
-        })
-        .unwrap()
-        .contains("\"subject\":\"c\""));
+        assert!(
+            booking_mail_body(&PmsBookingMailPayload {
+                from: "a".into(),
+                to: vec!["b".into()],
+                subject: "c".into(),
+                text: "d".into(),
+            })
+            .unwrap()
+            .contains("\"subject\":\"c\"")
+        );
     }
 }

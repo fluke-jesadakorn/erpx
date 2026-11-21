@@ -29,6 +29,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
     PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
+use erpx_server_files::public::benefit_evidence::PgBenefitsEvidence;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -38,16 +39,15 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_learning::public::benefit_learning::PgBenefitLearning;
 use erpx_server_people_payroll::public::benefit_person::{
     CurrentBenefitPerson, inspect_benefit_person, inspect_benefit_person_names,
     lock_benefit_people_sources,
 };
-use erpx_server_files::public::benefit_evidence::PgBenefitsEvidence;
-use erpx_server_learning::public::benefit_learning::PgBenefitLearning;
-use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::executive_access::{
     EvidenceAccessAction, ExecutiveEvidenceAccess, record_executive_evidence_access,
 };
+use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use erpx_server_shared::public::{CommandKey, TimestampMillis};
@@ -764,17 +764,18 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                         let mut evidence = PgBenefitsEvidence::new(
                             workspace.company_id.clone(),
                             current.user_id().as_str().to_owned(),
-                            workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+                            workspace
+                                .branch_id
+                                .as_ref()
+                                .map(|id| id.as_str().to_owned()),
                             workspace
                                 .department_id
                                 .as_ref()
                                 .map(|id| id.as_str().to_owned()),
                             now,
                         );
-                        let mut learning = PgBenefitLearning::new(
-                            current.user_id().as_str().to_owned(),
-                            now,
-                        );
+                        let mut learning =
+                            PgBenefitLearning::new(current.user_id().as_str().to_owned(), now);
                         let mut ports = BenefitCommandPorts {
                             evidence: &mut evidence,
                             learning: &mut learning,
@@ -958,9 +959,7 @@ impl<C: Clock + Send + Sync + 'static> BenefitsWorkspaceHttpBackend for Benefits
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> BenefitsExecutiveEvidenceHttpBackend
-    for BenefitsBackend<C>
-{
+impl<C: Clock + Send + Sync + 'static> BenefitsExecutiveEvidenceHttpBackend for BenefitsBackend<C> {
     fn execute<'a>(
         &'a self,
         request: BenefitsExecutiveEvidenceHttpRequest<'a>,
@@ -973,8 +972,12 @@ impl<C: Clock + Send + Sync + 'static> BenefitsExecutiveEvidenceHttpBackend
                     name,
                 )
             };
-            let invalid_context =
-                || BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current work revision.");
+            let invalid_context = || {
+                BusinessError::invalid(
+                    "BENEFITS_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
+            };
             let revision = header("x-erpx-context-revision")?
                 .ok_or_else(invalid_context)?
                 .parse()

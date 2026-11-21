@@ -330,9 +330,7 @@ fn parse_change(
     let Some(object) = value.as_object() else {
         return Err(request_invalid());
     };
-    if object.len() != 2
-        || !object.contains_key("expectedVersion")
-        || !object.contains_key("title")
+    if object.len() != 2 || !object.contains_key("expectedVersion") || !object.contains_key("title")
     {
         return Err(request_invalid());
     }
@@ -393,12 +391,6 @@ async fn change_listing_handler(
         Err(_) => return error_response(request_invalid()),
     };
     state
-        .change_listing(
-            &parts.headers,
-            &slug,
-            &listing_id,
-            parts.uri.query(),
-            &body,
-        )
+        .change_listing(&parts.headers, &slug, &listing_id, parts.uri.query(), &body)
         .await
 }

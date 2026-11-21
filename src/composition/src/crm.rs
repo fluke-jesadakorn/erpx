@@ -15,12 +15,8 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::field_service_customer::{
-    lock_field_service_customer_sources, read_current_field_service_customer,
-};
 use erpx_server_crm::public::activities_http::{
-    CrmActivityCommandHttpBackend, CrmActivityCommandHttpRequest,
-    CrmActivityCommandHttpTarget,
+    CrmActivityCommandHttpBackend, CrmActivityCommandHttpRequest, CrmActivityCommandHttpTarget,
 };
 use erpx_server_crm::public::activities_native::{
     ActivityActor, ActivityChangeInput, ActivityChangePlan, ActivityCreateInput,
@@ -41,10 +37,10 @@ use erpx_server_crm::public::leads_http::{
 use erpx_server_crm::public::leads_native::{
     ChangedCrmLeadFacts, ChangedCrmOpportunityFacts, LeadActor, LeadChangeInput, LeadChangeReceipt,
     OpportunityChangeInput, OpportunityChangeReceipt, OwnedCrmQualificationRetention,
-    PgCrmLeadCommands, PreparedLeadChange,
-    PreparedOpportunityChange, QualifiedCrmLeadFacts, RetainedCrmLeadChange,
-    RetainedCrmOpportunityChange, apply_crm_qualification_retained, lead_operation,
-    native_lead_action, native_opportunity_action, not_native, opportunity_operation,
+    PgCrmLeadCommands, PreparedLeadChange, PreparedOpportunityChange, QualifiedCrmLeadFacts,
+    RetainedCrmLeadChange, RetainedCrmOpportunityChange, apply_crm_qualification_retained,
+    lead_operation, native_lead_action, native_opportunity_action, not_native,
+    opportunity_operation,
 };
 use erpx_server_crm::public::pipeline::{
     CrmPipelineActor, CrmPipelineCustomerDirectory, CrmPipelineEntitlement,
@@ -54,6 +50,9 @@ use erpx_server_crm::public::pipeline::{
 use erpx_server_crm::public::pipeline_http::{
     CrmPipelineHttpBackend, CrmPipelineHttpFuture, CrmPipelineHttpReadRequest,
     CrmPipelineHttpResponse,
+};
+use erpx_server_finance::public::field_service_customer::{
+    lock_field_service_customer_sources, read_current_field_service_customer,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -707,13 +706,12 @@ async fn inspect_crm_pms_reservation(
     reservation_id: &str,
     property_id: &str,
 ) -> Result<CrmPmsReservationWitness, Error> {
-    let contact: Option<Option<String>> = sqlx::query_scalar(
-        "SELECT contact_id FROM public.crm_leads WHERE id=$1 AND company_id=$2",
-    )
-    .bind(lead_id)
-    .bind(company)
-    .fetch_optional(&mut *c)
-    .await?;
+    let contact: Option<Option<String>> =
+        sqlx::query_scalar("SELECT contact_id FROM public.crm_leads WHERE id=$1 AND company_id=$2")
+            .bind(lead_id)
+            .bind(company)
+            .fetch_optional(&mut *c)
+            .await?;
     let contact_id = contact.flatten().ok_or_else(|| {
         BusinessError::new(
             FailureKind::Conflict,
@@ -762,10 +760,7 @@ async fn inspect_crm_pms_reservation(
 /// Current Commerce company currency for a qualification opportunity. It reads
 /// the authoritative Commerce settings row in the caller's transaction and
 /// never accepts a currency from the request.
-async fn commerce_currency(
-    c: &mut PgConnection,
-    company: &str,
-) -> Result<Option<String>, Error> {
+async fn commerce_currency(c: &mut PgConnection, company: &str) -> Result<Option<String>, Error> {
     Ok(sqlx::query_scalar(
         "SELECT currency FROM public.commerce_settings WHERE company_id=$1 FOR SHARE",
     )
@@ -931,9 +926,7 @@ fn opportunity_notification_facts(facts: &ChangedCrmOpportunityFacts) -> CrmLead
     }
 }
 
-fn qualified_lead_notification_facts(
-    facts: &QualifiedCrmLeadFacts,
-) -> CrmLeadNotificationFacts {
+fn qualified_lead_notification_facts(facts: &QualifiedCrmLeadFacts) -> CrmLeadNotificationFacts {
     CrmLeadNotificationFacts {
         command_key: facts.command_key.clone(),
         company_id: facts.company_id.clone(),
@@ -1098,8 +1091,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                     let currency = commerce_currency(c, workspace.company_id.as_str())
                         .await?
                         .ok_or_else(currency_required)?;
-                    let opportunity_id =
-                        format!("opportunity-{}", self.command.key().as_str());
+                    let opportunity_id = format!("opportunity-{}", self.command.key().as_str());
                     let receipt = LeadChangeReceipt {
                         id: lead_id.clone(),
                         version: input.expected_version + 1,
@@ -1307,10 +1299,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                             )
                         })?;
                     let property_id = prepared.plan.property_id.as_deref().ok_or_else(|| {
-                        BusinessError::invalid(
-                            "CRM_OPPORTUNITY_INPUT_INVALID",
-                            "Use a property.",
-                        )
+                        BusinessError::invalid("CRM_OPPORTUNITY_INPUT_INVALID", "Use a property.")
                     })?;
                     let witness = inspect_crm_pms_reservation(
                         c,
@@ -1958,7 +1947,10 @@ fn activity_actor(current: &AuthorizedWorkContext) -> ActivityActor {
     ActivityActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -2132,9 +2124,7 @@ impl PgCrmActivityNotificationSource for ReassignActivityNotice<'_> {
     }
 }
 
-fn reassign_notice_facts(
-    retained: &RetainedCrmActivityReassign,
-) -> CrmActivityNotificationFacts {
+fn reassign_notice_facts(retained: &RetainedCrmActivityReassign) -> CrmActivityNotificationFacts {
     let facts = retained.notification_facts();
     CrmActivityNotificationFacts {
         command_key: facts.command_key,
@@ -2201,10 +2191,7 @@ impl<W: Clock + Sync> ActivityEffects<'_, W> {
         branch_id: &str,
         department_id: Option<&str>,
     ) -> Result<(), Error> {
-        let locks = self
-            .recipient_locks
-            .as_ref()
-            .ok_or_else(command_changed)?;
+        let locks = self.recipient_locks.as_ref().ok_or_else(command_changed)?;
         let recipient = inspect_sales_recipient(
             c,
             locks,
@@ -2318,13 +2305,8 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for ActivityEffects<'_, W> {
                     return Err(activity_conflict().into());
                 }
                 let (branch_id, department_id) = self.lead_scope(c, &plan.lead_id).await?;
-                self.inspect_recipient(
-                    c,
-                    &plan.owner_id,
-                    &branch_id,
-                    department_id.as_deref(),
-                )
-                .await?;
+                self.inspect_recipient(c, &plan.owner_id, &branch_id, department_id.as_deref())
+                    .await?;
                 let id = create_record_id(key.as_str());
                 let result = CommandJson::from_serializable(&serde_json::json!({
                     "id": id,
@@ -2352,8 +2334,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for ActivityEffects<'_, W> {
                     let prepared = PgCrmActivityCommands::new(c)
                         .prepare_reassign(&actor, &activity_id, key.as_str(), &input)
                         .await?;
-                    let (branch_id, department_id) =
-                        self.activity_scope(c, &activity_id).await?;
+                    let (branch_id, department_id) = self.activity_scope(c, &activity_id).await?;
                     self.inspect_recipient(
                         c,
                         prepared.owner_id(),
@@ -2367,10 +2348,9 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for ActivityEffects<'_, W> {
                         "version": version,
                         "status": "open",
                     }))?;
-                    self.prepared =
-                        Some(PreparedActivity::Reassign(PreparedActivityReassign {
-                            prepared,
-                        }));
+                    self.prepared = Some(PreparedActivity::Reassign(PreparedActivityReassign {
+                        prepared,
+                    }));
                     Ok(WorkflowOutput {
                         version,
                         result,
@@ -2387,13 +2367,11 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for ActivityEffects<'_, W> {
                                 "CRM activity not found in this scope.",
                             )
                         })?;
-                    let plan =
-                        validate_change(&actor, &input, &record.owner_id, &record.status)?;
+                    let plan = validate_change(&actor, &input, &record.owner_id, &record.status)?;
                     if record.version != input.expected_version {
                         return Err(activity_conflict().into());
                     }
-                    let (branch_id, department_id) =
-                        self.activity_scope(c, &activity_id).await?;
+                    let (branch_id, department_id) = self.activity_scope(c, &activity_id).await?;
                     let version = input.expected_version + 1;
                     let result = CommandJson::from_serializable(&serde_json::json!({
                         "id": activity_id,
@@ -2555,11 +2533,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for ActivityEffects<'_, W> {
 }
 
 /// Execute one native CRM activity owner command in the caller's retained unit.
-pub async fn execute_crm_activity_command<
-    W: Clock + Sync,
-    G: Clock + Sync,
-    I: IdentifierSource,
->(
+pub async fn execute_crm_activity_command<W: Clock + Sync, G: Clock + Sync, I: IdentifierSource>(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
     command: &CrmActivityCommand,
@@ -2780,13 +2754,7 @@ impl<C: Clock + Send + Sync + 'static> CrmActivityCommandHttpBackend
             let input: ActivityCreateInput = serde_json::from_value(request.body.clone())
                 .map_err(|_| activity_request_invalid())?;
             self.service
-                .create(
-                    request.host,
-                    proof,
-                    selection,
-                    request.key.clone(),
-                    input,
-                )
+                .create(request.host, proof, selection, request.key.clone(), input)
                 .await
                 .map_err(business)
         })

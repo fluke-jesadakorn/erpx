@@ -187,7 +187,10 @@ impl RuntimeLegalWorkerConfiguration {
                 return Err("LEGAL_RUNTIME_CONFIGURATION_INVALID");
             }
         }
-        if doc.pdf_binary.as_ref().is_some_and(|path| !path.is_absolute())
+        if doc
+            .pdf_binary
+            .as_ref()
+            .is_some_and(|path| !path.is_absolute())
             || doc.pdf_binary.is_some() && !cfg!(feature = "legal-pdf-worker")
         {
             return Err("LEGAL_PDF_PROVIDER_NOT_CONFIGURED");
@@ -209,8 +212,8 @@ impl RuntimeLegalWorkerConfiguration {
         let mut databases = std::collections::BTreeSet::new();
         let mut entries = Vec::with_capacity(doc.holdings.len());
         for holding in doc.holdings {
-            let holding_id = HoldingId::new(&holding.holding_id)
-                .map_err(|_| "LEGAL_RUNTIME_HOLDING_INVALID")?;
+            let holding_id =
+                HoldingId::new(&holding.holding_id).map_err(|_| "LEGAL_RUNTIME_HOLDING_INVALID")?;
             let company_id =
                 CompanyId::new(&holding.company_id).map_err(|_| "LEGAL_RUNTIME_HOLDING_INVALID")?;
             if !ids.insert(holding.holding_id.clone())
@@ -219,23 +222,28 @@ impl RuntimeLegalWorkerConfiguration {
                 || !databases.insert(holding.database_url.clone())
                 || holding.slug.is_empty()
                 || holding.slug.len() > 128
-                || !holding
-                    .slug
-                    .bytes()
-                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'-' | b'_'))
+                || !holding.slug.bytes().all(|b| {
+                    b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'-' | b'_')
+                })
                 || holding.host.is_empty()
                 || holding.host.len() > 253
                 || holding
                     .host
                     .bytes()
                     .any(|b| !b.is_ascii_alphanumeric() && !matches!(b, b'.' | b'-' | b':'))
-                || [&holding.write_binding, &holding.read_binding, &holding.files_binding]
-                    .iter()
-                    .any(|value| {
-                        value.is_empty()
-                            || value.len() > 128
-                            || !value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-                    })
+                || [
+                    &holding.write_binding,
+                    &holding.read_binding,
+                    &holding.files_binding,
+                ]
+                .iter()
+                .any(|value| {
+                    value.is_empty()
+                        || value.len() > 128
+                        || !value
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                })
                 || !holding.files_root.is_absolute()
                 || !holding.files_root.is_dir()
             {

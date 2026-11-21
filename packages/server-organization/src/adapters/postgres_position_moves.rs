@@ -8,8 +8,8 @@ use crate::{
     application::{
         organization_nodes::OrganizationCommandActor,
         position_moves::{
-            drain_once, ClaimedPositionMove, DrainOutcome, PositionMoveDrainRepository,
-            PositionMoveFuture, PositionMoveRepository,
+            ClaimedPositionMove, DrainOutcome, PositionMoveDrainRepository, PositionMoveFuture,
+            PositionMoveRepository, drain_once,
         },
     },
     domain::organization_nodes::{OrganizationActor, OrganizationScopeKind},
@@ -27,10 +27,10 @@ use erpx_server_shared::public::{
     AssignmentId, BusinessError, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use erpx_server_workflow::public::commands::{
-    command_fingerprint, CommandActor, CommandEventScope, CommandField, CommandJson, WorkAuthority,
+    CommandActor, CommandEventScope, CommandField, CommandJson, WorkAuthority, command_fingerprint,
 };
-use serde_json::{json, Value};
-use sqlx::{postgres::PgRow, Connection, PgConnection, Row};
+use serde_json::{Value, json};
+use sqlx::{Connection, PgConnection, Row, postgres::PgRow};
 use std::sync::{Arc, Mutex};
 
 type Error = PgTransactionError<BusinessError>;

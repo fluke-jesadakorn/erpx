@@ -11,7 +11,7 @@ import { hospitalityOwnerProjectionSources as identity_accessProjectionSources }
 import { createSaveExpenseDraft } from "@erpx/server-people_payroll/application/expense-commands";
 import { expenseCommandPort, expenseMutation } from "@erpx/server-people_payroll/adapters/expense-command-port";
 /** Native Expense adapter; preserves legacy persistence and command semantics. */
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -62,7 +62,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
       const { recordId, current, claimant, claimantName, personId, staff, amount, tax, category, currency, requestKind, payeePartyId } = facts;
       const authority = capturedAuthority as Awaited<ReturnType<typeof expenseAuthoritySnapshot>>;
       const now = Date.now(), version = current ? input.expectedVersion + 1 : 1;
-      const steps = [
+      const steps: SqlStatement[] = [
     authority.guard(key),
     assertion(
       write,

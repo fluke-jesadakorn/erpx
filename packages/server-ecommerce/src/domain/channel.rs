@@ -5,9 +5,9 @@
 //! order or post Finance. Review is a separate independent-approval command.
 use super::actor::EcommerceActor;
 use super::command::{
-    CONFIGURATION_LIMIT, CommandReceipt, EcommerceReceipt, chars_len, command_identity,
-    cp_text, idempotency_conflict, js_trim, parse_receipt_result, readback_invalid,
-    request_invalid, source_invalid, valid_configuration, valid_hash,
+    CONFIGURATION_LIMIT, CommandReceipt, EcommerceReceipt, chars_len, command_identity, cp_text,
+    idempotency_conflict, js_trim, parse_receipt_result, readback_invalid, request_invalid,
+    source_invalid, valid_configuration, valid_hash,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey};
 use serde::Serialize;
@@ -63,7 +63,8 @@ impl CreateChannel {
     pub fn validate(&self) -> Result<ValidatedChannel, BusinessError> {
         let name = js_trim(&self.name);
         let name_len = chars_len(name);
-        if !(NAME_MIN..=NAME_MAX).contains(&name_len) || !cp_text(name, NAME_MAX)
+        if !(NAME_MIN..=NAME_MAX).contains(&name_len)
+            || !cp_text(name, NAME_MAX)
             || !valid_channel_type(&self.channel_type)
             || !self.configuration.is_object()
         {

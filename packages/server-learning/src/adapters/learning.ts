@@ -92,80 +92,11 @@ function assignmentReferenceWitness(actor:WorkContext,id:string){return async(wr
  const source=await write.prepare('SELECT learner_id,course_id FROM learning_assignments WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{learner_id:string;course_id:string}>();
  return source?learnerReferenceWitness(actor,source.learner_id,source.course_id)(write):'null';
 };}
-function learningAssignmentChanges(source: DatabaseSource) {
- const database=databaseSource(source); return createChangeLearningAssignment({ ...commandPorts(database),
- async assignment(a,id) { const write=await database(); return await write
-      .prepare(
-        `SELECT a.*,c.required_for,CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND ${scope}`,
-      )
-      .bind(id, ...args(a))
-      .first<Assignment & { required_for: string | null }>(); },
- async attachment(a,id,key,input) { const write=await database(); return await prepareAttachmentBinding(write, a, {
-          attachmentSetIds: input.attachmentSetIds,
-          bindingContract: {
-            targetType: "learning_assignment",
-            bindingType: "learning_completion",
-            contexts: [{ purposeKey: "certificate", componentKind: "action", componentRef: "completion" }],
-          },
-          targetId: id,
-          expectedTargetVersion: input.expectedVersion,
-          commandId: key,
-          bindingId: id,
-        }); },
- async prepare(command,input,facts) { const write=await database(), {actor:a,key,id,now}=command, {row,status,attendance,score,evidence,completion,certificateFrom,certificateEnd}=facts;
- const attachmentBinding=facts.attachment as Awaited<ReturnType<typeof prepareAttachmentBinding>> | null;
- const steps=[
-      ...(attachmentBinding?.guards ?? []),
-      assertion(
-        write,
-        key,
-        "learning-record",
-        `EXISTS(SELECT 1 FROM learning_assignments a WHERE a.id=? AND a.version=? AND a.status=? AND ${scope})`,
-        [id, input.expectedVersion, row.status, ...args(a)],
-      ),
-      write
-        .prepare(
-          "UPDATE learning_assignments SET status=?,attendance=?,score_bps=?,result_evidence=?,completion_reason=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(status, attendance, score, evidence, completion, now, id),
-      write
-        .prepare(
-          "INSERT INTO learning_assignment_events VALUES(?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          `learning-assignment-event-${key}`,
-          id,
-          input.expectedVersion + 1,
-          input.action,
-          a.userId,
-          input.reason,
-          status,
-          now,
-        ),
-      ...(attachmentBinding?.steps ?? []),
-    ];
- if (facts.issueCertificate)
-    steps.push(
-      write
-        .prepare(
-          `INSERT INTO learning_eligibility_handoffs(id,assignment_id,company_id,person_id,eligibility_code,source_assignment_version,created_at) SELECT ?,a.id,a.company_id,p.id,?,?,? FROM learning_assignments a ${peoplepayrollSources.learning_adapters_learning_hr_people_p_join} ON p.company_id=a.company_id AND p.user_id=a.learner_id AND p.merged_into_id IS NULL WHERE a.id=?`,
-        )
-        .bind(
-          `learning-eligibility-${key}`,
-          row.required_for,
-          input.expectedVersion + 1,
-          now,
-          id,
-        ),
-      write.prepare("INSERT INTO learning_certificates(id,handoff_id,company_id,person_id,assignment_id,source_assignment_version,eligibility_code,valid_from,expires_on,completion_kind,evidence_ref,issued_by,created_at) SELECT ?,h.id,h.company_id,h.person_id,h.assignment_id,h.source_assignment_version,h.eligibility_code,?,?,?,?,?,? FROM learning_eligibility_handoffs h WHERE h.assignment_id=?")
-        .bind(`learning-certificate-${key}`,certificateFrom,certificateEnd,status,input.action==="complete"?input.evidence:input.reason,a.userId,now,id),
-    );
-steps.push(
-    await nativeLearningAssignmentNotice(write,a,"changed",`learning-assignment-notice-${key}`,id),
-  );
- return {native:steps};
- },
- });
+// Wave 3: assignment writes execute only in the native axum Learning route
+// (learning_http ChangeAssignment). No TypeScript SQL writer remains for this
+// capability; callers must use the native command client and fail closed.
+function learningAssignmentChanges(_source:DatabaseSource){
+  return (_a:WorkContext,_id:string,_input:unknown,_key:string):Promise<never>=>Promise.reject(new ApiError(503,'NATIVE_LEARNING_UNAVAILABLE','The native Learning assignment command is unavailable.'));
 }
 export function nativeLearningAssignmentChanges(source:DatabaseSource){return async(a:WorkContext,id:string,raw:unknown,key:string)=>{
  access(a,true);const input=learningActionSchema.parse(raw);

@@ -7,7 +7,7 @@
 //! seam. The module performs no I/O; adapters supply current sources.
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 pub const PREVIEW_TTL_MS: i64 = 15 * 60_000;

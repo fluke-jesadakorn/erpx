@@ -1,4 +1,4 @@
-import { nativePpPeopleDirectorySql } from '@erpx/server-collaboration/adapters/native-pp-people_directory-sql';
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {withPeoplePurchasedCommand} from "@erpx/server-people_payroll/adapters/people-purchases";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -42,34 +42,34 @@ function application(provided?: SqlDatabase) {
             return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND version=? AND status!='archived')", [id, expectedVersion]);
         },
         stageSaveDirectoryPersonEffect(legalName: string, value: string | null, email: string, value2: string | null, value3: string | number | null, value4: string | number | null, countryCode: string, now: number, id: string) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_1'))
+            return nativePpStatement('pp_people_directory_stmt_1')
                 .bind(legalName, value, email, value2, value3, value4, countryCode, now, id);
         },
         stageSaveDirectoryPersonEffect2(branchId: string, departmentId: string | null, jobTitle: string, workerType: "employee" | "contractor", employmentType: "shift" | "contractor" | "salaried" | "daily" | "hourly", startDate: string, currency: "USD" | "EUR" | "GBP" | "THB" | "SGD" | "CAD", managerPersonId: string | null, now: number, engagement: string) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_2'))
+            return nativePpStatement('pp_people_directory_stmt_2')
                 .bind(branchId, departmentId, jobTitle, workerType, employmentType, startDate, currency, managerPersonId, now, engagement);
         },
         stageSaveDirectoryPersonEffect3(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect3(...args); },
         stageSaveDirectoryPersonEffect4(id: string, companyId: string, legalName: string, value: string | null, email: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_3'))
+            return nativePpStatement('pp_people_directory_stmt_3')
                 .bind(id, companyId, legalName, value, email, value2, value3, value4, countryCode, userId, now, now2);
         },
         stageSaveDirectoryPersonEffect5(engagement: string, id: string, companyId: string, branchId: string, departmentId: string | null, workerType: "employee" | "contractor", employmentType: "shift" | "contractor" | "salaried" | "daily" | "hourly", startDate: string, jobTitle: string, currency: "USD" | "EUR" | "GBP" | "THB" | "SGD" | "CAD", managerPersonId: string | null, userId: string, now: number, now2: number) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_4'))
+            return nativePpStatement('pp_people_directory_stmt_4')
                 .bind(engagement, id, companyId, branchId, departmentId, workerType, employmentType, startDate, jobTitle, currency, managerPersonId, userId, now, now2);
         },
         stageSaveDirectoryPersonEffect6(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect6(...args); },
         stageSaveDirectoryPersonEffect7(levelId: string, engagement: string) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_5'))
+            return nativePpStatement('pp_people_directory_stmt_5')
                 .bind(levelId, engagement);
         },
         stageSaveDirectoryPersonEffect8(linkedMemberUserId: string, id: string) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_6'))
+            return nativePpStatement('pp_people_directory_stmt_6')
                 .bind(linkedMemberUserId, id);
         },
         stageSaveDirectoryPersonEffect9(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect9(...args); },
-        stageSaveDirectoryPersonEffect10(positionId: string | null, engagement: string) { return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_7')).bind(positionId, engagement); },
-        stageSaveDirectoryPersonEffect11(value: string, companyId: string, engagement: string, value2: string, value3: string, userId: string, reason: string, commandId: string, now: number) { return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_8')).bind(value, companyId, engagement, value2, value3, userId, reason, commandId, now); },
+        stageSaveDirectoryPersonEffect10(positionId: string | null, engagement: string) { return nativePpStatement('pp_people_directory_stmt_7').bind(positionId, engagement); },
+        stageSaveDirectoryPersonEffect11(value: string, companyId: string, engagement: string, value2: string, value3: string, userId: string, reason: string, commandId: string, now: number) { return nativePpStatement('pp_people_directory_stmt_8').bind(value, companyId, engagement, value2, value3, userId, reason, commandId, now); },
         readSaveDirectoryPersonPrevious(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonPrevious(...args); },
         readSaveDirectoryPersonNext(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonNext(...args); },
         readSetDirectoryStatusEffect(companyId: string, personId: string) { return database.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND person_id=? AND cancelled_at IS NULL AND restored_at IS NULL").bind(companyId, personId).first(); },
@@ -79,11 +79,11 @@ function application(provided?: SqlDatabase) {
         },
         guard27(...args) { return peopleDirectoryOrganizationFacts(database).guard27(...args); },
         stageSetDirectoryStatusEffect(status: "active" | "inactive" | "archived", now: number, personId: string) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_9'))
+            return nativePpStatement('pp_people_directory_stmt_9')
                 .bind(status, now, personId);
         },
         stageSetDirectoryStatusEffect2(value: "active" | "suspended", now: number, personId: string) {
-            return database.prepare(nativePpPeopleDirectorySql('pp_people_directory_stmt_10'))
+            return nativePpStatement('pp_people_directory_stmt_10')
                 .bind(value, now, personId);
         },
         stageSetDirectoryStatusEffect3(...args) { return peopleDirectoryEmployeeFacts(database).stageSetDirectoryStatusEffect3(...args); },

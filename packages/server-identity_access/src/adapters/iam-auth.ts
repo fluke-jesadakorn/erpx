@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import { createDirectoryUser, createDirectorySignIn, createDirectoryOidcUserInfo } from '@erpx/server-identity_access/application/directory-auth';
 import { directorySubject } from '@erpx/server-identity_access/domain/auth';
 import type { ConnectionRow } from '@erpx/server-identity_access/domain/directories';
@@ -69,7 +70,7 @@ export async function directoryOidcConfig(id: string): Promise<GenericOAuthConfi
         disableSignUp: true,
         disableImplicitSignUp: true,
         accountSubject: ({ profile }) => directorySubject(connection.provider, profile),
-        getUserInfo: async (tokens) => createDirectoryOidcUserInfo({ decode: decodeJwt, bind: async (subject, externalId) => { const { db } = await routedConnection(id), bindings = iamDb(db); return !!await bindings.prepare('INSERT INTO iam_oidc_subjects VALUES(?,?,?,?) ON CONFLICT(connection_id,issuer,subject) DO UPDATE SET external_id=iam_oidc_subjects.external_id WHERE iam_oidc_subjects.external_id=excluded.external_id RETURNING external_id').bind(id, issuer, subject, externalId).first(); }, approved: (externalId) => directoryUser(id, externalId), user: async (userId) => {
+        getUserInfo: async (tokens) => createDirectoryOidcUserInfo({ decode: decodeJwt, bind: async (subject, externalId) => { const { db } = await routedConnection(id), bindings = iamDb(db); return !!await nativePrepare("w_cfbe146d6f66").bind(id, issuer, subject, externalId).first(); }, approved: (externalId) => directoryUser(id, externalId), user: async (userId) => {
                 const env = await runtimeEnv();
                 return env.CONTROL_DB.prepare('SELECT name,email FROM "user" WHERE id=?').bind(userId).first<{
                     name: string;

@@ -139,7 +139,9 @@ pub async fn require_people_authority_sources_held(
         return Err(PersistenceError::new("PEOPLE_AUTHORITY_TRANSACTION_REQUIRED").into());
     }
     let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=9 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('hr_people'::regclass,'hr_engagements'::regclass,'people_access_cutoffs'::regclass,'people_lifecycle_cases'::regclass,'people_lifecycle_grants'::regclass,'people_package_revisions'::regclass,'people_applied_packages'::regclass,'people_provision_operations'::regclass,'people_provision_grants'::regclass) AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')").fetch_one(connection).await?;
-    if !held {return Err(PersistenceError::new("PEOPLE_AUTHORITY_LOCKS_REQUIRED").into());}
+    if !held {
+        return Err(PersistenceError::new("PEOPLE_AUTHORITY_LOCKS_REQUIRED").into());
+    }
     Ok(())
 }
 
@@ -147,12 +149,17 @@ pub async fn require_people_authority_sources_held(
 /// This grants no actor authority, does not prove pre-snapshot lock timing,
 /// and does not fence concurrent DDL or attest migration provenance.
 pub struct CurrentPeopleSalesAuthorityBoundary {
-    unit: (String,i32,String,String),
-    boundary: (String,String,Vec<i64>,String),
+    unit: (String, i32, String, String),
+    boundary: (String, String, Vec<i64>, String),
 }
 impl CurrentPeopleSalesAuthorityBoundary {
-    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),PgTransactionError<BusinessError>> {
-        if people_sales_unit(c).await? != self.unit || people_sales_boundary(c).await? != self.boundary {
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        if people_sales_unit(c).await? != self.unit
+            || people_sales_boundary(c).await? != self.boundary
+        {
             return Err(PersistenceError::new("PEOPLE_SALES_AUTHORITY_SOURCE_CHANGED").into());
         }
         Ok(())
@@ -160,18 +167,29 @@ impl CurrentPeopleSalesAuthorityBoundary {
 }
 /// Coordinator sets canonical search_path and takes all owner locks before the
 /// first snapshot. This only verifies present People locks and source identity.
-pub async fn inspect_people_sales_authority_boundary(c:&mut PgConnection)->Result<CurrentPeopleSalesAuthorityBoundary,PgTransactionError<BusinessError>> {
-    let unit=people_sales_unit(c).await?;
-    let boundary=people_sales_boundary(c).await?;
-    Ok(CurrentPeopleSalesAuthorityBoundary{unit,boundary})
+pub async fn inspect_people_sales_authority_boundary(
+    c: &mut PgConnection,
+) -> Result<CurrentPeopleSalesAuthorityBoundary, PgTransactionError<BusinessError>> {
+    let unit = people_sales_unit(c).await?;
+    let boundary = people_sales_boundary(c).await?;
+    Ok(CurrentPeopleSalesAuthorityBoundary { unit, boundary })
 }
-async fn people_sales_unit(c:&mut PgConnection)->Result<(String,i32,String,String),PgTransactionError<BusinessError>> {
-    if !c.is_in_transaction() || sqlx::query_scalar::<_,String>("SHOW transaction_isolation").fetch_one(&mut *c).await? != "serializable" {
+async fn people_sales_unit(
+    c: &mut PgConnection,
+) -> Result<(String, i32, String, String), PgTransactionError<BusinessError>> {
+    if !c.is_in_transaction()
+        || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+            .fetch_one(&mut *c)
+            .await?
+            != "serializable"
+    {
         return Err(PersistenceError::new("PEOPLE_AUTHORITY_TRANSACTION_REQUIRED").into());
     }
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
 }
-async fn people_sales_boundary(c:&mut PgConnection)->Result<(String,String,Vec<i64>,String),PgTransactionError<BusinessError>> {
+async fn people_sales_boundary(
+    c: &mut PgConnection,
+) -> Result<(String, String, Vec<i64>, String), PgTransactionError<BusinessError>> {
     let (valid,role,session,oids,functions):(bool,String,String,Vec<i64>,String)=sqlx::query_as(r#"
       WITH names(name) AS (SELECT unnest(ARRAY['hr_people','hr_engagements','people_access_cutoffs','people_lifecycle_cases','people_lifecycle_grants','people_package_revisions','people_applied_packages','people_provision_operations','people_provision_grants']::text[])),
       rels AS (SELECT n.name,to_regclass('public.'||n.name) oid FROM names n),
@@ -183,6 +201,8 @@ async fn people_sales_boundary(c:&mut PgConnection)->Result<(String,String,Vec<i
        current_user::text,session_user::text,(SELECT array_agg(r.oid::oid::bigint ORDER BY r.name) FROM rels r),
        (SELECT coalesce(jsonb_agg(jsonb_build_array(f.sig,p.oid::bigint,p.proowner::bigint,p.provolatile,p.prosecdef,p.proconfig,md5(pg_get_functiondef(p.oid))) ORDER BY f.sig),'[]'::jsonb)::text FROM funcs f LEFT JOIN pg_proc p ON p.oid=f.oid)
     "#).fetch_one(c).await?;
-    if !valid {return Err(PersistenceError::new("PEOPLE_SALES_AUTHORITY_SOURCE_REQUIRED").into());}
-    Ok((role,session,oids,functions))
+    if !valid {
+        return Err(PersistenceError::new("PEOPLE_SALES_AUTHORITY_SOURCE_REQUIRED").into());
+    }
+    Ok((role, session, oids, functions))
 }

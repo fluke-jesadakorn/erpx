@@ -210,10 +210,12 @@ pub async fn discard_file<P: MessagingFileDiscardPort + ?Sized>(
         id: file_id.to_owned(),
         state: "withdrawn",
     };
-    let value = serde_json::to_value(&receipt).map_err(|_| source_changed(
-        "COLLABORATION_RECEIPT_INVALID",
-        "The Messaging result could not be encoded.",
-    ))?;
+    let value = serde_json::to_value(&receipt).map_err(|_| {
+        source_changed(
+            "COLLABORATION_RECEIPT_INVALID",
+            "The Messaging result could not be encoded.",
+        )
+    })?;
     command_ledger::write_ledger(
         connection,
         command_ledger::LedgerRows {

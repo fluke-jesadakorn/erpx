@@ -1,3 +1,4 @@
+import { nativeRuntimeStatement } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import "server-only";
 import { randomUUID } from "node:crypto";
@@ -141,7 +142,7 @@ export async function handleExecutiveMcp(request: Request) {
             }
             response = new Response(body || null, { status: result.status, headers: result.headers });
             response.headers.set("Cache-Control", "private, no-store");
-            await control.prepare("UPDATE executive_external_tokens SET last_used_at=? WHERE id=? AND revoked_at IS NULL").bind(Date.now(), token.id).run();
+            await nativeRuntimeStatement('runtime_stmt_16', { companyId: '', now: Date.now(), actor: undefined }).bind(Date.now(), token.id).run();
         }
         finally {
             await handler.close();
@@ -156,8 +157,7 @@ export async function handleExecutiveMcp(request: Request) {
     try {
         if (!control)
             throw new Error("CONTROL_UNAVAILABLE");
-        await control.prepare(`INSERT INTO executive_mcp_audit(id,token_id,user_id,company_id,assignment_id,branch_id,department_id,action,outcome,code,started_at,duration_ms)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).bind(randomUUID(), token?.id ?? null, token?.user_id ?? null, token?.company_id ?? null, token?.assignment_id ?? null, token?.branch_id ?? null, token?.department_id ?? null, action, outcome, code, started, Date.now() - started).run();
+        await nativeRuntimeStatement('runtime_stmt_17', { companyId: token?.company_id ?? '', now: Date.now() - started, actor: undefined }).bind(randomUUID(), token?.id ?? null, token?.user_id ?? null, token?.company_id ?? null, token?.assignment_id ?? null, token?.branch_id ?? null, token?.department_id ?? null, action, outcome, code, started, Date.now() - started).run();
     }
     catch {
         return httpFailure(new ApiError(503, "EXECUTIVE_UNAVAILABLE", "Executive MCP is temporarily unavailable. Retry later."));

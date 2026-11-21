@@ -350,7 +350,12 @@ async fn read_set(
     .bind(company)
     .fetch_optional(&mut *connection)
     .await
-    .map_err(|_| unavailable("FILES_PROJECT_ATTACHMENT_UNAVAILABLE", "The Project file source is temporarily unavailable."))?
+    .map_err(|_| {
+        unavailable(
+            "FILES_PROJECT_ATTACHMENT_UNAVAILABLE",
+            "The Project file source is temporarily unavailable.",
+        )
+    })?
     .ok_or_else(set_missing)?;
     let links: Vec<(
         String,
@@ -379,7 +384,12 @@ async fn read_set(
     .bind(company)
     .fetch_all(&mut *connection)
     .await
-    .map_err(|_| unavailable("FILES_PROJECT_ATTACHMENT_UNAVAILABLE", "The Project file source is temporarily unavailable."))?;
+    .map_err(|_| {
+        unavailable(
+            "FILES_PROJECT_ATTACHMENT_UNAVAILABLE",
+            "The Project file source is temporarily unavailable.",
+        )
+    })?;
     if links.len() > PROJECT_MAX_LINKS {
         return Err(unavailable(
             "ATTACHMENT_LIST_TOO_LARGE",
@@ -454,7 +464,12 @@ async fn recorded_set(
     .bind(user)
     .fetch_optional(&mut *connection)
     .await
-    .map_err(|_| unavailable("FILES_PROJECT_ATTACHMENT_UNAVAILABLE", "The Project file source is temporarily unavailable."))
+    .map_err(|_| {
+        unavailable(
+            "FILES_PROJECT_ATTACHMENT_UNAVAILABLE",
+            "The Project file source is temporarily unavailable.",
+        )
+    })
 }
 
 /// Create or replay the caller's draft set. `availability` is trusted runtime
@@ -487,11 +502,7 @@ pub async fn create_project_attachment_set(
         .map(trim_js)
         .filter(|value| !value.is_empty());
     if component_ref.is_some_and(|value| value.encode_utf16().count() > 180) {
-        return Err(invalid(
-            "ATTACHMENT_COMPONENT_REF",
-            "The file context is too long.",
-        )
-        .into());
+        return Err(invalid("ATTACHMENT_COMPONENT_REF", "The file context is too long.").into());
     }
     let requested = stable_id("attachment-set", company, user, key);
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
@@ -517,7 +528,9 @@ pub async fn create_project_attachment_set(
         if !same {
             return Err(idempotency_conflict().into());
         }
-        return read_set(connection, company, &actual).await.map_err(Into::into);
+        return read_set(connection, company, &actual)
+            .await
+            .map_err(Into::into);
     }
     availability.require_writable()?;
     authorize_project_attachment_stage_with_connection(
@@ -592,8 +605,18 @@ pub async fn create_project_attachment_set(
         )
         .bind(&requested)
         .bind(company)
-        .bind(actor.branch_id.as_ref().map(erpx_server_shared::public::RecordId::as_str))
-        .bind(actor.department_id.as_ref().map(erpx_server_shared::public::RecordId::as_str))
+        .bind(
+            actor
+                .branch_id
+                .as_ref()
+                .map(erpx_server_shared::public::RecordId::as_str),
+        )
+        .bind(
+            actor
+                .department_id
+                .as_ref()
+                .map(erpx_server_shared::public::RecordId::as_str),
+        )
         .bind(&request.target_id)
         .bind(PROJECT_COMPONENT_KIND)
         .bind(component_ref)
@@ -665,7 +688,9 @@ pub async fn reserve_project_attachment_file(
     command_key(key)?;
     if holding_id.is_empty()
         || holding_id.contains('\0')
-        || holding_id.split(['/', '\\']).any(|part| matches!(part, "." | ".."))
+        || holding_id
+            .split(['/', '\\'])
+            .any(|part| matches!(part, "." | ".."))
     {
         return Err(conflict(
             "ATTACHMENT_SET_CHANGED",
@@ -680,15 +705,7 @@ pub async fn reserve_project_attachment_file(
         .bind(format!("attachment-reserve:{company}"))
         .execute(&mut *connection)
         .await?;
-    let set: Option<(
-        String,
-        String,
-        String,
-        String,
-        i64,
-        String,
-        i64,
-    )> = sqlx::query_as(
+    let set: Option<(String, String, String, String, i64, String, i64)> = sqlx::query_as(
         "SELECT target_type,target_id,purpose_key,component_kind,expected_target_version,\
          state,max_files FROM attachment_sets WHERE id=$1 AND company_id=$2 FOR UPDATE",
     )
@@ -705,7 +722,10 @@ pub async fn reserve_project_attachment_file(
         return Err(policy_unknown().into());
     }
     let upload = stable_id("attachment-upload", company, user, key);
-    let link = format!("attachment-link-{}", &upload[upload.len().saturating_sub(32)..]);
+    let link = format!(
+        "attachment-link-{}",
+        &upload[upload.len().saturating_sub(32)..]
+    );
     let recorded: Option<(
         String,
         String,
@@ -806,11 +826,7 @@ pub async fn reserve_project_attachment_file(
         || filename.encode_utf16().count() > 255
         || caption.is_some_and(|value| value.encode_utf16().count() > 1000)
     {
-        return Err(invalid(
-            "ATTACHMENT_METADATA",
-            "Check the filename and caption.",
-        )
-        .into());
+        return Err(invalid("ATTACHMENT_METADATA", "Check the filename and caption.").into());
     }
     if let Some(id) = request.supersedes_link_id.as_deref() {
         let valid: bool = sqlx::query_scalar(
@@ -1114,7 +1130,9 @@ pub async fn complete_project_attachment_upload(
         .ok_or_else(upload_conflict)?;
     if object_key.is_empty()
         || object_key.contains('\0')
-        || object_key.split(['/', '\\']).any(|part| matches!(part, "." | ".."))
+        || object_key
+            .split(['/', '\\'])
+            .any(|part| matches!(part, "." | ".."))
     {
         return Err(upload_conflict().into());
     }
@@ -1380,8 +1398,7 @@ pub async fn project_attachment_upload_status(
     .fetch_optional(&mut *connection)
     .await?
     .ok_or_else(upload_missing)?;
-    if row.get::<String, _>("set_state") != "bound"
-        && row.get::<String, _>("link_creator") != user
+    if row.get::<String, _>("set_state") != "bound" && row.get::<String, _>("link_creator") != user
     {
         return Err(upload_missing().into());
     }
@@ -1452,4 +1469,3 @@ pub async fn project_attachment_upload_status(
         expires_at: row.get("link_expires"),
     })
 }
-

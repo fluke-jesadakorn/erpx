@@ -299,7 +299,10 @@ where
     let amount: i64 = parts.iter().map(|part| part.amount).sum();
     let mut account_ids: Vec<&str> = Vec::new();
     for part in &parts {
-        if !account_ids.iter().any(|value| value == &part.guest_account_id.as_str()) {
+        if !account_ids
+            .iter()
+            .any(|value| value == &part.guest_account_id.as_str())
+        {
             account_ids.push(&part.guest_account_id);
         }
     }

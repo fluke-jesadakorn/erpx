@@ -58,7 +58,11 @@ fn changed() -> BusinessError {
 
 fn number(record: &str) -> String {
     let digest = Sha256::digest(record.as_bytes());
-    let hex: String = digest.iter().take(10).map(|byte| format!("{byte:02X}")).collect();
+    let hex: String = digest
+        .iter()
+        .take(10)
+        .map(|byte| format!("{byte:02X}"))
+        .collect();
     format!("LC-{hex}")
 }
 
@@ -101,7 +105,6 @@ impl LandedCostWrite {
             Self::Transition(id, _, _) => id.clone(),
         }
     }
-
 }
 
 #[derive(Clone)]
@@ -142,8 +145,15 @@ impl<C: Clock + Send + Sync + 'static> InventoryLandedCostCommand<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        self.run(host, proof, workspace, LandedCostWrite::Create(input), wire, key)
-            .await
+        self.run(
+            host,
+            proof,
+            workspace,
+            LandedCostWrite::Create(input),
+            wire,
+            key,
+        )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -347,8 +357,10 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
             CommandDisposition::Replay => CapabilityPurpose::History,
             CommandDisposition::Execute => self.purpose,
         };
-        let mut capabilities: Vec<String> =
-            CAPABILITIES.iter().map(|value| (*value).to_owned()).collect();
+        let mut capabilities: Vec<String> = CAPABILITIES
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect();
         if self.financial {
             capabilities.push(FINANCE_CAPABILITY.to_owned());
         }
@@ -520,13 +532,9 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 })
             }
             LandedCostWrite::Transition(id, action, input) => {
-                let source = read_landed_cost_transition_source(
-                    c,
-                    self.company.as_str(),
-                    branch,
-                    id,
-                )
-                .await?;
+                let source =
+                    read_landed_cost_transition_source(c, self.company.as_str(), branch, id)
+                        .await?;
                 let period = if source.periods.len() == 1 {
                     Some(source.periods[0].clone())
                 } else {

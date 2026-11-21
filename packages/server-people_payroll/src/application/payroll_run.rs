@@ -1107,22 +1107,25 @@ mod tests {
         let mut port = NoPayrollJournalPort;
         let mut repository = Repo::with_run(run());
         let error = repository
-            .prepare_journal(&mut port, &PayrollJournalRequest {
-                actor: actor().finance_actor().unwrap(),
-                draft: crate::domain::payroll_run::PayrollJournalDraft {
-                    chart_id: "chart".into(),
-                    period_id: "period".into(),
-                    entry_date: "2026-10-31".into(),
-                    currency: "THB".into(),
-                    fx_rate: None,
-                    is_opening: false,
-                    memo: "Payroll".into(),
-                    source_type: "payroll".into(),
-                    source_id: Some("run".into()),
-                    lines: Vec::new(),
+            .prepare_journal(
+                &mut port,
+                &PayrollJournalRequest {
+                    actor: actor().finance_actor().unwrap(),
+                    draft: crate::domain::payroll_run::PayrollJournalDraft {
+                        chart_id: "chart".into(),
+                        period_id: "period".into(),
+                        entry_date: "2026-10-31".into(),
+                        currency: "THB".into(),
+                        fx_rate: None,
+                        is_opening: false,
+                        memo: "Payroll".into(),
+                        source_type: "payroll".into(),
+                        source_id: Some("run".into()),
+                        lines: Vec::new(),
+                    },
+                    key: "post-key-1:journal".into(),
                 },
-                key: "post-key-1:journal".into(),
-            })
+            )
             .await
             .unwrap_err();
         assert_eq!(error.code, "PAYROLL_FINANCE_JOURNAL_PORT_UNAVAILABLE");

@@ -49,11 +49,11 @@
 //! session fails closed; there is no TS fallback and no HTTP-header identity.
 pub use crate::adapters::portal_session::PgPortalEnrollment;
 pub use crate::application::portal_session::{
-    resolve_portal_customer, PortalEnrollmentSource, PortalSessionFuture, PortalSessionVerifier,
+    PortalEnrollmentSource, PortalSessionFuture, PortalSessionVerifier, resolve_portal_customer,
 };
 pub use crate::domain::portal_session::{
-    email_unverified, invalid_request, normalize_email, not_found, proof_is_current,
-    session_required, validate_request, PortalCustomerProof, PortalCustomerRequest,
-    PortalSessionEvidence, MAX_EMAIL, MAX_HOLDING_ID, MAX_HOLDING_SLUG, MAX_PORTAL_AUDIENCE,
-    MAX_PORTAL_TOKEN,
+    MAX_EMAIL, MAX_HOLDING_ID, MAX_HOLDING_SLUG, MAX_PORTAL_AUDIENCE, MAX_PORTAL_TOKEN,
+    PortalCustomerProof, PortalCustomerRequest, PortalSessionEvidence, email_unverified,
+    invalid_request, normalize_email, not_found, proof_is_current, session_required,
+    validate_request,
 };

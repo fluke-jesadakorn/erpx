@@ -4,4 +4,7 @@ pub mod governance_http;
 pub mod governance_postgres;
 pub mod provider_http;
 pub mod provider_postgres;
+pub mod quota_http;
+pub mod owner_write_postgres;
+pub mod owner_write_http;
 pub mod quota_postgres;

@@ -194,19 +194,32 @@ pub struct RetainedLegalCitationAudit {
     rows: Vec<(String, String)>,
 }
 impl RetainedLegalCitationAudit {
-    pub(crate) async fn capture(c: &mut PgConnection, rows: Vec<(String, String)>) -> Result<Self, Error> {
-        if rows.len() != 1 { return Err(changed()); }
+    pub(crate) async fn capture(
+        c: &mut PgConnection,
+        rows: Vec<(String, String)>,
+    ) -> Result<Self, Error> {
+        if rows.len() != 1 {
+            return Err(changed());
+        }
         let unit = unit(c).await?;
         let proof = Self { unit, rows };
         proof.require_current(c).await?;
         Ok(proof)
     }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        if unit(c).await? != self.unit { return Err(changed()); }
+        if unit(c).await? != self.unit {
+            return Err(changed());
+        }
         for (id, expected) in &self.rows {
-            let actual: Option<String> = sqlx::query_scalar("SELECT to_jsonb(e)::text FROM public.legal_access_events e WHERE e.id=$1")
-                .bind(id).fetch_optional(&mut *c).await?;
-            if actual.as_ref() != Some(expected) { return Err(changed()); }
+            let actual: Option<String> = sqlx::query_scalar(
+                "SELECT to_jsonb(e)::text FROM public.legal_access_events e WHERE e.id=$1",
+            )
+            .bind(id)
+            .fetch_optional(&mut *c)
+            .await?;
+            if actual.as_ref() != Some(expected) {
+                return Err(changed());
+            }
         }
         Ok(())
     }

@@ -5,12 +5,14 @@
 //! notifications) plus the Finance customer master that the reviewed snapshot
 //! applies to in the same transaction. The caller's serializable Holding
 //! transaction is required and no commit is performed here.
-use crate::application::identity::{IdentityCommandRepository, IdentityFuture, IdentityReadRepository};
+use crate::application::identity::{
+    IdentityCommandRepository, IdentityFuture, IdentityReadRepository,
+};
 use crate::domain::access::{AccessActor, AccessReceipt, ReceiptSnapshot};
 use crate::domain::identity::{
     ChangePlan, CustomerAddress, CustomerIdentity, CustomerSnapshot, IdentityChangeRow,
-    IdentityCustomer, IdentityEventRow, NotificationConsent, RequestPlan,
-    customer_changed, idempotency_conflict, readback_invalid,
+    IdentityCustomer, IdentityEventRow, NotificationConsent, RequestPlan, customer_changed,
+    idempotency_conflict, readback_invalid,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -38,7 +40,11 @@ fn row_sql(lock: bool) -> String {
          FROM customer_identity_changes c \
          JOIN finance_parties p ON p.id=c.customer_id AND p.company_id=c.company_id \
          WHERE c.company_id=$1{}",
-        if lock { " AND c.id=$3 FOR UPDATE OF c" } else { "" }
+        if lock {
+            " AND c.id=$3 FOR UPDATE OF c"
+        } else {
+            ""
+        }
     )
 }
 
@@ -321,10 +327,12 @@ impl IdentityCommandRepository for PgCustomerIdentity<'_> {
     fn digest<'a>(&'a mut self, value: &'a str) -> IdentityFuture<'a, String, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
-            Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to($1,'UTF8')),'hex')")
-                .bind(value)
-                .fetch_one(&mut *self.connection)
-                .await?)
+            Ok(
+                sqlx::query_scalar("SELECT encode(sha256(convert_to($1,'UTF8')),'hex')")
+                    .bind(value)
+                    .fetch_one(&mut *self.connection)
+                    .await?,
+            )
         })
     }
 
@@ -673,7 +681,10 @@ impl IdentityReadRepository for PgCustomerIdentity<'_> {
     ) -> IdentityFuture<'a, Vec<IdentityChangeRow>, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
-            let sql = format!("{} ORDER BY c.updated_at DESC,c.id LIMIT 200", row_sql(false));
+            let sql = format!(
+                "{} ORDER BY c.updated_at DESC,c.id LIMIT 200",
+                row_sql(false)
+            );
             let rows = sqlx::query(AssertSqlSafe(sql))
                 .bind(actor.company_id.as_str())
                 .bind(actor.user_id.as_str())

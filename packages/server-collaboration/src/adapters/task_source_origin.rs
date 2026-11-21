@@ -3,7 +3,7 @@
 //! The caller owns the serializable Holding transaction. This adapter writes
 //! only `social_task_origins`; reading the published post and its source-access
 //! policy remains the Collaboration social-source port composed by the caller.
-use erpx_server_runtime::public::postgres::{PgTransactionError, PersistenceError};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::{Connection, PgConnection};
 

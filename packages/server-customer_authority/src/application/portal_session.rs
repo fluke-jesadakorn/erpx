@@ -5,8 +5,8 @@
 //! and produces the only `PortalCustomer`-compatible proof Support may consume.
 //! No transaction is opened, no HTTP request is read and no TS fallback exists.
 use crate::domain::portal_session::{
-    email_unverified, normalize_email, not_found, proof_is_current, session_required,
-    validate_request, PortalCustomerProof, PortalCustomerRequest, PortalSessionEvidence,
+    PortalCustomerProof, PortalCustomerRequest, PortalSessionEvidence, email_unverified,
+    normalize_email, not_found, proof_is_current, session_required, validate_request,
 };
 use erpx_server_shared::public::BusinessError;
 use std::future::Future;

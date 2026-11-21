@@ -83,7 +83,16 @@ pub async fn read_pos_bank_transaction(
     .fetch_optional(c)
     .await?;
     Ok(row.map(
-        |(id, version, match_status, bank_account, currency, amount_minor, external_id, transaction_date)| {
+        |(
+            id,
+            version,
+            match_status,
+            bank_account,
+            currency,
+            amount_minor,
+            external_id,
+            transaction_date,
+        )| {
             PosBankTransaction {
                 id,
                 version,

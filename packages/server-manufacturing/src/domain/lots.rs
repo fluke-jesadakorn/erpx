@@ -10,21 +10,33 @@
 //! (`packages/server-manufacturing/src/domain/lot-policy.ts`).
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
-pub const MATERIAL_LOT_UNAVAILABLE: &str = "A selected material lot is changed, expired, quarantined or unavailable.";
-pub const LOT_ALLOCATION_REQUIRED: &str = "Allocate the entire issued material quantity to its available lots or serial numbers.";
-pub const LOT_ALLOCATION_UNEXPECTED: &str = "This manufacturing material does not use lot tracking.";
+pub const MATERIAL_LOT_UNAVAILABLE: &str =
+    "A selected material lot is changed, expired, quarantined or unavailable.";
+pub const LOT_ALLOCATION_REQUIRED: &str =
+    "Allocate the entire issued material quantity to its available lots or serial numbers.";
+pub const LOT_ALLOCATION_UNEXPECTED: &str =
+    "This manufacturing material does not use lot tracking.";
 pub const LOT_ALLOCATION_DUPLICATE: &str = "Use each material lot or serial once in this run.";
 pub const SERIAL_QUANTITY_INVALID: &str = "Issue each material serial as exactly one unit.";
-pub const OUTPUT_LOTS_REQUIRED: &str = "Allocate the accepted output quantity to new production lots or serial numbers.";
-pub const OUTPUT_IDENTITY_INVALID: &str = "Use a unique lot code or serial number for each output allocation.";
+pub const OUTPUT_LOTS_REQUIRED: &str =
+    "Allocate the accepted output quantity to new production lots or serial numbers.";
+pub const OUTPUT_IDENTITY_INVALID: &str =
+    "Use a unique lot code or serial number for each output allocation.";
 pub const OUTPUT_EXPIRY_INVALID: &str = "New output cannot already be expired.";
 pub const OUTPUT_SERIAL_QUANTITY_INVALID: &str = "Each output serial must identify one unit.";
 
 pub fn lot_unavailable() -> BusinessError {
-    BusinessError::new(FailureKind::Conflict, "MANUFACTURING_LOT_UNAVAILABLE", MATERIAL_LOT_UNAVAILABLE)
+    BusinessError::new(
+        FailureKind::Conflict,
+        "MANUFACTURING_LOT_UNAVAILABLE",
+        MATERIAL_LOT_UNAVAILABLE,
+    )
 }
 pub fn allocation_required() -> BusinessError {
-    BusinessError::invalid("MANUFACTURING_LOT_ALLOCATION_REQUIRED", LOT_ALLOCATION_REQUIRED)
+    BusinessError::invalid(
+        "MANUFACTURING_LOT_ALLOCATION_REQUIRED",
+        LOT_ALLOCATION_REQUIRED,
+    )
 }
 pub fn allocation_unexpected() -> BusinessError {
     BusinessError::invalid("LOT_ALLOCATION_UNEXPECTED", LOT_ALLOCATION_UNEXPECTED)
@@ -138,10 +150,9 @@ pub fn validate_material_allocations(
         };
     }
     if allocations.is_empty()
-        || allocations
-            .iter()
-            .try_fold(0_i64, |sum, allocation| sum.checked_add(allocation.quantity_milli))
-            != Some(required_milli)
+        || allocations.iter().try_fold(0_i64, |sum, allocation| {
+            sum.checked_add(allocation.quantity_milli)
+        }) != Some(required_milli)
     {
         return Err(allocation_required());
     }
@@ -175,7 +186,10 @@ pub fn plan_material_lots(
                 && !facts.held
                 && facts.balance_version == allocation.balance_version
                 && facts.quantity_milli >= allocation.quantity_milli
-                && facts.expiry_date.as_deref().is_none_or(|expiry| expiry >= entry_date)
+                && facts
+                    .expiry_date
+                    .as_deref()
+                    .is_none_or(|expiry| expiry >= entry_date)
         });
         let facts = match available {
             Some(facts) => facts,
@@ -187,8 +201,12 @@ pub fn plan_material_lots(
         let value = if allocation.quantity_milli == facts.quantity_milli {
             facts.value_minor
         } else {
-            scaled_amount(facts.value_minor, allocation.quantity_milli, facts.quantity_milli)
-                .ok_or_else(lot_unavailable)?
+            scaled_amount(
+                facts.value_minor,
+                allocation.quantity_milli,
+                facts.quantity_milli,
+            )
+            .ok_or_else(lot_unavailable)?
         };
         value_minor = value_minor.checked_add(value).ok_or_else(lot_unavailable)?;
         issues.push(MaterialLotIssue {
@@ -298,9 +316,9 @@ pub fn plan_output_lots(
     allocations: &[OutputAllocation],
     issues: &[MaterialIssueRow],
 ) -> Result<Option<OutputLotPlan>, BusinessError> {
-    let total_allocated = allocations
-        .iter()
-        .try_fold(0_i64, |sum, allocation| sum.checked_add(allocation.quantity_milli));
+    let total_allocated = allocations.iter().try_fold(0_i64, |sum, allocation| {
+        sum.checked_add(allocation.quantity_milli)
+    });
     if input.tracking_mode == TrackingMode::None {
         return if allocations.is_empty() {
             Ok(None)
@@ -320,8 +338,7 @@ pub fn plan_output_lots(
         };
         match identity {
             Some(identity)
-                if !identity.is_empty()
-                    && !identities.iter().any(|prior| *prior == identity) =>
+                if !identity.is_empty() && !identities.iter().any(|prior| *prior == identity) =>
             {
                 identities.push(identity);
             }
@@ -372,8 +389,12 @@ pub fn plan_output_lots(
             let cumulative_input = if ordinal + 1 == allocations.len() {
                 issue.quantity_milli
             } else {
-                scaled_amount(issue.quantity_milli, cumulative_quantity, input.output_milli)
-                    .ok_or_else(output_lots_required)?
+                scaled_amount(
+                    issue.quantity_milli,
+                    cumulative_quantity,
+                    input.output_milli,
+                )
+                .ok_or_else(output_lots_required)?
             };
             let prior = prior_input
                 .iter()
@@ -403,7 +424,13 @@ pub struct MaterialIds {
     pub move_source_id: String,
 }
 
-pub fn material_ids(key: &str, order_id: &str, order_version: i64, product_id: &str, ordinal: usize) -> MaterialIds {
+pub fn material_ids(
+    key: &str,
+    order_id: &str,
+    order_version: i64,
+    product_id: &str,
+    ordinal: usize,
+) -> MaterialIds {
     MaterialIds {
         issue_id: format!("mfg-input-lot-{key}-{product_id}-{ordinal}"),
         move_id: format!("mfg-input-move-{key}-{product_id}-{ordinal}"),

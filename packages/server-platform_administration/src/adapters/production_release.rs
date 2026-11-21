@@ -1,8 +1,10 @@
-use crate::{application::production_release::ProductionReleaseReadPort, domain::production_release::*};
+use crate::{
+    application::production_release::ProductionReleaseReadPort, domain::production_release::*,
+};
+use erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources;
 use erpx_server_identity_access::public::release_reviewers::{
     PgReleaseReviewerReader, ReleaseReviewerRequest, lock_release_reviewer_sources,
 };
-use erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources;
 use erpx_server_organization::public::{
     PgCompanyBusinessAcceptanceReader, lock_business_acceptance_sources,
 };
@@ -27,10 +29,9 @@ struct Criterion {
     permission: String,
 }
 pub fn current_production_release_catalogue() -> Result<ProductionReleaseCatalogue, BusinessError> {
-    let resource: Resource = serde_json::from_str(include_str!(
-        "../../resources/production-release.v1.json"
-    ))
-    .map_err(|_| invalid())?;
+    let resource: Resource =
+        serde_json::from_str(include_str!("../../resources/production-release.v1.json"))
+            .map_err(|_| invalid())?;
     if resource.schema != "erpx-production-release/v1"
         || resource.scope_version != "thai-hotel-v1-crm-analytics"
         || resource.criteria.len() != 15
@@ -78,10 +79,7 @@ fn invalid() -> BusinessError {
 /// Acquire this complete owner bundle before the fresh Holding's first SELECT.
 pub async fn lock_production_release_sources(connection: &mut PgConnection) -> Result<(), Error> {
     if !connection.is_in_transaction() {
-        return Err(PersistenceError::new(
-            "PRODUCTION_RELEASE_OWNER_TRANSACTION_REQUIRED",
-        )
-        .into());
+        return Err(PersistenceError::new("PRODUCTION_RELEASE_OWNER_TRANSACTION_REQUIRED").into());
     }
     sqlx::query("LOCK TABLE company_release_acceptances,company_release_gate_reviews,company_release_revisions IN SHARE MODE")
         .execute(&mut *connection)
@@ -127,10 +125,7 @@ impl ProductionReleaseReadPort for PgProductionReleaseReader<'_> {
             .fetch_one(&mut *self.connection)
             .await?;
         if isolation != "serializable" {
-            return Err(PersistenceError::new(
-                "PRODUCTION_RELEASE_SERIALIZABLE_REQUIRED",
-            )
-            .into());
+            return Err(PersistenceError::new("PRODUCTION_RELEASE_SERIALIZABLE_REQUIRED").into());
         }
         let latest = sqlx::query("SELECT id,software_version,configuration_revision,setup_version,requested_by,revoked_at FROM company_release_acceptances WHERE company_id=$1 AND scope_version=$2 ORDER BY created_at DESC,id DESC LIMIT 1 FOR SHARE")
             .bind(company.as_str()).bind(self.catalogue.scope_version()).fetch_optional(&mut *self.connection).await?;

@@ -1,5 +1,12 @@
 //! Native Manufacturing BOM and Planning composition assembly.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
+use erpx_server_commercial::public::purchase_command_boundary::{
+    PurchaseCommandBoundary, PurchaseCommandScope,
+};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, current_package_catalogue,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -15,43 +22,38 @@ use erpx_server_manufacturing::public::bom::{
 use erpx_server_manufacturing::public::bom_http::{
     BomHttpBackend, BomHttpFuture, BomHttpRequest, BomHttpResponse,
 };
+use erpx_server_manufacturing::public::specification::{
+    CreateRequest as SpecificationCreateRequest, PgSpecificationCommands, ReviewAction,
+    ReviewRequest as SpecificationReviewRequest, SpecificationHttpBackend,
+    SpecificationHttpCommand, SpecificationHttpFuture, SpecificationHttpRequest,
+    SpecificationHttpResponse, create_specification, review_specification,
+};
 use erpx_server_planning::public::planning::{
     PgPlanningWorkspaceRead, PlanningActor, PlanningWorkspace, PlanningWorkspaceRepository,
     planning_workspace,
-};
-use erpx_server_planning::public::scenario::{
-    ManufacturingOrderPlan, PlanningReleaseFactory, PlanningReleasePort, ReleaseFuture,
 };
 use erpx_server_planning::public::planning_command_http::{
     PlanningCommandHttpBackend, PlanningCommandHttpCommand, PlanningCommandHttpFuture,
     PlanningCommandHttpRequest, PlanningCommandHttpResponse, PlanningCommandHttpTarget,
 };
-use erpx_server_planning::public::scenario::{
-    CalculateRequest, CancelRequest, ReviewRequest, calculate_scenario, cancel_scenario,
-    review_recommendation, PgPlanningScenarios,
+use erpx_server_planning::public::planning_http::{
+    PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
 };
 use erpx_server_planning::public::resources::{
     CalendarRequest, PgPlanningResources, ResourceRequest, save_calendar, save_resource,
 };
-use erpx_server_manufacturing::public::specification::{
-    CreateRequest as SpecificationCreateRequest, PgSpecificationCommands,
-    ReviewAction, ReviewRequest as SpecificationReviewRequest, SpecificationHttpBackend,
-    SpecificationHttpCommand, SpecificationHttpFuture, SpecificationHttpRequest,
-    SpecificationHttpResponse, create_specification, review_specification,
+use erpx_server_planning::public::scenario::{
+    CalculateRequest, CancelRequest, PgPlanningScenarios, ReviewRequest, calculate_scenario,
+    cancel_scenario, review_recommendation,
 };
-use erpx_server_commercial::public::purchase_after::write_purchase_shadow_checked_observation;
-use erpx_server_commercial::public::purchase_command_boundary::{
-    PurchaseCommandBoundary, PurchaseCommandScope,
-};
-use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, current_package_catalogue,
-};
-use erpx_server_planning::public::planning_http::{
-    PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
+use erpx_server_planning::public::scenario::{
+    ManufacturingOrderPlan, PlanningReleaseFactory, PlanningReleasePort, ReleaseFuture,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -373,12 +375,24 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                         let actor = planning_actor(current)?;
                         let now = clock.now();
                         let key = match &command {
-                            PlanningCommandHttpCommand::Calculate { idempotency_key, .. }
-                            | PlanningCommandHttpCommand::Cancel { idempotency_key, .. }
-                            | PlanningCommandHttpCommand::Review { idempotency_key, .. }
-                            | PlanningCommandHttpCommand::CreateResource { idempotency_key, .. }
-                            | PlanningCommandHttpCommand::UpdateResource { idempotency_key, .. }
-                            | PlanningCommandHttpCommand::SaveCalendar { idempotency_key, .. } => {
+                            PlanningCommandHttpCommand::Calculate {
+                                idempotency_key, ..
+                            }
+                            | PlanningCommandHttpCommand::Cancel {
+                                idempotency_key, ..
+                            }
+                            | PlanningCommandHttpCommand::Review {
+                                idempotency_key, ..
+                            }
+                            | PlanningCommandHttpCommand::CreateResource {
+                                idempotency_key, ..
+                            }
+                            | PlanningCommandHttpCommand::UpdateResource {
+                                idempotency_key, ..
+                            }
+                            | PlanningCommandHttpCommand::SaveCalendar {
+                                idempotency_key, ..
+                            } => {
                                 erpx_server_shared::public::CommandKey::new(idempotency_key.clone())
                                     .map_err(PgTransactionError::Business)?
                             }
@@ -386,58 +400,108 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingService<C> {
                         let data = match command {
                             PlanningCommandHttpCommand::Calculate { body, .. } => {
                                 let request: CalculateRequest = serde_json::from_value(body)
-                                    .map_err(|_| PgTransactionError::Business(BusinessError::invalid(
-                                        "PLANNING_REQUEST_INVALID",
-                                        "Use one unambiguous Planning command.",
-                                    )))?;
+                                    .map_err(|_| {
+                                        PgTransactionError::Business(BusinessError::invalid(
+                                            "PLANNING_REQUEST_INVALID",
+                                            "Use one unambiguous Planning command.",
+                                        ))
+                                    })?;
                                 let mut ports = PgPlanningScenarios::new(connection);
                                 calculate_scenario(&mut ports, &actor, &key, request, now).await
                             }
-                            PlanningCommandHttpCommand::Cancel { scenario_id, body, .. } => {
-                                let request: CancelRequest = serde_json::from_value(body)
-                                    .map_err(|_| PgTransactionError::Business(BusinessError::invalid(
-                                        "PLANNING_REQUEST_INVALID",
-                                        "Use one unambiguous Planning command.",
-                                    )))?;
+                            PlanningCommandHttpCommand::Cancel {
+                                scenario_id, body, ..
+                            } => {
+                                let request: CancelRequest =
+                                    serde_json::from_value(body).map_err(|_| {
+                                        PgTransactionError::Business(BusinessError::invalid(
+                                            "PLANNING_REQUEST_INVALID",
+                                            "Use one unambiguous Planning command.",
+                                        ))
+                                    })?;
                                 let mut ports = PgPlanningScenarios::new(connection);
-                                cancel_scenario(&mut ports, &actor, &key, &scenario_id, request, now).await
+                                cancel_scenario(
+                                    &mut ports,
+                                    &actor,
+                                    &key,
+                                    &scenario_id,
+                                    request,
+                                    now,
+                                )
+                                .await
                             }
-                            PlanningCommandHttpCommand::Review { recommendation_id, body, .. } => {
-                                let request: ReviewRequest = serde_json::from_value(body)
-                                    .map_err(|_| PgTransactionError::Business(BusinessError::invalid(
-                                        "PLANNING_REQUEST_INVALID",
-                                        "Use one unambiguous Planning command.",
-                                    )))?;
+                            PlanningCommandHttpCommand::Review {
+                                recommendation_id,
+                                body,
+                                ..
+                            } => {
+                                let request: ReviewRequest =
+                                    serde_json::from_value(body).map_err(|_| {
+                                        PgTransactionError::Business(BusinessError::invalid(
+                                            "PLANNING_REQUEST_INVALID",
+                                            "Use one unambiguous Planning command.",
+                                        ))
+                                    })?;
                                 let factory = PlanningReleaseFactoryImpl;
-                                let mut ports = PgPlanningScenarios::with_release(connection, &factory);
-                                review_recommendation(&mut ports, &actor, &key, &recommendation_id, request, now).await
+                                let mut ports =
+                                    PgPlanningScenarios::with_release(connection, &factory);
+                                review_recommendation(
+                                    &mut ports,
+                                    &actor,
+                                    &key,
+                                    &recommendation_id,
+                                    request,
+                                    now,
+                                )
+                                .await
                             }
                             PlanningCommandHttpCommand::CreateResource { body, .. } => {
                                 let request: ResourceRequest = serde_json::from_value(body)
-                                    .map_err(|_| PgTransactionError::Business(BusinessError::invalid(
-                                        "PLANNING_REQUEST_INVALID",
-                                        "Use one unambiguous Planning command.",
-                                    )))?;
+                                    .map_err(|_| {
+                                        PgTransactionError::Business(BusinessError::invalid(
+                                            "PLANNING_REQUEST_INVALID",
+                                            "Use one unambiguous Planning command.",
+                                        ))
+                                    })?;
                                 let mut ports = PgPlanningResources::new(connection);
                                 save_resource(&mut ports, &actor, &key, None, request, now).await
                             }
-                            PlanningCommandHttpCommand::UpdateResource { resource_id, body, .. } => {
+                            PlanningCommandHttpCommand::UpdateResource {
+                                resource_id,
+                                body,
+                                ..
+                            } => {
                                 let request: ResourceRequest = serde_json::from_value(body)
-                                    .map_err(|_| PgTransactionError::Business(BusinessError::invalid(
-                                        "PLANNING_REQUEST_INVALID",
-                                        "Use one unambiguous Planning command.",
-                                    )))?;
+                                    .map_err(|_| {
+                                        PgTransactionError::Business(BusinessError::invalid(
+                                            "PLANNING_REQUEST_INVALID",
+                                            "Use one unambiguous Planning command.",
+                                        ))
+                                    })?;
                                 let mut ports = PgPlanningResources::new(connection);
-                                save_resource(&mut ports, &actor, &key, Some(&resource_id), request, now).await
+                                save_resource(
+                                    &mut ports,
+                                    &actor,
+                                    &key,
+                                    Some(&resource_id),
+                                    request,
+                                    now,
+                                )
+                                .await
                             }
-                            PlanningCommandHttpCommand::SaveCalendar { resource_id, body, .. } => {
+                            PlanningCommandHttpCommand::SaveCalendar {
+                                resource_id, body, ..
+                            } => {
                                 let request: CalendarRequest = serde_json::from_value(body)
-                                    .map_err(|_| PgTransactionError::Business(BusinessError::invalid(
-                                        "PLANNING_REQUEST_INVALID",
-                                        "Use one unambiguous Planning command.",
-                                    )))?;
+                                    .map_err(|_| {
+                                        PgTransactionError::Business(BusinessError::invalid(
+                                            "PLANNING_REQUEST_INVALID",
+                                            "Use one unambiguous Planning command.",
+                                        ))
+                                    })?;
                                 let mut ports = PgPlanningResources::new(connection);
-                                save_calendar(&mut ports, &actor, &key, &resource_id, request, now).await
+                                save_calendar(&mut ports, &actor, &key, &resource_id, request, now)
+                                    .await
                             }
                         }?;
                         Ok(PlanningCommandHttpResponse {
@@ -788,7 +852,6 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingBackend<C> {
     }
 }
 
-
 impl<C: Clock + Send + Sync + 'static> PlanningCommandHttpBackend for ManufacturingBackend<C> {
     fn execute<'a>(
         &'a self,
@@ -824,12 +887,7 @@ impl<C: Clock + Send + Sync + 'static> SpecificationHttpBackend for Manufacturin
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .specification_command(
-                    request.host,
-                    proof,
-                    move || Ok(selection),
-                    request.command,
-                )
+                .specification_command(request.host, proof, move || Ok(selection), request.command)
                 .await
                 .map_err(business)
         })

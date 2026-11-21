@@ -45,9 +45,15 @@ pub async fn require_effective_authority_sources_held(
         return Err(PersistenceError::new("IAM_EFFECTIVE_AUTHORITY_TRANSACTION_REQUIRED").into());
     }
     let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=20 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('assignments'::regclass,'iam_roles'::regclass,'iam_role_revisions'::regclass,'iam_members'::regclass,'iam_identities'::regclass,'iam_connections'::regclass,'iam_revoked_sessions'::regclass,'iam_emergency_sessions'::regclass,'active_work_contexts'::regclass,'iam_access_subjects'::regclass,'iam_access_invitations'::regclass,'um_attributes'::regclass,'um_values'::regclass,'um_groups'::regclass,'um_memberships'::regclass,'um_policies'::regclass,'um_attachments'::regclass,'um_candidates'::regclass,'iam_directory_source_selections'::regclass,'iam_directory_observation_sources'::regclass) AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')").fetch_one(&mut *connection).await?;
-    if !held{return Err(PersistenceError::new("IAM_EFFECTIVE_AUTHORITY_LOCKS_REQUIRED").into());}
-    erpx_server_organization::public::require_organization_authority_sources_held(&mut *connection).await?;
-    erpx_server_people_payroll::public::identity_facts::require_people_authority_sources_held(&mut *connection).await?;
+    if !held {
+        return Err(PersistenceError::new("IAM_EFFECTIVE_AUTHORITY_LOCKS_REQUIRED").into());
+    }
+    erpx_server_organization::public::require_organization_authority_sources_held(&mut *connection)
+        .await?;
+    erpx_server_people_payroll::public::identity_facts::require_people_authority_sources_held(
+        &mut *connection,
+    )
+    .await?;
     erpx_server_manage_erpx::public::require_beta_policy_sources_held(connection).await?;
     Ok(())
 }

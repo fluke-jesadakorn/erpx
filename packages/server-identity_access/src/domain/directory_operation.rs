@@ -31,7 +31,10 @@ pub fn forbidden(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Forbidden, code, message)
 }
 pub fn request_invalid() -> BusinessError {
-    invalid("DIRECTORY_REQUEST_INVALID", "The directory request is invalid.")
+    invalid(
+        "DIRECTORY_REQUEST_INVALID",
+        "The directory request is invalid.",
+    )
 }
 pub fn company_scope_required() -> BusinessError {
     forbidden(
@@ -121,8 +124,12 @@ impl DirectoryInventory {
     /// Parse the bounded installed-connector projection. Duplicate immutable
     /// identities or an incomplete observation never become a preview.
     pub fn checked(value: Value) -> Result<Self, BusinessError> {
-        let inventory: Self = serde_json::from_value(value)
-            .map_err(|_| invalid("DIRECTORY_INCOMPLETE", "The provider returned an invalid inventory."))?;
+        let inventory: Self = serde_json::from_value(value).map_err(|_| {
+            invalid(
+                "DIRECTORY_INCOMPLETE",
+                "The provider returned an invalid inventory.",
+            )
+        })?;
         if !inventory.complete
             || inventory.provider_version.is_empty()
             || inventory.objects.len() > 10_000
@@ -245,7 +252,10 @@ pub enum DirectoryAction {
         description: String,
     },
     #[serde(rename = "object.move", rename_all = "camelCase")]
-    ObjectMove { object_id: String, parent_id: String },
+    ObjectMove {
+        object_id: String,
+        parent_id: String,
+    },
     #[serde(rename = "gpo.publish", rename_all = "camelCase")]
     GpoPublish {
         #[serde(default)]
@@ -409,7 +419,9 @@ fn username_ok(value: &str) -> bool {
 fn unc_ok(value: &str) -> bool {
     value.starts_with("\\\\")
         && value.len() <= 500
-        && !value.split(['\\', '/']).any(|part| part.contains(char::is_whitespace))
+        && !value
+            .split(['\\', '/'])
+            .any(|part| part.contains(char::is_whitespace))
         && value[2..].contains('\\')
         && !value.contains(['\r', '\n'])
 }
@@ -535,10 +547,7 @@ pub fn validate_action(action: &DirectoryAction) -> Result<(), BusinessError> {
                 }
             }
         }
-        DirectoryAction::AccountDisable {
-            object_id,
-            case_id,
-        } => {
+        DirectoryAction::AccountDisable { object_id, case_id } => {
             if !id_ok(object_id) || case_id.as_deref().is_some_and(|id| !id_ok(id)) {
                 return Err(request_invalid());
             }
@@ -609,10 +618,7 @@ pub fn validate_action(action: &DirectoryAction) -> Result<(), BusinessError> {
             }
         }
         DirectoryAction::GpoOrder { object_id, gpo_ids } => {
-            if !id_ok(object_id)
-                || gpo_ids.len() > 1000
-                || gpo_ids.iter().any(|id| !id_ok(id))
-            {
+            if !id_ok(object_id) || gpo_ids.len() > 1000 || gpo_ids.iter().any(|id| !id_ok(id)) {
                 return Err(request_invalid());
             }
         }
@@ -625,10 +631,7 @@ pub fn validate_action(action: &DirectoryAction) -> Result<(), BusinessError> {
             object_id,
             group_ids,
         } => {
-            if !id_ok(object_id)
-                || group_ids.len() > 100
-                || group_ids.iter().any(|id| !id_ok(id))
-            {
+            if !id_ok(object_id) || group_ids.len() > 100 || group_ids.iter().any(|id| !id_ok(id)) {
                 return Err(request_invalid());
             }
         }
@@ -668,7 +671,10 @@ fn push_id(set: &mut BTreeSet<String>, value: Option<&str>) {
 }
 
 /// Transitive impact of one action inside the observed inventory.
-pub fn affected_objects(action: &DirectoryAction, inventory: &DirectoryInventory) -> Vec<DirectoryObject> {
+pub fn affected_objects(
+    action: &DirectoryAction,
+    inventory: &DirectoryInventory,
+) -> Vec<DirectoryObject> {
     let mut ids = BTreeSet::new();
     push_id(&mut ids, action.object_id());
     push_id(&mut ids, action.parent_id());
@@ -678,7 +684,10 @@ pub fn affected_objects(action: &DirectoryAction, inventory: &DirectoryInventory
                 ids.insert(id.clone());
             }
         }
-        DirectoryAction::GpoPublish { object_id, definition } => {
+        DirectoryAction::GpoPublish {
+            object_id,
+            definition,
+        } => {
             if object_id.is_none() {
                 ids.insert(definition.target_ou_id.clone());
                 ids.insert(definition.filter_group_id.clone());
@@ -708,12 +717,7 @@ pub fn affected_objects(action: &DirectoryAction, inventory: &DirectoryInventory
                         .get("securityFilterGroupIds")
                         .and_then(Value::as_array)
                     {
-                        members.extend(
-                            values
-                                .iter()
-                                .filter_map(Value::as_str)
-                                .map(str::to_owned),
-                        );
+                        members.extend(values.iter().filter_map(Value::as_str).map(str::to_owned));
                     }
                 }
                 for id in members {
@@ -725,8 +729,7 @@ pub fn affected_objects(action: &DirectoryAction, inventory: &DirectoryInventory
                 .parent_id
                 .as_deref()
                 .is_some_and(|parent| ids.contains(parent))
-                || (object.kind == "group"
-                    && object.member_ids.iter().any(|id| ids.contains(id)))
+                || (object.kind == "group" && object.member_ids.iter().any(|id| ids.contains(id)))
             {
                 ids.insert(object.id.clone());
                 changed = true;
@@ -741,7 +744,10 @@ pub fn affected_objects(action: &DirectoryAction, inventory: &DirectoryInventory
         .collect()
 }
 
-fn by_id<'a>(inventory: &'a DirectoryInventory, id: &str) -> Result<&'a DirectoryObject, BusinessError> {
+fn by_id<'a>(
+    inventory: &'a DirectoryInventory,
+    id: &str,
+) -> Result<&'a DirectoryObject, BusinessError> {
     inventory.object(id).ok_or_else(|| {
         BusinessError::new(
             FailureKind::Conflict,
@@ -801,9 +807,7 @@ pub fn validate_object_target(
             if !["account", "computer", "group", "ou"]
                 .contains(&by_id(inventory, object_id)?.kind.as_str())
             {
-                return Err(target_invalid(
-                    "Choose an account, computer, group or OU.",
-                ));
+                return Err(target_invalid("Choose an account, computer, group or OU."));
             }
             let mut seen = BTreeSet::new();
             let mut target = Some(by_id(inventory, parent_id)?);
@@ -923,9 +927,7 @@ pub fn validate_object_target(
             let target = by_id(inventory, &definition.target_ou_id)?;
             let filter = by_id(inventory, &definition.filter_group_id)?;
             if target.kind != "ou" || filter.kind != "group" {
-                return Err(target_invalid(
-                    "Choose an OU and a security filter group.",
-                ));
+                return Err(target_invalid("Choose an OU and a security filter group."));
             }
             if let Some(computer) = &definition.computer_target_id {
                 if !by_id(inventory, computer)
@@ -958,9 +960,7 @@ pub fn validate_object_target(
                 .map(|id| by_id(inventory, id))
                 .transpose()?;
             if target.kind != "ou" || filter.is_some_and(|group| group.kind != "group") {
-                return Err(target_invalid(
-                    "Choose an OU and a security filter group.",
-                ));
+                return Err(target_invalid("Choose an OU and a security filter group."));
             }
         }
         _ => {}
@@ -985,9 +985,6 @@ pub struct AutomationConfiguration {
     #[serde(default)]
     pub mappings: Option<Vec<ConnectorMapping>>,
 }
-
-
-
 
 /// Evidence retained with the operation. The preview token binds the exact
 /// input and the evidence the reviewer saw.
@@ -1062,7 +1059,11 @@ pub fn canonical_uuid() -> String {
 
 /// Registry policy projection of the finite Windows policy editor.
 pub fn compile_registry_policies(policy: &WindowsPolicyDefinition) -> Vec<Value> {
-    let hive = if policy.scope == "computer" { "HKLM" } else { "HKCU" };
+    let hive = if policy.scope == "computer" {
+        "HKLM"
+    } else {
+        "HKCU"
+    };
     let mut result = Vec::new();
     if policy.usb != "unchanged" {
         result.push(json!({

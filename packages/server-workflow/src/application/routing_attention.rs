@@ -7,14 +7,13 @@
 //! selected Holding's read connection and existing owner policies. No SQL,
 //! transaction, retry or provider call happens here.
 use crate::domain::routing_attention::{
-    FlowKind, ROUTING_PAGE_SIZE, RoutingAttentionFlow, RoutingAttentionItem,
-    RoutingAttentionPage, RoutingAttentionRow, RoutingQuery,
+    FlowKind, ROUTING_PAGE_SIZE, RoutingAttentionFlow, RoutingAttentionItem, RoutingAttentionPage,
+    RoutingAttentionRow, RoutingQuery,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::{future::Future, pin::Pin};
 
-pub type RoutingFuture<'a, T> =
-    Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+pub type RoutingFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
 /// The retained `WorkContext` projection used by the manager gate.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -121,9 +120,7 @@ pub async fn routing_attention(
     let mut after = query.after.clone();
     let mut exhausted = false;
     while !exhausted && items.len() <= limit {
-        let rows = ports
-            .rows(&actor.company_id, &after, &query)
-            .await?;
+        let rows = ports.rows(&actor.company_id, &after, &query).await?;
         if rows.is_empty() {
             break;
         }
@@ -250,9 +247,11 @@ mod tests {
             _kind: FlowKind,
             id: &'a str,
         ) -> RoutingFuture<'a, RoutingAttentionFlow> {
-            let flow = self.flows.get(id).cloned().unwrap_or_else(|| {
-                Scripted::flow("draft", true, "No eligible staff member.")
-            });
+            let flow = self
+                .flows
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| Scripted::flow("draft", true, "No eligible staff member."));
             Box::pin(async move { Ok(flow) })
         }
     }
@@ -330,9 +329,10 @@ mod tests {
         ports
             .access
             .insert("d-missing".into(), FailureKind::NotFound);
-        ports
-            .flows
-            .insert("e-unmanaged".into(), Scripted::flow("draft", false, "Hidden."));
+        ports.flows.insert(
+            "e-unmanaged".into(),
+            Scripted::flow("draft", false, "Hidden."),
+        );
         ports
             .flows
             .insert("f-clear".into(), Scripted::flow("posted", true, ""));
@@ -344,7 +344,10 @@ mod tests {
         assert_eq!(page.coverage, "named_flow");
         assert_eq!(page.checked_at, 7);
         assert_eq!(
-            page.items.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+            page.items
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
             ["g-blocked"]
         );
         assert_eq!(page.items[0].title, "Document g-blocked");
@@ -362,9 +365,7 @@ mod tests {
             authority: true,
             ..Scripted::default()
         };
-        ports
-            .pages
-            .push_back(vec![row("a"), row("b"), row("c")]);
+        ports.pages.push_back(vec![row("a"), row("b"), row("c")]);
         let page = routing_attention(&mut ports, &actor(), &json!({"limit": 1}), 1)
             .await
             .unwrap();
@@ -409,15 +410,19 @@ mod tests {
             .collect();
         first.push(row("old-blocker"));
         ports.pages.push_back(first);
-        ports
-            .flows
-            .insert("old-blocker".into(), Scripted::flow("draft", true, "Repair routing."));
+        ports.flows.insert(
+            "old-blocker".into(),
+            Scripted::flow("draft", true, "Repair routing."),
+        );
 
         let page = routing_attention(&mut ports, &actor(), &json!({}), 1)
             .await
             .unwrap();
         assert_eq!(
-            page.items.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+            page.items
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
             ["old-blocker"]
         );
         assert_eq!(ports.seen_after, ["", "old-blocker"]);

@@ -8,7 +8,9 @@ use crate::application::journal::{
 };
 use crate::domain::journal::{JournalError, JournalLineInput};
 use crate::domain::money::units_to_decimal;
-use crate::public::{FinanceCollation, PgJournalPreparation, PgJournalStore, embedded_currency_rules};
+use crate::public::{
+    FinanceCollation, PgJournalPreparation, PgJournalStore, embedded_currency_rules,
+};
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
 use num_bigint::BigInt;
@@ -85,9 +87,12 @@ impl JournalAuthority for BoundAuthority {
 fn journal_error(error: PgTransactionError<JournalError>) -> Error {
     match error {
         PgTransactionError::Persistence(error) => PgTransactionError::Persistence(error),
-        PgTransactionError::Business(error) => {
-            BusinessError::new(error.kind, error.code, "The POS Finance posting is unavailable.").into()
-        }
+        PgTransactionError::Business(error) => BusinessError::new(
+            error.kind,
+            error.code,
+            "The POS Finance posting is unavailable.",
+        )
+        .into(),
     }
 }
 
@@ -132,10 +137,18 @@ pub async fn post_pos_journal<C: Clock + Sync>(
             Ok(JournalLineInput {
                 account_id: line.account_id.clone(),
                 description: None,
-                debit: units_to_decimal(&BigInt::from(line.debit_minor), 2)
-                    .map_err(|_| invalid("POS_FINANCE_LINE_INVALID", "The POS posting amount is invalid."))?,
-                credit: units_to_decimal(&BigInt::from(line.credit_minor), 2)
-                    .map_err(|_| invalid("POS_FINANCE_LINE_INVALID", "The POS posting amount is invalid."))?,
+                debit: units_to_decimal(&BigInt::from(line.debit_minor), 2).map_err(|_| {
+                    invalid(
+                        "POS_FINANCE_LINE_INVALID",
+                        "The POS posting amount is invalid.",
+                    )
+                })?,
+                credit: units_to_decimal(&BigInt::from(line.credit_minor), 2).map_err(|_| {
+                    invalid(
+                        "POS_FINANCE_LINE_INVALID",
+                        "The POS posting amount is invalid.",
+                    )
+                })?,
                 dimensions: None,
             })
         })
@@ -175,18 +188,18 @@ pub async fn post_pos_journal<C: Clock + Sync>(
         )
     })?;
     let plan = {
-        let mut ports = PgJournalPreparation::new(
-            c,
+        let mut ports =
+            PgJournalPreparation::new(c, &posting.actor, &mut authority, clock, &rules, &collation)
+                .map_err(journal_error)?;
+        prepare_journal(
+            &mut ports,
             &posting.actor,
-            &mut authority,
-            clock,
-            &rules,
-            &collation,
+            &draft,
+            &key,
+            JournalStatus::Posted,
         )
-        .map_err(journal_error)?;
-        prepare_journal(&mut ports, &posting.actor, &draft, &key, JournalStatus::Posted)
-            .await
-            .map_err(journal_error)?
+        .await
+        .map_err(journal_error)?
     };
     if plan.journal_id() != posting.journal_id {
         return Err(invalid(
@@ -327,7 +340,11 @@ pub async fn insert_pos_invoice(
             "The POS invoice facts are invalid.",
         ));
     }
-    let party = match invoice.party_id.as_deref().filter(|value| !value.is_empty()) {
+    let party = match invoice
+        .party_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
         Some(party) => party.to_owned(),
         None => {
             let party = format!("pos-walkin-{}", invoice.company_id);

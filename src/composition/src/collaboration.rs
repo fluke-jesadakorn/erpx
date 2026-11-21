@@ -5,15 +5,202 @@
 //! Records SQL is duplicated. Messaging/inbox mounts are separate because they
 //! need the Files and Work-projection ports.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_collaboration::public::messaging_file_discard::{
+    MessagingFileDiscardPort, MessagingFileWithdrawRequest, discard_file,
+};
+use erpx_server_collaboration::public::messaging_http::{
+    MessagingAttachmentKind, MessagingAttachmentReply, MessagingChannelsData, MessagingFileBinding,
+    MessagingFileContent, MessagingFileDiscardReceipt, MessagingFileDiscardRequest,
+    MessagingFilesBindRequest, MessagingFilesContentRequest, MessagingFilesPort,
+    MessagingHistoryData, MessagingHttpAttachmentRequest, MessagingHttpBackend,
+    MessagingHttpCommand, MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
+    MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpTarget, MessagingMembersData,
+    MessagingOverviewData, MessagingReadKind,
+};
+use erpx_server_collaboration::public::messaging_native::{
+    Change as RoomChange, HistoryCursor, MessagingActor, PgMessagingUnit, Receipt as RoomReceipt,
+    RoomView, execute as execute_room, lock_messaging_sources,
+};
+use erpx_server_collaboration::public::messaging_teams::{
+    Change as TeamChange, PgMessagingTeamUnit, Receipt as TeamReceipt, execute as execute_team,
+    lock_messaging_team_sources,
+};
 use erpx_server_collaboration::public::notification_statement::{
-    crm_lead_notification_statement, finance_refund_notification_statement,
-    learning_assignment_notification_statement,
-    organization_change_notification_statement,
-    legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
-    company_acceptance_reviewer_statement, company_acceptance_result_statement, inventory_transit_notification_statement, legal_law_source_notification_statement, customer_portal_notification_statement, social_task_origin_statement, workflow_invoicing_notification_statement, workflow_notification_statement, roster_coverage_notification_statement, legal_feature_notice_statement, legal_sla_notice_statement, legal_escalation_notice_statement, legal_deadline_notice_statement, social_mention_statement, social_mention_notice_statement, social_agent_reply_statement, social_topic_statement, social_topic_binding_statement, attachment_access_event_statement, attachment_event_statement, legal_retire_source_statement, legal_retire_ledger_statement, legal_retire_event_statement, legal_bind_link_statement, legal_bind_set_statement, legal_bind_event_statement, expense_withdraw_link_statement, expense_withdraw_event_statement, expense_revoke_attachment_statement, doc_attachment_record_statement, doc_derivative_statement, doc_storage_ledger_statement, beta_expire_upload_statement, legal_access_allowed_statement, legal_access_denied_statement, legal_link_upload_statement, legal_pending_scan_statement, legal_stored_original_statement, legal_quarantine_event_statement, customer_portal_action_statement, release_event_submitted_statement, release_event_reviewed_statement, release_event_revoked_statement, customer_receipt_statement, legal_draft_set_statement, legal_draft_link_statement, legal_uploaded_intent_statement, legal_quarantined_source_statement, legal_file_preservation_statement, legal_retention_authorization_statement, finance_hotel_account_statement, finance_bank_ignore_statement, legal_feature_create_statement, legal_feature_update_statement, legal_feature_history_statement, legal_advance_record_statement, legal_feature_event_statement, legal_approval_lock_statement, legal_approval_retain_route_statement, legal_approval_record_statement, legal_approval_advance_statement, legal_approval_event_statement, legal_executed_review_statement, legal_executed_copy_state_statement, legal_signer_view_statement, legal_item_state_advance_statement, legal_native_reference_statement, legal_trust_addition_statement, legal_trust_decision_statement, legal_processing_job_statement, legal_access_event_statement, legal_intake_form_create_statement, legal_intake_form_approve_statement, legal_intake_apply_statement, legal_authority_create_statement, legal_authority_decide_statement, legal_retention_policy_create_statement, legal_retention_policy_decide_statement, legal_retention_assign_statement, legal_retention_request_statement, legal_retention_change_statement, legal_saved_view_statement, legal_derived_link_statement, legal_ai_document_statement, legal_proposal_accept_statement, legal_document_inspection_statement, legal_executed_copy_retain_statement, legal_canonical_document_insert_statement, legal_stored_document_insert_statement, legal_source_chunk_insert_statement, legal_law_source_register_statement, legal_law_revision_import_statement, legal_source_check_bind_statement, legal_text_review_import_statement, legal_applicability_propose_statement, legal_applicability_approve_statement, legal_source_check_review_statement, legal_settings_configure_statement, legal_item_create_statement, legal_subtype_create_statement, legal_member_add_statement, legal_requester_route_statement, legal_member_retain_statement, legal_hold_targets_expand_statement, legal_item_update_statement, legal_subtype_update_statement, legal_envelope_expire_statement, finance_book_adjustment_create_statement, finance_book_adjustment_decide_statement, finance_book_adjustment_reverse_statement, finance_plan_edition_create_statement, finance_plan_edition_review_statement, finance_report_snapshot_statement, finance_reversal_journal_statement, finance_reversal_lines_statement, finance_journal_reverse_statement, finance_tax_identity_upsert_statement, finance_tax_identity_supersede_statement, finance_tax_identity_decide_statement, finance_due_draft_schedule_statement, finance_due_draft_decide_statement, finance_intercompany_pair_create_statement, finance_intercompany_claim_statement, finance_intercompany_pair_decide_statement, finance_intercompany_claims_clear_statement, payroll_deduction_consumption_statement, payroll_repayment_collect_statement, payroll_advances_close_statement, payroll_final_pay_cancel_event_statement, payroll_run_cancel_statement, payroll_final_pay_prep_cancel_statement, expense_draft_write_statement, finance_sales_defaults_create_statement, finance_sales_defaults_supersede_statement, finance_sales_defaults_decide_statement, payroll_statutory_profile_insert_statement, payroll_statutory_profile_decide_statement, finance_accounting_profile_create_statement, finance_accounting_profile_decide_statement, hospitality_tax_doc_record_statement, hospitality_tax_doc_decide_statement, finance_pms_party_statement, finance_pms_payment_statement, finance_journal_create_statement, finance_journal_line_create_statement, finance_invoice_line_version_statement, finance_expansion_review_file_statement, finance_commerce_base_carry_statement, finance_payroll_remittance_match_statement, finance_pos_party_statement, finance_payroll_other_match_statement, finance_group_edition_prepare_statement, finance_group_edition_supersede_statement, finance_group_edition_decide_statement, finance_company_tool_set_statement, finance_payroll_batch_invoice_version_statement, finance_payroll_batch_bank_match_statement, finance_due_draft_complete_statement, finance_due_draft_block_statement, finance_supplier_bill_draft_void_statement, people_self_service_employee_statement, people_issued_payslip_statement, people_expense_payment_cancel_statement, people_leave_evidence_manifest_statement, people_prep_task_reschedule_statement, people_prep_task_complete_statement, people_statutory_remittance_statement, people_assign_level_statement, people_attachment_owner_version_statement, workflow_command_assertion_clear_statement, collaboration_org_team_statement, collaboration_org_room_statement, legal_backfill_document_attachment_statement, legal_backfill_external_attachment_statement, beta_ai_usage_expire_statement, beta_ai_draft_expire_statement, people_legacy_leave_employee_statement, people_legacy_leave_request_statement, people_worker_starter_statement, people_worker_placement_statement, people_beta_person_statement, people_beta_employee_statement, people_beta_engagement_statement, people_org_relocation_engagement_statement, people_org_relocation_employee_statement, people_handoff_person_statement, people_handoff_engagement_statement, people_handoff_compensation_statement, org_node_team_statement, org_node_room_statement, org_node_room_rename_statement, collaboration_backfill_messaging_attachment_statement, legal_job_health_renew_statement, legal_job_health_start_statement, legal_job_health_success_statement, legal_job_health_failure_statement, finance_collection_prepare_statement, finance_collection_supersede_statement, finance_collection_revise_statement, finance_collection_delivery_statement, finance_collection_decide_statement, finance_calc_run_prepare_statement, finance_calc_event_prepare_statement, finance_calc_run_decide_statement, finance_calc_event_decide_statement, finance_close_check_statement, finance_group_entity_statement, finance_intercompany_transaction_statement, finance_intercompany_event_statement, finance_intercompany_status_statement, finance_starter_chart_statement, finance_starter_account_statement, finance_starter_period_statement, finance_starter_dimension_statement, finance_starter_dimension_value_statement, people_draft_engagement_statement, people_draft_employee_statement, people_draft_history_statement, finance_statement_package_insert_statement, finance_statement_event_prepared_statement, finance_statement_package_decision_statement, finance_statement_event_decision_statement, finance_year_closing_insert_statement, finance_year_closing_decision_statement, inbox_event_insert_statement, inbox_delivery_insert_statement, inbox_delivery_state_statement, inbox_staff_notification_read_statement, inbox_notice_insert_statement, inbox_notice_target_insert_statement, inbox_notice_target_complete_statement, finance_accrual_schedule_insert_statement, finance_accrual_event_created_statement, finance_accrual_schedule_decision_statement, finance_accrual_event_decision_statement, finance_accrual_journal_insert_statement, finance_accrual_journal_lines_insert_statement, finance_accrual_run_insert_statement, finance_accrual_event_run_statement, finance_accrual_journal_post_statement, finance_accrual_run_post_statement, finance_accrual_schedule_post_statement, pms_finance_party_statement, pms_finance_invoice_statement, pms_finance_payment_statement, pms_finance_allocation_delete_statement, pms_finance_invoice_update_statement, pms_finance_allocation_insert_statement, pms_finance_bank_match_statement, books_opening_journal_statement, books_opening_journal_lines_statement, books_rule_decision_statement, books_dimension_definition_statement, books_dimension_value_statement, books_rule_prepare_statement, books_account_mapping_statement, wh_withholding_consumed_statement, wh_assessment_reversed_statement, wh_thai_document_cancel_statement, wh_assessment_insert_statement, wh_income_line_insert_statement, wh_payment_withholding_statement, wh_assessment_decision_statement, thai_doc_sequence_seed_statement, thai_doc_sequence_bump_statement, thai_doc_issue_statement, thai_doc_event_issued_statement, thai_doc_change_insert_statement, thai_doc_event_supersede_statement, thai_doc_change_decision_statement, billing_correction_insert_statement, billing_correction_reject_statement, billing_recognition_reverse_statement, billing_invoice_paid_statement, billing_correction_post_statement, billing_refund_obligation_statement, billing_invoice_created_by_statement, billing_run_approve_statement, asset_event_insert_statement, asset_insert_statement, asset_update_statement, asset_retire_statement, asset_activate_statement, asset_depreciation_insert_statement, asset_depreciation_update_statement, asset_disposal_insert_statement, asset_disposal_retire_statement, asset_disposal_decision_statement, instrument_edition_insert_statement, instrument_edition_supersede_statement, instrument_bank_match_statement, instrument_edition_decision_statement, instrument_run_insert_statement, instrument_bank_match2_statement, instrument_edition_agree_statement, instrument_run_decision_statement, instrument_bank_unmatch_statement, instrument_run_reverse_statement, instrument_edition_activate_statement, refund_obligation_approve_statement, refund_instruction_insert_statement, refund_obligation_bump_statement, refund_instruction_export_statement, refund_instruction_resolve_statement, refund_obligation_bump2_statement, refund_payment_insert_statement, refund_bank_match_statement, refund_instruction_confirm_statement, refund_obligation_settle_statement, wh_package_insert_statement, wh_package_decision_statement, wh_remittance_insert_statement, wh_remittance_item_insert_statement, wh_bank_match_statement, wh_package_settle_statement, wh_remittance_reverse_statement, wh_package_reverse_statement, wh_bank_match2_statement, bank_csv_mapping_insert_statement, bank_import_file_insert_statement, bank_match_group_insert_statement, bank_match_allocation_insert_statement, bank_txn_match_statement, bank_match_target_insert_statement, bank_txn_unmatch_statement, bank_match_target_delete_statement, bank_match_group_decision_statement, tax_entry_insert_statement, tax_package_event_statement, tax_entry_decision_statement, vat_correction_insert_statement, tax_entry_correction_decision_statement, vat_correction_decision_statement, calc_run_insert_statement, statutory_package_insert_statement, statutory_package_approve_statement, calc_run_approve_statement, statutory_package_export_statement, statutory_package_file_statement, statutory_package_supersede_statement, workflow_command_assertion_clear_many_statement, legal_destruction_block_statement, legal_destruction_start_statement, legal_retention_started_event_statement, legal_destruction_count_attempt_statement, legal_destruction_retain_executing_statement, legal_disposal_retain_statement, legal_document_erase_statement, legal_processing_retire_statement, legal_inspections_erase_statement, legal_ai_retire_statement, legal_shares_revoke_statement, legal_destruction_complete_statement, legal_retention_destroyed_event_statement, legal_destruction_require_review_statement, legal_portal_access_event_statement, legal_portal_accept_share_statement, legal_portal_external_comment_statement, legal_portal_counsel_entry_statement, legal_portal_counsel_history_statement, legal_portal_interaction_event_statement, legal_portal_receipt_statement, legal_portal_external_upload_statement, legal_portal_advance_upload_statement, legal_portal_upload_event_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
-    rfq_notification_statement,
+    NotificationStatement, NotificationStatementInput, asset_activate_statement,
+    asset_depreciation_insert_statement, asset_depreciation_update_statement,
+    asset_disposal_decision_statement, asset_disposal_insert_statement,
+    asset_disposal_retire_statement, asset_event_insert_statement, asset_insert_statement,
+    asset_retire_statement, asset_update_statement, attachment_access_event_statement,
+    attachment_event_statement, bank_csv_mapping_insert_statement,
+    bank_import_file_insert_statement, bank_match_allocation_insert_statement,
+    bank_match_group_decision_statement, bank_match_group_insert_statement,
+    bank_match_target_delete_statement, bank_match_target_insert_statement,
+    bank_txn_match_statement, bank_txn_unmatch_statement, beta_ai_draft_expire_statement,
+    beta_ai_usage_expire_statement, beta_expire_upload_statement,
+    billing_correction_insert_statement, billing_correction_post_statement,
+    billing_correction_reject_statement, billing_invoice_created_by_statement,
+    billing_invoice_paid_statement, billing_recognition_reverse_statement,
+    billing_refund_obligation_statement, billing_run_approve_statement,
+    books_account_mapping_statement, books_dimension_definition_statement,
+    books_dimension_value_statement, books_opening_journal_lines_statement,
+    books_opening_journal_statement, books_rule_decision_statement, books_rule_prepare_statement,
+    calc_run_approve_statement, calc_run_insert_statement,
+    collaboration_backfill_messaging_attachment_statement, collaboration_org_room_statement,
+    collaboration_org_team_statement, company_acceptance_result_statement,
+    company_acceptance_reviewer_statement, crm_lead_notification_statement,
+    customer_portal_action_statement, customer_portal_notification_statement,
+    customer_receipt_statement, doc_attachment_record_statement, doc_derivative_statement,
+    doc_storage_ledger_statement, expense_draft_write_statement,
+    expense_revoke_attachment_statement, expense_withdraw_event_statement,
+    expense_withdraw_link_statement, explicit_notification_statement,
+    finance_accounting_profile_create_statement, finance_accounting_profile_decide_statement,
+    finance_accrual_event_created_statement, finance_accrual_event_decision_statement,
+    finance_accrual_event_run_statement, finance_accrual_journal_insert_statement,
+    finance_accrual_journal_lines_insert_statement, finance_accrual_journal_post_statement,
+    finance_accrual_run_insert_statement, finance_accrual_run_post_statement,
+    finance_accrual_schedule_decision_statement, finance_accrual_schedule_insert_statement,
+    finance_accrual_schedule_post_statement, finance_bank_ignore_statement,
+    finance_book_adjustment_create_statement, finance_book_adjustment_decide_statement,
+    finance_book_adjustment_reverse_statement, finance_calc_event_decide_statement,
+    finance_calc_event_prepare_statement, finance_calc_run_decide_statement,
+    finance_calc_run_prepare_statement, finance_close_check_statement,
+    finance_collection_decide_statement, finance_collection_delivery_statement,
+    finance_collection_prepare_statement, finance_collection_revise_statement,
+    finance_collection_supersede_statement, finance_commerce_base_carry_statement,
+    finance_company_tool_set_statement, finance_due_draft_block_statement,
+    finance_due_draft_complete_statement, finance_due_draft_decide_statement,
+    finance_due_draft_schedule_statement, finance_expansion_review_file_statement,
+    finance_group_edition_decide_statement, finance_group_edition_prepare_statement,
+    finance_group_edition_supersede_statement, finance_group_entity_statement,
+    finance_hotel_account_statement, finance_intercompany_claim_statement,
+    finance_intercompany_claims_clear_statement, finance_intercompany_event_statement,
+    finance_intercompany_pair_create_statement, finance_intercompany_pair_decide_statement,
+    finance_intercompany_status_statement, finance_intercompany_transaction_statement,
+    finance_invoice_line_version_statement, finance_journal_create_statement,
+    finance_journal_line_create_statement, finance_journal_reverse_statement,
+    finance_payroll_batch_bank_match_statement, finance_payroll_batch_invoice_version_statement,
+    finance_payroll_other_match_statement, finance_payroll_remittance_match_statement,
+    finance_plan_edition_create_statement, finance_plan_edition_review_statement,
+    finance_pms_party_statement, finance_pms_payment_statement, finance_pos_party_statement,
+    finance_refund_notification_statement, finance_report_snapshot_statement,
+    finance_reversal_journal_statement, finance_reversal_lines_statement,
+    finance_sales_defaults_create_statement, finance_sales_defaults_decide_statement,
+    finance_sales_defaults_supersede_statement, finance_starter_account_statement,
+    finance_starter_chart_statement, finance_starter_dimension_statement,
+    finance_starter_dimension_value_statement, finance_starter_period_statement,
+    finance_statement_event_decision_statement, finance_statement_event_prepared_statement,
+    finance_statement_package_decision_statement, finance_statement_package_insert_statement,
+    finance_supplier_bill_draft_void_statement, finance_tax_identity_decide_statement,
+    finance_tax_identity_supersede_statement, finance_tax_identity_upsert_statement,
+    finance_year_closing_decision_statement, finance_year_closing_insert_statement,
+    hospitality_tax_doc_decide_statement, hospitality_tax_doc_record_statement,
+    inbox_delivery_insert_statement, inbox_delivery_state_statement, inbox_event_insert_statement,
+    inbox_notice_insert_statement, inbox_notice_target_complete_statement,
+    inbox_notice_target_insert_statement, inbox_staff_notification_read_statement,
+    instrument_bank_match_statement, instrument_bank_match2_statement,
+    instrument_bank_unmatch_statement, instrument_edition_activate_statement,
+    instrument_edition_agree_statement, instrument_edition_decision_statement,
+    instrument_edition_insert_statement, instrument_edition_supersede_statement,
+    instrument_run_decision_statement, instrument_run_insert_statement,
+    instrument_run_reverse_statement, inventory_transit_notification_statement,
+    learning_assignment_notification_statement, legal_access_allowed_statement,
+    legal_access_denied_statement, legal_access_event_statement, legal_advance_record_statement,
+    legal_ai_document_statement, legal_ai_retire_statement, legal_applicability_approve_statement,
+    legal_applicability_propose_statement, legal_approval_advance_statement,
+    legal_approval_event_statement, legal_approval_lock_statement,
+    legal_approval_notification_statement, legal_approval_record_statement,
+    legal_approval_retain_route_statement, legal_authority_create_statement,
+    legal_authority_decide_statement, legal_backfill_document_attachment_statement,
+    legal_backfill_external_attachment_statement, legal_bind_event_statement,
+    legal_bind_link_statement, legal_bind_set_statement, legal_canonical_document_insert_statement,
+    legal_deadline_notice_statement, legal_derived_link_statement,
+    legal_destruction_block_statement, legal_destruction_complete_statement,
+    legal_destruction_count_attempt_statement, legal_destruction_require_review_statement,
+    legal_destruction_retain_executing_statement, legal_destruction_start_statement,
+    legal_disposal_retain_statement, legal_document_erase_statement,
+    legal_document_inspection_statement, legal_draft_link_statement, legal_draft_set_statement,
+    legal_envelope_expire_statement, legal_escalation_notice_statement,
+    legal_executed_copy_retain_statement, legal_executed_copy_state_statement,
+    legal_executed_review_statement, legal_feature_create_statement, legal_feature_event_statement,
+    legal_feature_history_statement, legal_feature_notice_statement,
+    legal_feature_update_statement, legal_file_preservation_statement,
+    legal_hold_notification_statement, legal_hold_targets_expand_statement,
+    legal_inspections_erase_statement, legal_intake_apply_statement,
+    legal_intake_form_approve_statement, legal_intake_form_create_statement,
+    legal_item_create_statement, legal_item_state_advance_statement, legal_item_update_statement,
+    legal_job_health_failure_statement, legal_job_health_renew_statement,
+    legal_job_health_start_statement, legal_job_health_success_statement,
+    legal_law_revision_import_statement, legal_law_source_notification_statement,
+    legal_law_source_register_statement, legal_link_upload_statement, legal_member_add_statement,
+    legal_member_retain_statement, legal_native_reference_statement, legal_pending_scan_statement,
+    legal_portal_accept_share_statement, legal_portal_access_event_statement,
+    legal_portal_advance_upload_statement, legal_portal_counsel_entry_statement,
+    legal_portal_counsel_history_statement, legal_portal_external_comment_statement,
+    legal_portal_external_upload_statement, legal_portal_interaction_event_statement,
+    legal_portal_receipt_statement, legal_portal_upload_event_statement,
+    legal_processing_job_statement, legal_processing_retire_statement,
+    legal_proposal_accept_statement, legal_quarantine_event_statement,
+    legal_quarantined_source_statement, legal_requester_route_statement,
+    legal_retention_assign_statement, legal_retention_authorization_statement,
+    legal_retention_change_statement, legal_retention_destroyed_event_statement,
+    legal_retention_policy_create_statement, legal_retention_policy_decide_statement,
+    legal_retention_request_statement, legal_retention_started_event_statement,
+    legal_retire_event_statement, legal_retire_ledger_statement, legal_retire_source_statement,
+    legal_saved_view_statement, legal_settings_configure_statement, legal_shares_revoke_statement,
+    legal_signer_view_statement, legal_sla_notice_statement, legal_source_check_bind_statement,
+    legal_source_check_review_statement, legal_source_chunk_insert_statement,
+    legal_stored_document_insert_statement, legal_stored_original_statement,
+    legal_subtype_create_statement, legal_subtype_update_statement,
+    legal_text_review_import_statement, legal_trust_addition_statement,
+    legal_trust_decision_statement, legal_uploaded_intent_statement, notification_statement,
+    org_node_room_rename_statement, org_node_room_statement, org_node_team_statement,
+    organization_change_notification_statement, payroll_advance_notification_statement,
+    payroll_advances_close_statement, payroll_correction_notification_statement,
+    payroll_deduction_consumption_statement, payroll_final_pay_cancel_event_statement,
+    payroll_final_pay_prep_cancel_statement, payroll_repayment_collect_statement,
+    payroll_run_cancel_statement, payroll_statutory_profile_decide_statement,
+    payroll_statutory_profile_insert_statement, people_assign_level_statement,
+    people_attachment_owner_version_statement, people_beta_employee_statement,
+    people_beta_engagement_statement, people_beta_person_statement,
+    people_draft_employee_statement, people_draft_engagement_statement,
+    people_draft_history_statement, people_expense_payment_cancel_statement,
+    people_handoff_compensation_statement, people_handoff_engagement_statement,
+    people_handoff_person_statement, people_issued_payslip_statement,
+    people_leave_evidence_manifest_statement, people_legacy_leave_employee_statement,
+    people_legacy_leave_request_statement, people_org_relocation_employee_statement,
+    people_org_relocation_engagement_statement, people_prep_task_complete_statement,
+    people_prep_task_reschedule_statement, people_self_service_employee_statement,
+    people_statutory_remittance_statement, people_worker_placement_statement,
+    people_worker_starter_statement, pms_finance_allocation_delete_statement,
+    pms_finance_allocation_insert_statement, pms_finance_bank_match_statement,
+    pms_finance_invoice_statement, pms_finance_invoice_update_statement,
+    pms_finance_party_statement, pms_finance_payment_statement, refund_bank_match_statement,
+    refund_instruction_confirm_statement, refund_instruction_export_statement,
+    refund_instruction_insert_statement, refund_instruction_resolve_statement,
+    refund_obligation_approve_statement, refund_obligation_bump_statement,
+    refund_obligation_bump2_statement, refund_obligation_settle_statement,
+    refund_payment_insert_statement, release_event_reviewed_statement,
+    release_event_revoked_statement, release_event_submitted_statement, rfq_notification_statement,
+    roster_coverage_notification_statement, social_agent_reply_statement,
+    social_mention_notice_statement, social_mention_statement, social_task_origin_statement,
+    social_topic_binding_statement, social_topic_statement, statutory_package_approve_statement,
+    statutory_package_export_statement, statutory_package_file_statement,
+    statutory_package_insert_statement, statutory_package_supersede_statement,
     supplier_bill_notification_statement, supplier_promise_notification_statement,
-    NotificationStatement, NotificationStatementInput,
+    tax_entry_correction_decision_statement, tax_entry_decision_statement,
+    tax_entry_insert_statement, tax_package_event_statement, thai_doc_change_decision_statement,
+    thai_doc_change_insert_statement, thai_doc_event_issued_statement,
+    thai_doc_event_supersede_statement, thai_doc_issue_statement, thai_doc_sequence_bump_statement,
+    thai_doc_sequence_seed_statement, vat_correction_decision_statement,
+    vat_correction_insert_statement, wh_assessment_decision_statement,
+    wh_assessment_insert_statement, wh_assessment_reversed_statement, wh_bank_match_statement,
+    wh_bank_match2_statement, wh_income_line_insert_statement, wh_package_decision_statement,
+    wh_package_insert_statement, wh_package_reverse_statement, wh_package_settle_statement,
+    wh_payment_withholding_statement, wh_remittance_insert_statement,
+    wh_remittance_item_insert_statement, wh_remittance_reverse_statement,
+    wh_thai_document_cancel_statement, wh_withholding_consumed_statement,
+    workflow_command_assertion_clear_many_statement, workflow_command_assertion_clear_statement,
+    workflow_invoicing_notification_statement, workflow_notification_statement,
 };
 use erpx_server_collaboration::public::notification_statement_http::{
     StatementBackend, StatementFuture, StatementRequest,
@@ -22,31 +209,24 @@ use erpx_server_collaboration::public::social::{
     PgSocialUnit, SocialRecordFuture, SocialRecordPort, SocialScope, SocialUploadFilesFuture,
     SocialUploadFilesPort, execute, lock_social_sources,
 };
-use erpx_server_collaboration::public::messaging_http::{
-    MessagingAttachmentKind, MessagingAttachmentReply, MessagingChannelsData,
-    MessagingFileBinding, MessagingFileContent, MessagingFileDiscardReceipt,
-    MessagingFileDiscardRequest, MessagingFilesBindRequest, MessagingFilesContentRequest,
-    MessagingFilesPort, MessagingHistoryData, MessagingHttpAttachmentRequest, MessagingHttpBackend,
-    MessagingHttpCommand, MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
-    MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpTarget, MessagingMembersData,
-    MessagingOverviewData, MessagingReadKind,
-};
-use erpx_server_collaboration::public::messaging_native::{
-    Change as RoomChange, HistoryCursor, MessagingActor, PgMessagingUnit, Receipt as RoomReceipt,
-    RoomView, lock_messaging_sources, execute as execute_room,
-};
-use erpx_server_collaboration::public::messaging_file_discard::{
-    MessagingFileDiscardPort, MessagingFileWithdrawRequest, discard_file,
-};
-use erpx_server_collaboration::public::messaging_teams::{
-    Change as TeamChange, PgMessagingTeamUnit, Receipt as TeamReceipt,
-    lock_messaging_team_sources, execute as execute_team,
-};
 use erpx_server_collaboration::public::social_http::{
-    SocialCommentsData, SocialFeedData, SocialHttpBackend, SocialHttpCommentsRequest,
-    SocialHttpCommandRequest, SocialHttpFuture, SocialHttpReadReply, SocialHttpReadRequest,
+    SocialCommentsData, SocialFeedData, SocialHttpBackend, SocialHttpCommandRequest,
+    SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpReadReply, SocialHttpReadRequest,
     SocialHttpRevisionsRequest, SocialHttpTarget, SocialReadKind, SocialThreadData,
 };
+use erpx_server_commercial::public::purchase_command_boundary::{
+    PurchaseCommandBoundary, PurchaseCommandScope,
+};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, current_package_catalogue,
+};
+use erpx_server_files::public::attachment_command::{
+    AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawTarget, withdraw_attachment,
+};
+use erpx_server_files::public::messaging_files::{
+    MessagingFilesActor, MessagingFilesAudience, MessagingFilesFuture,
+};
+use erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::{parse_inbound_account_request, unique_request_header},
@@ -56,19 +236,6 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
-use erpx_server_files::public::messaging_files::{
-    MessagingFilesActor, MessagingFilesAudience, MessagingFilesFuture,
-};
-use erpx_server_files::public::attachment_command::{
-    AttachmentWithdrawAuthority, WithdrawAttachmentRequest, WithdrawTarget, withdraw_attachment,
-};
-use erpx_server_commercial::public::purchase_command_boundary::{
-    PurchaseCommandBoundary, PurchaseCommandScope,
-};
-use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, current_package_catalogue,
-};
-use erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current;
 use erpx_server_records::public::record_context::{
     PgRecordContext, RecordContextActor, record_context,
 };
@@ -124,8 +291,10 @@ struct CollaborationWorkSources;
 impl HoldingWorkSourcePreparation for CollaborationWorkSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(c)
-                .await?;
+            erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(
+                c,
+            )
+            .await?;
             erpx_server_commerce::public::record_source::lock_record_sources(c).await?;
             erpx_server_support::public::record_source::lock_record_sources(c).await?;
             erpx_server_maintenance::public::record_source::lock_record_sources(c).await?;
@@ -219,11 +388,7 @@ impl SocialRecordPort for SocialRecordsPort {
     }
 }
 
-async fn display_name(
-    connection: &mut PgConnection,
-    company: &CompanyId,
-    user_id: &str,
-) -> String {
+async fn display_name(connection: &mut PgConnection, company: &CompanyId, user_id: &str) -> String {
     sqlx::query_scalar::<_, String>(
         "SELECT COALESCE(NULLIF(preferred_name,''),legal_name) FROM hr_people \
          WHERE company_id=$1 AND user_id=$2 AND status='active' AND merged_into_id IS NULL LIMIT 1",
@@ -251,7 +416,10 @@ fn social_scope(
         match assignment.scope_kind {
             WorkScopeKind::Holding => (None, None),
             WorkScopeKind::Branch => (
-                assignment.scope_node_id.as_ref().map(|id| id.as_str().to_owned()),
+                assignment
+                    .scope_node_id
+                    .as_ref()
+                    .map(|id| id.as_str().to_owned()),
                 None,
             ),
             WorkScopeKind::Department => {
@@ -260,14 +428,20 @@ fn social_scope(
                     .as_ref()
                     .map(|id| id.as_str().to_owned());
                 (
-                    workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+                    workspace
+                        .branch_id
+                        .as_ref()
+                        .map(|id| id.as_str().to_owned()),
                     department,
                 )
             }
         }
     } else {
         (
-            workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+            workspace
+                .branch_id
+                .as_ref()
+                .map(|id| id.as_str().to_owned()),
             workspace
                 .department_id
                 .as_ref()
@@ -357,13 +531,12 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
                             return Err(scope_error().into());
                         }
                         let now = clock.now().get();
-                        let name = display_name(connection, &company, current.user_id().as_str())
-                            .await;
+                        let name =
+                            display_name(connection, &company, current.user_id().as_str()).await;
                         let actor = crate::records::records_actor(current)?;
                         let scope = social_scope(current, &company, name, now, false)?;
                         let mut records = SocialRecordsPort { actor, now };
-                        let mut unit =
-                            PgSocialUnit::read_only(connection, scope, &mut records);
+                        let mut unit = PgSocialUnit::read_only(connection, scope, &mut records);
                         Ok(match kind {
                             SocialReadKind::Feed {
                                 filter,
@@ -445,13 +618,12 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
                             return Err(scope_error().into());
                         }
                         let now = clock.now().get();
-                        let name = display_name(connection, &company, current.user_id().as_str())
-                            .await;
+                        let name =
+                            display_name(connection, &company, current.user_id().as_str()).await;
                         let actor = crate::records::records_actor(current)?;
                         let scope = social_scope(current, &company, name, now, false)?;
                         let mut records = SocialRecordsPort { actor, now };
-                        let mut unit =
-                            PgSocialUnit::read_only(connection, scope, &mut records);
+                        let mut unit = PgSocialUnit::read_only(connection, scope, &mut records);
                         let (items, next) = unit
                             .comments_page(&post_id, cursor.as_ref(), limit, 20)
                             .await?;
@@ -504,13 +676,12 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
                             return Err(scope_error().into());
                         }
                         let now = clock.now().get();
-                        let name = display_name(connection, &company, current.user_id().as_str())
-                            .await;
+                        let name =
+                            display_name(connection, &company, current.user_id().as_str()).await;
                         let actor = crate::records::records_actor(current)?;
                         let scope = social_scope(current, &company, name, now, false)?;
                         let mut records = SocialRecordsPort { actor, now };
-                        let mut unit =
-                            PgSocialUnit::read_only(connection, scope, &mut records);
+                        let mut unit = PgSocialUnit::read_only(connection, scope, &mut records);
                         Ok(unit.revisions(&post_id).await?)
                     })
                 },
@@ -565,14 +736,15 @@ impl<C: Clock + Send + Sync + 'static> SocialService<C> {
                         }
                         lock_social_sources(connection).await?;
                         let now = clock.now().get();
-                        let name = display_name(connection, &company, current.user_id().as_str())
-                            .await;
+                        let name =
+                            display_name(connection, &company, current.user_id().as_str()).await;
                         let actor = crate::records::records_actor(current)?;
                         let scope = social_scope(current, &company, name, now, true)?;
                         let mut records = SocialRecordsPort { actor, now };
                         let mut uploads = SocialUploadFilesPortImpl;
-                        let mut unit = PgSocialUnit::new(connection, scope, key.clone(), &mut records)
-                            .with_upload_files(&mut uploads);
+                        let mut unit =
+                            PgSocialUnit::new(connection, scope, key.clone(), &mut records)
+                                .with_upload_files(&mut uploads);
                         let receipt = execute(&mut unit, &key, change).await?;
                         Ok(receipt)
                     })
@@ -684,12 +856,7 @@ impl<C: Clock + Send + Sync + 'static> SocialHttpBackend for SocialBackend<C> {
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .revisions(
-                    request.host,
-                    proof,
-                    selection,
-                    request.post_id.to_owned(),
-                )
+                .revisions(request.host, proof, selection, request.post_id.to_owned())
                 .await
                 .map_err(business)
         })
@@ -746,11 +913,7 @@ async fn messaging_member_names(
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let mut connection = control
-        .raw()
-        .acquire()
-        .await
-        .map_err(|_| unavailable())?;
+    let mut connection = control.raw().acquire().await.map_err(|_| unavailable())?;
     let rows = erpx_server_identity_access::public::messaging_people::control_account_names(
         &mut connection,
         ids,
@@ -834,19 +997,20 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                             return Err(scope_error().into());
                         }
                         let now = clock.now().get();
-                        let name = display_name(connection, &company, current.user_id().as_str())
-                            .await;
+                        let name =
+                            display_name(connection, &company, current.user_id().as_str()).await;
                         let scope = messaging_scope(current, &company, name, now)?;
                         Ok(match kind {
                             MessagingReadKind::Overview => {
-                                let mut rooms = PgMessagingUnit::read_only(connection, scope.clone());
+                                let mut rooms =
+                                    PgMessagingUnit::read_only(connection, scope.clone());
                                 let rooms = rooms.overview().await?;
-                                let mut teams =
-                                    PgMessagingTeamUnit::read_only(connection, scope);
+                                let mut teams = PgMessagingTeamUnit::read_only(connection, scope);
                                 let teams = teams.teams().await?;
-                                MessagingHttpReadReply::Overview(Box::new(
-                                    MessagingOverviewData { teams, rooms },
-                                ))
+                                MessagingHttpReadReply::Overview(Box::new(MessagingOverviewData {
+                                    teams,
+                                    rooms,
+                                }))
                             }
                             MessagingReadKind::History {
                                 room_id,
@@ -854,11 +1018,9 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                 after,
                                 limit,
                             } => {
-                                let mut unit =
-                                    PgMessagingUnit::read_only(connection, scope);
+                                let mut unit = PgMessagingUnit::read_only(connection, scope);
                                 let room = unit.room(&room_id).await?.map(|room| room_view(&room));
-                                let messages =
-                                    unit.history(&room_id, before, after, limit).await?;
+                                let messages = unit.history(&room_id, before, after, limit).await?;
                                 let has_more = messages.len() >= limit;
                                 let ids: Vec<String> =
                                     messages.iter().map(|message| message.id.clone()).collect();
@@ -871,8 +1033,7 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                         let row_files: Vec<serde_json::Value> = files
                                             .iter()
                                             .filter(|file| {
-                                                file.get("message_id")
-                                                    .and_then(|id| id.as_str())
+                                                file.get("message_id").and_then(|id| id.as_str())
                                                     == Some(message.id.as_str())
                                             })
                                             .cloned()
@@ -923,8 +1084,7 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                     });
                                     (ids, detail)
                                 } else {
-                                    let mut unit =
-                                        PgMessagingUnit::read_only(connection, scope);
+                                    let mut unit = PgMessagingUnit::read_only(connection, scope);
                                     let room = unit.room(&id).await?.ok_or_else(|| {
                                         BusinessError::new(
                                             FailureKind::NotFound,
@@ -954,8 +1114,7 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                 }))
                             }
                             MessagingReadKind::TeamChannels { team_id } => {
-                                let mut teams =
-                                    PgMessagingTeamUnit::read_only(connection, scope);
+                                let mut teams = PgMessagingTeamUnit::read_only(connection, scope);
                                 let team = teams.team(&team_id).await?.ok_or_else(|| {
                                     BusinessError::new(
                                         FailureKind::NotFound,
@@ -964,9 +1123,10 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                     )
                                 })?;
                                 let channels = teams.channels(&team_id, 100).await?;
-                                MessagingHttpReadReply::Channels(Box::new(
-                                    MessagingChannelsData { team, channels },
-                                ))
+                                MessagingHttpReadReply::Channels(Box::new(MessagingChannelsData {
+                                    team,
+                                    channels,
+                                }))
                             }
                         })
                     })
@@ -1019,14 +1179,13 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                             return Err(scope_error().into());
                         }
                         let now = clock.now().get();
-                        let name = display_name(connection, &company, current.user_id().as_str())
-                            .await;
+                        let name =
+                            display_name(connection, &company, current.user_id().as_str()).await;
                         let scope = messaging_scope(current, &company, name, now)?;
                         Ok(match command {
                             MessagingHttpCommand::Room(change) => {
                                 lock_messaging_sources(connection).await?;
-                                let mut unit =
-                                    PgMessagingUnit::new(connection, scope, key.clone());
+                                let mut unit = PgMessagingUnit::new(connection, scope, key.clone());
                                 let receipt = execute_room(&mut unit, &key, change).await?;
                                 MessagingHttpReceipt::Room { receipt }
                             }
@@ -1092,8 +1251,8 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                         current.require_permission("records.write")?;
                         current.require_permission("records.read")?;
                         let now = clock.now().get();
-                        let name = display_name(connection, &company, current.user_id().as_str())
-                            .await;
+                        let name =
+                            display_name(connection, &company, current.user_id().as_str()).await;
                         let actor = MessagingActor {
                             user_id: current.user_id().as_str().to_owned(),
                             display_name: name,
@@ -1109,11 +1268,9 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                         )
                         .await?;
                         lock_messaging_sources(connection).await?;
-                        sqlx::query(
-                            "LOCK TABLE messaging_files IN SHARE ROW EXCLUSIVE MODE",
-                        )
-                        .execute(&mut *connection)
-                        .await?;
+                        sqlx::query("LOCK TABLE messaging_files IN SHARE ROW EXCLUSIVE MODE")
+                            .execute(&mut *connection)
+                            .await?;
                         let authority = MessageFileWithdrawAuthority {
                             company_id: company.clone(),
                             current,
@@ -1199,8 +1356,8 @@ impl<C: Clock + Send + Sync + 'static> MessagingBackend<C> {
         if company != self.service.company().as_str() {
             return Err(scope_error());
         }
-        let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
-            .ok_or_else(scope_error)?;
+        let assignment =
+            unique_request_header(headers, "x-erpx-context-assignment")?.ok_or_else(scope_error)?;
         let revision: i64 = unique_request_header(headers, "x-erpx-context-revision")?
             .ok_or_else(scope_error)?
             .parse()
@@ -1256,13 +1413,7 @@ impl<C: Clock + Send + Sync + 'static> MessagingHttpBackend for MessagingBackend
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .command(
-                    request.host,
-                    proof,
-                    selection,
-                    request.command,
-                    request.key,
-                )
+                .command(request.host, proof, selection, request.command, request.key)
                 .await
                 .map_err(business)
         })
@@ -1466,9 +1617,7 @@ struct MessageFileWithdrawAuthority<'a> {
 
 impl MessageFileWithdrawAuthority<'_> {
     fn require(&self, target: &WithdrawTarget<'_>) -> Result<(), BusinessError> {
-        if target.company_id != self.company_id.as_str()
-            || target.target_type != "messaging_room"
-        {
+        if target.company_id != self.company_id.as_str() || target.target_type != "messaging_room" {
             return Err(scope_error());
         }
         self.current
@@ -1578,8 +1727,8 @@ impl MessagingFileDiscardPort for MessageFileDiscardFilesPort<'_> {
 }
 
 fn messaging_file_discard_mode() -> Result<PackageEnforcementMode, BusinessError> {
-    let raw = std::env::var("ERPX_APPS_PACKAGE_ENFORCEMENT")
-        .unwrap_or_else(|_| "disabled".to_owned());
+    let raw =
+        std::env::var("ERPX_APPS_PACKAGE_ENFORCEMENT").unwrap_or_else(|_| "disabled".to_owned());
     let mode = match raw.as_str() {
         "disabled" => PackageEnforcementMode::Disabled,
         "shadow" => PackageEnforcementMode::Shadow,
@@ -1632,9 +1781,7 @@ async fn begin_messaging_file_discard_purchase(
     else {
         return Ok(None);
     };
-    boundary
-        .begin(connection, holding, &catalogue)
-        .await?;
+    boundary.begin(connection, holding, &catalogue).await?;
     Ok(Some((boundary, catalogue)))
 }
 
@@ -1681,13 +1828,9 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
         proof: DeviceProof,
         selection: HoldingWorkspaceRequest,
         kind: erpx_server_collaboration::public::inbox::InboxReadKind,
-    ) -> Result<
-        erpx_server_collaboration::public::inbox::InboxHttpReadReply,
-        Error,
-    > {
+    ) -> Result<erpx_server_collaboration::public::inbox::InboxHttpReadReply, Error> {
         use erpx_server_collaboration::public::inbox::{
-            InboxHttpReadReply, InboxNotificationQuery, InboxReadKind, PgInboxTargets,
-            PgInboxUnit,
+            InboxHttpReadReply, InboxNotificationQuery, InboxReadKind, PgInboxTargets, PgInboxUnit,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -1753,24 +1896,18 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                                 })
                                 .await?,
                             )),
-                            InboxReadKind::People { query } => {
-                                InboxHttpReadReply::People(
-                                    serde_json::to_value(unit.people(&query).await?)
-                                        .map_err(|_| unavailable())?,
-                                )
-                            }
-                            InboxReadKind::Notices => {
-                                InboxHttpReadReply::Notices(
-                                    serde_json::to_value(unit.notices().await?)
-                                        .map_err(|_| unavailable())?,
-                                )
-                            }
-                            InboxReadKind::Notice { id } => {
-                                InboxHttpReadReply::Notice(
-                                    serde_json::to_value(unit.notice(&id).await?)
-                                        .map_err(|_| unavailable())?,
-                                )
-                            }
+                            InboxReadKind::People { query } => InboxHttpReadReply::People(
+                                serde_json::to_value(unit.people(&query).await?)
+                                    .map_err(|_| unavailable())?,
+                            ),
+                            InboxReadKind::Notices => InboxHttpReadReply::Notices(
+                                serde_json::to_value(unit.notices().await?)
+                                    .map_err(|_| unavailable())?,
+                            ),
+                            InboxReadKind::Notice { id } => InboxHttpReadReply::Notice(
+                                serde_json::to_value(unit.notice(&id).await?)
+                                    .map_err(|_| unavailable())?,
+                            ),
                         })
                     })
                 },
@@ -1820,8 +1957,8 @@ impl<C: Clock + Send + Sync + 'static> InboxBackend<C> {
     }
 }
 
-impl<C: Clock + Send + Sync + 'static>
-    erpx_server_collaboration::public::inbox::InboxHttpBackend for InboxBackend<C>
+impl<C: Clock + Send + Sync + 'static> erpx_server_collaboration::public::inbox::InboxHttpBackend
+    for InboxBackend<C>
 {
     fn read<'a>(
         &'a self,
@@ -1848,7 +1985,10 @@ fn collaboration_invalid_source() -> BusinessError {
     )
 }
 
-fn source_href(kind: erpx_server_shared::public::record_source_contract::SourceKind, id: &str) -> Option<String> {
+fn source_href(
+    kind: erpx_server_shared::public::record_source_contract::SourceKind,
+    id: &str,
+) -> Option<String> {
     use erpx_server_shared::public::record_source_contract::SourceKind;
     let encoded = erpx_server_collaboration::public::inbox::encode_uri_component(id);
     let prefix = match kind {
@@ -1921,9 +2061,7 @@ impl erpx_server_collaboration::public::collaboration_work::CollaborationSourceP
             match source.kind {
                 SourceKind::PosSale => {
                     let current = erpx_server_pos::public::record_source::read_record_source(
-                        connection,
-                        &company,
-                        &source.id,
+                        connection, &company, &source.id,
                     )
                     .await?
                     .ok_or_else(collaboration_invalid_source)?;
@@ -1932,9 +2070,7 @@ impl erpx_server_collaboration::public::collaboration_work::CollaborationSourceP
                 }
                 SourceKind::PmsRecord => {
                     let current = erpx_server_pms::public::record_source::read_record_source(
-                        connection,
-                        &company,
-                        &source.id,
+                        connection, &company, &source.id,
                     )
                     .await?
                     .ok_or_else(collaboration_invalid_source)?;
@@ -1943,9 +2079,7 @@ impl erpx_server_collaboration::public::collaboration_work::CollaborationSourceP
                 }
                 SourceKind::Asset => {
                     let current = erpx_server_assets::public::record_source::read_record_source(
-                        connection,
-                        &company,
-                        &source.id,
+                        connection, &company, &source.id,
                     )
                     .await?
                     .ok_or_else(collaboration_invalid_source)?;
@@ -1954,9 +2088,7 @@ impl erpx_server_collaboration::public::collaboration_work::CollaborationSourceP
                 }
                 SourceKind::CommerceOrder => {
                     let current = erpx_server_commerce::public::record_source::read_record_source(
-                        connection,
-                        &company,
-                        &source.id,
+                        connection, &company, &source.id,
                     )
                     .await?
                     .ok_or_else(collaboration_invalid_source)?;
@@ -1965,9 +2097,7 @@ impl erpx_server_collaboration::public::collaboration_work::CollaborationSourceP
                 }
                 SourceKind::SupportTicket => {
                     let current = erpx_server_support::public::record_source::read_record_source(
-                        connection,
-                        &company,
-                        &source.id,
+                        connection, &company, &source.id,
                     )
                     .await?
                     .ok_or_else(collaboration_invalid_source)?;
@@ -1975,25 +2105,25 @@ impl erpx_server_collaboration::public::collaboration_work::CollaborationSourceP
                     Ok((record, CollaborationSourceWitness::Support(current)))
                 }
                 SourceKind::MaintenancePlan | SourceKind::MaintenanceWork => {
-                    let current = erpx_server_maintenance::public::record_source::read_record_source(
-                        connection,
-                        &company,
-                        source.kind,
-                        &source.id,
-                    )
-                    .await?
-                    .ok_or_else(collaboration_invalid_source)?;
+                    let current =
+                        erpx_server_maintenance::public::record_source::read_record_source(
+                            connection,
+                            &company,
+                            source.kind,
+                            &source.id,
+                        )
+                        .await?
+                        .ok_or_else(collaboration_invalid_source)?;
                     let record = current.data().clone();
                     Ok((record, CollaborationSourceWitness::Maintenance(current)))
                 }
                 SourceKind::StaffTask => {
-                    let current = erpx_server_operations::public::record_source::read_record_source(
-                        connection,
-                        &company,
-                        &source.id,
-                    )
-                    .await?
-                    .ok_or_else(collaboration_invalid_source)?;
+                    let current =
+                        erpx_server_operations::public::record_source::read_record_source(
+                            connection, &company, &source.id,
+                        )
+                        .await?
+                        .ok_or_else(collaboration_invalid_source)?;
                     let record = current.data().clone();
                     Ok((record, CollaborationSourceWitness::Operations(current)))
                 }
@@ -2076,10 +2206,8 @@ fn collaboration_scope(
     current: &AuthorizedWorkContext,
     company: &CompanyId,
     now: i64,
-) -> Result<
-    erpx_server_collaboration::public::collaboration_work::CollaborationScope,
-    BusinessError,
-> {
+) -> Result<erpx_server_collaboration::public::collaboration_work::CollaborationScope, BusinessError>
+{
     let selected = current.selection();
     let workspace = selected.workspace();
     Ok(
@@ -2147,709 +2275,1624 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                         current.require_permission("records.read")?;
                         let company_id = CompanyId::new(company.as_str())?;
                         if input.kind.as_deref() == Some("legal_portal_access_event") {
-                            legal_portal_access_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_access_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_accept_share") {
-                            legal_portal_accept_share_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_accept_share_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_external_comment") {
-                            legal_portal_external_comment_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_external_comment_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_counsel_entry") {
-                            legal_portal_counsel_entry_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_counsel_entry_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_counsel_history") {
-                            legal_portal_counsel_history_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_counsel_history_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_interaction_event") {
-                            legal_portal_interaction_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_interaction_event_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_receipt") {
-                            legal_portal_receipt_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_receipt_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_external_upload") {
-                            legal_portal_external_upload_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_external_upload_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_advance_upload") {
-                            legal_portal_advance_upload_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_advance_upload_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_portal_upload_event") {
-                            legal_portal_upload_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_portal_upload_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_destruction_block") {
-                            legal_destruction_block_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_destruction_block_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_destruction_start") {
-                            legal_destruction_start_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_destruction_start_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_started_event") {
-                            legal_retention_started_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_started_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_destruction_count_attempt") {
-                            legal_destruction_count_attempt_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("legal_destruction_retain_executing") {
-                            legal_destruction_retain_executing_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_destruction_count_attempt_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("legal_destruction_retain_executing")
+                        {
+                            legal_destruction_retain_executing_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_disposal_retain") {
-                            legal_disposal_retain_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_disposal_retain_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_document_erase") {
-                            legal_document_erase_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_document_erase_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_processing_retire") {
-                            legal_processing_retire_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_processing_retire_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_inspections_erase") {
-                            legal_inspections_erase_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_inspections_erase_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_ai_retire") {
-                            legal_ai_retire_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_ai_retire_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_shares_revoke") {
-                            legal_shares_revoke_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_shares_revoke_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_destruction_complete") {
-                            legal_destruction_complete_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_destruction_complete_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_destroyed_event") {
-                            legal_retention_destroyed_event_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("legal_destruction_require_review") {
-                            legal_destruction_require_review_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_destroyed_event_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("legal_destruction_require_review")
+                        {
+                            legal_destruction_require_review_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_plan_edition_create") {
-                            finance_plan_edition_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_plan_edition_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_plan_edition_review") {
-                            finance_plan_edition_review_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_plan_edition_review_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_report_snapshot") {
-                            finance_report_snapshot_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("workflow_command_assertion_clear_many") {
-                            workflow_command_assertion_clear_many_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("legal_backfill_document_attachment") {
-                            legal_backfill_document_attachment_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("legal_backfill_external_attachment") {
-                            legal_backfill_external_attachment_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_report_snapshot_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("workflow_command_assertion_clear_many")
+                        {
+                            workflow_command_assertion_clear_many_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("legal_backfill_document_attachment")
+                        {
+                            legal_backfill_document_attachment_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("legal_backfill_external_attachment")
+                        {
+                            legal_backfill_external_attachment_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("tax_entry_insert") {
-                            tax_entry_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            tax_entry_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("tax_package_event") {
-                            tax_package_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            tax_package_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("tax_entry_decision") {
-                            tax_entry_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            tax_entry_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("vat_correction_insert") {
-                            vat_correction_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            vat_correction_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("tax_entry_correction_decision") {
-                            tax_entry_correction_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            tax_entry_correction_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("vat_correction_decision") {
-                            vat_correction_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            vat_correction_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("calc_run_insert") {
-                            calc_run_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            calc_run_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("statutory_package_insert") {
-                            statutory_package_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            statutory_package_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("statutory_package_approve") {
-                            statutory_package_approve_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            statutory_package_approve_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("calc_run_approve") {
-                            calc_run_approve_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            calc_run_approve_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("statutory_package_export") {
-                            statutory_package_export_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            statutory_package_export_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("statutory_package_file") {
-                            statutory_package_file_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            statutory_package_file_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("statutory_package_supersede") {
-                            statutory_package_supersede_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            statutory_package_supersede_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_csv_mapping_insert") {
-                            bank_csv_mapping_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_csv_mapping_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_import_file_insert") {
-                            bank_import_file_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_import_file_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_match_group_insert") {
-                            bank_match_group_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_match_group_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_match_allocation_insert") {
-                            bank_match_allocation_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_match_allocation_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_txn_match") {
-                            bank_txn_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_txn_match_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_match_target_insert") {
-                            bank_match_target_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_match_target_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_txn_unmatch") {
-                            bank_txn_unmatch_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_txn_unmatch_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_match_target_delete") {
-                            bank_match_target_delete_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_match_target_delete_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("bank_match_group_decision") {
-                            bank_match_group_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            bank_match_group_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_package_insert") {
-                            wh_package_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_package_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_package_decision") {
-                            wh_package_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_package_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_remittance_insert") {
-                            wh_remittance_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_remittance_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_remittance_item_insert") {
-                            wh_remittance_item_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_remittance_item_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_bank_match") {
-                            wh_bank_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_bank_match_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_package_settle") {
-                            wh_package_settle_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_package_settle_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_remittance_reverse") {
-                            wh_remittance_reverse_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_remittance_reverse_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_package_reverse") {
-                            wh_package_reverse_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_package_reverse_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_bank_match2") {
-                            wh_bank_match2_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_bank_match2_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_obligation_approve") {
-                            refund_obligation_approve_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_obligation_approve_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_instruction_insert") {
-                            refund_instruction_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_instruction_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_obligation_bump") {
-                            refund_obligation_bump_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_obligation_bump_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_instruction_export") {
-                            refund_instruction_export_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_instruction_export_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_instruction_resolve") {
-                            refund_instruction_resolve_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_instruction_resolve_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_obligation_bump2") {
-                            refund_obligation_bump2_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_obligation_bump2_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_payment_insert") {
-                            refund_payment_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_payment_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_bank_match") {
-                            refund_bank_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_bank_match_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_instruction_confirm") {
-                            refund_instruction_confirm_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_instruction_confirm_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("refund_obligation_settle") {
-                            refund_obligation_settle_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            refund_obligation_settle_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_edition_insert") {
-                            instrument_edition_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_edition_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_edition_supersede") {
-                            instrument_edition_supersede_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_edition_supersede_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_bank_match") {
-                            instrument_bank_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_bank_match_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_edition_decision") {
-                            instrument_edition_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_edition_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_run_insert") {
-                            instrument_run_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_run_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_bank_match2") {
-                            instrument_bank_match2_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_bank_match2_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_edition_agree") {
-                            instrument_edition_agree_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_edition_agree_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_run_decision") {
-                            instrument_run_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_run_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_bank_unmatch") {
-                            instrument_bank_unmatch_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_bank_unmatch_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_run_reverse") {
-                            instrument_run_reverse_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_run_reverse_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("instrument_edition_activate") {
-                            instrument_edition_activate_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            instrument_edition_activate_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_event_insert") {
-                            asset_event_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_event_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_insert") {
-                            asset_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_update") {
-                            asset_update_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_update_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_retire") {
-                            asset_retire_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_retire_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_activate") {
-                            asset_activate_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_activate_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_depreciation_insert") {
-                            asset_depreciation_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_depreciation_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_depreciation_update") {
-                            asset_depreciation_update_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_depreciation_update_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_disposal_insert") {
-                            asset_disposal_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_disposal_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_disposal_retire") {
-                            asset_disposal_retire_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_disposal_retire_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("asset_disposal_decision") {
-                            asset_disposal_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            asset_disposal_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_correction_insert") {
-                            billing_correction_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_correction_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_correction_reject") {
-                            billing_correction_reject_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_correction_reject_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_recognition_reverse") {
-                            billing_recognition_reverse_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_recognition_reverse_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_invoice_paid") {
-                            billing_invoice_paid_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_invoice_paid_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_correction_post") {
-                            billing_correction_post_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_correction_post_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_refund_obligation") {
-                            billing_refund_obligation_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_refund_obligation_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_invoice_created_by") {
-                            billing_invoice_created_by_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_invoice_created_by_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("billing_run_approve") {
-                            billing_run_approve_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            billing_run_approve_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("thai_doc_sequence_seed") {
-                            thai_doc_sequence_seed_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            thai_doc_sequence_seed_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("thai_doc_sequence_bump") {
-                            thai_doc_sequence_bump_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            thai_doc_sequence_bump_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("thai_doc_issue") {
-                            thai_doc_issue_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            thai_doc_issue_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("thai_doc_event_issued") {
-                            thai_doc_event_issued_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            thai_doc_event_issued_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("thai_doc_change_insert") {
-                            thai_doc_change_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            thai_doc_change_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("thai_doc_event_supersede") {
-                            thai_doc_event_supersede_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            thai_doc_event_supersede_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("thai_doc_change_decision") {
-                            thai_doc_change_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            thai_doc_change_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_withholding_consumed") {
-                            wh_withholding_consumed_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_withholding_consumed_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_assessment_reversed") {
-                            wh_assessment_reversed_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_assessment_reversed_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_thai_document_cancel") {
-                            wh_thai_document_cancel_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_thai_document_cancel_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_assessment_insert") {
-                            wh_assessment_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_assessment_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_income_line_insert") {
-                            wh_income_line_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_income_line_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_payment_withholding") {
-                            wh_payment_withholding_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_payment_withholding_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("wh_assessment_decision") {
-                            wh_assessment_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            wh_assessment_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("books_opening_journal") {
-                            books_opening_journal_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            books_opening_journal_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("books_opening_journal_lines") {
-                            books_opening_journal_lines_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            books_opening_journal_lines_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("books_rule_decision") {
-                            books_rule_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            books_rule_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("books_dimension_definition") {
-                            books_dimension_definition_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            books_dimension_definition_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("books_dimension_value") {
-                            books_dimension_value_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            books_dimension_value_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("books_rule_prepare") {
-                            books_rule_prepare_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            books_rule_prepare_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("books_account_mapping") {
-                            books_account_mapping_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            books_account_mapping_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("pms_finance_party") {
-                            pms_finance_party_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            pms_finance_party_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("pms_finance_invoice") {
-                            pms_finance_invoice_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            pms_finance_invoice_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("pms_finance_payment") {
-                            pms_finance_payment_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            pms_finance_payment_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("pms_finance_allocation_delete") {
-                            pms_finance_allocation_delete_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            pms_finance_allocation_delete_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("pms_finance_invoice_update") {
-                            pms_finance_invoice_update_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            pms_finance_invoice_update_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("pms_finance_allocation_insert") {
-                            pms_finance_allocation_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            pms_finance_allocation_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("pms_finance_bank_match") {
-                            pms_finance_bank_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            pms_finance_bank_match_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_schedule_insert") {
-                            finance_accrual_schedule_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_schedule_insert_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_event_created") {
-                            finance_accrual_event_created_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_accrual_schedule_decision") {
-                            finance_accrual_schedule_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_event_created_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_accrual_schedule_decision")
+                        {
+                            finance_accrual_schedule_decision_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_event_decision") {
-                            finance_accrual_event_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_event_decision_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_journal_insert") {
-                            finance_accrual_journal_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_accrual_journal_lines_insert") {
-                            finance_accrual_journal_lines_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_journal_insert_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("finance_accrual_journal_lines_insert")
+                        {
+                            finance_accrual_journal_lines_insert_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_run_insert") {
-                            finance_accrual_run_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_run_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_event_run") {
-                            finance_accrual_event_run_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_event_run_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_journal_post") {
-                            finance_accrual_journal_post_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_journal_post_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_run_post") {
-                            finance_accrual_run_post_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_run_post_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_accrual_schedule_post") {
-                            finance_accrual_schedule_post_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_accrual_schedule_post_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inbox_event_insert") {
-                            inbox_event_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            inbox_event_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inbox_delivery_insert") {
-                            inbox_delivery_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            inbox_delivery_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inbox_delivery_state") {
-                            inbox_delivery_state_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            inbox_delivery_state_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inbox_staff_notification_read") {
-                            inbox_staff_notification_read_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            inbox_staff_notification_read_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inbox_notice_insert") {
-                            inbox_notice_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            inbox_notice_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inbox_notice_target_insert") {
-                            inbox_notice_target_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            inbox_notice_target_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inbox_notice_target_complete") {
-                            inbox_notice_target_complete_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_statement_package_insert") {
-                            finance_statement_package_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_statement_event_prepared") {
-                            finance_statement_event_prepared_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_statement_package_decision") {
-                            finance_statement_package_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_statement_event_decision") {
-                            finance_statement_event_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            inbox_notice_target_complete_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_statement_package_insert")
+                        {
+                            finance_statement_package_insert_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_statement_event_prepared")
+                        {
+                            finance_statement_event_prepared_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("finance_statement_package_decision")
+                        {
+                            finance_statement_package_decision_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_statement_event_decision")
+                        {
+                            finance_statement_event_decision_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_year_closing_insert") {
-                            finance_year_closing_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_year_closing_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_year_closing_decision") {
-                            finance_year_closing_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_year_closing_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_draft_engagement") {
-                            people_draft_engagement_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_draft_engagement_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_draft_employee") {
-                            people_draft_employee_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_draft_employee_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_draft_history") {
-                            people_draft_history_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_draft_history_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_starter_chart") {
-                            finance_starter_chart_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_starter_chart_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_starter_account") {
-                            finance_starter_account_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_starter_account_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_starter_period") {
-                            finance_starter_period_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_starter_period_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_starter_dimension") {
-                            finance_starter_dimension_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_starter_dimension_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_starter_dimension_value") {
-                            finance_starter_dimension_value_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_starter_dimension_value_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_group_entity") {
-                            finance_group_entity_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_intercompany_transaction") {
-                            finance_intercompany_transaction_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_group_entity_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_intercompany_transaction")
+                        {
+                            finance_intercompany_transaction_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_intercompany_event") {
-                            finance_intercompany_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_intercompany_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_intercompany_status") {
-                            finance_intercompany_status_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_intercompany_status_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_calc_run_prepare") {
-                            finance_calc_run_prepare_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_calc_run_prepare_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_calc_event_prepare") {
-                            finance_calc_event_prepare_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_calc_event_prepare_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_calc_run_decide") {
-                            finance_calc_run_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_calc_run_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_calc_event_decide") {
-                            finance_calc_event_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_calc_event_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_close_check") {
-                            finance_close_check_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_close_check_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_collection_prepare") {
-                            finance_collection_prepare_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_collection_prepare_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_collection_supersede") {
-                            finance_collection_supersede_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_collection_supersede_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_collection_revise") {
-                            finance_collection_revise_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_collection_revise_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_collection_delivery") {
-                            finance_collection_delivery_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_collection_delivery_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_collection_decide") {
-                            finance_collection_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_collection_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_job_health_renew") {
-                            legal_job_health_renew_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_job_health_renew_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_job_health_start") {
-                            legal_job_health_start_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_job_health_start_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_job_health_success") {
-                            legal_job_health_success_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_job_health_success_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_job_health_failure") {
-                            legal_job_health_failure_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("collaboration_backfill_messaging_attachment") {
-                            collaboration_backfill_messaging_attachment_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_job_health_failure_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("collaboration_backfill_messaging_attachment")
+                        {
+                            collaboration_backfill_messaging_attachment_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("org_node_team") {
-                            org_node_team_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            org_node_team_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("org_node_room") {
-                            org_node_room_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            org_node_room_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("org_node_room_rename") {
-                            org_node_room_rename_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            org_node_room_rename_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_handoff_person") {
-                            people_handoff_person_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_handoff_person_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_handoff_engagement") {
-                            people_handoff_engagement_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_handoff_engagement_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_handoff_compensation") {
-                            people_handoff_compensation_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("people_org_relocation_engagement") {
-                            people_org_relocation_engagement_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_handoff_compensation_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("people_org_relocation_engagement")
+                        {
+                            people_org_relocation_engagement_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_org_relocation_employee") {
-                            people_org_relocation_employee_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_org_relocation_employee_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_beta_person") {
-                            people_beta_person_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_beta_person_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_beta_employee") {
-                            people_beta_employee_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_beta_employee_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_beta_engagement") {
-                            people_beta_engagement_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_beta_engagement_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_worker_starter") {
-                            people_worker_starter_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_worker_starter_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_worker_placement") {
-                            people_worker_placement_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_worker_placement_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_legacy_leave_employee") {
-                            people_legacy_leave_employee_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_legacy_leave_employee_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_legacy_leave_request") {
-                            people_legacy_leave_request_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_legacy_leave_request_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("beta_ai_usage_expire") {
-                            beta_ai_usage_expire_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            beta_ai_usage_expire_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("beta_ai_draft_expire") {
-                            beta_ai_draft_expire_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            beta_ai_draft_expire_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("collaboration_org_team") {
-                            collaboration_org_team_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            collaboration_org_team_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("collaboration_org_room") {
-                            collaboration_org_room_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("workflow_command_assertion_clear") {
-                            workflow_command_assertion_clear_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            collaboration_org_room_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("workflow_command_assertion_clear")
+                        {
+                            workflow_command_assertion_clear_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_statutory_remittance") {
-                            people_statutory_remittance_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_statutory_remittance_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_assign_level") {
-                            people_assign_level_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_assign_level_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_attachment_owner_version") {
-                            people_attachment_owner_version_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_attachment_owner_version_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_leave_evidence_manifest") {
-                            people_leave_evidence_manifest_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_leave_evidence_manifest_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_prep_task_reschedule") {
-                            people_prep_task_reschedule_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_prep_task_reschedule_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_prep_task_complete") {
-                            people_prep_task_complete_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_prep_task_complete_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_self_service_employee") {
-                            people_self_service_employee_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_self_service_employee_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_issued_payslip") {
-                            people_issued_payslip_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_issued_payslip_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("people_expense_payment_cancel") {
-                            people_expense_payment_cancel_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_supplier_bill_draft_void") {
-                            finance_supplier_bill_draft_void_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            people_expense_payment_cancel_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_supplier_bill_draft_void")
+                        {
+                            finance_supplier_bill_draft_void_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_due_draft_complete") {
-                            finance_due_draft_complete_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_due_draft_complete_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_due_draft_block") {
-                            finance_due_draft_block_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_payroll_batch_invoice_version") {
-                            finance_payroll_batch_invoice_version_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_payroll_batch_bank_match") {
-                            finance_payroll_batch_bank_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_due_draft_block_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref()
+                            == Some("finance_payroll_batch_invoice_version")
+                        {
+                            finance_payroll_batch_invoice_version_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_payroll_batch_bank_match")
+                        {
+                            finance_payroll_batch_bank_match_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_company_tool_set") {
-                            finance_company_tool_set_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_company_tool_set_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_group_edition_prepare") {
-                            finance_group_edition_prepare_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_group_edition_prepare_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_group_edition_supersede") {
-                            finance_group_edition_supersede_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_group_edition_supersede_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_group_edition_decide") {
-                            finance_group_edition_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_group_edition_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_payroll_other_match") {
-                            finance_payroll_other_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_payroll_other_match_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_pos_party") {
-                            finance_pos_party_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_payroll_remittance_match") {
-                            finance_payroll_remittance_match_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_pos_party_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_payroll_remittance_match")
+                        {
+                            finance_payroll_remittance_match_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_commerce_base_carry") {
-                            finance_commerce_base_carry_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_commerce_base_carry_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_expansion_review_file") {
-                            finance_expansion_review_file_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_expansion_review_file_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_invoice_line_version") {
-                            finance_invoice_line_version_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_invoice_line_version_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_journal_create") {
-                            finance_journal_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_journal_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_journal_line_create") {
-                            finance_journal_line_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_journal_line_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_pms_party") {
-                            finance_pms_party_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_pms_party_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_pms_payment") {
-                            finance_pms_payment_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_pms_payment_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("hospitality_tax_doc_record") {
-                            hospitality_tax_doc_record_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            hospitality_tax_doc_record_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("hospitality_tax_doc_decide") {
-                            hospitality_tax_doc_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_accounting_profile_create") {
-                            finance_accounting_profile_create_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_accounting_profile_decide") {
-                            finance_accounting_profile_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("payroll_statutory_profile_insert") {
-                            payroll_statutory_profile_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("payroll_statutory_profile_decide") {
-                            payroll_statutory_profile_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            hospitality_tax_doc_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_accounting_profile_create")
+                        {
+                            finance_accounting_profile_create_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_accounting_profile_decide")
+                        {
+                            finance_accounting_profile_decide_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("payroll_statutory_profile_insert")
+                        {
+                            payroll_statutory_profile_insert_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("payroll_statutory_profile_decide")
+                        {
+                            payroll_statutory_profile_decide_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_sales_defaults_create") {
-                            finance_sales_defaults_create_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_sales_defaults_supersede") {
-                            finance_sales_defaults_supersede_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_sales_defaults_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_sales_defaults_supersede")
+                        {
+                            finance_sales_defaults_supersede_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_sales_defaults_decide") {
-                            finance_sales_defaults_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_sales_defaults_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("expense_draft_write") {
-                            expense_draft_write_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            expense_draft_write_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("payroll_final_pay_cancel_event") {
-                            payroll_final_pay_cancel_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            payroll_final_pay_cancel_event_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("payroll_run_cancel") {
-                            payroll_run_cancel_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            payroll_run_cancel_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("payroll_final_pay_prep_cancel") {
-                            payroll_final_pay_prep_cancel_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            payroll_final_pay_prep_cancel_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("payroll_deduction_consumption") {
-                            payroll_deduction_consumption_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            payroll_deduction_consumption_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("payroll_repayment_collect") {
-                            payroll_repayment_collect_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            payroll_repayment_collect_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("payroll_advances_close") {
-                            payroll_advances_close_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_intercompany_pair_create") {
-                            finance_intercompany_pair_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            payroll_advances_close_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_intercompany_pair_create")
+                        {
+                            finance_intercompany_pair_create_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_intercompany_claim") {
-                            finance_intercompany_claim_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_intercompany_pair_decide") {
-                            finance_intercompany_pair_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
-                        } else if input.kind.as_deref() == Some("finance_intercompany_claims_clear") {
-                            finance_intercompany_claims_clear_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_intercompany_claim_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_intercompany_pair_decide")
+                        {
+                            finance_intercompany_pair_decide_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("finance_intercompany_claims_clear")
+                        {
+                            finance_intercompany_claims_clear_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_due_draft_schedule") {
-                            finance_due_draft_schedule_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_due_draft_schedule_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_due_draft_decide") {
-                            finance_due_draft_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_due_draft_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_tax_identity_upsert") {
-                            finance_tax_identity_upsert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_tax_identity_upsert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_tax_identity_supersede") {
-                            finance_tax_identity_supersede_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_tax_identity_supersede_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_tax_identity_decide") {
-                            finance_tax_identity_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_tax_identity_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_reversal_journal") {
-                            finance_reversal_journal_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_reversal_journal_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_reversal_lines") {
-                            finance_reversal_lines_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_reversal_lines_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_journal_reverse") {
-                            finance_journal_reverse_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_journal_reverse_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_book_adjustment_create") {
-                            finance_book_adjustment_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_book_adjustment_create_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_book_adjustment_decide") {
-                            finance_book_adjustment_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_book_adjustment_decide_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_book_adjustment_reverse") {
-                            finance_book_adjustment_reverse_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_book_adjustment_reverse_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_envelope_expire") {
-                            legal_envelope_expire_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_envelope_expire_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_item_update") {
-                            legal_item_update_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_item_update_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_subtype_update") {
-                            legal_subtype_update_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_subtype_update_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_settings_configure") {
-                            legal_settings_configure_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_settings_configure_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_item_create") {
-                            legal_item_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_item_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_subtype_create") {
-                            legal_subtype_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_subtype_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_member_add") {
-                            legal_member_add_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_member_add_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_requester_route") {
-                            legal_requester_route_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_requester_route_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_member_retain") {
-                            legal_member_retain_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_member_retain_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_hold_targets_expand") {
-                            legal_hold_targets_expand_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_hold_targets_expand_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_source_chunk_insert") {
-                            legal_source_chunk_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_source_chunk_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_law_source_register") {
-                            legal_law_source_register_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_law_source_register_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_law_revision_import") {
-                            legal_law_revision_import_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_law_revision_import_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_source_check_bind") {
-                            legal_source_check_bind_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_source_check_bind_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_text_review_import") {
-                            legal_text_review_import_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_text_review_import_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_applicability_propose") {
-                            legal_applicability_propose_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_applicability_propose_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_applicability_approve") {
-                            legal_applicability_approve_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_applicability_approve_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_source_check_review") {
-                            legal_source_check_review_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_source_check_review_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_document_inspection") {
-                            legal_document_inspection_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_document_inspection_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_executed_copy_retain") {
-                            legal_executed_copy_retain_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_executed_copy_retain_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_canonical_document_insert") {
-                            legal_canonical_document_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_canonical_document_insert_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_stored_document_insert") {
-                            legal_stored_document_insert_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_stored_document_insert_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_saved_view") {
-                            legal_saved_view_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_saved_view_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_derived_link") {
-                            legal_derived_link_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_derived_link_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_ai_document") {
-                            legal_ai_document_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_ai_document_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_proposal_accept") {
-                            legal_proposal_accept_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_proposal_accept_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_policy_create") {
-                            legal_retention_policy_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_policy_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_policy_decide") {
-                            legal_retention_policy_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_policy_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_assign") {
-                            legal_retention_assign_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_assign_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_request") {
-                            legal_retention_request_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_request_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_change") {
-                            legal_retention_change_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_change_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_intake_form_create") {
-                            legal_intake_form_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_intake_form_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_intake_form_approve") {
-                            legal_intake_form_approve_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_intake_form_approve_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_intake_apply") {
-                            legal_intake_apply_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_intake_apply_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_authority_create") {
-                            legal_authority_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_authority_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_authority_decide") {
-                            legal_authority_decide_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_authority_decide_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_access_event") {
-                            legal_access_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_access_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_trust_addition") {
-                            legal_trust_addition_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_trust_addition_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_trust_decision") {
-                            legal_trust_decision_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_trust_decision_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_processing_job") {
-                            legal_processing_job_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_processing_job_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_signer_view") {
-                            legal_signer_view_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_signer_view_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_item_state_advance") {
-                            legal_item_state_advance_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_item_state_advance_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_native_reference") {
-                            legal_native_reference_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_native_reference_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_executed_review") {
-                            legal_executed_review_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_executed_review_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_executed_copy_state") {
-                            legal_executed_copy_state_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_executed_copy_state_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_approval_lock") {
-                            legal_approval_lock_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_approval_lock_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_approval_retain_route") {
-                            legal_approval_retain_route_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_approval_retain_route_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_approval_record") {
-                            legal_approval_record_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_approval_record_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_approval_advance") {
-                            legal_approval_advance_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_approval_advance_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_approval_event") {
-                            legal_approval_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_approval_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_feature_create") {
-                            legal_feature_create_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_feature_create_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_feature_update") {
-                            legal_feature_update_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_feature_update_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_feature_history") {
-                            legal_feature_history_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_feature_history_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_advance_record") {
-                            legal_advance_record_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_advance_record_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_feature_event") {
-                            legal_feature_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_feature_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_bank_ignore") {
-                            finance_bank_ignore_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_bank_ignore_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("finance_hotel_account") {
-                            finance_hotel_account_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            finance_hotel_account_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retention_authorization") {
-                            legal_retention_authorization_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retention_authorization_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_file_preservation") {
-                            legal_file_preservation_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_file_preservation_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_draft_set") {
-                            legal_draft_set_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_draft_set_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_draft_link") {
-                            legal_draft_link_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_draft_link_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_uploaded_intent") {
-                            legal_uploaded_intent_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_uploaded_intent_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_quarantined_source") {
-                            legal_quarantined_source_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_quarantined_source_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("customer_receipt") {
-                            customer_receipt_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            customer_receipt_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("release_event_submitted") {
-                            release_event_submitted_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            release_event_submitted_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("release_event_reviewed") {
-                            release_event_reviewed_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            release_event_reviewed_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("release_event_revoked") {
-                            release_event_revoked_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            release_event_revoked_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("customer_portal_action") {
-                            customer_portal_action_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            customer_portal_action_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_link_upload") {
-                            legal_link_upload_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_link_upload_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_pending_scan") {
-                            legal_pending_scan_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_pending_scan_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_stored_original") {
-                            legal_stored_original_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_stored_original_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_quarantine_event") {
-                            legal_quarantine_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_quarantine_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_access_allowed") {
-                            legal_access_allowed_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_access_allowed_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_access_denied") {
-                            legal_access_denied_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_access_denied_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("beta_expire_upload") {
-                            beta_expire_upload_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            beta_expire_upload_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("doc_attachment_record") {
-                            doc_attachment_record_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            doc_attachment_record_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("doc_derivative") {
-                            doc_derivative_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            doc_derivative_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("doc_storage_ledger") {
-                            doc_storage_ledger_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            doc_storage_ledger_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("expense_withdraw_link") {
-                            expense_withdraw_link_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            expense_withdraw_link_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("expense_withdraw_event") {
-                            expense_withdraw_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            expense_withdraw_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("expense_revoke_attachment") {
-                            expense_revoke_attachment_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            expense_revoke_attachment_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_bind_link") {
-                            legal_bind_link_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_bind_link_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_bind_set") {
-                            legal_bind_set_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_bind_set_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_bind_event") {
-                            legal_bind_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_bind_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retire_source") {
-                            legal_retire_source_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retire_source_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retire_ledger") {
-                            legal_retire_ledger_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retire_ledger_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_retire_event") {
-                            legal_retire_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            legal_retire_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("attachment_event") {
-                            attachment_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            attachment_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("attachment_access_event") {
-                            attachment_access_event_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            attachment_access_event_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("social_mention") {
-                            social_mention_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            social_mention_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("social_mention_notice") {
-                            social_mention_notice_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            social_mention_notice_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("social_agent_reply") {
-                            social_agent_reply_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            social_agent_reply_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("social_topic") {
-                            social_topic_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            social_topic_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("social_topic_binding") {
-                            social_topic_binding_statement(connection, &company_id, &input).await.map_err(Into::into)
+                            social_topic_binding_statement(connection, &company_id, &input)
+                                .await
+                                .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_feature") {
                             legal_feature_notice_statement(connection, &company_id, &input)
                                 .await
@@ -2875,17 +3918,25 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                                 .await
                                 .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("workflow_invoicing") {
-                            workflow_invoicing_notification_statement(connection, &company_id, &input)
-                                .await
-                                .map_err(Into::into)
+                            workflow_invoicing_notification_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("social_task_origin") {
                             social_task_origin_statement(connection, &company_id, &input)
                                 .await
                                 .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("inventory_transit") {
-                            inventory_transit_notification_statement(connection, &company_id, &input)
-                                .await
-                                .map_err(Into::into)
+                            inventory_transit_notification_statement(
+                                connection,
+                                &company_id,
+                                &input,
+                            )
+                            .await
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("legal_law_source") {
                             legal_law_source_notification_statement(connection, &company_id, &input)
                                 .await
@@ -3008,7 +4059,10 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                         } else if input.kind.as_deref() == Some("crm_lead") {
                             let lead_id = input.lead_id.as_deref().unwrap_or_default();
                             crate::collaboration::crm_lead_notification_statement(
-                                connection, &company_id, lead_id, &input.idempotency_key,
+                                connection,
+                                &company_id,
+                                lead_id,
+                                &input.idempotency_key,
                             )
                             .await
                             .map_err(Into::into)
@@ -3033,25 +4087,206 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
         erpx_server_collaboration::public::collaboration_work_http::CollaborationWorkHttpReadReply,
         Error,
     > {
-        use erpx_server_collaboration::public::notification_statement::{
-    crm_lead_notification_statement, finance_refund_notification_statement,
-    learning_assignment_notification_statement,
-    organization_change_notification_statement,
-    legal_approval_notification_statement, legal_hold_notification_statement, notification_statement,
-    company_acceptance_reviewer_statement, company_acceptance_result_statement, inventory_transit_notification_statement, legal_law_source_notification_statement, customer_portal_notification_statement, social_task_origin_statement, workflow_invoicing_notification_statement, workflow_notification_statement, roster_coverage_notification_statement, legal_feature_notice_statement, legal_sla_notice_statement, legal_escalation_notice_statement, legal_deadline_notice_statement, social_mention_statement, social_mention_notice_statement, social_agent_reply_statement, social_topic_statement, social_topic_binding_statement, attachment_access_event_statement, attachment_event_statement, legal_retire_source_statement, legal_retire_ledger_statement, legal_retire_event_statement, legal_bind_link_statement, legal_bind_set_statement, legal_bind_event_statement, expense_withdraw_link_statement, expense_withdraw_event_statement, expense_revoke_attachment_statement, doc_attachment_record_statement, doc_derivative_statement, doc_storage_ledger_statement, beta_expire_upload_statement, legal_access_allowed_statement, legal_access_denied_statement, legal_link_upload_statement, legal_pending_scan_statement, legal_stored_original_statement, legal_quarantine_event_statement, customer_portal_action_statement, release_event_submitted_statement, release_event_reviewed_statement, release_event_revoked_statement, customer_receipt_statement, legal_draft_set_statement, legal_draft_link_statement, legal_uploaded_intent_statement, legal_quarantined_source_statement, legal_file_preservation_statement, legal_retention_authorization_statement, finance_hotel_account_statement, finance_bank_ignore_statement, legal_feature_create_statement, legal_feature_update_statement, legal_feature_history_statement, legal_advance_record_statement, legal_feature_event_statement, legal_approval_lock_statement, legal_approval_retain_route_statement, legal_approval_record_statement, legal_approval_advance_statement, legal_approval_event_statement, legal_executed_review_statement, legal_executed_copy_state_statement, legal_signer_view_statement, legal_item_state_advance_statement, legal_native_reference_statement, legal_trust_addition_statement, legal_trust_decision_statement, legal_processing_job_statement, legal_access_event_statement, legal_intake_form_create_statement, legal_intake_form_approve_statement, legal_intake_apply_statement, legal_authority_create_statement, legal_authority_decide_statement, legal_retention_policy_create_statement, legal_retention_policy_decide_statement, legal_retention_assign_statement, legal_retention_request_statement, legal_retention_change_statement, legal_saved_view_statement, legal_derived_link_statement, legal_ai_document_statement, legal_proposal_accept_statement, legal_document_inspection_statement, legal_executed_copy_retain_statement, legal_canonical_document_insert_statement, legal_stored_document_insert_statement, legal_source_chunk_insert_statement, legal_law_source_register_statement, legal_law_revision_import_statement, legal_source_check_bind_statement, legal_text_review_import_statement, legal_applicability_propose_statement, legal_applicability_approve_statement, legal_source_check_review_statement, legal_settings_configure_statement, legal_item_create_statement, legal_subtype_create_statement, legal_member_add_statement, legal_requester_route_statement, legal_member_retain_statement, legal_hold_targets_expand_statement, legal_item_update_statement, legal_subtype_update_statement, legal_envelope_expire_statement, finance_book_adjustment_create_statement, finance_book_adjustment_decide_statement, finance_book_adjustment_reverse_statement, finance_plan_edition_create_statement, finance_plan_edition_review_statement, finance_report_snapshot_statement, finance_reversal_journal_statement, finance_reversal_lines_statement, finance_journal_reverse_statement, finance_tax_identity_upsert_statement, finance_tax_identity_supersede_statement, finance_tax_identity_decide_statement, finance_due_draft_schedule_statement, finance_due_draft_decide_statement, finance_intercompany_pair_create_statement, finance_intercompany_claim_statement, finance_intercompany_pair_decide_statement, finance_intercompany_claims_clear_statement, payroll_deduction_consumption_statement, payroll_repayment_collect_statement, payroll_advances_close_statement, payroll_final_pay_cancel_event_statement, payroll_run_cancel_statement, payroll_final_pay_prep_cancel_statement, expense_draft_write_statement, finance_sales_defaults_create_statement, finance_sales_defaults_supersede_statement, finance_sales_defaults_decide_statement, payroll_statutory_profile_insert_statement, payroll_statutory_profile_decide_statement, finance_accounting_profile_create_statement, finance_accounting_profile_decide_statement, hospitality_tax_doc_record_statement, hospitality_tax_doc_decide_statement, finance_pms_party_statement, finance_pms_payment_statement, finance_journal_create_statement, finance_journal_line_create_statement, finance_invoice_line_version_statement, finance_expansion_review_file_statement, finance_commerce_base_carry_statement, finance_payroll_remittance_match_statement, finance_pos_party_statement, finance_payroll_other_match_statement, finance_group_edition_prepare_statement, finance_group_edition_supersede_statement, finance_group_edition_decide_statement, finance_company_tool_set_statement, finance_payroll_batch_invoice_version_statement, finance_payroll_batch_bank_match_statement, finance_due_draft_complete_statement, finance_due_draft_block_statement, finance_supplier_bill_draft_void_statement, people_self_service_employee_statement, people_issued_payslip_statement, people_expense_payment_cancel_statement, people_leave_evidence_manifest_statement, people_prep_task_reschedule_statement, people_prep_task_complete_statement, people_statutory_remittance_statement, people_assign_level_statement, people_attachment_owner_version_statement, workflow_command_assertion_clear_statement, collaboration_org_team_statement, collaboration_org_room_statement, legal_backfill_document_attachment_statement, legal_backfill_external_attachment_statement, beta_ai_usage_expire_statement, beta_ai_draft_expire_statement, people_legacy_leave_employee_statement, people_legacy_leave_request_statement, people_worker_starter_statement, people_worker_placement_statement, people_beta_person_statement, people_beta_employee_statement, people_beta_engagement_statement, people_org_relocation_engagement_statement, people_org_relocation_employee_statement, people_handoff_person_statement, people_handoff_engagement_statement, people_handoff_compensation_statement, org_node_team_statement, org_node_room_statement, org_node_room_rename_statement, collaboration_backfill_messaging_attachment_statement, legal_job_health_renew_statement, legal_job_health_start_statement, legal_job_health_success_statement, legal_job_health_failure_statement, finance_collection_prepare_statement, finance_collection_supersede_statement, finance_collection_revise_statement, finance_collection_delivery_statement, finance_collection_decide_statement, finance_calc_run_prepare_statement, finance_calc_event_prepare_statement, finance_calc_run_decide_statement, finance_calc_event_decide_statement, finance_close_check_statement, finance_group_entity_statement, finance_intercompany_transaction_statement, finance_intercompany_event_statement, finance_intercompany_status_statement, finance_starter_chart_statement, finance_starter_account_statement, finance_starter_period_statement, finance_starter_dimension_statement, finance_starter_dimension_value_statement, people_draft_engagement_statement, people_draft_employee_statement, people_draft_history_statement, finance_statement_package_insert_statement, finance_statement_event_prepared_statement, finance_statement_package_decision_statement, finance_statement_event_decision_statement, finance_year_closing_insert_statement, finance_year_closing_decision_statement, inbox_event_insert_statement, inbox_delivery_insert_statement, inbox_delivery_state_statement, inbox_staff_notification_read_statement, inbox_notice_insert_statement, inbox_notice_target_insert_statement, inbox_notice_target_complete_statement, finance_accrual_schedule_insert_statement, finance_accrual_event_created_statement, finance_accrual_schedule_decision_statement, finance_accrual_event_decision_statement, finance_accrual_journal_insert_statement, finance_accrual_journal_lines_insert_statement, finance_accrual_run_insert_statement, finance_accrual_event_run_statement, finance_accrual_journal_post_statement, finance_accrual_run_post_statement, finance_accrual_schedule_post_statement, pms_finance_party_statement, pms_finance_invoice_statement, pms_finance_payment_statement, pms_finance_allocation_delete_statement, pms_finance_invoice_update_statement, pms_finance_allocation_insert_statement, pms_finance_bank_match_statement, books_opening_journal_statement, books_opening_journal_lines_statement, books_rule_decision_statement, books_dimension_definition_statement, books_dimension_value_statement, books_rule_prepare_statement, books_account_mapping_statement, wh_withholding_consumed_statement, wh_assessment_reversed_statement, wh_thai_document_cancel_statement, wh_assessment_insert_statement, wh_income_line_insert_statement, wh_payment_withholding_statement, wh_assessment_decision_statement, thai_doc_sequence_seed_statement, thai_doc_sequence_bump_statement, thai_doc_issue_statement, thai_doc_event_issued_statement, thai_doc_change_insert_statement, thai_doc_event_supersede_statement, thai_doc_change_decision_statement, billing_correction_insert_statement, billing_correction_reject_statement, billing_recognition_reverse_statement, billing_invoice_paid_statement, billing_correction_post_statement, billing_refund_obligation_statement, billing_invoice_created_by_statement, billing_run_approve_statement, asset_event_insert_statement, asset_insert_statement, asset_update_statement, asset_retire_statement, asset_activate_statement, asset_depreciation_insert_statement, asset_depreciation_update_statement, asset_disposal_insert_statement, asset_disposal_retire_statement, asset_disposal_decision_statement, instrument_edition_insert_statement, instrument_edition_supersede_statement, instrument_bank_match_statement, instrument_edition_decision_statement, instrument_run_insert_statement, instrument_bank_match2_statement, instrument_edition_agree_statement, instrument_run_decision_statement, instrument_bank_unmatch_statement, instrument_run_reverse_statement, instrument_edition_activate_statement, refund_obligation_approve_statement, refund_instruction_insert_statement, refund_obligation_bump_statement, refund_instruction_export_statement, refund_instruction_resolve_statement, refund_obligation_bump2_statement, refund_payment_insert_statement, refund_bank_match_statement, refund_instruction_confirm_statement, refund_obligation_settle_statement, wh_package_insert_statement, wh_package_decision_statement, wh_remittance_insert_statement, wh_remittance_item_insert_statement, wh_bank_match_statement, wh_package_settle_statement, wh_remittance_reverse_statement, wh_package_reverse_statement, wh_bank_match2_statement, bank_csv_mapping_insert_statement, bank_import_file_insert_statement, bank_match_group_insert_statement, bank_match_allocation_insert_statement, bank_txn_match_statement, bank_match_target_insert_statement, bank_txn_unmatch_statement, bank_match_target_delete_statement, bank_match_group_decision_statement, tax_entry_insert_statement, tax_package_event_statement, tax_entry_decision_statement, vat_correction_insert_statement, tax_entry_correction_decision_statement, vat_correction_decision_statement, calc_run_insert_statement, statutory_package_insert_statement, statutory_package_approve_statement, calc_run_approve_statement, statutory_package_export_statement, statutory_package_file_statement, statutory_package_supersede_statement, workflow_command_assertion_clear_many_statement, legal_destruction_block_statement, legal_destruction_start_statement, legal_retention_started_event_statement, legal_destruction_count_attempt_statement, legal_destruction_retain_executing_statement, legal_disposal_retain_statement, legal_document_erase_statement, legal_processing_retire_statement, legal_inspections_erase_statement, legal_ai_retire_statement, legal_shares_revoke_statement, legal_destruction_complete_statement, legal_retention_destroyed_event_statement, legal_destruction_require_review_statement, legal_portal_access_event_statement, legal_portal_accept_share_statement, legal_portal_external_comment_statement, legal_portal_counsel_entry_statement, legal_portal_counsel_history_statement, legal_portal_interaction_event_statement, legal_portal_receipt_statement, legal_portal_external_upload_statement, legal_portal_advance_upload_statement, legal_portal_upload_event_statement, explicit_notification_statement, payroll_advance_notification_statement, payroll_correction_notification_statement,
-    rfq_notification_statement,
-    supplier_bill_notification_statement, supplier_promise_notification_statement,
-    NotificationStatement, NotificationStatementInput,
-};
-use erpx_server_collaboration::public::notification_statement_http::{
-    StatementBackend, StatementFuture, StatementRequest,
-};
-use erpx_server_collaboration::public::collaboration_work::{
+        use erpx_server_collaboration::public::collaboration_work::{
             read_scope_card, read_scope_relation, read_scope_workspace,
         };
         use erpx_server_collaboration::public::collaboration_work_http::{
             CollaborationCardData, CollaborationRelationData, CollaborationWorkHttpReadReply,
             CollaborationWorkReadKind, CollaborationWorkspaceData,
+        };
+        use erpx_server_collaboration::public::notification_statement::{
+            NotificationStatement, NotificationStatementInput, asset_activate_statement,
+            asset_depreciation_insert_statement, asset_depreciation_update_statement,
+            asset_disposal_decision_statement, asset_disposal_insert_statement,
+            asset_disposal_retire_statement, asset_event_insert_statement, asset_insert_statement,
+            asset_retire_statement, asset_update_statement, attachment_access_event_statement,
+            attachment_event_statement, bank_csv_mapping_insert_statement,
+            bank_import_file_insert_statement, bank_match_allocation_insert_statement,
+            bank_match_group_decision_statement, bank_match_group_insert_statement,
+            bank_match_target_delete_statement, bank_match_target_insert_statement,
+            bank_txn_match_statement, bank_txn_unmatch_statement, beta_ai_draft_expire_statement,
+            beta_ai_usage_expire_statement, beta_expire_upload_statement,
+            billing_correction_insert_statement, billing_correction_post_statement,
+            billing_correction_reject_statement, billing_invoice_created_by_statement,
+            billing_invoice_paid_statement, billing_recognition_reverse_statement,
+            billing_refund_obligation_statement, billing_run_approve_statement,
+            books_account_mapping_statement, books_dimension_definition_statement,
+            books_dimension_value_statement, books_opening_journal_lines_statement,
+            books_opening_journal_statement, books_rule_decision_statement,
+            books_rule_prepare_statement, calc_run_approve_statement, calc_run_insert_statement,
+            collaboration_backfill_messaging_attachment_statement,
+            collaboration_org_room_statement, collaboration_org_team_statement,
+            company_acceptance_result_statement, company_acceptance_reviewer_statement,
+            crm_lead_notification_statement, customer_portal_action_statement,
+            customer_portal_notification_statement, customer_receipt_statement,
+            doc_attachment_record_statement, doc_derivative_statement,
+            doc_storage_ledger_statement, expense_draft_write_statement,
+            expense_revoke_attachment_statement, expense_withdraw_event_statement,
+            expense_withdraw_link_statement, explicit_notification_statement,
+            finance_accounting_profile_create_statement,
+            finance_accounting_profile_decide_statement, finance_accrual_event_created_statement,
+            finance_accrual_event_decision_statement, finance_accrual_event_run_statement,
+            finance_accrual_journal_insert_statement,
+            finance_accrual_journal_lines_insert_statement, finance_accrual_journal_post_statement,
+            finance_accrual_run_insert_statement, finance_accrual_run_post_statement,
+            finance_accrual_schedule_decision_statement, finance_accrual_schedule_insert_statement,
+            finance_accrual_schedule_post_statement, finance_bank_ignore_statement,
+            finance_book_adjustment_create_statement, finance_book_adjustment_decide_statement,
+            finance_book_adjustment_reverse_statement, finance_calc_event_decide_statement,
+            finance_calc_event_prepare_statement, finance_calc_run_decide_statement,
+            finance_calc_run_prepare_statement, finance_close_check_statement,
+            finance_collection_decide_statement, finance_collection_delivery_statement,
+            finance_collection_prepare_statement, finance_collection_revise_statement,
+            finance_collection_supersede_statement, finance_commerce_base_carry_statement,
+            finance_company_tool_set_statement, finance_due_draft_block_statement,
+            finance_due_draft_complete_statement, finance_due_draft_decide_statement,
+            finance_due_draft_schedule_statement, finance_expansion_review_file_statement,
+            finance_group_edition_decide_statement, finance_group_edition_prepare_statement,
+            finance_group_edition_supersede_statement, finance_group_entity_statement,
+            finance_hotel_account_statement, finance_intercompany_claim_statement,
+            finance_intercompany_claims_clear_statement, finance_intercompany_event_statement,
+            finance_intercompany_pair_create_statement, finance_intercompany_pair_decide_statement,
+            finance_intercompany_status_statement, finance_intercompany_transaction_statement,
+            finance_invoice_line_version_statement, finance_journal_create_statement,
+            finance_journal_line_create_statement, finance_journal_reverse_statement,
+            finance_payroll_batch_bank_match_statement,
+            finance_payroll_batch_invoice_version_statement, finance_payroll_other_match_statement,
+            finance_payroll_remittance_match_statement, finance_plan_edition_create_statement,
+            finance_plan_edition_review_statement, finance_pms_party_statement,
+            finance_pms_payment_statement, finance_pos_party_statement,
+            finance_refund_notification_statement, finance_report_snapshot_statement,
+            finance_reversal_journal_statement, finance_reversal_lines_statement,
+            finance_sales_defaults_create_statement, finance_sales_defaults_decide_statement,
+            finance_sales_defaults_supersede_statement, finance_starter_account_statement,
+            finance_starter_chart_statement, finance_starter_dimension_statement,
+            finance_starter_dimension_value_statement, finance_starter_period_statement,
+            finance_statement_event_decision_statement, finance_statement_event_prepared_statement,
+            finance_statement_package_decision_statement,
+            finance_statement_package_insert_statement, finance_supplier_bill_draft_void_statement,
+            finance_tax_identity_decide_statement, finance_tax_identity_supersede_statement,
+            finance_tax_identity_upsert_statement, finance_year_closing_decision_statement,
+            finance_year_closing_insert_statement, hospitality_tax_doc_decide_statement,
+            hospitality_tax_doc_record_statement, inbox_delivery_insert_statement,
+            inbox_delivery_state_statement, inbox_event_insert_statement,
+            inbox_notice_insert_statement, inbox_notice_target_complete_statement,
+            inbox_notice_target_insert_statement, inbox_staff_notification_read_statement,
+            instrument_bank_match_statement, instrument_bank_match2_statement,
+            instrument_bank_unmatch_statement, instrument_edition_activate_statement,
+            instrument_edition_agree_statement, instrument_edition_decision_statement,
+            instrument_edition_insert_statement, instrument_edition_supersede_statement,
+            instrument_run_decision_statement, instrument_run_insert_statement,
+            instrument_run_reverse_statement, inventory_transit_notification_statement,
+            learning_assignment_notification_statement, legal_access_allowed_statement,
+            legal_access_denied_statement, legal_access_event_statement,
+            legal_advance_record_statement, legal_ai_document_statement, legal_ai_retire_statement,
+            legal_applicability_approve_statement, legal_applicability_propose_statement,
+            legal_approval_advance_statement, legal_approval_event_statement,
+            legal_approval_lock_statement, legal_approval_notification_statement,
+            legal_approval_record_statement, legal_approval_retain_route_statement,
+            legal_authority_create_statement, legal_authority_decide_statement,
+            legal_backfill_document_attachment_statement,
+            legal_backfill_external_attachment_statement, legal_bind_event_statement,
+            legal_bind_link_statement, legal_bind_set_statement,
+            legal_canonical_document_insert_statement, legal_deadline_notice_statement,
+            legal_derived_link_statement, legal_destruction_block_statement,
+            legal_destruction_complete_statement, legal_destruction_count_attempt_statement,
+            legal_destruction_require_review_statement,
+            legal_destruction_retain_executing_statement, legal_destruction_start_statement,
+            legal_disposal_retain_statement, legal_document_erase_statement,
+            legal_document_inspection_statement, legal_draft_link_statement,
+            legal_draft_set_statement, legal_envelope_expire_statement,
+            legal_escalation_notice_statement, legal_executed_copy_retain_statement,
+            legal_executed_copy_state_statement, legal_executed_review_statement,
+            legal_feature_create_statement, legal_feature_event_statement,
+            legal_feature_history_statement, legal_feature_notice_statement,
+            legal_feature_update_statement, legal_file_preservation_statement,
+            legal_hold_notification_statement, legal_hold_targets_expand_statement,
+            legal_inspections_erase_statement, legal_intake_apply_statement,
+            legal_intake_form_approve_statement, legal_intake_form_create_statement,
+            legal_item_create_statement, legal_item_state_advance_statement,
+            legal_item_update_statement, legal_job_health_failure_statement,
+            legal_job_health_renew_statement, legal_job_health_start_statement,
+            legal_job_health_success_statement, legal_law_revision_import_statement,
+            legal_law_source_notification_statement, legal_law_source_register_statement,
+            legal_link_upload_statement, legal_member_add_statement, legal_member_retain_statement,
+            legal_native_reference_statement, legal_pending_scan_statement,
+            legal_portal_accept_share_statement, legal_portal_access_event_statement,
+            legal_portal_advance_upload_statement, legal_portal_counsel_entry_statement,
+            legal_portal_counsel_history_statement, legal_portal_external_comment_statement,
+            legal_portal_external_upload_statement, legal_portal_interaction_event_statement,
+            legal_portal_receipt_statement, legal_portal_upload_event_statement,
+            legal_processing_job_statement, legal_processing_retire_statement,
+            legal_proposal_accept_statement, legal_quarantine_event_statement,
+            legal_quarantined_source_statement, legal_requester_route_statement,
+            legal_retention_assign_statement, legal_retention_authorization_statement,
+            legal_retention_change_statement, legal_retention_destroyed_event_statement,
+            legal_retention_policy_create_statement, legal_retention_policy_decide_statement,
+            legal_retention_request_statement, legal_retention_started_event_statement,
+            legal_retire_event_statement, legal_retire_ledger_statement,
+            legal_retire_source_statement, legal_saved_view_statement,
+            legal_settings_configure_statement, legal_shares_revoke_statement,
+            legal_signer_view_statement, legal_sla_notice_statement,
+            legal_source_check_bind_statement, legal_source_check_review_statement,
+            legal_source_chunk_insert_statement, legal_stored_document_insert_statement,
+            legal_stored_original_statement, legal_subtype_create_statement,
+            legal_subtype_update_statement, legal_text_review_import_statement,
+            legal_trust_addition_statement, legal_trust_decision_statement,
+            legal_uploaded_intent_statement, notification_statement,
+            org_node_room_rename_statement, org_node_room_statement, org_node_team_statement,
+            organization_change_notification_statement, payroll_advance_notification_statement,
+            payroll_advances_close_statement, payroll_correction_notification_statement,
+            payroll_deduction_consumption_statement, payroll_final_pay_cancel_event_statement,
+            payroll_final_pay_prep_cancel_statement, payroll_repayment_collect_statement,
+            payroll_run_cancel_statement, payroll_statutory_profile_decide_statement,
+            payroll_statutory_profile_insert_statement, people_assign_level_statement,
+            people_attachment_owner_version_statement, people_beta_employee_statement,
+            people_beta_engagement_statement, people_beta_person_statement,
+            people_draft_employee_statement, people_draft_engagement_statement,
+            people_draft_history_statement, people_expense_payment_cancel_statement,
+            people_handoff_compensation_statement, people_handoff_engagement_statement,
+            people_handoff_person_statement, people_issued_payslip_statement,
+            people_leave_evidence_manifest_statement, people_legacy_leave_employee_statement,
+            people_legacy_leave_request_statement, people_org_relocation_employee_statement,
+            people_org_relocation_engagement_statement, people_prep_task_complete_statement,
+            people_prep_task_reschedule_statement, people_self_service_employee_statement,
+            people_statutory_remittance_statement, people_worker_placement_statement,
+            people_worker_starter_statement, pms_finance_allocation_delete_statement,
+            pms_finance_allocation_insert_statement, pms_finance_bank_match_statement,
+            pms_finance_invoice_statement, pms_finance_invoice_update_statement,
+            pms_finance_party_statement, pms_finance_payment_statement,
+            refund_bank_match_statement, refund_instruction_confirm_statement,
+            refund_instruction_export_statement, refund_instruction_insert_statement,
+            refund_instruction_resolve_statement, refund_obligation_approve_statement,
+            refund_obligation_bump_statement, refund_obligation_bump2_statement,
+            refund_obligation_settle_statement, refund_payment_insert_statement,
+            release_event_reviewed_statement, release_event_revoked_statement,
+            release_event_submitted_statement, rfq_notification_statement,
+            roster_coverage_notification_statement, social_agent_reply_statement,
+            social_mention_notice_statement, social_mention_statement,
+            social_task_origin_statement, social_topic_binding_statement, social_topic_statement,
+            statutory_package_approve_statement, statutory_package_export_statement,
+            statutory_package_file_statement, statutory_package_insert_statement,
+            statutory_package_supersede_statement, supplier_bill_notification_statement,
+            supplier_promise_notification_statement, tax_entry_correction_decision_statement,
+            tax_entry_decision_statement, tax_entry_insert_statement, tax_package_event_statement,
+            thai_doc_change_decision_statement, thai_doc_change_insert_statement,
+            thai_doc_event_issued_statement, thai_doc_event_supersede_statement,
+            thai_doc_issue_statement, thai_doc_sequence_bump_statement,
+            thai_doc_sequence_seed_statement, vat_correction_decision_statement,
+            vat_correction_insert_statement, wh_assessment_decision_statement,
+            wh_assessment_insert_statement, wh_assessment_reversed_statement,
+            wh_bank_match_statement, wh_bank_match2_statement, wh_income_line_insert_statement,
+            wh_package_decision_statement, wh_package_insert_statement,
+            wh_package_reverse_statement, wh_package_settle_statement,
+            wh_payment_withholding_statement, wh_remittance_insert_statement,
+            wh_remittance_item_insert_statement, wh_remittance_reverse_statement,
+            wh_thai_document_cancel_statement, wh_withholding_consumed_statement,
+            workflow_command_assertion_clear_many_statement,
+            workflow_command_assertion_clear_statement, workflow_invoicing_notification_statement,
+            workflow_notification_statement,
+        };
+        use erpx_server_collaboration::public::notification_statement_http::{
+            StatementBackend, StatementFuture, StatementRequest,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();

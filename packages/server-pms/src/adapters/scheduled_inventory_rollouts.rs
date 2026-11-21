@@ -15,8 +15,8 @@ struct Snapshot {
     oid: i64,
     image: String,
 }
-const CTE:&str="scheduled_inventory_rollouts AS (SELECT company_id,module_id,rollout_state FROM public.company_feature_rollouts)";
-const IMAGE:&str="SELECT CASE WHEN octet_length(value)<=1048576 THEN value END FROM (SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text value FROM scheduled_inventory_rollouts r) image";
+const CTE: &str = "scheduled_inventory_rollouts AS (SELECT company_id,module_id,rollout_state FROM public.company_feature_rollouts)";
+const IMAGE: &str = "SELECT CASE WHEN octet_length(value)<=1048576 THEN value END FROM (SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text value FROM scheduled_inventory_rollouts r) image";
 fn limit() -> Error {
     BusinessError::new(
         FailureKind::Unavailable,
@@ -56,12 +56,11 @@ async fn snapshot(c: &mut PgConnection) -> Result<Snapshot, Error> {
         return Err(PersistenceError::new("SCHEDULED_INVENTORY_ROLLOUT_RLS_UNSUPPORTED").into());
     }
     let transaction = sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text").fetch_one(&mut *c).await?;
-    let image = sqlx::query_scalar::<_, Option<String>>(sqlx::AssertSqlSafe(format!(
-        "WITH {CTE} {IMAGE}"
-    )))
-    .fetch_one(c)
-    .await?
-    .ok_or_else(limit)?;
+    let image =
+        sqlx::query_scalar::<_, Option<String>>(sqlx::AssertSqlSafe(format!("WITH {CTE} {IMAGE}")))
+            .fetch_one(c)
+            .await?
+            .ok_or_else(limit)?;
     Ok(Snapshot {
         transaction,
         path,

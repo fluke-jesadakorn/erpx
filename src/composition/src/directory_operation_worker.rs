@@ -9,9 +9,7 @@ use erpx_server_identity_access::public::account_security::MFA_FRESH_MS;
 use erpx_server_identity_access::public::directory_operation::{
     DirectoryDirectFreshness, DirectoryOperationFuture, drain_operations,
 };
-use erpx_server_identity_access::public::position_gpo::{
-    PgPositionGpoDirectory, ReqwestConnector,
-};
+use erpx_server_identity_access::public::position_gpo::{PgPositionGpoDirectory, ReqwestConnector};
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, PoolLimits, connect_pool,
 };
@@ -48,11 +46,7 @@ impl DirectoryDirectFreshness for ControlFreshness {
             let Some(control) = &self.control else {
                 return Ok(false);
             };
-            let mut connection = control
-                .raw()
-                .acquire()
-                .await
-                .map_err(|_| unavailable())?;
+            let mut connection = control.raw().acquire().await.map_err(|_| unavailable())?;
             let fresh: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM iam_mfa_sessions f \
                  JOIN iam_mfa m ON m.user_id=f.user_id AND m.enabled=true \
@@ -88,8 +82,8 @@ fn now() -> i64 {
 }
 
 async fn open(url: &str) -> Result<DatabasePool, &'static str> {
-    let config = DatabaseConfig::from_url(url)
-        .map_err(|_| "DIRECTORY_OPERATION_DATABASE_INVALID")?;
+    let config =
+        DatabaseConfig::from_url(url).map_err(|_| "DIRECTORY_OPERATION_DATABASE_INVALID")?;
     connect_pool(
         &config,
         PoolLimits {
@@ -105,10 +99,10 @@ async fn open(url: &str) -> Result<DatabasePool, &'static str> {
 /// --company <id>`. The manifest is the reviewed jobs-role manifest already
 /// used by the TypeScript job process.
 pub async fn run_once_file(path: &Path, company: &str) -> Result<String, &'static str> {
-    let document = std::fs::read_to_string(path)
-        .map_err(|_| "DIRECTORY_OPERATION_MANIFEST_UNREADABLE")?;
-    let manifest: DatabaseManifest = serde_json::from_str(&document)
-        .map_err(|_| "DIRECTORY_OPERATION_MANIFEST_INVALID")?;
+    let document =
+        std::fs::read_to_string(path).map_err(|_| "DIRECTORY_OPERATION_MANIFEST_UNREADABLE")?;
+    let manifest: DatabaseManifest =
+        serde_json::from_str(&document).map_err(|_| "DIRECTORY_OPERATION_MANIFEST_INVALID")?;
     if manifest.version != 1 {
         return Err("DIRECTORY_OPERATION_MANIFEST_VERSION");
     }
@@ -182,13 +176,12 @@ async fn drain_company(
         .acquire()
         .await
         .map_err(|_| "DIRECTORY_OPERATION_DATABASE_UNAVAILABLE")?;
-    let relevant: Option<i32> = sqlx::query_scalar(
-        "SELECT 1 FROM people_directory_operations WHERE company_id=$1 LIMIT 1",
-    )
-    .bind(company)
-    .fetch_optional(&mut *connection)
-    .await
-    .map_err(|_| "DIRECTORY_OPERATION_PERSISTENCE_UNAVAILABLE")?;
+    let relevant: Option<i32> =
+        sqlx::query_scalar("SELECT 1 FROM people_directory_operations WHERE company_id=$1 LIMIT 1")
+            .bind(company)
+            .fetch_optional(&mut *connection)
+            .await
+            .map_err(|_| "DIRECTORY_OPERATION_PERSISTENCE_UNAVAILABLE")?;
     if relevant.is_none() {
         return Ok(None);
     }

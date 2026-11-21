@@ -7,7 +7,7 @@
 //! mutated and no transaction is begun or committed here.
 use crate::application::portal_session::{PortalEnrollmentSource, PortalSessionFuture};
 use crate::domain::portal_session::{
-    normalize_email, PortalCustomerProof, PortalCustomerRequest, PortalSessionEvidence,
+    PortalCustomerProof, PortalCustomerRequest, PortalSessionEvidence, normalize_email,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::BusinessError;

@@ -66,9 +66,8 @@ fn business(error: Error) -> BusinessError {
 }
 
 fn parse<T: serde::de::DeserializeOwned>(body: &Value) -> Result<T, BusinessError> {
-    serde_json::from_value(body.clone()).map_err(|_| {
-        BusinessError::invalid("TALENT_INPUT_INVALID", "Review the Talent input.")
-    })
+    serde_json::from_value(body.clone())
+        .map_err(|_| BusinessError::invalid("TALENT_INPUT_INVALID", "Review the Talent input."))
 }
 
 #[derive(Clone, Copy)]
@@ -176,7 +175,11 @@ impl<C: Clock + Send + Sync + 'static> TalentService<C> {
                     Ok(request)
                 },
                 WorkAuthorizationRequest {
-                    permission: if mutation { "records.write".into() } else { "records.read".into() },
+                    permission: if mutation {
+                        "records.write".into()
+                    } else {
+                        "records.read".into()
+                    },
                     module: Some("talent".into()),
                     destination: "talent".into(),
                     api: true,

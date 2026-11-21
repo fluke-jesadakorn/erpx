@@ -10,11 +10,13 @@
 //! posting is performed here.
 use super::actor::EcommerceActor;
 use super::command::{
-    EcommerceReceipt, chars_len, command_identity, idempotency_conflict, js_trim,
+    CommandReceipt, EcommerceReceipt, chars_len, command_identity, idempotency_conflict, js_trim,
     parse_receipt_result, readback_invalid, request_invalid, source_invalid, valid_currency,
-    valid_hash, valid_identifier, valid_text, CommandReceipt,
+    valid_hash, valid_identifier, valid_text,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis,
+};
 use serde::Serialize;
 
 pub const CREATE_OPERATION: &str = "ecommerce.listing.create";
@@ -240,7 +242,11 @@ fn minor_price(value: &str) -> Option<i64> {
             _ => return None,
         }
     };
-    let minor = whole.parse::<i64>().ok()?.checked_mul(100)?.checked_add(fraction)?;
+    let minor = whole
+        .parse::<i64>()
+        .ok()?
+        .checked_mul(100)?
+        .checked_add(fraction)?;
     (minor <= MAX_PRICE_MINOR).then_some(minor)
 }
 
@@ -448,11 +454,7 @@ impl EcommerceListingMoneySnapshot {
     /// The producer must retain the same currency scale, amount and capture time
     /// as this command; a mismatched snapshot is a source failure, not a
     /// successful listing write.
-    pub fn validate(
-        &self,
-        amount_minor: i64,
-        now: TimestampMillis,
-    ) -> Result<(), BusinessError> {
+    pub fn validate(&self, amount_minor: i64, now: TimestampMillis) -> Result<(), BusinessError> {
         if self.currency_scale != MONEY_CURRENCY_SCALE
             || self.amount_units != amount_minor
             || self.usd_units < 0
@@ -496,9 +498,7 @@ pub fn replay_change(
         return Err(idempotency_conflict());
     }
     let parsed = parse_receipt_result(&receipt.result_json)?;
-    if parsed.id != change.id
-        || parsed.status != "draft"
-        || parsed.version != change.next_version()
+    if parsed.id != change.id || parsed.status != "draft" || parsed.version != change.next_version()
     {
         return Err(source_invalid());
     }

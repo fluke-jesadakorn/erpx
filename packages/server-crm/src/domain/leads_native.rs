@@ -204,15 +204,18 @@ pub fn canonical_lead_qualify_input(
     Ok(LeadQualifyCommandInput {
         action: "qualify",
         expected_version: plan.expected_version,
-        customer_id: plan.customer_id.as_deref().ok_or_else(|| {
-            invalid("CRM_LEAD_INPUT_INVALID", "Use a customer.")
-        })?,
-        expected_value: plan.expected_value.as_deref().ok_or_else(|| {
-            invalid("CRM_LEAD_INPUT_INVALID", "Use an expected value.")
-        })?,
-        close_date: plan.close_date.as_deref().ok_or_else(|| {
-            invalid("CRM_LEAD_INPUT_INVALID", "Use a close date.")
-        })?,
+        customer_id: plan
+            .customer_id
+            .as_deref()
+            .ok_or_else(|| invalid("CRM_LEAD_INPUT_INVALID", "Use a customer."))?,
+        expected_value: plan
+            .expected_value
+            .as_deref()
+            .ok_or_else(|| invalid("CRM_LEAD_INPUT_INVALID", "Use an expected value."))?,
+        close_date: plan
+            .close_date
+            .as_deref()
+            .ok_or_else(|| invalid("CRM_LEAD_INPUT_INVALID", "Use a close date."))?,
         reason: &plan.reason,
     })
 }
@@ -300,8 +303,14 @@ pub const NATIVE_LEAD_ACTIONS: [&str; 4] = ["reassign", "disqualify", "qualify",
 /// Opportunity actions with the current Commerce order or PMS reservation
 /// witness composed in the caller. `win-pms` supplies the confirmed
 /// reservation amount from the PMS owner source.
-pub const NATIVE_OPPORTUNITY_ACTIONS: [&str; 6] =
-    ["link-quote", "negotiate", "lose", "reopen", "win", "win-pms"];
+pub const NATIVE_OPPORTUNITY_ACTIONS: [&str; 6] = [
+    "link-quote",
+    "negotiate",
+    "lose",
+    "reopen",
+    "win",
+    "win-pms",
+];
 
 pub fn native_lead_action(action: &str) -> bool {
     NATIVE_LEAD_ACTIONS.contains(&action)

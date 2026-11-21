@@ -19,6 +19,7 @@ export function billingEvidenceStore(env: RuntimeEnv): FileStore {
 }
 
 import {createBillingEvidence,type BillingEvidenceRepository} from '@erpx/server-billing/application/evidence';
+import {nativeBillingOwnerQuery,nativeBillingOwnerBind} from '@erpx/server-billing/adapters/native-billing-owner-write';
 import type {BillingEvidenceSource,BillingScanJob} from '@erpx/server-billing/domain/evidence';
 export {billingEvidenceReconciliationReady} from '@erpx/server-billing/domain/evidence';
 function nativeEvidence(env:RuntimeEnv){const db=env.CONTROL_DB as PostgresDatabase,store=billingEvidenceStore(env),scannerEnvironment={...process.env,ERPX_ATTACHMENTS_V2:'true'};const repository:BillingEvidenceRepository={
@@ -28,24 +29,24 @@ sources:async()=>(await db.pool.query<BillingEvidenceSource>('SELECT id,holding_
 sourceLedger:async row=>(await db.pool.query('SELECT bytes FROM billing_evidence_storage_ledger WHERE evidence_id=$1 AND holding_id=$2 AND object_key=$3 AND state=\'stored\'',[row.id,row.holding_id,row.object_key])).rows[0],
 storedTotals:async()=>(await db.pool.query(`SELECT COALESCE(sum(bytes),0)::bigint stored_bytes,(SELECT count(*)::bigint FROM (SELECT object_key FROM billing_evidence_storage_ledger WHERE state='stored' GROUP BY object_key HAVING count(*)>1) duplicate_objects) AS duplicate_objects FROM billing_evidence_storage_ledger WHERE state='stored'`)).rows[0],
 pendingScans:async()=>(await db.pool.query(`SELECT count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint pending FROM billing_evidence`)).rows[0],
-recordReconciliation:({id,input,uploadFrozen,ready,report,pending,now})=>db.pool.query(`INSERT INTO billing_evidence_reconciliation_runs(id,mode,upload_frozen,checksums_verified,scanner_engine,scanner_definition_at,ready,report_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[id,input.mode,uploadFrozen,input.verifyChecksums,input.scanner.engine,input.scanner.definitionUpdatedAt,ready,JSON.stringify({scanPending:pending,...report}),now]),
-claimScan:async(now,lease)=>(await db.pool.query<BillingScanJob>(`UPDATE billing_evidence_scan_attempts SET state='running',claimed_at=$1,claim_until=$2,lease_token=$3 WHERE id=(SELECT id FROM billing_evidence_scan_attempts WHERE state IN ('pending','running') AND created_at<=$1 AND (claim_until IS NULL OR claim_until<$1) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`,[now,now+60_000,lease])).rows[0],
+recordReconciliation:({id,input,uploadFrozen,ready,report,pending,now})=>nativeBillingOwnerQuery(db.pool, 'reconciliation_run', [id,input.mode,uploadFrozen,input.verifyChecksums,input.scanner.engine,input.scanner.definitionUpdatedAt,ready,JSON.stringify({scanPending:pending,...report}),now]),
+claimScan:async(now,lease)=>(await nativeBillingOwnerQuery(db.pool, 'scan_claim', [now,now+60_000,lease])).rows[0],
 scanSource:async id=>(await db.pool.query<BillingEvidenceSource>('SELECT * FROM billing_evidence WHERE id=$1',[id])).rows[0],
-markScanning:id=>db.pool.query("UPDATE billing_evidence SET source_state='scanning' WHERE id=$1 AND source_state IN ('legacy_unscanned','quarantined','scan_error')",[id]),
-completeScan:({job,source,lease,result,detected,completed,eventId})=>db.transaction(tx=>tx.batch(result.clean?[
- tx.prepare("UPDATE billing_evidence_scan_attempts SET state='clean',scanner_engine=?,scanner_signature=NULL,scanner_definition_at=?,completed_at=?,claim_until=NULL,lease_token=NULL WHERE id=? AND lease_token=?").bind(result.engine,result.definitionUpdatedAt,completed,job.id,lease),
- tx.prepare("UPDATE billing_evidence SET source_state='available',detected_mime=?,scanned_at=?,scanner_definition_at=? WHERE id=?").bind(detected,completed,result.definitionUpdatedAt,source.id),
- tx.prepare("INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES(?,?,?,'system:jobs','scan.available',?,?)").bind(eventId,source.id,source.holding_id,JSON.stringify({engine:result.engine,definitionUpdatedAt:result.definitionUpdatedAt}),completed)
+markScanning:id=>nativeBillingOwnerQuery(db.pool, 'scan_mark_scanning', [id]),
+completeScan:({job,source,lease,result,detected,completed,eventId})=>db.transaction(async tx=>tx.batch(await Promise.all(result.clean?[
+  nativeBillingOwnerBind(tx,'scan_clean_attempt',[result.engine,result.definitionUpdatedAt,completed,job.id,lease]),
+  nativeBillingOwnerBind(tx,'scan_clean_evidence',[detected,completed,result.definitionUpdatedAt,source.id]),
+  nativeBillingOwnerBind(tx,'scan_clean_event',[eventId,source.id,source.holding_id,JSON.stringify({engine:result.engine,definitionUpdatedAt:result.definitionUpdatedAt}),completed])
 ]:[
- tx.prepare("UPDATE billing_evidence_scan_attempts SET state='infected',scanner_engine=?,scanner_signature=?,scanner_definition_at=?,completed_at=?,claim_until=NULL,lease_token=NULL WHERE id=? AND lease_token=?").bind(result.engine,result.signature,result.definitionUpdatedAt,completed,job.id,lease),
- tx.prepare("UPDATE billing_evidence SET source_state='malware_rejected',detected_mime=?,scanned_at=?,scanner_definition_at=? WHERE id=?").bind(detected,completed,result.definitionUpdatedAt,source.id),
- tx.prepare("INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES(?,?,?,'system:jobs','scan.malware_rejected',?,?)").bind(eventId,source.id,source.holding_id,JSON.stringify({signature:result.signature,engine:result.engine}),completed)
-])),
-retryScan:({job,source,lease,code,completed,eventId,retryId,retryAt})=>db.transaction(async tx=>{const statements=[
- tx.prepare("UPDATE billing_evidence_scan_attempts SET state='error',error_code=?,completed_at=?,claim_until=NULL,lease_token=NULL WHERE id=? AND lease_token=?").bind(code,completed,job.id,lease),
- tx.prepare("UPDATE billing_evidence SET source_state='scan_error' WHERE id=?").bind(source.id),
- tx.prepare("INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES(?,?,?,'system:jobs','scan.error',?,?)").bind(eventId,source.id,source.holding_id,JSON.stringify({attempt:Number(job.attempt),code}),completed)
-];if(retryId)statements.push(tx.prepare("INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES(?,?,?,'pending',?) ON CONFLICT(evidence_id,attempt) DO NOTHING").bind(retryId,source.id,Number(job.attempt)+1,retryAt));return tx.batch(statements);})
+  nativeBillingOwnerBind(tx,'scan_infected_attempt',[result.engine,result.signature,result.definitionUpdatedAt,completed,job.id,lease]),
+  nativeBillingOwnerBind(tx,'scan_infected_evidence',[detected,completed,result.definitionUpdatedAt,source.id]),
+  nativeBillingOwnerBind(tx,'scan_infected_event',[eventId,source.id,source.holding_id,JSON.stringify({signature:result.signature,engine:result.engine}),completed])
+]))),
+retryScan:({job,source,lease,code,completed,eventId,retryId,retryAt})=>db.transaction(async tx=>{const statements=await Promise.all([
+  nativeBillingOwnerBind(tx,'scan_error_attempt',[code,completed,job.id,lease]),
+  nativeBillingOwnerBind(tx,'scan_error_evidence',[source.id]),
+  nativeBillingOwnerBind(tx,'scan_error_event',[eventId,source.id,source.holding_id,JSON.stringify({attempt:Number(job.attempt),code}),completed])
+]);if(retryId)statements.push(await nativeBillingOwnerBind(tx,'scan_retry_attempt',[retryId,source.id,Number(job.attempt)+1,retryAt]));return tx.batch(statements);})
 };return createBillingEvidence({repository,uploadsFrozen:attachmentUploadsFrozen,now:Date.now,id:randomUUID,objectHead:key=>store.head(key),objectBytes:async key=>{const object=await store.get(key);return object?new Uint8Array(await object.arrayBuffer()):null},listObjects:cursor=>store.list({cursor,limit:1000}),hash:bytes=>createHash('sha256').update(bytes).digest('hex'),detect:detectedAttachmentMediaType,scan:bytes=>scanAttachmentBytes(bytes,scannerEnvironment)})}
 export const billingEvidenceReadiness=(env:RuntimeEnv)=>nativeEvidence(env).billingEvidenceReadiness();
 export const reconcileBillingEvidenceStorage=(env:RuntimeEnv,options:{verifyChecksums?:boolean}={})=>nativeEvidence(env).reconcileBillingEvidenceStorage(options);

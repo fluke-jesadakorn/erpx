@@ -63,12 +63,22 @@ impl LeasedDevelopmentDatabase {
         })
     }
     pub async fn connect(&self, limits: PoolLimits) -> Result<DatabasePool, PersistenceError> {
-        self.connect_named(limits, "erpx-leased-development-worker").await
+        self.connect_named(limits, "erpx-leased-development-worker")
+            .await
     }
     /// A generated process identity permits cancellation of only this worker's
     /// queries at shutdown; it changes neither endpoint nor lease authority.
-    pub async fn connect_named(&self, limits: PoolLimits, application: &str) -> Result<DatabasePool, PersistenceError> {
-        if application.is_empty() || application.len() > 63 || !application.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b'/')) {
+    pub async fn connect_named(
+        &self,
+        limits: PoolLimits,
+        application: &str,
+    ) -> Result<DatabasePool, PersistenceError> {
+        if application.is_empty()
+            || application.len() > 63
+            || !application
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b'/'))
+        {
             return Err(PersistenceError::new("DEVELOPMENT_WORKER_IDENTITY_INVALID"));
         }
         if limits.max_connections > 3 {

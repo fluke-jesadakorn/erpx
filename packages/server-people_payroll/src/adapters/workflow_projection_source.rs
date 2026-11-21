@@ -69,9 +69,7 @@ pub async fn people_projection_source(
         },
         company_id: row.try_get("company_id").map_err(source_read_failed)?,
         branch_id: row.try_get("branch_id").map_err(source_read_failed)?,
-        department_id: row
-            .try_get("department_id")
-            .map_err(source_read_failed)?,
+        department_id: row.try_get("department_id").map_err(source_read_failed)?,
     }))
 }
 

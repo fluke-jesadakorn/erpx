@@ -178,12 +178,19 @@ async fn generic_image(
         .fetch_optional(c)
         .await?;
     let value = value.flatten().ok_or_else(|| {
-        BusinessError::new(FailureKind::NotFound, "PAYMENT_NOT_FOUND", "Payment not found in this company.")
+        BusinessError::new(
+            FailureKind::NotFound,
+            "PAYMENT_NOT_FOUND",
+            "Payment not found in this company.",
+        )
     })?;
     fn safe(value: &Value) -> bool {
         match value {
-            Value::Number(n) => n.as_i64().is_some_and(|v| v.unsigned_abs() <= 9_007_199_254_740_991)
-                || n.as_u64().is_some_and(|v| v <= 9_007_199_254_740_991),
+            Value::Number(n) => {
+                n.as_i64()
+                    .is_some_and(|v| v.unsigned_abs() <= 9_007_199_254_740_991)
+                    || n.as_u64().is_some_and(|v| v <= 9_007_199_254_740_991)
+            }
             Value::Array(rows) => rows.iter().all(safe),
             Value::Object(row) => row.values().all(safe),
             _ => true,

@@ -64,7 +64,7 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
     evidence: async (command, actor) => {
       const { input, binding, key, id, now } = command;
       const prepared = await prepareAttachmentBinding(db, actor, { attachmentSetIds: input.attachmentSetIds, bindingContract: { targetType: "customer_access_binding", bindingType: "customer_portal_support_request", contexts: [{ purposeKey: "customer_support_evidence", componentKind: "action", componentRef: "request_support" }] }, targetId: binding.binding_id, expectedTargetVersion: Number(binding.binding_version), commandId: key, bindingId: id });
-      return { manifest: prepared.manifest, commit: async () => { await db.batch([...prepared.guards, ...prepareCustomerPortalEvidenceChange(db, { now, bindingId: binding.binding_id, companyId: binding.company_id, version: Number(binding.binding_version), actorId: actor.userId, key }), ...prepared.steps, await clearCustomerPortalAssertions(db, key, binding.company_id)]); } };
+      return { manifest: prepared.manifest, commit: async () => { await db.batch([...prepared.guards, ...(await prepareCustomerPortalEvidenceChange(db, { now, bindingId: binding.binding_id, companyId: binding.company_id, version: Number(binding.binding_version), actorId: actor.userId, key })), ...prepared.steps, await clearCustomerPortalAssertions(db, key, binding.company_id)]); } };
     },
     record: async (command, evidence) => {
       const { id, input, binding, actor, key, requestHash, now } = command;

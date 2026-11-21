@@ -6,8 +6,8 @@
 //! code-owned aliases; company, capability and clock values stay bound.
 use crate::domain::{
     packages::{
-        CapabilityPurpose, CommercialCatalogue, CompanyPackageGrant,
-        CompanyPackageHistoryRight, PackageDecision, PackageDefinition,
+        CapabilityPurpose, CommercialCatalogue, CompanyPackageGrant, CompanyPackageHistoryRight,
+        PackageDecision, PackageDefinition,
     },
     purchase_wire_revision::purchase_wire_revision,
 };
@@ -44,7 +44,13 @@ pub(crate) fn available(
     q.push(alias).push(".starts_at<=s.now_ms");
     match purpose {
         CapabilityPurpose::NewWork => {
-            q.push(" AND ").push(alias).push(".state='active' AND (").push(alias).push(".ends_at IS NULL OR ").push(alias).push(".ends_at>s.now_ms)");
+            q.push(" AND ")
+                .push(alias)
+                .push(".state='active' AND (")
+                .push(alias)
+                .push(".ends_at IS NULL OR ")
+                .push(alias)
+                .push(".ends_at>s.now_ms)");
         }
         CapabilityPurpose::SettleExisting => {
             q.push(" AND ").push(alias).push(".state<>'inactive'");
@@ -104,7 +110,8 @@ pub(crate) fn push_capability_predicate(
             } else {
                 q.push(" AND EXISTS(SELECT 1 FROM public.company_package_grants parent WHERE parent.company_id=s.company_id AND parent.package_id=");
             }
-            q.push_bind(dependency.clone()).push(" AND parent.package_version IN (");
+            q.push_bind(dependency.clone())
+                .push(" AND parent.package_version IN (");
             let versions: Vec<i64> = catalogue
                 .definitions()
                 .iter()
@@ -208,7 +215,8 @@ pub(crate) fn decision_and_observation(
             })
         })
         .collect::<Option<_>>()?;
-    let revision = purchase_wire_revision(company, &grants, &history, TimestampMillis::new(now)).ok()?;
+    let revision =
+        purchase_wire_revision(company, &grants, &history, TimestampMillis::new(now)).ok()?;
     let mut decision_grants = grants;
     js_number_grants(&mut decision_grants);
     let mut decision_history = history;

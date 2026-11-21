@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./adapters/native-wave2": "./src/adapters/native-wave2.ts",
+    "./adapters/native-owner-write": "./src/adapters/native-owner-write.ts",
     "./adapters/usage": "./src/adapters/usage.ts",
     "./adapters/package-locks": "./src/adapters/package-locks.ts",
     "./adapters/legacy-grant-migration": "./src/adapters/legacy-grant-migration.ts",

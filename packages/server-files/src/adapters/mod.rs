@@ -1,10 +1,10 @@
 pub(crate) mod business_evidence;
-pub(crate) mod portal_support_evidence;
-pub(crate) mod legal_import_evidence;
-pub(crate) mod legal_citation_metadata;
-pub(crate) mod count_history_attachment_sources;
 pub mod clamav;
+pub(crate) mod count_history_attachment_sources;
+pub(crate) mod legal_citation_metadata;
+pub(crate) mod legal_import_evidence;
 pub mod local_original_store;
+pub(crate) mod portal_support_evidence;
 pub mod postgres_original;
 #[cfg(feature = "preview-provider")]
 pub mod preview_engine;
@@ -12,13 +12,15 @@ pub mod preview_engine;
 pub mod preview_process;
 
 pub mod attachment_command_postgres;
-pub(crate) mod support_attachment_intake;
-pub mod support_attachment_http;
+pub mod attachment_http;
+pub mod files_wave1b_postgres;
+pub mod files_wave1b_http;
 pub mod attachment_read_postgres;
 pub mod attachment_read_use_cases;
-pub mod attachment_http;
 pub mod portal_attachment_http;
 pub mod postgres_attachment_scan;
+pub mod support_attachment_http;
+pub(crate) mod support_attachment_intake;
 
 pub mod postgres_attachment_scan_receipt;
 
@@ -37,8 +39,8 @@ pub mod attachment_scan_provider;
 
 pub(crate) mod field_visit_link;
 
-pub(crate) mod field_visit_bind;
 pub(crate) mod count_submission;
+pub(crate) mod field_visit_bind;
 
 pub(crate) mod field_visit_intake;
 
@@ -77,5 +79,5 @@ pub(crate) mod messaging_files;
 pub(crate) mod social_draft_uploads;
 pub(crate) mod staff_task_attachments;
 
-pub(crate) mod supplier_promise_binding;
 pub(crate) mod rfq_request_attachments;
+pub(crate) mod supplier_promise_binding;

@@ -52,15 +52,33 @@ fn boolean(value: &Value, key: &str) -> Result<bool, BusinessError> {
 
 fn handover_date(value: &str) -> bool {
     let b = value.as_bytes();
-    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' ||
-        b.iter().enumerate().any(|(i,c)| i != 4 && i != 7 && !c.is_ascii_digit()) {
+    if b.len() != 10
+        || b[4] != b'-'
+        || b[7] != b'-'
+        || b.iter()
+            .enumerate()
+            .any(|(i, c)| i != 4 && i != 7 && !c.is_ascii_digit())
+    {
         return false;
     }
     let year = value[0..4].parse::<u32>().unwrap_or(0);
     let month = value[5..7].parse::<usize>().unwrap_or(0);
     let day = value[8..10].parse::<u32>().unwrap_or(0);
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let lengths = [31, if leap {29} else {28}, 31,30,31,30,31,31,30,31,30,31];
+    let lengths = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     (1..=12).contains(&month) && day > 0 && day <= lengths[month - 1]
 }
 
@@ -214,15 +232,28 @@ pub fn decode_social_command(
             edit_upload_id: optional_text(raw, "editDraftId")?.map(str::to_owned),
         },
         "social.handover.publish" => {
-            if raw.as_object().is_none_or(|obj| obj.keys().any(|k| !["date", "body", "sources", "recipientIds"].contains(&k.as_str()))) {
+            if raw.as_object().is_none_or(|obj| {
+                obj.keys()
+                    .any(|k| !["date", "body", "sources", "recipientIds"].contains(&k.as_str()))
+            }) {
                 return Err(invalid());
             }
             let date = text(raw, "date")?;
-            if !handover_date(date) { return Err(invalid()); }
+            if !handover_date(date) {
+                return Err(invalid());
+            }
             let recipient_ids = strings(raw, "recipientIds")?;
-            if recipient_ids.is_empty() || recipient_ids.len() > 20 ||
-                recipient_ids.iter().any(|id| id.is_empty() || id.encode_utf16().count() > 160) ||
-                recipient_ids.iter().collect::<std::collections::HashSet<_>>().len() != recipient_ids.len() {
+            if recipient_ids.is_empty()
+                || recipient_ids.len() > 20
+                || recipient_ids
+                    .iter()
+                    .any(|id| id.is_empty() || id.encode_utf16().count() > 160)
+                || recipient_ids
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len()
+                    != recipient_ids.len()
+            {
                 return Err(invalid());
             }
             let sources = match raw.get("sources") {
@@ -231,11 +262,17 @@ pub fn decode_social_command(
                     .map(|item| {
                         let kind = match item.get("kind") {
                             None => "staff_task",
-                            Some(Value::String(kind)) if matches!(kind.as_str(), "staff_task" | "pms_record") => kind,
+                            Some(Value::String(kind))
+                                if matches!(kind.as_str(), "staff_task" | "pms_record") =>
+                            {
+                                kind
+                            }
                             _ => return Err(invalid()),
                         };
                         let id = text(item, "id")?;
-                        if id.encode_utf16().count() > 160 { return Err(invalid()); }
+                        if id.encode_utf16().count() > 160 {
+                            return Err(invalid());
+                        }
                         Ok(crate::domain::social::HandoverSource {
                             kind: kind.to_owned(),
                             id: text(item, "id")?.to_owned(),
@@ -245,10 +282,20 @@ pub fn decode_social_command(
                     .collect::<Result<Vec<_>, BusinessError>>()?,
                 _ => return Err(invalid()),
             };
-            if sources.iter().map(|s| &s.id).collect::<std::collections::HashSet<_>>().len() != sources.len() { return Err(invalid()); }
+            if sources
+                .iter()
+                .map(|s| &s.id)
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != sources.len()
+            {
+                return Err(invalid());
+            }
             let body = text(raw, "body")?;
             let body = crate::domain::collaboration_work::js_trim(body);
-            if body.is_empty() || body.encode_utf16().count() > 3000 { return Err(invalid()); }
+            if body.is_empty() || body.encode_utf16().count() > 3000 {
+                return Err(invalid());
+            }
             Change::PublishHandoverPost {
                 date: date.to_owned(),
                 body: body.to_owned(),
@@ -256,9 +303,7 @@ pub fn decode_social_command(
                 sources,
             }
         }
-        "social.post.hide" => Change::ModeratePost {
-            id: post(post_id)?,
-        },
+        "social.post.hide" => Change::ModeratePost { id: post(post_id)? },
         "social.post.retract" => Change::RetractPost {
             id: post(post_id)?,
             expected_version: positive(raw, "expectedVersion")?,
@@ -266,35 +311,30 @@ pub fn decode_social_command(
         "social.comment.upload.create" => Change::CommentUploadCreate {
             post_id: post(post_id)?,
         },
-        "social.comment.upload.cancel" => Change::CommentUploadCancel {
-            id: post(post_id)?,
-        },
+        "social.comment.upload.cancel" => Change::CommentUploadCancel { id: post(post_id)? },
         "social.post.edit-upload.create" => Change::PostEditUploadCreate {
             post_id: post(post_id)?,
             expected_version: positive(raw, "expectedVersion")?,
         },
-        "social.post.edit-upload.cancel" => Change::PostEditUploadCancel {
-            id: post(post_id)?,
-        },
+        "social.post.edit-upload.cancel" => Change::PostEditUploadCancel { id: post(post_id)? },
         "social.draft.publish" => Change::PublishDraft {
             id: post(post_id)?,
             version: positive(raw, "version")?,
         },
-        "social.draft.save" => {            let mut audience_kind = None;
+        "social.draft.save" => {
+            let mut audience_kind = None;
             let mut audience_id = None;
             let mut participants = Vec::new();
             match raw.get("audience") {
-                None | Some(Value::Null) => {
-                    match raw.get("branchId") {
-                        Some(Value::Null) => audience_kind = Some("company".to_owned()),
-                        Some(Value::String(value)) if !value.is_empty() => {
-                            audience_kind = Some("branch".to_owned());
-                            audience_id = Some(value.clone());
-                        }
-                        None => {}
-                        _ => return Err(invalid()),
+                None | Some(Value::Null) => match raw.get("branchId") {
+                    Some(Value::Null) => audience_kind = Some("company".to_owned()),
+                    Some(Value::String(value)) if !value.is_empty() => {
+                        audience_kind = Some("branch".to_owned());
+                        audience_id = Some(value.clone());
                     }
-                }
+                    None => {}
+                    _ => return Err(invalid()),
+                },
                 Some(Value::Object(audience)) => {
                     let kind = audience
                         .get("kind")
@@ -340,7 +380,10 @@ pub fn decode_social_command(
                 _ => return Err(invalid()),
             };
             let purpose = optional_text(raw, "purpose")?.unwrap_or("update");
-            if !matches!(purpose, "update" | "plan" | "blocker" | "handover" | "announcement") {
+            if !matches!(
+                purpose,
+                "update" | "plan" | "blocker" | "handover" | "announcement"
+            ) {
                 return Err(invalid());
             }
             let expected_version = match raw.get("expectedVersion") {
@@ -393,20 +436,45 @@ mod tests {
         let raw = json!({"date":"2024-02-29","body":"  Handover  ","recipientIds":["u-1"],"sources":[{"id":"task-1","sourceVersion":4},{"kind":"pms_record","id":"room-1","sourceVersion":8}]});
         let decoded = decode_social_command("social.handover.publish", None, None, &raw).unwrap();
         match &decoded.change {
-            Change::PublishHandoverPost { date, body, sources, .. } => {
+            Change::PublishHandoverPost {
+                date,
+                body,
+                sources,
+                ..
+            } => {
                 assert_eq!(date, "2024-02-29");
                 assert_eq!(body, "Handover");
-                assert_eq!((&sources[0].kind, sources[0].source_version), (&"staff_task".to_string(), 4));
-                assert_eq!((&sources[1].kind, sources[1].source_version), (&"pms_record".to_string(), 8));
+                assert_eq!(
+                    (&sources[0].kind, sources[0].source_version),
+                    (&"staff_task".to_string(), 4)
+                );
+                assert_eq!(
+                    (&sources[1].kind, sources[1].source_version),
+                    (&"pms_record".to_string(), 8)
+                );
             }
             other => panic!("unexpected change {other:?}"),
         }
-        let original = crate::adapters::command_ledger::fingerprint("social.handover.publish", &decoded.change);
+        let original = crate::adapters::command_ledger::fingerprint(
+            "social.handover.publish",
+            &decoded.change,
+        );
         for (field, value) in [("date", json!("2024-03-01")), ("version", json!(5))] {
             let mut altered = raw.clone();
-            if field == "date" { altered["date"] = value; } else { altered["sources"][0]["sourceVersion"] = value; }
-            let next = decode_social_command("social.handover.publish", None, None, &altered).unwrap();
-            assert_ne!(original, crate::adapters::command_ledger::fingerprint("social.handover.publish", &next.change));
+            if field == "date" {
+                altered["date"] = value;
+            } else {
+                altered["sources"][0]["sourceVersion"] = value;
+            }
+            let next =
+                decode_social_command("social.handover.publish", None, None, &altered).unwrap();
+            assert_ne!(
+                original,
+                crate::adapters::command_ledger::fingerprint(
+                    "social.handover.publish",
+                    &next.change
+                )
+            );
         }
     }
 
@@ -417,14 +485,28 @@ mod tests {
             let mut raw = valid.clone();
             match mutation {
                 0 => raw["date"] = json!("2023-02-29"),
-                1 => { raw["sources"][0].as_object_mut().unwrap().remove("sourceVersion"); },
+                1 => {
+                    raw["sources"][0]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("sourceVersion");
+                }
                 2 => raw["sources"][0]["sourceVersion"] = json!(0),
-                3 => raw["sources"].as_array_mut().unwrap().push(json!({"id":"task-1","sourceVersion":4,"kind":"pms_record"})),
-                4 => raw["recipientIds"].as_array_mut().unwrap().push(json!("u-1")),
+                3 => raw["sources"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"id":"task-1","sourceVersion":4,"kind":"pms_record"})),
+                4 => raw["recipientIds"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!("u-1")),
                 5 => raw["sources"][0]["kind"] = json!("staff_project"),
                 _ => raw["unexpected"] = json!(true),
             }
-            assert!(decode_social_command("social.handover.publish", None, None, &raw).is_err(), "mutation {mutation}");
+            assert!(
+                decode_social_command("social.handover.publish", None, None, &raw).is_err(),
+                "mutation {mutation}"
+            );
         }
     }
 

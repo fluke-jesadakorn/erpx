@@ -102,7 +102,20 @@ fn valid_date(value: &str) -> bool {
         return false;
     };
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let days = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     (1..=12).contains(&month) && day >= 1 && day <= days[month - 1]
 }
 
@@ -121,7 +134,14 @@ fn parse(value: String) -> Result<Value, Error> {
     serde_json::from_str(&value).map_err(|_| unavailable())
 }
 
-async fn trial_query(c: &mut PgConnection, company: &str, chart: Option<&str>, start: Option<&str>, end: Option<&str>, exclude_close: bool) -> Result<Vec<Value>, Error> {
+async fn trial_query(
+    c: &mut PgConnection,
+    company: &str,
+    chart: Option<&str>,
+    start: Option<&str>,
+    end: Option<&str>,
+    exclude_close: bool,
+) -> Result<Vec<Value>, Error> {
     let sql = format!(
         "SELECT (to_jsonb(a) || jsonb_build_object(\
          'debit',COALESCE(SUM(l.base_debit_minor),0)::text,\
@@ -201,7 +221,10 @@ pub async fn read_financial_report(
         .fetch_one(&mut *c)
         .await?;
         if !exists {
-            return Err(not_found("CHART_NOT_FOUND", "Ledger not found in this Company."));
+            return Err(not_found(
+                "CHART_NOT_FOUND",
+                "Ledger not found in this Company.",
+            ));
         }
     }
     let (start_date, end_date) = if let Some(period_id) = period_id {
@@ -212,12 +235,24 @@ pub async fn read_financial_report(
         .bind(company)
         .fetch_optional(&mut *c)
         .await?
-        .ok_or_else(|| not_found("PERIOD_NOT_FOUND", "Report period not found in this Company."))?;
-        (Some(row.try_get::<String, _>("start_date")?), Some(row.try_get::<String, _>("end_date")?))
+        .ok_or_else(|| {
+            not_found(
+                "PERIOD_NOT_FOUND",
+                "Report period not found in this Company.",
+            )
+        })?;
+        (
+            Some(row.try_get::<String, _>("start_date")?),
+            Some(row.try_get::<String, _>("end_date")?),
+        )
     } else {
         (start_date.map(str::to_owned), end_date.map(str::to_owned))
     };
-    if start_date.as_deref().zip(end_date.as_deref()).is_some_and(|(start, end)| start > end) {
+    if start_date
+        .as_deref()
+        .zip(end_date.as_deref())
+        .is_some_and(|(start, end)| start > end)
+    {
         return Err(invalid(
             "FINANCE_REPORT_QUERY_INVALID",
             "The report start date must not follow its end date.",

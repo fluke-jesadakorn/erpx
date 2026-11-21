@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./adapters/native-wave2": "./src/adapters/native-wave2.ts",
+    "./adapters/native-owner-write": "./src/adapters/native-owner-write.ts",
     "./adapters/initial-physical-stock-count-sources": "./src/adapters/initial-physical-stock-count-sources.ts",
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
     "./adapters/posting-setup": "./src/adapters/posting-setup.ts",

@@ -1,5 +1,9 @@
-pub use crate::adapters::beta_policy::{PgBetaPolicyReader, lock_beta_policy_sources, require_beta_policy_sources_held};
-pub use crate::adapters::beta_policy::{CurrentBetaPolicyAuthorityBoundary, inspect_beta_policy_authority_boundary};
+pub use crate::adapters::beta_policy::{
+    CurrentBetaPolicyAuthorityBoundary, inspect_beta_policy_authority_boundary,
+};
+pub use crate::adapters::beta_policy::{
+    PgBetaPolicyReader, lock_beta_policy_sources, require_beta_policy_sources_held,
+};
 pub use crate::application::beta_policy::BetaPolicyReadPort;
 pub use crate::domain::beta_policy::CompanyBetaPolicy;
 
@@ -17,5 +21,9 @@ pub use crate::application::onboarding::{OnboardingViewReadPort, onboarding_view
 pub use crate::domain::onboarding::{
     CompanySlot, CompanySlotState, OnboardingActor, OnboardingView,
 };
+pub mod email_delivery;
+pub mod email_delivery_http;
+pub mod owner_write;
+pub mod owner_write_http;
 pub mod onboarding_command;
 pub mod onboarding_command_http;

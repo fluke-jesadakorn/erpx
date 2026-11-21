@@ -1,5 +1,6 @@
 //! The legal owner's supported Rust interface.
 pub mod document_processing;
+pub mod legal_wave3;
 #[cfg(feature = "pdf-verifier")]
 pub use crate::adapters::pdf_process::{BoundedPdfVerifier, PdfProcessLimits};
 #[cfg(feature = "pdf-verifier")]
@@ -107,15 +108,17 @@ pub mod trust_http;
 
 /// Source validation seam for the retained Legal destruction execution unit.
 pub use crate::application::destruction_sources::{
-    CurrentDestructionSource, DestructionCanonicalSource, DestructionDocument, DestructionLedgerEntry, DestructionUpload,
-    LegalDestructionManifest, LegalDestructionManifestFacts, LegalDestructionSourceFacts, LockedDestructionSource,
+    CurrentDestructionSource, DestructionCanonicalSource, DestructionDocument,
+    DestructionLedgerEntry, DestructionUpload, LegalDestructionManifest,
+    LegalDestructionManifestFacts, LegalDestructionSourceFacts, LockedDestructionSource,
     legal_destruction_manifest, validate_legal_destruction_sources,
 };
 
 pub use crate::adapters::postgres_destruction::{
-    LegalDestructionJournal, PgLegalDestructionBridge, PgLegalDestructionManifestBridge, PreparedLegalDestructionManifest, execute_legal_destruction,
-    journal_legal_destruction, legal_destruction_candidate, legal_destruction_require_review,
-    snapshot_legal_destruction_manifest, prepare_legal_destruction_manifest,
+    LegalDestructionJournal, PgLegalDestructionBridge, PgLegalDestructionManifestBridge,
+    PreparedLegalDestructionManifest, execute_legal_destruction, journal_legal_destruction,
+    legal_destruction_candidate, legal_destruction_require_review,
+    prepare_legal_destruction_manifest, snapshot_legal_destruction_manifest,
 };
 
 pub use crate::adapters::destruction_queued_authority::{

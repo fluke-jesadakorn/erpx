@@ -4,15 +4,15 @@
 //! serializable transaction; this layer keeps the retained command order:
 //! preview token, expiry, effective-date, scope and graph blockers, optimistic
 //! version, idempotent replay and the cancellation lock.
-use crate::domain::organization_nodes::{permission_required, OrganizationActor};
+use crate::domain::organization_nodes::{OrganizationActor, permission_required};
 use crate::domain::position_moves::{
-    hash_value, leave_default_recommendation, position_move_not_found, prepare_move,
     ExistingLeaveFact, LeaveAssignmentPlan, LeavePolicyFact, MoveMember, MovePosition,
-    PositionMoveFacts, PositionMoveInput, PositionMovePersonWire, PositionMovePreview,
-    PositionMoveRecord, PreparedPositionMove, PREVIEW_TTL_MS,
+    PREVIEW_TTL_MS, PositionMoveFacts, PositionMoveInput, PositionMovePersonWire,
+    PositionMovePreview, PositionMoveRecord, PreparedPositionMove, hash_value,
+    leave_default_recommendation, position_move_not_found, prepare_move,
 };
 use erpx_server_shared::public::{BusinessError, Clock, TimestampMillis};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -361,7 +361,7 @@ pub trait PositionMoveDrainRepository: PositionMoveRepository {
     ) -> PositionMoveFuture<'a, bool, Self::Error>;
 
     fn set_payroll_date<'a>(&'a mut self, date: &'a str)
-        -> PositionMoveFuture<'a, (), Self::Error>;
+    -> PositionMoveFuture<'a, (), Self::Error>;
 
     fn apply_position<'a>(
         &'a mut self,

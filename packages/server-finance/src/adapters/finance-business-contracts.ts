@@ -1,5 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
-import { nativeBusinessContractSql } from '@erpx/server-collaboration/adapters/native-business-contract-sql';
+import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { recognitionRunSchema } from '@erpx/server-finance/domain/due-inputs';
 import { billingRevisionSchema } from '@erpx/server-finance/domain/business-billing-revision';
 import "server-only";
@@ -104,11 +104,9 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, guardContractParent(key: string, value: "contract-parent", id: string | number | null, companyId: string, value2: number) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_business_contracts WHERE id=? AND company_id=? AND status='active' AND version=?)", [id, companyId, value2]);
-        }, prepareContract(id: string, companyId: string, root: string, value: string | number | null, number: string, name: string, chartId: string, partyId: string, startDate: string, endDate: string, edition: number, value2: string, sourceHash: string, userId: string, reason: string, now: number, now2: number) {
+        }, async prepareContract(id: string, companyId: string, root: string, value: string | number | null, number: string, name: string, chartId: string, partyId: string, startDate: string, endDate: string, edition: number, value2: string, sourceHash: string, userId: string, reason: string, now: number, now2: number) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('prepare_contract'))
-                .bind(id, companyId, root, value, number, name, chartId, partyId, startDate, endDate, edition, value2, sourceHash, userId, reason, now, now2);
+            return await nativeFinanceOwnerWriteSystem(db, companyId, 'prepare_contract', [id, companyId, root, value, number, name, chartId, partyId, startDate, endDate, edition, value2, sourceHash, userId, reason, now, now2]);
         }, async retainedBilledWindow(root_id: string | number | null, startDate: string) {
             const db = read();
             return db
@@ -118,16 +116,12 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, guardContractVersion(key: string, value: "contract-version", id: string, companyId: string, status: "draft" | "active", expectedVersion: number) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_business_contracts WHERE id=? AND company_id=? AND status=? AND version=?)", [id, companyId, status, expectedVersion]);
-        }, supersedeParent(now: number, id: string | number | null) {
+        }, async supersedeParent(now: number, id: string | number | null) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('supersede_contract'))
-                .bind(now, id);
-        }, decideContract(status: "active" | "rejected" | "cancelled", userId: string, version: number, now: number, id: string) {
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'supersede_contract', [now, id]);
+        }, async decideContract(status: "active" | "rejected" | "cancelled", userId: string, version: number, now: number, id: string) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('decide_contract'))
-                .bind(status, userId, version, now, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_contract', [status, userId, version, now, id]);
         }, async postedOwnerCredit(postedCorrectionId: string, companyId: string, userId: string, id: string) { const db = read(); return db.prepare("SELECT * FROM finance_billing_corrections WHERE id=? AND company_id=? AND status='posted' AND reviewed_by=? AND replacement_bill_id=?").bind(postedCorrectionId, companyId, userId, id).first<Row>(); }, async parentBill(parentId: unknown, companyId: string, contractId: string) {
             const db = read();
             return db
@@ -162,19 +156,15 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 companyId,
                 original_invoice_version,
             ]);
-        }, voidParentInvoice(now: number, invoice_id: string | number, companyId: string) {
+        }, async voidParentInvoice(now: number, invoice_id: string | number, companyId: string) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('void_contract_invoice'))
-                .bind(now, invoice_id, companyId);
+            return await nativeFinanceOwnerWriteSystem(db, companyId, 'void_contract_invoice', [now, invoice_id, companyId]);
         }, guardBillingContract(key: string, value: "contract-version", contractId: string, companyId: string, version: number, retainedEdition: boolean) {
             const db = read();
             return assertion(db, key, value, `EXISTS(SELECT 1 FROM finance_business_contracts WHERE id=? AND company_id=? AND status ${retainedEdition ? "IN ('active','cancelled','superseded')" : "='active'"} AND version=?)`, [contractId, companyId, version]);
-        }, prepareBill(id: string, companyId: string, contractId: string, root_id: string | number | null, version: number, billingKey: string, serviceFrom: string, serviceTo: string, value: string, value2: string, sourceHash: string, value3: string | null, value4: number | null, value5: string | number, now: number, value6: "draft" | null, value7: string | number | null, value8: string | number | null, value9: number, value10: string | null, value11: string | null) {
+        }, async prepareBill(id: string, companyId: string, contractId: string, root_id: string | number | null, version: number, billingKey: string, serviceFrom: string, serviceTo: string, value: string, value2: string, sourceHash: string, value3: string | null, value4: number | null, value5: string | number, now: number, value6: "draft" | null, value7: string | number | null, value8: string | number | null, value9: number, value10: string | null, value11: string | null) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('prepare_bill'))
-                .bind(id, companyId, contractId, root_id, version, billingKey, serviceFrom, serviceTo, value, value2, sourceHash, value3, value4, value5, now, value6, value7, value8, value9, value10, value11);
+            return await nativeFinanceOwnerWriteSystem(db, companyId, 'prepare_bill', [id, companyId, contractId, root_id, version, billingKey, serviceFrom, serviceTo, value, value2, sourceHash, value3, value4, value5, now, value6, value7, value8, value9, value10, value11]);
         }, async billContractId(parentId: string, companyId: string) {
             const db = read();
             return db
@@ -207,11 +197,9 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .prepare("SELECT 1 FROM finance_recognition_runs WHERE billing_run_id=? AND item_key=? AND status IN ('draft','posted')")
                 .bind(billingRunId, itemKey)
                 .first();
-        }, prepareRecognition(id: string, companyId: string, billingRunId: unknown, itemKey: unknown, date: string, entryDate: unknown, periodId: unknown, value: number, accountId: string, sourceHash: string, userId: string, reason: unknown, now: number, now2: number) {
+        }, async prepareRecognition(id: string, companyId: string, billingRunId: unknown, itemKey: unknown, date: string, entryDate: unknown, periodId: unknown, value: number, accountId: string, sourceHash: string, userId: string, reason: unknown, now: number, now2: number) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('prepare_recognition'))
-                .bind(id, companyId, billingRunId, itemKey, date, entryDate, periodId, value, accountId, sourceHash, userId, reason, now, now2);
+            return await nativeFinanceOwnerWriteSystem(db, companyId, 'prepare_recognition', [id, companyId, billingRunId, itemKey, date, entryDate, periodId, value, accountId, sourceHash, userId, reason, now, now2]);
         }, async recognition(id: string, companyId: string) {
             const db = read();
             return db
@@ -221,11 +209,9 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, guardRecognitionDraft(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_recognition_runs WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, companyId, expectedVersion]);
-        }, decideRecognition(status: "rejected" | "posted", version: number, userId: string, value: string | null, reason: string, now: number, id: string) {
+        }, async decideRecognition(status: "rejected" | "posted", version: number, userId: string, value: string | null, reason: string, now: number, id: string) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('decide_recognition'))
-                .bind(status, version, userId, value, reason, now, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_recognition', [status, version, userId, value, reason, now, id]);
         }, async postedRecognition(id: string, companyId: string) {
             const db = read();
             return db
@@ -235,11 +221,9 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, guardPostedRecognition(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_recognition_runs WHERE id=? AND company_id=? AND status='posted' AND version=?)", [id, companyId, expectedVersion]);
-        }, reverseRecognition(reversalId: string, reason: string, now: number, id: string) {
+        }, async reverseRecognition(reversalId: string, reason: string, now: number, id: string) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('reverse_recognition'))
-                .bind(reversalId, reason, now, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'reverse_recognition', [reversalId, reason, now, id]);
         }, async zeroBill(id: string, companyId: string) {
             const db = read();
             return db
@@ -261,11 +245,9 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, guardZeroBill(key: string, value: "zero-usage-version", id: string, companyId: string, expectedVersion: number, id2: string) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE id=? AND company_id=? AND version=? AND invoice_id IS NULL AND no_charge_status='draft') AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?)", [id, companyId, expectedVersion, id2]);
-        }, decideZeroBill(value: "rejected" | "approved", userId: string, reason: string, id: string) {
+        }, async decideZeroBill(value: "rejected" | "approved", userId: string, reason: string, id: string) {
             const db = read();
-            return db
-                .prepare(nativeBusinessContractSql('approve_no_charge'))
-                .bind(value, userId, reason, id);
+            return await nativeFinanceOwnerWriteSystem(db, 'system', 'approve_no_charge', [value, userId, reason, id]);
         }, async workspaceContracts(companyId: string) {
             const db = read();
             return db

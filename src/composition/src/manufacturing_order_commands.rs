@@ -10,17 +10,16 @@ use crate::finance_journal_actor::{command_actor, finance_actor};
 use crate::manufacturing::manufacturing_purchase_mode;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseRequest, PurchaseWitness, current_package_catalogue,
-    lock_commercial_authority_sources,
-};
-use erpx_server_finance::public::{
-    FinanceActor, FinanceCollation, JournalAuthority, JournalDraft, JournalError, JournalStatus,
-    PgJournalPreparation, PgJournalStore, embedded_currency_rules, money_snapshot::{
-        MoneySnapshotInput, PreparedMoneySnapshot, prepare_money_snapshot,
-    }, prepare_journal,
+    PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
 use erpx_server_files::public::business_evidence::{
     PgBusinessEvidenceFiles, evidence_context, lock_business_evidence_sources, policy_fact,
+};
+use erpx_server_finance::public::{
+    FinanceActor, FinanceCollation, JournalAuthority, JournalDraft, JournalError, JournalStatus,
+    PgJournalPreparation, PgJournalStore, embedded_currency_rules,
+    money_snapshot::{MoneySnapshotInput, PreparedMoneySnapshot, prepare_money_snapshot},
+    prepare_journal,
 };
 use erpx_server_identity_access::public::{
     DeviceProof,
@@ -40,8 +39,7 @@ use erpx_server_records::public::business_evidence::{
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
-    RecordId,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
 };
 use erpx_server_workflow::public::commands::{
     CommandActor, CommandDisposition, CommandJson, CommandOutcome, PgCommandAuthority,
@@ -262,9 +260,7 @@ impl ManufacturingOrderInput {
                 "Attach at most ten evidence sets.",
             ));
         }
-        if action == ManufacturingOrderAction::Issue
-            && self.material_lot_allocations.len() > 500
-        {
+        if action == ManufacturingOrderAction::Issue && self.material_lot_allocations.len() > 500 {
             return Err(invalid(
                 "MANUFACTURING_LOT_LIMIT",
                 "Select at most five hundred material lots.",
@@ -550,10 +546,7 @@ async fn read_order(
     .transpose()
 }
 
-async fn read_lines(
-    c: &mut PgConnection,
-    specification_id: &str,
-) -> Result<Vec<LineFacts>, Error> {
+async fn read_lines(c: &mut PgConnection, specification_id: &str) -> Result<Vec<LineFacts>, Error> {
     let rows = sqlx::query(
         "SELECT l.product_id,l.quantity_milli,p.tracking_mode \
          FROM manufacturing_specification_lines l \
@@ -885,7 +878,9 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                 .bind(self.id)
                 .fetch_optional(&mut *c)
                 .await?;
-                if reporter.is_none() || reporter.as_deref() == Some(self.current.user_id().as_str()) {
+                if reporter.is_none()
+                    || reporter.as_deref() == Some(self.current.user_id().as_str())
+                {
                     return Err(conflict(
                         "CONFLICT",
                         "The reporter cannot approve failed output disposal.",
@@ -897,7 +892,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                     .checked_add(order.labor_cost_minor)
                     .and_then(|value| value.checked_add(order.overhead_cost_minor))
                     .ok_or_else(|| {
-                        invalid("MONEY_OVERFLOW", "Production costs exceed ledger precision.")
+                        invalid(
+                            "MONEY_OVERFLOW",
+                            "Production costs exceed ledger precision.",
+                        )
                     })?;
                 let profile = read_approved_profile(c, self.company.as_str()).await?;
                 functional_currency_guard(
@@ -1050,12 +1048,13 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                         )
                         .into());
                     }
-                    let tracking_mode = TrackingMode::parse(&line.tracking_mode).ok_or_else(|| {
-                        invalid(
-                            "MANUFACTURING_TRACKING_MODE",
-                            "Use a supported inventory tracking mode.",
-                        )
-                    })?;
+                    let tracking_mode =
+                        TrackingMode::parse(&line.tracking_mode).ok_or_else(|| {
+                            invalid(
+                                "MANUFACTURING_TRACKING_MODE",
+                                "Use a supported inventory tracking mode.",
+                            )
+                        })?;
                     let line_allocations: Vec<MaterialAllocation> = allocations
                         .iter()
                         .filter(|allocation| allocation.product_id == line.product_id)
@@ -1087,11 +1086,14 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                     )?;
                     let value = match &planned {
                         Some(planned) => planned.value_minor,
-                        None => {
-                            scaled_amount(stock_value, reserved, stock_quantity).ok_or_else(|| {
-                                invalid("MONEY_OVERFLOW", "Material value exceeds ledger precision.")
-                            })?
-                        }
+                        None => scaled_amount(stock_value, reserved, stock_quantity).ok_or_else(
+                            || {
+                                invalid(
+                                    "MONEY_OVERFLOW",
+                                    "Material value exceeds ledger precision.",
+                                )
+                            },
+                        )?,
                     };
                     if value < 0 || value > stock_value {
                         return Err(conflict(
@@ -1101,7 +1103,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                         .into());
                     }
                     material = material.checked_add(value).ok_or_else(|| {
-                        invalid("MONEY_OVERFLOW", "Production costs exceed ledger precision.")
+                        invalid(
+                            "MONEY_OVERFLOW",
+                            "Production costs exceed ledger precision.",
+                        )
                     })?;
                     plan.push(IssueLinePlan {
                         product_id: line.product_id.clone(),
@@ -1122,12 +1127,8 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                 let period = read_period(c, self.company.as_str(), &entry_date).await?;
                 let total = material;
                 if total > 0 {
-                    let lines = journal_lines(
-                        &profile,
-                        ManufacturingOrderAction::Issue,
-                        material,
-                        total,
-                    );
+                    let lines =
+                        journal_lines(&profile, ManufacturingOrderAction::Issue, material, total);
                     journal = Some(
                         prepare_order_journal(
                             c,
@@ -1215,7 +1216,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                     .checked_add(order.labor_cost_minor)
                     .and_then(|value| value.checked_add(order.overhead_cost_minor))
                     .ok_or_else(|| {
-                        invalid("MONEY_OVERFLOW", "Production costs exceed ledger precision.")
+                        invalid(
+                            "MONEY_OVERFLOW",
+                            "Production costs exceed ledger precision.",
+                        )
                     })?;
                 let tracking_mode =
                     TrackingMode::parse(&order.output_tracking_mode).ok_or_else(|| {
@@ -1255,12 +1259,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                 .await?;
                 let period = read_period(c, self.company.as_str(), &entry_date).await?;
                 if total > 0 {
-                    let lines = journal_lines(
-                        &profile,
-                        ManufacturingOrderAction::PassQc,
-                        0,
-                        total,
-                    );
+                    let lines = journal_lines(&profile, ManufacturingOrderAction::PassQc, 0, total);
                     journal = Some(
                         prepare_order_journal(
                             c,
@@ -1303,12 +1302,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                         self.current.user_id().as_str().to_owned(),
                         branch.map(str::to_owned),
                         None,
-                        vec![policy_fact(
-                            "production_run",
-                            "qc_evidence",
-                            &["action"],
-                            1,
-                        )],
+                        vec![policy_fact("production_run", "qc_evidence", &["action"], 1)],
                         erpx_server_shared::public::TimestampMillis::new(now),
                     );
                     self.evidence = prepare_business_evidence(&mut files, binding).await?;
@@ -1415,10 +1409,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                          movement_date,created_by,created_at) \
                          VALUES($1,$2,$3,$4,'issue',$5,$6,$7,$8,$9,$10)",
                     )
-                    .bind(format!(
-                        "mfg-stock-{}-{index}",
-                        self.request.key
-                    ))
+                    .bind(format!("mfg-stock-{}-{index}", self.request.key))
                     .bind(self.id)
                     .bind(&order.warehouse_id)
                     .bind(&line.product_id)
@@ -1497,7 +1488,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                         .into());
                     }
                     material = material.checked_add(line.value_minor).ok_or_else(|| {
-                        invalid("MONEY_OVERFLOW", "Production costs exceed ledger precision.")
+                        invalid(
+                            "MONEY_OVERFLOW",
+                            "Production costs exceed ledger precision.",
+                        )
                     })?;
                 }
                 sqlx::query("UPDATE manufacturing_orders SET material_cost_minor=$1 WHERE id=$2")
@@ -1513,7 +1507,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for OrderEffects<'_, C> {
                     .checked_add(order.labor_cost_minor)
                     .and_then(|value| value.checked_add(order.overhead_cost_minor))
                     .ok_or_else(|| {
-                        invalid("MONEY_OVERFLOW", "Production costs exceed ledger precision.")
+                        invalid(
+                            "MONEY_OVERFLOW",
+                            "Production costs exceed ledger precision.",
+                        )
                     })?;
                 sqlx::query(
                     "INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,\

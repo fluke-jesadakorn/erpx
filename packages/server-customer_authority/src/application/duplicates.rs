@@ -2,9 +2,9 @@
 use crate::domain::access::AccessActor;
 use crate::domain::duplicates::{
     ChangePlan, DuplicateAction, DuplicateChange, DuplicateReceipt, DuplicateReviewCustomer,
-    DuplicateReviewEventRow, DuplicateReviewRow, DuplicateReviewRequest, MAX_HISTORY_ROWS,
+    DuplicateReviewEventRow, DuplicateReviewRequest, DuplicateReviewRow, MAX_HISTORY_ROWS,
     MAX_WORKSPACE_ROWS, MergeBlockers, MergePartyFacts, MergePlan, REQUEST_OPERATION, RequestPlan,
-    change_identity, change_plan, change_invalid, idempotency_conflict,
+    change_identity, change_invalid, change_plan, idempotency_conflict,
     independent_approver_required, merge_blocked, merge_plan, merge_source_changed,
     readback_invalid, request_id, request_identity, request_plan, review_changed, review_not_found,
     reviewer_unavailable, source_not_found,
@@ -15,10 +15,12 @@ use std::collections::BTreeSet;
 use std::future::Future;
 use std::pin::Pin;
 
-pub type DuplicateAccessFuture<'a, T, E> =
-    Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
+pub type DuplicateAccessFuture<'a, T, E> = Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
 
-fn require_binding_scope(row: &DuplicateReviewRow, actor: &AccessActor) -> Result<(), BusinessError> {
+fn require_binding_scope(
+    row: &DuplicateReviewRow,
+    actor: &AccessActor,
+) -> Result<(), BusinessError> {
     if row.company_id != actor.company_id.as_str() {
         return Err(review_not_found());
     }
@@ -275,9 +277,7 @@ pub async fn change_duplicate_review<R: DuplicateReviewCommandRepository>(
         if !facts.eligible() {
             return Err(merge_source_changed().into());
         }
-        let blockers = repository
-            .merge_blockers(&plan.merged_customer_id)
-            .await?;
+        let blockers = repository.merge_blockers(&plan.merged_customer_id).await?;
         if let Some(message) = blockers.message() {
             return Err(merge_blocked(message).into());
         }

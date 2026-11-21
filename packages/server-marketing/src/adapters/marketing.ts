@@ -1,3 +1,4 @@
+import { nativeCreateCandidate, nativeRecordEngagement, nativeReviewAsset } from '@erpx/feature-marketing/adapters/server/native-marketing-wave2';
 import {filterMarketingPurchasedWork} from "@erpx/server-marketing/adapters/record-purchases";
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
 
@@ -146,167 +147,16 @@ campaigns:()=>marketingCampaigns(a),costSources:()=>marketingCostSources(a),form
 replay:(key,operation,id,input)=>replayCommand(write,a,key,operation,id,input),createCRMLead:(raw,key)=>createCRMLeadInTransaction(write,a,raw,key),commit:(mutation,result)=>commit(write,a,mutation,result),
 };}
 function application(a:WorkContext,provided?:SqlDatabase,now?:number){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createMarketingApplication({actorId:a.userId,clock:{now:()=>now??Date.now()},canRead:hasModuleAccess(a.modules,'marketing')&&hasPermission(a,'records.read'),canLinkCost:hasPermission(a,'finance.read')&&hasPermission(a,'records.write'),publicationsReadable:attachmentsV2Readable(),authorize:write=>access(a,write),repository:async()=>repository(await database(),a,!provided)});}
-async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingMutation<SqlStatement[]>,result:Result):Promise<Result>{const {key,id,operation:op,now}=m;switch(m.action){
-case "candidate":{const i=m.input;return executeCommand(write, a, key, op, i, id, 1, result, [
-    ...(m.presentation??[]),
-    assertion(
-      write,
-      key,
-      "form",
-      "EXISTS(SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='form' AND status='active' AND version=? AND configuration_json::jsonb->'consentRequired'='true'::jsonb)",
-      [i.formId, a.companyId, i.formVersion],
-    ),
-    assertion(
-      write,
-      key,
-      "branch",
-      `EXISTS(SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?))`,
-      [i.branchId, a.companyId, a.branchId, a.branchId],
-    ),
-    write
-      .prepare(
-        "INSERT INTO marketing_lead_candidates VALUES(?,?,?,?,?,?,?,?,?,?,?,'pending',NULL,?,NULL,1,?,?)",
-      )
-      .bind(
-        id,
-        a.companyId,
-        i.branchId,
-        a.departmentId,
-        i.formId,
-        i.formVersion,
-        i.contactName,
-        i.contactDetail,
-        i.consentEvidence,
-        JSON.stringify(i.attribution),
-        i.brief,
-        a.userId,
-        now,
-        now,
-      ),
-    write
-      .prepare(
-        "INSERT INTO marketing_engagement_events VALUES(?,?,1,'form_submit','web',?,?,?)",
-      )
-      .bind(
-        `marketing-engagement-${key}`,
-        id,
-        i.consentEvidence,
-        a.userId,
-        now,
-      ),
-  ]);}
-case "asset":{const i=m.input,expected=m.expected,status=m.status;return executeCommand(
-      write,
-      a,
-      key,
-      op,
-      i,
-      id,
-      i.expectedVersion + 1,
-      result,
-      [
-        ...(m.presentation??[]),
-        assertion(
-          write,
-          key,
-          "asset",
-          "EXISTS(SELECT 1 FROM marketing_assets WHERE id=? AND version=? AND status=?)",
-          [id, i.expectedVersion, expected],
-        ),
-        write
-          .prepare(
-            "UPDATE marketing_assets SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(status, a.userId, now, id),
-        write
-          .prepare("INSERT INTO marketing_asset_events VALUES(?,?,?,?,?,?,?,?)")
-          .bind(
-            `marketing-asset-event-${key}`,
-            id,
-            i.expectedVersion + 1,
-            i.action,
-            a.userId,
-            i.reason,
-            status,
-            now,
-          ),
-      ],
-    );}
-case "engagement":{const i=m.input;return executeCommand(
-      write,
-      a,
-      key,
-      op,
-      i,
-      id,
-      i.expectedVersion + 1,
-      result,
-      [
-        assertion(
-          write,
-          key,
-          "candidate",
-          "EXISTS(SELECT 1 FROM marketing_lead_candidates WHERE id=? AND version=? AND status='pending')",
-          [id, i.expectedVersion],
-        ),
-        write
-          .prepare(
-            "UPDATE marketing_lead_candidates SET version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(now, id),
-        write
-          .prepare(
-            "INSERT INTO marketing_engagement_events VALUES(?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            `marketing-engagement-${key}`,
-            id,
-            i.expectedVersion + 1,
-            i.eventType,
-            i.channel,
-            i.reason,
-            a.userId,
-            now,
-          ),
-      ],
-    );}
-case "handoff":{const i=m.input,crm=m.crm;return executeCommand(
-    write,
-    a,
-    key,
-    op,
-    i,
-    id,
-    i.expectedVersion + 1,
-    result,
-    [
-      assertion(
-        write,
-        key,
-        "candidate",
-        "EXISTS(SELECT 1 FROM marketing_lead_candidates WHERE id=? AND version=? AND status='pending')",
-        [id, i.expectedVersion],
-      ),
-      write
-        .prepare(
-          "UPDATE marketing_lead_candidates SET status='handed_off',crm_lead_id=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(crm.id, a.userId, now, id),
-      write
-        .prepare(
-          "INSERT INTO marketing_engagement_events VALUES(?,? ,?,'crm_handoff','internal',?,?,?)",
-        )
-        .bind(
-          `marketing-engagement-${key}`,
-          id,
-          i.expectedVersion + 1,
-          i.reason,
-          a.userId,
-          now,
-        ),
-    ],
-  );}
-}}
+async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingMutation<SqlStatement[]>,result:Result):Promise<Result>{
+  const {id,key}=m;
+  switch(m.action){
+    case "candidate": await nativeCreateCandidate(a,m.input,key); return result;
+    case "asset": await nativeReviewAsset(a,id,m.input,key); return result;
+    case "engagement": await nativeRecordEngagement(a,id,m.input,key); return result;
+    case "handoff": throw new ApiError(503,'MARKETING_COMMAND_UNAVAILABLE','Candidate CRM handoff is not available on the native Marketing path.');
+  }
+}
+
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function marketingWorkspace(a:WorkContext){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireMarketingPurchasedRead(db,a),view=await application(a,db).workspace();return {...view,...(purchase?{purchase,canWrite:hasPermission(a,'records.write'),costHistory:await marketingFinanceHistory(db,a)}: {})};});}
 export function createMarketingCandidate(a:WorkContext,raw:unknown,key:string){return translated(()=>{const input=marketingCandidateSchema.parse(raw);return withMarketingPurchasedCommand(a,{key,operation:'marketing.candidate.create',target:{kind:'candidate',id:`marketing-candidate-${key}`},purpose:'new-work',sources:[{kind:'asset',id:input.formId}]},db=>application(a,db).createCandidate(input,key));});}

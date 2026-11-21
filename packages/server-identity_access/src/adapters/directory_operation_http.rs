@@ -5,7 +5,7 @@
 //! session resolution, current IAM authority, fresh MFA and the owner unit
 //! remain composition responsibilities behind [`DirectoryOperationHttpBackend`].
 use crate::domain::directory_operation::{
-    request_invalid, DirectoryChangeInput, MANAGE_PERMISSION,
+    DirectoryChangeInput, MANAGE_PERMISSION, request_invalid,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,

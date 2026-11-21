@@ -9,8 +9,8 @@ pub use crate::adapters::support_attachment_intake::{
     SupportAttachmentActor, SupportAttachmentFileRequest, SupportAttachmentIntakeAvailability,
     SupportAttachmentLinkRead, SupportAttachmentReservation, SupportAttachmentScanRead,
     SupportAttachmentSetRead, SupportAttachmentSetRequest, SupportAttachmentUploadCompletion,
-    complete_support_attachment_upload, create_support_attachment_set,
-    next_support_scan_candidate, reserve_support_attachment_file,
+    complete_support_attachment_upload, create_support_attachment_set, next_support_scan_candidate,
+    reserve_support_attachment_file,
 };
 pub use crate::application::support_attachment::{
     SupportAttachmentAuthority, SupportAttachmentStage, SupportAttachmentTarget,

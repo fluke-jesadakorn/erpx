@@ -26,7 +26,8 @@ pub use crate::domain::customer_receipt::{
 };
 
 pub use crate::adapters::customer_receipt::{
-    RetainedCustomerReceipt, CurrentCustomerReceipt, read_customer_receipt, customer_receipt_payment, issue_customer_receipt, lock_customer_receipt_sources,
+    CurrentCustomerReceipt, RetainedCustomerReceipt, customer_receipt_payment,
+    issue_customer_receipt, lock_customer_receipt_sources, read_customer_receipt,
 };
 
 pub use crate::adapters::service_receipt_confirm::{
@@ -36,8 +37,7 @@ pub use crate::adapters::service_receipt_confirm::{
 };
 
 pub use crate::adapters::service_receipt_workspace::{
-    CurrentServiceReceiptWorkspace, read_generic_payment_workspace,
-    read_service_receipt_workspace,
+    CurrentServiceReceiptWorkspace, read_generic_payment_workspace, read_service_receipt_workspace,
 };
 
 pub use crate::adapters::service_receipt_workspace::{

@@ -3,6 +3,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeOwnerWriteSystemUnscoped } from "@erpx/server-collaboration/adapters/native-owner-write";
 const allowedTargets = new Set<string>(["messaging_room", "social_draft"]);
 const recordVersionTables: Record<string, {
     table: string;
@@ -27,8 +28,7 @@ function ownerVersionStep(db: SqlDatabase, targetType: string, targetId: string,
     const descriptor = recordVersionTables[targetType];
     if (!descriptor)
         throw new ApiError(422, "RECORD_ATTACHMENT_BIND_UNSUPPORTED", "This record does not support standalone document binding.");
-    return db.prepare(`UPDATE ${descriptor.table} SET version=version+1${["inventory_lots", "commerce_products", "marketing_campaigns"].includes(descriptor.table) ? "" : ",updated_at=?"} WHERE id=? AND version=?${descriptor.extra ? ` AND ${descriptor.extra}` : ""}`)
-        .bind(...(["inventory_lots", "commerce_products", "marketing_campaigns"].includes(descriptor.table) ? [targetId, expectedVersion] : [now, targetId, expectedVersion]));
+    return nativeOwnerWriteSystemUnscoped(db, 'attachment_service_version_step', [now, targetId, expectedVersion], `attachment-service-version:${targetId}`, now, { target: descriptor.table === 'social_post_drafts' ? 'social_draft' : undefined });
 }
 export function attachmentServiceCollaborationFacts(db: SqlDatabase) {
     return { versionGuard: (...args: Parameters<typeof ownerVersionGuard> extends [

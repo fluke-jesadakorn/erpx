@@ -229,9 +229,9 @@ pub(crate) async fn read_generic_field_finance_history<C: Clock>(
         GenericHistoryReadKind::Detail => {
             Payload::Detail(read_field_finance_journal_detail(c, &actor, &record).await?)
         }
-        GenericHistoryReadKind::Workspace => Payload::Workspace(
-            read_field_finance_journal_workspace(c, &actor, &record).await?,
-        ),
+        GenericHistoryReadKind::Workspace => {
+            Payload::Workspace(read_field_finance_journal_workspace(c, &actor, &record).await?)
+        }
     };
     let result = CurrentGenericFieldFinanceHistory {
         company: ctx.company.clone(),

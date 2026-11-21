@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./adapters/native-wave2": "./src/adapters/native-wave2.ts",
     "./adapters/ecommerce": "./src/adapters/ecommerce.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",

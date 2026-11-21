@@ -42,10 +42,8 @@ pub struct LegalTrustHttpCommandRequest<'a> {
 /// and the existing owner transaction. It must call
 /// `execute_legal_trust_command`; it may not persist trust material itself.
 pub trait LegalTrustHttpBackend: Send + Sync {
-    fn command<'a>(
-        &'a self,
-        request: LegalTrustHttpCommandRequest<'a>,
-    ) -> LegalTrustHttpFuture<'a>;
+    fn command<'a>(&'a self, request: LegalTrustHttpCommandRequest<'a>)
+    -> LegalTrustHttpFuture<'a>;
 }
 
 pub struct LegalTrustHttpTarget {
@@ -115,10 +113,7 @@ fn private_json(value: &impl Serialize) -> Response {
     response
 }
 
-fn unique_header(
-    headers: &HeaderMap,
-    name: HeaderName,
-) -> Result<Option<&str>, BusinessError> {
+fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {
@@ -128,7 +123,11 @@ fn unique_header(
         ));
     }
     first
-        .map(|value| value.to_str().map_err(|_| malformed("LEGAL_REQUEST_INVALID", "Use a valid request header.")))
+        .map(|value| {
+            value
+                .to_str()
+                .map_err(|_| malformed("LEGAL_REQUEST_INVALID", "Use a valid request header."))
+        })
         .transpose()
 }
 
@@ -150,7 +149,13 @@ fn valid_origin(origin: &str) -> bool {
     })
 }
 
-fn bounded_text(value: &Option<String>, min: usize, max: usize, code: &'static str, message: &'static str) -> Result<String, BusinessError> {
+fn bounded_text(
+    value: &Option<String>,
+    min: usize,
+    max: usize,
+    code: &'static str,
+    message: &'static str,
+) -> Result<String, BusinessError> {
     let value = value.as_deref().map(str::trim).unwrap_or_default();
     let length = value.chars().count();
     if length < min || length > max {
@@ -397,9 +402,8 @@ impl LegalTrustHttpService {
         headers: &HeaderMap,
         slug: &str,
     ) -> Result<&'a LegalTrustHttpTarget, BusinessError> {
-        let host = unique_header(headers, header::HOST)?.ok_or_else(|| {
-            BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
-        })?;
+        let host = unique_header(headers, header::HOST)?
+            .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
         self.targets
             .get(&(host.to_owned(), slug.to_owned()))
             .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))
@@ -446,9 +450,7 @@ async fn command(
 
 /// Mount point for composition. The existing offline PDF trust/revocation/
 /// timestamp/modification three-state verifier is untouched.
-pub fn legal_trust_router(
-    targets: Vec<LegalTrustHttpTarget>,
-) -> Result<Router, BusinessError> {
+pub fn legal_trust_router(targets: Vec<LegalTrustHttpTarget>) -> Result<Router, BusinessError> {
     let service = Arc::new(LegalTrustHttpService::new(targets)?);
     Ok(Router::new()
         .route(
@@ -552,18 +554,41 @@ mod tests {
         short_content["content"] = json!("short");
         let mut missing_kind = base.clone();
         missing_kind.as_object_mut().unwrap().remove("kind");
-        for value in [bad_kind, short_name, plain_source, short_content, missing_kind] {
+        for value in [
+            bad_kind,
+            short_name,
+            plain_source,
+            short_content,
+            missing_kind,
+        ] {
             assert!(parse_trust_command(&value).is_err(), "{value}");
         }
     }
 
     #[test]
     fn decisions_require_a_current_positive_version() {
-        let approve = json!({"action":"trust.approve","materialId":"material-one","materialVersion":2});
-        assert_eq!(parse_trust_command(&approve).unwrap().operation(), "trust.approve");
-        assert!(parse_trust_command(&json!({"action":"trust.retire","materialId":"material-one"})).is_err());
-        assert!(parse_trust_command(&json!({"action":"trust.approve","materialId":"","materialVersion":1})).is_err());
-        assert!(parse_trust_command(&json!({"action":"trust.approve","materialId":"material-one","materialVersion":0})).is_err());
+        let approve =
+            json!({"action":"trust.approve","materialId":"material-one","materialVersion":2});
+        assert_eq!(
+            parse_trust_command(&approve).unwrap().operation(),
+            "trust.approve"
+        );
+        assert!(
+            parse_trust_command(&json!({"action":"trust.retire","materialId":"material-one"}))
+                .is_err()
+        );
+        assert!(
+            parse_trust_command(
+                &json!({"action":"trust.approve","materialId":"","materialVersion":1})
+            )
+            .is_err()
+        );
+        assert!(
+            parse_trust_command(
+                &json!({"action":"trust.approve","materialId":"material-one","materialVersion":0})
+            )
+            .is_err()
+        );
         assert!(parse_trust_command(&json!({"action":"trust.delete"})).is_err());
     }
 
@@ -603,7 +628,10 @@ mod tests {
                 &body,
             )
             .await;
-        assert_eq!(no_key.into_parts().0.status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            no_key.into_parts().0.status,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
         assert!(backend.calls.lock().unwrap().is_empty());
     }
 

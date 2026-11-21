@@ -5,9 +5,7 @@
 //! selected Company/branch/department scope, current IAM authority, package
 //! purchase admission, owner CAS effects and Workflow receipts/audit/outbox
 //! remain composition responsibilities behind [`CrmLeadCommandHttpBackend`].
-use crate::domain::leads_native::{
-    LeadChangeInput, OpportunityChangeInput, not_native,
-};
+use crate::domain::leads_native::{LeadChangeInput, OpportunityChangeInput, not_native};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::post, serde_json,
@@ -178,8 +176,7 @@ async fn parse_command(
     request: Request,
     target: &CrmLeadCommandHttpTarget,
 ) -> Result<ParsedCommand, BusinessError> {
-    if unique_header(request.headers(), header::ORIGIN)?
-        .is_some_and(|value| value != target.origin)
+    if unique_header(request.headers(), header::ORIGIN)?.is_some_and(|value| value != target.origin)
     {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
@@ -192,9 +189,7 @@ async fn parse_command(
         HeaderName::from_static("idempotency-key"),
     )?
     .filter(|value| !value.is_empty())
-    .ok_or_else(|| {
-        BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
-    })
+    .ok_or_else(|| BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required."))
     .and_then(CommandKey::new)?;
     if !unique_header(request.headers(), header::CONTENT_TYPE)?.is_some_and(|value| {
         value
@@ -207,16 +202,13 @@ async fn parse_command(
     let headers = request.headers().clone();
     let body = to_bytes(request.into_body(), BODY_LIMIT)
         .await
-        .map_err(|_| {
-            BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller CRM command.")
-        })?;
+        .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller CRM command."))?;
     let body = serde_json::from_slice::<serde_json::Value>(&body).map_err(|_| malformed())?;
     Ok(ParsedCommand { headers, key, body })
 }
 
 fn parse_lead(body: &serde_json::Value) -> Result<LeadChangeInput, BusinessError> {
-    let input: LeadChangeInput =
-        serde_json::from_value(body.clone()).map_err(|_| malformed())?;
+    let input: LeadChangeInput = serde_json::from_value(body.clone()).map_err(|_| malformed())?;
     CrmLeadCommandKind::Lead.reject(&input.action)?;
     Ok(input)
 }

@@ -3,6 +3,16 @@ const benefitsFinalSources=benefitsFinalOwnerProjections();
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+const sensitiveVersionKinds: Record<string, string> = {
+  hr_evaluation_assessment: 'pp_attach_sensitive_evaluation',
+  hr_person: 'pp_attach_sensitive_person',
+  people_lifecycle_case: 'pp_attach_sensitive_lifecycle_case',
+  people_clearance_task: 'pp_attach_sensitive_clearance_task',
+  payroll_run: 'pp_attach_sensitive_payroll_run',
+  payroll_advance: 'pp_attach_sensitive_payroll_advance',
+  payroll_final_pay: 'pp_attach_sensitive_final_pay',
+};
 const sensitiveTables:Record<string,string>={hr_evaluation_assessment:"hr_evaluation_assessments",hr_person:"hr_people",people_lifecycle_case:"people_lifecycle_cases",people_clearance_task:"people_preparation_tasks",payroll_run:"hr_payroll_runs",payroll_advance:"hr_payroll_advances",payroll_final_pay:"hr_payroll_final_pay_preparations"};
 const sensitiveRecordTables = new Set([
   "hr_evaluation_assessment",
@@ -39,18 +49,17 @@ function sensitiveAttachmentTargetVersionGuard(
   );
 }
 function sensitiveAttachmentRecordVersionStep(
-  db: SqlDatabase,
+  _db: SqlDatabase,
   targetType: string,
   targetId: string,
   expectedVersion: number,
   now = Date.now(),
 ): SqlStatement | null {
   if (!sensitiveRecordTables.has(targetType)) return null;
-  const table = sensitiveTables[targetType];
-  if(!table)return null;
-  return db
-    .prepare(`UPDATE ${table} SET version=version+1,updated_at=? WHERE id=? AND version=?`)
-    .bind(now, targetId, expectedVersion);
+  // Table selection is fixed by this allow-list; the owner owns the SQL.
+  const kind = sensitiveVersionKinds[targetType];
+  if (!kind) return null;
+  return nativePpStatement(kind).bind(now, targetId, expectedVersion);
 }
 export function SensitiveAttachmentPeoplePayrollFacts(db:SqlDatabase){return {
 readHrPeople1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(`SELECT p.company_id,p.user_id,p.version,e.branch_id,e.department_id,

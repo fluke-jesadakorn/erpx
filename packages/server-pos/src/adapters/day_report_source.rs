@@ -45,7 +45,9 @@ pub struct RetainedPosDaySources {
     sources: PosDayOwnedSources,
 }
 impl RetainedPosDaySources {
-    pub fn sources(&self) -> &PosDayOwnedSources { &self.sources }
+    pub fn sources(&self) -> &PosDayOwnedSources {
+        &self.sources
+    }
     pub async fn require_current(&self, connection: &mut PgConnection) -> Result<(), Error> {
         let mut reader = PgPosDayReportSources::new(connection);
         if reader.transaction_id().await? != self.transaction {
@@ -64,16 +66,33 @@ impl<'c> PgPosDayReportSources<'c> {
     }
     async fn transaction_id(&mut self) -> Result<String, Error> {
         if !self.connection.is_in_transaction()
-            || sqlx::query_scalar::<_, String>("SHOW transaction_isolation").fetch_one(&mut *self.connection).await? != "serializable" {
+            || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+                .fetch_one(&mut *self.connection)
+                .await?
+                != "serializable"
+        {
             return Err(PersistenceError::new("POS_DAY_SERIALIZABLE_REQUIRED").into());
         }
-        Ok(sqlx::query_scalar("SELECT txid_current()::text").fetch_one(&mut *self.connection).await?)
+        Ok(sqlx::query_scalar("SELECT txid_current()::text")
+            .fetch_one(&mut *self.connection)
+            .await?)
     }
     /// Call only after the composition's pre-snapshot authority and fences.
-    pub async fn retain(&mut self, company: &str, branch: &str, date: &str) -> Result<RetainedPosDaySources, Error> {
+    pub async fn retain(
+        &mut self,
+        company: &str,
+        branch: &str,
+        date: &str,
+    ) -> Result<RetainedPosDaySources, Error> {
         let transaction = self.transaction_id().await?;
         let sources = self.load(company, branch, date).await?;
-        Ok(RetainedPosDaySources { transaction, company: company.to_owned(), branch: branch.to_owned(), date: date.to_owned(), sources })
+        Ok(RetainedPosDaySources {
+            transaction,
+            company: company.to_owned(),
+            branch: branch.to_owned(),
+            date: date.to_owned(),
+            sources,
+        })
     }
     pub async fn load(
         &mut self,

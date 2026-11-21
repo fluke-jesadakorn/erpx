@@ -341,22 +341,43 @@ pub struct ServiceInvoiceNoChargeFlowInput<'a> {
     pub now: i64,
 }
 impl ServiceInvoiceFlowBasis {
-    pub fn plan_no_charge(self,view:&Value,input:ServiceInvoiceNoChargeFlowInput<'_>)->Result<ServiceInvoiceNoChargeFlow,Error>{
-        if view["canAct"]!=true || view["current"]["key"]!="draft" {
+    pub fn plan_no_charge(
+        self,
+        view: &Value,
+        input: ServiceInvoiceNoChargeFlowInput<'_>,
+    ) -> Result<ServiceInvoiceNoChargeFlow, Error> {
+        if view["canAct"] != true || view["current"]["key"] != "draft" {
             return Err(BusinessError::new(if view["blocker"].is_null(){FailureKind::Forbidden}else{FailureKind::Conflict},"FLOW_PRIMARY_REQUIRED","This action belongs to the responsible staff member. Refresh the invoice workflow.").into());
         }
-        let route=match &self.route {Some(route)=>route.clone(),None=>{
-            let steps=view["steps"].as_array().ok_or_else(changed)?.iter().map(|s|{
+        let route = match &self.route {
+            Some(route) => route.clone(),
+            None => {
+                let steps=view["steps"].as_array().ok_or_else(changed)?.iter().map(|s|{
                 let key=s["key"].as_str().ok_or_else(changed)?;
                 Ok((key.to_owned(),json!({"primaryUserId":s["primary"]["userId"],"teamName":s["teamName"],"defaultRevision":self.revision})))
             }).collect::<Result<serde_json::Map<String,Value>,Error>>()?;
-            json!({"company_id":self.company.as_str(),"kind":"invoice","record_id":self.id,"version":1,"defaults_revision":self.revision,"steps_json":Value::Object(steps).to_string(),"created_at":input.now})
-        }};
-        let event=json!({"id":input.event,"command_id":input.command,"company_id":self.company.as_str(),"kind":"invoice","record_id":self.id,"step_key":"draft","action":"post","actor_user_id":input.actor,"actor_name":input.actor_name,"reason":input.reason,"record_version":input.record_version,"created_at":input.now,"next_step_key":null,"next_user_id":null});
-        Ok(ServiceInvoiceNoChargeFlow(ServiceInvoiceFlowAssignment{before:self,route,event,default:None,after:None,inserted_default:None,recipient:String::new(),message:String::new(),result:Value::Null}))
+                json!({"company_id":self.company.as_str(),"kind":"invoice","record_id":self.id,"version":1,"defaults_revision":self.revision,"steps_json":Value::Object(steps).to_string(),"created_at":input.now})
+            }
+        };
+        let event = json!({"id":input.event,"command_id":input.command,"company_id":self.company.as_str(),"kind":"invoice","record_id":self.id,"step_key":"draft","action":"post","actor_user_id":input.actor,"actor_name":input.actor_name,"reason":input.reason,"record_version":input.record_version,"created_at":input.now,"next_step_key":null,"next_user_id":null});
+        Ok(ServiceInvoiceNoChargeFlow(ServiceInvoiceFlowAssignment {
+            before: self,
+            route,
+            event,
+            default: None,
+            after: None,
+            inserted_default: None,
+            recipient: String::new(),
+            message: String::new(),
+            result: Value::Null,
+        }))
     }
 }
 impl ServiceInvoiceNoChargeFlow {
-    pub async fn apply(&mut self,c:&mut PgConnection)->Result<(),Error>{self.0.apply(c).await}
-    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{self.0.require_after(c).await}
+    pub async fn apply(&mut self, c: &mut PgConnection) -> Result<(), Error> {
+        self.0.apply(c).await
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.0.require_after(c).await
+    }
 }

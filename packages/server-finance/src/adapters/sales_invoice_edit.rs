@@ -2,9 +2,7 @@
 //! the invoice version guard, line revision, Money evidence and command receipt;
 //! non-sales/non-standalone invoices return `None` so their owner path stays
 //! authoritative.
-use super::sales_invoice_create::{
-    SalesInvoiceCommandActor, authority_json, fingerprint, receipt,
-};
+use super::sales_invoice_create::{SalesInvoiceCommandActor, authority_json, fingerprint, receipt};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
@@ -160,7 +158,10 @@ pub async fn lock_sales_invoice_edit_sources(c: &mut PgConnection) -> Result<(),
 
 fn decimal_units(value: &str, scale: u32) -> Result<i128, Error> {
     if value.is_empty() || value.len() > 64 {
-        return Err(invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."));
+        return Err(invalid(
+            "INVALID_INVOICE_LINE",
+            "Use a positive quantity and unit price.",
+        ));
     }
     let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
     if whole.is_empty()
@@ -168,28 +169,47 @@ fn decimal_units(value: &str, scale: u32) -> Result<i128, Error> {
         || !fraction.bytes().all(|byte| byte.is_ascii_digit())
         || fraction.len() > scale as usize
     {
-        return Err(invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."));
+        return Err(invalid(
+            "INVALID_INVOICE_LINE",
+            "Use a positive quantity and unit price.",
+        ));
     }
-    let whole = whole
-        .parse::<i128>()
-        .map_err(|_| invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."))?;
+    let whole = whole.parse::<i128>().map_err(|_| {
+        invalid(
+            "INVALID_INVOICE_LINE",
+            "Use a positive quantity and unit price.",
+        )
+    })?;
     let fraction = if fraction.is_empty() {
         0
     } else {
         format!("{fraction:0<width$}", width = scale as usize)
             .parse::<i128>()
-            .map_err(|_| invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."))?
+            .map_err(|_| {
+                invalid(
+                    "INVALID_INVOICE_LINE",
+                    "Use a positive quantity and unit price.",
+                )
+            })?
     };
     whole
         .checked_mul(10i128.pow(scale))
         .and_then(|value| value.checked_add(fraction))
         .filter(|value| *value > 0 && *value <= MAX_SAFE)
-        .ok_or_else(|| invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."))
+        .ok_or_else(|| {
+            invalid(
+                "INVALID_INVOICE_LINE",
+                "Use a positive quantity and unit price.",
+            )
+        })
 }
 
 fn decimal_units_nonnegative(value: &str, scale: u32) -> Result<i128, Error> {
     if value.is_empty() || value.len() > 64 {
-        return Err(invalid("INVALID_INVOICE_AMOUNT", "Use a nonnegative tax amount."));
+        return Err(invalid(
+            "INVALID_INVOICE_AMOUNT",
+            "Use a nonnegative tax amount.",
+        ));
     }
     let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
     if whole.is_empty()
@@ -197,7 +217,10 @@ fn decimal_units_nonnegative(value: &str, scale: u32) -> Result<i128, Error> {
         || !fraction.bytes().all(|byte| byte.is_ascii_digit())
         || fraction.len() > scale as usize
     {
-        return Err(invalid("INVALID_INVOICE_AMOUNT", "Use a nonnegative tax amount."));
+        return Err(invalid(
+            "INVALID_INVOICE_AMOUNT",
+            "Use a nonnegative tax amount.",
+        ));
     }
     let whole = whole
         .parse::<i128>()
@@ -218,7 +241,10 @@ fn decimal_units_nonnegative(value: &str, scale: u32) -> Result<i128, Error> {
 
 fn decimal_units_unbounded(value: &str, scale: u32) -> Result<i128, Error> {
     if value.is_empty() || value.len() > 80 {
-        return Err(invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."));
+        return Err(invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency rate is required.",
+        ));
     }
     let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
     if whole.is_empty()
@@ -226,23 +252,39 @@ fn decimal_units_unbounded(value: &str, scale: u32) -> Result<i128, Error> {
         || !fraction.bytes().all(|byte| byte.is_ascii_digit())
         || fraction.len() > scale as usize
     {
-        return Err(invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."));
+        return Err(invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency rate is required.",
+        ));
     }
-    let whole = whole
-        .parse::<i128>()
-        .map_err(|_| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))?;
+    let whole = whole.parse::<i128>().map_err(|_| {
+        invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency rate is required.",
+        )
+    })?;
     let fraction = if fraction.is_empty() {
         0
     } else {
         format!("{fraction:0<width$}", width = scale as usize)
             .parse::<i128>()
-            .map_err(|_| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))?
+            .map_err(|_| {
+                invalid(
+                    "MANUAL_RATE_REQUIRED",
+                    "A confirmed manual currency rate is required.",
+                )
+            })?
     };
     whole
         .checked_mul(10i128.pow(scale))
         .and_then(|value| value.checked_add(fraction))
         .filter(|value| *value > 0)
-        .ok_or_else(|| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))
+        .ok_or_else(|| {
+            invalid(
+                "MANUAL_RATE_REQUIRED",
+                "A confirmed manual currency rate is required.",
+            )
+        })
 }
 
 fn minor_decimal(value: i64) -> String {
@@ -274,15 +316,13 @@ fn validate(input: &SalesInvoiceEditInput) -> Result<(), Error> {
         || input.debit_account_id.is_empty()
         || input.credit_account_id.is_empty()
         || input.debit_account_id == input.credit_account_id
+        || input.tax_account_id.as_deref().is_some_and(|value| {
+            value.is_empty() || value == input.debit_account_id || value == input.credit_account_id
+        })
         || input
-            .tax_account_id
-            .as_deref()
-            .is_some_and(|value| {
-                value.is_empty()
-                    || value == input.debit_account_id
-                    || value == input.credit_account_id
-            })
-        || input.lines.as_ref().is_some_and(|lines| lines.is_empty() || lines.len() > 100)
+            .lines
+            .as_ref()
+            .is_some_and(|lines| lines.is_empty() || lines.len() > 100)
     {
         return Err(invalid(
             "INVALID_SALES_INVOICE",
@@ -292,11 +332,7 @@ fn validate(input: &SalesInvoiceEditInput) -> Result<(), Error> {
     Ok(())
 }
 
-async fn account(
-    c: &mut PgConnection,
-    company: &str,
-    id: &str,
-) -> Result<Account, Error> {
+async fn account(c: &mut PgConnection, company: &str, id: &str) -> Result<Account, Error> {
     let row = sqlx::query(
         "SELECT id,chart_id,code,name,category,currency,version,status,\
          COALESCE(control_kind,'none') control_kind \
@@ -390,7 +426,10 @@ async fn fx(
         if effective.as_str() <= date && dated.is_none() {
             dated = Some((id.clone(), rate.clone(), confirmed));
         }
-        if latest.as_ref().is_none_or(|(_, _, current)| confirmed > *current) {
+        if latest
+            .as_ref()
+            .is_none_or(|(_, _, current)| confirmed > *current)
+        {
             latest = Some((id, rate, confirmed));
         }
     }
@@ -398,7 +437,12 @@ async fn fx(
         Some((id, rate, _)) => (id, rate, false),
         None => latest
             .map(|(id, rate, _)| (id, rate, true))
-            .ok_or_else(|| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))?,
+            .ok_or_else(|| {
+                invalid(
+                    "MANUAL_RATE_REQUIRED",
+                    "A confirmed manual currency rate is required.",
+                )
+            })?,
     };
     let source = decimal_units_unbounded(&rate, 18)?;
     let numerator = amount_minor as i128 * RATE_SCALE * 100;
@@ -581,19 +625,18 @@ pub async fn edit_sales_invoice(
             .ok_or_else(unavailable);
     }
     require_editable(&existing, input.expected_version)?;
-    let chart_id: String = sqlx::query_scalar(
-        "SELECT chart_id FROM finance_accounts WHERE company_id=$1 AND id=$2",
-    )
-    .bind(&actor.company_id)
-    .bind(&input.debit_account_id)
-    .fetch_optional(&mut *c)
-    .await?
-    .ok_or_else(|| {
-        invalid(
-            "SALES_ACCOUNTS_INVALID",
-            "Use active sales accounts on one Company ledger.",
-        )
-    })?;
+    let chart_id: String =
+        sqlx::query_scalar("SELECT chart_id FROM finance_accounts WHERE company_id=$1 AND id=$2")
+            .bind(&actor.company_id)
+            .bind(&input.debit_account_id)
+            .fetch_optional(&mut *c)
+            .await?
+            .ok_or_else(|| {
+                invalid(
+                    "SALES_ACCOUNTS_INVALID",
+                    "Use active sales accounts on one Company ledger.",
+                )
+            })?;
     let chart_status: Option<String> = sqlx::query_scalar(
         "SELECT status FROM finance_charts WHERE id=$1 AND company_id=$2 FOR SHARE",
     )
@@ -669,7 +712,10 @@ pub async fn edit_sales_invoice(
         || party.status != "active"
         || person_id.is_some()
     {
-        return Err(invalid("PARTY_INVALID", "The invoice party is unavailable."));
+        return Err(invalid(
+            "PARTY_INVALID",
+            "The invoice party is unavailable.",
+        ));
     }
     let configured_scale: Option<i16> = sqlx::query_scalar(
         "SELECT scale FROM company_currency_scales WHERE company_id=$1 AND currency=$2",
@@ -754,8 +800,20 @@ pub async fn edit_sales_invoice(
     let total = subtotal
         .checked_add(tax_total)
         .filter(|value| *value > 0 && *value as i128 <= MAX_SAFE)
-        .ok_or_else(|| invalid("INVALID_INVOICE_AMOUNT", "The invoice total exceeds supported precision."))?;
-    let money = fx(c, &actor.company_id, &input.currency, &input.invoice_date, total).await?;
+        .ok_or_else(|| {
+            invalid(
+                "INVALID_INVOICE_AMOUNT",
+                "The invoice total exceeds supported precision.",
+            )
+        })?;
+    let money = fx(
+        c,
+        &actor.company_id,
+        &input.currency,
+        &input.invoice_date,
+        total,
+    )
+    .await?;
     let updated = sqlx::query(
         "UPDATE finance_invoices SET party_id=$1,invoice_number=$2,invoice_date=$3,due_date=$4,\
          currency=$5,subtotal_minor=$6,tax_minor=$7,total_minor=$8,outstanding_minor=$8,\

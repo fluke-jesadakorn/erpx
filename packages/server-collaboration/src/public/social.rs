@@ -19,7 +19,7 @@ pub use crate::adapters::social_upload_files::{
 pub use crate::application::social::{Access, SocialUnit, authorize_read, execute};
 pub use crate::domain::social::{
     Audience, Change, CommentSnapshot, CommentState, DraftSnapshot, FeedCursor, FollowTarget,
-    HandoverSource, LinkedRecord, LinkedRecordInput, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot,
-    PostSource, PostState, Receipt, SocialActor, hashtags, normalize_tag, normalize_tags,
-    plan_receipt, post_not_found, post_tags, text,
+    HandoverSource, LinkedRecord, LinkedRecordInput, Mention, MentionInput, MentionKind, OwnerPlan,
+    PostSnapshot, PostSource, PostState, Receipt, SocialActor, hashtags, normalize_tag,
+    normalize_tags, plan_receipt, post_not_found, post_tags, text,
 };

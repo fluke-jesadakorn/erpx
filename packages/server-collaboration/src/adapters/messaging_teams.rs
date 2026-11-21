@@ -318,13 +318,11 @@ pub async fn apply_plan(
             if updated != 1 {
                 return Err(changed());
             }
-            sqlx::query(
-                "DELETE FROM messaging_team_members WHERE team_id=$1 AND user_id<>ALL($2)",
-            )
-            .bind(team_id)
-            .bind(members)
-            .execute(&mut *c)
-            .await?;
+            sqlx::query("DELETE FROM messaging_team_members WHERE team_id=$1 AND user_id<>ALL($2)")
+                .bind(team_id)
+                .bind(members)
+                .execute(&mut *c)
+                .await?;
             for member in members {
                 sqlx::query(
                     "INSERT INTO messaging_team_members(team_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING",

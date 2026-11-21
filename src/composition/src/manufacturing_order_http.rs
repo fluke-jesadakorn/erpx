@@ -12,7 +12,8 @@ use axum::{
     routing::post,
 };
 use erpx_server_identity_access::public::{
-    AccountPolicy, account_inbound_http::{
+    AccountPolicy,
+    account_inbound_http::{
         CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
     },
 };
@@ -130,13 +131,12 @@ async fn change_order<C: Clock + Send + Sync + 'static>(
         let (branch, department) = state.scopes.slugs(&headers)?;
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let facts = request_facts(&headers, &body)?;
-        let input: ManufacturingOrderInput =
-            serde_json::from_value(facts.value).map_err(|_| {
-                BusinessError::invalid(
-                    "MANUFACTURING_ORDER_INPUT_INVALID",
-                    "Provide a valid production command.",
-                )
-            })?;
+        let input: ManufacturingOrderInput = serde_json::from_value(facts.value).map_err(|_| {
+            BusinessError::invalid(
+                "MANUFACTURING_ORDER_INPUT_INVALID",
+                "Provide a valid production command.",
+            )
+        })?;
         let outcome = target
             .change(
                 host,
@@ -164,7 +164,9 @@ async fn change_order<C: Clock + Send + Sync + 'static>(
                 "The production command is unavailable.",
             )
         })?;
-        Ok::<_, BusinessError>(Json(json!({"data": data, "context": outcome.context})).into_response())
+        Ok::<_, BusinessError>(
+            Json(json!({"data": data, "context": outcome.context})).into_response(),
+        )
     }
     .await;
     match result {

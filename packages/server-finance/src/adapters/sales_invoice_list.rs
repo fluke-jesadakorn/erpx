@@ -184,9 +184,8 @@ fn valid_date(value: &str) -> bool {
 }
 
 fn validate(query: &SalesInvoiceListQuery) -> Result<(), Error> {
-    let invalid = |code: &'static str, message: &'static str| {
-        BusinessError::invalid(code, message).into()
-    };
+    let invalid =
+        |code: &'static str, message: &'static str| BusinessError::invalid(code, message).into();
     if query.tab != "invoices" {
         return Err(invalid(
             "FINANCE_SALES_TAB_UNSUPPORTED",
@@ -213,11 +212,9 @@ fn validate(query: &SalesInvoiceListQuery) -> Result<(), Error> {
             "Use ISO dates in the sales invoice list.",
         ));
     }
-    if query
-        .currency
-        .as_deref()
-        .is_some_and(|value| value.len() != 3 || !value.bytes().all(|byte| byte.is_ascii_uppercase()))
-    {
+    if query.currency.as_deref().is_some_and(|value| {
+        value.len() != 3 || !value.bytes().all(|byte| byte.is_ascii_uppercase())
+    }) {
         return Err(invalid(
             "FINANCE_SALES_QUERY_INVALID",
             "Use an ISO currency in the sales invoice list.",
@@ -271,7 +268,8 @@ const RECEIVED_SQL: &str = "SELECT jsonb_build_object('currency',p.currency,'rec
       AND ($5='' OR p.payment_date>=$5) AND ($6='' OR p.payment_date<=$6) \
     GROUP BY p.currency ORDER BY p.currency";
 
-const PAGE_SQL: &str = "SELECT value::text FROM list {cursor} ORDER BY page_key {direction},id {direction} LIMIT 31";
+const PAGE_SQL: &str =
+    "SELECT value::text FROM list {cursor} ORDER BY page_key {direction},id {direction} LIMIT 31";
 
 pub async fn read_sales_invoice_list(
     c: &mut PgConnection,
@@ -367,10 +365,7 @@ pub async fn read_sales_invoice_list(
     if reverse {
         rows.reverse();
     }
-    let items = rows
-        .into_iter()
-        .map(parse)
-        .collect::<Result<Vec<_>, _>>()?;
+    let items = rows.into_iter().map(parse).collect::<Result<Vec<_>, _>>()?;
     let previous_cursor = if !items.is_empty() && (reverse || cursor.is_some()) {
         let first = &items[0];
         Some(encode_cursor(

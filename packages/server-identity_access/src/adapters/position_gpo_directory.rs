@@ -1762,9 +1762,7 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                 ]
                 .iter()
                 .filter(|name| available.is_some_and(|values| values.contains_key(**name)))
-                .map(|name| {
-                    json!({"name": name, "type": "text", "read": true, "write": true})
-                })
+                .map(|name| json!({"name": name, "type": "text", "read": true, "write": true}))
                 .collect::<Vec<_>>();
                 DirectoryInventory::checked(json!({
                     "objects": inventory.objects.iter().map(operation_object).collect::<Vec<_>>(),
@@ -1892,8 +1890,7 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                     )
                     .await?;
                 if old.status == 200 {
-                    if text(&old.body["properties"]["description"]) != marker
-                    {
+                    if text(&old.body["properties"]["description"]) != marker {
                         return Err(BusinessError::new(
                             FailureKind::Conflict,
                             "DIRECTORY_OBJECT_EXISTS",
@@ -1910,7 +1907,9 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                 if old.status != 404 {
                     checked(&old)?;
                 }
-                let _ = self.udm_directory_get(profile, &root, &call, parent, true).await?;
+                let _ = self
+                    .udm_directory_get(profile, &root, &call, parent, true)
+                    .await?;
                 let properties = match action {
                     DirectoryAction::AccountCreate {
                         username,
@@ -1952,8 +1951,7 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                     )
                     .await?;
                 checked(&after)?;
-                if text(&after.body["properties"]["description"]) != marker
-                {
+                if text(&after.body["properties"]["description"]) != marker {
                     return Err(readback_failed());
                 }
                 Ok(json!({
@@ -1967,12 +1965,7 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                 let target = find(action.object_id().unwrap_or_default())?.clone();
                 if let DirectoryAction::ObjectMove { parent_id, .. } = action {
                     let parent = find(parent_id)?;
-                    let first = target
-                        .dn
-                        .split(',')
-                        .next()
-                        .unwrap_or_default()
-                        .to_owned();
+                    let first = target.dn.split(',').next().unwrap_or_default().to_owned();
                     let new_dn = format!("{first},{}", parent.dn);
                     let route = format!("{}/{}", target.module, encode(&new_dn));
                     let moved = self
@@ -1989,9 +1982,13 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                     if moved.status != 404 && moved.status != 200 {
                         checked(&moved)?;
                     }
-                    let _ = self.udm_directory_get(profile, &root, &call, parent, true).await?;
+                    let _ = self
+                        .udm_directory_get(profile, &root, &call, parent, true)
+                        .await?;
                 }
-                let current = self.udm_directory_get(profile, &root, &call, &target, false).await?;
+                let current = self
+                    .udm_directory_get(profile, &root, &call, &target, false)
+                    .await?;
                 let properties = current
                     .body
                     .get("properties")
@@ -2018,13 +2015,13 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                         position = Some(find(parent_id)?.dn.clone());
                     }
                     DirectoryAction::GroupMembers {
-                        member_ids,
-                        action,
-                        ..
+                        member_ids, action, ..
                     } => {
                         for id in member_ids {
                             let member = find(id)?;
-                            let _ = self.udm_directory_get(profile, &root, &call, member, false).await?;
+                            let _ = self
+                                .udm_directory_get(profile, &root, &call, member, false)
+                                .await?;
                         }
                         let mut pending = member_ids.clone();
                         let mut seen = BTreeSet::new();
@@ -2034,7 +2031,9 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                             }
                             let member = find(&id)?;
                             if member.kind == "group" {
-                                let _ = self.udm_directory_get(profile, &root, &call, member, true).await?;
+                                let _ = self
+                                    .udm_directory_get(profile, &root, &call, member, true)
+                                    .await?;
                                 pending.extend(member.member_ids.iter().cloned());
                             }
                         }
@@ -2065,7 +2064,9 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                                 existing
                                     .iter()
                                     .filter(|item| {
-                                        !desired.iter().any(|value| value.eq_ignore_ascii_case(item))
+                                        !desired
+                                            .iter()
+                                            .any(|value| value.eq_ignore_ascii_case(item))
                                     })
                                     .cloned()
                                     .collect()
@@ -2150,7 +2151,11 @@ impl<T: ConnectorTransport> PositionGpoConnector<T> {
                         ));
                     }
                     let first = target.dn.split(',').next().unwrap_or_default();
-                    path = format!("{}/{}", target.module, encode(&format!("{first},{position}")));
+                    path = format!(
+                        "{}/{}",
+                        target.module,
+                        encode(&format!("{first},{position}"))
+                    );
                 } else {
                     checked(
                         &self
@@ -2217,9 +2222,7 @@ fn random_password() -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
-impl<T: ConnectorTransport + Send + Sync> DirectoryOperationConnector
-    for PositionGpoConnector<T>
-{
+impl<T: ConnectorTransport + Send + Sync> DirectoryOperationConnector for PositionGpoConnector<T> {
     fn inventory<'a>(
         &'a self,
         connection: &'a OperationConnection,

@@ -50,8 +50,8 @@ export interface HandoverRepository<Effect> {
             user_id: string;
         })[];
     }>;
-    guard7(key: string, value: "handover-recipient", postId: string, userId: string, postId2: string, userId2: string, version: number): Effect;
-    stageAcknowledgeHandoverEffect(postId: string, userId: string, version: number, now: number, key: string): Effect;
+    guard7(key: string, value: "handover-recipient", postId: string, userId: string, postId2: string, userId2: string, version: number): Promise<Effect> | Effect;
+    stageAcknowledgeHandoverEffect(postId: string, userId: string, version: number, now: number, key: string): Promise<Effect> | Effect;
 }
 export interface HandoverPorts<Effect> {
     repository: HandoverRepository<Effect>;
@@ -194,9 +194,9 @@ export function createHandoverApplication<Effect>(ports: HandoverPorts<Effect>) 
             return state;
         const now = ports.clock.now();
         await ports.commands.commit(actor, key, "social.handover.acknowledge", { postId, postVersion: post.version }, postId, post.version, { postId, postVersion: post.version, acknowledged: true }, [
-            ports.sourceGuard(key, post, actor.userId, "handover-readable"),
-            r.guard7(key, "handover-recipient", postId, actor.userId, postId, actor.userId, post.version),
-            r.stageAcknowledgeHandoverEffect(postId, actor.userId, post.version, now, key),
+            await ports.sourceGuard(key, post, actor.userId, "handover-readable"),
+            await r.guard7(key, "handover-recipient", postId, actor.userId, postId, actor.userId, post.version),
+            await r.stageAcknowledgeHandoverEffect(postId, actor.userId, post.version, now, key),
         ], { companyId: actor.companyId, branchId: post.branch_id, departmentId: post.department_id });
         return handoverAcknowledgement(actor, postId);
     }

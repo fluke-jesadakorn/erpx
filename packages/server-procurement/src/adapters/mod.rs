@@ -1,4 +1,7 @@
 pub(crate) mod supplier_promise_history_http;
+pub(crate) mod native_command_http;
+pub(crate) mod native_command_postgres;
+pub(crate) mod native_command_sql;
 pub(crate) mod supplier_promise_history_read;
 
 pub(crate) mod supplier_promise_command;

@@ -7,7 +7,8 @@
 //! composition to bind to that join, notification and Workflow ledger.
 use crate::domain::activities_native::{
     ActivityActor, ActivityChangeInput, ActivityChangePlan, ActivityCreateInput,
-    ActivityCreatePlan, require_lead_open, validate_change, validate_change_access, validate_create,
+    ActivityCreatePlan, require_lead_open, validate_change, validate_change_access,
+    validate_create,
 };
 use erpx_server_shared::public::BusinessError;
 use std::future::Future;

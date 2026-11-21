@@ -7,7 +7,8 @@
 //! for the candidate options used by create forms.
 use super::actor::EcommerceActor;
 use super::command::{
-    js_trim, source_invalid, valid_configuration, valid_cp_text, valid_currency, valid_identifier, valid_text,
+    js_trim, source_invalid, valid_configuration, valid_cp_text, valid_currency, valid_identifier,
+    valid_text,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
 use serde::Serialize;

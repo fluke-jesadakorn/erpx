@@ -1,6 +1,10 @@
 pub(crate) mod identity_selection_preferences;
 
 pub mod account_workspace_preferences;
+pub mod home_read_cursor_http;
+pub mod owner_write_postgres;
+pub mod owner_write_http;
+pub mod home_read_cursor_postgres;
 pub(crate) mod quick_access_preferences;
 pub mod work_capability_probes;
 pub mod work_card_availability_source;

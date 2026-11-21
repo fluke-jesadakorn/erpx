@@ -128,9 +128,15 @@ pub struct ValidatedDuplicateReviewRequest {
 impl ValidatedDuplicateReviewRequest {
     pub fn sorted_pair(&self) -> (String, String) {
         if self.left_customer_id <= self.right_customer_id {
-            (self.left_customer_id.clone(), self.right_customer_id.clone())
+            (
+                self.left_customer_id.clone(),
+                self.right_customer_id.clone(),
+            )
         } else {
-            (self.right_customer_id.clone(), self.left_customer_id.clone())
+            (
+                self.right_customer_id.clone(),
+                self.left_customer_id.clone(),
+            )
         }
     }
 }
@@ -410,7 +416,9 @@ impl MergeBlockers {
         } else if self.billing {
             Some("Field Service billing releases retain immutable customer scope.")
         } else if self.order_evidence {
-            Some("Customer orders with source evidence must be corrected by their owner workflow first.")
+            Some(
+                "Customer orders with source evidence must be corrected by their owner workflow first.",
+            )
         } else {
             None
         }

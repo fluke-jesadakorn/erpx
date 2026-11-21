@@ -46,9 +46,7 @@ impl PersonAccountLinkPort for IdentityAccountLinkPort {
                 request.now,
             )
             .await
-            .map_err(
-                erpx_server_identity_access::public::people_account_link::into_business,
-            )
+            .map_err(erpx_server_identity_access::public::people_account_link::into_business)
         })
     }
 
@@ -69,9 +67,7 @@ impl PersonAccountLinkPort for IdentityAccountLinkPort {
                 now,
             )
             .await
-            .map_err(
-                erpx_server_identity_access::public::people_account_link::into_business,
-            )
+            .map_err(erpx_server_identity_access::public::people_account_link::into_business)
         })
     }
 }

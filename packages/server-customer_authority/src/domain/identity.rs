@@ -4,9 +4,7 @@
 //! action; apply/reject require an independent eligible Company sales manager
 //! and recheck both the change version and the current customer master version.
 use crate::domain::access::normalize_reason;
-use erpx_server_shared::public::{
-    BusinessError, FailureKind, RecordId,
-};
+use erpx_server_shared::public::{BusinessError, FailureKind, RecordId};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -185,10 +183,7 @@ fn bounded(value: &str, min: usize, max: usize) -> Result<String, BusinessError>
     Ok(value.to_owned())
 }
 
-fn optional_bounded(
-    value: Option<String>,
-    max: usize,
-) -> Result<Option<String>, BusinessError> {
+fn optional_bounded(value: Option<String>, max: usize) -> Result<Option<String>, BusinessError> {
     match value {
         None => Ok(None),
         Some(value) => {
@@ -263,9 +258,7 @@ pub struct ValidatedIdentityRequest {
 
 impl IdentityRequest {
     pub fn validate(&self) -> Result<ValidatedIdentityRequest, BusinessError> {
-        if RecordId::new(self.customer_id.clone()).is_err()
-            || self.expected_customer_version < 1
-        {
+        if RecordId::new(self.customer_id.clone()).is_err() || self.expected_customer_version < 1 {
             return Err(request_invalid());
         }
         Ok(ValidatedIdentityRequest {
@@ -640,10 +633,7 @@ pub fn change_plan(
         return Err(change_changed());
     }
     let proposed = if input.action.is_resubmit() {
-        input
-            .proposed
-            .clone()
-            .ok_or_else(request_invalid)?
+        input.proposed.clone().ok_or_else(request_invalid)?
     } else {
         serde_json::from_value(row.proposed.clone()).map_err(|_| request_invalid())?
     };

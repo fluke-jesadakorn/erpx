@@ -21,8 +21,7 @@ use crate::{
         },
         effective_authority::IamAuthorityQuery,
         invitation_authority::{
-            InvitationGrant, ReviewedInvitationGrant, StaffInvitationGrant,
-            invitation_scope_covers,
+            InvitationGrant, ReviewedInvitationGrant, StaffInvitationGrant, invitation_scope_covers,
         },
     },
 };

@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export function betaInvitationSources(db:SqlDatabase){return {async acceptedAssignment(value:string,id:string,now:number){return db
@@ -44,10 +45,7 @@ guardReviewedRole(key:string,value:string,roleId:string,company_id:string,expect
           "EXISTS(SELECT 1 FROM iam_roles WHERE id=? AND company_id IN ('*',?) AND published_revision=?)",
           [roleId, company_id, expectedRoleRevision],
         );},
-prepareItAssignment(value:string,id:string,company_id:string,now:number,validUntil:number,parentId:string){return db
-              .prepare(
-                "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,scope_kind,parent_id,source) VALUES(?,?,'it_admin','[\"collaboration\"]',?,?,?,'holding',?,'manual')",
-              )
+prepareItAssignment(value:string,id:string,company_id:string,now:number,validUntil:number,parentId:string){return nativePrepare("w_ca99a9314958")
               .bind(
                 value,
                 id,

@@ -1,5 +1,0 @@
-{
-  "pp_operations_people_lifecycle_worker_effects_stmt_1": "UPDATE employees SET status='inactive' WHERE company_id=$1 AND person_id=$2",
-  "pp_operations_people_lifecycle_worker_effects_stmt_2": "UPDATE employees SET branch_id=$3,department_id=$4,status='active' WHERE company_id=$1 AND person_id=$2",
-  "pp_operations_people_lifecycle_worker_effects_stmt_3": "INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)"
-}

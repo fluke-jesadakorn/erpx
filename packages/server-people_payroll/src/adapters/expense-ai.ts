@@ -1,4 +1,4 @@
-import { nativePpExpenseAiSql } from '@erpx/server-collaboration/adapters/native-pp-expense-ai-sql';
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {peoplePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {captureExpenseQueueActor,withExpensePurchasedRead,withExpensePurchasedCommand,expenseFinalRead} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import {withExpenseAiPurchasedClaim,withExpenseAiPurchasedMutation,expenseJobUnavailable} from "@erpx/server-people_payroll/adapters/expense-ai-purchases";
@@ -178,13 +178,8 @@ function originalNativeExpenseAiQueue(db: SqlDatabase, env: BetaEnvironment) {
           now - 60000,
         ],
       ),
-      ...(existing?.state === "ready" && input.retry ? [db.prepare(
-        nativePpExpenseAiSql('pp_expense_ai_stmt_1'),
-      ).bind(now, existing.id, actor.companyId)] : []),
-      db
-        .prepare(
-          nativePpExpenseAiSql('pp_expense_ai_stmt_2'),
-        )
+      ...(existing?.state === "ready" && input.retry ? [nativePpStatement('pp_expense_ai_stmt_1').bind(now, existing.id, actor.companyId)] : []),
+      nativePpStatement('pp_expense_ai_stmt_2')
         .bind(
           proposalId,
           actor.companyId,
@@ -200,10 +195,7 @@ function originalNativeExpenseAiQueue(db: SqlDatabase, env: BetaEnvironment) {
           JSON.stringify(actor),
           input.financePolicyVersion ?? null,
         ),
-      db
-        .prepare(
-          nativePpExpenseAiSql('pp_expense_ai_stmt_3'),
-        )
+      nativePpStatement('pp_expense_ai_stmt_3')
         .bind(
           proposalId,
           actor.companyId,
@@ -237,7 +229,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       try { return await withExpenseAiPurchasedClaim(db,id,async database=>{
       const db=database;
       const now = Date.now(), lease = crypto.randomUUID();
-      const claimed = await db.prepare(nativePpExpenseAiSql('pp_expense_ai_stmt_4'))
+      const claimed = await nativePpStatement('pp_expense_ai_stmt_4')
         .bind(lease, now + 120000, now, id, now).run();
       if (claimed.meta.changes !== 1) return null;
       const row = (await db.prepare("SELECT * FROM expense_ai_proposals WHERE id=?").bind(id).first<Proposal>())!;
@@ -248,7 +240,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       let renewing: Promise<void> | null = null;
       const renewal = setInterval(() => {
         if (renewing) return;
-        renewing = db.prepare(nativePpExpenseAiSql('pp_expense_ai_stmt_5'))
+        renewing = nativePpStatement('pp_expense_ai_stmt_5')
           .bind(Date.now() + 120000, id, lease).run().then(() => {}).catch(() => {}).finally(() => { renewing = null; });
       }, 30000);
       return async () => { clearInterval(renewal); await renewing; };
@@ -262,7 +254,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
     allowed: (actor, claim, paymentId) => expenseAiAllowed(db, actor, claim, paymentId,"settle-existing"),
     async accounts(companyId) { return (await db.prepare(`SELECT a.id,a.name,a.code,a.currency FROM (${financeProjectionSources.finance_accounts}) a JOIN (${commerceProjectionSources.commerce_settings}) s ON s.chart_id=a.chart_id AND s.company_id=a.company_id WHERE a.company_id=? AND a.category='expense' AND a.status='active'`).bind(companyId).all<{ id: string; name: string; currency: string }>()).results; },
     async periods(companyId) { return (await db.prepare(`SELECT id,name,start_date,end_date FROM (${financeProjectionSources.finance_periods}) finance_periods WHERE company_id=? AND state='open'`).bind(companyId).all<{ id: string }>()).results; },
-    async renew(id, lease) { await withExpenseAiPurchasedMutation(db,id,async database=>{await database.prepare(nativePpExpenseAiSql('pp_expense_ai_renew')).bind(Date.now()+120000,id,lease).run();}); },
+    async renew(id, lease) { await withExpenseAiPurchasedMutation(db,id,async database=>{await nativePpStatement('pp_expense_ai_renew').bind(Date.now()+120000,id,lease).run();}); },
     async imageContent(context, batch) {
       const content: Exclude<AiMessage["content"], string> = [
           {
@@ -331,7 +323,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       const db=database;
       const snapshot = JSON.parse(row.provider_json) as Providers;
       const usageStatements = (status: "succeeded" | "failed") => expenseAiUsageStatements(db, id, lease, row, actor, usage, status);
-      await db.batch([
+      await db.batch(await Promise.all([
       ...receiptPolicyGuards(db,row.company_id,row.finance_policy_version,lease),
       ...productionFeatureGuard(db,lease,row.company_id,"people_payroll"),
       assertion(
@@ -344,19 +336,13 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
       authority.guard(lease),
       ...source.guards(lease),
       ...providerGuards(db, lease, snapshot),
-      db
-        .prepare(
-          nativePpExpenseAiSql('pp_expense_ai_stmt_6'),
-        )
+      nativePpStatement('pp_expense_ai_stmt_6')
         .bind(JSON.stringify(result), Date.now(), id),
-      db
-        .prepare(
-          nativePpExpenseAiSql('pp_expense_ai_stmt_7'),
-        )
+      nativePpStatement('pp_expense_ai_stmt_7')
         .bind(inputTokens, outputTokens, id),
       ...usageStatements("succeeded"),
       workflowExpenseEffects(db).clearAssertions({commandId:lease}),
-    ]);
+    ]));
       };
       if(await peoplePackageEnforcementMode()==='disabled')return apply(db,capturedAuthority as Awaited<ReturnType<typeof expenseAuthoritySnapshot>>,capturedSource.native as Awaited<ReturnType<typeof expenseAiSource>>);
       await withExpenseAiPurchasedMutation(db,id,async database=>{
@@ -372,7 +358,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
     async holdsLease(id, lease) { return Boolean(await db.prepare("SELECT 1 FROM expense_ai_proposals WHERE id=? AND state='running' AND lease_token=?").bind(id, lease).first()); },
     async fail(id, lease, row, actor, stale, message, inputTokens, outputTokens, usage) {
       const usageStatements = (status: "succeeded" | "failed") => expenseAiUsageStatements(db, id, lease, row, actor, usage, status);
-      await db.batch([
+      await db.batch(await Promise.all([
       assertion(
         db,
         lease,
@@ -380,19 +366,13 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
         "EXISTS(SELECT 1 FROM expense_ai_proposals WHERE id=? AND state='running' AND lease_token=?)",
         [id, lease],
       ),
-      db
-        .prepare(
-          nativePpExpenseAiSql('pp_expense_ai_stmt_8'),
-        )
+      nativePpStatement('pp_expense_ai_stmt_8')
         .bind(stale ? "stale" : "failed", message, Date.now(), id, lease),
-      db
-        .prepare(
-          nativePpExpenseAiSql('pp_expense_ai_stmt_9'),
-        )
+      nativePpStatement('pp_expense_ai_stmt_9')
         .bind(inputTokens, outputTokens, id),
       ...usageStatements("failed"),
       workflowExpenseEffects(db).clearAssertions({commandId:lease}),
-    ]);
+    ]));
     },
   });
 }

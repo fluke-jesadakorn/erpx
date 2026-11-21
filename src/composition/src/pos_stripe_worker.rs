@@ -8,19 +8,25 @@
 //! this worker and fails closed without it; there is no TS completion fallback.
 use crate::pos_effects::{PosEffectFlush, flush_pos_effects};
 use erpx_server_finance::public::FinanceActor;
-use erpx_server_finance::public::pos_sources::{read_open_period_for_date, PosBankTransaction as PosBankSnapshot};
+use erpx_server_finance::public::pos_sources::{
+    PosBankTransaction as PosBankSnapshot, read_open_period_for_date,
+};
 use erpx_server_inventory::public::availability_read::read_availability;
-use erpx_server_inventory::public::pos_consumption::{PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts};
+use erpx_server_inventory::public::pos_consumption::{
+    PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts,
+};
 use erpx_server_organization::public::pos_issuer::read_company_display_name;
 use erpx_server_pos::public::commands::{
-    PgPosCommandRepository, PosActor, PosBankTransaction as PosDomainBankTransaction,
-    PosCommand, PosCommandInput, PosCommandRepository, PosConsumptionPart, PosFinancePort,
-    PosFuture, PosHospitalityPort, PosInventoryPort, PosInvoiceAllocationRequest,
-    PosInvoiceRequest, PosJournalRequest, PosOperation, PosOrganizationPort, PosReceiptRequest,
+    PgPosCommandRepository, PosActor, PosBankTransaction as PosDomainBankTransaction, PosCommand,
+    PosCommandInput, PosCommandRepository, PosConsumptionPart, PosFinancePort, PosFuture,
+    PosHospitalityPort, PosInventoryPort, PosInvoiceAllocationRequest, PosInvoiceRequest,
+    PosJournalRequest, PosOperation, PosOrganizationPort, PosReceiptRequest,
     PosRefundPaymentRequest, PosResult, PosReturnPart, PosSaleMoneyRequest, PosStockRow,
     execute_pos_command,
 };
-use erpx_server_runtime::public::postgres::{DatabaseConfig, DatabasePool, PoolLimits, connect_pool};
+use erpx_server_runtime::public::postgres::{
+    DatabaseConfig, DatabasePool, PoolLimits, connect_pool,
+};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, TimestampMillis,
 };
@@ -135,7 +141,10 @@ impl PosFinancePort for DrainFinance {
             }
         })
     }
-    fn post_journal<'a>(&'a mut self, request: &'a PosJournalRequest) -> PosFuture<'a, Option<String>> {
+    fn post_journal<'a>(
+        &'a mut self,
+        request: &'a PosJournalRequest,
+    ) -> PosFuture<'a, Option<String>> {
         Box::pin(async move {
             let journal_id = format!("journal-{}", request.source_key);
             self.journals.push(request.clone());
@@ -163,16 +172,20 @@ impl PosFinancePort for DrainFinance {
         id: &'a str,
     ) -> PosFuture<'a, Option<PosDomainBankTransaction>> {
         Box::pin(async move {
-            Ok(self.bank.as_ref().filter(|b| b.id == id).map(|b| PosDomainBankTransaction {
-                id: b.id.clone(),
-                version: b.version,
-                match_status: b.match_status.clone(),
-                bank_account: b.bank_account.clone(),
-                currency: b.currency.clone(),
-                amount_minor: b.amount_minor,
-                external_id: b.external_id.clone(),
-                transaction_date: b.transaction_date.clone(),
-            }))
+            Ok(self
+                .bank
+                .as_ref()
+                .filter(|b| b.id == id)
+                .map(|b| PosDomainBankTransaction {
+                    id: b.id.clone(),
+                    version: b.version,
+                    match_status: b.match_status.clone(),
+                    bank_account: b.bank_account.clone(),
+                    currency: b.currency.clone(),
+                    amount_minor: b.amount_minor,
+                    external_id: b.external_id.clone(),
+                    transaction_date: b.transaction_date.clone(),
+                }))
         })
     }
     fn attach_bank_payment<'a>(
@@ -181,12 +194,17 @@ impl PosFinancePort for DrainFinance {
         finance_payment_id: &'a str,
     ) -> PosFuture<'a, ()> {
         Box::pin(async move {
-            self.bank_matches
-                .push((bank_transaction_id.to_owned(), finance_payment_id.to_owned()));
+            self.bank_matches.push((
+                bank_transaction_id.to_owned(),
+                finance_payment_id.to_owned(),
+            ));
             Ok(())
         })
     }
-    fn record_refund_payment<'a>(&'a mut self, request: &'a PosRefundPaymentRequest) -> PosFuture<'a, ()> {
+    fn record_refund_payment<'a>(
+        &'a mut self,
+        request: &'a PosRefundPaymentRequest,
+    ) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.refund_payments.push(request.clone());
             Ok(())
@@ -422,10 +440,17 @@ async fn run_once(pool: &DatabasePool, holding: &str) -> Result<String, &'static
         .await
         .map_err(|_| "POS_STRIPE_JOB_CLAIM_FAILED")?;
         let Some((id, company_id, record_id, payload)) = claimed else {
-            tx.commit().await.map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
+            tx.commit()
+                .await
+                .map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
             break;
         };
-        let job = ClaimedJob { id, company_id, record_id, payload };
+        let job = ClaimedJob {
+            id,
+            company_id,
+            record_id,
+            payload,
+        };
         let job_id = job.id.clone();
         match process_one(&mut tx, holding, job, &token).await {
             Ok(retry) => {
@@ -441,7 +466,9 @@ async fn run_once(pool: &DatabasePool, holding: &str) -> Result<String, &'static
                 .execute(&mut *tx)
                 .await
                 .map_err(|_| "POS_STRIPE_JOB_COMPLETE_FAILED")?;
-                tx.commit().await.map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
+                tx.commit()
+                    .await
+                    .map_err(|_| "POS_STRIPE_TRANSACTION_FAILED")?;
                 applied += 1;
             }
             Err(code) => {

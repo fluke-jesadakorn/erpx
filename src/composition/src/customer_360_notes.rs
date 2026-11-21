@@ -25,9 +25,7 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{
-    PersistenceError, PgTransactionError, PgWorkFuture,
-};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
 };
@@ -754,8 +752,8 @@ impl<C: Clock + Send + Sync + 'static> CustomerNotesService<C> {
                         )
                         .await?;
                         for note in &mut view.notes {
-                            note.can_change = actor.can_create
-                                && same_or_manager(current, &note.created_by);
+                            note.can_change =
+                                actor.can_create && same_or_manager(current, &note.created_by);
                         }
                         Ok(view)
                     })

@@ -462,13 +462,20 @@ async fn marker_held(c: &mut PgConnection, marker: i64) -> Result<bool, Error> {
 async fn applied_marker(c: &mut PgConnection) -> Result<i64, Error> {
     for _ in 0..16 {
         let entropy: String = sqlx::query_scalar("SELECT gen_random_uuid()::text")
-            .fetch_one(&mut *c).await?;
+            .fetch_one(&mut *c)
+            .await?;
         let hash = Sha256::digest(entropy.as_bytes());
         let marker = i64::from_be_bytes(hash[..8].try_into().expect("eight bytes"));
-        if marker_held(c, marker).await? { continue; }
+        if marker_held(c, marker).await? {
+            continue;
+        }
         let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
-            .bind(marker).fetch_one(&mut *c).await?;
-        if acquired { return Ok(marker); }
+            .bind(marker)
+            .fetch_one(&mut *c)
+            .await?;
+        if acquired {
+            return Ok(marker);
+        }
     }
     Err(PersistenceError::new("SUPPLIER_PROMISE_EVIDENCE_MARKER_UNAVAILABLE").into())
 }
@@ -489,7 +496,10 @@ impl RetainedSupplierPromiseEvidence {
         set_ids: &[String],
     ) -> Result<(), Error> {
         let mut seen = HashSet::new();
-        let expected: Vec<_> = set_ids.iter().filter(|id| seen.insert(id.as_str())).collect();
+        let expected: Vec<_> = set_ids
+            .iter()
+            .filter(|id| seen.insert(id.as_str()))
+            .collect();
         if unit(c).await? != self.evidence.unit
             || &self.facts != facts
             || !self.evidence.sets.iter().map(|set| &set.id).eq(expected)

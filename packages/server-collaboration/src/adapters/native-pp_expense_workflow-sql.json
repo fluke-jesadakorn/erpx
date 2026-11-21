@@ -1,8 +1,0 @@
-{
-  "pp_expense_workflow_stmt_1": "UPDATE finance_expenses SET category_account_id=?,amount_minor=?,tax_minor=?,accounting_json=?,version=version+1,updated_at=? WHERE id=?",
-  "pp_expense_workflow_stmt_2": "UPDATE finance_expenses SET employee_id=?,engagement_id=?,branch_id=?,department_id=?,workflow_version=2,workflow_stage=?,status='in_review',accounting_json='{}',approved_by=NULL,rejection_reason=NULL,submitted_at=?,version=version+1,updated_at=? WHERE id=?",
-  "pp_expense_workflow_stmt_3": "UPDATE finance_expenses SET workflow_stage='cancelled',status='rejected',cancelled_at=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?",
-  "pp_expense_workflow_stmt_4": "UPDATE finance_expenses SET status='rejected',workflow_stage='draft',accounting_json='{}',approved_by=NULL,rejection_reason=?,version=version+1,updated_at=? WHERE id=?",
-  "pp_expense_workflow_stmt_5": "UPDATE finance_expenses SET status='approved',workflow_stage='gl_posting',approved_by=?,version=version+1,updated_at=? WHERE id=?",
-  "pp_expense_workflow_stmt_6": "UPDATE finance_expenses SET status=?,workflow_stage=?,rejection_reason=?,version=version+1,updated_at=? WHERE id=?"
-}

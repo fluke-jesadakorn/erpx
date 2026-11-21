@@ -2,12 +2,25 @@
 //! remains with the selected coordinator; owner ports supply the Billing
 //! workspace and cost-review command facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_billing::public::access_event::{AccessEvent, record_access_event};
+use erpx_server_billing::public::access_event_http::{
+    BillingAccessEventHttpBackend, BillingAccessEventHttpFuture, BillingAccessEventHttpRequest,
+    BillingAccessEventHttpResponse, BillingOwnerWriteHttpRequest, BillingOwnerWriteHttpResponse,
+};
+use erpx_server_billing::public::billing_owner_write::build_owner_write;
 use erpx_server_billing::public::billing_http::{
     BillingCommandHttpRequest, BillingHttpBackend, BillingHttpFuture, BillingHttpResponse,
     BillingWorkspaceHttpRequest,
 };
 use erpx_server_billing::public::cost::PgBillingCostCommand;
 use erpx_server_billing::public::cost::{BillingCostCommand, execute_cost_command};
+use erpx_server_billing::public::invoice::{
+    BillingInvoiceCommand, PgBillingInvoiceRepository, execute_invoice_command,
+};
+use erpx_server_billing::public::invoice_http::{
+    BillingInvoiceHttpBackend, BillingInvoiceHttpFuture, BillingInvoiceHttpRequest,
+    BillingInvoiceHttpResponse, BillingInvoiceHttpTarget,
+};
 use erpx_server_billing::public::retry_job::{RetryJob, execute_retry_job};
 use erpx_server_billing::public::retry_job_http::{
     BillingRetryJobHttpBackend, BillingRetryJobHttpFuture, BillingRetryJobHttpRequest,
@@ -48,13 +61,6 @@ use erpx_server_identity_access::public::{
     work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_billing::public::invoice::{
-    BillingInvoiceCommand, PgBillingInvoiceRepository, execute_invoice_command,
-};
-use erpx_server_billing::public::invoice_http::{
-    BillingInvoiceHttpBackend, BillingInvoiceHttpFuture, BillingInvoiceHttpRequest,
-    BillingInvoiceHttpResponse, BillingInvoiceHttpTarget,
-};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
@@ -185,10 +191,7 @@ async fn billing_actor(
 /// context stays local to composition; non-billing consumers are unaffected.
 /// The already-computed actor carries the retained authority values, so the
 /// projection adds no new DB read.
-fn actor_context(
-    actor: &BillingActor,
-    target: &HoldingId,
-) -> Result<Value, BusinessError> {
+fn actor_context(actor: &BillingActor, target: &HoldingId) -> Result<Value, BusinessError> {
     serde_json::to_value(actor.context(target)).map_err(|_| unavailable())
 }
 
@@ -594,8 +597,55 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
             )
             .await
     }
-}
 
+    /// Append one Billing evidence-access audit event through the native owner
+    /// command. IAM/scope/session checks stay here; the owner crate owns the SQL.
+    pub async fn access_event<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: AccessEvent,
+    ) -> Result<BillingAccessEventHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                BillingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = billing_actor(current, connection, now).await?;
+                        record_access_event(connection, &actor, &holding, &command, now).await?;
+                        Ok(BillingAccessEventHttpResponse {
+                            data: serde_json::json!({"ok": true}),
+                            context: serde_json::to_value(actor.context(&holding))
+                                .map_err(|_| unavailable())?,
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
 
 impl<C: Clock + Send + Sync + 'static> BillingService<C> {
     pub async fn invoice<Input>(
@@ -697,7 +747,6 @@ impl<C: Clock + Send + Sync + 'static> BillingBackend<C> {
     }
 }
 
-
 impl<C: Clock + Send + Sync + 'static> BillingInvoiceHttpBackend for BillingBackend<C> {
     fn command<'a>(
         &'a self,
@@ -795,6 +844,49 @@ impl<C: Clock + Send + Sync + 'static> BillingRetryJobHttpBackend for BillingBac
                     context: response.context,
                 })
                 .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> BillingAccessEventHttpBackend for BillingBackend<C> {
+    fn append<'a>(
+        &'a self,
+        request: BillingAccessEventHttpRequest<'a>,
+    ) -> BillingAccessEventHttpFuture<'a, BillingAccessEventHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .access_event(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    /// One owner-wide write. Browser calls carry the current session; worker
+    /// and job calls carry `x-erpx-owner-write-system` and are bound by the
+    /// exact registered Holding target and bounded Idempotency-Key instead.
+    fn owner_write<'a>(
+        &'a self,
+        request: BillingOwnerWriteHttpRequest<'a>,
+    ) -> BillingAccessEventHttpFuture<'a, BillingOwnerWriteHttpResponse> {
+        Box::pin(async move {
+            if request
+                .headers
+                .get("x-erpx-owner-write-system")
+                .is_none()
+            {
+                let _ = self.context(request.headers)?;
+            }
+            let holding = HoldingId::new(request.holding_slug).map_err(|_| unavailable())?;
+            let statement = build_owner_write(&holding, request.command)?;
+            let data = serde_json::to_value(&statement).map_err(|_| unavailable())?;
+            Ok(BillingOwnerWriteHttpResponse {
+                data,
+                context: serde_json::json!({
+                    "holdingId": holding.as_str(),
+                    "system": request.headers.get("x-erpx-owner-write-system").is_some(),
+                }),
+            })
         })
     }
 }

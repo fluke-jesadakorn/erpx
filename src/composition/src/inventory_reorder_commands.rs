@@ -14,9 +14,9 @@ use erpx_server_identity_access::public::{
     work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_inventory::public::reorder_policies::{
-    ReorderActionInput, ReorderSaveInput, apply_reorder_save,
-    apply_reorder_transition, lock_reorder_sources, plan_save, plan_transition,
-    read_reorder_save_source, read_reorder_transition_source,
+    ReorderActionInput, ReorderSaveInput, apply_reorder_save, apply_reorder_transition,
+    lock_reorder_sources, plan_save, plan_transition, read_reorder_save_source,
+    read_reorder_transition_source,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
@@ -43,10 +43,13 @@ fn changed() -> BusinessError {
 
 fn policy_id(company: &str, warehouse: &str, product: &str) -> String {
     let digest = Sha256::digest(format!("{company}:{warehouse}:{product}").as_bytes());
-    let hex: String = digest.iter().flat_map(|byte| {
-        let pair = format!("{byte:02x}");
-        pair.chars().collect::<Vec<_>>()
-    }).collect();
+    let hex: String = digest
+        .iter()
+        .flat_map(|byte| {
+            let pair = format!("{byte:02x}");
+            pair.chars().collect::<Vec<_>>()
+        })
+        .collect();
     format!("reorder-{}", &hex[..32])
 }
 

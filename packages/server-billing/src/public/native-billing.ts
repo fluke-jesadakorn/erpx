@@ -1,5 +1,6 @@
 export {
   createNativeBillingClient,
+  createNativeEvidenceAccessClient,
   nativeBillingAvailable,
   nativeBillingCommandRequest,
   nativeBillingConfiguration,
@@ -9,6 +10,7 @@ export {
 export type {
   NativeBillingCommandInput,
   NativeBillingConfiguration,
+  NativeEvidenceAccessEvent,
   NativeBillingPageContext,
   NativeBillingReadInput,
   NativeBillingTransport,

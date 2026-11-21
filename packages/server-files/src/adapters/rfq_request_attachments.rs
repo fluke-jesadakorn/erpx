@@ -26,7 +26,9 @@ pub async fn read_rfq_request_attachments(
         .bind(request_id)
         .fetch_all(connection)
         .await?;
-    if rows.iter().any(|row| row.3.unsigned_abs()>9_007_199_254_740_991 || row.6.unsigned_abs()>9_007_199_254_740_991) {
+    if rows.iter().any(|row| {
+        row.3.unsigned_abs() > 9_007_199_254_740_991 || row.6.unsigned_abs() > 9_007_199_254_740_991
+    }) {
         return Err(PersistenceError::new("DATABASE_NUMBER_OUT_OF_RANGE").into());
     }
     Ok(rows

@@ -7,8 +7,8 @@ use crate::domain::{
     account_auth::SESSION_LIFETIME_MS,
     environment::valid_environment,
     portal_session::{
-        session_required, valid_audience, valid_session_token, PortalSessionProof,
-        PortalSessionReadRequest,
+        PortalSessionProof, PortalSessionReadRequest, session_required, valid_audience,
+        valid_session_token,
     },
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
@@ -163,7 +163,7 @@ mod tests {
     use super::fixture;
     use super::*;
     use erpx_server_runtime::public::postgres::{
-        load_migrations, migrate_database, DatabasePool, MigrationTrack,
+        DatabasePool, MigrationTrack, load_migrations, migrate_database,
     };
 
     const NOW: i64 = 1_800_000_000_000;

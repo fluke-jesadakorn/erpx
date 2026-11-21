@@ -20,10 +20,7 @@ use crate::domain::job_projector::{
 use erpx_server_runtime::public::postgres::PersistenceError;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::PgConnection;
-use std::{
-    future::Future,
-    pin::Pin,
-};
+use std::{future::Future, pin::Pin};
 
 pub type ProjectionSourceFuture<'a> =
     Pin<Box<dyn Future<Output = Result<Option<ProjectionSource>, BusinessError>> + Send + 'a>>;

@@ -1,12 +1,12 @@
 //! Social owner rows. No IAM, purchase, People or Records query is made here;
 //! composition supplies the current authority result and readable mention labels.
+use crate::adapters::social_upload_files::SocialUploadFilesPort;
 use crate::domain::social::{
     Audience, CommentSnapshot, CommentState, FeedCursor, Mention, MentionKind, OwnerPlan,
     PostSnapshot, PostState, Receipt, SocialActor, can_read_post, hashtags, normalize_tags,
     plan_receipt, post_not_found, require_published_post, story_conflict,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use crate::adapters::social_upload_files::SocialUploadFilesPort;
 use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, FailureKind};
 use serde::Serialize;
 use serde_json::Value;
@@ -123,11 +123,7 @@ pub async fn read_post(
     let linked_record = linked_module
         .zip(linked_id)
         .zip(linked_label)
-        .map(|((module, id), label)| crate::domain::social::LinkedRecord {
-            module,
-            id,
-            label,
-        });
+        .map(|((module, id), label)| crate::domain::social::LinkedRecord { module, id, label });
     Ok(Some(PostSnapshot {
         id: row.try_get(0)?,
         author_id: row.try_get(1)?,
@@ -193,11 +189,13 @@ async fn post_topics(
 ) -> Result<(), Error> {
     for tag in tags {
         topic(c, tag, user, now).await?;
-        sqlx::query("INSERT INTO social_post_topics(post_id,tag) VALUES($1,$2) ON CONFLICT DO NOTHING")
-            .bind(post_id)
-            .bind(tag)
-            .execute(&mut *c)
-            .await?;
+        sqlx::query(
+            "INSERT INTO social_post_topics(post_id,tag) VALUES($1,$2) ON CONFLICT DO NOTHING",
+        )
+        .bind(post_id)
+        .bind(tag)
+        .execute(&mut *c)
+        .await?;
     }
     Ok(())
 }
@@ -268,7 +266,11 @@ async fn mentions(
     Ok(())
 }
 
-async fn clear_mentions(c: &mut PgConnection, owner_type: &str, owner_id: &str) -> Result<(), Error> {
+async fn clear_mentions(
+    c: &mut PgConnection,
+    owner_type: &str,
+    owner_id: &str,
+) -> Result<(), Error> {
     sqlx::query("DELETE FROM social_mentions WHERE owner_type=$1 AND owner_id=$2")
         .bind(owner_type)
         .bind(owner_id)
@@ -350,10 +352,7 @@ fn comment_row(row: sqlx::postgres::PgRow) -> Result<FeedComment, sqlx::Error> {
     })
 }
 
-async fn comments(
-    c: &mut PgConnection,
-    post_id: &str,
-) -> Result<Vec<FeedComment>, Error> {
+async fn comments(c: &mut PgConnection, post_id: &str) -> Result<Vec<FeedComment>, Error> {
     sqlx::query(
         "SELECT id,post_id,author_id,author_name,body,created_at FROM social_comments WHERE post_id=$1 AND state='published' ORDER BY created_at,id LIMIT 50",
     )
@@ -463,7 +462,10 @@ pub async fn read_thread(
     post_id: &str,
 ) -> Result<Vec<FeedPost>, Error> {
     let posts = read_feed(c, actor, FeedFilter::All, None, 100).await?;
-    Ok(posts.into_iter().filter(|post| post.id == post_id).collect())
+    Ok(posts
+        .into_iter()
+        .filter(|post| post.id == post_id)
+        .collect())
 }
 
 pub async fn read_comments(
@@ -737,7 +739,16 @@ pub async fn apply_plan(
             .execute(&mut *c)
             .await?;
             post_topics(c, id, tags, &actor.user_id, now).await?;
-            mentions(c, "post", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
+            mentions(
+                c,
+                "post",
+                id,
+                mention_rows,
+                &actor.user_id,
+                &actor.company_id,
+                now,
+            )
+            .await?;
             Ok(expected.clone())
         }
         OwnerPlan::CreateStory {
@@ -856,7 +867,16 @@ pub async fn apply_plan(
                 }
             }
             comment_topics(c, id, tags, &actor.user_id, now).await?;
-            mentions(c, "comment", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
+            mentions(
+                c,
+                "comment",
+                id,
+                mention_rows,
+                &actor.user_id,
+                &actor.company_id,
+                now,
+            )
+            .await?;
             Ok(expected.clone())
         }
         OwnerPlan::UpdateComment {
@@ -890,7 +910,16 @@ pub async fn apply_plan(
                 .execute(&mut *c)
                 .await?;
             comment_topics(c, id, tags, &actor.user_id, now).await?;
-            mentions(c, "comment", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
+            mentions(
+                c,
+                "comment",
+                id,
+                mention_rows,
+                &actor.user_id,
+                &actor.company_id,
+                now,
+            )
+            .await?;
             Ok(expected.clone())
         }
         OwnerPlan::TombstoneComment {
@@ -1088,7 +1117,16 @@ pub async fn apply_plan(
             }
             let tags = normalize_tags(&hashtags(body))?;
             post_topics(c, id, &tags, &actor.user_id, now).await?;
-            mentions(c, "post", id, mention_rows, &actor.user_id, &actor.company_id, now).await?;
+            mentions(
+                c,
+                "post",
+                id,
+                mention_rows,
+                &actor.user_id,
+                &actor.company_id,
+                now,
+            )
+            .await?;
             if let Some(upload_id) = edit_upload_id {
                 let bound = sqlx::query(
                     "UPDATE social_post_drafts SET edit_saved_version=$1,version=version+1,updated_at=$2 WHERE id=$3 AND edit_saved_version IS NULL AND cancelled_at IS NULL",
@@ -1502,7 +1540,10 @@ pub async fn retain_effects(
             }
             capture(c, &mut images, format!("comment:{id}")).await?;
         }
-        OwnerPlan::SetReaction { post_id, .. } | OwnerPlan::SetFollow { target_id: post_id, .. } => {
+        OwnerPlan::SetReaction { post_id, .. }
+        | OwnerPlan::SetFollow {
+            target_id: post_id, ..
+        } => {
             if receipt.id != *post_id {
                 return Err(changed());
             }
@@ -1515,12 +1556,7 @@ pub async fn retain_effects(
             if receipt.id != *post_id {
                 return Err(changed());
             }
-            capture(
-                c,
-                &mut images,
-                format!("report:{post_id}:{reporter_id}"),
-            )
-            .await?;
+            capture(c, &mut images, format!("report:{post_id}:{reporter_id}")).await?;
         }
         OwnerPlan::SaveDraft { id, .. } => {
             if receipt.id != *id {
@@ -1591,17 +1627,28 @@ mod tests {
     #[test]
     fn audience_and_mentions_round_trip_from_stored_json() {
         assert_eq!(audience(Some("company"), None).unwrap(), Audience::Holding);
-        assert_eq!(audience(Some("branch"), Some("b")).unwrap(), Audience::Branch);
-        assert_eq!(audience(Some("department"), Some("b")).unwrap(), Audience::Branch);
-        let rows = mention_rows(r#"[{"kind":"person","targetId":"user","label":"User"}]"#)
-            .unwrap();
+        assert_eq!(
+            audience(Some("branch"), Some("b")).unwrap(),
+            Audience::Branch
+        );
+        assert_eq!(
+            audience(Some("department"), Some("b")).unwrap(),
+            Audience::Branch
+        );
+        let rows = mention_rows(r#"[{"kind":"person","targetId":"user","label":"User"}]"#).unwrap();
         assert_eq!(rows[0].kind, MentionKind::Person);
         assert_eq!(rows[0].label, "User");
     }
 
     #[test]
     fn post_and_comment_bounds_match_the_original_schema() {
-        assert_eq!(FeedFilter::parse("following").unwrap(), FeedFilter::Following);
-        assert_eq!(FeedFilter::parse("bogus").unwrap_err().code, "INVALID_FILTER");
+        assert_eq!(
+            FeedFilter::parse("following").unwrap(),
+            FeedFilter::Following
+        );
+        assert_eq!(
+            FeedFilter::parse("bogus").unwrap_err().code,
+            "INVALID_FILTER"
+        );
     }
 }

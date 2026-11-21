@@ -6,14 +6,11 @@
 //! re-checked, holds block destruction, and receipt/audit/outbox/version/event
 //! are written in the same serializable transaction. Business rules live here.
 use crate::domain::auxiliary::{
-    LegalAuxiliaryActor, LegalRetentionAction, destruction_transition,
-    positive_version, require_independent_review, retention_assignable, retention_requestable,
-    validate_reason,
+    LegalAuxiliaryActor, LegalRetentionAction, destruction_transition, positive_version,
+    require_independent_review, retention_assignable, retention_requestable, validate_reason,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{
-    BusinessError, CommandKey, FailureKind, IdentifierSource,
-};
+use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, IdentifierSource};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{future::Future, pin::Pin};
@@ -208,7 +205,13 @@ pub fn parse_retention_command(raw: &Value) -> Result<RetentionCommand, Business
         .ok_or_else(|| invalid("LEGAL_REQUEST_INVALID", "Use a current retention action."))?;
     let reason = validate_reason(wire.reason.as_deref().unwrap_or_default())?;
     if !action.policy_lifecycle() {
-        if wire.id.as_deref().map(str::trim).unwrap_or_default().is_empty() {
+        if wire
+            .id
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or_default()
+            .is_empty()
+        {
             return Err(invalid(
                 "LEGAL_REQUEST_INVALID",
                 "Choose the current Legal record.",
@@ -276,7 +279,10 @@ pub async fn execute_retention_command<P: LegalRetentionPorts>(
             .into());
         }
         let aggregate = actor.company_id.as_str().to_owned();
-        if let Some(prior) = ports.replay(key, request_hash, operation, &aggregate, raw).await? {
+        if let Some(prior) = ports
+            .replay(key, request_hash, operation, &aggregate, raw)
+            .await?
+        {
             return Ok(prior);
         }
         ports.company_lock(&aggregate).await?;
@@ -301,7 +307,9 @@ pub async fn execute_retention_command<P: LegalRetentionPorts>(
                 .await?;
             json!({"id": aggregate, "version": 1, "policyId": policy_id})
         } else {
-            let policy = ports.policy(&aggregate, command.policy_id.as_deref()).await?;
+            let policy = ports
+                .policy(&aggregate, command.policy_id.as_deref())
+                .await?;
             let Some(policy) = policy else {
                 return Err(invalid(
                     "LEGAL_REQUEST_INVALID",
@@ -311,11 +319,7 @@ pub async fn execute_retention_command<P: LegalRetentionPorts>(
             };
             let version = positive_version(command.policy_version)?;
             if policy.version != version {
-                return Err(conflict(
-                    "LEGAL_VERSION_CONFLICT",
-                    "Policy changed. Refresh.",
-                )
-                .into());
+                return Err(conflict("LEGAL_VERSION_CONFLICT", "Policy changed. Refresh.").into());
             }
             if command.action == LegalRetentionAction::ApprovePolicy {
                 require_independent_review(
@@ -368,7 +372,10 @@ pub async fn execute_retention_command<P: LegalRetentionPorts>(
     let Some((state, _, item_version)) = ports.item(actor, item_id).await? else {
         return Err(BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.").into());
     };
-    if let Some(prior) = ports.replay(key, request_hash, operation, item_id, raw).await? {
+    if let Some(prior) = ports
+        .replay(key, request_hash, operation, item_id, raw)
+        .await?
+    {
         return Ok(prior);
     }
     let expected = positive_version(command.expected_version)?;
@@ -424,12 +431,13 @@ pub async fn execute_retention_command<P: LegalRetentionPorts>(
                 .await?;
         }
         action => {
-            let Some(row) = ports.destruction(item_id, command.request_id.as_deref()).await? else {
-                return Err(invalid(
-                    "LEGAL_RETENTION_STATE",
-                    "Destruction request unavailable.",
-                )
-                .into());
+            let Some(row) = ports
+                .destruction(item_id, command.request_id.as_deref())
+                .await?
+            else {
+                return Err(
+                    invalid("LEGAL_RETENTION_STATE", "Destruction request unavailable.").into(),
+                );
             };
             let state = destruction_transition(action, &row.state)?;
             if action == LegalRetentionAction::Approve {
@@ -457,9 +465,7 @@ pub async fn execute_retention_command<P: LegalRetentionPorts>(
                 )
                 .into());
             }
-            ports
-                .change_destruction(&row.id, state, actor, now)
-                .await?;
+            ports.change_destruction(&row.id, state, actor, now).await?;
         }
     }
     let result = json!({"id": item_id, "version": next_version});
@@ -497,7 +503,10 @@ mod tests {
             branch_id: None,
             department_id: None,
             role: "legal_manager".into(),
-            permissions: permissions.iter().map(|value| (*value).to_owned()).collect(),
+            permissions: permissions
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect(),
         }
     }
 
@@ -522,12 +531,23 @@ mod tests {
     }
 
     impl LegalRetentionPorts for Fake {
-        fn replay<'a>(&'a mut self, _: &'a CommandKey, _: &'a str, _: &'a str, _: &'a str, _: &'a Value) -> RetentionFuture<'a, Option<Value>> {
+        fn replay<'a>(
+            &'a mut self,
+            _: &'a CommandKey,
+            _: &'a str,
+            _: &'a str,
+            _: &'a str,
+            _: &'a Value,
+        ) -> RetentionFuture<'a, Option<Value>> {
             self.calls.push("replay".into());
             let prior = self.replay.clone();
             Box::pin(async move { Ok(prior) })
         }
-        fn item<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, _: &'a str) -> RetentionFuture<'a, Option<(String, String, i64)>> {
+        fn item<'a>(
+            &'a mut self,
+            _: &'a LegalAuxiliaryActor,
+            _: &'a str,
+        ) -> RetentionFuture<'a, Option<(String, String, i64)>> {
             self.calls.push("item".into());
             let item = self.item.clone();
             Box::pin(async move { Ok(item) })
@@ -536,43 +556,96 @@ mod tests {
             self.calls.push("lock".into());
             Box::pin(async { Ok(()) })
         }
-        fn create_policy<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, id: &'a str, _: &'a str, _: i64, _: &'a str, _: i64) -> RetentionFuture<'a, ()> {
+        fn create_policy<'a>(
+            &'a mut self,
+            _: &'a LegalAuxiliaryActor,
+            id: &'a str,
+            _: &'a str,
+            _: i64,
+            _: &'a str,
+            _: i64,
+        ) -> RetentionFuture<'a, ()> {
             self.calls.push(format!("create_policy:{id}"));
             Box::pin(async { Ok(()) })
         }
-        fn policy<'a>(&'a mut self, _: &'a str, _: Option<&'a str>) -> RetentionFuture<'a, Option<RetentionPolicyRow>> {
+        fn policy<'a>(
+            &'a mut self,
+            _: &'a str,
+            _: Option<&'a str>,
+        ) -> RetentionFuture<'a, Option<RetentionPolicyRow>> {
             self.calls.push("policy".into());
             let policy = self.policy.clone();
             Box::pin(async move { Ok(policy) })
         }
-        fn decide_policy<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, _: &'a str, _: i64, state: &'a str) -> RetentionFuture<'a, ()> {
+        fn decide_policy<'a>(
+            &'a mut self,
+            _: &'a LegalAuxiliaryActor,
+            _: &'a str,
+            _: i64,
+            state: &'a str,
+        ) -> RetentionFuture<'a, ()> {
             self.calls.push(format!("decide:{state}"));
             Box::pin(async { Ok(()) })
         }
-        fn approved_policy<'a>(&'a mut self, _: &'a str, _: Option<&'a str>) -> RetentionFuture<'a, Option<(String, i64, i64)>> {
+        fn approved_policy<'a>(
+            &'a mut self,
+            _: &'a str,
+            _: Option<&'a str>,
+        ) -> RetentionFuture<'a, Option<(String, i64, i64)>> {
             self.calls.push("approved".into());
             let approved = self.approved.clone();
             Box::pin(async move { Ok(approved) })
         }
-        fn assign_retention<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, _: &'a str, _: &'a str, _: i64, days: i64, _: i64) -> RetentionFuture<'a, ()> {
+        fn assign_retention<'a>(
+            &'a mut self,
+            _: &'a LegalAuxiliaryActor,
+            _: &'a str,
+            _: &'a str,
+            _: i64,
+            days: i64,
+            _: i64,
+        ) -> RetentionFuture<'a, ()> {
             self.calls.push(format!("assign:{days}"));
             Box::pin(async { Ok(()) })
         }
-        fn eligible_assignment<'a>(&'a mut self, _: &'a str, _: i64) -> RetentionFuture<'a, Option<RetentionAssignmentFacts>> {
+        fn eligible_assignment<'a>(
+            &'a mut self,
+            _: &'a str,
+            _: i64,
+        ) -> RetentionFuture<'a, Option<RetentionAssignmentFacts>> {
             self.calls.push("eligible".into());
             let assignment = self.assignment.clone();
             Box::pin(async move { Ok(assignment) })
         }
-        fn request_destruction<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, _: &'a str, policy: &'a str, version: i64, _: &'a Value, _: &'a str, _: i64) -> RetentionFuture<'a, ()> {
+        fn request_destruction<'a>(
+            &'a mut self,
+            _: &'a LegalAuxiliaryActor,
+            _: &'a str,
+            policy: &'a str,
+            version: i64,
+            _: &'a Value,
+            _: &'a str,
+            _: i64,
+        ) -> RetentionFuture<'a, ()> {
             self.calls.push(format!("request:{policy}:{version}"));
             Box::pin(async { Ok(()) })
         }
-        fn destruction<'a>(&'a mut self, _: &'a str, _: Option<&'a str>) -> RetentionFuture<'a, Option<RetentionDestructionRow>> {
+        fn destruction<'a>(
+            &'a mut self,
+            _: &'a str,
+            _: Option<&'a str>,
+        ) -> RetentionFuture<'a, Option<RetentionDestructionRow>> {
             self.calls.push("destruction".into());
             let row = self.destruction.clone();
             Box::pin(async move { Ok(row) })
         }
-        fn change_destruction<'a>(&'a mut self, _: &'a str, state: &'a str, _: &'a LegalAuxiliaryActor, _: i64) -> RetentionFuture<'a, ()> {
+        fn change_destruction<'a>(
+            &'a mut self,
+            _: &'a str,
+            state: &'a str,
+            _: &'a LegalAuxiliaryActor,
+            _: i64,
+        ) -> RetentionFuture<'a, ()> {
             self.calls.push(format!("change:{state}"));
             Box::pin(async { Ok(()) })
         }
@@ -581,11 +654,30 @@ mod tests {
             let hold = self.hold;
             Box::pin(async move { Ok(hold) })
         }
-        fn manifest<'a>(&'a mut self, _: &'a str, _: &'a str, _: i64) -> RetentionFuture<'a, Value> {
+        fn manifest<'a>(
+            &'a mut self,
+            _: &'a str,
+            _: &'a str,
+            _: i64,
+        ) -> RetentionFuture<'a, Value> {
             self.calls.push("manifest".into());
             Box::pin(async { Ok(json!({"documents": []})) })
         }
-        fn commit<'a>(&'a mut self, _: &'a LegalAuxiliaryActor, _: &'a CommandKey, _: &'a str, _: &'a str, _: &'a str, _: i64, _: Option<i64>, _: Option<&'a str>, _: &'a str, _: &'a str, result: Value, _: i64) -> RetentionFuture<'a, Value> {
+        fn commit<'a>(
+            &'a mut self,
+            _: &'a LegalAuxiliaryActor,
+            _: &'a CommandKey,
+            _: &'a str,
+            _: &'a str,
+            _: &'a str,
+            _: i64,
+            _: Option<i64>,
+            _: Option<&'a str>,
+            _: &'a str,
+            _: &'a str,
+            result: Value,
+            _: i64,
+        ) -> RetentionFuture<'a, Value> {
             self.calls.push("commit".into());
             self.committed = Some(result.clone());
             Box::pin(async move { Ok(result) })
@@ -618,7 +710,12 @@ mod tests {
         assert_eq!(result["policyId"], "retention-command-key-one");
         assert_eq!(
             fake.calls,
-            vec!["replay", "lock", "create_policy:retention-command-key-one", "commit"]
+            vec![
+                "replay",
+                "lock",
+                "create_policy:retention-command-key-one",
+                "commit"
+            ]
         );
 
         // Branch scope cannot manage a Company policy.
@@ -822,10 +919,26 @@ mod tests {
 
     #[test]
     fn parsing_bounds_name_days_and_reason() {
-        assert!(parse_retention_command(&json!({"action":"retention.policy","name":"Na","days":1,"reason":"Valid reason"})).is_err());
+        assert!(
+            parse_retention_command(
+                &json!({"action":"retention.policy","name":"Na","days":1,"reason":"Valid reason"})
+            )
+            .is_err()
+        );
         assert!(parse_retention_command(&json!({"action":"retention.policy","name":"Valid","days":0,"reason":"Valid reason"})).is_err());
-        assert!(parse_retention_command(&json!({"action":"retention.policy","name":"Valid","days":1,"reason":"no"})).is_err());
-        assert!(parse_retention_command(&json!({"action":"retention.other","reason":"Valid reason"})).is_err());
-        assert!(parse_retention_command(&json!({"action":"retention.assign","reason":"Valid reason"})).is_err());
+        assert!(
+            parse_retention_command(
+                &json!({"action":"retention.policy","name":"Valid","days":1,"reason":"no"})
+            )
+            .is_err()
+        );
+        assert!(
+            parse_retention_command(&json!({"action":"retention.other","reason":"Valid reason"}))
+                .is_err()
+        );
+        assert!(
+            parse_retention_command(&json!({"action":"retention.assign","reason":"Valid reason"}))
+                .is_err()
+        );
     }
 }

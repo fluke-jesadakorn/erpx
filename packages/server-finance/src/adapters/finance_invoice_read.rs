@@ -154,14 +154,26 @@ fn valid_calendar_date(value: &str) -> bool {
         return false;
     };
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let days = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     (1..=12).contains(&month) && day >= 1 && day <= days[month - 1]
 }
 
 fn validate_page(query: &InvoicePageQuery) -> Result<(), Error> {
-    let invalid = |code: &'static str, message: &'static str| {
-        BusinessError::invalid(code, message).into()
-    };
+    let invalid =
+        |code: &'static str, message: &'static str| BusinessError::invalid(code, message).into();
     if !matches!(query.kind.as_str(), "" | "receivable" | "payable")
         || !matches!(query.queue.as_str(), "" | "open")
         || query.q.len() > 200
@@ -239,15 +251,18 @@ pub async fn read_invoice_page(
     if reverse {
         rows.reverse();
     }
-    let items = rows
-        .into_iter()
-        .map(parse)
-        .collect::<Result<Vec<_>, _>>()?;
+    let items = rows.into_iter().map(parse).collect::<Result<Vec<_>, _>>()?;
     let previous_cursor = if !items.is_empty() && (reverse || cursor.is_some()) {
         let first = &items[0];
         Some(encode_cursor(
-            first.get("page_key").and_then(Value::as_str).ok_or_else(unavailable)?,
-            first.get("id").and_then(Value::as_str).ok_or_else(unavailable)?,
+            first
+                .get("page_key")
+                .and_then(Value::as_str)
+                .ok_or_else(unavailable)?,
+            first
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(unavailable)?,
             true,
             &scope,
         )?)
@@ -257,8 +272,12 @@ pub async fn read_invoice_page(
     let next_cursor = if !items.is_empty() && (reverse || overflow) {
         let last = &items[items.len() - 1];
         Some(encode_cursor(
-            last.get("page_key").and_then(Value::as_str).ok_or_else(unavailable)?,
-            last.get("id").and_then(Value::as_str).ok_or_else(unavailable)?,
+            last.get("page_key")
+                .and_then(Value::as_str)
+                .ok_or_else(unavailable)?,
+            last.get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(unavailable)?,
             false,
             &scope,
         )?)

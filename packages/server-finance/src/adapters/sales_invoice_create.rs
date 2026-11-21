@@ -174,7 +174,12 @@ fn optional(value: Option<&str>) -> String {
         .unwrap_or_else(|| "null".into())
 }
 
-pub(crate) fn fingerprint(actor: &SalesInvoiceCommandActor, operation: &str, record: &str, input: &str) -> String {
+pub(crate) fn fingerprint(
+    actor: &SalesInvoiceCommandActor,
+    operation: &str,
+    record: &str,
+    input: &str,
+) -> String {
     let authority = format!(
         "{{\"sessionId\":{},\"revision\":{},\"assignmentVersion\":{}}}",
         string(&actor.session_id),
@@ -216,7 +221,10 @@ pub(crate) fn authority_json(actor: &SalesInvoiceCommandActor) -> String {
 
 fn decimal_units(value: &str, scale: u32) -> Result<i128, Error> {
     if value.is_empty() || value.len() > 64 {
-        return Err(invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."));
+        return Err(invalid(
+            "INVALID_INVOICE_LINE",
+            "Use a positive quantity and unit price.",
+        ));
     }
     let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
     if whole.is_empty()
@@ -224,28 +232,47 @@ fn decimal_units(value: &str, scale: u32) -> Result<i128, Error> {
         || !fraction.bytes().all(|byte| byte.is_ascii_digit())
         || fraction.len() > scale as usize
     {
-        return Err(invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."));
+        return Err(invalid(
+            "INVALID_INVOICE_LINE",
+            "Use a positive quantity and unit price.",
+        ));
     }
-    let whole = whole
-        .parse::<i128>()
-        .map_err(|_| invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."))?;
+    let whole = whole.parse::<i128>().map_err(|_| {
+        invalid(
+            "INVALID_INVOICE_LINE",
+            "Use a positive quantity and unit price.",
+        )
+    })?;
     let fraction = if fraction.is_empty() {
         0
     } else {
         format!("{fraction:0<width$}", width = scale as usize)
             .parse::<i128>()
-            .map_err(|_| invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."))?
+            .map_err(|_| {
+                invalid(
+                    "INVALID_INVOICE_LINE",
+                    "Use a positive quantity and unit price.",
+                )
+            })?
     };
     whole
         .checked_mul(10i128.pow(scale))
         .and_then(|value| value.checked_add(fraction))
         .filter(|value| *value > 0 && *value <= MAX_SAFE)
-        .ok_or_else(|| invalid("INVALID_INVOICE_LINE", "Use a positive quantity and unit price."))
+        .ok_or_else(|| {
+            invalid(
+                "INVALID_INVOICE_LINE",
+                "Use a positive quantity and unit price.",
+            )
+        })
 }
 
 fn decimal_units_unbounded(value: &str, scale: u32) -> Result<i128, Error> {
     if value.is_empty() || value.len() > 80 {
-        return Err(invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."));
+        return Err(invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency rate is required.",
+        ));
     }
     let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
     if whole.is_empty()
@@ -253,23 +280,39 @@ fn decimal_units_unbounded(value: &str, scale: u32) -> Result<i128, Error> {
         || !fraction.bytes().all(|byte| byte.is_ascii_digit())
         || fraction.len() > scale as usize
     {
-        return Err(invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."));
+        return Err(invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency rate is required.",
+        ));
     }
-    let whole = whole
-        .parse::<i128>()
-        .map_err(|_| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))?;
+    let whole = whole.parse::<i128>().map_err(|_| {
+        invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency rate is required.",
+        )
+    })?;
     let fraction = if fraction.is_empty() {
         0
     } else {
         format!("{fraction:0<width$}", width = scale as usize)
             .parse::<i128>()
-            .map_err(|_| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))?
+            .map_err(|_| {
+                invalid(
+                    "MANUAL_RATE_REQUIRED",
+                    "A confirmed manual currency rate is required.",
+                )
+            })?
     };
     whole
         .checked_mul(10i128.pow(scale))
         .and_then(|value| value.checked_add(fraction))
         .filter(|value| *value > 0)
-        .ok_or_else(|| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))
+        .ok_or_else(|| {
+            invalid(
+                "MANUAL_RATE_REQUIRED",
+                "A confirmed manual currency rate is required.",
+            )
+        })
 }
 
 fn minor_decimal(value: i64) -> String {
@@ -463,7 +506,10 @@ async fn fx(
         if effective.as_str() <= date && dated.is_none() {
             dated = Some((id.clone(), rate.clone(), confirmed));
         }
-        if latest.as_ref().is_none_or(|(_, _, current)| confirmed > *current) {
+        if latest
+            .as_ref()
+            .is_none_or(|(_, _, current)| confirmed > *current)
+        {
             latest = Some((id, rate, confirmed));
         }
     }
@@ -471,11 +517,19 @@ async fn fx(
         Some((id, rate, _)) => (id, rate, false),
         None => latest
             .map(|(id, rate, _)| (id, rate, true))
-            .ok_or_else(|| invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."))?,
+            .ok_or_else(|| {
+                invalid(
+                    "MANUAL_RATE_REQUIRED",
+                    "A confirmed manual currency rate is required.",
+                )
+            })?,
     };
     let source = decimal_units_unbounded(&rate, 18)?;
     if source <= 0 {
-        return Err(invalid("MANUAL_RATE_REQUIRED", "A confirmed manual currency rate is required."));
+        return Err(invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency rate is required.",
+        ));
     }
     let numerator = amount_minor as i128 * RATE_SCALE * 100;
     let denominator = source * 100;
@@ -584,7 +638,12 @@ pub async fn create_sales_invoice(
     }
     let input_json = serde_json::to_string(&normalized_input).map_err(|_| unavailable())?;
     let invoice_id = format!("invoice-{}-invoice", command.as_str());
-    let request_hash = fingerprint(actor, "finance.sales-invoice.prepare", &invoice_id, &input_json);
+    let request_hash = fingerprint(
+        actor,
+        "finance.sales-invoice.prepare",
+        &invoice_id,
+        &input_json,
+    );
     let authority = authority_json(actor);
     let existing = sqlx::query(
         "SELECT request_hash,result_json FROM command_receipts WHERE command_id=$1 FOR UPDATE",
@@ -627,10 +686,27 @@ pub async fn create_sales_invoice(
     .fetch_optional(&mut *c)
     .await?;
     if chart_status.as_deref() != Some("active") {
-        return Err(invalid("SALES_ACCOUNTS_INVALID", "Use active sales accounts on one Company ledger."));
+        return Err(invalid(
+            "SALES_ACCOUNTS_INVALID",
+            "Use active sales accounts on one Company ledger.",
+        ));
     }
-    let receivable = account(c, &actor.company_id, &chart_id, &input.currency, &receivable_id).await?;
-    let revenue = account(c, &actor.company_id, &chart_id, &input.currency, &revenue_id).await?;
+    let receivable = account(
+        c,
+        &actor.company_id,
+        &chart_id,
+        &input.currency,
+        &receivable_id,
+    )
+    .await?;
+    let revenue = account(
+        c,
+        &actor.company_id,
+        &chart_id,
+        &input.currency,
+        &revenue_id,
+    )
+    .await?;
     let tax = match tax_id.as_deref() {
         Some(id) => Some(account(c, &actor.company_id, &chart_id, &input.currency, id).await?),
         None => None,
@@ -644,9 +720,14 @@ pub async fn create_sales_invoice(
             .as_ref()
             .is_some_and(|value| value.category != "liability" || value.control_kind != "none")
         || receivable.id == revenue.id
-        || tax.as_ref().is_some_and(|value| value.id == receivable.id || value.id == revenue.id)
+        || tax
+            .as_ref()
+            .is_some_and(|value| value.id == receivable.id || value.id == revenue.id)
     {
-        return Err(invalid("SALES_ACCOUNTS_INVALID", "Use active sales accounts on one Company ledger."));
+        return Err(invalid(
+            "SALES_ACCOUNTS_INVALID",
+            "Use active sales accounts on one Company ledger.",
+        ));
     }
     let party_row = sqlx::query(
         "SELECT id,code,name,kind,currency,tax_registration,version,status,person_id \
@@ -673,7 +754,10 @@ pub async fn create_sales_invoice(
         || party.status != "active"
         || person_id.is_some()
     {
-        return Err(invalid("PARTY_INVALID", "The invoice party is unavailable."));
+        return Err(invalid(
+            "PARTY_INVALID",
+            "The invoice party is unavailable.",
+        ));
     }
     let configured_scale: Option<i16> = sqlx::query_scalar(
         "SELECT scale FROM company_currency_scales WHERE company_id=$1 AND currency=$2",
@@ -694,13 +778,25 @@ pub async fn create_sales_invoice(
     let total = subtotal
         .checked_add(tax_total)
         .filter(|value| *value > 0 && *value as i128 <= MAX_SAFE)
-        .ok_or_else(|| invalid("INVALID_INVOICE_AMOUNT", "The invoice total exceeds supported precision."))?;
+        .ok_or_else(|| {
+            invalid(
+                "INVALID_INVOICE_AMOUNT",
+                "The invoice total exceeds supported precision.",
+            )
+        })?;
     let number: String = sqlx::query_scalar("SELECT erpx_sales_document_number($1,'INV',$2)")
         .bind(&actor.company_id)
         .bind(&input.invoice_date)
         .fetch_one(&mut *c)
         .await?;
-    let money = fx(c, &actor.company_id, &input.currency, &input.invoice_date, total).await?;
+    let money = fx(
+        c,
+        &actor.company_id,
+        &input.currency,
+        &input.invoice_date,
+        total,
+    )
+    .await?;
     sqlx::query(
         "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,\
          subtotal_minor,tax_minor,total_minor,outstanding_minor,tax_code,debit_account_id,credit_account_id,\
@@ -813,12 +909,7 @@ pub async fn create_sales_invoice(
         "lines": &input.lines,
     });
     let inner_json = serde_json::to_string(&inner_input).map_err(|_| unavailable())?;
-    let inner_hash = fingerprint(
-        actor,
-        "finance.invoice.create",
-        &invoice_id,
-        &inner_json,
-    );
+    let inner_hash = fingerprint(actor, "finance.invoice.create", &invoice_id, &inner_json);
     receipt(
         c,
         actor,

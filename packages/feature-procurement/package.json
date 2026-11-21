@@ -18,7 +18,8 @@
     "./lib/supplier-batch-command": "./src/lib/supplier-batch-command.ts",
     "./lib/supplier-batch-owner-command": "./src/lib/supplier-batch-owner-command.ts",
     "./lib/command": "./src/lib/command.ts",
-    "./public/native-supplier-promise-history-owned": "./src/public/native-supplier-promise-history-owned.ts"
+    "./public/native-supplier-promise-history-owned": "./src/public/native-supplier-promise-history-owned.ts",
+    "./adapters/server/native-procurement-command": "./src/adapters/server/native-procurement-command.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -1,4 +1,10 @@
 import 'server-only';
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
+  try { return await nativeCommerceOwnerWrite('settings.initialize', [actor.companyId, ...fields.map((f: string) => input[f])], actor.companyId, actor.userId, key); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 import {createHash,randomUUID} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -70,9 +76,9 @@ export async function initializePosPostingSetup(actor:WorkContext,raw:unknown,ke
    replay:(body,command)=>replayCommand<PosPostingSetupResult>(database,actor,command,operation,actor.companyId,body),configured:async()=>!!configuration,contextKey:()=>contextKey(authority,before,configuration),
    assertNoEconomics:async()=>{if(refusal(before)==='history-requires-review')throw new ApiError(409,'POS_POSTING_HISTORY_REQUIRES_REVIEW','Original Stock/POS economics or invalid financial lineage require their original owner reconciliation. Initial setup cannot rebind them.');},
    validate:body=>validatePosStartupFinanceState(database,actor,body,before.documents.history).then(()=>undefined),
-   commit:async(body,command)=>{applied=true;return executeCommand(database,actor,command,operation,body,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
+   commit:async(body,command)=>{applied=true;await nativeSettingsWrite(actor, body, key, fields);
+   return executeCommand(database,actor,command,operation,body,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
     assertion(database,command,'pos-posting-absent','NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)',[actor.companyId]),
-    database.prepare(`INSERT INTO commerce_settings(company_id,${fields.map(field=>columns[field]).join(',')}) VALUES(${Array.from({length:fields.length+1},()=>'?').join(',')})`).bind(actor.companyId,...fields.map(field=>body[field])),
    ]);},
   });
   const result=await run(input,key);

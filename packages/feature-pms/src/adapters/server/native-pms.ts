@@ -107,6 +107,24 @@ export type NativePmsGuestAccountCommandInput = Readonly<{
   }>;
 }>;
 
+export type NativePmsImportCommandInput = Readonly<{
+  holdingSlug: string;
+  command: string;
+  facts: Record<string, unknown>;
+  key: string;
+  userId: string;
+  companyId: string;
+  assignmentId: string;
+  branchSlug?: string;
+  departmentSlug?: string;
+  expected?: Readonly<{
+    companyId: string;
+    assignmentId: string;
+    revision: number;
+    assignmentVersion: number;
+  }>;
+}>;
+
 /** Flatten the retained workspace command body ({operation,propertyId,
  * expectedVersion,input}) into the native guest-account body. The guest-save
  * contact command is intentionally not mapped; it is not a guest account. */
@@ -917,6 +935,47 @@ export function createNativePmsClient(
           roomSummary: false,
           requireListMeta: true,
         });
+      } catch (error) {
+        if (error instanceof NativePmsError) throw error;
+        return failure('NATIVE_PMS_UNAVAILABLE');
+      }
+    },
+    importCommand: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePmsPageContext,
+      input: NativePmsImportCommandInput,
+      signal?: AbortSignal,
+    ) => {
+      if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+        return Promise.reject(new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED'));
+      try {
+        const headers = authority(config.holdings, incoming, input);
+        const origin = incoming.get('origin');
+        if (!origin) throw new NativePmsError('NATIVE_PMS_AUTHORITY_INVALID');
+        headers.set('origin', origin);
+        headers.set('content-type', 'application/json');
+        headers.set('idempotency-key', input.key);
+        headers.set('x-erpx-actor-user', input.userId);
+        if (!['preview', 'approve', 'balance', 'document', 'property', 'applied'].includes(input.command))
+          throw new NativePmsError('NATIVE_PMS_REQUEST_INVALID');
+        const url = new URL(
+          `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/pms/import-command`,
+          config.base,
+        );
+        if (input.branchSlug) url.searchParams.set('branch', input.branchSlug);
+        if (input.departmentSlug) url.searchParams.set('department', input.departmentSlug);
+        const response = await dispatch(
+          transport,
+          url,
+          headers,
+          signal,
+          'POST',
+          JSON.stringify({ command: input.command, facts: input.facts }),
+        );
+        const value = await boundedJson(response);
+        if (!exact(value, ['data', 'context'])) return failure('NATIVE_PMS_RESPONSE_INVALID');
+        context(value.context, actor, input);
+        return value.data;
       } catch (error) {
         if (error instanceof NativePmsError) throw error;
         return failure('NATIVE_PMS_UNAVAILABLE');

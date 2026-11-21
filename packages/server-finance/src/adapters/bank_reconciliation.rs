@@ -54,7 +54,12 @@ fn conflict(code: &'static str, message: &'static str) -> Error {
     BusinessError::new(FailureKind::Conflict, code, message).into()
 }
 fn journal_error(error: JournalError) -> Error {
-    BusinessError::new(error.kind, error.code, "The bank statement amount is invalid.").into()
+    BusinessError::new(
+        error.kind,
+        error.code,
+        "The bank statement amount is invalid.",
+    )
+    .into()
 }
 async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {
@@ -80,7 +85,8 @@ pub async fn lock_bank_reconciliation_sources(c: &mut PgConnection) -> Result<()
     Ok(())
 }
 fn digest<T: Serialize>(value: &T) -> Result<String, Error> {
-    let text = serde_json::to_string(value).map_err(|_| invalid("INVALID_REQUEST", "Invalid request."))?;
+    let text =
+        serde_json::to_string(value).map_err(|_| invalid("INVALID_REQUEST", "Invalid request."))?;
     Ok(format!("{:x}", Sha256::digest(text.as_bytes())))
 }
 async fn money_scale(c: &mut PgConnection, company: &str, currency: &str) -> Result<(), Error> {
@@ -144,11 +150,48 @@ async fn fx_rate(
         .chain(quotes.1.rates.iter())
         .map(|row| {
             Ok(ManualRate {
-                id: row["id"].as_str().ok_or_else(|| invalid("FX_RATE_UNAVAILABLE", "Confirm company manual USD rates before posting."))?.into(),
-                currency: row["currency"].as_str().ok_or_else(|| invalid("FX_RATE_UNAVAILABLE", "Confirm company manual USD rates before posting."))?.into(),
-                effective_date: row["effective_date"].as_str().ok_or_else(|| invalid("FX_RATE_UNAVAILABLE", "Confirm company manual USD rates before posting."))?.into(),
-                currency_per_usd: row["currency_per_usd"].as_str().ok_or_else(|| invalid("FX_RATE_UNAVAILABLE", "Confirm company manual USD rates before posting."))?.into(),
-                confirmed_at: row["confirmed_at"].as_i64().ok_or_else(|| invalid("FX_RATE_UNAVAILABLE", "Confirm company manual USD rates before posting."))?,
+                id: row["id"]
+                    .as_str()
+                    .ok_or_else(|| {
+                        invalid(
+                            "FX_RATE_UNAVAILABLE",
+                            "Confirm company manual USD rates before posting.",
+                        )
+                    })?
+                    .into(),
+                currency: row["currency"]
+                    .as_str()
+                    .ok_or_else(|| {
+                        invalid(
+                            "FX_RATE_UNAVAILABLE",
+                            "Confirm company manual USD rates before posting.",
+                        )
+                    })?
+                    .into(),
+                effective_date: row["effective_date"]
+                    .as_str()
+                    .ok_or_else(|| {
+                        invalid(
+                            "FX_RATE_UNAVAILABLE",
+                            "Confirm company manual USD rates before posting.",
+                        )
+                    })?
+                    .into(),
+                currency_per_usd: row["currency_per_usd"]
+                    .as_str()
+                    .ok_or_else(|| {
+                        invalid(
+                            "FX_RATE_UNAVAILABLE",
+                            "Confirm company manual USD rates before posting.",
+                        )
+                    })?
+                    .into(),
+                confirmed_at: row["confirmed_at"].as_i64().ok_or_else(|| {
+                    invalid(
+                        "FX_RATE_UNAVAILABLE",
+                        "Confirm company manual USD rates before posting.",
+                    )
+                })?,
             })
         })
         .collect::<Result<Vec<_>, Error>>()?;
@@ -157,16 +200,17 @@ async fn fx_rate(
         currency,
         base,
         date,
-        &FinanceCollation::english().map_err(|_| invalid("FX_RATE_UNAVAILABLE", "Confirm company manual USD rates before posting."))?,
+        &FinanceCollation::english().map_err(|_| {
+            invalid(
+                "FX_RATE_UNAVAILABLE",
+                "Confirm company manual USD rates before posting.",
+            )
+        })?,
     )
     .map_err(journal_error)?;
     Ok(evidence.micros)
 }
-async fn receipt(
-    c: &mut PgConnection,
-    key: &str,
-    hash: &str,
-) -> Result<Option<Value>, Error> {
+async fn receipt(c: &mut PgConnection, key: &str, hash: &str) -> Result<Option<Value>, Error> {
     let row = sqlx::query(
         "SELECT request_hash,result_json FROM command_receipts WHERE command_id=$1 FOR UPDATE",
     )
@@ -184,7 +228,12 @@ async fn receipt(
     let raw: Option<String> = row.try_get("result_json")?;
     raw.and_then(|value| serde_json::from_str(&value).ok())
         .map(Some)
-        .ok_or_else(|| conflict("IDEMPOTENCY_CONFLICT", "The retained result is unavailable."))
+        .ok_or_else(|| {
+            conflict(
+                "IDEMPOTENCY_CONFLICT",
+                "The retained result is unavailable.",
+            )
+        })
 }
 async fn save_receipt(
     c: &mut PgConnection,
@@ -335,7 +384,10 @@ pub async fn prepare_bank_import(
 ) -> Result<PreparedBankImport, Error> {
     serializable(c).await?;
     if input.rows.is_empty() || input.rows.len() > 500 {
-        return Err(invalid("STATEMENT_SIZE", "Import between one and 500 statement rows."));
+        return Err(invalid(
+            "STATEMENT_SIZE",
+            "Import between one and 500 statement rows.",
+        ));
     }
     let hash = digest(input)?;
     let replay = receipt(c, key, &hash).await?;
@@ -367,7 +419,12 @@ pub async fn prepare_bank_import(
     let total = amounts
         .iter()
         .try_fold(0_i64, |sum, amount| sum.checked_add(*amount))
-        .ok_or_else(|| invalid("STATEMENT_UNBALANCED", "Opening balance plus movements must equal the closing balance."))?;
+        .ok_or_else(|| {
+            invalid(
+                "STATEMENT_UNBALANCED",
+                "Opening balance plus movements must equal the closing balance.",
+            )
+        })?;
     if opening.checked_add(total) != Some(closing) {
         return Err(invalid(
             "STATEMENT_UNBALANCED",
@@ -377,10 +434,16 @@ pub async fn prepare_bank_import(
     let mut seen = std::collections::BTreeSet::new();
     for row in &input.rows {
         if !seen.insert(row.external_id.clone()) {
-            return Err(invalid("DUPLICATE_TRANSACTION", "Each bank transaction needs a unique external reference."));
+            return Err(invalid(
+                "DUPLICATE_TRANSACTION",
+                "Each bank transaction needs a unique external reference.",
+            ));
         }
         if row.currency.to_uppercase() != currency || row.transaction_date > input.statement_date {
-            return Err(invalid("STATEMENT_ROW_INVALID", "Rows must use the bank account currency and cannot follow the statement date."));
+            return Err(invalid(
+                "STATEMENT_ROW_INVALID",
+                "Rows must use the bank account currency and cannot follow the statement date.",
+            ));
         }
     }
     let duplicate: bool = sqlx::query_scalar(
@@ -393,7 +456,10 @@ pub async fn prepare_bank_import(
     .fetch_one(&mut *c)
     .await?;
     if duplicate {
-        return Err(conflict("DUPLICATE_STATEMENT", "This statement was already imported."));
+        return Err(conflict(
+            "DUPLICATE_STATEMENT",
+            "This statement was already imported.",
+        ));
     }
     let rate = fx_rate(
         c,
@@ -407,7 +473,10 @@ pub async fn prepare_bank_import(
     let base_closing = convert_at_fx(closing, rate).map_err(journal_error)?;
     let at = clock.now().get();
     if !(0..=9_007_199_254_740_991).contains(&at) {
-        return Err(conflict("CLOCK_INVALID", "The current clock is unavailable."));
+        return Err(conflict(
+            "CLOCK_INVALID",
+            "The current clock is unavailable.",
+        ));
     }
     Ok(PreparedBankImport {
         actor: actor.clone(),
@@ -455,8 +524,14 @@ async fn reconcile_bank_transaction_inner(
     record_effects: bool,
 ) -> Result<Value, Error> {
     serializable(c).await?;
-    if input.matched_type != "payment" || input.proof.trim().is_empty() || input.expected_version < 1 {
-        return Err(invalid("MATCH_INPUT_INVALID", "Select a posted payment and provide review evidence."));
+    if input.matched_type != "payment"
+        || input.proof.trim().is_empty()
+        || input.expected_version < 1
+    {
+        return Err(invalid(
+            "MATCH_INPUT_INVALID",
+            "Select a posted payment and provide review evidence.",
+        ));
     }
     let hash = digest(input)?;
     if record_effects && let Some(replay) = receipt(c, key, &hash).await? {
@@ -478,7 +553,10 @@ async fn reconcile_bank_transaction_inner(
     .fetch_one(&mut *c)
     .await?;
     if !valid {
-        return Err(conflict("BANK_EVIDENCE_CHANGED", "Match the exact released payment and unmatched bank row."));
+        return Err(conflict(
+            "BANK_EVIDENCE_CHANGED",
+            "Match the exact released payment and unmatched bank row.",
+        ));
     }
     let already: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM finance_bank_transactions WHERE company_id=$1 AND matched_type='payment' AND matched_id=$2 AND match_status='matched')",
@@ -488,7 +566,10 @@ async fn reconcile_bank_transaction_inner(
     .fetch_one(&mut *c)
     .await?;
     if already {
-        return Err(conflict("PAYMENT_ALREADY_MATCHED", "This payment already has a confirmed bank match."));
+        return Err(conflict(
+            "PAYMENT_ALREADY_MATCHED",
+            "This payment already has a confirmed bank match.",
+        ));
     }
     let at = clock.now().get();
     let result = json!({
@@ -509,7 +590,10 @@ async fn reconcile_bank_transaction_inner(
     .execute(&mut *c)
     .await?;
     if updated.rows_affected() != 1 {
-        return Err(conflict("BANK_EVIDENCE_CHANGED", "The bank row changed. Refresh before reconciling."));
+        return Err(conflict(
+            "BANK_EVIDENCE_CHANGED",
+            "The bank row changed. Refresh before reconciling.",
+        ));
     }
     if record_effects {
         save_receipt(

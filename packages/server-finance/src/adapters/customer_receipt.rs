@@ -141,44 +141,99 @@ pub struct CurrentCustomerReceipt {
 impl CurrentCustomerReceipt {
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         self.retained.require_current(c).await?;
-        let image: Option<Value> = sqlx::query_scalar("SELECT to_jsonb(p) FROM finance_payments p WHERE id=$1 AND company_id=$2 FOR SHARE").bind(&self.payment_id).bind(&self.retained.company).fetch_optional(c).await?;
-        if image.as_ref() != Some(&self.payment) { return Err(changed()); }
+        let image: Option<Value> = sqlx::query_scalar(
+            "SELECT to_jsonb(p) FROM finance_payments p WHERE id=$1 AND company_id=$2 FOR SHARE",
+        )
+        .bind(&self.payment_id)
+        .bind(&self.retained.company)
+        .fetch_optional(c)
+        .await?;
+        if image.as_ref() != Some(&self.payment) {
+            return Err(changed());
+        }
         Ok(())
     }
 }
-pub async fn read_customer_receipt(c: &mut PgConnection, actor: &FinanceActor, id: &str) -> Result<CurrentCustomerReceipt, Error> {
+pub async fn read_customer_receipt(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &str,
+) -> Result<CurrentCustomerReceipt, Error> {
     let unit = unit(c).await?;
     let row: Option<(Value,Value)> = sqlx::query_as("SELECT to_jsonb(r),to_jsonb(p) FROM finance_customer_receipts r JOIN finance_payments p ON p.id=r.payment_id AND p.company_id=r.company_id WHERE r.id=$1 AND r.company_id=$2 FOR SHARE OF r,p").bind(id).bind(actor.company_id.as_str()).fetch_optional(&mut *c).await?;
-    let (image,payment) = row.ok_or_else(||BusinessError::new(FailureKind::NotFound,"RECEIPT_NOT_FOUND","Receipt not found in this workspace."))?;
+    let (image, payment) = row.ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "RECEIPT_NOT_FOUND",
+            "Receipt not found in this workspace.",
+        )
+    })?;
     let text = |key| image[key].as_str().ok_or_else(changed);
     let payment_id = text("payment_id")?.to_owned();
     let html = text("export_html")?;
     let hash = text("export_sha256")?;
     let json = text("snapshot_json")?;
-    if html.len()>2*1024*1024 || json.len()>2*1024*1024 { return Err(changed()); }
-    let snapshot: CustomerReceiptSnapshot = serde_json::from_str(json).map_err(|_|changed())?;
-    if snapshot.payment_id!=payment_id || snapshot.document_number!=text("document_number")? ||
-       snapshot.date!=text("receipt_date")? || snapshot.currency!=text("currency")? ||
-       snapshot.amount_minor!=image["amount_minor"].as_i64().ok_or_else(changed)?.to_string() ||
-       payment["id"]!=payment_id || payment["kind"]!="receipt" ||
-       snapshot.payment_version<1 || snapshot.payment_version>payment["version"].as_i64().ok_or_else(changed)? ||
-       format!("{:x}",Sha256::digest(html.as_bytes()))!=hash || render_customer_receipt(&snapshot)?!=html {
+    if html.len() > 2 * 1024 * 1024 || json.len() > 2 * 1024 * 1024 {
         return Err(changed());
     }
-    let mut receipt=image.clone();
-    receipt.as_object_mut().ok_or_else(changed)?.remove("export_html");
-    receipt["payment_status"]=payment["status"].clone();
-    receipt["payment_version"]=payment["version"].clone();
-    let status=if matches!(payment["status"].as_str(),Some("cancelled"|"reversed"|"voided")) {"cancelled"} else {"issued"};
-    let detail=json!({"sha256":hash,"receipt":receipt,"snapshot":snapshot,"status":status});
-    let export=json!({"content":html,"sha256":hash,"document_number":text("document_number")?});
-    let current=CurrentCustomerReceipt{retained:RetainedCustomerReceipt{unit,company:actor.company_id.as_str().into(),id:id.into(),expected:image},payment,payment_id,detail,export};
+    let snapshot: CustomerReceiptSnapshot = serde_json::from_str(json).map_err(|_| changed())?;
+    if snapshot.payment_id != payment_id
+        || snapshot.document_number != text("document_number")?
+        || snapshot.date != text("receipt_date")?
+        || snapshot.currency != text("currency")?
+        || snapshot.amount_minor
+            != image["amount_minor"]
+                .as_i64()
+                .ok_or_else(changed)?
+                .to_string()
+        || payment["id"] != payment_id
+        || payment["kind"] != "receipt"
+        || snapshot.payment_version < 1
+        || snapshot.payment_version > payment["version"].as_i64().ok_or_else(changed)?
+        || format!("{:x}", Sha256::digest(html.as_bytes())) != hash
+        || render_customer_receipt(&snapshot)? != html
+    {
+        return Err(changed());
+    }
+    let mut receipt = image.clone();
+    receipt
+        .as_object_mut()
+        .ok_or_else(changed)?
+        .remove("export_html");
+    receipt["payment_status"] = payment["status"].clone();
+    receipt["payment_version"] = payment["version"].clone();
+    let status = if matches!(
+        payment["status"].as_str(),
+        Some("cancelled" | "reversed" | "voided")
+    ) {
+        "cancelled"
+    } else {
+        "issued"
+    };
+    let detail = json!({"sha256":hash,"receipt":receipt,"snapshot":snapshot,"status":status});
+    let export = json!({"content":html,"sha256":hash,"document_number":text("document_number")?});
+    let current = CurrentCustomerReceipt {
+        retained: RetainedCustomerReceipt {
+            unit,
+            company: actor.company_id.as_str().into(),
+            id: id.into(),
+            expected: image,
+        },
+        payment,
+        payment_id,
+        detail,
+        export,
+    };
     current.require_current(c).await?;
     Ok(current)
 }
 /// Only a persisted Company receipt can select its payment owner. Never use
 /// a client source flag or infer that a missing receipt belongs to legacy.
-pub async fn customer_receipt_payment(c:&mut PgConnection,actor:&FinanceActor,id:&str)->Result<String,Error>{
+pub async fn customer_receipt_payment(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &str,
+) -> Result<String, Error> {
     unit(c).await?;
     sqlx::query_scalar("SELECT r.payment_id FROM finance_customer_receipts r JOIN finance_payments p ON p.id=r.payment_id AND p.company_id=r.company_id WHERE r.id=$1 AND r.company_id=$2 FOR SHARE OF r,p").bind(id).bind(actor.company_id.as_str()).fetch_optional(c).await?.ok_or_else(||BusinessError::new(FailureKind::NotFound,"RECEIPT_NOT_FOUND","Receipt not found in this workspace.").into())
 }

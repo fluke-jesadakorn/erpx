@@ -1,6 +1,5 @@
 //! Same original Control lease, exact-session MFA and route pins for source
 //! administration. Only the existing Work coordinator mints its IAM context.
-use crate::domain::environment::valid_environment;
 use super::{
     account_mfa_crypto::AccountMfaKeyring,
     account_mfa_postgres::{FreshMfaProof, require_fresh_mfa_in_transaction},
@@ -13,6 +12,7 @@ use super::{
     },
     directory_source_review::DirectorySourceReviewPreparation,
 };
+use crate::domain::environment::valid_environment;
 use crate::{
     application::account_ports::DeviceProof,
     domain::{
@@ -385,7 +385,10 @@ impl WorkControlSources for ConnectionSources {
             } else {
                 None
             };
-            let deadline = mfa.as_ref().map(|p| p.expires_at()).unwrap_or(now + 300_000);
+            let deadline = mfa
+                .as_ref()
+                .map(|p| p.expires_at())
+                .unwrap_or(now + 300_000);
             Ok(Arc::new(RetainedConnectionControl {
                 mfa,
                 route,

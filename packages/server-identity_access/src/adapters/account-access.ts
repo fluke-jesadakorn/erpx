@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import { createHmac } from "node:crypto";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
@@ -32,20 +33,20 @@ function service() {
         }>(), revoke: async (_actor, id, version, key) => revokeIamAssignment(write as PostgresDatabase, iam, id, version, 'Revoked from employee profile', key), reserve: async (_actor, key, operation, payload, id) => { await iamCommand(write as PostgresDatabase, iam, key, operation, payload, 'iam.manage', async () => ({ id })); },
         store: async (actor, personId, person, input, id, tokenHash, expiry) => {
             const env = await environment();
-            await env.CONTROL_DB.batch([
-                env.CONTROL_DB.prepare("UPDATE account_invitations SET status='revoked' WHERE holding_id=? AND person_id=? AND status='pending' AND id!=?").bind(actor.holdingId, personId, id),
+            await Promise.all([
+                nativePrepare("w_49035caf9839").bind(actor.holdingId, personId, id),
                 env.CONTROL_DB.prepare("UPDATE account_invitation_delivery_jobs d SET state='cancelled',error='INVITATION_SUPERSEDED',lease_token=NULL,lease_until=NULL,updated_at=? FROM account_invitations i WHERE d.invitation_id=i.id AND i.holding_id=? AND i.person_id=? AND i.status='revoked' AND i.id!=? AND d.state!='sent'").bind(Date.now(), actor.holdingId, personId, id),
-                env.CONTROL_DB.prepare("INSERT INTO account_invitations(id,token_hash,holding_id,company_id,person_id,email,name,role,scope_kind,branch_id,created_by,assignment_id,expires_at,created_at,department_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING").bind(id, tokenHash, actor.holdingId, actor.companyId, personId, person.email, person.legal_name, JSON.stringify({ role: input.role, expires: expiry }), input.scope, input.scope !== "holding" ? person.branch_id : null, actor.userId, actor.assignmentId, Date.now() + 48 * 3600000, Date.now(), input.scope === "department" ? person.department_id : null),
-                env.CONTROL_DB.prepare("INSERT INTO account_invitation_delivery_jobs(id,invitation_id,holding_id,company_id,state,next_attempt_at,created_at,updated_at) VALUES(?,?,?,?,'awaiting_approval',?,?,?) ON CONFLICT(invitation_id) DO NOTHING").bind(`account-invite-delivery-${id}`, id, actor.holdingId, actor.companyId, Date.now(), Date.now(), Date.now()),
+                nativePrepare("w_a45387e378ed").bind(id, tokenHash, actor.holdingId, actor.companyId, personId, person.email, person.legal_name, JSON.stringify({ role: input.role, expires: expiry }), input.scope, input.scope !== "holding" ? person.branch_id : null, actor.userId, actor.assignmentId, Date.now() + 48 * 3600000, Date.now(), input.scope === "department" ? person.department_id : null),
+                nativePrepare("w_66d09ee20563").bind(`account-invite-delivery-${id}`, id, actor.holdingId, actor.companyId, Date.now(), Date.now(), Date.now()),
             ]);
         },
         propose: async (_actor, id, input) => { const requested = grantInput.parse(input); return iamCommand(write as PostgresDatabase, iam, `invite-review-${id}`, 'invitation.propose', { invitationId: id, ...requested }, 'iam.manage', async (c) => { await validateIamGrant(c, iam, requested); return proposeIamReview(c, iam, 'invitation.authorize', { invitationId: id, ...requested, parentId: iam.assignmentId }, 'Authorize an employee invitation and initial grant.'); }); },
-        retry: async (actor, personId, invitationId) => { const env = await environment(); return !!await env.CONTROL_DB.prepare("UPDATE account_invitation_delivery_jobs SET state='queued',attempts=0,next_attempt_at=?,error=NULL,lease_token=NULL,lease_until=NULL,updated_at=? WHERE invitation_id=? AND holding_id=? AND company_id=? AND state='failed' AND EXISTS(SELECT 1 FROM account_invitations WHERE id=? AND person_id=? AND status='pending' AND expires_at>?) RETURNING id").bind(Date.now(), Date.now(), invitationId, actor.holdingId, actor.companyId, invitationId, personId, Date.now()).first(); }, revokeInvitation: async (actor, personId, invitationId) => { const env = await environment(); return !!await env.CONTROL_DB.prepare("UPDATE account_invitations SET status='revoked' WHERE id=? AND holding_id=? AND company_id=? AND person_id=? AND status='pending' RETURNING id").bind(invitationId, actor.holdingId, actor.companyId, personId).first(); }, invitationStatus: async (actor, personId, invitationId) => {
+        retry: async (actor, personId, invitationId) => { const env = await environment(); return !!await nativePrepare("w_ab23e7e4dc0e").bind(Date.now(), Date.now(), invitationId, actor.holdingId, actor.companyId, invitationId, personId, Date.now()).first(); }, revokeInvitation: async (actor, personId, invitationId) => { const env = await environment(); return !!await nativePrepare("w_8fa09e34f16f").bind(invitationId, actor.holdingId, actor.companyId, personId).first(); }, invitationStatus: async (actor, personId, invitationId) => {
             const env = await environment();
             return (await env.CONTROL_DB.prepare("SELECT status FROM account_invitations WHERE id=? AND holding_id=? AND company_id=? AND person_id=?").bind(invitationId, actor.holdingId, actor.companyId, personId).first<{
                 status: string;
             }>())?.status ?? null;
-        }, cancelDelivery: async (invitationId) => { const env = await environment(); await env.CONTROL_DB.prepare("UPDATE account_invitation_delivery_jobs SET state='cancelled',error='INVITATION_REVOKED',lease_token=NULL,lease_until=NULL,updated_at=? WHERE invitation_id=? AND state!='sent'").bind(Date.now(), invitationId).run(); },
+        }, cancelDelivery: async (invitationId) => { const env = await environment(); await nativePrepare("w_7304093cba71").bind(Date.now(), invitationId).run(); },
         invitation: async (tokenHash, now) => {
             const env = await environment();
             return await env.CONTROL_DB.prepare("SELECT * FROM account_invitations WHERE token_hash=? AND (status='pending' OR (status='accepted' AND accepted_at IS NULL)) AND expires_at>?")

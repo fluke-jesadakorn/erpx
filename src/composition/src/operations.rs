@@ -1,11 +1,12 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_assets::public::record_source as asset_source;
-use erpx_server_collaboration::public::staff_facts::readable_post;
 use erpx_server_collaboration::public::social_source_policy::{
-    into_business as social_source_error, read_published_post, source_hash, source_guard, SourceItem,
+    SourceItem, into_business as social_source_error, read_published_post, source_guard,
+    source_hash,
 };
+use erpx_server_collaboration::public::staff_facts::readable_post;
 use erpx_server_collaboration::public::task_source_origin::{
-    bind_task_origin, into_business as task_origin_error, TaskOriginBinding,
+    TaskOriginBinding, bind_task_origin, into_business as task_origin_error,
 };
 use erpx_server_field_service::public::source_record::read_source_record;
 use erpx_server_files::public::staff_task_attachments::task_attachments;
@@ -55,22 +56,11 @@ use erpx_server_operations::public::staff_work_http::{
     StaffWorkHttpBackend, StaffWorkHttpCommand, StaffWorkHttpCommandRequest, StaffWorkHttpFuture,
     StaffWorkHttpReadKind, StaffWorkHttpReadRequest, StaffWorkHttpResponse,
 };
-use erpx_server_people_payroll::public::operations_people::read_operations_people;
 use erpx_server_organization::public::staff_department_route::{
     DepartmentPersonFact, staff_department_route,
 };
+use erpx_server_people_payroll::public::operations_people::read_operations_people;
 use erpx_server_people_payroll::public::staff_facts as people_staff_facts;
-use erpx_server_workflow::public::staff_approval::{
-    OpenStaffApproval, StaffApprovalStep, close_staff_approvals, open_staff_approval,
-    prepare_staff_decision, staff_approval_view,
-};
-use erpx_server_workflow::public::commands::{
-    CommandDisposition, CommandField, CommandJson as WorkflowCommandJson,
-    CommandActor as WorkflowCommandActor, PgCommandAuthority, WorkflowRequest, WorkAuthority,
-};
-use erpx_server_workflow::public::task_reroute::{
-    TaskRerouteEligibility, TaskRerouteTaskRow, execute_task_reroute,
-};
 use erpx_server_pos::public::record_source as pos_source;
 use erpx_server_projects::public::staff_facts::staff_project;
 use erpx_server_runtime::public::http_support::HeaderMap;
@@ -81,6 +71,17 @@ use erpx_server_shared::public::record_source_contract::{
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
     IdentifierSource, RecordId,
+};
+use erpx_server_workflow::public::commands::{
+    CommandActor as WorkflowCommandActor, CommandDisposition, CommandField,
+    CommandJson as WorkflowCommandJson, PgCommandAuthority, WorkAuthority, WorkflowRequest,
+};
+use erpx_server_workflow::public::staff_approval::{
+    OpenStaffApproval, StaffApprovalStep, close_staff_approvals, open_staff_approval,
+    prepare_staff_decision, staff_approval_view,
+};
+use erpx_server_workflow::public::task_reroute::{
+    TaskRerouteEligibility, TaskRerouteTaskRow, execute_task_reroute,
 };
 use serde_json::Value;
 use sqlx::{Connection, PgConnection};
@@ -1507,9 +1508,7 @@ async fn compute_staff_route(
     service_task: bool,
 ) -> Result<ComputedRoute, BusinessError> {
     use std::collections::BTreeSet;
-    if approvers.len() > 20
-        || approvers.iter().collect::<BTreeSet<_>>().len() != approvers.len()
-    {
+    if approvers.len() > 20 || approvers.iter().collect::<BTreeSet<_>>().len() != approvers.len() {
         return Ok(blocked_route(
             "Choose up to twenty different ordered approvers per phase.",
         ));
@@ -2125,9 +2124,9 @@ fn reroute_actor(
             revision: selection.revision(),
             assignment_version: assignment.version,
         }),
-        iam: CommandField::Value(WorkflowCommandJson::from_serializable(&project_command_iam(
-            current,
-        )?)?),
+        iam: CommandField::Value(WorkflowCommandJson::from_serializable(
+            &project_command_iam(current)?,
+        )?),
         assignment_scope_kind: match assignment.scope_kind {
             WorkScopeKind::Holding => "holding",
             WorkScopeKind::Branch => "branch",
@@ -2189,9 +2188,13 @@ impl TaskRerouteEligibility for RerouteEligibility {
         actor: &WorkflowCommandActor,
         _: &TaskRerouteTaskRow,
     ) -> Result<bool, PgTransactionError<BusinessError>> {
-        company_owner(connection, actor.company_id.as_str(), actor.user_id.as_str())
-            .await
-            .map_err(Into::into)
+        company_owner(
+            connection,
+            actor.company_id.as_str(),
+            actor.user_id.as_str(),
+        )
+        .await
+        .map_err(Into::into)
     }
 
     async fn approver_eligible(
@@ -2493,7 +2496,6 @@ impl<C: Clock + Send + Sync + 'static> StaffWorkService<C> {
                             data: receipt,
                             context: context_value(current),
                         })
-
                     })
                 },
             )

@@ -9,6 +9,19 @@ use erpx_server_identity_access::public::{
     },
     work_context::HoldingWorkspaceRequest,
 };
+use erpx_server_legal::public::LegalTrustActor;
+use erpx_server_legal::public::LegalTrustReceipt;
+use erpx_server_legal::public::RustTrustMaterialInspector;
+use erpx_server_legal::public::auxiliary::{
+    LegalAuxiliaryActor, LegalAuxiliaryHttpBackend, LegalAuxiliaryHttpFuture,
+    LegalAuxiliaryHttpRequest, LegalAuxiliaryHttpTarget, LegalAuxiliaryRead, PgLegalAuxiliaryReads,
+    read_auxiliary,
+};
+use erpx_server_legal::public::auxiliary::{
+    LegalRetentionActorFuture, LegalRetentionHttpBackend, LegalRetentionHttpCommandRequest,
+    LegalRetentionHttpFuture, LegalRetentionHttpSessionRequest, LegalRetentionHttpTarget,
+    execute_retention, legal_retention_business_error,
+};
 use erpx_server_legal::public::legal_records::{
     LegalCommandReply, LegalDetailReply, LegalExportReply, LegalHoldNotice, LegalHoldNotifier,
     LegalHttpBackend, LegalHttpCommandRequest, LegalHttpFuture, LegalHttpRead, LegalHttpReadReply,
@@ -16,26 +29,13 @@ use erpx_server_legal::public::legal_records::{
     LegalRenderedContext, PgLegalFuture, PgLegalRecords, legal_command, legal_detail, legal_export,
     legal_register,
 };
-use erpx_server_legal::public::auxiliary::{
-    LegalAuxiliaryActor, LegalAuxiliaryHttpBackend, LegalAuxiliaryHttpFuture,
-    LegalAuxiliaryHttpRequest, LegalAuxiliaryHttpTarget, LegalAuxiliaryRead,
-    PgLegalAuxiliaryReads, read_auxiliary,
-};
 use erpx_server_legal::public::trust_http::{
     LegalTrustCommandReply, LegalTrustHttpBackend, LegalTrustHttpCommandRequest,
-    LegalTrustHttpFuture, LegalTrustHttpTarget, LegalTrustIdentityBridge,
-    authorize_trust_actor, execute_legal_trust_command_with_owner_bridge, parse_trust_command,
-};
-use erpx_server_legal::public::auxiliary::{
-    LegalRetentionActorFuture, LegalRetentionHttpBackend, LegalRetentionHttpCommandRequest,
-    LegalRetentionHttpFuture, LegalRetentionHttpSessionRequest, LegalRetentionHttpTarget,
-    execute_retention, legal_retention_business_error,
+    LegalTrustHttpFuture, LegalTrustHttpTarget, LegalTrustIdentityBridge, authorize_trust_actor,
+    execute_legal_trust_command_with_owner_bridge, parse_trust_command,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_legal::public::LegalTrustActor;
-use erpx_server_legal::public::RustTrustMaterialInspector;
-use erpx_server_legal::public::LegalTrustReceipt;
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
 };
@@ -622,8 +622,6 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
     }
 }
 
-
-
 struct LegalTrustIdentity {
     company: CompanyId,
     branch: Option<erpx_server_shared::public::RecordId>,
@@ -898,10 +896,7 @@ impl<C: Clock + Send + Sync + 'static> LegalRetentionHttpBackend for LegalRetent
                                 branch_id: workspace.branch_id.clone(),
                                 department_id: workspace.department_id.clone(),
                                 role: selected.assignment().role.clone(),
-                                permissions: current
-                                    .command_iam_metadata()
-                                    .permissions
-                                    .clone(),
+                                permissions: current.command_iam_metadata().permissions.clone(),
                             })
                         })
                     },
@@ -970,8 +965,6 @@ impl<C: Clock + Send + Sync + 'static> LegalBackend<C> {
         ))
     }
 }
-
-
 
 impl<C: Clock + Send + Sync + 'static> LegalTrustHttpBackend for LegalBackend<C> {
     fn command<'a>(

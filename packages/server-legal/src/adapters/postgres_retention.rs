@@ -4,15 +4,15 @@
 //! Company for policy changes, locks the current destruction row for decisions,
 //! re-checks the item/policy/destruction version, and writes receipt, audit,
 //! outbox, item version and event in that same unit.
+use crate::adapters::postgres_destruction::PreparedLegalDestructionManifest;
+use crate::application::retention::execute_retention_command;
 use crate::{
     application::retention::{
-        LegalRetentionPorts, RetentionAssignmentFacts, RetentionDestructionRow,
-        RetentionError, RetentionFuture, RetentionPolicyRow,
+        LegalRetentionPorts, RetentionAssignmentFacts, RetentionDestructionRow, RetentionError,
+        RetentionFuture, RetentionPolicyRow,
     },
     domain::{auxiliary::LegalAuxiliaryActor, legal_records::sha256_hex},
 };
-use crate::application::retention::execute_retention_command;
-use crate::adapters::postgres_destruction::PreparedLegalDestructionManifest;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PersistenceError, PgUnitOfWork, TransactionOptions,
 };
@@ -28,13 +28,22 @@ pub struct PgLegalRetention<'c> {
 
 impl<'c> PgLegalRetention<'c> {
     pub fn new(connection: &'c mut PgConnection) -> Self {
-        Self { connection, prepared_manifest: None }
+        Self {
+            connection,
+            prepared_manifest: None,
+        }
     }
 
     /// Composition must first prepare this witness using real Files and current
     /// authority, in the same transaction, before any owner reads or writes.
-    pub fn with_prepared_manifest(connection: &'c mut PgConnection, prepared_manifest: PreparedLegalDestructionManifest) -> Self {
-        Self { connection, prepared_manifest: Some(prepared_manifest) }
+    pub fn with_prepared_manifest(
+        connection: &'c mut PgConnection,
+        prepared_manifest: PreparedLegalDestructionManifest,
+    ) -> Self {
+        Self {
+            connection,
+            prepared_manifest: Some(prepared_manifest),
+        }
     }
 
     pub fn connection(&mut self) -> &mut PgConnection {
@@ -158,8 +167,12 @@ impl LegalRetentionPorts for PgLegalRetention<'_> {
     ) -> RetentionFuture<'a, ()> {
         Box::pin(async move {
             self.ready().await?;
-            let days = i32::try_from(days)
-                .map_err(|_| conflict("LEGAL_REQUEST_INVALID", "Choose a current retention period."))?;
+            let days = i32::try_from(days).map_err(|_| {
+                conflict(
+                    "LEGAL_REQUEST_INVALID",
+                    "Choose a current retention period.",
+                )
+            })?;
             sqlx::query(
                 "INSERT INTO legal_retention_policies(id,company_id,name,days,basis,state,created_by,version,created_at) \
                  VALUES($1,$2,$3,$4,$5,'draft',$6,1,$7)",
@@ -226,11 +239,7 @@ impl LegalRetentionPorts for PgLegalRetention<'_> {
             .await?
             .rows_affected();
             if updated != 1 {
-                return Err(conflict(
-                    "LEGAL_VERSION_CONFLICT",
-                    "Policy changed. Refresh.",
-                )
-                .into());
+                return Err(conflict("LEGAL_VERSION_CONFLICT", "Policy changed. Refresh.").into());
             }
             Ok(())
         })
@@ -275,7 +284,12 @@ impl LegalRetentionPorts for PgLegalRetention<'_> {
             let eligible_at = days
                 .checked_mul(86_400_000)
                 .and_then(|value| value.checked_add(now))
-                .ok_or_else(|| conflict("LEGAL_REQUEST_INVALID", "Choose a current retention period."))?;
+                .ok_or_else(|| {
+                    conflict(
+                        "LEGAL_REQUEST_INVALID",
+                        "Choose a current retention period.",
+                    )
+                })?;
             sqlx::query(
                 "INSERT INTO legal_retention_assignments(item_id,policy_id,policy_version,eligible_at,assigned_by,created_at) \
                  VALUES($1,$2,$3,$4,$5,$6) \
@@ -332,7 +346,10 @@ impl LegalRetentionPorts for PgLegalRetention<'_> {
             self.ready().await?;
             let id = format!("destruction-{}", short_hash(&format!("{item}:{now}")));
             let manifest = serde_json::to_string(manifest).map_err(|_| {
-                conflict("LEGAL_RETENTION_MANIFEST", "The destruction manifest is unavailable.")
+                conflict(
+                    "LEGAL_RETENTION_MANIFEST",
+                    "The destruction manifest is unavailable.",
+                )
             })?;
             sqlx::query(
                 "INSERT INTO legal_destructions(id,item_id,policy_id,policy_version,requested_by,state,reason,manifest,created_at,version) \
@@ -432,8 +449,16 @@ impl LegalRetentionPorts for PgLegalRetention<'_> {
         Box::pin(async move {
             self.ready().await?;
             if let Some(prepared) = &self.prepared_manifest {
-                let manifest = prepared.current(&mut *self.connection, company, item).await?;
-                return serde_json::to_value(manifest).map_err(|_| conflict("LEGAL_RETENTION_MANIFEST", "The destruction manifest is unavailable.").into());
+                let manifest = prepared
+                    .current(&mut *self.connection, company, item)
+                    .await?;
+                return serde_json::to_value(manifest).map_err(|_| {
+                    conflict(
+                        "LEGAL_RETENTION_MANIFEST",
+                        "The destruction manifest is unavailable.",
+                    )
+                    .into()
+                });
             }
             let text = sqlx::query_scalar::<_, String>(
                 "SELECT jsonb_build_object(\

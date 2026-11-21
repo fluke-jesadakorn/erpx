@@ -20,31 +20,15 @@ function unit(db: SqlDatabase): CommerceGoodsUnit<SqlStatement> {
         prepareCommerceFulfillments1: (facts: {
             id: string | number | null;
         }) => db.prepare("SELECT id FROM commerce_fulfillments WHERE id=? FOR UPDATE").bind(facts.id),
-        prepareCommerceInvoiceGoodsCarrying1: (facts: {
-            id: string | number | null;
-            companyId: string;
-            chartId: string;
-            currency: string;
-            debit_account_id: string | number | null;
-            fxRateMicros: number;
-            fact6: "confirmed_company_quote" | "reviewed_input";
-            fact7: string | null;
-            fact8: string | null;
-            fact9: boolean;
-            fact10: string;
-            sourceJson: string;
-            receiptBase: number;
-            invoiceBase: number;
-            difference: number;
-            fact15: string | null;
-            fact16: string | null;
-            fact17: string | null;
-            userId: string;
-            fact19: number;
-        }) => db.prepare(`INSERT INTO commerce_invoice_goods_carrying(invoice_id,company_id,chart_id,stock_currency,clearing_account_id,
-    invoice_fx_rate_micros,invoice_rate_basis,invoice_source_rate_id,invoice_target_rate_id,invoice_used_latest_fallback,
-    source_digest,source_json,receipt_base_minor,invoice_clearing_base_minor,adjustment_minor,gain_account_id,loss_account_id,fx_journal_id,reviewed_by,reviewed_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(facts.id, facts.companyId, facts.chartId, facts.currency, facts.debit_account_id, facts.fxRateMicros, facts.fact6, facts.fact7, facts.fact8, facts.fact9, facts.fact10, facts.sourceJson, facts.receiptBase, facts.invoiceBase, facts.difference, facts.fact15, facts.fact16, facts.fact17, facts.userId, facts.fact19),
+        // Write authority moved to the native Commerce axum command route.
+        prepareCommerceInvoiceGoodsCarrying1: (_facts: {
+            id: string | number | null; companyId: string; chartId: string; currency: string;
+            debit_account_id: string | number | null; fxRateMicros: number; fact6: string;
+            fact7: string | null; fact8: string | null; fact9: boolean; fact10: string;
+            sourceJson: string; receiptBase: number; invoiceBase: number; difference: number;
+            fact15: string | null; fact16: string | null; fact17: string | null;
+            userId: string; fact19: number;
+        }) => { throw new Error('COMMERCE_OWNER_WRITE_UNAVAILABLE: native goods-carrying write required'); },
         readCommerceInvoiceGoodsCarrying1: (facts: {
             invoiceId: string;
             companyId: string;

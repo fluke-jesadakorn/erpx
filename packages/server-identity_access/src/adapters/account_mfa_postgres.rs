@@ -1,10 +1,10 @@
-use crate::domain::environment::valid_environment;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
 use super::{
     account_mfa_crypto::AccountMfaKeyring,
     account_postgres::{TxResult, finish, options},
     account_sessions::{lock_session_reads, read_session},
 };
+use crate::domain::environment::valid_environment;
 use crate::{
     application::{account_ports::DeviceProof, account_security::AccountMfaRepository},
     domain::{

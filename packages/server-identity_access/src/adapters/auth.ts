@@ -1,3 +1,4 @@
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {createPasswordResetCompleted} from '@erpx/server-identity_access/application/auth-hooks';
 import { authPolicy, invitationAccountAllowed } from '@erpx/server-identity_access/domain/auth';
 import { directoryAuthPlugin, directoryOidcConfig, localCredentialAllowed } from "@erpx/server-identity_access/public/iam-auth";
@@ -90,7 +91,7 @@ async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<ty
             },
             resetPasswordTokenExpiresIn: 3600,
             revokeSessionsOnPasswordReset: true,
-            onPasswordReset:async({user})=>createPasswordResetCompleted({record:(userId)=>recordAccountRecoveryCompleted(env.CONTROL_DB,userId),revokeSessions:async(userId)=>{await env.CONTROL_DB.prepare('DELETE FROM session WHERE "userId"=?').bind(userId).run();},auditFailure:(userId)=>console.error(JSON.stringify({event:"account_recovery_audit_failed",userId}))})(user.id),
+            onPasswordReset:async({user})=>createPasswordResetCompleted({record:(userId)=>recordAccountRecoveryCompleted(env.CONTROL_DB,userId),revokeSessions:async(userId)=>{await nativePrepare("w_13a241f7e1ff").bind(userId).run();},auditFailure:(userId)=>console.error(JSON.stringify({event:"account_recovery_audit_failed",userId}))})(user.id),
             minPasswordLength: 12,
         },
         emailVerification: {

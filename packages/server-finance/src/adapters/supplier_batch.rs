@@ -7,9 +7,7 @@
 //! supplied by the composition in the same serializable transaction; this
 //! adapter never widens authority or falls back to a TypeScript writer.
 use super::money_snapshot::{MoneySnapshotInput, prepare_money_snapshot};
-use super::sales_invoice_create::{
-    SalesInvoiceCommandActor, authority_json, fingerprint, receipt,
-};
+use super::sales_invoice_create::{SalesInvoiceCommandActor, authority_json, fingerprint, receipt};
 use crate::domain::money::units_to_decimal;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{
@@ -241,11 +239,9 @@ pub async fn lock_supplier_batch_sources(c: &mut PgConnection) -> Result<(), Err
 /// Read lease for list/workspace/export-recovery reads.
 pub async fn lock_supplier_batch_read_sources(c: &mut PgConnection) -> Result<(), Error> {
     serializable(c).await?;
-    sqlx::query(
-        "LOCK TABLE finance_supplier_batches,finance_supplier_instructions IN SHARE MODE",
-    )
-    .execute(&mut *c)
-    .await?;
+    sqlx::query("LOCK TABLE finance_supplier_batches,finance_supplier_instructions IN SHARE MODE")
+        .execute(&mut *c)
+        .await?;
     Ok(())
 }
 
@@ -416,10 +412,7 @@ fn validate_create(input: &SupplierBatchCreateInput) -> Result<Vec<i64>, Error> 
             ));
         }
         if !ids.insert(item.invoice_id.clone()) {
-            return Err(invalid(
-                "DUPLICATE_INVOICE",
-                "Select each invoice once.",
-            ));
+            return Err(invalid("DUPLICATE_INVOICE", "Select each invoice once."));
         }
         amounts.push(decimal_to_minor(&item.amount)?);
     }
@@ -460,7 +453,10 @@ pub fn supplier_export_content(batch: &Value, items: &[Value]) -> String {
             .and_then(Value::as_i64)
             .unwrap_or(0);
         let row = [
-            item.get("id").and_then(Value::as_str).unwrap_or("").to_owned(),
+            item.get("id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned(),
             item.get("invoice_number")
                 .and_then(Value::as_str)
                 .unwrap_or("")
@@ -490,7 +486,12 @@ pub fn supplier_export_content(batch: &Value, items: &[Value]) -> String {
                 .unwrap_or("")
                 .to_owned(),
         ];
-        lines.push(row.iter().map(|value| csv_cell(value)).collect::<Vec<_>>().join(","));
+        lines.push(
+            row.iter()
+                .map(|value| csv_cell(value))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
     }
     lines.join("\r\n")
 }
@@ -554,11 +555,7 @@ async fn instruction(
     Ok((item, owner))
 }
 
-async fn bank_account(
-    c: &mut PgConnection,
-    company: &str,
-    id: &str,
-) -> Result<BankAccount, Error> {
+async fn bank_account(c: &mut PgConnection, company: &str, id: &str) -> Result<BankAccount, Error> {
     let row = sqlx::query(
         "SELECT a.id,a.chart_id,a.currency,a.status,a.category,c.base_currency,c.status chart_status \
          FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id \
@@ -600,11 +597,7 @@ fn assert_functional_bank(account: &BankAccount) -> Result<(), Error> {
     Ok(())
 }
 
-async fn assert_open_period(
-    c: &mut PgConnection,
-    company: &str,
-    date: &str,
-) -> Result<(), Error> {
+async fn assert_open_period(c: &mut PgConnection, company: &str, date: &str) -> Result<(), Error> {
     let open: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM finance_periods WHERE company_id=$1 AND state='open' \
          AND start_date<=$2 AND end_date>=$2)",
@@ -641,12 +634,11 @@ async fn replay(
     command: &CommandKey,
     request_hash: &str,
 ) -> Result<Option<Value>, Error> {
-    let row = sqlx::query(
-        "SELECT request_hash,result_json FROM command_receipts WHERE command_id=$1",
-    )
-    .bind(command.as_str())
-    .fetch_optional(&mut *c)
-    .await?;
+    let row =
+        sqlx::query("SELECT request_hash,result_json FROM command_receipts WHERE command_id=$1")
+            .bind(command.as_str())
+            .fetch_optional(&mut *c)
+            .await?;
     match row {
         None => Ok(None),
         Some(row) => {
@@ -966,8 +958,7 @@ async fn export_items(c: &mut PgConnection, id: &str) -> Result<Vec<Value>, Erro
         .map(|row| {
             let text: String = row.try_get("item")?;
             let invoice_number: String = row.try_get("invoice_number")?;
-            let mut value: Value =
-                serde_json::from_str(&text).map_err(|_| unavailable())?;
+            let mut value: Value = serde_json::from_str(&text).map_err(|_| unavailable())?;
             if let Value::Object(ref mut object) = value {
                 object.insert("invoice_number".into(), Value::String(invoice_number));
             }
@@ -1120,19 +1111,14 @@ pub async fn recover_supplier_export(
 ) -> Result<SupplierBatchExportResult, Error> {
     let batch = batch(c, company, id).await?;
     let Some(command_id) = batch.export_command_id else {
-        return Err(not_found(
-            "EXPORT_NOT_FOUND",
-            "No exported file exists.",
-        ));
+        return Err(not_found("EXPORT_NOT_FOUND", "No exported file exists."));
     };
     let result: Option<String> =
         sqlx::query_scalar("SELECT result_json FROM command_receipts WHERE command_id=$1")
             .bind(&command_id)
             .fetch_optional(&mut *c)
             .await?;
-    let result = result.ok_or_else(|| {
-        not_found("EXPORT_NOT_FOUND", "No exported file exists.")
-    })?;
+    let result = result.ok_or_else(|| not_found("EXPORT_NOT_FOUND", "No exported file exists."))?;
     serde_json::from_str(&result).map_err(|_| unavailable())
 }
 
@@ -1274,11 +1260,7 @@ impl Clock for FixedClock {
     }
 }
 
-async fn invoice_row(
-    c: &mut PgConnection,
-    company: &str,
-    id: &str,
-) -> Result<Invoice, Error> {
+async fn invoice_row(c: &mut PgConnection, company: &str, id: &str) -> Result<Invoice, Error> {
     let row = sqlx::query(
         "SELECT i.id,i.party_id,i.invoice_number,i.credit_account_id,j.chart_id,\
          i.outstanding_minor,i.base_outstanding_minor,i.fx_rate_micros \
@@ -1342,10 +1324,12 @@ async fn insert_payment_journal(
     key: &str,
     now: i64,
 ) -> Result<(String, String), Error> {
-    let chart_id = invoice
-        .chart_id
-        .as_deref()
-        .ok_or_else(|| conflict("SUPPLIER_CHART_REQUIRED", "The source invoice has no posted chart."))?;
+    let chart_id = invoice.chart_id.as_deref().ok_or_else(|| {
+        conflict(
+            "SUPPLIER_CHART_REQUIRED",
+            "The source invoice has no posted chart.",
+        )
+    })?;
     let period: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM finance_periods WHERE id=$1 AND company_id=$2 \
          AND state='open' AND start_date<=$3 AND end_date>=$3)",
@@ -1569,7 +1553,8 @@ pub async fn confirm_supplier_instruction<
     let payment_id = format!("supplier-payment-{}", command.as_str());
     let snapshot = prepare_money_snapshot(
         c,
-        &CompanyId::new(&actor.company_id).map_err(|_| invalid("INVALID_COMPANY", "Invalid Company."))?,
+        &CompanyId::new(&actor.company_id)
+            .map_err(|_| invalid("INVALID_COMPANY", "Invalid Company."))?,
         MoneySnapshotInput {
             source_type: "finance_supplier_instruction".into(),
             source_id: id.to_owned(),
@@ -1813,15 +1798,15 @@ pub async fn supplier_batch_workspace(
          AND a.id=(SELECT cash_account_id FROM commerce_settings WHERE company_id=a.company_id) \
          AND ch.status='active' AND a.currency=ch.base_currency ORDER BY a.code",
     )
-        .bind(company)
-        .fetch_all(&mut *c)
-        .await?
-        .into_iter()
-        .map(|row| {
-            let text: String = row.try_get("row")?;
-            serde_json::from_str(&text).map_err(|_| unavailable())
-        })
-        .collect::<Result<Vec<Value>, Error>>()?;
+    .bind(company)
+    .fetch_all(&mut *c)
+    .await?
+    .into_iter()
+    .map(|row| {
+        let text: String = row.try_get("row")?;
+        serde_json::from_str(&text).map_err(|_| unavailable())
+    })
+    .collect::<Result<Vec<Value>, Error>>()?;
     let periods: Vec<Value> = sqlx::query(
         "SELECT (to_jsonb(p))::text row FROM finance_periods p WHERE p.company_id=$1 \
          AND p.state='open' ORDER BY p.start_date",

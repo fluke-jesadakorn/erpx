@@ -1,4 +1,10 @@
 import 'server-only';
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
+  try { return await nativeCommerceOwnerWrite('settings.initialize', [actor.companyId, ...fields.map((f: string) => input[f])], actor.companyId, actor.userId, key); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new ApiError(error.status, error.code, error.message); throw error; }
+}
 import {createHash,randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
@@ -74,7 +80,8 @@ export async function initializeExpensePostingSetup(actor:WorkContext,raw:unknow
    if(before.mapping)throw new ApiError(409,'COMMERCE_POSTING_ALREADY_CONFIGURED','Retain the actual Company mapping; initial Expense setup never overwrites it.');
    if(before.history||finance.expenseEconomics||finance.historyInvalid)throw new ApiError(409,'EXPENSE_POSTING_HISTORY_REQUIRES_REVIEW','Reconcile original goods, Stock, production or Expense economic history before initial setup.');
    await validateExpensePostingFinanceState(database,actor,input,before.documents.history);
-   result=await executeCommand(database,actor,key,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[database.prepare(`INSERT INTO commerce_settings(company_id,${fields.map(field=>columns[field]).join(',')}) VALUES(${Array.from({length:fields.length+1},()=>'?').join(',')})`).bind(actor.companyId,...fields.map(field=>input[field]))]);
+   await nativeSettingsWrite(actor, input, key, fields);
+   result=await executeCommand(database,actor,key,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[]);
   }
   const created=await state(database,actor.companyId),createdFinance=await expensePostingFinanceState(database,actor);
   if(before.image!==created.image||finance.image!==createdFinance.image||(receipt?!isDeepStrictEqual(before.mapping,created.mapping):!matches(created.mapping,input,actor.companyId))||(!!receipt||!!finance.defaults)&&!isDeepStrictEqual(finance.service,createdFinance.service))throw changed();

@@ -194,13 +194,29 @@ fn valid_date(value: &str) -> bool {
         return false;
     };
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let days = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     (1..=12).contains(&month) && day >= 1 && day <= days[month - 1]
 }
 
 fn decimal_units(value: &str) -> Result<i128, Error> {
     if value.is_empty() || value.len() > 32 {
-        return Err(invalid("INVALID_OPENING_LINE", "Use a positive debit or credit."));
+        return Err(invalid(
+            "INVALID_OPENING_LINE",
+            "Use a positive debit or credit.",
+        ));
     }
     let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
     if whole.is_empty()
@@ -208,7 +224,10 @@ fn decimal_units(value: &str) -> Result<i128, Error> {
         || !fraction.bytes().all(|byte| byte.is_ascii_digit())
         || fraction.len() > 2
     {
-        return Err(invalid("INVALID_OPENING_LINE", "Use a positive debit or credit."));
+        return Err(invalid(
+            "INVALID_OPENING_LINE",
+            "Use a positive debit or credit.",
+        ));
     }
     let whole = whole
         .parse::<i128>()
@@ -372,7 +391,10 @@ pub async fn read_opening_preview(
     let mut control_lines = std::collections::BTreeMap::new();
     for line in &input.lines {
         let account = accounts.get(&line.account_id).ok_or_else(|| {
-            invalid("ACCOUNT_INVALID", "Every opening balance account must be active.")
+            invalid(
+                "ACCOUNT_INVALID",
+                "Every opening balance account must be active.",
+            )
         })?;
         let debit_minor = decimal_units(&line.debit)?;
         let credit_minor = decimal_units(&line.credit)?;
@@ -409,7 +431,10 @@ pub async fn read_opening_preview(
                     "Opening payables must be a credit balance.",
                 ));
             }
-            control_lines.insert(line.account_id.clone(), (line.subledger_kind.clone(), debit_minor, credit_minor));
+            control_lines.insert(
+                line.account_id.clone(),
+                (line.subledger_kind.clone(), debit_minor, credit_minor),
+            );
         }
         debit += debit_minor;
         credit += credit_minor;
@@ -477,10 +502,18 @@ pub async fn read_opening_preview(
             ));
         }
         let party = parties.get(&item.party_id).ok_or_else(|| {
-            invalid("OPENING_PARTY_INVALID", "Opening subledger parties must be active.")
+            invalid(
+                "OPENING_PARTY_INVALID",
+                "Opening subledger parties must be active.",
+            )
         })?;
         if party.status != "active"
-            || party.kind != (if item.kind == "receivable" { "customer" } else { "supplier" })
+            || party.kind
+                != (if item.kind == "receivable" {
+                    "customer"
+                } else {
+                    "supplier"
+                })
             || party.currency != input.currency
         {
             return Err(invalid(
@@ -501,7 +534,10 @@ pub async fn read_opening_preview(
             ));
         }
         let offset = accounts.get(&item.offset_account_id).ok_or_else(|| {
-            invalid("OPENING_OFFSET_ACCOUNT_INVALID", "Use an active offset account.")
+            invalid(
+                "OPENING_OFFSET_ACCOUNT_INVALID",
+                "Use an active offset account.",
+            )
         })?;
         if offset.status != "active"
             || offset.chart_id != input.chart_id
@@ -519,7 +555,9 @@ pub async fn read_opening_preview(
                 "Opening subledger references must be unique for each kind.",
             ));
         }
-        let scheduled = schedule.entry(item.control_account_id.clone()).or_insert(0i128);
+        let scheduled = schedule
+            .entry(item.control_account_id.clone())
+            .or_insert(0i128);
         *scheduled += amount;
         normalized_items.push(OpeningSubledgerItem {
             kind: item.kind.clone(),
@@ -532,7 +570,11 @@ pub async fn read_opening_preview(
         });
     }
     for (account_id, (kind, debit, credit)) in &control_lines {
-        let expected = if kind == "receivable" { *debit } else { *credit };
+        let expected = if kind == "receivable" {
+            *debit
+        } else {
+            *credit
+        };
         if schedule.get(account_id).copied().unwrap_or(0) != expected {
             accounts.get(account_id).ok_or_else(unavailable)?;
             return Err(invalid(
@@ -682,9 +724,7 @@ fn string(value: &str) -> String {
 }
 
 fn optional(value: Option<&str>) -> String {
-    value
-        .map(string)
-        .unwrap_or_else(|| "null".into())
+    value.map(string).unwrap_or_else(|| "null".into())
 }
 
 fn opening_fingerprint(
@@ -895,8 +935,12 @@ pub async fn import_opening_balance<C: Clock + Sync>(
             })
             .collect(),
     };
-    let rules = embedded_currency_rules()
-        .map_err(|_| invalid("CURRENCY_CATALOGUE_UNAVAILABLE", "Currency rules are unavailable."))?;
+    let rules = embedded_currency_rules().map_err(|_| {
+        invalid(
+            "CURRENCY_CATALOGUE_UNAVAILABLE",
+            "Currency rules are unavailable.",
+        )
+    })?;
     let collation = FinanceCollation::english().map_err(|_| {
         invalid(
             "FINANCE_COLLATION_UNAVAILABLE",
@@ -914,15 +958,9 @@ pub async fn import_opening_balance<C: Clock + Sync>(
             &collation,
         )
         .map_err(opening_journal_error)?;
-        prepare_journal(
-            &mut ports,
-            finance,
-            &draft,
-            command,
-            JournalStatus::Draft,
-        )
-        .await
-        .map_err(opening_journal_error)?
+        prepare_journal(&mut ports, finance, &draft, command, JournalStatus::Draft)
+            .await
+            .map_err(opening_journal_error)?
     };
     PgJournalStore::new(
         finance.holding_id.clone(),

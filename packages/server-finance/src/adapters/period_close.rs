@@ -152,8 +152,7 @@ const VAT_MISSING_SQL: &str = r#"SELECT COUNT(*) FROM (SELECT i.id FROM finance_
     WHERE r.company_id=$9 AND j.chart_id=$10 AND r.status='posted' AND j.status='posted' AND j.entry_date BETWEEN $11 AND $12 AND i.tax_account_id IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')) pending"#;
 
-const VAT_PENDING_CORRECTIONS_SQL: &str =
-    "SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=$1 AND c.chart_id=$2 AND c.status='prepared' AND t.accounting_date<=$3";
+const VAT_PENDING_CORRECTIONS_SQL: &str = "SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=$1 AND c.chart_id=$2 AND c.status='prepared' AND t.accounting_date<=$3";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -404,11 +403,7 @@ fn number(value: &Value, key: &str) -> i64 {
     value.get(key).and_then(Value::as_i64).unwrap_or_default()
 }
 
-async fn count(
-    c: &mut PgConnection,
-    sql: &str,
-    binds: &[&str],
-) -> Result<i64, Error> {
+async fn count(c: &mut PgConnection, sql: &str, binds: &[&str]) -> Result<i64, Error> {
     let mut query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(sql));
     for bind in binds {
         query = query.bind(*bind);
@@ -500,7 +495,11 @@ async fn supplier_bank(c: &mut PgConnection, company: &str, end: &str) -> Result
     .await
 }
 
-async fn refund_pending(c: &mut PgConnection, company: &str, end: &str) -> Result<(i64, i64), Error> {
+async fn refund_pending(
+    c: &mut PgConnection,
+    company: &str,
+    end: &str,
+) -> Result<(i64, i64), Error> {
     let returns = count(
         c,
         "SELECT COUNT(*) FROM commerce_returns WHERE company_id=$1 AND status='approved' AND return_date<=$2",
@@ -527,13 +526,14 @@ async fn control_accounts(c: &mut PgConnection, company: &str) -> Result<Vec<Val
     .await?;
     rows.into_iter()
         .map(|row| {
-            let (account, chart) = row
-                .split_once('|')
-                .ok_or_else(|| unavailable())?;
+            let (account, chart) = row.split_once('|').ok_or_else(|| unavailable())?;
             let mut account = json_row(account.to_owned())?;
             let chart = json_row(chart.to_owned())?;
             if let Some(object) = account.as_object_mut() {
-                object.insert("chart_name".into(), chart.get("name").cloned().unwrap_or(Value::Null));
+                object.insert(
+                    "chart_name".into(),
+                    chart.get("name").cloned().unwrap_or(Value::Null),
+                );
                 object.insert(
                     "base_currency".into(),
                     chart.get("base_currency").cloned().unwrap_or(Value::Null),
@@ -702,16 +702,13 @@ async fn vat_evidence(
         ],
     )
     .await?;
-    let pending_corrections = count(
-        c,
-        VAT_PENDING_CORRECTIONS_SQL,
-        &[company, &chart_id, end],
-    )
-    .await?;
+    let pending_corrections =
+        count(c, VAT_PENDING_CORRECTIONS_SQL, &[company, &chart_id, end]).await?;
     let ready = missing == 0
         && pending_corrections == 0
         && rows.iter().all(|row| {
-            row.get("ledger_minor").and_then(Value::as_i64) == row.get("register_minor").and_then(Value::as_i64)
+            row.get("ledger_minor").and_then(Value::as_i64)
+                == row.get("register_minor").and_then(Value::as_i64)
         });
     Ok(Some(VatCloseEvidence {
         profile_id,
@@ -778,8 +775,16 @@ async fn reconciliation(
                 }),
             )
         } else {
-            let (value, invoices, foreign, legacy) =
-                subledger_closing(c, company, &period_id, &end, &kind, &base_currency, &source_account_id).await?;
+            let (value, invoices, foreign, legacy) = subledger_closing(
+                c,
+                company,
+                &period_id,
+                &end,
+                &kind,
+                &base_currency,
+                &source_account_id,
+            )
+            .await?;
             (
                 value,
                 json!({
@@ -807,8 +812,18 @@ async fn reconciliation(
     let vat = vat_evidence(c, company, &end).await?;
     let ready = rows.iter().all(|row| {
         row.difference_minor == 0
-            && row.source.get("foreignOpenCount").and_then(Value::as_i64).unwrap_or_default() == 0
-            && row.source.get("legacyDateCount").and_then(Value::as_i64).unwrap_or_default() == 0
+            && row
+                .source
+                .get("foreignOpenCount")
+                .and_then(Value::as_i64)
+                .unwrap_or_default()
+                == 0
+            && row
+                .source
+                .get("legacyDateCount")
+                .and_then(Value::as_i64)
+                .unwrap_or_default()
+                == 0
             && (row.kind != "bank"
                 || row.source.get("evidenceComplete").and_then(Value::as_bool) == Some(true))
     }) && vat.as_ref().map(|value| value.ready).unwrap_or(true);
@@ -831,7 +846,12 @@ fn hash_input(rows: &[CloseReconciliation], vat: &Option<VatCloseEvidence>) -> S
     digest(&value)
 }
 
-fn blockers(readiness: &PeriodCloseReadiness, pending_tax: i64, source_tasks: i64, ready: bool) -> i64 {
+fn blockers(
+    readiness: &PeriodCloseReadiness,
+    pending_tax: i64,
+    source_tasks: i64,
+    ready: bool,
+) -> i64 {
     readiness.draft_journals
         + readiness.draft_invoices
         + readiness.unmatched_bank
@@ -854,7 +874,14 @@ async fn workspace_counts(
     let bills = supplier_bills(c, company, &end).await?;
     let bank = supplier_bank(c, company, &end).await?;
     let (returns, instructions) = refund_pending(c, company, &end).await?;
-    Ok((source_tasks, tax, bills, bank, returns, instructions + returns))
+    Ok((
+        source_tasks,
+        tax,
+        bills,
+        bank,
+        returns,
+        instructions + returns,
+    ))
 }
 
 pub async fn read_period_close(
@@ -1076,7 +1103,10 @@ pub async fn cancel_period_close(
 ) -> Result<PeriodCloseResult, Error> {
     serializable(c).await?;
     require_company(actor)?;
-    if input.reason.trim().len() < 3 || input.reason.trim().len() > 2000 || input.expected_version < 1 {
+    if input.reason.trim().len() < 3
+        || input.reason.trim().len() > 2000
+        || input.expected_version < 1
+    {
         return Err(invalid(
             "INVALID_CLOSE_CANCELLATION",
             "Use a close version and a reason to cancel the preparation.",

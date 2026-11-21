@@ -23,8 +23,8 @@ export interface AgentGovernanceRepository<Effect>{policyCandidates(companyId:st
  workspacePoolHistory(companyId:string):Promise<(Row)[]>;
  workspaceSessions(companyId:string,userId:string,value:0 | 1):Promise<(Row)[]>;
  latestPrivateSession(companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string):Promise<{id:string;generation:number;status:string;expires_at:number}|null>;
- preparePrivateSession(id:string,companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string,assignmentId2:string | null,now:number,generation:number):Effect;
- preparePrivateSessionControls(id:string,value:number,now:number):Effect;
+ preparePrivateSession(id:string,companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string,assignmentId2:string | null,now:number,generation:number):Promise<Effect>;
+ preparePrivateSessionControls(id:string,value:number,now:number):Promise<Effect>;
  recordInvocation(value:string,sessionId:string,turnId:string,companyId:string,userId:string,agentVersionId:string | null,value2:string,value3:string,value4:string,value5:string,outcome:"succeeded" | "failed",value6:number | null,value7:number | null,value8:string | null,now:number,value9:string):Promise<void>;
  invocationRecord(companyId:string,id:string):Promise<Row|null>;
  sessionRecord(companyId:string,id:string,userId:string,value:0 | 1):Promise<Row|null>;
@@ -108,8 +108,8 @@ const r=await ports.repository(a);
   if(existing?.status==="active"&&Number(existing.expires_at)>now)return {sessionId:existing.id,...policy};
   const generation=Number(existing?.generation??0)+1,id=`ai-session-${await ports.hash(JSON.stringify([a.companyId,a.userId,a.assignmentId,scopeKey,conversationKey,generation]))}`;
   await r.batch([
-    r.preparePrivateSession(id,a.companyId,a.userId,a.assignmentId,scopeKey,conversationKey,policy.assignmentId,now,generation),
-    r.preparePrivateSessionControls(id,now+30*24*60*60*1000,now),
+    await r.preparePrivateSession(id,a.companyId,a.userId,a.assignmentId,scopeKey,conversationKey,policy.assignmentId,now,generation),
+    await r.preparePrivateSessionControls(id,now+30*24*60*60*1000,now),
   ]);
   return {sessionId:id,...policy};
 }

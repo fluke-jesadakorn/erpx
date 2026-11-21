@@ -177,14 +177,20 @@ pub fn money_snapshot_usd(
     source_scale: u8,
     currency_per_usd: &str,
 ) -> Result<String, BusinessError> {
-    let usd = convert_currency_units(&BigInt::from(amount_units), source_scale, 2, currency_per_usd, "1")
-        .map_err(|_| {
-            invalid_error(
-                "MONEY_OVERFLOW",
-                "Money conversion exceeds its exact bounds.",
-            )
-        })?
-        .to_string();
+    let usd = convert_currency_units(
+        &BigInt::from(amount_units),
+        source_scale,
+        2,
+        currency_per_usd,
+        "1",
+    )
+    .map_err(|_| {
+        invalid_error(
+            "MONEY_OVERFLOW",
+            "Money conversion exceeds its exact bounds.",
+        )
+    })?
+    .to_string();
     if usd.len() > 38 {
         return Err(invalid_error(
             "MONEY_OVERFLOW",
@@ -237,10 +243,7 @@ impl MoneyRateSelector {
     pub fn new() -> Result<Self, BusinessError> {
         Ok(Self {
             collation: FinanceCollation::english().map_err(|_| {
-                invalid_error(
-                    "MONEY_SNAPSHOT_CHANGED",
-                    "The Money source changed.",
-                )
+                invalid_error("MONEY_SNAPSHOT_CHANGED", "The Money source changed.")
             })?,
             dated: None,
             fallback: None,
@@ -514,10 +517,7 @@ impl PreparedMoneySnapshot {
         Ok(())
     }
     /// Insert the exact retained row and return its whole-row image.
-    pub async fn persist(
-        self,
-        c: &mut PgConnection,
-    ) -> Result<RetainedMoneySnapshot, Error> {
+    pub async fn persist(self, c: &mut PgConnection) -> Result<RetainedMoneySnapshot, Error> {
         self.require_before(&mut *c).await?;
         let expected: String = sqlx::query_scalar(
             "SELECT encode(sha256(convert_to(jsonb_build_object(\
@@ -616,7 +616,7 @@ impl RetainedMoneySnapshot {
                 &self.plan.input.amount_kind,
             )
             .await?
-                .as_ref()
+            .as_ref()
                 != Some(&self.image)
             || unit(c).await? != self.plan.unit
         {
@@ -648,13 +648,7 @@ pub async fn prepare_money_snapshot(
     .await?;
     let scale = money_snapshot_scale(&input.currency, configured_scale)?;
     require_money_snapshot_scale(input.currency_scale, scale)?;
-    let quote = quote(
-        &mut *c,
-        company,
-        &input.currency,
-        &input.transaction_date,
-    )
-    .await?;
+    let quote = quote(&mut *c, company, &input.currency, &input.transaction_date).await?;
     if quote.scale != configured_scale {
         return Err(changed());
     }
@@ -724,8 +718,8 @@ impl<C: Clock + Send + Sync + 'static> PgMoneySnapshotProducer for PgMoneySnapsh
         input: &'a MoneySnapshotInput,
     ) -> Pin<Box<dyn Future<Output = Result<PreparedMoneySnapshot, Error>> + Send + 'a>> {
         let input = input.clone();
-        Box::pin(async move {
-            prepare_money_snapshot(connection, company, input, &self.clock).await
-        })
+        Box::pin(
+            async move { prepare_money_snapshot(connection, company, input, &self.clock).await },
+        )
     }
 }

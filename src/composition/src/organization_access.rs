@@ -18,13 +18,15 @@ use erpx_server_organization::public::organization_access::{
 };
 use erpx_server_organization::public::organization_nodes::OrganizationScopeKind;
 use erpx_server_organization::public::position_moves::{
-    CancelPositionMoveHttpRequest, PgPositionMoves, PositionMoveHttpBackend, PositionMoveHttpFuture,
-    PositionMoveHttpTarget, PositionMoveListHttpRequest, PositionMovePreviewHttpRequest,
-    PositionMoveSubmitHttpRequest,
+    CancelPositionMoveHttpRequest, PgPositionMoves, PositionMoveHttpBackend,
+    PositionMoveHttpFuture, PositionMoveHttpTarget, PositionMoveListHttpRequest,
+    PositionMovePreviewHttpRequest, PositionMoveSubmitHttpRequest,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId,
+};
 use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
@@ -73,14 +75,17 @@ impl OrganizationAccessConfiguration {
 }
 
 pub struct OrganizationAccessService<C> {
-    authorizer: Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
+    authorizer:
+        Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
     configuration: OrganizationAccessConfiguration,
     clock: Arc<C>,
 }
 
 impl<C: Clock + Send + Sync + 'static> OrganizationAccessService<C> {
     pub fn new(
-        authorizer: Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
+        authorizer: Arc<
+            erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer,
+        >,
         configuration: OrganizationAccessConfiguration,
         clock: Arc<C>,
     ) -> Self {
@@ -160,7 +165,10 @@ fn access_actor(current: &AuthorizedWorkContext) -> Result<OrganizationAccessAct
     Ok(OrganizationAccessActor {
         actor_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|id| id.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -234,14 +242,17 @@ impl<C: Clock + Send + Sync + 'static> OrganizationAccessHttpBackend
 }
 
 pub struct PositionMoveService<C> {
-    authorizer: Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
+    authorizer:
+        Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
     configuration: OrganizationAccessConfiguration,
     clock: Arc<C>,
 }
 
 impl<C: Clock + Send + Sync + 'static> PositionMoveService<C> {
     pub fn new(
-        authorizer: Arc<erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer>,
+        authorizer: Arc<
+            erpx_server_identity_access::public::effective_authority::HoldingWorkAuthorizer,
+        >,
         configuration: OrganizationAccessConfiguration,
         clock: Arc<C>,
     ) -> Self {
@@ -372,14 +383,20 @@ impl<C: Clock + Send + Sync + 'static> PositionMoveHttpBackend for PositionMoveB
             let (proof, selection) = self.context(request.headers, false)?;
             let id = request.move_id.map(str::to_owned);
             self.service
-                .unit(request.host, proof, move || Ok(selection), false, move |ports, current, _| {
-                    let id = id.clone();
-                    Box::pin(async move {
-                        let actor = organization_actor(current).map_err(Error::from)?;
-                        let rows = ports.list(&actor.projection(), id.as_deref()).await?;
-                        record_value(&rows).map_err(Error::from)
-                    })
-                })
+                .unit(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    false,
+                    move |ports, current, _| {
+                        let id = id.clone();
+                        Box::pin(async move {
+                            let actor = organization_actor(current).map_err(Error::from)?;
+                            let rows = ports.list(&actor.projection(), id.as_deref()).await?;
+                            record_value(&rows).map_err(Error::from)
+                        })
+                    },
+                )
                 .await
                 .map_err(business)
         })
@@ -393,15 +410,20 @@ impl<C: Clock + Send + Sync + 'static> PositionMoveHttpBackend for PositionMoveB
             let (proof, selection) = self.context(request.headers, false)?;
             let input = request.input.clone();
             self.service
-                .unit(request.host, proof, move || Ok(selection), false, move |ports, current, clock| {
-                    let input = input.clone();
-                    Box::pin(async move {
-                        let actor = organization_actor(current).map_err(Error::from)?;
-                        let preview =
-                            ports.preview(&actor.projection(), &input, clock).await?;
-                        record_value(&preview).map_err(Error::from)
-                    })
-                })
+                .unit(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    false,
+                    move |ports, current, clock| {
+                        let input = input.clone();
+                        Box::pin(async move {
+                            let actor = organization_actor(current).map_err(Error::from)?;
+                            let preview = ports.preview(&actor.projection(), &input, clock).await?;
+                            record_value(&preview).map_err(Error::from)
+                        })
+                    },
+                )
                 .await
                 .map_err(business)
         })
@@ -418,18 +440,24 @@ impl<C: Clock + Send + Sync + 'static> PositionMoveHttpBackend for PositionMoveB
             let expires = request.expires_at;
             let key = request.key.to_owned();
             self.service
-                .unit(request.host, proof, move || Ok(selection), true, move |ports, current, clock| {
-                    let input = input.clone();
-                    let token = token.clone();
-                    let key = key.clone();
-                    Box::pin(async move {
-                        let actor = organization_actor(current).map_err(Error::from)?;
-                        let value = ports
-                            .submit(&actor, &input, &token, expires, &key, clock)
-                            .await?;
-                        Ok(value)
-                    })
-                })
+                .unit(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    true,
+                    move |ports, current, clock| {
+                        let input = input.clone();
+                        let token = token.clone();
+                        let key = key.clone();
+                        Box::pin(async move {
+                            let actor = organization_actor(current).map_err(Error::from)?;
+                            let value = ports
+                                .submit(&actor, &input, &token, expires, &key, clock)
+                                .await?;
+                            Ok(value)
+                        })
+                    },
+                )
                 .await
                 .map_err(business)
         })
@@ -445,15 +473,21 @@ impl<C: Clock + Send + Sync + 'static> PositionMoveHttpBackend for PositionMoveB
             let id = request.move_id.to_owned();
             let expected = request.expected_version;
             self.service
-                .unit(request.host, proof, move || Ok(selection), true, move |ports, current, clock| {
-                    let id = id.clone();
-                    let key = key.clone();
-                    Box::pin(async move {
-                        let actor = organization_actor(current).map_err(Error::from)?;
-                        let value = ports.cancel(&actor, &id, expected, &key, clock).await?;
-                        Ok(value)
-                    })
-                })
+                .unit(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    true,
+                    move |ports, current, clock| {
+                        let id = id.clone();
+                        let key = key.clone();
+                        Box::pin(async move {
+                            let actor = organization_actor(current).map_err(Error::from)?;
+                            let value = ports.cancel(&actor, &id, expected, &key, clock).await?;
+                            Ok(value)
+                        })
+                    },
+                )
                 .await
                 .map_err(business)
         })

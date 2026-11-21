@@ -279,7 +279,8 @@ pub fn normalize_email(value: &str) -> Result<String, BusinessError> {
 impl AccessRequest {
     pub fn validate_schema(&self) -> Result<ValidatedRequest, BusinessError> {
         if RecordId::new(self.order_id.clone()).is_err()
-            || self.source_version < 1 || self.expires_at < 1
+            || self.source_version < 1
+            || self.expires_at < 1
         {
             return Err(request_invalid());
         }

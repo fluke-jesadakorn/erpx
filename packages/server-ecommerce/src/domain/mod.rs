@@ -4,3 +4,4 @@ pub mod channel;
 pub mod command;
 pub mod listing;
 pub mod review;
+pub mod wave2;

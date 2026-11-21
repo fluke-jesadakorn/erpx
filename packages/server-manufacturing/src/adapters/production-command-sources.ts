@@ -2,7 +2,7 @@ import {productionReadProjection as productioncommerceProjection} from '@erpx/se
 import {productionReadProjection as productionfinanceProjection} from '@erpx/server-finance/public/production-read-projections';
 import {productionReadProjection as productionplanningProjection} from '@erpx/server-planning/public/production-read-projections';
 import {productionReadProjection as productioninventoryProjection} from '@erpx/server-inventory/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
     .prepare(
       `SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? ${v ? "AND version=?" : ""}`,
     )
@@ -26,28 +26,8 @@ async specificationLines(specificationId:string){return db.prepare("SELECT * FRO
       .bind(specificationId).all<Row>();},
 guardScenarioSpecification(key:string,value:"specification-source",specificationId:string,companyId:string,specificationVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')", [specificationId, companyId, specificationVersion]);},
 guardRecommendationSpecification(key:string,value:"specification-source",value2:string,companyId:string,value3:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')", [value2, companyId, value3]);},
-prepareManufacturingOrder(orderId:string,companyId:string,branch_id:string | number | null,warehouse_id:string | number | null,id:string,specification_id:string | number | null,specification_version:string | number | null,recommended_quantity_milli:string | number | null,userId:string,now:number,now2:number){return db
-        .prepare(
-          "INSERT INTO manufacturing_orders(id,company_id,branch_id,warehouse_id,recommendation_id,specification_id,specification_version,planned_quantity_milli,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'planned',?,?,?)",
-        )
-        .bind(
-          orderId,
-          companyId,
-          branch_id,
-          warehouse_id,
-          id,
-          specification_id,
-          specification_version,
-          recommended_quantity_milli,
-          userId,
-          now,
-          now2,
-        );},
-prepareManufacturingReleaseEvent(value:string,orderId:string,userId:string,reason:string,now:number){return db
-        .prepare(
-          "INSERT INTO manufacturing_order_events VALUES(?,?,1,'release',? ,?,'planned','{}',?)",
-        )
-        .bind(value, orderId, userId, reason, now);},
+ prepareManufacturingOrder(orderId:string,companyId:string,branch_id:string | number | null,warehouse_id:string | number | null,id:string,specification_id:string | number | null,specification_version:string | number | null,recommended_quantity_milli:string | number | null,userId:string,now:number,now2:number){return ownerWrite('order.create',[orderId,companyId,branch_id,warehouse_id,id,specification_id,specification_version,recommended_quantity_milli,userId,now,now2],String(orderId));},
+ prepareManufacturingReleaseEvent(value:string,orderId:string,userId:string,reason:string,now:number){return ownerWrite('order.release-event',[value,orderId,userId,reason,now],String(orderId));},
 async scopedOrder(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db
       .prepare(
         `SELECT o.*,s.output_product_id,s.batch_quantity_milli,p.tracking_mode output_tracking_mode FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id ${productioncommerceProjection.outputProduct} WHERE o.id=? AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?)`,
@@ -62,20 +42,7 @@ async orderSpecificationLines(specification_id:string | number | null){return db
         .all<Row>();},
 lockOrder(id:string){return db.prepare("SELECT id FROM manufacturing_orders WHERE id=? FOR UPDATE").bind(id);},
 guardOrderVersion(key:string,value:"order",id:string,expectedVersion:number,status:string | number | null){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_orders WHERE id=? AND version=? AND status=?)", [id, expectedVersion, status]);},
-prepareMaterialReservation(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,required:number,expiresAt:number,userId:string,now:number){return db
-          .prepare(
-            "INSERT INTO manufacturing_material_reservations VALUES(?,?,?,?,?,0,0,?,?,?)",
-          )
-          .bind(
-            value,
-            id,
-            warehouse_id,
-            product_id,
-            required,
-            expiresAt,
-            userId,
-            now,
-          );},
+ prepareMaterialReservation(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,required:number,expiresAt:number,userId:string,now:number){return ownerWrite('order.reservation',[value,id,warehouse_id,product_id,required,expiresAt,userId,now],String(id));},
 async materialReservation(id:string,product_id:string | number | null){return db
           .prepare(
             "SELECT * FROM manufacturing_material_reservations WHERE order_id=? AND product_id=?",
@@ -91,17 +58,7 @@ guardCurrentMaterialReservation(key:string,value:string,id:string | number | nul
         );},
 guardCompleteRouting(key:string,value:"completed-routing",value2:string,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=?
       AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))`, [value2, id]);},
-prepareOutputReport(value:number,value2:number,value3:number,value4:number,id:string){return db
-        .prepare(
-          "UPDATE manufacturing_orders SET reported_output_milli=?,reported_scrap_milli=?,labor_cost_minor=?,overhead_cost_minor=? WHERE id=?",
-        )
-        .bind(
-          value,
-          value2,
-          value3,
-          value4,
-          id,
-        );},
+ prepareOutputReport(value:number,value2:number,value3:number,value4:number,id:string){return ownerWrite('order.output-report',[value,value2,value3,value4,id],String(id));},
 async lastReportActor(id:string){return db
       .prepare(
         "SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1",
@@ -117,33 +74,10 @@ async operation(operationId:string,specification_id:string | number | null){retu
       .bind(operationId, specification_id).first<Row>();},
 guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:number,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND op.ordinal<?
       AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))`, [value2, value3, id]);},
-prepareOperationEvent(value:string,id:string,operationId:string,next:number,laborMinutes:number,machineMinutes:number,reason:string,userId:string,now:number){return db.prepare("INSERT INTO manufacturing_operation_events(id,order_id,operation_id,action,source_order_version,labor_minutes,machine_minutes,evidence,created_by,created_at) VALUES(?,?,?,'complete',?,?,?,?,?,?)")
-        .bind(value, id, operationId, next, laborMinutes, machineMinutes, reason, userId, now);},
-prepareReservationRelease(id:string){return db
-        .prepare(
-          "UPDATE manufacturing_material_reservations SET released_milli=quantity_milli-consumed_milli WHERE order_id=?",
-        )
-        .bind(id);},
-prepareOrderTransition(status:string,now:number,id:string){return db
-      .prepare(
-        "UPDATE manufacturing_orders SET status=?,version=version+1,updated_at=? WHERE id=?",
-      )
-      .bind(status, now, id);},
-prepareOrderEvent(value:string,id:string,next:number,action:"cancel" | "reserve" | "issue" | "report" | "pass-qc" | "fail-qc" | "rework" | "scrap" | "complete-operation",userId:string,reason:string,status:string,value2:string,now:number){return db
-      .prepare(
-        "INSERT INTO manufacturing_order_events VALUES(?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        value,
-        id,
-        next,
-        action,
-        userId,
-        reason,
-        status,
-        value2,
-        now,
-      );},
+ prepareOperationEvent(value:string,id:string,operationId:string,next:number,laborMinutes:number,machineMinutes:number,reason:string,userId:string,now:number){return ownerWrite('order.operation-event',[value,id,operationId,next,laborMinutes,machineMinutes,reason,userId,now],String(id));},
+ prepareReservationRelease(id:string){return ownerWrite('order.reservation-release',[id],String(id));},
+ prepareOrderTransition(status:string,now:number,id:string){return ownerWrite('order.transition',[status,now,id],String(id));},
+ prepareOrderEvent(value:string,id:string,next:number,action:"cancel" | "reserve" | "issue" | "report" | "pass-qc" | "fail-qc" | "rework" | "scrap" | "complete-operation",userId:string,reason:string,status:string,value2:string,now:number){return ownerWrite('order.event',[value,id,next,action,userId,reason,status,value2,now],String(id));},
 async detailedOrder(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db
       .prepare(
         `SELECT o.*,s.name specification_name,s.mode,p.name output_name,p.tracking_mode output_tracking_mode FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id ${productioncommerceProjection.outputProduct} WHERE o.id=? AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?)`,

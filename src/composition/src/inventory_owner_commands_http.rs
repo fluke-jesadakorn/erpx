@@ -231,13 +231,11 @@ fn common(
     let inbound = parse_inbound_account_request(policy, headers)?;
     let (branch, department) = scopes.slugs(headers)?;
     let captured = CapturedHoldingMutation::capture(headers, branch, department);
-    let text = std::str::from_utf8(body).map_err(|_| {
-        BusinessError::invalid("INVALID_JSON", "Provide a valid command body.")
-    })?;
+    let text = std::str::from_utf8(body)
+        .map_err(|_| BusinessError::invalid("INVALID_JSON", "Provide a valid command body."))?;
     let wire = CommandJson::parse(text)?;
-    let value: Value = serde_json::from_str(text).map_err(|_| {
-        BusinessError::invalid("INVALID_JSON", "Provide a valid command body.")
-    })?;
+    let value: Value = serde_json::from_str(text)
+        .map_err(|_| BusinessError::invalid("INVALID_JSON", "Provide a valid command body."))?;
     Ok(Common {
         host: host.to_owned(),
         key: CommandKey::new(key)?,
@@ -248,7 +246,9 @@ fn common(
     })
 }
 
-fn outcome(result: Result<CommandJson, PgTransactionError<BusinessError>>) -> Result<Value, BusinessError> {
+fn outcome(
+    result: Result<CommandJson, PgTransactionError<BusinessError>>,
+) -> Result<Value, BusinessError> {
     let outcome = result.map_err(|error| match error {
         PgTransactionError::Business(error) => error,
         PgTransactionError::Persistence(_) => BusinessError::new(
@@ -280,7 +280,12 @@ async fn post_transfer_save<C: Clock + Send + Sync + 'static>(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let target = selected_company_target(&state.targets, common_host(&headers)?, &holding_slug, &headers)?;
+        let target = selected_company_target(
+            &state.targets,
+            common_host(&headers)?,
+            &holding_slug,
+            &headers,
+        )?;
         let common = common(&state.policy, &state.scopes, &headers, &body)?;
         let input: TransferSaveInput = serde_json::from_value(common.value.clone())
             .map_err(|_| invalid("TRANSFER_INPUT_INVALID"))?;
@@ -310,7 +315,12 @@ async fn post_transfer_save_id<C: Clock + Send + Sync + 'static>(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let target = selected_company_target(&state.targets, common_host(&headers)?, &holding_slug, &headers)?;
+        let target = selected_company_target(
+            &state.targets,
+            common_host(&headers)?,
+            &holding_slug,
+            &headers,
+        )?;
         let common = common(&state.policy, &state.scopes, &headers, &body)?;
         let input: TransferSaveInput = serde_json::from_value(common.value.clone())
             .map_err(|_| invalid("TRANSFER_INPUT_INVALID"))?;
@@ -340,10 +350,15 @@ async fn post_transfer_transition<C: Clock + Send + Sync + 'static>(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let target = selected_company_target(&state.targets, common_host(&headers)?, &holding_slug, &headers)?;
+        let target = selected_company_target(
+            &state.targets,
+            common_host(&headers)?,
+            &holding_slug,
+            &headers,
+        )?;
         let common = common(&state.policy, &state.scopes, &headers, &body)?;
-        let action = TransferAction::parse(&action)
-            .ok_or_else(|| invalid("TRANSFER_ACTION_INVALID"))?;
+        let action =
+            TransferAction::parse(&action).ok_or_else(|| invalid("TRANSFER_ACTION_INVALID"))?;
         let input: TransferActionInput = serde_json::from_value(common.value.clone())
             .map_err(|_| invalid("TRANSFER_INPUT_INVALID"))?;
         let captured = common.captured;
@@ -373,7 +388,12 @@ async fn post_landed_cost_create<C: Clock + Send + Sync + 'static>(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let target = selected_company_target(&state.targets, common_host(&headers)?, &holding_slug, &headers)?;
+        let target = selected_company_target(
+            &state.targets,
+            common_host(&headers)?,
+            &holding_slug,
+            &headers,
+        )?;
         let common = common(&state.policy, &state.scopes, &headers, &body)?;
         let input: LandedCostCreateInput = serde_json::from_value(common.value.clone())
             .map_err(|_| invalid("LANDED_COST_INPUT_INVALID"))?;
@@ -402,7 +422,12 @@ async fn post_landed_cost_transition<C: Clock + Send + Sync + 'static>(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let target = selected_company_target(&state.targets, common_host(&headers)?, &holding_slug, &headers)?;
+        let target = selected_company_target(
+            &state.targets,
+            common_host(&headers)?,
+            &holding_slug,
+            &headers,
+        )?;
         let common = common(&state.policy, &state.scopes, &headers, &body)?;
         let action = LandedCostAction::parse(&action)
             .ok_or_else(|| invalid("LANDED_COST_ACTION_INVALID"))?;
@@ -435,7 +460,12 @@ async fn post_reorder_save<C: Clock + Send + Sync + 'static>(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let target = selected_company_target(&state.targets, common_host(&headers)?, &holding_slug, &headers)?;
+        let target = selected_company_target(
+            &state.targets,
+            common_host(&headers)?,
+            &holding_slug,
+            &headers,
+        )?;
         let common = common(&state.policy, &state.scopes, &headers, &body)?;
         let input: ReorderSaveInput = serde_json::from_value(common.value.clone())
             .map_err(|_| invalid("REORDER_INPUT_INVALID"))?;
@@ -464,10 +494,15 @@ async fn post_reorder_transition<C: Clock + Send + Sync + 'static>(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let target = selected_company_target(&state.targets, common_host(&headers)?, &holding_slug, &headers)?;
+        let target = selected_company_target(
+            &state.targets,
+            common_host(&headers)?,
+            &holding_slug,
+            &headers,
+        )?;
         let common = common(&state.policy, &state.scopes, &headers, &body)?;
-        let action = ReorderAction::parse(&action)
-            .ok_or_else(|| invalid("REORDER_ACTION_INVALID"))?;
+        let action =
+            ReorderAction::parse(&action).ok_or_else(|| invalid("REORDER_ACTION_INVALID"))?;
         let input: ReorderActionInput = serde_json::from_value(common.value.clone())
             .map_err(|_| invalid("REORDER_INPUT_INVALID"))?;
         let input = ReorderActionInput { action, ..input };

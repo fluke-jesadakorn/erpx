@@ -6,11 +6,11 @@
 //! supplied by the composition backend through `PositionMoveHttpBackend`.
 use crate::domain::position_moves::PositionMoveInput;
 use erpx_server_runtime::public::http_support::{
-    body::to_bytes, get, header, post, serde_json, HeaderMap, HeaderValue, IntoResponse, Json,
-    Path, Request, Response, Router, State, StatusCode,
+    HeaderMap, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
+    body::to_bytes, get, header, post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 64 * 1024;

@@ -9,6 +9,7 @@ pub use crate::adapters::supplier_batch::{
     SupplierInstructionEvidenceRequest, SupplierInstructionResult, SupplierInstructionResultInput,
     UnmountedSupplierInstructionEvidence, confirm_supplier_instruction, create_supplier_batch,
     decide_supplier_batch, export_supplier_batch, list_supplier_batches,
-    lock_supplier_batch_read_sources, lock_supplier_batch_sources, recover_supplier_export,
-    record_supplier_instruction_result, supplier_batch_workspace, supplier_export_content,
+    lock_supplier_batch_read_sources, lock_supplier_batch_sources,
+    record_supplier_instruction_result, recover_supplier_export, supplier_batch_workspace,
+    supplier_export_content,
 };

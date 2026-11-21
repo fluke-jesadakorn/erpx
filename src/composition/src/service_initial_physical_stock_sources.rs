@@ -112,7 +112,8 @@ impl ServiceInitialPhysicalStockSources {
         // their owner fences in the same pre-snapshot unit.
         erpx_server_inventory::public::initial_count_history_source::lock_initial_count_history_sources(c).await?;
         erpx_server_inventory::public::count_terminal_history_source::lock_count_terminal_history_source(c).await?;
-        erpx_server_workflow::public::record_origin::lock_initial_count_history_receipt_sources(c).await?;
+        erpx_server_workflow::public::record_origin::lock_initial_count_history_receipt_sources(c)
+            .await?;
         erpx_server_files::public::count_history_attachment_sources::lock_count_history_attachment_sources(c).await?;
         Ok(CountLockPreparation {
             sources: self,

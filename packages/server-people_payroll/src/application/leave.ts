@@ -278,7 +278,7 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
                 repository.stageTransitionLeaveEffect2(key, now, id),
             ], eventScope(row));
         }
-        return ports.commands.commit(context, key, "leave.cancellation", input, id, input.expectedVersion + 1, { id, state: "cancelled", version: input.expectedVersion + 1 }, [
+        return ports.commands.commit(context, key, "leave.cancellation", input, id, input.expectedVersion + 1, { id, state: "cancelled", version: input.expectedVersion + 1 }, await Promise.all([
             guard(key, id, input.expectedVersion, [
                 "draft",
                 "rejected",
@@ -287,7 +287,7 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
             ...ports.closeApprovals(key, "leave", id, context.userId, "cancel", input.note, input.expectedVersion),
             repository.stageTransitionLeaveEffect3(input.note, key, ports.clock.now(), id),
             ...(row.state === "pending_approval" ? balanceTransition(row, key, context.userId, "release") : []),
-        ], eventScope(row));
+        ]), eventScope(row));
     }
     async function decideLeaveCancellation(context: WorkContext, id: string, input: z.infer<typeof leaveDecisionSchema>, key: string, approve: boolean) {
         await ports.prepare(context.holdingId);

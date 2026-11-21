@@ -173,7 +173,9 @@ pub async fn read_journal_list(
                 .or_else(|| {
                     charts
                         .iter()
-                        .find(|row| row.get("name").and_then(Value::as_str) == Some("Operations ledger"))
+                        .find(|row| {
+                            row.get("name").and_then(Value::as_str) == Some("Operations ledger")
+                        })
                         .cloned()
                 })
                 .unwrap_or_else(|| charts[0].clone())

@@ -17,7 +17,9 @@ impl IntakeOwner {
             Self::FieldJournal => "finance_journal",
         }
     }
-    pub fn max_files(self)->i64{if self==Self::FieldJournal{50}else{10}}
+    pub fn max_files(self) -> i64 {
+        if self == Self::FieldJournal { 50 } else { 10 }
+    }
     pub fn supports(self, target: &str, component: &str, purpose: &str) -> bool {
         match self {
             Self::FieldVisit => {
@@ -26,7 +28,9 @@ impl IntakeOwner {
             Self::FinancePayment => {
                 target == "finance_payment" && component == "action" && purpose == "payment_proof"
             }
-            Self::FieldJournal => target=="finance_journal"&&component=="record"&&purpose=="journal_support",
+            Self::FieldJournal => {
+                target == "finance_journal" && component == "record" && purpose == "journal_support"
+            }
         }
     }
 }

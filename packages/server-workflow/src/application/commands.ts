@@ -5,10 +5,10 @@ export type CommandBoundary<Effect> = { before: Effect[]; after: Effect[] };
 export interface CommandRepository<Effect> {
   receipt(id:string):Promise<{request_hash:string;result_json:string;operation?:string;actor_id?:string;record_id?:string;authority_json?:string|null}|null>;
   clearAssertions(id:string,companyId:string):Promise<Effect>;
-  insertReceipt(actor:CommandActor,id:string,operation:string,digest:string,recordId:string,result:unknown,now:number):Effect;
-  captureAssignmentAuthority(actor:CommandActor,id:string):Effect;
-  audit(actor:CommandActor,id:string,operation:string,recordId:string,version:number,now:number,eventId:string):Effect;
-  outbox(actor:CommandActor,id:string,operation:string,recordId:string,version:number,state:unknown,scope:Pick<CommandActor,'companyId'|'branchId'|'departmentId'>,now:number,eventId:string):Effect;
+  insertReceipt(actor:CommandActor,id:string,operation:string,digest:string,recordId:string,result:unknown,now:number):Effect|Promise<Effect>;
+  captureAssignmentAuthority(actor:CommandActor,id:string):Effect|Promise<Effect>;
+  audit(actor:CommandActor,id:string,operation:string,recordId:string,version:number,now:number,eventId:string):Effect|Promise<Effect>;
+  outbox(actor:CommandActor,id:string,operation:string,recordId:string,version:number,state:unknown,scope:Pick<CommandActor,'companyId'|'branchId'|'departmentId'>,now:number,eventId:string):Effect|Promise<Effect>;
 }
 export interface CommandPorts<Effect> {
   repository:CommandRepository<Effect>;
@@ -57,7 +57,7 @@ export function createCommandApplication<Effect>(ports:CommandPorts<Effect>) {
     effects=await ports.prepareOwnerStatements(actor,id,operation,input,recordId,version,effects);
     const now=ports.clock.now(),state=typeof result==='object'&&result!==null?((result as Record<string,unknown>).state??(result as Record<string,unknown>).status):undefined;
     try{
-      await ports.batch([...(boundary?.before??[]),...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),repository.insertReceipt(actor,id,operation,digest,recordId,result,now),ports.assignmentGuard(actor,id),repository.captureAssignmentAuthority(actor,id),...effects,repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),...(boundary?.after??[]),await repository.clearAssertions(id, actor.companyId)]);
+      await ports.batch([...(boundary?.before??[]),...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),await repository.insertReceipt(actor,id,operation,digest,recordId,result,now),ports.assignmentGuard(actor,id),await repository.captureAssignmentAuthority(actor,id),...effects,await repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),await repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),...(boundary?.after??[]),await repository.clearAssertions(id, actor.companyId)]);
       return result;
     }catch(error){
       // The owning transaction retries the whole handoff for these failures.

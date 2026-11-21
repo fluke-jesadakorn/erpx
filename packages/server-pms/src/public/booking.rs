@@ -13,9 +13,9 @@ pub use crate::adapters::booking_postgres::{
 };
 pub use crate::application::booking::{
     PmsBookingDeliveryReport, PmsBookingMailCipher, PmsBookingMailConfig, PmsBookingMailProvider,
-    PmsBookingMailRepository, PmsBookingPurchaseGuard, authorize_booking_link,
-    booking_mail_body, booking_mail_idempotency_key, booking_management_summary,
-    booking_rate_limit, deliver_booking_emails, queue_booking_mail,
+    PmsBookingMailRepository, PmsBookingPurchaseGuard, authorize_booking_link, booking_mail_body,
+    booking_mail_idempotency_key, booking_management_summary, booking_rate_limit,
+    deliver_booking_emails, queue_booking_mail,
 };
 pub use crate::application::room_board::PmsBoardFuture;
 pub use crate::domain::booking::{

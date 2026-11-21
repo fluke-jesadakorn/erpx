@@ -26,6 +26,8 @@ pub async fn require_permission_catalog_lock(c: &mut PgConnection) -> Result<(),
         return Err(PersistenceError::new("IAM_PERMISSION_CATALOG_TRANSACTION_REQUIRED").into());
     }
     let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation='iam_permissions'::regclass AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(c).await?;
-    if !held {return Err(PersistenceError::new("IAM_PERMISSION_CATALOG_LOCK_REQUIRED").into());}
+    if !held {
+        return Err(PersistenceError::new("IAM_PERMISSION_CATALOG_LOCK_REQUIRED").into());
+    }
     Ok(())
 }

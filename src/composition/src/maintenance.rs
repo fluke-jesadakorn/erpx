@@ -21,6 +21,9 @@ use erpx_server_maintenance::public::http::{
     MaintenanceHttpBackend, MaintenanceHttpCommandRequest, MaintenanceHttpFuture,
     MaintenanceHttpReadKind, MaintenanceHttpReadRequest, MaintenanceHttpResponse,
 };
+use erpx_server_maintenance::public::preventive_plan::{
+    PreventivePlanAccess, PreventivePlanCommand, execute_preventive_plan_command,
+};
 use erpx_server_maintenance::public::read::{
     read_maintenance_detail, read_maintenance_plan_detail, read_maintenance_plans,
     read_maintenance_workspace,
@@ -30,9 +33,6 @@ use erpx_server_maintenance::public::{
     work_wire::MaintenanceChangeAction,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_maintenance::public::preventive_plan::{
-    PreventivePlanAccess, PreventivePlanCommand, execute_preventive_plan_command,
-};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
@@ -552,7 +552,6 @@ fn run_maintenance_command<'c, C: Clock + Send + Sync + 'static>(
     })
 }
 
-
 impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
     pub async fn preventive<Input>(
         &self,
@@ -606,8 +605,9 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
                             can_review: current.has_permission("records.review"),
                             expires_at: current.expires_at(),
                         };
-                        let catalogue = erpx_server_commercial::public::purchases::current_package_catalogue()
-                            .map_err(Error::Business)?;
+                        let catalogue =
+                            erpx_server_commercial::public::purchases::current_package_catalogue()
+                                .map_err(Error::Business)?;
                         let mut authority = PreventiveAuthority {
                             current,
                             command: &command,
@@ -738,7 +738,6 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceBackend<C> {
         Ok((proof, selection))
     }
 }
-
 
 struct PreventiveAuthority<'a, C> {
     current: &'a AuthorizedWorkContext,

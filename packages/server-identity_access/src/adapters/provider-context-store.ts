@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {createHash} from 'node:crypto';
 import type {SqlDatabase,TransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -56,12 +57,12 @@ export function providerContextStore(owner:TransactionalSqlDatabase,actor:Actor)
    }
    if(input.expectedContext!==before.contextKey||input.expectedRevision!==before.revision)throw changed();
    const choice=before.choices.find(row=>row.id===input.assignmentId);if(!choice||choice.version!==input.choiceVersion)throw changed();
-   const updated=before.revision===0?await database.prepare('INSERT INTO admin_provider_contexts(session_id,user_id,assignment_id,revision,updated_at) VALUES(?,?,?,1,?) ON CONFLICT(session_id) DO NOTHING RETURNING revision').bind(actor.sessionId,actor.userId,choice.id,Date.now()).first():await database.prepare('UPDATE admin_provider_contexts SET assignment_id=?,revision=revision+1,updated_at=? WHERE session_id=? AND user_id=? AND revision=? RETURNING revision').bind(choice.id,Date.now(),actor.sessionId,actor.userId,before.revision).first();
+   const updated=before.revision===0?await nativePrepare("w_09c11cc48fb3").bind(actor.sessionId,actor.userId,choice.id,Date.now()).first():await nativePrepare("w_ab9a4febec42").bind(choice.id,Date.now(),actor.sessionId,actor.userId,before.revision).first();
    if(!updated)throw changed();
-   if(actor.remember)await database.prepare(`INSERT INTO account_workspace_preferences(user_id,platform_assignment_id,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET platform_assignment_id=excluded.platform_assignment_id,updated_at=excluded.updated_at`).bind(actor.userId,choice.id,Date.now()).run();
+   if(actor.remember)await nativePrepare("w_8bcbd26a42b8").bind(actor.userId,choice.id,Date.now()).run();
    const after=await snapshot(database,actor);
    if(after.selectedId!==choice.id||after.revision!==before.revision+1||after.choices.find(row=>row.id===choice.id)?.version!==choice.version)throw changed();
-   await database.batch([database.prepare('INSERT INTO iam_receipts(id,company_id,actor_id,request_hash,result,created_at) VALUES(?,\'platform\',?,?,?::jsonb,?)').bind(key,actor.userId,requestHash,JSON.stringify(after),Date.now()),database.prepare('INSERT INTO iam_audit(id,company_id,actor_id,assignment_id,action,target_id,evidence,created_at) VALUES(?,\'platform\',?,?,\'provider.context.selected\',?,?::jsonb,?)').bind(`provider-context:${key}`,actor.userId,choice.id,choice.id,JSON.stringify({previousAssignmentId:before.selectedId,revision:after.revision}),Date.now())]);
+   await Promise.all([nativePrepare("w_2c7c80aef2a3").bind(key,actor.userId,requestHash,JSON.stringify(after),Date.now()),nativePrepare("w_2858784f6372").bind(`provider-context:${key}`,actor.userId,choice.id,choice.id,JSON.stringify({previousAssignmentId:before.selectedId,revision:after.revision}),Date.now())]);
    await database.prepare('SET CONSTRAINTS ALL IMMEDIATE').run();if((await snapshot(database,actor)).contextKey!==after.contextKey)throw changed();return after;
   }),
  };

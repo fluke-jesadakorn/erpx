@@ -7,5 +7,8 @@ pub use crate::adapters::service_no_charge::{
     CurrentServiceNoCharge, RetainedServiceNoCharge, lock_service_no_charge_sources,
     read_service_no_charge,
 };
-pub use crate::adapters::service_no_charge::{ServiceNoChargeInput,ServiceNoChargeWire,ServiceNoChargeStatus,ServiceNoChargeResult,ServiceNoChargeResponse, normalize_service_no_charge};
+pub use crate::adapters::service_no_charge::{
+    ServiceNoChargeInput, ServiceNoChargeResponse, ServiceNoChargeResult, ServiceNoChargeStatus,
+    ServiceNoChargeWire, normalize_service_no_charge,
+};
 pub use crate::domain::service_no_charge::require_no_charge_decision;

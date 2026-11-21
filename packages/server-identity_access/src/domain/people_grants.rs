@@ -124,10 +124,7 @@ pub fn delegation_exceeded() -> BusinessError {
     )
 }
 pub fn permission_unavailable() -> BusinessError {
-    invalid(
-        "PERMISSION_UNAVAILABLE",
-        "Choose a published permission.",
-    )
+    invalid("PERMISSION_UNAVAILABLE", "Choose a published permission.")
 }
 pub fn subject_inactive() -> BusinessError {
     invalid(
@@ -145,10 +142,7 @@ pub fn invitation_unavailable() -> BusinessError {
     )
 }
 pub fn scope_invalid() -> BusinessError {
-    invalid(
-        "SCOPE_INVALID",
-        "Holding access has no local scope target.",
-    )
+    invalid("SCOPE_INVALID", "Holding access has no local scope target.")
 }
 pub fn expiry_invalid() -> BusinessError {
     invalid(
@@ -187,10 +181,7 @@ pub fn directory_identity_review_required() -> BusinessError {
     )
 }
 pub fn scope_forbidden() -> BusinessError {
-    forbidden(
-        "SCOPE_FORBIDDEN",
-        "The grant exceeds its parent scope.",
-    )
+    forbidden("SCOPE_FORBIDDEN", "The grant exceeds its parent scope.")
 }
 pub fn scope_unavailable() -> BusinessError {
     conflict("SCOPE_UNAVAILABLE", "Choose an active organization scope.")
@@ -372,9 +363,11 @@ fn scope_kind(value: &str) -> bool {
 /// Normalize and bound one submitted access change before any database read.
 pub fn validate_change(change: PeopleGrantChange) -> Result<PeopleGrantChange, BusinessError> {
     let valid = match &change {
-        PeopleGrantChange::Account { name, email: address, reason } => {
-            trimmed(name, 2, MAX_NAME) && email(address) && trimmed(reason, 3, MAX_REASON)
-        }
+        PeopleGrantChange::Account {
+            name,
+            email: address,
+            reason,
+        } => trimmed(name, 2, MAX_NAME) && email(address) && trimmed(reason, 3, MAX_REASON),
         PeopleGrantChange::Role {
             id,
             expected_version,
@@ -422,11 +415,7 @@ pub fn validate_change(change: PeopleGrantChange) -> Result<PeopleGrantChange, B
             assignment_id,
             expected_version,
             reason,
-        } => {
-            identifier(assignment_id)
-                && *expected_version > 0
-                && trimmed(reason, 3, MAX_REASON)
-        }
+        } => identifier(assignment_id) && *expected_version > 0 && trimmed(reason, 3, MAX_REASON),
     };
     if !valid {
         return Err(request_invalid());
@@ -547,17 +536,13 @@ impl GrantSnapshot {
         if PROTECTED_PERMISSIONS.contains(&id) {
             return false;
         }
-        catalog
-            .definitions()
-            .iter()
-            .any(|definition| {
-                definition.id == id
-                    && definition.availability
-                        == crate::domain::permission_catalog::PermissionAvailability::Live
-                    && definition.namespace
-                        == crate::domain::permission_catalog::PermissionNamespace::Customer
-            })
-            && self.grantable_permissions.iter().any(|held| held == id)
+        catalog.definitions().iter().any(|definition| {
+            definition.id == id
+                && definition.availability
+                    == crate::domain::permission_catalog::PermissionAvailability::Live
+                && definition.namespace
+                    == crate::domain::permission_catalog::PermissionNamespace::Customer
+        }) && self.grantable_permissions.iter().any(|held| held == id)
     }
 
     /// An administrator may not publish a role that is assigned to them.
@@ -607,9 +592,10 @@ pub fn validate_snapshot(
             scopes,
             ..
         } => {
-            if permissions.iter().any(|permission| {
-                !snapshot.role_permission_available(catalog, permission)
-            }) {
+            if permissions
+                .iter()
+                .any(|permission| !snapshot.role_permission_available(catalog, permission))
+            {
                 return Err(permission_unavailable());
             }
             if let Some(id) = id {
@@ -664,9 +650,7 @@ pub fn validate_snapshot(
                 if scope_node_id.is_some() {
                     return Err(scope_invalid());
                 }
-                if snapshot.authorizing_scope_kind != "holding"
-                    || actor.scope_kind != "holding"
-                {
+                if snapshot.authorizing_scope_kind != "holding" || actor.scope_kind != "holding" {
                     return Err(scope_forbidden());
                 }
             } else {
@@ -820,16 +804,34 @@ pub fn invitation_id(_change: &PeopleGrantChange, digest: &str) -> String {
     format!("iam-invite-{}", &digest[..40.min(digest.len())])
 }
 
-pub fn preview_summary(
-    snapshot: &GrantSnapshot,
-    change: &PeopleGrantChange,
-) -> String {
+pub fn preview_summary(snapshot: &GrantSnapshot, change: &PeopleGrantChange) -> String {
     match change {
-        PeopleGrantChange::Grant { subject_id, role_id, scope_kind, valid_until, .. }
-        | PeopleGrantChange::Invite { subject_id, role_id, scope_kind, valid_until, .. } => {
-            let subject = snapshot.subject(subject_id).map(|row| row.name.as_str()).unwrap_or("");
-            let role = snapshot.role(role_id).map(|row| row.name.as_str()).unwrap_or("");
-            format!("{subject} → {role} · {scope_kind} · {}", iso_millis(*valid_until))
+        PeopleGrantChange::Grant {
+            subject_id,
+            role_id,
+            scope_kind,
+            valid_until,
+            ..
+        }
+        | PeopleGrantChange::Invite {
+            subject_id,
+            role_id,
+            scope_kind,
+            valid_until,
+            ..
+        } => {
+            let subject = snapshot
+                .subject(subject_id)
+                .map(|row| row.name.as_str())
+                .unwrap_or("");
+            let role = snapshot
+                .role(role_id)
+                .map(|row| row.name.as_str())
+                .unwrap_or("");
+            format!(
+                "{subject} → {role} · {scope_kind} · {}",
+                iso_millis(*valid_until)
+            )
         }
         PeopleGrantChange::Revoke { .. } => "Withdraw the selected access assignment".into(),
         PeopleGrantChange::Account { name, .. } => format!("account: {name}"),

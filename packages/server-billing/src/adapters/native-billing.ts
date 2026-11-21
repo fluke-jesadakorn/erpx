@@ -951,6 +951,70 @@ export function createNativeBillingClient(
   return { billing, command, invoice, holding };
 }
 
+export type NativeEvidenceAccessEvent = Readonly<{
+  eventId: string;
+  evidenceId: string;
+  outcome: "denied" | "allowed";
+  reason: string;
+}>;
+
+/**
+ * Native evidence-access audit client. Each access decision is appended once
+ * by the owner axum command route in the caller's Control transaction. The
+ * client carries the retained Host/cookie/context headers and validates the
+ * exact `{ok:true}` receipt; a missing or malformed response fails closed. It
+ * never mints a session, actor or Holding scope.
+ */
+export function createNativeEvidenceAccessClient(
+  raw: NativeBillingConfiguration,
+  transport: NativeBillingTransport = directTransport,
+) {
+  const config = configuration(raw);
+  return async function appendEvidenceAccess(
+    incoming: Pick<Headers, "get">,
+    actor: NativeBillingPageContext,
+    input: NativeEvidenceAccessEvent & {
+      holdingId: string;
+      holdingSlug: string;
+      key: string;
+    },
+  ): Promise<{ ok: true }> {
+    if (
+      !identifier(input.eventId) ||
+      !identifier(input.evidenceId) ||
+      (input.outcome !== "denied" && input.outcome !== "allowed") ||
+      typeof input.reason !== "string" ||
+      new TextEncoder().encode(input.reason).length > 200
+    )
+      return failure("NATIVE_BILLING_REQUEST_INVALID");
+    const response = await ownerCall(
+      transport,
+      config,
+      incoming,
+      actor,
+      input,
+      "POST",
+      "/evidence/access",
+      JSON.stringify({
+        eventId: input.eventId,
+        evidenceId: input.evidenceId,
+        outcome: input.outcome,
+        reason: input.reason,
+      }),
+      input.key,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeBillingError) throw error;
+      return failure("NATIVE_BILLING_UNAVAILABLE");
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ["data", "context"]) || !record(value.context))
+      return failure("NATIVE_BILLING_RESPONSE_INVALID");
+    if (!exact(value.data, ["ok"]) || value.data.ok !== true)
+      return failure("NATIVE_BILLING_RESPONSE_INVALID");
+    return { ok: true };
+  };
+}
+
 /** Bounded failure policy for the retained page/route error handling. */
 export function nativeBillingFailure(
   error: unknown,

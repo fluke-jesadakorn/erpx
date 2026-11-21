@@ -3,7 +3,7 @@
 //! adapter checks Organization source facts and writes only the Organization
 //! placement history row. People owns its own engagement columns.
 
-use erpx_server_runtime::public::postgres::{PgTransactionError, PersistenceError};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde_json::json;
 use sqlx::{Connection, PgConnection};

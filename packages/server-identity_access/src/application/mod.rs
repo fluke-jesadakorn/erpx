@@ -4,6 +4,7 @@ pub(crate) mod account_invitations;
 pub(crate) mod account_mail;
 pub(crate) mod account_ports;
 pub(crate) mod account_sso;
+pub(crate) mod account_time_preference;
 pub(crate) mod work_context;
 
 pub(crate) mod effective_authority;

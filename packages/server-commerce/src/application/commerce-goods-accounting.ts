@@ -1,4 +1,15 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+
+import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+
+async function nativeGoodsCarrying(facts: any, key: string) {
+  const values = [facts.id, facts.companyId, facts.chartId, facts.currency, facts.debit_account_id,
+    facts.fxRateMicros, facts.fact6, facts.fact7, facts.fact8, facts.fact9, facts.fact10, facts.sourceJson,
+    facts.receiptBase, facts.invoiceBase, facts.difference, facts.fact15, facts.fact16, facts.fact17,
+    facts.userId, facts.fact19];
+  try { return await nativeCommerceOwnerWrite('goods-carrying', values, facts.id, facts.userId, key, facts.companyId); }
+  catch (error) { if (error instanceof NativeCommerceOwnerWriteError) throw new Error(error.code + ': ' + error.message); throw error; }
+}
 import type { Clock } from "@erpx/server-shared/application/ports";
 import type { AttachmentManifestItem } from "@erpx/server-files/public/attachments/types";
 import type { FunctionalFxEvidence } from "@erpx/server-finance/public/commerce-journal-contracts";
@@ -237,7 +248,16 @@ export function createCommerceGoodsApplication<Effect, Context = unknown>(ports:
             if (accountId)
                 steps.push(db.guardRule2({ key: input.key, guardId: `goods-fx-account-${category}`, values: [accountId, actor.companyId, chartId, currency, category] }));
         const invoiceQuote = input.journal.preparedFxEvidence;
-        steps.push(db.prepareCommerceInvoiceGoodsCarrying1({ id: invoice.id, companyId: actor.companyId, chartId: chartId, currency: currency, debit_account_id: invoice.debit_account_id, fxRateMicros: input.journal.result.fxRateMicros, fact6: invoiceQuote ? 'confirmed_company_quote' : 'reviewed_input', fact7: invoiceQuote?.sourceRateId ?? null, fact8: invoiceQuote?.targetRateId ?? null, fact9: invoiceQuote?.usedLatestFallback ?? false, fact10: await ports.hash(sourceJson), sourceJson: sourceJson, receiptBase: receiptBase, invoiceBase: invoiceBase, difference: difference, fact15: input.gainAccountId ?? null, fact16: input.lossAccountId ?? null, fact17: fx?.result.id ?? null, userId: actor.userId, fact19: ports.clock.now() }));
+        await nativeGoodsCarrying({
+          id: invoice.id, companyId: actor.companyId, chartId: chartId, currency: currency,
+          debit_account_id: invoice.debit_account_id, fxRateMicros: input.journal.result.fxRateMicros,
+          fact6: invoiceQuote ? 'confirmed_company_quote' : 'reviewed_input', fact7: invoiceQuote?.sourceRateId ?? null,
+          fact8: invoiceQuote?.targetRateId ?? null, fact9: invoiceQuote?.usedLatestFallback ?? false,
+          fact10: await ports.hash(sourceJson), sourceJson: sourceJson, receiptBase: receiptBase,
+          invoiceBase: invoiceBase, difference: difference, fact15: input.gainAccountId ?? null,
+          fact16: input.lossAccountId ?? null, fact17: fx?.result.id ?? null, userId: actor.userId,
+          fact19: ports.clock.now(),
+        }, input.key);
         return { steps, fxJournalId: fx?.result.id ?? null };
     }
     /** Goods returns reverse original stock separately from original invoice-date credit. */

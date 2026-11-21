@@ -13,10 +13,9 @@ use crate::domain::command::{
     version_conflict,
 };
 use crate::domain::listing::{
-    CHANGE_OPERATION, CREATE_OPERATION, RECORD_TYPE, ChangeListing, CreateListing,
-    EcommerceFunctionalCurrency, EcommerceListingMoneyRequest, EcommerceListingMoneySnapshot,
-    ListingDraft, ListingRecord, ValidatedListingChange, replay_change, replay_create,
-    validate_hash,
+    CHANGE_OPERATION, CREATE_OPERATION, ChangeListing, CreateListing, EcommerceFunctionalCurrency,
+    EcommerceListingMoneyRequest, EcommerceListingMoneySnapshot, ListingDraft, ListingRecord,
+    RECORD_TYPE, ValidatedListingChange, replay_change, replay_create, validate_hash,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 

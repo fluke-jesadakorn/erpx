@@ -45,7 +45,9 @@ import { pmsCommerceFacts } from "@erpx/server-commerce/public/pms-command-facts
 import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
-function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
+import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
+function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
+        const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
     const organization = pmsOrganizationFacts(db);
     const finance = pmsFinanceFacts(db);
@@ -184,7 +186,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             recordId: string;
             id3: string;
             date: string;
-        }) => run(db, "INSERT INTO pms_postings(id,property_id,source_key,record_id,journal_id,business_date) VALUES(?,?,?,?,?,?)", facts.id, facts.id2, facts.source, facts.recordId, facts.id3, facts.date),
+        }) => write('pms_w074', [facts.id, facts.id2, facts.source, facts.recordId, facts.id3, facts.date]),
         deleteCommandAssertions: facts => workflow.deleteCommandAssertions(facts),
         readCommerceWarehouses2: facts => commerce.readCommerceWarehouses2(facts),
         readCommerceStock: facts => commerce.readCommerceStock(facts),
@@ -204,12 +206,12 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             date: string;
             fact7: number;
             description: string;
-        }) => run(db, "INSERT INTO pms_stock_moves(id,property_id,warehouse_id,product_id,quantity_milli,value_minor,movement_date,created_at,source_number) VALUES(?,?,?,?,?,?,?,?,?)", facts.id, facts.id2, facts.warehouseId, facts.productId, facts.fact4, facts.fact5, facts.date, facts.fact7, facts.description),
+        }) => write('pms_w075', [facts.id, facts.id2, facts.warehouseId, facts.productId, facts.fact4, facts.fact5, facts.date, facts.fact7, facts.description]),
         insertPmsSources: (facts: {
             id: string;
             key: string;
             id2: string;
-        }) => run(db, "INSERT INTO pms_sources(property_id,source_key,record_id) VALUES(?,?,?)", facts.id, facts.key, facts.id2),
+        }) => write('pms_w076', [facts.id, facts.key, facts.id2]),
         insertFinanceParties: facts => finance.insertFinanceParties(facts),
         readPmsPostings: (facts: {
             id: string;
@@ -234,7 +236,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             financeId: string | null;
             fact5: string;
             now: number;
-        }) => run(db, "INSERT INTO pms_documents(id,property_id,guest_account_id,kind,finance_id,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?)", facts.id, facts.id2, facts.id3, facts.kind, facts.financeId, facts.fact5, facts.now),
+        }) => write('pms_w077', [facts.id, facts.id2, facts.id3, facts.kind, facts.financeId, facts.fact5, facts.now]),
         readPmsImportBalances: (facts: {
             id: string;
             guestAccountId: string;
@@ -268,7 +270,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             fact5: string;
             userId: string;
             fact7: number;
-        }) => run(db, "INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,config_json,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?)", facts.target, facts.companyId, facts.branchId, facts.name, facts.businessDate, facts.fact5, facts.userId, facts.fact7),
+        }) => write('pms_w078', [facts.target, facts.companyId, facts.branchId, facts.name, facts.businessDate, facts.fact5, facts.userId, facts.fact7]),
         readPmsChargeCorrections2: (facts: {
             id: string;
         }) => db.prepare("SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'").bind(facts.id).first(),
@@ -282,8 +284,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => db.prepare(`INSERT INTO pms_charge_corrections(id,company_id,property_id,entry_id,guest_account_id,status,version,reason,requested_by,created_at,updated_at)
-            VALUES(?,?,?,?,?,'pending',1,?,?,?,?)`).bind(facts.id, facts.companyId, facts.id2, facts.id3, facts.guestAccountId, facts.reason, facts.userId, facts.now, facts.now2),
+        }) => write('pms_w079', [facts.id, facts.companyId, facts.id2, facts.id3, facts.guestAccountId, facts.reason, facts.userId, facts.now, facts.now2]),
         insertPmsChargeCorrectionEvents: (facts: {
             fact0: string;
             id: string;
@@ -293,15 +294,14 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             userId: string;
             reason: string;
             now: number;
-        }) => db.prepare(`INSERT INTO pms_charge_correction_events(id,correction_id,company_id,property_id,entry_id,action,actor_id,correction_version,reason,created_at)
-            VALUES(?,?,?,?,?,'requested',?,1,?,?)`).bind(facts.fact0, facts.id, facts.companyId, facts.id2, facts.id3, facts.userId, facts.reason, facts.now),
+        }) => write('pms_w080', [facts.fact0, facts.id, facts.companyId, facts.id2, facts.id3, facts.userId, facts.reason, facts.now]),
         updatePmsProperties: (facts: {
             nextVersion: number;
             now: number;
             id: string;
             companyId: string;
             version: number;
-        }) => db.prepare("UPDATE pms_properties SET version=?,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(facts.nextVersion, facts.now, facts.id, facts.companyId, facts.version),
+        }) => write('pms_w081', [facts.nextVersion, facts.now, facts.id, facts.companyId, facts.version]),
         readPmsChargeCorrections3: (facts: {
             id: string;
             companyId: string;
@@ -319,8 +319,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             companyId: string;
             id2: string;
             expectedVersion: number;
-        }) => db.prepare(`UPDATE pms_charge_corrections SET status=?,version=?,reviewed_by=?,review_reason=?,reversal_entry_id=?,reviewed_at=?,updated_at=?
-            WHERE id=? AND company_id=? AND property_id=? AND status='pending' AND version=?`).bind(facts.status, facts.correctionVersion, facts.userId, facts.reason, facts.reversalEntryId, facts.now, facts.now2, facts.id, facts.companyId, facts.id2, facts.expectedVersion),
+        }) => write('pms_w082', [facts.status, facts.correctionVersion, facts.userId, facts.reason, facts.reversalEntryId, facts.now, facts.now2, facts.id, facts.companyId, facts.id2, facts.expectedVersion]),
         insertPmsChargeCorrectionEvents2: (facts: {
             fact0: string;
             id: string;
@@ -333,15 +332,14 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             reason: string;
             reversalEntryId: string | null;
             now: number;
-        }) => db.prepare(`INSERT INTO pms_charge_correction_events(id,correction_id,company_id,property_id,entry_id,action,actor_id,correction_version,reason,reversal_entry_id,created_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(facts.fact0, facts.id, facts.companyId, facts.id2, facts.entry_id, facts.status, facts.userId, facts.correctionVersion, facts.reason, facts.reversalEntryId, facts.now),
+        }) => write('pms_w083', [facts.fact0, facts.id, facts.companyId, facts.id2, facts.entry_id, facts.status, facts.userId, facts.correctionVersion, facts.reason, facts.reversalEntryId, facts.now]),
         updatePmsProperties2: (facts: {
             propertyVersionAfter: number;
             now: number;
             id: string;
             companyId: string;
             propertyVersion: number;
-        }) => db.prepare("UPDATE pms_properties SET version=?,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(facts.propertyVersionAfter, facts.now, facts.id, facts.companyId, facts.propertyVersion),
+        }) => write('pms_w084', [facts.propertyVersionAfter, facts.now, facts.id, facts.companyId, facts.propertyVersion]),
         readAttachmentSets: facts => files.readAttachmentSets(facts),
         insertPmsTransferRequests: (facts: {
             id: `${string}-${string}-${string}-${string}-${string}`;
@@ -357,8 +355,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => db.prepare(`INSERT INTO pms_transfer_requests(id,company_id,property_id,guest_account_id,shift_id,kind,business_date,currency,amount_minor,reference,state,recorded_by,created_at,updated_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,'pending',?,?,?)`).bind(facts.id, facts.companyId, facts.id2, facts.guestAccountId, facts.shiftId, facts.kind, facts.businessDate, facts.currency, facts.amount, facts.reference, facts.userId, facts.now, facts.now2),
+        }) => write('pms_w085', [facts.id, facts.companyId, facts.id2, facts.guestAccountId, facts.shiftId, facts.kind, facts.businessDate, facts.currency, facts.amount, facts.reference, facts.userId, facts.now, facts.now2]),
         readPmsTransferRequests2: (facts: {
             id: string;
             companyId: string;
@@ -369,7 +366,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             fact1: number;
             id: string;
             version: number;
-        }) => db.prepare("UPDATE pms_transfer_requests SET state='cancelled',cancelled_by=?,version=version+1,updated_at=? WHERE id=? AND state='pending' AND version=?").bind(facts.userId, facts.fact1, facts.id, facts.version),
+        }) => write('pms_w086', [facts.userId, facts.fact1, facts.id, facts.version]),
         readCompanyFxRates: (facts: {
             companyId: string;
             requestedCurrency: string;
@@ -403,12 +400,12 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             fact0: number;
             emailId: string;
             id: string;
-        }) => db.prepare("UPDATE pms_booking_emails SET state='pending',attempts=0,next_attempt_at=?,lease_until=NULL,last_error=NULL WHERE id=? AND property_id=? AND state='failed' RETURNING id").bind(facts.fact0, facts.emailId, facts.id).first(),
+        }) => write('pms_w087', [facts.fact0, facts.emailId, facts.id]),
         updatePmsDocuments: (facts: {
             toGuestAccountId: string;
             id: string;
             id2: string;
-        }) => run(db, "UPDATE pms_documents SET guest_account_id=? WHERE property_id=? AND guest_account_id=?", facts.toGuestAccountId, facts.id, facts.id2),
+        }) => write('pms_w088', [facts.toGuestAccountId, facts.id, facts.id2]),
         updatePmsTransferRequests2: (facts: {
             userId: string;
             matchedBankId: string;
@@ -416,7 +413,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             id2: string;
             fact4: number;
             id3: string;
-        }) => run(db, "UPDATE pms_transfer_requests SET state='verified',verified_by=?,bank_transaction_id=?,entry_id=?,finance_payment_id=?,version=version+1,updated_at=? WHERE id=? AND state='pending'", facts.userId, facts.matchedBankId, facts.id, facts.id2, facts.fact4, facts.id3),
+        }) => write('pms_w089', [facts.userId, facts.matchedBankId, facts.id, facts.id2, facts.fact4, facts.id3]),
         updateFinanceBankTransactions2: facts => finance.updateFinanceBankTransactions2(facts),
         updatePmsProperties3: (facts: {
             name: string;
@@ -426,19 +423,19 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             version: number;
             fact5: number;
             id: string;
-        }) => run(db, "UPDATE pms_properties SET name=?,business_date=?,state=?,config_json=?,version=?,updated_at=? WHERE id=?", facts.name, facts.businessDate, facts.state, facts.fact3, facts.version, facts.fact5, facts.id),
+        }) => write('pms_w090', [facts.name, facts.businessDate, facts.state, facts.fact3, facts.version, facts.fact5, facts.id]),
         insertPmsJobs: (facts: {
             nightJob: string;
             id: string;
             businessDate: string;
             fact3: string;
             fact4: number;
-        }) => run(db, "INSERT INTO pms_jobs(id,property_id,business_date,actor_json,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(property_id,business_date) DO UPDATE SET state='pending',actor_json=excluded.actor_json,error_code=NULL,updated_at=excluded.updated_at", facts.nightJob, facts.id, facts.businessDate, facts.fact3, facts.fact4),
+        }) => write('pms_w091', [facts.nightJob, facts.id, facts.businessDate, facts.fact3, facts.fact4]),
         updatePmsJobs: (facts: {
             fact0: "pending" | "completed";
             fact1: number;
             id: string;
-        }) => run(db, "UPDATE pms_jobs SET state=?,error_code=NULL,updated_at=? WHERE id=?", facts.fact0, facts.fact1, facts.id),
+        }) => write('pms_w092', [facts.fact0, facts.fact1, facts.id]),
         readPmsJobs: (facts: {
             fact0: string | null;
             fact1: string | null;
@@ -456,24 +453,24 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             code: string;
             fact1: number;
             id: string;
-        }) => run(db, "UPDATE pms_jobs SET state='blocked',error_code=?,updated_at=? WHERE id=? AND state!='completed'", facts.code, facts.fact1, facts.id),
+        }) => write('pms_w093', [facts.code, facts.fact1, facts.id]),
         updatePmsRecords: (facts: {
             code: string;
             fact1: number;
             id: string;
-        }) => run(db, "UPDATE pms_records SET data_json=jsonb_set(jsonb_set(data_json::jsonb,'{state}','\"blocked\"'),'{message}',to_jsonb(?::text))::text,version=version+1,updated_at=? WHERE id=? AND data_json::jsonb->>'state'!='completed'", facts.code, facts.fact1, facts.id),
+        }) => write('pms_w094', [facts.code, facts.fact1, facts.id]),
         readContext2: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
         updatePmsProperties4: (facts: {
             version: number;
             fact1: number;
             id: string;
-        }) => run(db, "UPDATE pms_properties SET version=?,updated_at=? WHERE id=?", facts.version, facts.fact1, facts.id),
+        }) => write('pms_w095', [facts.version, facts.fact1, facts.id]),
         readContext3: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
         updatePmsProperties5: (facts: {
             version: number;
             fact1: number;
             id: string;
-        }) => run(db, "UPDATE pms_properties SET version=?,updated_at=? WHERE id=?", facts.version, facts.fact1, facts.id),
+        }) => write('pms_w096', [facts.version, facts.fact1, facts.id]),
         insertPmsRecordsBatch: (facts: Array<{
             id: string;
             id2: string;
@@ -481,12 +478,7 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             fact3: string;
             version: number;
             updatedAt: number;
-        }>) => run(db, `INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at)
-          SELECT row->>'id',row->>'id2',row->>'kind',row->>'fact3',
-            (row->>'version')::bigint,(row->>'updatedAt')::bigint
-          FROM jsonb_array_elements(?::jsonb) WITH ORDINALITY AS input(row,ordinal)
-          ORDER BY ordinal
-          ON CONFLICT(id) DO UPDATE SET data_json=excluded.data_json,version=excluded.version,updated_at=excluded.updated_at`, JSON.stringify(facts)),
+        }>) => write('pms_w097', [JSON.stringify(facts)]),
         readMoneyTransactionSnapshots: (facts: {
             companyId: string;
             fact1: string;
@@ -797,14 +789,14 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             transactionDate: string;
         }) => snapshotMoneyCarry(db, arg0, arg1), transactional: isTransactionalSqlDatabase(db), transaction: (work,propertyLockId,command) => { if (!isTransactionalSqlDatabase(db))
             throw new Error("POSTGRES_REQUIRED"); const options=propertyLockId?{sessionLock:{namespace:'erpx:pms:property',key:propertyLockId},preferIndexedReads:true,pipelineBatches:true}:undefined;
-            return command ? withPmsPurchasedCommand(db,command,tx=>work(unit(tx)),options) : db.transaction(tx => work(unit(tx)),options); }, batch: steps => db.batch(steps), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
+            return command ? withPmsPurchasedCommand(db,command,tx=>work(unit(tx, companyId)),options) : db.transaction(tx => work(unit(tx, companyId)),options); }, batch: steps => db.batch(steps), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
     };
 }
-const application = createPmsApplication<SqlStatement>({ forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write), clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message,details) => new ApiError(status, code, message,details), isBusinessError: (error): error is ApiError => error instanceof ApiError, environment: key => process.env[key] });
+const application = createPmsApplication<SqlStatement>({ forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write, actor.companyId), clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message,details) => new ApiError(status, code, message,details), isBusinessError: (error): error is ApiError => error instanceof ApiError, environment: key => process.env[key] });
 export const pmsPermissions = application.pmsPermissions;
 /** Private owner bridge for other locked PMS command snapshots. */
-export function hydratePmsReceiptAllocationCredits(db:SqlDatabase,s:Snapshot){return application.hydrateReceiptAllocationCredits(unit(db),s);}
-export function loadPms(db: SqlDatabase, actor: WorkContext, id: string, lock = false, selection?: PmsReadSelection) { return application.loadPms(unit(db), actor, id, lock, selection); }
+export function hydratePmsReceiptAllocationCredits(db:SqlDatabase,s:Snapshot){return application.hydrateReceiptAllocationCredits(unit(db, s.property.companyId),s);}
+export function loadPms(db: SqlDatabase, actor: WorkContext, id: string, lock = false, selection?: PmsReadSelection) { return application.loadPms(unit(db, actor.companyId), actor, id, lock, selection); }
 export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls = false, frontMode = false, selection?: PmsReadSelection) {
     requirePermission(actor, "pms.read");
     const mode = await pmsPackageEnforcementMode(), purchases = mode === "disabled" ? undefined
@@ -815,9 +807,9 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     if (purchases) data.purchases = purchases;
     return data;
 }
-export function effects(db: SqlDatabase, actor: WorkContext, s: Snapshot, e: Effects) { return application.effects(unit(db), actor, s, e); }
-export function pmsCommand(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string, worker = false) { return application.pmsCommand(unit(db), actor, raw, key, worker); }
-export function drainPms(db: TransactionalSqlDatabase, propertyId?: string, jobId?: string) { return application.drainPms(unit(db), propertyId, jobId); }
+export function effects(db: SqlDatabase, actor: WorkContext, s: Snapshot, e: Effects) { return application.effects(unit(db, actor.companyId), actor, s, e); }
+export function pmsCommand(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string, worker = false) { return application.pmsCommand(unit(db, actor.companyId), actor, raw, key, worker); }
+export function drainPms(db: TransactionalSqlDatabase, propertyId?: string, jobId?: string) { return application.drainPms(unit(db, ''), propertyId, jobId); }
 export async function pmsWork(actor: WorkContext): Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]> {
     if (!(hasPermission(actor, "pms.read") || hasPermission(actor, "finance.read") && hasPermission(actor, "pms.reports")) || actor.departmentId || actor.beta) return [];
     const mode = await pmsPackageEnforcementMode(), access = mode === "disabled" ? undefined
@@ -826,13 +818,13 @@ export async function pmsWork(actor: WorkContext): Promise<import("@erpx/feature
     const rows = [...await application.pmsWork(actor), ...await roomChargeReversalWork(actor, "pms")];
     return access && !access.settleExisting ? rows.map(row => ({ ...row, canAct: false, queue: "waiting" })) : rows;
 }
-export function applyPosRoomCharge(tx: SqlDatabase, actor: WorkContext, raw: z.infer<typeof roomChargeSchema>, expectedPropertyVersion: number) { return application.applyPosRoomCharge(unit(tx), actor, raw, expectedPropertyVersion); }
+export function applyPosRoomCharge(tx: SqlDatabase, actor: WorkContext, raw: z.infer<typeof roomChargeSchema>, expectedPropertyVersion: number) { return application.applyPosRoomCharge(unit(tx, actor.companyId), actor, raw, expectedPropertyVersion); }
 export function reversePosRoomCharge(tx: SqlDatabase, actor: WorkContext, input: {
     propertyId: string;
     sourceKey: string;
     expectedPropertyVersion: number;
     reason: string;
     total: number;
-}) { return application.reversePosRoomCharge(unit(tx), actor, input); }
-export function persistPmsRecords(tx: SqlDatabase, s: Snapshot, original: Map<string, string>) { return application.persistPmsRecords(unit(tx), s, original); }
+}) { return application.reversePosRoomCharge(unit(tx, actor.companyId), actor, input); }
+export function persistPmsRecords(tx: SqlDatabase, s: Snapshot, original: Map<string, string>) { return application.persistPmsRecords(unit(tx, s.property.companyId), s, original); }
 export type PmsWorkspace = Awaited<ReturnType<typeof pmsWorkspace>>;

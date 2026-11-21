@@ -4,9 +4,7 @@
 //! private response headers and owner error mapping. The current Account
 //! session, selected Company/branch/department and the serializable owner unit
 //! stay with the composition backend.
-use crate::{
-    application::auxiliary::parse_auxiliary_path, domain::auxiliary::LegalAuxiliaryRead,
-};
+use crate::{application::auxiliary::parse_auxiliary_path, domain::auxiliary::LegalAuxiliaryRead};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
     State, StatusCode, get, header,
@@ -31,10 +29,7 @@ pub struct LegalAuxiliaryHttpRequest<'a> {
 /// Composition implements this over the current Account session and one
 /// serializable Holding transaction. It never returns a TypeScript fallback.
 pub trait LegalAuxiliaryHttpBackend: Send + Sync {
-    fn read<'a>(
-        &'a self,
-        request: LegalAuxiliaryHttpRequest<'a>,
-    ) -> LegalAuxiliaryHttpFuture<'a>;
+    fn read<'a>(&'a self, request: LegalAuxiliaryHttpRequest<'a>) -> LegalAuxiliaryHttpFuture<'a>;
 }
 
 pub struct LegalAuxiliaryHttpTarget {
@@ -109,7 +104,11 @@ fn status(kind: FailureKind) -> StatusCode {
 
 fn error_response(error: BusinessError) -> Response {
     (
-        if error.code == "LEGAL_DOCUMENT_DISPOSED" { StatusCode::GONE } else { status(error.kind) },
+        if error.code == "LEGAL_DOCUMENT_DISPOSED" {
+            StatusCode::GONE
+        } else {
+            status(error.kind)
+        },
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
     )
         .into_response()
@@ -129,10 +128,7 @@ fn private_json(value: &Value) -> Response {
     response
 }
 
-fn unique_header(
-    headers: &HeaderMap,
-    name: HeaderName,
-) -> Result<Option<&str>, BusinessError> {
+fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {
@@ -151,9 +147,12 @@ fn unique_header(
 }
 
 fn valid_origin(origin: &str) -> bool {
-    origin
-        .strip_prefix("https://")
-        .is_some_and(|rest| !rest.is_empty() && !rest.bytes().any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@')))
+    origin.strip_prefix("https://").is_some_and(|rest| {
+        !rest.is_empty()
+            && !rest
+                .bytes()
+                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
+    })
 }
 
 fn split_path(raw: &str) -> Result<Vec<String>, BusinessError> {
@@ -183,9 +182,8 @@ impl LegalAuxiliaryHttpState {
         headers: &HeaderMap,
         slug: &str,
     ) -> Result<&'a LegalAuxiliaryHttpTarget, BusinessError> {
-        let host = unique_header(headers, header::HOST)?.ok_or_else(|| {
-            BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
-        })?;
+        let host = unique_header(headers, header::HOST)?
+            .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
         self.targets
             .get(&(host.to_owned(), slug.to_owned()))
             .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))
@@ -214,7 +212,9 @@ impl LegalAuxiliaryHttpService {
             configured.insert(key, target);
         }
         Ok(Self {
-            state: Arc::new(LegalAuxiliaryHttpState { targets: configured }),
+            state: Arc::new(LegalAuxiliaryHttpState {
+                targets: configured,
+            }),
         })
     }
 
@@ -232,7 +232,12 @@ impl LegalAuxiliaryHttpService {
         };
         let registered = match unique_header(headers, header::HOST) {
             Ok(Some(registered)) => registered,
-            _ => return error_response(malformed("LEGAL_REQUEST_INVALID", "Use the registered Host.")),
+            _ => {
+                return error_response(malformed(
+                    "LEGAL_REQUEST_INVALID",
+                    "Use the registered Host.",
+                ));
+            }
         };
         if !host.is_empty() && host != registered {
             return error_response(BusinessError::new(
@@ -288,22 +293,33 @@ async fn read(
         let mut wire = LegalAuxiliaryQueryWire::default();
         let mut saw_as_of = false;
         let mut repeated_as_of = false;
-        for (key, value) in url::form_urlencoded::parse(request.uri().query().unwrap_or("").as_bytes()) {
+        for (key, value) in
+            url::form_urlencoded::parse(request.uri().query().unwrap_or("").as_bytes())
+        {
             match key.as_ref() {
                 "sourceId" => {
                     if wire.source_id.is_some() {
-                        return error_response(malformed("LEGAL_REQUEST_INVALID", "Use one citation source."));
+                        return error_response(malformed(
+                            "LEGAL_REQUEST_INVALID",
+                            "Use one citation source.",
+                        ));
                     }
                     wire.source_id = Some(value.into_owned());
                 }
                 "asOf" => {
-                    if saw_as_of { repeated_as_of = true; }
-                    else { wire.as_of = Some(value.into_owned()); saw_as_of = true; }
+                    if saw_as_of {
+                        repeated_as_of = true;
+                    } else {
+                        wire.as_of = Some(value.into_owned());
+                        saw_as_of = true;
+                    }
                 }
                 _ => {}
             }
         }
-        if repeated_as_of { wire.as_of = Some(String::new()); }
+        if repeated_as_of {
+            wire.as_of = Some(String::new());
+        }
         wire
     } else {
         match Query::<LegalAuxiliaryQueryWire>::try_from_uri(request.uri()) {
@@ -406,7 +422,10 @@ mod tests {
 
     #[test]
     fn paths_split_and_reject_traversal() {
-        assert_eq!(split_path("retention/item-one").unwrap(), vec!["retention", "item-one"]);
+        assert_eq!(
+            split_path("retention/item-one").unwrap(),
+            vec!["retention", "item-one"]
+        );
         assert!(split_path("retention//item").is_err());
         assert!(split_path("../item").is_err());
         assert!(split_path("retention/.").is_err());
@@ -448,7 +467,10 @@ mod tests {
         );
         let value: Value = serde_json::from_slice(&to_bytes(body, 4096).await.unwrap()).unwrap();
         assert_eq!(value["read"], "legal.workspace.read");
-        assert_eq!(backend.0.lock().unwrap().as_slice(), ["legal.workspace.read"]);
+        assert_eq!(
+            backend.0.lock().unwrap().as_slice(),
+            ["legal.workspace.read"]
+        );
     }
 
     #[tokio::test]
@@ -499,8 +521,17 @@ mod tests {
     #[test]
     fn citation_query_retains_opaque_source_without_path_normalization() {
         for id in [".", "..", "document:a/b%2Fc", &"ก".repeat(80)] {
-            let wire = LegalAuxiliaryQueryWire { source_id: Some(id.to_owned()), ..Default::default() };
-            assert_eq!(parse_auxiliary_path(&split_path("citations").unwrap(), &wire.pairs()), Some(LegalAuxiliaryRead::Citation { id: id.to_owned(), as_of: None }));
+            let wire = LegalAuxiliaryQueryWire {
+                source_id: Some(id.to_owned()),
+                ..Default::default()
+            };
+            assert_eq!(
+                parse_auxiliary_path(&split_path("citations").unwrap(), &wire.pairs()),
+                Some(LegalAuxiliaryRead::Citation {
+                    id: id.to_owned(),
+                    as_of: None
+                })
+            );
         }
     }
 }

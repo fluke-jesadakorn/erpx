@@ -19,7 +19,7 @@ use erpx_server_identity_access::public::{
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
 };
 use erpx_server_quality::public::customer_return_hold::{
-    customer_return_hold_statements, CustomerReturnHoldInput, CustomerReturnHoldStatements,
+    CustomerReturnHoldInput, CustomerReturnHoldStatements, customer_return_hold_statements,
 };
 use erpx_server_quality::public::customer_return_hold_http::{
     HoldStatementBackend, HoldStatementFuture, HoldStatementRequest,
@@ -1406,7 +1406,12 @@ impl<C: Clock + Send + Sync + 'static> HoldStatementBackend for QualityBackend<C
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .customer_return_hold_statement(request.host, proof, selection, request.input.clone())
+                .customer_return_hold_statement(
+                    request.host,
+                    proof,
+                    selection,
+                    request.input.clone(),
+                )
                 .await
                 .map_err(business)
         })

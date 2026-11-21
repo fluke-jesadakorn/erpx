@@ -1,7 +1,7 @@
+import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
-import { nativePpExpensesSql } from '@erpx/server-collaboration/adapters/native-pp-expenses-sql';
 import {expensePaymentCancellations,expensePreparedPaymentSources,expensePaymentTreasurySql} from '@erpx/server-people_payroll/adapters/expense-payment-cancellation-sources';
 import {requireExpensePortUnit} from "@erpx/server-people_payroll/adapters/expense-purchases";
 
@@ -269,17 +269,11 @@ function originalNativeExpenseLifecycle(write: SqlDatabase) {
       : []),
     ...(route
       ? [
-          write
-            .prepare(
-              nativePpExpensesSql('pp_expenses_stmt_1'),
-            )
+          nativePpStatement('pp_expenses_stmt_1')
             .bind(route.scope.branch_id, route.scope.department_id, id),
         ]
       : []),
-    write
-      .prepare(
-        nativePpExpensesSql('pp_expenses_stmt_2'),
-      )
+    nativePpStatement('pp_expenses_stmt_2')
       .bind(
         status,
         action,
@@ -298,10 +292,7 @@ function originalNativeExpenseLifecycle(write: SqlDatabase) {
     ...(review ? [independentClaimant(write, key, id, actor)] : []),
     ...(action !== "submit"
       ? [
-          write
-            .prepare(
-              nativePpExpensesSql('pp_expenses_stmt_3'),
-            )
+          nativePpStatement('pp_expenses_stmt_3')
             .bind(
               crypto.randomUUID(),
               id,
@@ -330,7 +321,7 @@ function originalNativeExpenseLifecycle(write: SqlDatabase) {
       id,
       status: action === "cancel" ? "cancelled" : status,
       version: input.expectedVersion + 1,
-    }, steps);
+    }, await Promise.all(steps));
     },
   });
 }
@@ -379,10 +370,7 @@ function originalNativeExpenseReceiptRemoval(write: SqlDatabase) {
           ]
         : []),
       await filesExpenseEffects(write).revokeAttachment({at:now,attachmentId:attachmentId,companyId:actor.companyId}),
-      write
-        .prepare(
-          nativePpExpensesSql('pp_expenses_stmt_4'),
-        )
+      nativePpStatement('pp_expenses_stmt_4')
         .bind(now, id),
     ]);
     },
@@ -454,7 +442,7 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
         [id],
       ),
       ...(claim.request_kind==="payment"&&claim.payee_party_id ? [assertion(write,key,"payee",`EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_parties}) finance_parties WHERE id=? AND company_id=? AND kind='supplier' AND status='active' AND currency=?)`,[payee,actor.companyId,claim.currency])] : [
-      financeExpenseEffects(write).retainEmployeeParty({id:payee,companyId:actor.companyId,code:`EMP-${claim.employee_id}`,name:claim.legal_name,currency:claim.currency,personId:claim.employee_id,createdAt:now,updatedAt:now}),
+      await financeExpenseEffects(write).retainEmployeeParty({id:payee,companyId:actor.companyId,code:`EMP-${claim.employee_id}`,name:claim.legal_name,currency:claim.currency,personId:claim.employee_id,createdAt:now,updatedAt:now}),
       assertion(
         write,
         key,
@@ -464,12 +452,9 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
       ),
       ]),
       ...journal.steps,
-      financeExpenseEffects(write).postPayableInvoice({id:invoice,companyId:actor.companyId,partyId:payee,number:`EXP-${(await sha256(id)).slice(0, 24).toUpperCase()}`,invoiceDate:input.entryDate,dueDate:input.entryDate,currency:claim.currency,subtotalMinor:claim.amount_minor,taxMinor:claim.tax_minor,totalMinor:total,outstandingMinor:total,debitAccountId:claim.category_account_id,creditAccountId:config.payable_account_id,taxAccountId:config.input_tax_account_id,expenseId:id,journalId:journal.result.id,createdBy:claim.prepared_by ?? claim.created_by,approvedBy:claim.approved_by,postedAt:now,createdAt:now,updatedAt:now}),
+      await financeExpenseEffects(write).postPayableInvoice({id:invoice,companyId:actor.companyId,partyId:payee,number:`EXP-${(await sha256(id)).slice(0, 24).toUpperCase()}`,invoiceDate:input.entryDate,dueDate:input.entryDate,currency:claim.currency,subtotalMinor:claim.amount_minor,taxMinor:claim.tax_minor,totalMinor:total,outstandingMinor:total,debitAccountId:claim.category_account_id,creditAccountId:config.payable_account_id,taxAccountId:config.input_tax_account_id,expenseId:id,journalId:journal.result.id,createdBy:claim.prepared_by ?? claim.created_by,approvedBy:claim.approved_by,postedAt:now,createdAt:now,updatedAt:now}),
       ...postedMoney,
-      write
-        .prepare(
-          nativePpExpensesSql('pp_expenses_stmt_5'),
-        )
+      nativePpStatement('pp_expenses_stmt_5')
         .bind(invoice, journal.result.id, now, now, id),
     ]);
     },
@@ -533,20 +518,14 @@ function originalNativeExpenseReversal(write: SqlDatabase) {
         `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_periods}) finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)`,
         [input.periodId, actor.companyId, input.entryDate, input.entryDate],
       ),
-      financeExpenseEffects(write).retainReversalJournal({id:reversal,periodId:input.periodId,number:`REV-${key}`,date:input.entryDate,expenseId:id,reason:input.reason,createdBy:actor.userId,postedBy:actor.userId,postedAt:now,createdAt:now,updatedAt:now,originalJournalId:journal.id}),
-      financeExpenseEffects(write).retainReversalLines({prefix:reversal,journalId:reversal,originalJournalId:journal.id}),
+      await financeExpenseEffects(write).retainReversalJournal({id:reversal,periodId:input.periodId,number:`REV-${key}`,date:input.entryDate,expenseId:id,reason:input.reason,createdBy:actor.userId,postedBy:actor.userId,postedAt:now,createdAt:now,updatedAt:now,originalJournalId:journal.id}),
+      await financeExpenseEffects(write).retainReversalLines({prefix:reversal,journalId:reversal,originalJournalId:journal.id}),
       reversalMoney,
-      financeExpenseEffects(write).markJournalReversed({actorId:actor.userId,reversedAt:now,updatedAt:now,journalId:journal.id}),
-      financeExpenseEffects(write).voidExpenseInvoice({updatedAt:now,invoiceId:invoice.id}),
-      write
-        .prepare(
-          nativePpExpensesSql('pp_expenses_stmt_6'),
-        )
+      await financeExpenseEffects(write).markJournalReversed({actorId:actor.userId,reversedAt:now,updatedAt:now,journalId:journal.id}),
+      await financeExpenseEffects(write).voidExpenseInvoice({updatedAt:now,invoiceId:invoice.id}),
+      nativePpStatement('pp_expenses_stmt_6')
         .bind(now, input.reason, reversal, now, id),
-      write
-        .prepare(
-          nativePpExpensesSql('pp_expenses_stmt_7'),
-        )
+      nativePpStatement('pp_expenses_stmt_7')
         .bind(
           crypto.randomUUID(),
           id,

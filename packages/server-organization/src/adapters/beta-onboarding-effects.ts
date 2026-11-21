@@ -1,16 +1,16 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import { nativeOrgStatement } from './native-organization-owner-write';
 /** Retained team branch/department topology effects only. Company, staff-level
- * and CEO-position seeding now belongs exclusively to the native onboarding
- * command (`server-manage_erpx/src/adapters/onboarding_command.rs`), so those
- * retired TypeScript writers are not re-exported here. Effects bind the
- * caller's transaction; this owner is the only source of its table mutations. */
-export function betaOnboardingEffects(db:SqlDatabase){return {prepareBranch(id:string,slug:string,name:string,company:string,company2:string,id2:string){return db
-      .prepare(
-        "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,?,?,?,?) ON CONFLICT DO NOTHING",
-      )
-      .bind(id, slug, name, company, company2, id2);},
-prepareDepartment(value:string,id:string,company:string,id2:string){return db
-      .prepare(
-        "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department','team','Team',?,?,?) ON CONFLICT DO NOTHING",
-      )
-      .bind(value, id, company, id2);}};}
+ * and CEO-position seeding belongs exclusively to the native onboarding
+ * command. Effects are authoritative owner statements executed in the caller's
+ * transaction; no TypeScript SQL copy remains. */
+export function betaOnboardingEffects(db: SqlDatabase, companyId = '') {
+    return {
+        prepareBranch(id: string, slug: string, name: string, company: string, company2: string, id2: string): Promise<SqlStatement> {
+            return nativeOrgStatement(db, companyId, 'beta_branch_insert', [id, slug, name, company, company2, id2], `beta-branch:${id}`, Date.now());
+        },
+        prepareDepartment(value: string, id: string, company: string, id2: string): Promise<SqlStatement> {
+            return nativeOrgStatement(db, companyId, 'beta_department_insert', [value, id, company, id2], `beta-department:${value}`, Date.now());
+        },
+    };
+}

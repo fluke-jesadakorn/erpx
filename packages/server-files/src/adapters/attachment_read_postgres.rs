@@ -205,7 +205,17 @@ pub async fn finance_attachment_target(
     revalidate_attachment_ownership(c, witness).await?;
     let row:Option<(String,String,String,String,Option<String>)>=sqlx::query_as("SELECT s.target_type,s.target_id,s.purpose_key,s.component_kind,s.component_ref FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id WHERE l.id=$1 AND s.company_id=$2 AND s.target_type IN ('finance_journal','finance_payment') AND (l.attachment_id IS NULL OR a.id IS NOT NULL)")
         .bind(&witness.link_id).bind(witness.company.as_str()).fetch_optional(c).await?;
-    Ok(row.map(|(target_type,target_id,purpose_key,component_kind,component_ref)| FinanceAttachmentTarget{target_type,target_id,purpose_key,component_kind,component_ref}))
+    Ok(row.map(
+        |(target_type, target_id, purpose_key, component_kind, component_ref)| {
+            FinanceAttachmentTarget {
+                target_type,
+                target_id,
+                purpose_key,
+                component_kind,
+                component_ref,
+            }
+        },
+    ))
 }
 
 /// Read exact `stock_count` target fields only from the witness's locked unit.

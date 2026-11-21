@@ -63,6 +63,43 @@ export function nativePmsGuestAccountAvailable(): boolean {
   return process.env.ERPX_NATIVE_PMS_CONFIG !== undefined;
 }
 
+/**
+ * Native PMS cutover-import write command. Fails closed when the native owner
+ * is not configured; there is no TypeScript SQL fallback.
+ */
+export async function nativePmsImportCommand(
+  request: Request,
+  actor: WorkContext,
+  holdingSlug: string,
+  command: string,
+  facts: Record<string, unknown>,
+  key: string,
+) {
+  const raw = process.env.ERPX_NATIVE_PMS_CONFIG;
+  if (raw === undefined)
+    throw new NativePmsError('NATIVE_PMS_UNAVAILABLE', 503, 'The native Hotel import service is unavailable.');
+  const context = pageContext(actor);
+  if (!context.authority || !context.iam)
+    throw new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED');
+  const client = createNativePmsClient(nativePmsConfiguration(raw));
+  return client.importCommand(request.headers, context, {
+    holdingSlug,
+    command,
+    facts,
+    key,
+    userId: actor.userId,
+    companyId: actor.companyId,
+    assignmentId: actor.assignmentId,
+    expected: {
+      companyId: context.companyId,
+      assignmentId: context.assignmentId,
+      revision: context.authority.revision,
+      assignmentVersion: context.authority.assignmentVersion,
+    },
+    ...scopeInput(context),
+  });
+}
+
 export async function nativePmsGuestAccountCommand(
   request: Request,
   actor: WorkContext,

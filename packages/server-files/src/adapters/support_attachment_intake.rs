@@ -28,8 +28,11 @@ const SUPPORT_COMPONENT_KIND: &str = "action";
 const SUPPORT_POLICY_VERSION: i64 = 1;
 const SUPPORT_MAX_FILES: i64 = 10;
 const SUPPORT_MAX_LINKS: usize = 100;
-const SUPPORT_PURPOSES: [&str; 3] =
-    ["support_evidence", "internal_evidence", "customer_shareable"];
+const SUPPORT_PURPOSES: [&str; 3] = [
+    "support_evidence",
+    "internal_evidence",
+    "customer_shareable",
+];
 const SUPPORT_MEDIA_TYPES: [&str; 6] = [
     "image/jpeg",
     "image/png",
@@ -586,14 +589,15 @@ pub async fn create_support_attachment_set<A: SupportAttachmentAuthority>(
         let same = row.get::<String, _>("target_type") == request.target_type
             && row.get::<String, _>("target_id") == request.target_id
             && row.get::<String, _>("component_kind") == request.component_kind
-            && row.get::<Option<String>, _>("component_ref").as_deref()
-                == Some(reference.as_str())
+            && row.get::<Option<String>, _>("component_ref").as_deref() == Some(reference.as_str())
             && row.get::<String, _>("purpose_key") == request.purpose_key
             && row.get::<i64, _>("expected_target_version") == request.expected_target_version;
         if !same {
             return Err(idempotency_conflict().into());
         }
-        return read_set(connection, company, &actual).await.map_err(Into::into);
+        return read_set(connection, company, &actual)
+            .await
+            .map_err(Into::into);
     }
     availability.require_writable()?;
     let before = authorize(
@@ -721,7 +725,9 @@ pub async fn create_support_attachment_set<A: SupportAttachmentAuthority>(
     if after != before {
         return Err(changed().into());
     }
-    read_set(connection, company, &actual).await.map_err(Into::into)
+    read_set(connection, company, &actual)
+        .await
+        .map_err(Into::into)
 }
 
 /// Reserve one upload intent and its pending quarantine object. The Support
@@ -743,7 +749,9 @@ pub async fn reserve_support_attachment_file<A: SupportAttachmentAuthority>(
     command_key(key)?;
     if holding_id.is_empty()
         || holding_id.contains('\0')
-        || holding_id.split(['/', '\\']).any(|part| matches!(part, "." | ".."))
+        || holding_id
+            .split(['/', '\\'])
+            .any(|part| matches!(part, "." | ".."))
     {
         return Err(changed().into());
     }
@@ -883,11 +891,7 @@ pub async fn reserve_support_attachment_file<A: SupportAttachmentAuthority>(
         || filename.encode_utf16().count() > 255
         || caption.is_some_and(|value| value.encode_utf16().count() > 1000)
     {
-        return Err(invalid(
-            "ATTACHMENT_METADATA",
-            "Check the filename and caption.",
-        )
-        .into());
+        return Err(invalid("ATTACHMENT_METADATA", "Check the filename and caption.").into());
     }
     if let Some(id) = request.supersedes_link_id.as_deref() {
         let valid: bool = sqlx::query_scalar(
@@ -945,7 +949,9 @@ pub async fn reserve_support_attachment_file<A: SupportAttachmentAuthority>(
     {
         return Err(invalid("STORAGE_QUOTA", "Company file storage is full.").into());
     }
-    let expires_at = now.checked_add(FIELD_RESERVATION_MILLIS).ok_or_else(changed)?;
+    let expires_at = now
+        .checked_add(FIELD_RESERVATION_MILLIS)
+        .ok_or_else(changed)?;
     let object_key = format!("{holding_id}/quarantine/{upload}/original");
     sqlx::query(
         "INSERT INTO attachment_links(id,set_id,caption,state,supersedes_link_id,created_by,\
@@ -1199,7 +1205,9 @@ pub async fn complete_support_attachment_upload<A: SupportAttachmentAuthority>(
         .ok_or_else(upload_conflict)?;
     if object_key.is_empty()
         || object_key.contains('\0')
-        || object_key.split(['/', '\\']).any(|part| matches!(part, "." | ".."))
+        || object_key
+            .split(['/', '\\'])
+            .any(|part| matches!(part, "." | ".."))
     {
         return Err(upload_conflict().into());
     }

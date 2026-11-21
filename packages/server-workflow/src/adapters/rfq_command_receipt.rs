@@ -13,7 +13,9 @@ type Unit = (String, i32, String, String, String, String, i64);
 /// bind the command key and step first and retain the original SQL error until
 /// command error translation has run. This does not authorize a command.
 pub fn rfq_assertion_statement(predicate: &'static str) -> String {
-    format!("INSERT INTO command_assertions(command_id,step,ok) VALUES($1,$2,CASE WHEN ({predicate}) THEN 1 ELSE 0 END)")
+    format!(
+        "INSERT INTO command_assertions(command_id,step,ok) VALUES($1,$2,CASE WHEN ({predicate}) THEN 1 ELSE 0 END)"
+    )
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Row {
@@ -83,7 +85,9 @@ pub struct CurrentRfqReceipt {
     row: Option<Row>,
 }
 impl CurrentRfqReceipt {
-    pub fn matches_key(&self, key: &str) -> bool { self.key == key }
+    pub fn matches_key(&self, key: &str) -> bool {
+        self.key == key
+    }
     /// Exact purchase-wrapper classifier, before fingerprint replay. A true
     /// result is not a hash match or an authorization decision.
     pub async fn selects_purchase_history(

@@ -21,3 +21,4 @@ pub mod task_reroute;
 pub mod task_revise;
 
 pub(crate) mod source_ordered_json;
+pub(crate) mod workflow_wave3;

@@ -1,5 +1,5 @@
+import { nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import 'server-only';import type {PoolClient} from 'pg';import type {TechnologyStore} from '@erpx/server-identity_access/public/technology-contracts';import type {TechnologyData,AppliedPackageFact,ProvisionEngagement,ProvisionGrant,ProvisionOperation} from '@erpx/server-identity_access/public/technology-contracts';
-import { nativeTechProvisionSql } from '@erpx/server-collaboration/adapters/native-tech-provision-sql';
 import {technologyPendingReviewProjection} from '@erpx/server-identity_access/public/technology-provisioning-projection';export function technologyProvisioningFacts(c:PoolClient):Pick<TechnologyStore,'applications'|'operations'|'activeApplications'|'engagement'|'accessCutoff'|'restorationPlacement'|'positionPackage'|'packageRevision'|'personInProgress'|'createOperation'|'applyPackage'|'createGrant'|'saveSteps'|'lockedGrant'|'reviewerIsPerson'|'grantUserIsPerson'|'bindGrant'|'dueOperations'|'lockedOperation'|'recordChildrenState'|'lockedPlacement'|'effectiveCutoff'|'restoredPlacement'|'endPriorPackages'|'restoreCutoff'|'completeAccessPreparation'|'endNewApplication'|'endReplacedApplications'|'createPreparationTask'|'completeOperation'|'recordBlockedOperation'|'retryOperation'|'queueRetry'>{return {applications:async(facts)=>{const{actor,observedNow}=facts;return (await c.query<AppliedPackageFact>(
       "SELECT ap.*,people_application_active(ap.id,$2) active FROM people_applied_packages ap WHERE company_id=$1 ORDER BY created_at DESC",
       [actor.companyId, observedNow],
@@ -36,8 +36,7 @@ personInProgress:async(facts)=>{const{actor,plan}=facts;return (await c.query(
               "SELECT 1 FROM people_provision_operations op, jsonb_array_elements(op.evidence->'plans') p WHERE op.company_id=$1 AND op.status IN ('queued','running','retry','pending_review') AND p->>'personId'=$2",
               [actor.companyId, plan.personId],
             )).rowCount;},
-createOperation:async(facts)=>{const{id,actor,input,p,now}=facts;return void await c.query(
-        nativeTechProvisionSql('tech_provision_stmt_1'),
+createOperation:async(facts)=>{const{id,actor,input,p,now}=facts;return void await nativePpQuery('tech_provision_stmt_1',
         [
           id,
           actor.companyId,
@@ -49,8 +48,7 @@ createOperation:async(facts)=>{const{id,actor,input,p,now}=facts;return void awa
           now,
         ],
       );},
-applyPackage:async(facts)=>{const{applicationId,actor,plan,input,id,now}=facts;return void await c.query(
-          nativeTechProvisionSql('tech_provision_stmt_2'),
+applyPackage:async(facts)=>{const{applicationId,actor,plan,input,id,now}=facts;return void await nativePpQuery('tech_provision_stmt_2',
           [
             applicationId,
             actor.companyId,
@@ -72,12 +70,10 @@ applyPackage:async(facts)=>{const{applicationId,actor,plan,input,id,now}=facts;r
             input.validUntil,
           ],
         );},
-createGrant:async(facts)=>{const{grantId,id,applicationId,grant,review}=facts;return void await c.query(
-              nativeTechProvisionSql('tech_provision_stmt_3'),
+createGrant:async(facts)=>{const{grantId,id,applicationId,grant,review}=facts;return void await nativePpQuery('tech_provision_stmt_3',
               [grantId, id, applicationId, JSON.stringify(grant), review.id],
             );},
-saveSteps:async(facts)=>{const{id,steps}=facts;return void await c.query(
-        nativeTechProvisionSql('tech_provision_stmt_4'),
+saveSteps:async(facts)=>{const{id,steps}=facts;return void await nativePpQuery('tech_provision_stmt_4',
         [id, JSON.stringify(steps)],
       );},
 lockedGrant:async(facts)=>{const{p,actor}=facts;return (await c.query<ProvisionGrant>(
@@ -94,8 +90,7 @@ grantUserIsPerson:async(facts)=>{const{actor,g,grant}=facts;return (await c.quer
         g.person_id,
         grant.userId,
       ])).rows[0];},
-bindGrant:async(facts)=>{const{g,assignment}=facts;return void await c.query(
-    nativeTechProvisionSql('tech_provision_stmt_5'),
+bindGrant:async(facts)=>{const{g,assignment}=facts;return void await nativePpQuery('tech_provision_stmt_5',
     [g.id, assignment],
   );},
 dueOperations:async()=>{return (await c.query<{id:string}>(
@@ -105,8 +100,7 @@ lockedOperation:async(facts)=>{const{row}=facts;return (await c.query<ProvisionO
           "SELECT * FROM people_provision_operations WHERE id=$1 AND status IN ('queued','running','retry') FOR UPDATE SKIP LOCKED",
           [row.id],
         )).rows[0];},
-recordChildrenState:async(facts)=>{const{operationId,status,lastError,steps}=facts;return void await c.query(
-          nativeTechProvisionSql('tech_provision_stmt_6'),
+recordChildrenState:async(facts)=>{const{operationId,status,lastError,steps}=facts;return void await nativePpQuery('tech_provision_stmt_6',
           [
             operationId,status,JSON.stringify(steps),lastError,
           ],
@@ -123,28 +117,22 @@ restoredPlacement:async(facts)=>{const{op,plan,cutoff}=facts;return (await c.que
                 "SELECT 1 FROM people_lifecycle_cases WHERE company_id=$1 AND engagement_id=$2 AND status='completed' AND workflow='placement' AND kind IN ('onboarding','transfer') AND effective_at>$3",
                 [op.company_id, plan.id, cutoff],
               )).rowCount;},
-endPriorPackages:async(facts)=>{const{op,plan,observedNow}=facts;return void await c.query(
-            nativeTechProvisionSql('tech_provision_stmt_7'),
+endPriorPackages:async(facts)=>{const{op,plan,observedNow}=facts;return void await nativePpQuery('tech_provision_stmt_7',
             [op.company_id, plan.personId, observedNow, op.id],
           );},
-restoreCutoff:async(facts)=>{const{op,plan,observedNow}=facts;return void await c.query(
-            nativeTechProvisionSql('tech_provision_stmt_8'),
+restoreCutoff:async(facts)=>{const{op,plan,observedNow}=facts;return void await nativePpQuery('tech_provision_stmt_8',
             [op.company_id, plan.personId, observedNow],
           );},
-completeAccessPreparation:async(facts)=>{const{op,plan,now}=facts;return void await c.query(
-            nativeTechProvisionSql('tech_provision_stmt_9'),
+completeAccessPreparation:async(facts)=>{const{op,plan,now}=facts;return void await nativePpQuery('tech_provision_stmt_9',
             [op.company_id, plan.id, now],
           );},
-endNewApplication:async(facts)=>{const{applicationId,now}=facts;return void await c.query(
-            nativeTechProvisionSql('tech_provision_stmt_10'),
+endNewApplication:async(facts)=>{const{applicationId,now}=facts;return void await nativePpQuery('tech_provision_stmt_10',
             [applicationId, now],
           );},
-endReplacedApplications:async(facts)=>{const{plan,now}=facts;return void await c.query(
-          nativeTechProvisionSql('tech_provision_stmt_11'),
+endReplacedApplications:async(facts)=>{const{plan,now}=facts;return void await nativePpQuery('tech_provision_stmt_11',
           [plan.oldIds, now],
         );},
-createPreparationTask:async(facts)=>{const{applicationId,index,op,task,privileged,now}=facts;return void await c.query(
-            nativeTechProvisionSql('tech_provision_stmt_12'),
+createPreparationTask:async(facts)=>{const{applicationId,index,op,task,privileged,now}=facts;return void await nativePpQuery('tech_provision_stmt_12',
             [
               applicationId + ":task:" + index,
               op.company_id,
@@ -155,12 +143,10 @@ createPreparationTask:async(facts)=>{const{applicationId,index,op,task,privilege
               applicationId,
             ],
           );},
-completeOperation:async(facts)=>{const{op,steps,observedNow}=facts;return void await c.query(
-        nativeTechProvisionSql('tech_provision_stmt_13'),
+completeOperation:async(facts)=>{const{op,steps,observedNow}=facts;return void await nativePpQuery('tech_provision_stmt_13',
         [op.id, JSON.stringify(steps), observedNow],
       );},
-recordBlockedOperation:async(facts)=>{const{row,reason,observedNow}=facts;return void await c.query(
-        nativeTechProvisionSql('tech_provision_stmt_14'),
+recordBlockedOperation:async(facts)=>{const{row,reason,observedNow}=facts;return void await nativePpQuery('tech_provision_stmt_14',
         [
           row.id,
           reason,
@@ -171,7 +157,6 @@ retryOperation:async(facts)=>{const{id,actor}=facts;return (await c.query<Provis
           "SELECT * FROM people_provision_operations WHERE id=$1 AND company_id=$2 FOR UPDATE",
           [id, actor.companyId],
         )).rows[0];},
-queueRetry:async(facts)=>{const{id,actor,observedNow}=facts;return void await c.query(
-        nativeTechProvisionSql('tech_provision_stmt_15'),
+queueRetry:async(facts)=>{const{id,actor,observedNow}=facts;return void await nativePpQuery('tech_provision_stmt_15',
         [id, actor.sessionId, observedNow],
       );}};}

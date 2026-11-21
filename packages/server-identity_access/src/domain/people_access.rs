@@ -347,7 +347,9 @@ pub fn validate_change(change: RelationshipChange) -> Result<RelationshipChange,
             if !trimmed(&name, 2, MAX_NAME)
                 || !trimmed(&reason, 3, MAX_REASON)
                 || !identifier(&organization_id)
-                || department_id.as_deref().is_some_and(|value| !identifier(value))
+                || department_id
+                    .as_deref()
+                    .is_some_and(|value| !identifier(value))
                 || expected_version < 0
                 || id.as_deref().is_some_and(|value| !identifier(value))
             {
@@ -504,7 +506,10 @@ pub fn validate_snapshot(
                 .as_deref()
                 .map(|id| organization_in(snapshot, id).ok_or_else(access_object_unavailable))
                 .transpose()?;
-            if !version_matches(existing.map(|row| row.version).unwrap_or(0), *expected_version) {
+            if !version_matches(
+                existing.map(|row| row.version).unwrap_or(0),
+                *expected_version,
+            ) {
                 return Err(access_object_changed());
             }
         }
@@ -525,7 +530,10 @@ pub fn validate_snapshot(
                         .ok_or_else(access_object_unavailable)
                 })
                 .transpose()?;
-            if !version_matches(existing.map(|row| row.version).unwrap_or(0), *expected_version) {
+            if !version_matches(
+                existing.map(|row| row.version).unwrap_or(0),
+                *expected_version,
+            ) {
                 return Err(access_object_changed());
             }
             if organization_in(snapshot, organization_id).is_none() {
@@ -566,7 +574,10 @@ pub fn validate_snapshot(
                         .ok_or_else(access_object_unavailable)
                 })
                 .transpose()?;
-            if !version_matches(existing.map(|row| row.version).unwrap_or(0), *expected_version) {
+            if !version_matches(
+                existing.map(|row| row.version).unwrap_or(0),
+                *expected_version,
+            ) {
                 return Err(access_object_changed());
             }
             if organization_in(snapshot, organization_id).is_none() {
@@ -629,11 +640,7 @@ pub struct RelationshipApplyPlan {
     pub now: i64,
 }
 
-pub fn relationship_apply_identity(
-    actor: &PeopleAccessActor,
-    key: &str,
-    token: &str,
-) -> String {
+pub fn relationship_apply_identity(actor: &PeopleAccessActor, key: &str, token: &str) -> String {
     json!({
         "operation": RELATIONSHIP_APPLY_OPERATION,
         "actorId": actor.user_id.as_str(),

@@ -151,7 +151,7 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
         const nextState = ordinary ? "ready" : "draft";
         const dueAt = input.dueAt ? Date.parse(input.dueAt) : null;
         const now = ports.clock.now(), version = current ? input.expectedVersion + 1 : 1;
-        return ports.commands.commit(actor, key, operation, commandInput, recordId, version, { id: recordId, state: nextState, version }, [
+        return ports.commands.commit(actor, key, operation, commandInput, recordId, version, { id: recordId, state: nextState, version }, await Promise.all([
             ports.staffGuard(key, actor.companyId, actor.userId),
             ...configGuards(key, actor, input),
             ...(current
@@ -177,7 +177,7 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
                 : r.stageSaveTaskEffect2(recordId, actor.companyId, staff.branch_id, staff.department_id, input.title, input.description, actor.userId, input.assigneeUserId, dueAt, input.projectId, JSON.stringify(input.startApprovers), JSON.stringify(input.completionApprovers), nextState, now, now),
             ...sourceSteps,
             await ports.notification(current ?? staff, input.assigneeUserId, "task", recordId, version, revision ? "Task revised; approvals restart" : "Task assigned to you"),
-        ], scope(current ?? staff));
+        ]), scope(current ?? staff));
     }
 
     async function taskDetail(actor: StaffActor, id: string): Promise<TaskDetail> {

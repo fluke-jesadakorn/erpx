@@ -10,11 +10,22 @@ use erpx_server_files::public::business_evidence::{
     PgBusinessEvidenceFiles, evidence_context, lock_business_evidence_sources, policy_fact,
 };
 use erpx_server_finance::public::{
-    FinanceActor, finance_invoice_read::*, finance_opening::*, finance_reports::*,
-    finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, period_close::*,
-    sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*,
+    FinanceActor,
+    finance_invoice_read::*,
+    finance_opening::*,
+    finance_reports::*,
+    finance_setup::*,
+    journal_detail::*,
+    journal_list::*,
+    journal_workspace::*,
+    period_close::*,
     revenue_recognition::{RevenueRecognitionInput, RevenueRecognitionResult, recognize_revenue},
-    sales_receipts::*, supplier_bill::*,
+    sales_defaults::*,
+    sales_invoice_create::*,
+    sales_invoice_edit::*,
+    sales_invoice_list::*,
+    sales_receipts::*,
+    supplier_bill::*,
 };
 use erpx_server_finance::public::{
     JournalAuthority as FinanceJournalAuthority, JournalDraft as FinanceJournalDraft,
@@ -3501,26 +3512,33 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
     {
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
-        self.supplier_batch_command(host, proof, input, "finance.write", true, move |c, current| {
-            let configuration = configuration.clone();
-            let clock = clock.clone();
-            let command = command.clone();
-            let body = body.clone();
-            Box::pin(async move {
-                let actor = command_actor(current)?;
-                let data = crate::finance_supplier_batch::create(
-                    c,
-                    &actor,
-                    &configuration,
-                    clock.as_ref(),
-                    &command,
-                    &body,
-                    clock.now().get(),
-                )
-                .await?;
-                Ok(FinanceSupplierBatchResultResponse { data })
-            })
-        })
+        self.supplier_batch_command(
+            host,
+            proof,
+            input,
+            "finance.write",
+            true,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    let actor = command_actor(current)?;
+                    let data = crate::finance_supplier_batch::create(
+                        c,
+                        &actor,
+                        &configuration,
+                        clock.as_ref(),
+                        &command,
+                        &body,
+                        clock.now().get(),
+                    )
+                    .await?;
+                    Ok(FinanceSupplierBatchResultResponse { data })
+                })
+            },
+        )
         .await
     }
 
@@ -3586,28 +3604,35 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
     {
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
-        self.supplier_batch_command(host, proof, input, "finance.pay", true, move |c, current| {
-            let configuration = configuration.clone();
-            let clock = clock.clone();
-            let command = command.clone();
-            let id = id.clone();
-            let body = body.clone();
-            Box::pin(async move {
-                let actor = command_actor(current)?;
-                let data = crate::finance_supplier_batch::export(
-                    c,
-                    &actor,
-                    &configuration,
-                    clock.as_ref(),
-                    &command,
-                    &id,
-                    &body,
-                    clock.now().get(),
-                )
-                .await?;
-                Ok(FinanceSupplierBatchExportResponse { data })
-            })
-        })
+        self.supplier_batch_command(
+            host,
+            proof,
+            input,
+            "finance.pay",
+            true,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let id = id.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    let actor = command_actor(current)?;
+                    let data = crate::finance_supplier_batch::export(
+                        c,
+                        &actor,
+                        &configuration,
+                        clock.as_ref(),
+                        &command,
+                        &id,
+                        &body,
+                        clock.now().get(),
+                    )
+                    .await?;
+                    Ok(FinanceSupplierBatchExportResponse { data })
+                })
+            },
+        )
         .await
     }
 
@@ -3622,15 +3647,23 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let configuration = self.configuration.clone();
-        self.supplier_batch_command(host, proof, input, "finance.pay", false, move |c, _current| {
-            let configuration = configuration.clone();
-            let id = id.clone();
-            Box::pin(async move {
-                let data =
-                    crate::finance_supplier_batch::recover_export(c, &configuration, &id).await?;
-                Ok(FinanceSupplierBatchExportResponse { data })
-            })
-        })
+        self.supplier_batch_command(
+            host,
+            proof,
+            input,
+            "finance.pay",
+            false,
+            move |c, _current| {
+                let configuration = configuration.clone();
+                let id = id.clone();
+                Box::pin(async move {
+                    let data =
+                        crate::finance_supplier_batch::recover_export(c, &configuration, &id)
+                            .await?;
+                    Ok(FinanceSupplierBatchExportResponse { data })
+                })
+            },
+        )
         .await
     }
 
@@ -3649,39 +3682,46 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
         let outcome = body.outcome.clone();
-        self.supplier_batch_command(host, proof, input, "finance.write", true, move |c, current| {
-            let configuration = configuration.clone();
-            let clock = clock.clone();
-            let command = command.clone();
-            let id = id.clone();
-            let body = body.clone();
-            let outcome = outcome.clone();
-            Box::pin(async move {
-                // A failed result needs a current Finance approver; an unknown
-                // result needs the independent payer. The owner re-checks both
-                // against the retained batch roles.
-                match outcome.as_str() {
-                    "failed" => current.require_permission("finance.approve")?,
-                    "unknown" => current.require_permission("finance.pay")?,
-                    _ => {}
-                }
-                let actor = command_actor(current)?;
-                let can_approve = current.has_permission("finance.approve");
-                let data = crate::finance_supplier_batch::record_result(
-                    c,
-                    &actor,
-                    &configuration,
-                    clock.as_ref(),
-                    &command,
-                    &id,
-                    &body,
-                    can_approve,
-                    clock.now().get(),
-                )
-                .await?;
-                Ok(FinanceSupplierInstructionResultResponse { data })
-            })
-        })
+        self.supplier_batch_command(
+            host,
+            proof,
+            input,
+            "finance.write",
+            true,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let id = id.clone();
+                let body = body.clone();
+                let outcome = outcome.clone();
+                Box::pin(async move {
+                    // A failed result needs a current Finance approver; an unknown
+                    // result needs the independent payer. The owner re-checks both
+                    // against the retained batch roles.
+                    match outcome.as_str() {
+                        "failed" => current.require_permission("finance.approve")?,
+                        "unknown" => current.require_permission("finance.pay")?,
+                        _ => {}
+                    }
+                    let actor = command_actor(current)?;
+                    let can_approve = current.has_permission("finance.approve");
+                    let data = crate::finance_supplier_batch::record_result(
+                        c,
+                        &actor,
+                        &configuration,
+                        clock.as_ref(),
+                        &command,
+                        &id,
+                        &body,
+                        can_approve,
+                        clock.now().get(),
+                    )
+                    .await?;
+                    Ok(FinanceSupplierInstructionResultResponse { data })
+                })
+            },
+        )
         .await
     }
 
@@ -3699,28 +3739,35 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
     {
         let configuration = self.configuration.clone();
         let clock = self.clock.clone();
-        self.supplier_batch_command(host, proof, input, "finance.pay", true, move |c, current| {
-            let configuration = configuration.clone();
-            let clock = clock.clone();
-            let command = command.clone();
-            let id = id.clone();
-            let body = body.clone();
-            Box::pin(async move {
-                let actor = command_actor(current)?;
-                let data = crate::finance_supplier_batch::confirm(
-                    c,
-                    &actor,
-                    &configuration,
-                    clock.as_ref(),
-                    &command,
-                    &id,
-                    &body,
-                    clock.now().get(),
-                )
-                .await?;
-                Ok(FinanceSupplierInstructionConfirmResponse { data })
-            })
-        })
+        self.supplier_batch_command(
+            host,
+            proof,
+            input,
+            "finance.pay",
+            true,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let id = id.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    let actor = command_actor(current)?;
+                    let data = crate::finance_supplier_batch::confirm(
+                        c,
+                        &actor,
+                        &configuration,
+                        clock.as_ref(),
+                        &command,
+                        &id,
+                        &body,
+                        clock.now().get(),
+                    )
+                    .await?;
+                    Ok(FinanceSupplierInstructionConfirmResponse { data })
+                })
+            },
+        )
         .await
     }
 

@@ -53,6 +53,7 @@
     "./domain/forecast": "./src/domain/forecast.ts",
     "./domain/beta-billing": "./src/domain/beta-billing.ts",
     "./adapters/native-billing": "./src/adapters/native-billing.ts",
+    "./adapters/native-billing-owner-write": "./src/adapters/native-billing-owner-write.ts",
     "./public/native-billing": "./src/public/native-billing.ts",
     "./public/native-billing-page": "./src/public/native-billing-page.ts"
   },

@@ -5,25 +5,22 @@
 //! cross-owner SQL is constructed here.
 #![allow(clippy::too_many_arguments)]
 use crate::domain::commands::{
-    CashApproveInput, PaymentCreateInput, PosActor, PosCashMovement, PosCatalogSnapshot, PosCommand,
-    PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosFulfillmentSplitFacts,
-    PosFulfillmentStock, PosJournalLine, PosJournalRequest, PosLine, PosLineDetail,
-    PaymentCancelTransferInput, PaymentVerifyTransferInput, PosBankTransaction, PosConsumptionPart,
-    PosFulfillmentReturnFacts, PosInvoiceAllocation, PosInvoiceAllocationRequest, PosInvoiceRequest,
-    PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation, PosPayment, PosPaymentInsert,
-    PosPaymentRefundRow, PosReceipt, PosReceiptRequest, PosRefund, PosRefundDetail,
-    PosRefundLineRow, PosRefundPaymentRequest, PosRegister, PosResult, PosReturnPart, PosSale,
-    PosSaleMoneyRequest, PosSettledPayment, PosSettings, PosShift, PosStockRow,
-    RefundApproveInput, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput,
-    SaleCustomerInput,
-    SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
-    SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
-    ShiftOpenInput, ShiftReviewInput,
-    AccountingApproveInput, SaleApproveDiscountInput, SettingsOperationsInput, TableCreateInput,
-    accounting_review_required, conflict, day_closed,
-    idempotency_conflict, independent_review,
-    not_found, parse_receipt_result, period_closed, request_invalid, setup_required,
-    source_invalid, valid_uuid, version_conflict,
+    AccountingApproveInput, CashApproveInput, PaymentCancelTransferInput, PaymentCreateInput,
+    PaymentVerifyTransferInput, PosActor, PosBankTransaction, PosCashMovement, PosCatalogSnapshot,
+    PosCommand, PosCommandInput, PosConsumptionPart, PosFulfillment, PosFulfillmentInsert,
+    PosFulfillmentReturnFacts, PosFulfillmentSplitFacts, PosFulfillmentStock, PosInvoiceAllocation,
+    PosInvoiceAllocationRequest, PosInvoiceRequest, PosJournalLine, PosJournalRequest, PosLine,
+    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation, PosPayment,
+    PosPaymentInsert, PosPaymentRefundRow, PosReceipt, PosReceiptRequest, PosRefund,
+    PosRefundDetail, PosRefundLineRow, PosRefundPaymentRequest, PosRegister, PosResult,
+    PosReturnPart, PosSale, PosSaleMoneyRequest, PosSettings, PosSettledPayment, PosShift,
+    PosStockRow, RefundApproveInput, RefundRejectInput, RefundRequestInput, SaleAddInput,
+    SaleApproveDiscountInput, SaleCreateInput, SaleCustomerInput, SaleDiscountInput,
+    SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput, SaleUpdateLineInput,
+    SaleVersionInput, SettingsOperationsInput, ShiftCloseInput, ShiftOpenInput, ShiftReviewInput,
+    TableCreateInput, accounting_review_required, conflict, day_closed, idempotency_conflict,
+    independent_review, not_found, parse_receipt_result, period_closed, request_invalid,
+    setup_required, source_invalid, valid_uuid, version_conflict,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
@@ -383,7 +380,10 @@ pub trait PosCommandRepository: Send {
         now: TimestampMillis,
     ) -> PosFuture<'a, bool, Self::Error>;
     fn sale_paid_total<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, i64, Self::Error>;
-    fn sale_pending_payments<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, bool, Self::Error>;
+    fn sale_pending_payments<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> PosFuture<'a, bool, Self::Error>;
     fn delete_reservation<'a>(
         &'a mut self,
         fulfillment_id: &'a str,
@@ -547,15 +547,9 @@ pub trait PosFinancePort: Send {
     ) -> PosFuture<'a, bool>;
     /// Record the Finance receipt row for a settled POS payment. The journal
     /// itself is posted separately on the same owner transaction.
-    fn record_receipt<'a>(
-        &'a mut self,
-        request: &'a PosReceiptRequest,
-    ) -> PosFuture<'a, ()>;
+    fn record_receipt<'a>(&'a mut self, request: &'a PosReceiptRequest) -> PosFuture<'a, ()>;
     /// Retain the exact Finance invoice facts for the completed POS sale.
-    fn record_invoice<'a>(
-        &'a mut self,
-        request: &'a PosInvoiceRequest,
-    ) -> PosFuture<'a, ()>;
+    fn record_invoice<'a>(&'a mut self, request: &'a PosInvoiceRequest) -> PosFuture<'a, ()>;
     /// Read the current imported bank transaction for transfer verification.
     fn bank_transaction<'a>(
         &'a mut self,
@@ -576,10 +570,7 @@ pub trait PosFinancePort: Send {
     /// Capture the immutable money evidence for the completed sale. The
     /// snapshot row belongs to Finance; a sale without its evidence cannot be
     /// refunded later, so the completion must state the exact source.
-    fn capture_sale_money<'a>(
-        &'a mut self,
-        request: &'a PosSaleMoneyRequest,
-    ) -> PosFuture<'a, ()>;
+    fn capture_sale_money<'a>(&'a mut self, request: &'a PosSaleMoneyRequest) -> PosFuture<'a, ()>;
     /// Allocate the settled POS payments to the completed sale invoice. The
     /// allocation rows belong to Finance and must reference the exact payment
     /// and invoice identities the POS owner already recorded.
@@ -591,15 +582,9 @@ pub trait PosFinancePort: Send {
 pub trait PosInventoryPort: Send {
     /// Queue the precise Inventory consumption facts and return the snapshot
     /// cost the owner transaction must reproduce exactly.
-    fn queue_consumption<'a>(
-        &'a mut self,
-        parts: &'a [PosConsumptionPart],
-    ) -> PosFuture<'a, i64>;
+    fn queue_consumption<'a>(&'a mut self, parts: &'a [PosConsumptionPart]) -> PosFuture<'a, i64>;
     /// Queue the exact Inventory return facts for a restocked refund line.
-    fn queue_return<'a>(
-        &'a mut self,
-        parts: &'a [PosReturnPart],
-    ) -> PosFuture<'a, ()>;
+    fn queue_return<'a>(&'a mut self, parts: &'a [PosReturnPart]) -> PosFuture<'a, ()>;
 }
 pub trait PosHospitalityPort: Send {
     fn hotel_day_open<'a>(
@@ -883,9 +868,7 @@ where
         PosCommandInput::CashApprove(input) => {
             cash_approve(actor, input, repository, finance, now).await?
         }
-        PosCommandInput::SaleAdd(input) => {
-            sale_add(actor, input, catalog, repository, now).await?
-        }
+        PosCommandInput::SaleAdd(input) => sale_add(actor, input, catalog, repository, now).await?,
         PosCommandInput::SaleUpdateLine(input) => {
             sale_update_line(actor, input, repository, now).await?
         }
@@ -895,18 +878,12 @@ where
         PosCommandInput::SaleMoveTable(input) => {
             sale_move_table(actor, input, repository, now).await?
         }
-        PosCommandInput::SaleRemove(input) => {
-            sale_remove(actor, input, repository, now).await?
-        }
+        PosCommandInput::SaleRemove(input) => sale_remove(actor, input, repository, now).await?,
         PosCommandInput::SaleDiscount(input) => {
             sale_discount(actor, input, repository, now).await?
         }
-        PosCommandInput::SaleMerge(input) => {
-            sale_merge(actor, input, repository, now).await?
-        }
-        PosCommandInput::SaleSplit(input) => {
-            sale_split(actor, input, repository, now).await?
-        }
+        PosCommandInput::SaleMerge(input) => sale_merge(actor, input, repository, now).await?,
+        PosCommandInput::SaleSplit(input) => sale_split(actor, input, repository, now).await?,
         PosCommandInput::PaymentCreate(input) => {
             payment_create(actor, input, stock, repository, finance, now).await?
         }
@@ -1742,9 +1719,7 @@ where
         .accounting_prepared_by
         .as_deref()
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            accounting_review_required().into()
-        })?;
+        .ok_or_else(|| accounting_review_required().into())?;
     if repository
         .same_person(&actor.company_id, actor.user_id.as_str(), prepared_by)
         .await?
@@ -1874,7 +1849,12 @@ fn selected_modifiers(
     modifiers_json: &str,
     ids: &[String],
 ) -> Result<Vec<SelectedModifier>, BusinessError> {
-    let invalid = || request_invalid("POS_MODIFIER_INVALID", "Review the selected product options.");
+    let invalid = || {
+        request_invalid(
+            "POS_MODIFIER_INVALID",
+            "Review the selected product options.",
+        )
+    };
     let value: serde_json::Value = serde_json::from_str(modifiers_json).map_err(|_| invalid())?;
     let all = value.as_array().ok_or_else(invalid)?;
     let mut selected = Vec::new();
@@ -1907,7 +1887,10 @@ fn recipe_parts(recipe_json: &str) -> Result<Vec<serde_json::Value>, BusinessErr
 
 fn portion_of(total: i64, previous: i64, quantity: i64, whole: i64) -> Result<i64, BusinessError> {
     if previous < 0 || quantity <= 0 || previous + quantity > whole {
-        return Err(request_invalid("POS_SPLIT_INVALID", "Review the split quantity."));
+        return Err(request_invalid(
+            "POS_SPLIT_INVALID",
+            "Review the split quantity.",
+        ));
     }
     let end = scaled(total, previous + quantity, whole)?;
     let start = scaled(total, previous, whole)?;
@@ -2107,7 +2090,9 @@ where
         line.price_minor,
         line.tax_bps,
         line.tax_inclusive,
-        input.discount_minor.saturating_add(line.bill_discount_minor),
+        input
+            .discount_minor
+            .saturating_add(line.bill_discount_minor),
     )?;
     repository
         .update_line(
@@ -2198,11 +2183,11 @@ where
         .table_exists(&sale.register_id, &input.table_id)
         .await?
     {
-        return Err(request_invalid("POS_TABLE_INVALID", "Table is not at this sales point.").into());
+        return Err(
+            request_invalid("POS_TABLE_INVALID", "Table is not at this sales point.").into(),
+        );
     }
-    repository
-        .set_sale_table(&sale.id, &input.table_id)
-        .await?;
+    repository.set_sale_table(&sale.id, &input.table_id).await?;
     if !repository.refresh_sale(&sale.id, now).await? {
         return Err(version_conflict().into());
     }
@@ -2245,9 +2230,7 @@ where
         )
         .into());
     }
-    repository
-        .delete_reservations(&line.fulfillment_id)
-        .await?;
+    repository.delete_reservations(&line.fulfillment_id).await?;
     repository.delete_line(&line.id).await?;
     if !repository.refresh_sale(&sale.id, now).await? {
         return Err(version_conflict().into());
@@ -2285,12 +2268,16 @@ where
         .iter()
         .map(|line| {
             scaled(line.price_minor, line.quantity_milli, 1000)
-                .and_then(|amount| amount.checked_sub(line.discount_minor).ok_or_else(|| {
-                    request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount.")
-                }))
-                .and_then(|amount| amount.checked_add(line.bill_discount_minor).ok_or_else(|| {
-                    request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount.")
-                }))
+                .and_then(|amount| {
+                    amount.checked_sub(line.discount_minor).ok_or_else(|| {
+                        request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount.")
+                    })
+                })
+                .and_then(|amount| {
+                    amount.checked_add(line.bill_discount_minor).ok_or_else(|| {
+                        request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount.")
+                    })
+                })
         })
         .collect::<Result<Vec<_>, BusinessError>>()?;
     let total = weights
@@ -2308,8 +2295,7 @@ where
     for (line, weight) in lines.iter().zip(weights.iter()) {
         let extra = if *weight > 0 && input.amount_minor > 0 {
             let end = previous + weight;
-            scaled(input.amount_minor, end, total)?
-                - scaled(input.amount_minor, previous, total)?
+            scaled(input.amount_minor, end, total)? - scaled(input.amount_minor, previous, total)?
         } else {
             0
         };
@@ -2434,39 +2420,24 @@ where
     }
     let number = format!("POS-{}", target_id[..8].to_uppercase());
     repository
-        .create_split_sale(
-            &target_id,
-            &sale.id,
-            &number,
-            actor.user_id.as_str(),
-            now,
-        )
+        .create_split_sale(&target_id, &sale.id, &number, actor.user_id.as_str(), now)
         .await?;
     if input.quantity_milli == line.quantity_milli {
-        repository
-            .move_line_to_sale(&target_id, &line.id)
-            .await?;
+        repository.move_line_to_sale(&target_id, &line.id).await?;
     } else {
         let mut new_fulfillment_id = line.fulfillment_id.clone();
         if facts.kind != "recipe" || facts.state == "draft" {
             if facts.reserved {
-                return Err(conflict(
-                    "POS_SPLIT_RESERVED",
-                    "Reserved items cannot be split yet.",
-                )
-                .into());
+                return Err(
+                    conflict("POS_SPLIT_RESERVED", "Reserved items cannot be split yet.").into(),
+                );
             }
             let created = repository.new_id().await?;
             if !valid_uuid(&created) {
                 return Err(source_invalid().into());
             }
             repository
-                .create_split_fulfillment(
-                    &created,
-                    &line.fulfillment_id,
-                    input.quantity_milli,
-                    now,
-                )
+                .create_split_fulfillment(&created, &line.fulfillment_id, input.quantity_milli, now)
                 .await?;
             repository
                 .reduce_fulfillment(&line.fulfillment_id, input.quantity_milli)
@@ -2479,12 +2450,7 @@ where
             input.quantity_milli,
             line.quantity_milli,
         )?;
-        let tax = portion_of(
-            line.tax_minor,
-            0,
-            input.quantity_milli,
-            line.quantity_milli,
-        )?;
+        let tax = portion_of(line.tax_minor, 0, input.quantity_milli, line.quantity_milli)?;
         let discount = portion_of(
             line.discount_minor,
             0,
@@ -2537,7 +2503,10 @@ where
     })
 }
 
-fn ingredients(recipe_json: &str, quantity_milli: i64) -> Result<Vec<(String, i64)>, BusinessError> {
+fn ingredients(
+    recipe_json: &str,
+    quantity_milli: i64,
+) -> Result<Vec<(String, i64)>, BusinessError> {
     let invalid = || {
         request_invalid(
             "POS_PRODUCT_INVALID",
@@ -2637,9 +2606,7 @@ where
     let outstanding = sale
         .total_minor
         .checked_sub(reserved)
-        .ok_or_else(|| {
-            request_invalid("POS_PAYMENT_AMOUNT", "Review the payment amount.")
-        })?;
+        .ok_or_else(|| request_invalid("POS_PAYMENT_AMOUNT", "Review the payment amount."))?;
     if input.amount_minor > outstanding
         || input.tendered_minor < input.amount_minor
         || (input.method != "cash" && input.tendered_minor != input.amount_minor)
@@ -2653,11 +2620,9 @@ where
     if ["transfer", "edc"].contains(&input.method.as_str())
         && input.reference.trim().chars().count() < 2
     {
-        return Err(request_invalid(
-            "POS_REFERENCE_REQUIRED",
-            "Enter the payment reference.",
-        )
-        .into());
+        return Err(
+            request_invalid("POS_REFERENCE_REQUIRED", "Enter the payment reference.").into(),
+        );
     }
     let fulfillments = repository.sale_fulfillment_stock(&sale.id).await?;
     let mut availability: std::collections::HashMap<(String, String), i64> =
@@ -2813,7 +2778,10 @@ struct SaleAccounts {
 }
 fn sale_accounts(settings: &PosSettings) -> Result<SaleAccounts, BusinessError> {
     let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
-        request_invalid("POS_ACCOUNT_INVALID", "Configured POS accounts are invalid.")
+        request_invalid(
+            "POS_ACCOUNT_INVALID",
+            "Configured POS accounts are invalid.",
+        )
     })?;
     let text = |name: &str| {
         value
@@ -2923,12 +2891,13 @@ where
         let mut cost = 0i64;
         for (product_id, quantity) in parts {
             let key = (fulfillment.warehouse_id.clone(), product_id.clone());
-            let (quantity_total, reserved, value) = availability.get(&key).copied().ok_or_else(|| {
-                conflict(
-                    "POS_STOCK_UNAVAILABLE",
-                    "Insufficient product or ingredients for this item.",
-                )
-            })?;
+            let (quantity_total, reserved, value) =
+                availability.get(&key).copied().ok_or_else(|| {
+                    conflict(
+                        "POS_STOCK_UNAVAILABLE",
+                        "Insufficient product or ingredients for this item.",
+                    )
+                })?;
             let available = quantity_total.saturating_sub(reserved);
             if available < quantity || quantity_total <= 0 || value < 0 {
                 return Err(conflict(
@@ -2950,9 +2919,9 @@ where
                     value - part_value,
                 ),
             );
-            cost = cost
-                .checked_add(part_value)
-                .ok_or_else(|| request_invalid("POS_STOCK_UNAVAILABLE", "Review the stock value."))?;
+            cost = cost.checked_add(part_value).ok_or_else(|| {
+                request_invalid("POS_STOCK_UNAVAILABLE", "Review the stock value.")
+            })?;
             consumption.push(PosConsumptionPart {
                 fulfillment_id: fulfillment.id.clone(),
                 warehouse_id: fulfillment.warehouse_id.clone(),
@@ -2997,32 +2966,32 @@ where
                     .await?;
             }
             if cost > 0 {
-            finance
-                .post_journal(&PosJournalRequest {
-                    company_id: actor.company_id.clone(),
-                    branch_id: actor.branch_id.clone(),
-                    chart_id: settings_chart_id(&settings)?,
-                    currency: sale.currency.clone(),
-                    business_date: sale.business_date.clone(),
-                    source_key: format!("consume:{}", fulfillment.id),
-                    source_id: fulfillment.id.clone(),
-                    actor_id: actor.user_id.clone(),
-                    lines: vec![
-                        PosJournalLine {
-                            account_id: accounts.cogs.clone(),
-                            debit: cost,
-                            credit: 0,
-                        },
-                        PosJournalLine {
-                            account_id: accounts.inventory.clone(),
-                            debit: 0,
-                            credit: cost,
-                        },
-                    ],
-                    now,
-                })
-                .await
-                .map_err(R::Error::from)?;
+                finance
+                    .post_journal(&PosJournalRequest {
+                        company_id: actor.company_id.clone(),
+                        branch_id: actor.branch_id.clone(),
+                        chart_id: settings_chart_id(&settings)?,
+                        currency: sale.currency.clone(),
+                        business_date: sale.business_date.clone(),
+                        source_key: format!("consume:{}", fulfillment.id),
+                        source_id: fulfillment.id.clone(),
+                        actor_id: actor.user_id.clone(),
+                        lines: vec![
+                            PosJournalLine {
+                                account_id: accounts.cogs.clone(),
+                                debit: cost,
+                                credit: 0,
+                            },
+                            PosJournalLine {
+                                account_id: accounts.inventory.clone(),
+                                debit: 0,
+                                credit: cost,
+                            },
+                        ],
+                        now,
+                    })
+                    .await
+                    .map_err(R::Error::from)?;
             }
         }
         repository
@@ -3171,7 +3140,10 @@ where
 
 fn settings_chart_id(settings: &PosSettings) -> Result<String, BusinessError> {
     let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
-        request_invalid("POS_ACCOUNT_INVALID", "Configured POS accounts are invalid.")
+        request_invalid(
+            "POS_ACCOUNT_INVALID",
+            "Configured POS accounts are invalid.",
+        )
     })?;
     value
         .get("chartId")
@@ -3313,9 +3285,7 @@ where
         })
         .await
         .map_err(R::Error::from)?;
-    repository
-        .settle_payment(&payment.id, now)
-        .await?;
+    repository.settle_payment(&payment.id, now).await?;
     finance
         .attach_bank_payment(&bank.id, &finance_payment_id)
         .await
@@ -3381,7 +3351,10 @@ struct RefundAccounts {
 }
 fn refund_accounts(settings: &PosSettings) -> Result<RefundAccounts, BusinessError> {
     let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
-        request_invalid("POS_ACCOUNT_INVALID", "Configured POS accounts are invalid.")
+        request_invalid(
+            "POS_ACCOUNT_INVALID",
+            "Configured POS accounts are invalid.",
+        )
     })?;
     let text = |name: &str| {
         value
@@ -3419,7 +3392,12 @@ struct RefundPart {
     previous_returned: i64,
 }
 fn refund_parts(lines_json: &str) -> Result<Vec<RefundPart>, BusinessError> {
-    let invalid = || request_invalid("POS_REFUND_CHANGED", "This refund changed. Create a new request.");
+    let invalid = || {
+        request_invalid(
+            "POS_REFUND_CHANGED",
+            "This refund changed. Create a new request.",
+        )
+    };
     let value: serde_json::Value = serde_json::from_str(lines_json).map_err(|_| invalid())?;
     let parts = value.as_array().ok_or_else(invalid)?;
     parts
@@ -3526,7 +3504,12 @@ where
         .try_fold(0i64, |total, payment| {
             total.checked_add(payment.amount_minor - payment.refunded_minor)
         })
-        .ok_or_else(|| request_invalid("POS_REFUND_EXCEEDED", "Refund exceeds the remaining payment amount."))?;
+        .ok_or_else(|| {
+            request_invalid(
+                "POS_REFUND_EXCEEDED",
+                "Refund exceeds the remaining payment amount.",
+            )
+        })?;
     if available < refund.amount_minor {
         return Err(request_invalid(
             "POS_REFUND_EXCEEDED",
@@ -3725,7 +3708,7 @@ where
                     "POS_REFUND_METHOD",
                     "This payment cannot be refunded yet.",
                 )
-                .into())
+                .into());
             }
         };
         let refund_payment_id = repository.new_id().await?;

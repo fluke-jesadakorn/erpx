@@ -152,9 +152,8 @@ impl DirectoryConnectionInput {
                         "Choose a concrete Entra tenant.",
                     ));
                 }
-                self.config.issuer = Some(format!(
-                    "https://login.microsoftonline.com/{tenant}/v2.0"
-                ));
+                self.config.issuer =
+                    Some(format!("https://login.microsoftonline.com/{tenant}/v2.0"));
             }
         }
         Ok(self)

@@ -65,7 +65,12 @@ pub fn digest(value: &impl Serialize) -> Result<String, BusinessError> {
 pub fn family_handle(actor: &Actor, parent: &str) -> Result<String, BusinessError> {
     digest(&("account-family", &actor.user_id, &actor.session_id, parent))
 }
-pub fn seed(image: &Image, actor: &Actor, now: i64, environment: &str) -> Result<SecuritySeed, BusinessError> {
+pub fn seed(
+    image: &Image,
+    actor: &Actor,
+    now: i64,
+    environment: &str,
+) -> Result<SecuritySeed, BusinessError> {
     let own = image
         .sessions
         .iter()

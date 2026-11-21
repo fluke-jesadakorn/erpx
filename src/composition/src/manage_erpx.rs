@@ -248,9 +248,12 @@ fn _router(
 /// activation commits last, mirroring the retained retry boundary.
 pub struct ManageErpxOnboardingCommandBackend {
     policy: Arc<AccountPolicy>,
-    registry: Arc<erpx_server_identity_access::public::account_holding_bindings::ConfiguredHoldingRegistry>,
+    registry: Arc<
+        erpx_server_identity_access::public::account_holding_bindings::ConfiguredHoldingRegistry,
+    >,
     control: erpx_server_runtime::public::postgres::DatabasePool,
-    holdings: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+    holdings:
+        std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
     resources: Vec<erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource>,
     limits: erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandLimits,
     enabled: bool,
@@ -263,8 +266,13 @@ impl ManageErpxOnboardingCommandBackend {
         policy: Arc<AccountPolicy>,
         registry: Arc<erpx_server_identity_access::public::account_holding_bindings::ConfiguredHoldingRegistry>,
         control: erpx_server_runtime::public::postgres::DatabasePool,
-        holdings: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
-        resources: Vec<erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource>,
+        holdings: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        >,
+        resources: Vec<
+            erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandResource,
+        >,
         limits: erpx_server_manage_erpx::public::onboarding_command::OnboardingCommandLimits,
         enabled: bool,
         clock: Arc<dyn Clock + Send + Sync>,
@@ -290,12 +298,12 @@ impl erpx_server_manage_erpx::public::onboarding_command_http::ManageErpxOnboard
         request: erpx_server_manage_erpx::public::onboarding_command_http::ManageErpxOnboardingCommandRequest<'a>,
     ) -> ManageErpxHttpFuture<'a, ManageErpxHttpResponse> {
         Box::pin(async move {
+            use erpx_server_identity_access::public::account_control_scope::verify_holding_account_control;
             use erpx_server_manage_erpx::public::onboarding_command::{
                 OnboardingCommandActor, OnboardingCommandInput, OnboardingReservation,
                 PgOnboardingBootstrap, PgOnboardingControl, activate_onboarding,
                 provision_onboarding, reserve_onboarding,
             };
-            use erpx_server_identity_access::public::account_control_scope::verify_holding_account_control;
             use erpx_server_runtime::public::postgres::{PgUnitOfWork, TransactionOptions};
 
             let input = OnboardingCommandInput::from_json(request.body)?;
@@ -368,13 +376,17 @@ impl erpx_server_manage_erpx::public::onboarding_command_http::ManageErpxOnboard
                     context: serde_json::json!({"userId": actor.user_id.as_str()}),
                 });
             };
-            let holding = self.holdings.get(&slot.holding_id).cloned().ok_or_else(|| {
-                BusinessError::new(
-                    FailureKind::Unavailable,
-                    "ONBOARDING_HOLDING_UNAVAILABLE",
-                    "The reserved Holding database is unavailable.",
-                )
-            })?;
+            let holding = self
+                .holdings
+                .get(&slot.holding_id)
+                .cloned()
+                .ok_or_else(|| {
+                    BusinessError::new(
+                        FailureKind::Unavailable,
+                        "ONBOARDING_HOLDING_UNAVAILABLE",
+                        "The reserved Holding database is unavailable.",
+                    )
+                })?;
             let receipt = PgUnitOfWork::new(holding)
                 .run_once(TransactionOptions::default(), {
                     let slot = slot.clone();
@@ -398,7 +410,8 @@ impl erpx_server_manage_erpx::public::onboarding_command_http::ManageErpxOnboard
                     move |connection| {
                         Box::pin(async move {
                             let mut repository = PgOnboardingControl::new(connection);
-                            activate_onboarding(&actor, &slot, &resource, now, &mut repository).await
+                            activate_onboarding(&actor, &slot, &resource, now, &mut repository)
+                                .await
                         })
                     }
                 })

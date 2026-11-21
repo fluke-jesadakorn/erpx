@@ -208,7 +208,7 @@ export function createOvertimeApplication<Effect>(ports: OvertimePorts<Effect>) 
         }
         else if (input.action === 'withdraw') {
             state = 'withdrawn';
-            statements.push(...ports.closeApprovals(key, 'overtime', id, actor.userId, 'cancel', input.note, row.version));
+            statements.push(...await Promise.all(ports.closeApprovals(key, 'overtime', id, actor.userId, 'cancel', input.note, row.version)));
         }
         else {
             const approve = !['return', 'reject'].includes(input.action), decision = await ports.prepareDecision(actor, key, 'overtime', id, approve, input.note, row.version, input.override);

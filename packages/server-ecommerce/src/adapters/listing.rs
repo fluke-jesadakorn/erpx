@@ -62,7 +62,9 @@ pub trait PgEcommerceListingMoneyCapture: Send + Sync {
         actor: &'a EcommerceActor,
         request: &'a EcommerceListingMoneyRequest,
         now: TimestampMillis,
-    ) -> Pin<Box<dyn Future<Output = Result<EcommerceListingMoneySnapshot, BusinessError>> + Send + 'a>>;
+    ) -> Pin<
+        Box<dyn Future<Output = Result<EcommerceListingMoneySnapshot, BusinessError>> + Send + 'a>,
+    >;
 }
 
 pub struct PgEcommerceListing<'c> {

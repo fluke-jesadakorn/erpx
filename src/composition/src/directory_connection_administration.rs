@@ -2,6 +2,7 @@
 //! Work authority, fresh MFA, provider I/O boundary and the owner transaction
 //! stay in composition; the owner adapter owns receipts, audit and effects.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_identity_access::public::directory::DirectoryProviderRead;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -16,7 +17,6 @@ use erpx_server_identity_access::public::{
     effective_authority::{HoldingWorkAuthorizer, WorkPermissionRequirement},
     work_context::HoldingWorkspaceRequest,
 };
-use erpx_server_identity_access::public::directory::DirectoryProviderRead;
 use erpx_server_runtime::public::postgres::{DatabasePool, PgRequestLease, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use serde_json::Value;
@@ -257,8 +257,7 @@ impl<C: Clock + Send + Sync + 'static> DirectoryConnectionBackend<C> {
                             let code = code.clone();
                             Box::pin(async move {
                                 let mut tx = PgDirectoryConnection::new(c, &directory);
-                                tx.record_test_failure(current, &id, version, code)
-                                    .await
+                                tx.record_test_failure(current, &id, version, code).await
                             })
                         },
                     )

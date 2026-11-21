@@ -142,8 +142,7 @@ async fn directory(
         {
             return Err(forbidden());
         }
-        let value: serde_json::Value =
-            serde_json::from_slice(&body).map_err(|_| malformed())?;
+        let value: serde_json::Value = serde_json::from_slice(&body).map_err(|_| malformed())?;
         if !value.is_object() {
             return Err(malformed());
         }

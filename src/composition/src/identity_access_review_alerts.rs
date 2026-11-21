@@ -34,7 +34,8 @@ const OVERDUE: &str = "INSERT INTO staff_notifications(id,company_id,user_id,rec
  GROUP BY c.id,c.company_id,c.version,c.due_at,a.user_id ON CONFLICT DO NOTHING";
 
 const DUE_SOON_MESSAGE: &str = "Access certification is due within 7 days; review pending assignments or coordinate an independent reviewer";
-const OVERDUE_MESSAGE: &str = "Access certification is overdue; complete the remaining independent decisions";
+const OVERDUE_MESSAGE: &str =
+    "Access certification is overdue; complete the remaining independent decisions";
 pub const WARNING_WINDOW_MS: i64 = 7 * 86_400_000;
 
 fn unavailable() -> BusinessError {

@@ -1,3 +1,4 @@
+import { nativeCreateAsset } from '@erpx/feature-marketing/adapters/server/native-marketing-wave2';
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -15,29 +16,8 @@ async function create(a:WorkContext,raw:unknown,key:string,provided?:SqlDatabase
 let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
 const ports:AssetPorts={clock:{now:()=>Date.now()},async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"marketing"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Marketing.");},validatePresentation:marketingPresentationReferences,
 async replay(key,op,id,input){return replayCommand<{id:string;status:string;version:number}>(await database(),a,key,op,id,input);},
-async persist(command){const write=await database();const {key,operation:op,id,input:i,now,result}=command;
-  return executeCommand(write, a, key, op, i, id, 1, result, [
-    write
-      .prepare(
-        "INSERT INTO marketing_assets VALUES(?,?,?,?,?,?,'draft',?,NULL,1,?,?)",
-      )
-      .bind(
-        id,
-        a.companyId,
-        i.kind,
-        i.name,
-        JSON.stringify(i.configuration),
-        JSON.stringify(i.preview),
-        a.userId,
-        now,
-        now,
-      ),
-    write
-      .prepare(
-        "INSERT INTO marketing_asset_events VALUES(?,?,1,'create',?,'Asset drafted for independent review','draft',?)",
-      )
-      .bind(`marketing-asset-event-${key}`, id, a.userId, now),
-  ]);
+async persist(command){const {key,input:i,result}=command;
+  return await nativeCreateAsset(a,{kind:i.kind,name:i.name,configuration:i.configuration,preview:i.preview},key) as typeof result;
 }
 };try{return await createAssetApplication(ports)(raw,key);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 }

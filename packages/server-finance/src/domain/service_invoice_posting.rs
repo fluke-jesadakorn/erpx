@@ -136,19 +136,41 @@ pub fn service_invoice_post_lines(
                 dimensions: None,
             })
         };
-    service_invoice_preview_lines(f)?.into_iter().map(|(id,debit,credit)|line(id,debit,credit)).collect()
+    service_invoice_preview_lines(f)?
+        .into_iter()
+        .map(|(id, debit, credit)| line(id, debit, credit))
+        .collect()
 }
 /// Read-only GL amounts share the posting owner's integer rule. A preview
 /// neither decides actor admission nor commits a journal.
-pub fn service_invoice_preview_lines<'a>(f:&ServiceInvoicePostFacts<'a>)->Result<Vec<(&'a str,i64,i64)>,BusinessError>{
-    if f.subtotal<0||f.tax<0||f.total<0||f.subtotal.checked_add(f.tax)!=Some(f.total) {
-        return Err(error(FailureKind::InvalidInput,"INVALID_INVOICE_AMOUNT","Use balanced invoice amounts."));
+pub fn service_invoice_preview_lines<'a>(
+    f: &ServiceInvoicePostFacts<'a>,
+) -> Result<Vec<(&'a str, i64, i64)>, BusinessError> {
+    if f.subtotal < 0 || f.tax < 0 || f.total < 0 || f.subtotal.checked_add(f.tax) != Some(f.total)
+    {
+        return Err(error(
+            FailureKind::InvalidInput,
+            "INVALID_INVOICE_AMOUNT",
+            "Use balanced invoice amounts.",
+        ));
     }
-    if f.debit_account.is_empty()||f.credit_account.is_empty()||f.tax!=0&&f.tax_account.is_none_or(str::is_empty) {
-        return Err(error(FailureKind::InvalidInput,"ACCOUNT_INVALID","Invoice account is unavailable."));
+    if f.debit_account.is_empty()
+        || f.credit_account.is_empty()
+        || f.tax != 0 && f.tax_account.is_none_or(str::is_empty)
+    {
+        return Err(error(
+            FailureKind::InvalidInput,
+            "ACCOUNT_INVALID",
+            "Invoice account is unavailable.",
+        ));
     }
-    let mut lines=vec![(f.debit_account,f.total,0),(f.credit_account,0,f.subtotal)];
-    if f.tax!=0 {lines.push((f.tax_account.unwrap(),0,f.tax));}
+    let mut lines = vec![
+        (f.debit_account, f.total, 0),
+        (f.credit_account, 0, f.subtotal),
+    ];
+    if f.tax != 0 {
+        lines.push((f.tax_account.unwrap(), 0, f.tax));
+    }
     Ok(lines)
 }
 fn error(kind: FailureKind, code: &'static str, message: &'static str) -> BusinessError {

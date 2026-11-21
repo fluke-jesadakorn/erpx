@@ -11,7 +11,7 @@ export interface MessagingFilePorts<Effect> {
     owned?<Result>(key:string,run:(unit:MessagingFilePorts<Effect>)=>Promise<Result>):Promise<Result>;
     commands: MessageFileCommands<Effect>;
     repository: {
-        bindFile(id: string, room: string, user: string, name: string, type: string, bytes: number, object: string, checksum: string, now: number, set: string, link: string, source: string): Effect;
+        bindFile(id: string, room: string, user: string, name: string, type: string, bytes: number, object: string, checksum: string, now: number, set: string, link: string, source: string): Promise<Effect>;
     };
     room(actor: WorkContext, id: string): Promise<{
         version: number;
@@ -140,7 +140,7 @@ export function createMessagingFileApplication<Effect>(ports: MessagingFilePorts
         };
         return unit.commands.commit(actor, key, "messaging.upload", fingerprint, roomId, Number(room.version), result, [
             unit.roomGuard(actor, key, roomId),
-            unit.repository.bindFile(input.id, roomId, actor.userId, input.name, input.type, length, source.object_key, source.checksum_sha256, unit.clock.now(), set.id, completed.attachmentLinkId, completed.sourceId),
+            await unit.repository.bindFile(input.id, roomId, actor.userId, input.name, input.type, length, source.object_key, source.checksum_sha256, unit.clock.now(), set.id, completed.attachmentLinkId, completed.sourceId),
         ]);
         };
         return ports.owned?ports.owned(key,submit):submit(ports);

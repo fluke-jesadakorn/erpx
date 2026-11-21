@@ -253,8 +253,11 @@ mod tests {
         assert_eq!(payroll.queue, WorkQueue::Todo);
 
         assert!(
-            projection_work(event_work(&message("finance.journal.post", None)), Some("posted"))
-                .is_none()
+            projection_work(
+                event_work(&message("finance.journal.post", None)),
+                Some("posted")
+            )
+            .is_none()
         );
     }
 

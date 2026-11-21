@@ -276,7 +276,7 @@ export function createRequestAiApplication<Effect, Gateway>(ports: RequestAiPort
                 JSON.stringify(latest.snapshot) !== claimed.provider_json)
                 throw new BusinessRuleError(409, "AI_STALE", "The request or provider changed while AI was preparing. Your edits are preserved.");
             const command = `request-ai-result-${token}`;
-            await ports.batch([
+            await ports.batch(await Promise.all([
                 ...ports.productionFeatureGuard(command, actor.companyId, "operations"),
                 ...ports.iamMutationGuards(actor, command), r.guard13(command, "queued-assignment", actor.assignmentId, actor.userId, actor.role, actor.authority?.assignmentVersion ?? null, actor.authority?.assignmentVersion ?? null, ports.clock.now(), ports.clock.now()),
                 ...snap(command),
@@ -287,7 +287,7 @@ export function createRequestAiApplication<Effect, Gateway>(ports: RequestAiPort
                 r.stageRunRequestAiEffect3(output.inputTokens, output.outputTokens, id),
                 ports.aiUsageStatement(`${id}:${claimed.attempts}`, provider.snapshot, "employee_request", "succeeded", output.inputTokens, output.outputTokens, actor.branchId),
                 await r.stageRunRequestAiEffect4(command, actor.companyId),
-            ]);
+            ]));
         }
         catch (e) {
             const stale = e instanceof BusinessRuleError &&
@@ -305,7 +305,7 @@ export function createRequestAiApplication<Effect, Gateway>(ports: RequestAiPort
             if (changed) {
                 await r.stageRunRequestAiEffect5(id);
                 if (provider)
-                    await ports.runEffect(ports.aiUsageStatement(`${id}:${claimed.attempts}`, provider.snapshot, "employee_request", "failed", 0, 0, (JSON.parse(claimed.actor_json) as WorkContext).branchId));
+                    await ports.runEffect(await ports.aiUsageStatement(`${id}:${claimed.attempts}`, provider.snapshot, "employee_request", "failed", 0, 0, (JSON.parse(claimed.actor_json) as WorkContext).branchId));
             }
         }
     }

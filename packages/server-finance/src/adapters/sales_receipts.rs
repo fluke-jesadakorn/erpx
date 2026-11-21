@@ -1,9 +1,7 @@
 //! Native standalone customer-receipt detail, export and issue. Field-owned
 //! receipts retain their existing native Service interface; this slice handles
 //! the remaining Company receipts and keeps the immutable issued copy.
-use super::sales_invoice_create::{
-    SalesInvoiceCommandActor, authority_json, fingerprint, receipt,
-};
+use super::sales_invoice_create::{SalesInvoiceCommandActor, authority_json, fingerprint, receipt};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
@@ -112,9 +110,7 @@ fn escape_html(value: &str) -> String {
 }
 
 fn money(value: &str) -> Result<String, Error> {
-    let units = value
-        .parse::<i128>()
-        .map_err(|_| unavailable())?;
+    let units = value.parse::<i128>().map_err(|_| unavailable())?;
     let negative = units < 0;
     let absolute = units.abs();
     Ok(format!(

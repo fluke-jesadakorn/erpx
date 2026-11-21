@@ -1,9 +1,7 @@
 //! Native Finance sales-defaults setup. The approved edition is the sole source
 //! for customer-document accounts; prepare and independent approval stay in the
 //! caller's transaction with the original command receipt.
-use super::sales_invoice_create::{
-    SalesInvoiceCommandActor, authority_json, fingerprint, receipt,
-};
+use super::sales_invoice_create::{SalesInvoiceCommandActor, authority_json, fingerprint, receipt};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
@@ -134,12 +132,9 @@ fn validate_prepare(input: &SalesDefaultsPrepareInput) -> Result<(), Error> {
         ));
     }
     if input.receivable_account_id == input.revenue_account_id
-        || input
-            .tax_account_id
-            .as_deref()
-            .is_some_and(|value| {
-                value == input.receivable_account_id || value == input.revenue_account_id
-            })
+        || input.tax_account_id.as_deref().is_some_and(|value| {
+            value == input.receivable_account_id || value == input.revenue_account_id
+        })
     {
         return Err(invalid(
             "SALES_ACCOUNTS_INVALID",
@@ -204,10 +199,7 @@ async fn validate_accounts(
             "Use active sales accounts on one Company ledger.",
         )
     })?;
-    let tax = input
-        .tax_account_id
-        .as_deref()
-        .and_then(find);
+    let tax = input.tax_account_id.as_deref().and_then(find);
     if receivable.get::<String, _>("status") != "active"
         || revenue.get::<String, _>("status") != "active"
         || tax.is_some_and(|row| row.get::<String, _>("status") != "active")
@@ -422,12 +414,7 @@ pub async fn prepare_sales_defaults(
         &authority_json(actor),
         command.as_str(),
         "finance.sales-defaults.prepare",
-        &fingerprint(
-            actor,
-            "finance.sales-defaults.prepare",
-            &id,
-            &input_json,
-        ),
+        &fingerprint(actor, "finance.sales-defaults.prepare", &id, &input_json),
         &id,
         &serde_json::to_value(&result).map_err(|_| unavailable())?,
         1,
@@ -571,12 +558,7 @@ pub async fn decide_sales_defaults(
         &authority_json(actor),
         command.as_str(),
         "finance.sales-defaults.decide",
-        &fingerprint(
-            actor,
-            "finance.sales-defaults.decide",
-            id,
-            &input_json,
-        ),
+        &fingerprint(actor, "finance.sales-defaults.decide", id, &input_json),
         id,
         &serde_json::to_value(&result).map_err(|_| unavailable())?,
         next_version,

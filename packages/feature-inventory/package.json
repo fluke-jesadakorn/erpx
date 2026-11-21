@@ -34,6 +34,7 @@
     "./lib/pos-initial-physical-stock-count-command": "./src/lib/pos-initial-physical-stock-count-command.ts",
     "./lib/landed-cost-command-attempt": "./src/lib/landed-cost-command-attempt.ts",
     "./adapters/server/native-availability": "./src/adapters/server/native-availability.ts",
+    "./adapters/server/native-inventory-command": "./src/adapters/server/native-inventory-command.ts",
     "./lib/native-availability": "./src/lib/native-availability.ts",
     "./routes/holdings/[holdingSlug]/inventory-quality/stock/register/page": "./src/routes/holdings/[holdingSlug]/inventory-quality/stock/register/page.tsx",
     "./lib/native-inventory-command": "./src/lib/native-inventory-command.ts"

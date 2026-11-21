@@ -2,6 +2,12 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! assignment workspace and withdrawal facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_identity_access::public::directory_operation::{
+    AutomationConfiguration, DirectoryOperationHttpBackend, DirectoryOperationHttpCommand,
+    DirectoryOperationHttpFuture, DirectoryOperationHttpRequest, DirectoryOperationHttpResponse,
+    apply_operation_review, cancel_operation, configure_automation, directory_automation_data,
+    parse_change, preview_change, refresh_inventory, retry_operation, submit_change,
+};
 use erpx_server_identity_access::public::iam_roles::{
     AccessReviewCampaignInput, AccessReviewCancelInput, AccessReviewDecisionInput, IamRoleActor,
     PgIamRolesReviews, ReviewDecisionInput, RoleSaveInput, cancel_access_review_campaign,
@@ -29,23 +35,17 @@ use erpx_server_identity_access::public::people_grants_http::{
     PeopleGrantsHttpRequest, PeopleGrantsHttpResponse,
 };
 use erpx_server_identity_access::public::permission_catalog::permission_catalog;
-use erpx_server_identity_access::public::directory_operation::{
-    AutomationConfiguration, DirectoryOperationHttpBackend, DirectoryOperationHttpCommand,
-    DirectoryOperationHttpFuture, DirectoryOperationHttpRequest, DirectoryOperationHttpResponse,
-    apply_operation_review, cancel_operation, configure_automation, directory_automation_data,
-    parse_change, preview_change, refresh_inventory, retry_operation, submit_change,
+use erpx_server_identity_access::public::position_gpo::{
+    FreshMfa, PgPositionGpo, PgPositionGpoDirectory, PositionGpoHttpBackend,
+    PositionGpoHttpCommand, PositionGpoHttpFuture, PositionGpoHttpRequest, PositionGpoHttpResponse,
+    ReqwestConnector, position_gpo_overview, preview_position_gpo, preview_unmap_position_gpo,
+    publish_position_gpo, retry_position_gpo, retry_position_gpo_config, unmap_position_gpo,
 };
 use erpx_server_identity_access::public::user_management::{
     UserManagementActor, UserManagementHttpBackend, UserManagementHttpCommand,
     UserManagementHttpFuture, UserManagementHttpRequest, UserManagementHttpResponse,
     apply_management_review, decide_management_review, management_command, management_read,
     reconcile_management,
-};
-use erpx_server_identity_access::public::position_gpo::{
-    FreshMfa, PgPositionGpo, PgPositionGpoDirectory, PositionGpoHttpBackend,
-    PositionGpoHttpCommand, PositionGpoHttpFuture, PositionGpoHttpRequest, PositionGpoHttpResponse,
-    ReqwestConnector, position_gpo_overview, preview_position_gpo, preview_unmap_position_gpo,
-    publish_position_gpo, retry_position_gpo, retry_position_gpo_config, unmap_position_gpo,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -195,9 +195,7 @@ fn iam_role_actor(current: &AuthorizedWorkContext) -> Result<IamRoleActor, Busin
     })
 }
 
-fn management_actor(
-    current: &AuthorizedWorkContext,
-) -> Result<UserManagementActor, BusinessError> {
+fn management_actor(current: &AuthorizedWorkContext) -> Result<UserManagementActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
@@ -214,7 +212,10 @@ fn management_actor(
             WorkScopeKind::Department => "department",
         }
         .to_owned(),
-        scope_node_id: assignment.scope_node_id.as_ref().map(|value| value.as_str().to_owned()),
+        scope_node_id: assignment
+            .scope_node_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         role: assignment.role.clone(),
         permissions: iam.permissions.clone(),
         grantable_permissions: iam.grantable_permissions.clone(),
@@ -227,9 +228,7 @@ fn directory_operation_route_access(
     command: &DirectoryOperationHttpCommand,
 ) -> WorkAuthorizationRequest {
     let permission = match command {
-        DirectoryOperationHttpCommand::Read => {
-            WorkPermissionRequirement::Exact("iam.read".into())
-        }
+        DirectoryOperationHttpCommand::Read => WorkPermissionRequirement::Exact("iam.read".into()),
         DirectoryOperationHttpCommand::Submit { direct: true, .. }
         | DirectoryOperationHttpCommand::Retry { .. } => {
             WorkPermissionRequirement::Exact("iam.directory.apply".into())
@@ -939,8 +938,7 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
                                 preview_change(
                                     connection,
                                     &actor,
-                                    parse_change(change)
-                                        .map_err(PgTransactionError::Business)?,
+                                    parse_change(change).map_err(PgTransactionError::Business)?,
                                     now,
                                 )
                                 .await?
@@ -956,8 +954,7 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
                                 submit_change(
                                     connection,
                                     &actor,
-                                    parse_change(change)
-                                        .map_err(PgTransactionError::Business)?,
+                                    parse_change(change).map_err(PgTransactionError::Business)?,
                                     &token,
                                     key.as_str(),
                                     direct,
@@ -1434,9 +1431,7 @@ impl<C: Clock + Send + Sync + 'static> UserManagementHttpBackend for IdentityAcc
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> DirectoryOperationHttpBackend
-    for IdentityAccessBackend<C>
-{
+impl<C: Clock + Send + Sync + 'static> DirectoryOperationHttpBackend for IdentityAccessBackend<C> {
     fn execute<'a>(
         &'a self,
         request: DirectoryOperationHttpRequest<'a>,

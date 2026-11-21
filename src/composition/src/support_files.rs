@@ -36,8 +36,7 @@ use erpx_server_identity_access::public::{
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
-    TimestampMillis,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
 };
 use erpx_server_support::public::support_attachment::{
     SUPPORT_EVIDENCE_CAPABILITY, SupportAttachmentActor as SupportActor,
@@ -111,12 +110,21 @@ fn files_actor(current: &AuthorizedWorkContext, company: &CompanyId) -> SupportA
     SupportAttachmentActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: company.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-        department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
     }
 }
 
-fn support_actor(current: &AuthorizedWorkContext, now: TimestampMillis) -> Result<SupportActor, BusinessError> {
+fn support_actor(
+    current: &AuthorizedWorkContext,
+    now: TimestampMillis,
+) -> Result<SupportActor, BusinessError> {
     if now.get() >= current.expires_at() {
         return Err(BusinessError::new(
             FailureKind::Conflict,
@@ -128,8 +136,14 @@ fn support_actor(current: &AuthorizedWorkContext, now: TimestampMillis) -> Resul
     Ok(SupportActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-        department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         can_read: current.has_permission("support.read") || current.has_permission("records.read"),
         can_work: current.has_permission("support.work"),
         can_manage: current.has_permission("support.manage"),
@@ -420,11 +434,10 @@ impl<C: Clock + Send + Sync + 'static> SupportFilesService<C> {
                             catalogue: &catalogue,
                             clock: clock.as_ref(),
                         };
-                        let storage_limit =
-                            erpx_server_manage_erpx::public::company_storage_limit(
-                                connection, &company,
-                            )
-                            .await?;
+                        let storage_limit = erpx_server_manage_erpx::public::company_storage_limit(
+                            connection, &company,
+                        )
+                        .await?;
                         let reservation = reserve_support_attachment_file(
                             connection,
                             &authority,
@@ -591,7 +604,9 @@ impl<C: Clock + Send + Sync + 'static> SupportFilesService<C> {
         let workers = self.workers.lock().await;
         for worker in workers.iter() {
             match worker.run_next(Some(&record)).await {
-                Ok(erpx_server_files::public::attachment_scan::AttachmentScanRunOutcome::NoWork) => continue,
+                Ok(
+                    erpx_server_files::public::attachment_scan::AttachmentScanRunOutcome::NoWork,
+                ) => continue,
                 Ok(_) => {
                     scanned = true;
                     break;
@@ -656,7 +671,11 @@ impl<C: Clock + Send + Sync + 'static> SupportFilesBackend<C> {
         scopes: Arc<dyn BusinessScopeSlugs>,
         service: Arc<SupportFilesService<C>>,
     ) -> Self {
-        Self { policy, scopes, service }
+        Self {
+            policy,
+            scopes,
+            service,
+        }
     }
 
     fn context(
@@ -684,9 +703,7 @@ impl<C: Clock + Send + Sync + 'static> SupportFilesBackend<C> {
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> SupportAttachmentHttpBackend
-    for SupportFilesBackend<C>
-{
+impl<C: Clock + Send + Sync + 'static> SupportAttachmentHttpBackend for SupportFilesBackend<C> {
     fn create<'a>(
         &'a self,
         request: SupportAttachmentCreateHttpRequest<'a>,

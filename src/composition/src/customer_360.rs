@@ -13,28 +13,28 @@ use erpx_server_customer_360::public::customer_activity_http::{
     CustomerActivityHttpBackend, CustomerActivityHttpFuture, CustomerActivityHttpReadRequest,
     CustomerActivityHttpTarget, customer_activity_http_router,
 };
-use erpx_server_customer_360::public::customer_timeline::{
-    CustomerTimelineActor, CustomerTimelineQuery, CustomerTimelineSupportEntitlement,
-    PgCustomerTimelineRead, customer_timeline,
-};
-use erpx_server_customer_360::public::directory::{
-    CustomerDirectoryPage, CustomerDirectoryQuery, PgCustomerDirectoryRead, customer_directory_page,
-};
 use erpx_server_customer_360::public::customer_activity_metric::{
     CustomerActivityMetricGroup, CustomerActivityMetricQuery, PgCustomerActivityMetric,
     customer_activity_metric,
-};
-use erpx_server_customer_360::public::customer_directory_http::{
-    CustomerDirectoryHttpBackend, CustomerDirectoryHttpFuture, CustomerDirectoryHttpReadRequest,
-    CustomerDirectoryHttpTarget,
 };
 use erpx_server_customer_360::public::customer_activity_metric_http::{
     CustomerActivityMetricHttpBackend, CustomerActivityMetricHttpFuture,
     CustomerActivityMetricHttpReadRequest, CustomerActivityMetricHttpTarget,
 };
+use erpx_server_customer_360::public::customer_directory_http::{
+    CustomerDirectoryHttpBackend, CustomerDirectoryHttpFuture, CustomerDirectoryHttpReadRequest,
+    CustomerDirectoryHttpTarget,
+};
+use erpx_server_customer_360::public::customer_timeline::{
+    CustomerTimelineActor, CustomerTimelineQuery, CustomerTimelineSupportEntitlement,
+    PgCustomerTimelineRead, customer_timeline,
+};
 use erpx_server_customer_360::public::customer_timeline_http::{
     CustomerTimelineHttpBackend, CustomerTimelineHttpFuture, CustomerTimelineHttpResponse,
     CustomerTimelineHttpTarget, customer_timeline_http_router,
+};
+use erpx_server_customer_360::public::directory::{
+    CustomerDirectoryPage, CustomerDirectoryQuery, PgCustomerDirectoryRead, customer_directory_page,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -439,8 +439,7 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
                         current.require_permission("commerce.read")?;
                         let actor = customer_timeline_actor(current)?;
                         let mut repository = PgCustomerDirectoryRead::new(connection);
-                        customer_directory_page(&actor, &query, &mut repository, clock.now())
-                            .await
+                        customer_directory_page(&actor, &query, &mut repository, clock.now()).await
                     })
                 },
             )
@@ -535,7 +534,6 @@ impl<C: Clock + Send + Sync + 'static> Customer360Backend<C> {
     }
 }
 
-
 impl<C: Clock + Send + Sync + 'static> CustomerDirectoryHttpBackend for Customer360Backend<C> {
     fn read<'a>(
         &'a self,
@@ -551,9 +549,7 @@ impl<C: Clock + Send + Sync + 'static> CustomerDirectoryHttpBackend for Customer
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> CustomerActivityMetricHttpBackend
-    for Customer360Backend<C>
-{
+impl<C: Clock + Send + Sync + 'static> CustomerActivityMetricHttpBackend for Customer360Backend<C> {
     fn read<'a>(
         &'a self,
         request: CustomerActivityMetricHttpReadRequest<'a>,
@@ -615,6 +611,8 @@ impl<C: Clock + Send + Sync + 'static> CustomerActivityHttpBackend for Customer3
 }
 
 #[allow(dead_code)]
-fn _activity_router(targets: Vec<CustomerActivityHttpTarget>) -> Result<axum::Router, BusinessError> {
+fn _activity_router(
+    targets: Vec<CustomerActivityHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
     customer_activity_http_router(targets)
 }

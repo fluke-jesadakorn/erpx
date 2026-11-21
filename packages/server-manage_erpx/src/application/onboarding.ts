@@ -1,6 +1,6 @@
 import {type Clock} from '@erpx/server-shared/index';
 import {type BetaUser,type SlotRow} from '@erpx/server-manage_erpx/domain/onboarding';
-export interface BetaHoldingRepository<Effect>{prepareMembership(id:string,invitation:string | null,now:number):Effect;
+export interface BetaHoldingRepository<Effect>{prepareMembership(id:string,invitation:string | null,now:number):Promise<Effect>;
 preparePerson(person:string,id:string,company:string,name:string,email:string,id2:string,now:number,now2:number):Effect;
 prepareEmployee(value:string,id:string,company:string,branch:string,department:string,name:string,now:number):Effect;
 prepareEngagement(value:string,person:string,company:string,branch:string,department:string,id:string,now:number,now2:number,value2:string):Effect;
@@ -43,7 +43,7 @@ export function createBetaBootstrapEffects<Effect>(r:BetaHoldingRepository<Effec
     person = `person-${user.id}`,
     department = `department-${branch}`;
   return [
-    r.prepareMembership(user.id,invitation,now),
+    await r.prepareMembership(user.id,invitation,now),
     await r.preparePerson(person,user.id,company,user.name,user.email,user.id,now,now),
     await r.prepareEmployee(`employee-${user.id}`,user.id,company,branch,department,user.name,now),
     await r.prepareEngagement(`engagement-${user.id}`,person,company,branch,department,user.id,now,now,`level-${company}`),

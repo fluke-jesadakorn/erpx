@@ -45,12 +45,17 @@ pub fn service_count_decision_digest(
     lines: &str,
     lot_lines: &str,
 ) -> Result<String, BusinessError> {
-    let reason = serde_json::to_string(reason).map_err(|_| BusinessError::invalid(
-        "SERVICE_COUNT_DECISION_INVALID", "Invalid Count decision reason."))?;
+    let reason = serde_json::to_string(reason).map_err(|_| {
+        BusinessError::invalid(
+            "SERVICE_COUNT_DECISION_INVALID",
+            "Invalid Count decision reason.",
+        )
+    })?;
     let body = OrderedJson::parse_internal_projection(&format!(
         "{{\"reason\":{},\"lines\":{},\"lotLines\":{}}}",
         reason, lines, lot_lines
-    ))?.encode_internal_projection()?;
+    ))?
+    .encode_internal_projection()?;
     Ok(hex::encode(Sha256::digest(body.as_bytes())))
 }
 #[derive(Clone, Debug)]

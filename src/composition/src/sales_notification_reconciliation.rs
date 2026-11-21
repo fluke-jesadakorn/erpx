@@ -104,7 +104,10 @@ fn actor(current: &AuthorizedWorkContext) -> Result<ReconcileActor, BusinessErro
             .map(|id| id.as_str().to_owned())
             .collect(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|id| id.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()

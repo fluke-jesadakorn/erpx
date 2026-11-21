@@ -7,7 +7,7 @@ import {
   productionDetail,
   productionWorkspace,
 } from "@erpx/server-manufacturing/public/production";
-import { createManufacturingAccountingProfile, reviewManufacturingAccountingProfile } from "@erpx/server-manufacturing/public/production-accounting";
+import { nativeAccountingProfileCommand, nativeManufacturingWave3Available } from "@erpx/feature-manufacturing/adapters/server/native-manufacturing-wave3";
 import { nativePlanningCommand } from "@erpx/feature-manufacturing/public/native-planning-workspace-page";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -118,8 +118,22 @@ export async function POST(r: Request, c: C) {
         );
       return Response.json(canonicalDestinationLinks({ data: result }), { headers });
     }
-    if (i.entity === "accounting")
-      data = typeof i.id === "string" ? await reviewManufacturingAccountingProfile(a, i.id, i, key) : await createManufacturingAccountingProfile(a, i, key);
+    if (i.entity === "accounting") {
+      // Wave 3: the axum accounting-profile route is the only writer. No TS SQL fallback.
+      if (!nativeManufacturingWave3Available())
+        throw new ApiError(503, "NATIVE_MANUFACTURING_UNAVAILABLE", "The native Manufacturing accounting command is unavailable.");
+      const result = await nativeAccountingProfileCommand(
+        r.headers,
+        a,
+        (await c.params).holdingSlug,
+        typeof i.id === "string" ? { review: i.id } : { create: true },
+        i,
+        key,
+      );
+      if (!result)
+        throw new ApiError(503, "NATIVE_MANUFACTURING_UNAVAILABLE", "The native Manufacturing accounting command is unavailable.");
+      return Response.json(canonicalDestinationLinks({ data: result }), { headers });
+    }
     else data = await changeManufacturingOrder(a, i.id, i, key);
     return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {

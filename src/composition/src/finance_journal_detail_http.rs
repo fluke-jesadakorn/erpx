@@ -1861,7 +1861,8 @@ fn supplier_batch_ingress<C: Clock + Send + Sync + 'static>(
     if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
         return Err(missing().into());
     }
-    if unique_request_header(headers, "origin")?.is_some_and(|value| value != inbound.expected_origin())
+    if unique_request_header(headers, "origin")?
+        .is_some_and(|value| value != inbound.expected_origin())
     {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
@@ -1906,7 +1907,9 @@ fn supplier_batch_parts(
     })
 }
 
-async fn supplier_batch_body(request: Request) -> Result<axum::body::Bytes, PgTransactionError<BusinessError>> {
+async fn supplier_batch_body(
+    request: Request,
+) -> Result<axum::body::Bytes, PgTransactionError<BusinessError>> {
     to_bytes(request.into_body(), 128 * 1024)
         .await
         .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request.").into())
@@ -1977,15 +1980,7 @@ async fn decide_supplier_batch<C: Clock + Send + Sync + 'static>(
         let (proof, command, run) = supplier_batch_parts(ingress);
         target
             .service
-            .decide_supplier_batch(
-                &host,
-                proof,
-                run,
-                command,
-                id,
-                decision,
-                input,
-            )
+            .decide_supplier_batch(&host, proof, run, command, id, decision, input)
             .await
     }
     .await;
@@ -2058,12 +2053,8 @@ async fn recover_supplier_batch_export<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(&headers, "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(
-            &state.targets,
-            &host,
-            &slug,
-            &headers,
-        )?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -2127,14 +2118,7 @@ async fn supplier_instruction_result<C: Clock + Send + Sync + 'static>(
         let (proof, command, run) = supplier_batch_parts(ingress);
         target
             .service
-            .record_supplier_instruction_result(
-                &host,
-                proof,
-                run,
-                command,
-                id,
-                input,
-            )
+            .record_supplier_instruction_result(&host, proof, run, command, id, input)
             .await
     }
     .await;
@@ -2174,14 +2158,7 @@ async fn confirm_supplier_instruction<C: Clock + Send + Sync + 'static>(
         let (proof, command, run) = supplier_batch_parts(ingress);
         target
             .service
-            .confirm_supplier_instruction(
-                &host,
-                proof,
-                run,
-                command,
-                id,
-                input,
-            )
+            .confirm_supplier_instruction(&host, proof, run, command, id, input)
             .await
     }
     .await;
@@ -3131,7 +3108,6 @@ fn serialization() -> PgTransactionError<BusinessError> {
     .into()
 }
 
-
 /// Composition backend for the native revenue-obligation recognition command.
 pub struct RevenueRecognitionBackend<C> {
     policy: Arc<AccountPolicy>,
@@ -3164,7 +3140,8 @@ impl<C: Clock + Send + Sync + 'static> RevenueRecognitionBackend<C> {
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> erpx_server_finance::public::revenue_recognition::RevenueRecognitionHttpBackend
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_finance::public::revenue_recognition::RevenueRecognitionHttpBackend
     for RevenueRecognitionBackend<C>
 {
     fn command<'a>(
@@ -3180,13 +3157,14 @@ impl<C: Clock + Send + Sync + 'static> erpx_server_finance::public::revenue_reco
                 return Err(missing());
             }
             let (branch, department) = self.scopes.slugs(request.headers)?;
-            let selection = erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest {
-                company_id: self.service.company_id().clone(),
-                branch_slug: branch,
-                department_slug: department,
-                expected: None,
-                mutation: true,
-            };
+            let selection =
+                erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest {
+                    company_id: self.service.company_id().clone(),
+                    branch_slug: branch,
+                    department_slug: department,
+                    expected: None,
+                    mutation: true,
+                };
             let data = self
                 .service
                 .recognize_revenue(
@@ -3199,7 +3177,11 @@ impl<C: Clock + Send + Sync + 'static> erpx_server_finance::public::revenue_reco
                 )
                 .await
                 .map_err(Self::business)?;
-            Ok(erpx_server_finance::public::revenue_recognition::RevenueRecognitionResponse { data })
+            Ok(
+                erpx_server_finance::public::revenue_recognition::RevenueRecognitionResponse {
+                    data,
+                },
+            )
         })
     }
 }

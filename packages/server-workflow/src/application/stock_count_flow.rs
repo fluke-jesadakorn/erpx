@@ -148,23 +148,40 @@ pub fn normalize_stock_count_assignment(
 }
 
 /// Normalize the generic Flow route: Zod strips unknown keys and permits saving defaults.
-pub fn normalize_generic_stock_count_assignment(input: &str) -> Result<crate::domain::command_json::CommandJson, erpx_server_shared::public::BusinessError> {
+pub fn normalize_generic_stock_count_assignment(
+    input: &str,
+) -> Result<crate::domain::command_json::CommandJson, erpx_server_shared::public::BusinessError> {
     normalize_assignment(input, true)
 }
 
-fn normalize_assignment(input: &str, generic: bool) -> Result<crate::domain::command_json::CommandJson, erpx_server_shared::public::BusinessError> {
+fn normalize_assignment(
+    input: &str,
+    generic: bool,
+) -> Result<crate::domain::command_json::CommandJson, erpx_server_shared::public::BusinessError> {
     use erpx_server_shared::public::BusinessError;
     let invalid =
         || BusinessError::invalid("VALIDATION_FAILED", "Use a valid Count Flow assignment.");
     use crate::domain::command_json::CommandJson;
     let object = CommandJson::parse(input)?;
-    if !matches!(object.value()?, crate::domain::command_json::OrderedJson::Object(_)) { return Err(invalid()); }
-    if !generic && object.object_keys()?.ok_or_else(invalid)?.iter().any(|k| {
-        !matches!(
-            k.as_str(),
-            "stepKey" | "userId" | "expectedVersion" | "recordVersion" | "reason" | "saveDefault"
-        )
-    }) {
+    if !matches!(
+        object.value()?,
+        crate::domain::command_json::OrderedJson::Object(_)
+    ) {
+        return Err(invalid());
+    }
+    if !generic
+        && object.object_keys()?.ok_or_else(invalid)?.iter().any(|k| {
+            !matches!(
+                k.as_str(),
+                "stepKey"
+                    | "userId"
+                    | "expectedVersion"
+                    | "recordVersion"
+                    | "reason"
+                    | "saveDefault"
+            )
+        })
+    {
         return Err(invalid());
     }
     let property = |name: &str| -> Result<CommandJson, BusinessError> {
@@ -208,11 +225,19 @@ fn normalize_assignment(input: &str, generic: bool) -> Result<crate::domain::com
         || codepoints(&user) > 180
         || codepoints(reason) < 3
         || codepoints(reason) > 2000
-        || object.property("saveDefault")?.is_some_and(|v| if generic { v.as_str() != "false" && v.as_str() != "true" } else { v.as_str() != "false" })
+        || object.property("saveDefault")?.is_some_and(|v| {
+            if generic {
+                v.as_str() != "false" && v.as_str() != "true"
+            } else {
+                v.as_str() != "false"
+            }
+        })
     {
         return Err(invalid());
     }
-    let save_default = object.property("saveDefault")?.is_some_and(|v| v.as_str() == "true");
+    let save_default = object
+        .property("saveDefault")?
+        .is_some_and(|v| v.as_str() == "true");
     let step = CommandJson::from_utf16_string(&step)?;
     let user = CommandJson::from_utf16_string(&user)?;
     let reason = CommandJson::from_utf16_string(reason)?;
@@ -233,17 +258,35 @@ mod assignment_normalization_tests {
     #[test]
     fn generic_known_string_values_keep_lone_surrogates_in_receipt_identity() {
         for key in ["stepKey", "userId", "reason"] {
-            let raw = format!(r#"{{"stepKey":"submitted","userId":"reviewer","expectedVersion":0,"recordVersion":1,"reason":"Reason","saveDefault":true,"{key}":"abc\ud800"}}"#);
+            let raw = format!(
+                r#"{{"stepKey":"submitted","userId":"reviewer","expectedVersion":0,"recordVersion":1,"reason":"Reason","saveDefault":true,"{key}":"abc\ud800"}}"#
+            );
             let value = normalize_generic_stock_count_assignment(&raw).unwrap();
-            assert_eq!(value.property(key).unwrap().unwrap().string_utf16_units().unwrap().unwrap(), vec![97,98,99,0xd800]);
+            assert_eq!(
+                value
+                    .property(key)
+                    .unwrap()
+                    .unwrap()
+                    .string_utf16_units()
+                    .unwrap()
+                    .unwrap(),
+                vec![97, 98, 99, 0xd800]
+            );
         }
     }
     #[test]
     fn generic_assignment_strips_unknown_and_preserves_default_choice() {
-        let raw=r#"{"stepKey":"submitted","userId":"reviewer","expectedVersion":0.0,"recordVersion":1.0,"reason":"  Assign review  ","saveDefault":true,"\ud800":5}"#;
-        assert_eq!(normalize_generic_stock_count_assignment(raw).unwrap().as_str(),r#"{"kind":"stock_count","stepKey":"submitted","userId":"reviewer","expectedVersion":0,"recordVersion":1,"reason":"Assign review","saveDefault":true}"#);
+        let raw = r#"{"stepKey":"submitted","userId":"reviewer","expectedVersion":0.0,"recordVersion":1.0,"reason":"  Assign review  ","saveDefault":true,"\ud800":5}"#;
+        assert_eq!(
+            normalize_generic_stock_count_assignment(raw)
+                .unwrap()
+                .as_str(),
+            r#"{"kind":"stock_count","stepKey":"submitted","userId":"reviewer","expectedVersion":0,"recordVersion":1,"reason":"Assign review","saveDefault":true}"#
+        );
         assert!(normalize_stock_count_assignment(raw).is_err());
-        assert!(normalize_generic_stock_count_assignment(&raw.replace("true","null")).is_err());
-        assert!(normalize_generic_stock_count_assignment(&raw.replace("true","\"true\"")).is_err());
+        assert!(normalize_generic_stock_count_assignment(&raw.replace("true", "null")).is_err());
+        assert!(
+            normalize_generic_stock_count_assignment(&raw.replace("true", "\"true\"")).is_err()
+        );
     }
 }

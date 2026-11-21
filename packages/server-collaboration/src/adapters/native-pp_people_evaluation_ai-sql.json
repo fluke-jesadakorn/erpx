@@ -1,8 +1,0 @@
-{
-  "pp_people_evaluation_ai_stmt_1": "INSERT INTO hr_evaluation_ai_jobs(id,company_id,actor_json,query_json,source_hash,provider_json,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
-  "pp_people_evaluation_ai_stmt_2": "UPDATE hr_evaluation_ai_jobs SET state='running',lease_token=?,claim_until=?,attempts=attempts+1,updated_at=? WHERE id=? AND attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) RETURNING *",
-  "pp_people_evaluation_ai_stmt_3": "UPDATE hr_evaluation_ai_jobs SET claim_until=? WHERE id=? AND lease_token=? AND state='running'",
-  "pp_people_evaluation_ai_stmt_4": "UPDATE hr_evaluation_ai_jobs SET state='ready',result_json=?,error=NULL,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=? AND lease_token=?",
-  "pp_people_evaluation_ai_stmt_5": "UPDATE hr_evaluation_ai_jobs SET state=?,error=?,lease_token=NULL,claim_until=NULL,updated_at=? WHERE id=? AND lease_token=?",
-  "pp_people_evaluation_ai_stmt_6": "UPDATE hr_evaluation_ai_jobs SET state='failed',error='AI was interrupted. Continue manually.',lease_token=NULL,claim_until=NULL,updated_at=? WHERE state='running' AND claim_until<? AND attempts>=3"
-}

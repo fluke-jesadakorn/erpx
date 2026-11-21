@@ -8,9 +8,7 @@
 //! the preferred future dependency. The caller owns one serializable Holding
 //! transaction, the current authority and the command receipt; no commit,
 //! receipt or audit write is performed here.
-use crate::application::lots::{
-    LotFuture, LotPosting, ManufacturingLotRepository,
-};
+use crate::application::lots::{LotFuture, LotPosting, ManufacturingLotRepository};
 use crate::domain::lots::{
     MaterialIssueRow, MaterialLotFacts, MaterialLotPlan, OutputLotPlan, lot_unavailable,
     material_ids,
@@ -22,7 +20,8 @@ use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
 
 /// Quality-owned hold relation used by the retained Inventory lot guard.
-const QUALITY_HOLD: &str = "FROM (SELECT warehouse_id,product_id,lot_id,status FROM inventory_quality_holds) h";
+const QUALITY_HOLD: &str =
+    "FROM (SELECT warehouse_id,product_id,lot_id,status FROM inventory_quality_holds) h";
 
 pub struct PgManufacturingLots<'c> {
     connection: &'c mut PgConnection,
@@ -42,15 +41,11 @@ impl<'c> PgManufacturingLots<'c> {
             .await?
             != "serializable"
         {
-            return Err(
-                PersistenceError::new("MANUFACTURING_LOT_SERIALIZABLE_REQUIRED").into(),
-            );
+            return Err(PersistenceError::new("MANUFACTURING_LOT_SERIALIZABLE_REQUIRED").into());
         }
         Ok(())
     }
-
 }
-
 
 impl ManufacturingLotRepository for PgManufacturingLots<'_> {
     type Error = Error;
@@ -233,7 +228,11 @@ impl ManufacturingLotRepository for PgManufacturingLots<'_> {
                 .bind(&lot.lot_id)
                 .bind(posting.company_id)
                 .bind(posting.product_id)
-                .bind(if lot.serial_number.is_some() { "serial" } else { "lot" })
+                .bind(if lot.serial_number.is_some() {
+                    "serial"
+                } else {
+                    "lot"
+                })
                 .bind(&lot.lot_code)
                 .bind(&lot.serial_number)
                 .bind(posting.entry_date)

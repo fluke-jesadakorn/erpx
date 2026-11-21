@@ -235,7 +235,10 @@ impl AuthorizedWorkContext {
     /// The aliases come from the selected, revalidated authority context.
     pub fn same_person_user_raw(&self, user: &str) -> bool {
         self.user_id.as_str() == user
-            || self.person_user_ids.iter().any(|alias| alias.as_str() == user)
+            || self
+                .person_user_ids
+                .iter()
+                .any(|alias| alias.as_str() == user)
     }
     pub fn require_permission(&self, permission: &str) -> Result<(), BusinessError> {
         if self.has_permission(permission) {
@@ -290,5 +293,7 @@ pub fn effective_authority_permissions(
 /// Attempt-local owner storage. It carries no authorization by itself.
 pub struct PreparedHoldingToken(pub(crate) Box<dyn std::any::Any + Send + Sync>);
 impl std::fmt::Debug for PreparedHoldingToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("PreparedHoldingToken(..)") }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PreparedHoldingToken(..)")
+    }
 }

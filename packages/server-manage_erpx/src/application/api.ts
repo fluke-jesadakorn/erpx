@@ -24,9 +24,9 @@ reports(companyId:string):Promise<(Record<string,unknown>)[]>;
 billing(holdingId:string):Promise<Record<string,unknown>|null>;
 postTask(id:string | undefined):Promise<{ task_id: string }|null>;
 recoverPostTask(id:string | undefined):Promise<{ task_id: string }|null>;
-prepareFeedback(key:string,companyId:string,userId:string,body:string,month:number):Effect;
+prepareFeedback(key:string,companyId:string,userId:string,body:string,month:number):Promise<Effect>;
 prepareRevocations(month:number,user:string,companyId:string):Effect;
-prepareMembershipRemoval(user:string):Effect;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[]):Promise<Result>;authorityGuard(key:string,actor:WorkContext,roles:string[]):Effect;}
+prepareMembershipRemoval(user:string):Promise<Effect>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[]):Promise<Result>;authorityGuard(key:string,actor:WorkContext,roles:string[]):Effect;}
 export interface BetaApiPorts<Effect>{repository:BetaApiRepository<Effect>;clock:Clock;schemas:{postDraftSchema:typeof postDraftSchema;postContentSchema:typeof postContentSchema;mentionsSchema:typeof mentionsSchema;taskSourceSchema:typeof taskSourceSchema;taskSchema:typeof taskSchema;aiRequest:typeof aiRequestSchema};services:{homePosts:WithoutDatabase<typeof homePosts>;
 postAction:WithoutDatabase<typeof postAction>;
 postView:WithoutDatabase<typeof postView>;
@@ -191,7 +191,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
             1,
             { id: key },
             [
-              r.prepareFeedback(key,actor.companyId,actor.userId,body,ports.clock.now()),
+              await r.prepareFeedback(key,actor.companyId,actor.userId,body,ports.clock.now()),
             ],
           );
         } else if (path[0] === "branches")
@@ -220,7 +220,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
             [
               r.authorityGuard(key, actor, ["holding_owner"]),
               r.prepareRevocations(ports.clock.now(),user,actor.companyId),
-              r.prepareMembershipRemoval(user),
+              await r.prepareMembershipRemoval(user),
             ],
           );
         } else if (path[0] === "billing") {

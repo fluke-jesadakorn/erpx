@@ -22,7 +22,9 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
             .await?
             != "serializable"
     {
-        return Err(PersistenceError::new("NATIVE_ENGINEERING_IDENTITY_SERIALIZABLE_REQUIRED").into());
+        return Err(
+            PersistenceError::new("NATIVE_ENGINEERING_IDENTITY_SERIALIZABLE_REQUIRED").into(),
+        );
     }
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text,session_user::text").fetch_one(c).await?)
 }
@@ -33,10 +35,7 @@ async fn matches(c: &mut PgConnection, roster: &NativeEngineeringRoster) -> Resu
         .filter(|entry| matches!(entry.binding(), "H001_DB" | "H002_DB" | "H003_DB"))
         .collect();
     let names: Vec<_> = entries.iter().map(|entry| entry.token()).collect();
-    let oids: Vec<i64> = entries
-        .iter()
-        .map(|entry| i64::from(entry.oid()))
-        .collect();
+    let oids: Vec<i64> = entries.iter().map(|entry| i64::from(entry.oid())).collect();
     Ok(sqlx::query_scalar("SELECT current_user='erpx_test_admin' AND session_user='erpx_test_admin' AND floor(extract(epoch FROM pg_postmaster_start_time())*1000)::bigint=$1 AND EXISTS(SELECT 1 FROM pg_database d JOIN pg_roles role ON role.rolname=current_user WHERE d.datname=current_database() AND pg_get_userbyid(d.datdba)='erpx_test_admin' AND NOT role.rolsuper AND NOT role.rolcreaterole AND NOT role.rolreplication AND NOT role.rolbypassrls AND role.rolcanlogin AND NOT has_table_privilege(current_user,'pg_catalog.pg_database','UPDATE') AND NOT has_table_privilege(current_user,'pg_catalog.pg_shdescription','UPDATE') AND NOT has_table_privilege(current_user,'pg_catalog.pg_database','DELETE') AND NOT has_table_privilege(current_user,'pg_catalog.pg_shdescription','DELETE') AND NOT has_table_privilege(current_user,'pg_catalog.pg_database','INSERT') AND NOT has_table_privilege(current_user,'pg_catalog.pg_shdescription','INSERT') AND NOT has_table_privilege(current_user,'pg_catalog.pg_database','TRUNCATE') AND NOT has_table_privilege(current_user,'pg_catalog.pg_shdescription','TRUNCATE') AND NOT EXISTS(SELECT 1 FROM aclexplode(COALESCE(d.datacl,acldefault('d',d.datdba))) acl WHERE acl.grantee=0 AND acl.privilege_type='CONNECT') AND EXISTS(SELECT 1 FROM unnest($2::text[],$3::bigint[]) allowed(token,oid) WHERE d.datname='erpx_dev_rust_'||allowed.token AND d.oid::bigint=allowed.oid AND shobj_description(d.oid,'pg_database')='erpx-rust-test:'||allowed.token))").bind(roster.postmaster_started_ms()).bind(names).bind(oids).fetch_one(c).await?)
 }
 /// The retained TS predicate's non-roster branch accepts only the exact three
@@ -45,12 +44,14 @@ async fn legacy_matches(c: &mut PgConnection, run: &str) -> Result<bool, Error> 
     if !hexadecimal(run, 12) {
         return Ok(false);
     }
-    Ok(sqlx::query_scalar("SELECT current_database() IN ($1,$2,$3)")
-        .bind(format!("erpx_browser_{run}_h001_db"))
-        .bind(format!("erpx_browser_{run}_h002_db"))
-        .bind(format!("erpx_browser_{run}_h003_db"))
-        .fetch_one(c)
-        .await?)
+    Ok(
+        sqlx::query_scalar("SELECT current_database() IN ($1,$2,$3)")
+            .bind(format!("erpx_browser_{run}_h001_db"))
+            .bind(format!("erpx_browser_{run}_h002_db"))
+            .bind(format!("erpx_browser_{run}_h003_db"))
+            .fetch_one(c)
+            .await?,
+    )
 }
 async fn identity(
     c: &mut PgConnection,

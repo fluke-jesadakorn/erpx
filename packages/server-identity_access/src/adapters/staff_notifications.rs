@@ -67,24 +67,40 @@ pub async fn supplier_promise_recipients(
 /// Current IAM recipients for Portal notification scope facts supplied by the
 /// real Commerce source witness. Scope facts do not grant command authority.
 pub async fn customer_portal_recipients(
-    c: &mut PgConnection, company_id: &str, branch_id: Option<&str>, department_id: Option<&str>,
+    c: &mut PgConnection,
+    company_id: &str,
+    branch_id: Option<&str>,
+    department_id: Option<&str>,
 ) -> Result<Vec<String>, BusinessError> {
-    if !c.is_in_transaction() { return Err(unavailable()); }
+    if !c.is_in_transaction() {
+        return Err(unavailable());
+    }
     sqlx::query_scalar(
         "SELECT DISTINCT a.user_id FROM assignments a WHERE a.company_id=$1 \
          AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
          AND iam_role_allows(a.role,a.company_id,'commerce.read') \
          AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=$2) \
          OR (a.scope_kind='department' AND a.scope_node_id=$3)) ORDER BY a.user_id",
-    ).bind(company_id).bind(branch_id).bind(department_id).fetch_all(c).await.map_err(|_| unavailable())
+    )
+    .bind(company_id)
+    .bind(branch_id)
+    .bind(department_id)
+    .fetch_all(c)
+    .await
+    .map_err(|_| unavailable())
 }
 
 /// Exact RFQ recipient predicate; the caller owns authorization and must
 /// retain the current Identity sources through the surrounding transaction.
 pub async fn rfq_notification_recipients(
-    c: &mut PgConnection, company_id: &str, branch_id: &str, department_id: Option<&str>,
+    c: &mut PgConnection,
+    company_id: &str,
+    branch_id: &str,
+    department_id: Option<&str>,
 ) -> Result<Vec<String>, BusinessError> {
-    if !c.is_in_transaction() { return Err(unavailable()); }
+    if !c.is_in_transaction() {
+        return Err(unavailable());
+    }
     sqlx::query_scalar("SELECT DISTINCT a.user_id FROM public.assignments a WHERE a.company_id=$1 AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'commerce.purchase') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=$2) OR (a.scope_kind='department' AND a.scope_node_id=$3)) ORDER BY a.user_id")
         .bind(company_id).bind(branch_id).bind(department_id).fetch_all(c).await.map_err(|_| unavailable())
 }

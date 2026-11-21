@@ -8,6 +8,7 @@ import artifact from "@erpx/catalogue/release-artifact.json";
 import {validateNativeEngineeringRoster,type NativeEngineeringRoster} from "@erpx/server-runtime/public/native-engineering-roster";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { createEngineeringVerificationApplication } from "@erpx/server-platform_administration/application/engineering-verification";
+import {NativeEngineeringEnrollmentError,nativeEnrollEngineeringVerification} from "./native-engineering-enrollment-command";
 import { isEngineeringVerificationOrigin as acceptsOrigin, type EngineeringAttestation, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
 
 const manifestDigestKey=Symbol.for("erpx.engineering.manifestDigest");
@@ -73,7 +74,26 @@ function application(db?: SqlDatabase): ReturnType<typeof createEngineeringVerif
   identity: roster => db.prepare(`SELECT current_database() name,current_user owner,${roster?nativeEngineeringIdentityPredicate(roster):"false"} native_match`).first<{ name: string; owner: string; native_match:boolean }>(),
   companyExists: id => engineeringCompanySource(db, id),
   prior: (companyId, run) => db.prepare("SELECT source_fingerprint,software_version,release_manifest_sha256 FROM engineering_verification_contexts WHERE company_id=? AND run_id=?").bind(companyId, run).first<{ source_fingerprint: string; software_version: string; release_manifest_sha256: string }>(),
-  enroll: async (input, entries, now, expiresAt) => { await db.batch(entries.map(({ companyId, enabled }) => db.prepare(`INSERT INTO engineering_verification_contexts(company_id,run_id,source_fingerprint,software_version,release_manifest_sha256,enabled,expires_at,reason,created_at) VALUES(?,?,?,?,?,?,?,'Synthetic engineering verification only; all Company/provider certification remains pending',?) ON CONFLICT(company_id,run_id) DO UPDATE SET enabled=excluded.enabled,expires_at=excluded.expires_at`).bind(companyId, input.run, input.sourceFingerprint, input.softwareVersion, input.fileManifestSha256, enabled, expiresAt, now))); },
+  // Native axum command owns the multi-row enrollment write. No
+  // TypeScript SQL writer remains for this capability.
+  enroll: async (input, _entries, now, expiresAt) => {
+    try {
+      await nativeEnrollEngineeringVerification({
+        run: input.run,
+        sourceFingerprint: input.sourceFingerprint,
+        softwareVersion: input.softwareVersion,
+        fileManifestSha256: input.fileManifestSha256,
+        companyIds: input.companyIds,
+        disabledCompanyIds: input.disabledCompanyIds,
+        expiresAt,
+        now,
+      }, `engineering-enroll:${input.run}`);
+    } catch (error) {
+      if (error instanceof NativeEngineeringEnrollmentError)
+        throw new Error(`NATIVE_ENGINEERING_UNAVAILABLE:${error.status ?? 503}`);
+      throw error;
+    }
+  },
 } : undefined }); }
 export function engineeringVerificationContext(environment: NodeJS.ProcessEnv = process.env) { return application().engineeringVerificationContext(environment); }
 export function isEngineeringVerificationOrigin(url: URL, context: EngineeringAttestation | null = engineeringVerificationContext()) { return acceptsOrigin(url, context); }

@@ -22,6 +22,8 @@ import {
   type BetaUser,
 } from "@erpx/server-manage_erpx/adapters/beta-onboarding";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
+import { nativeOwnerWrite } from "./native-owner-write";
+import { nativeWorkflowWrite } from "@erpx/server-workflow/public/native-workflow-evidence";
 
 import type {SqlStatement} from '@erpx/server-runtime/public/runtime/types';
 import type {PoolClient} from 'pg';
@@ -39,19 +41,11 @@ function invitation(db:SqlDatabase,c:PoolClient):BetaInvitationRepository{const 
           `SELECT (SELECT count(*) FROM beta_members m ${people.memberCompanyPoolSource})+(SELECT count(*) FROM beta_team_invitations i ${organization.invitationCompanyPoolSource} AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>$2)<member_limit ok FROM beta_policy WHERE company_id=$1`,
           [companyId, now],
         )).rows[0]??null;},
-async insertInvitation(id:string,email:string,branchId:string,userId:string,value:string,value2:number,now:number,role:"employee" | "it_admin"){await c.query(
-        "INSERT INTO beta_team_invitations(id,email,branch_id,invited_by,token_hash,expires_at,created_at,role) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
-        [
-          id,
-          email,
-          branchId,
-          userId,
-          value,
-          value2,
-          now,
-          role,
-        ],
-      );},...owner0(db,c),...owner1(db,c),...owner2(db),...owner3(db),validateGrant:async(actor,grant)=>{await inward(()=>validateIamGrant(c,actor,grant));},review:(...args)=>inward(()=>proposeIamReview(c,...args))};}
+// Native axum owner write executes the invitation insert in Rust.
+async insertInvitation(id:string,email:string,branchId:string,userId:string,value:string,value2:number,now:number,role:"employee" | "it_admin"){
+      await nativeOwnerWrite('me_beta_invitation_insert',[id,email,branchId,userId,value,value2,now,role],`me-invite:${id}`,{now},()=>db.prepare("SELECT 1"));
+      void c;
+    },...owner0(db,c),...owner1(db,c),...owner2(db),...owner3(db),validateGrant:async(actor,grant)=>{await inward(()=>validateIamGrant(c,actor,grant));},review:(...args)=>inward(()=>proposeIamReview(c,...args))};}
 function repository(db:SqlDatabase):BetaTeamRepository<SqlStatement>{const people=betaManagementPeopleSources(db),organization=betaManagementOrganizationSources(db);return {async invitation(value:string){return db
     .prepare("SELECT * FROM beta_team_invitations WHERE token_hash=?")
     .bind(value)
@@ -79,11 +73,7 @@ guardCapacity(key:string,value:"capacity",company_id:string,company_id2:string){
         `(SELECT count(*) FROM beta_members m ${people.memberCompanySource})<(SELECT member_limit FROM beta_policy WHERE company_id=?)`,
         [company_id, company_id2],
       );},
-prepareAcceptedInvitation(id:string,now:number,id2:string){return db
-        .prepare(
-          "UPDATE beta_team_invitations SET accepted_user_id=?,accepted_at=? WHERE id=?",
-        )
-        .bind(id, now, id2);},
+async prepareAcceptedInvitation(id:string,now:number,id2:string){return nativeOwnerWrite('me_beta_invitation_accept',[id,now,id2],`me-invite-accept:${id}`,{now},()=>db.prepare("SELECT 1"));},
 async acceptedUser(id:string){return db
           .prepare(
             "SELECT accepted_user_id FROM beta_team_invitations WHERE id=?",
@@ -96,7 +86,7 @@ guardBranchCapacity(key:string,value:"branch-capacity",companyId:string,companyI
         value,
         `${organization.companyBranchCount}<(SELECT branch_limit FROM beta_policy WHERE company_id=?)`,
         [companyId, companyId2],
-      );},...owner0(db),...owner1(db),...owner2(db),...owner3(db),async batch(effects){await db.batch(effects);},commit:(...args)=>executeCommand(db,...args),authorityGuard:(...args)=>authorityGuard(db,...args),memberStatements:(...args)=>memberStatements(db,...args),branchStatements:(...args)=>branchStatements(db,...args)};}
+      );},...owner0(db),...owner1(db),...owner2(db),...owner3(db),prepareAcceptanceAudit(value:string,key:string,id:string,value2:string,id2:string,now:number){return nativeWorkflowWrite('wf_native_beta_invitation_sources_2',[value,key,id,value2,id2,now]);},async batch(effects){await db.batch(effects);},commit:(...args)=>executeCommand(db,...args),authorityGuard:(...args)=>authorityGuard(db,...args),memberStatements:(...args)=>memberStatements(db,...args),branchStatements:(...args)=>branchStatements(db,...args)};}
 function application(db:SqlDatabase){return createBetaTeamApplication({parseGrant:input=>grantInput.parse(input),repository:repository(db),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash:sha256,requireCompanyAuthority:(...args)=>inward(()=>requireCompanyAuthority(db,...args)),requireFreshMfa:(...args)=>inward(()=>requireFreshMfa(...args)),invitationCommand:(actor,key,operation,input,permission,action)=>inward(()=>iamCommand(db as PostgresDatabase,actor,key,operation,input,permission,c=>action(invitation(db,c))))});}
 export async function inviteMember(db: SqlDatabase,actor: StaffActor,rawInput: z.input<typeof invitationSchema>,key: string,token: string){return exposed(()=>application(db).inviteMember(actor,rawInput,key,token));}
 export async function acceptMember(db: SqlDatabase,user: BetaUser,token: string){db=iamDb(db);return exposed(()=>application(db).acceptMember(user,token));}

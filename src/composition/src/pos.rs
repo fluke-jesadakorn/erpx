@@ -4,6 +4,10 @@
 use crate::business_http::BusinessScopeSlugs;
 use crate::pos_effects::{PosEffectFlush, flush_pos_effects};
 use erpx_server_commerce::public::pos_catalog::{lock_pos_catalog, read_pos_catalog_product};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    current_package_catalogue,
+};
 use erpx_server_finance::public::FinanceActor;
 use erpx_server_finance::public::pos_sources::{
     PosBankTransaction as PosBankSnapshot, finance_party_exists, lock_pos_finance_sources,
@@ -27,18 +31,6 @@ use erpx_server_organization::public::pos_issuer::{
 use erpx_server_pos::public::cash_movement::{
     CashMovementActor, CreateCashMovement, PgCashMovementCommand, create_cash_movement,
 };
-use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
-    current_package_catalogue,
-};
-use erpx_server_pos::public::read::{
-    PgPosWorkspaceRead, PosReadActor, PosWorkspaceEntitlements, PosWorkspaceQuery,
-    PosWorkspaceTab, pos_workspace,
-};
-use erpx_server_pos::public::read_http::{
-    PosWorkspaceHttpBackend, PosWorkspaceHttpFuture, PosWorkspaceHttpRequest,
-    PosWorkspaceHttpResponse, PosWorkspaceHttpTarget,
-};
 use erpx_server_pos::public::cash_movement_http::{
     CashMovementHttpBackend, CashMovementHttpFuture, CashMovementHttpRequest,
     CashMovementHttpResponse, CashMovementHttpTarget,
@@ -54,6 +46,14 @@ use erpx_server_pos::public::commands::{
 use erpx_server_pos::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
     PosCommandHttpTarget,
+};
+use erpx_server_pos::public::read::{
+    PgPosWorkspaceRead, PosReadActor, PosWorkspaceEntitlements, PosWorkspaceQuery, PosWorkspaceTab,
+    pos_workspace,
+};
+use erpx_server_pos::public::read_http::{
+    PosWorkspaceHttpBackend, PosWorkspaceHttpFuture, PosWorkspaceHttpRequest,
+    PosWorkspaceHttpResponse, PosWorkspaceHttpTarget,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -250,10 +250,7 @@ impl PosFinancePort for PosFinanceQueue {
         })
     }
 
-    fn capture_sale_money<'a>(
-        &'a mut self,
-        request: &'a PosSaleMoneyRequest,
-    ) -> PosFuture<'a, ()> {
+    fn capture_sale_money<'a>(&'a mut self, request: &'a PosSaleMoneyRequest) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.sale_money.push(request.clone());
             Ok(())
@@ -480,16 +477,14 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             expires_at: current.expires_at(),
                         };
                         let now = clock.now();
-                        let entitlements = workspace_entitlements(
-                            connection, &holding, &company, query.tab, now,
-                        )
-                        .await?;
+                        let entitlements =
+                            workspace_entitlements(connection, &holding, &company, query.tab, now)
+                                .await?;
                         let mut repository = PgPosWorkspaceRead::new(&mut *connection);
-                        let data = pos_workspace(
-                            &actor, &query, &entitlements, &mut repository, now,
-                        )
-                        .await?
-                        .to_wire();
+                        let data =
+                            pos_workspace(&actor, &query, &entitlements, &mut repository, now)
+                                .await?
+                                .to_wire();
                         let _ = assignment;
                         Ok(PosWorkspaceHttpResponse {
                             data,
@@ -778,7 +773,6 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
     }
 }
 
-
 #[derive(Clone, Copy)]
 struct PosWorkspaceSources;
 
@@ -790,8 +784,8 @@ impl HoldingWorkSourcePreparation for PosWorkspaceSources {
 
 /// Mirrors the retained `ERPX_POS_PACKAGE_ENFORCEMENT` rollout switch.
 fn pos_purchase_mode() -> Result<PackageEnforcementMode, BusinessError> {
-    let raw = std::env::var("ERPX_POS_PACKAGE_ENFORCEMENT")
-        .unwrap_or_else(|_| "disabled".to_owned());
+    let raw =
+        std::env::var("ERPX_POS_PACKAGE_ENFORCEMENT").unwrap_or_else(|_| "disabled".to_owned());
     let mode = match raw.as_str() {
         "disabled" => PackageEnforcementMode::Disabled,
         "shadow" => PackageEnforcementMode::Shadow,
@@ -865,8 +859,12 @@ async fn workspace_entitlements(
             purpose,
             mode,
         };
-        let mut reader =
-            PgCompanyPurchaseReader::new(holding.clone(), company.clone(), &mut *connection, &catalogue);
+        let mut reader = PgCompanyPurchaseReader::new(
+            holding.clone(),
+            company.clone(),
+            &mut *connection,
+            &catalogue,
+        );
         let inspection = reader.inspect(&request, now).await?;
         revision = inspection.revision.clone();
         for access in &inspection.access {
@@ -879,18 +877,8 @@ async fn workspace_entitlements(
             }
         }
     }
-    let history = |capability: &str| {
-        facts
-            .get(capability)
-            .map(|entry| entry.2)
-            .unwrap_or(false)
-    };
-    let new_work = |capability: &str| {
-        facts
-            .get(capability)
-            .map(|entry| entry.0)
-            .unwrap_or(false)
-    };
+    let history = |capability: &str| facts.get(capability).map(|entry| entry.2).unwrap_or(false);
+    let new_work = |capability: &str| facts.get(capability).map(|entry| entry.0).unwrap_or(false);
     let mut purchases = serde_json::Map::new();
     for (capability, (new_work, settle_existing, history)) in &facts {
         purchases.insert(
@@ -1038,7 +1026,6 @@ impl<C: Clock + Send + Sync + 'static> CashMovementHttpBackend for PosBackend<C>
         })
     }
 }
-
 
 impl<C: Clock + Send + Sync + 'static> PosWorkspaceHttpBackend for PosBackend<C> {
     fn read<'a>(

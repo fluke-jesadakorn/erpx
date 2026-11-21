@@ -1,3 +1,4 @@
+import { nativeMarketingStatement } from '@erpx/feature-marketing/adapters/server/native-marketing-command';
 import 'server-only';
 import {createHash,randomUUID} from 'node:crypto';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -14,12 +15,12 @@ function unit(db:SqlDatabase):PublicMarketingSubmissionUnit{return {
  receipt:key=>db.prepare('SELECT request_hash,candidate_id FROM marketing_public_receipts WHERE key=?').bind(key).first<{request_hash:string;candidate_id:string}>(),
  current:row=>db.prepare("SELECT id FROM marketing_assets WHERE id=? AND company_id=? AND version=? AND status='active' FOR SHARE").bind(row.id,row.company_id,row.version).first(),
  presentation:(key,row)=>db.batch(marketingPresentationAssertions(db,key,row.company_id,row.configuration_json)),
- limit:(rateKey,bucket)=>db.prepare('INSERT INTO marketing_public_limits(key,bucket,count) VALUES(?,?,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN marketing_public_limits.bucket=excluded.bucket THEN marketing_public_limits.count+1 ELSE 1 END,bucket=excluded.bucket RETURNING count').bind(rateKey,bucket).first<{count:number}>(),
+ limit:(rateKey,bucket)=>nativeMarketingStatement('marketing_stmt_1', { companyId: '', now: Date.now(), actor: undefined }).bind(rateKey,bucket).first<{count:number}>(),
  branch:companyId=>publicMarketingReceivingBranch(db,companyId),
  campaign:(id,companyId)=>db.prepare('SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?').bind(id,companyId).first(),
- candidate:(id,row,body,branchId,attribution,now)=>db.prepare("INSERT INTO marketing_lead_candidates(id,company_id,branch_id,department_id,form_id,form_version,contact_name,contact_detail,consent_evidence,attribution_json,brief,status,crm_lead_id,created_by,reviewed_by,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'pending',NULL,'public-form',NULL,1,?,?)").bind(id,row.company_id,branchId,null,row.id,row.version,body.contactName,body.contactDetail,`Explicit form consent at ${new Date(now).toISOString()}`,attribution,body.brief,now,now).run(),
- engagement:(id,row,now)=>db.prepare("INSERT INTO marketing_engagement_events(id,candidate_id,version,event_type,channel,evidence,actor_id,created_at) VALUES(?,?,1,'form_submit','web',?,'public-form',?)").bind(`marketing-engagement-${id}`,id,`Form ${row.id} version ${row.version}; consent accepted`,now).run(),
- retainReceipt:(key,requestHash,id,now)=>db.prepare('INSERT INTO marketing_public_receipts(key,request_hash,candidate_id,created_at) VALUES(?,?,?,?)').bind(key,requestHash,id,now).run(),
+ candidate:(id,row,body,branchId,attribution,now)=>nativeMarketingStatement('marketing_stmt_2', { companyId: row.company_id, now: now, actor: undefined }).bind(id,row.company_id,branchId,null,row.id,row.version,body.contactName,body.contactDetail,`Explicit form consent at ${new Date(now).toISOString()}`,attribution,body.brief,now,now).run(),
+ engagement:(id,row,now)=>nativeMarketingStatement('marketing_stmt_3', { companyId: '', now: now, actor: undefined }).bind(`marketing-engagement-${id}`,id,`Form ${row.id} version ${row.version}; consent accepted`,now).run(),
+ retainReceipt:(key,requestHash,id,now)=>nativeMarketingStatement('marketing_stmt_4', { companyId: '', now: now, actor: undefined }).bind(key,requestHash,id,now).run(),
  clearAssertions:key=>clearWorkflowCommandAssertions(db,key).run()
 };}
 async function submit(db:SqlDatabase,row:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string,versioned:boolean){

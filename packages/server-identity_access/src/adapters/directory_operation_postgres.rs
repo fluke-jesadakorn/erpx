@@ -8,11 +8,11 @@
 //! Provider effects are delegated to the installed connector port.
 use crate::domain::{
     directory_operation::*,
-    user_management::{attribute_access, UserManagementActor},
+    user_management::{UserManagementActor, attribute_access},
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use sqlx::{Connection as _, PgConnection, Row};
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
@@ -419,7 +419,14 @@ async fn lifecycle(
     .await?;
     Ok(row.map(|row| {
         let mut value = Map::new();
-        for key in ["id", "person_id", "status", "kind", "effective_at", "active"] {
+        for key in [
+            "id",
+            "person_id",
+            "status",
+            "kind",
+            "effective_at",
+            "active",
+        ] {
             if let Ok(v) = row.try_get::<Value, _>(key) {
                 value.insert(key.to_owned(), v);
             }
@@ -471,7 +478,11 @@ async fn identity_links(
     conn: &Connection,
     ids: &[String],
 ) -> Result<Vec<IdentityLink>, Error> {
-    let authority = conn.config.get("authority").and_then(Value::as_str).unwrap_or("");
+    let authority = conn
+        .config
+        .get("authority")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     let rows = sqlx::query(
         "SELECT i.id,i.external_id,i.user_id,i.person_id,i.company_id \
          FROM iam_identities i JOIN iam_connections c ON c.id=i.connection_id \
@@ -499,13 +510,16 @@ async fn related_connections(
     connection: &mut PgConnection,
     conn: &Connection,
 ) -> Result<Vec<(String, String)>, Error> {
-    let authority = conn.config.get("authority").and_then(Value::as_str).unwrap_or("");
-    let rows = sqlx::query(
-        "SELECT id,company_id FROM iam_connections WHERE config->>'authority'=$1",
-    )
-    .bind(authority)
-    .fetch_all(&mut *connection)
-    .await?;
+    let authority = conn
+        .config
+        .get("authority")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let rows =
+        sqlx::query("SELECT id,company_id FROM iam_connections WHERE config->>'authority'=$1")
+            .bind(authority)
+            .fetch_all(&mut *connection)
+            .await?;
     rows.into_iter()
         .map(|row| Ok((row.try_get("id")?, row.try_get("company_id")?)))
         .collect()
@@ -516,10 +530,7 @@ async fn affected_positions(
     related: &[(String, String)],
     ids: &[String],
 ) -> Result<Vec<PositionFact>, Error> {
-    let connections = related
-        .iter()
-        .map(|(id, _)| id.clone())
-        .collect::<Vec<_>>();
+    let connections = related.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>();
     let rows = sqlx::query(
         "SELECT DISTINCT p.id,p.company_id,p.title FROM organization_positions p \
          JOIN people_position_packages b ON b.position_id=p.id AND b.company_id=p.company_id \
@@ -811,9 +822,12 @@ fn simulate(
         }
     }
     if actions.len() > 1
-        && actions
-            .iter()
-            .any(|action| matches!(action, DirectoryAction::AccountEnable { .. } | DirectoryAction::AccountDisable { .. }))
+        && actions.iter().any(|action| {
+            matches!(
+                action,
+                DirectoryAction::AccountEnable { .. } | DirectoryAction::AccountDisable { .. }
+            )
+        })
     {
         return Err(conflict(
             "DIRECTORY_BATCH_DEPENDENCY",
@@ -877,7 +891,10 @@ async fn prepare_preview(
     if matches!(input.action, DirectoryAction::AccountEnable { .. })
         || matches!(
             input.action,
-            DirectoryAction::AccountDisable { case_id: Some(_), .. }
+            DirectoryAction::AccountDisable {
+                case_id: Some(_),
+                ..
+            }
         )
     {
         let lifecycle_value = lifecycle(connection, &input.action, actor, now)
@@ -946,8 +963,13 @@ async fn prepare_preview(
                     && identity.user_id.is_some()
             })
             .collect::<Vec<_>>();
-        if protected_accounts(connection, &accounts.into_iter().cloned().collect::<Vec<_>>(), actor, now)
-            .await?
+        if protected_accounts(
+            connection,
+            &accounts.into_iter().cloned().collect::<Vec<_>>(),
+            actor,
+            now,
+        )
+        .await?
         {
             return Err(protected_account().into());
         }
@@ -1334,10 +1356,7 @@ pub async fn configure_automation(
     {
         return Err(directory_test_required().into());
     }
-    let mappings = input
-        .mappings
-        .clone()
-        .unwrap_or_else(|| current.mappings());
+    let mappings = input.mappings.clone().unwrap_or_else(|| current.mappings());
     if mappings
         .iter()
         .map(|mapping| mapping.attribute_id.clone())
@@ -1357,7 +1376,10 @@ pub async fn configure_automation(
         )
         .into());
     }
-    let inventory = current.inventory.as_ref().ok_or_else(directory_test_required)?;
+    let inventory = current
+        .inventory
+        .as_ref()
+        .ok_or_else(directory_test_required)?;
     for mapping in &mappings {
         let row = sqlx::query("SELECT definition FROM um_attributes WHERE company_id=$1 AND id=$2")
             .bind(&actor.company_id)
@@ -1390,8 +1412,7 @@ pub async fn configure_automation(
         }
         let (can_view, can_edit) = attribute_access(&definition, actor);
         if !can_view
-            || (mapping.direction == "read"
-                && (!can_edit || !actor.has(PEOPLE_MANAGE_PERMISSION)))
+            || (mapping.direction == "read" && (!can_edit || !actor.has(PEOPLE_MANAGE_PERMISSION)))
         {
             return Err(forbidden(
                 "MAPPING_FIELD_FORBIDDEN",
@@ -1629,7 +1650,11 @@ pub async fn apply_operation_review(
     .bind(&actor.company_id)
     .fetch_optional(&mut *connection)
     .await?;
-    let job = row.as_ref().map(job_from_row).transpose()?.ok_or_else(version_conflict)?;
+    let job = row
+        .as_ref()
+        .map(job_from_row)
+        .transpose()?
+        .ok_or_else(version_conflict)?;
     if !matches!(decision, "approve" | "reject") {
         return Err(request_invalid().into());
     }
@@ -1673,7 +1698,8 @@ pub async fn apply_operation_review(
     .bind(&job.id)
     .execute(&mut *connection)
     .await?;
-    let result = json!({"id": job.id, "status": if decision == "approve" { "queued" } else { "rejected" }});
+    let result =
+        json!({"id": job.id, "status": if decision == "approve" { "queued" } else { "rejected" }});
     record_receipt(
         connection,
         key,
@@ -1844,10 +1870,7 @@ async fn due_operations(
         .collect()
 }
 
-async fn load_job(
-    connection: &mut PgConnection,
-    id: &str,
-) -> Result<Option<Job>, Error> {
+async fn load_job(connection: &mut PgConnection, id: &str) -> Result<Option<Job>, Error> {
     let row = sqlx::query("SELECT * FROM people_directory_operations WHERE id=$1")
         .bind(id)
         .fetch_optional(&mut *connection)
@@ -1908,8 +1931,12 @@ pub async fn drain_operations(
             Err(error) => {
                 let (retry, code) = match &error {
                     PgTransactionError::Business(error) => (
-                        ["DIRECTORY_UNAVAILABLE", "DIRECTORY_REQUEST_FAILED", "DIRECTORY_READBACK_FAILED"]
-                            .contains(&error.code),
+                        [
+                            "DIRECTORY_UNAVAILABLE",
+                            "DIRECTORY_REQUEST_FAILED",
+                            "DIRECTORY_READBACK_FAILED",
+                        ]
+                        .contains(&error.code),
                         error.code,
                     ),
                     PgTransactionError::Persistence(_) => (false, "DIRECTORY_UNAVAILABLE"),
@@ -1976,7 +2003,7 @@ async fn drain_one(
                     "PROVISIONING_CHANGED",
                     "This provisioning operation is no longer executable.",
                 )
-                .into())
+                .into());
             }
         }
     }
@@ -2045,12 +2072,11 @@ async fn drain_one(
     } else {
         let reviewed_by: Option<String> = job.review_id.as_deref().map(|_| ()).and_then(|_| None);
         let _ = reviewed_by;
-        let review = sqlx::query(
-            "SELECT reviewed_by FROM iam_reviews WHERE id=$1 AND status='approved'",
-        )
-        .bind(job.review_id.as_deref())
-        .fetch_optional(&mut *connection)
-        .await?;
+        let review =
+            sqlx::query("SELECT reviewed_by FROM iam_reviews WHERE id=$1 AND status='approved'")
+                .bind(job.review_id.as_deref())
+                .fetch_optional(&mut *connection)
+                .await?;
         let Some(review) = review else {
             return Err(conflict(
                 "DIRECTORY_REVIEW_AUTHORITY_CHANGED",
@@ -2112,12 +2138,11 @@ async fn drain_one(
             if membership == "remove" {
                 let sources = membership_sources(connection, &conn, object_id, member_ids).await?;
                 if let Some(provision_id) = &job.provision_id {
-                    let provision = sqlx::query(
-                        "SELECT evidence FROM people_provision_operations WHERE id=$1",
-                    )
-                    .bind(provision_id)
-                    .fetch_optional(&mut *connection)
-                    .await?;
+                    let provision =
+                        sqlx::query("SELECT evidence FROM people_provision_operations WHERE id=$1")
+                            .bind(provision_id)
+                            .fetch_optional(&mut *connection)
+                            .await?;
                     if let Some(provision) = provision {
                         let evidence: Value = provision.try_get("evidence")?;
                         replaced_source_ids = provision_old_ids(&evidence);
@@ -2131,9 +2156,7 @@ async fn drain_one(
                                     .collect::<Vec<_>>();
                                 !claims.is_empty()
                                     && claims.iter().any(|(_, application, _, _)| {
-                                        application
-                                            .as_ref()
-                                            .is_none_or(|id| !replaced.contains(id))
+                                        application.as_ref().is_none_or(|id| !replaced.contains(id))
                                     })
                             })
                             .cloned()
@@ -2250,9 +2273,7 @@ async fn drain_one(
                         continue;
                     }
                     for plan in provision_plans(&evidence) {
-                        if plan.connection_id == conn.id
-                            && plan.group_ids.contains(object_id)
-                        {
+                        if plan.connection_id == conn.id && plan.group_ids.contains(object_id) {
                             for member in member_ids
                                 .iter()
                                 .filter(|member| plan.directory_members.contains(member))
@@ -2302,19 +2323,17 @@ async fn drain_one(
             }
         }
     }
-    sqlx::query(
-        "INSERT INTO iam_audit VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
-    )
-    .bind(canonical_uuid())
-    .bind(&job.company_id)
-    .bind(&job.created_by)
-    .bind(&job.assignment_id)
-    .bind("directory.operation.verified")
-    .bind(&job.id)
-    .bind(json!({"result": result}))
-    .bind(now)
-    .execute(&mut *connection)
-    .await?;
+    sqlx::query("INSERT INTO iam_audit VALUES($1,$2,$3,$4,$5,$6,$7,$8)")
+        .bind(canonical_uuid())
+        .bind(&job.company_id)
+        .bind(&job.created_by)
+        .bind(&job.assignment_id)
+        .bind("directory.operation.verified")
+        .bind(&job.id)
+        .bind(json!({"result": result}))
+        .bind(now)
+        .execute(&mut *connection)
+        .await?;
     Ok(true)
 }
 
@@ -2387,7 +2406,12 @@ fn provision_old_ids(evidence: &Value) -> Vec<String> {
                 .flat_map(|plan| {
                     plan.get("oldIds")
                         .and_then(Value::as_array)
-                        .map(|ids| ids.iter().filter_map(Value::as_str).map(str::to_owned).collect::<Vec<_>>())
+                        .map(|ids| {
+                            ids.iter()
+                                .filter_map(Value::as_str)
+                                .map(str::to_owned)
+                                .collect::<Vec<_>>()
+                        })
                         .unwrap_or_default()
                 })
                 .collect()

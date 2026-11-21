@@ -8,7 +8,9 @@
     "./components/public-marketing-form": "./src/components/public-marketing-form.tsx",
     "./components/marketing-console": "./src/components/marketing-console.tsx",
     "./lib/public-form-command": "./src/lib/public-form-command.ts",
-    "./public/native-marketing-lead": "./src/public/native-marketing-lead.ts"
+    "./public/native-marketing-lead": "./src/public/native-marketing-lead.ts",
+    "./adapters/server/native-marketing-wave2": "./src/adapters/server/native-marketing-wave2.ts",
+    "./adapters/server/native-marketing-command": "./src/adapters/server/native-marketing-command.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

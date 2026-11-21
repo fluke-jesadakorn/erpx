@@ -357,13 +357,33 @@ pub struct LegalCommandEnvelope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LegalCommand {
-    AddDocument { name: String, body: String },
-    CreateHold { reason: String },
-    RequestHoldRelease { hold_id: String, reason: String },
-    ReleaseHold { hold_id: String, reason: String },
-    Share { document_id: String, email: String, expires_at: i64 },
-    RevokeShare { share_id: String },
-    SetMember { user_id: String, access: String },
+    AddDocument {
+        name: String,
+        body: String,
+    },
+    CreateHold {
+        reason: String,
+    },
+    RequestHoldRelease {
+        hold_id: String,
+        reason: String,
+    },
+    ReleaseHold {
+        hold_id: String,
+        reason: String,
+    },
+    Share {
+        document_id: String,
+        email: String,
+        expires_at: i64,
+    },
+    RevokeShare {
+        share_id: String,
+    },
+    SetMember {
+        user_id: String,
+        access: String,
+    },
     ExecutedReview {
         executed_copy_id: String,
         decision: String,
@@ -655,10 +675,7 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             .and_then(Value::as_str)
             .filter(|state| !state.is_empty() && state.len() <= STATE_LIMIT);
         if state.is_none() {
-            return Err(invalid(
-                "LEGAL_TRANSITION",
-                "Choose the next Legal state.",
-            ));
+            return Err(invalid("LEGAL_TRANSITION", "Choose the next Legal state."));
         }
     }
     Ok(LegalCommandEnvelope {
@@ -747,23 +764,48 @@ pub fn parse_command(
             let document_id = object
                 .get("documentId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this record."))?;
-            if document_id.is_empty() || document_id.len() > 200 || document_id.chars().any(char::is_control) {
-                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this record."));
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_DOCUMENT_REQUIRED",
+                        "Select a document from this record.",
+                    )
+                })?;
+            if document_id.is_empty()
+                || document_id.len() > 200
+                || document_id.chars().any(char::is_control)
+            {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Select a document from this record.",
+                ));
             }
             let email = object
                 .get("email")
                 .and_then(Value::as_str)
                 .map(js_trim)
-                .ok_or_else(|| invalid("LEGAL_EMAIL_REQUIRED", "Enter the verified account email."))?;
-            if email.len() < 3 || email.len() > 320 || email.chars().any(char::is_control) || !email.contains('@') {
-                return Err(invalid("LEGAL_EMAIL_REQUIRED", "Enter the verified account email."));
+                .ok_or_else(|| {
+                    invalid("LEGAL_EMAIL_REQUIRED", "Enter the verified account email.")
+                })?;
+            if email.len() < 3
+                || email.len() > 320
+                || email.chars().any(char::is_control)
+                || !email.contains('@')
+            {
+                return Err(invalid(
+                    "LEGAL_EMAIL_REQUIRED",
+                    "Enter the verified account email.",
+                ));
             }
             let expires_at = object
                 .get("expiresAt")
                 .and_then(Value::as_i64)
                 .filter(|value| *value > 0)
-                .ok_or_else(|| invalid("LEGAL_EXPIRY_REQUIRED", "Choose a bounded external access expiry."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_EXPIRY_REQUIRED",
+                        "Choose a bounded external access expiry.",
+                    )
+                })?;
             Ok(LegalCommand::Share {
                 document_id: document_id.to_owned(),
                 email: email.to_lowercase(),
@@ -774,9 +816,15 @@ pub fn parse_command(
             let share_id = object
                 .get("shareId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_SHARE_REQUIRED", "Choose a current external share."))?;
-            if share_id.is_empty() || share_id.len() > 200 || share_id.chars().any(char::is_control) {
-                return Err(invalid("LEGAL_SHARE_REQUIRED", "Choose a current external share."));
+                .ok_or_else(|| {
+                    invalid("LEGAL_SHARE_REQUIRED", "Choose a current external share.")
+                })?;
+            if share_id.is_empty() || share_id.len() > 200 || share_id.chars().any(char::is_control)
+            {
+                return Err(invalid(
+                    "LEGAL_SHARE_REQUIRED",
+                    "Choose a current external share.",
+                ));
             }
             Ok(LegalCommand::RevokeShare {
                 share_id: share_id.to_owned(),
@@ -786,16 +834,27 @@ pub fn parse_command(
             let user_id = object
                 .get("userId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_PERSON_REQUIRED", "Choose an active person with access to this record."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_PERSON_REQUIRED",
+                        "Choose an active person with access to this record.",
+                    )
+                })?;
             if user_id.is_empty() || user_id.len() > 200 || user_id.chars().any(char::is_control) {
-                return Err(invalid("LEGAL_PERSON_REQUIRED", "Choose an active person with access to this record."));
+                return Err(invalid(
+                    "LEGAL_PERSON_REQUIRED",
+                    "Choose an active person with access to this record.",
+                ));
             }
             let access = object
                 .get("access")
                 .and_then(Value::as_str)
                 .ok_or_else(|| invalid("LEGAL_ACCESS_REQUIRED", "Choose read, edit or remove."))?;
             if !matches!(access, "read" | "edit" | "remove") {
-                return Err(invalid("LEGAL_ACCESS_REQUIRED", "Choose read, edit or remove."));
+                return Err(invalid(
+                    "LEGAL_ACCESS_REQUIRED",
+                    "Choose read, edit or remove.",
+                ));
             }
             Ok(LegalCommand::SetMember {
                 user_id: user_id.to_owned(),
@@ -806,9 +865,20 @@ pub fn parse_command(
             let document_id = object
                 .get("documentId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this contract."))?;
-            if document_id.is_empty() || document_id.len() > 200 || document_id.chars().any(char::is_control) {
-                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this contract."));
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_DOCUMENT_REQUIRED",
+                        "Select a document from this contract.",
+                    )
+                })?;
+            if document_id.is_empty()
+                || document_id.len() > 200
+                || document_id.chars().any(char::is_control)
+            {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Select a document from this contract.",
+                ));
             }
             let signer_ids = string_list(object, "signerIds", 1, 20)?;
             let approver_ids = string_list(object, "approverIds", 1, 10)?;
@@ -820,16 +890,27 @@ pub fn parse_command(
                     reason: reason(object)?,
                 })
             } else {
-                Err(invalid("LEGAL_PEOPLE_REQUIRED", "Signers and approvers must be unique."))
+                Err(invalid(
+                    "LEGAL_PEOPLE_REQUIRED",
+                    "Signers and approvers must be unique.",
+                ))
             }
         }
         "approval.decide" => {
             let decision = object
                 .get("decision")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_DECISION_REQUIRED", "Choose approve, revise or reject."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_DECISION_REQUIRED",
+                        "Choose approve, revise or reject.",
+                    )
+                })?;
             if !matches!(decision, "approve" | "revise" | "reject") {
-                return Err(invalid("LEGAL_DECISION_REQUIRED", "Choose approve, revise or reject."));
+                return Err(invalid(
+                    "LEGAL_DECISION_REQUIRED",
+                    "Choose approve, revise or reject.",
+                ));
             }
             Ok(LegalCommand::ApprovalDecide {
                 decision: decision.to_owned(),
@@ -840,9 +921,17 @@ pub fn parse_command(
             let approver_id = object
                 .get("approverId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_PERSON_REQUIRED", "Choose a replacement reviewer."))?;
-            if approver_id.is_empty() || approver_id.len() > 200 || approver_id.chars().any(char::is_control) {
-                return Err(invalid("LEGAL_PERSON_REQUIRED", "Choose a replacement reviewer."));
+                .ok_or_else(|| {
+                    invalid("LEGAL_PERSON_REQUIRED", "Choose a replacement reviewer.")
+                })?;
+            if approver_id.is_empty()
+                || approver_id.len() > 200
+                || approver_id.chars().any(char::is_control)
+            {
+                return Err(invalid(
+                    "LEGAL_PERSON_REQUIRED",
+                    "Choose a replacement reviewer.",
+                ));
             }
             Ok(LegalCommand::ApprovalReroute {
                 approver_id: approver_id.to_owned(),
@@ -854,15 +943,26 @@ pub fn parse_command(
                 .get("documentId")
                 .and_then(Value::as_str)
                 .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document version."))?;
-            if document_id.is_empty() || document_id.len() > 200 || document_id.chars().any(char::is_control) {
-                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document version."));
+            if document_id.is_empty()
+                || document_id.len() > 200
+                || document_id.chars().any(char::is_control)
+            {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Choose a document version.",
+                ));
             }
-            let kind = object
-                .get("kind")
-                .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_INSPECTION_REQUIRED", "Choose OCR or signature verification."))?;
+            let kind = object.get("kind").and_then(Value::as_str).ok_or_else(|| {
+                invalid(
+                    "LEGAL_INSPECTION_REQUIRED",
+                    "Choose OCR or signature verification.",
+                )
+            })?;
             if !matches!(kind, "ocr" | "verify") {
-                return Err(invalid("LEGAL_INSPECTION_REQUIRED", "Choose OCR or signature verification."));
+                return Err(invalid(
+                    "LEGAL_INSPECTION_REQUIRED",
+                    "Choose OCR or signature verification.",
+                ));
             }
             Ok(LegalCommand::Inspect {
                 document_id: document_id.to_owned(),
@@ -873,19 +973,33 @@ pub fn parse_command(
             let attachment_link_id = object
                 .get("attachmentLinkId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready document attachment."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "Choose the ready document attachment.",
+                    )
+                })?;
             if attachment_link_id.is_empty()
                 || attachment_link_id.len() > 200
                 || attachment_link_id.chars().any(char::is_control)
             {
-                return Err(invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready document attachment."));
+                return Err(invalid(
+                    "LEGAL_IMPORT_REQUIRED",
+                    "Choose the ready document attachment.",
+                ));
             }
             let name = object
                 .get("name")
                 .and_then(Value::as_str)
                 .map(js_trim)
-                .filter(|value| !value.is_empty() && cp_len(value) <= 200 && !value.chars().any(char::is_control))
-                .ok_or_else(|| invalid("LEGAL_DOCUMENT_NAME", "Name the uploaded document version."))?;
+                .filter(|value| {
+                    !value.is_empty()
+                        && cp_len(value) <= 200
+                        && !value.chars().any(char::is_control)
+                })
+                .ok_or_else(|| {
+                    invalid("LEGAL_DOCUMENT_NAME", "Name the uploaded document version.")
+                })?;
             Ok(LegalCommand::DocumentImport {
                 attachment_link_id: attachment_link_id.to_owned(),
                 name: name.to_owned(),
@@ -895,18 +1009,31 @@ pub fn parse_command(
             let attachment_link_id = object
                 .get("attachmentLinkId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready signed-original attachment."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "Choose the ready signed-original attachment.",
+                    )
+                })?;
             if attachment_link_id.is_empty()
                 || attachment_link_id.len() > 200
                 || attachment_link_id.chars().any(char::is_control)
             {
-                return Err(invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready signed-original attachment."));
+                return Err(invalid(
+                    "LEGAL_IMPORT_REQUIRED",
+                    "Choose the ready signed-original attachment.",
+                ));
             }
             let metadata = object
                 .get("metadata")
                 .filter(|value| value.is_object())
                 .cloned()
-                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Supply the signed-original signing details."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_IMPORT_REQUIRED",
+                        "Supply the signed-original signing details.",
+                    )
+                })?;
             Ok(LegalCommand::ExecutedImport {
                 attachment_link_id: attachment_link_id.to_owned(),
                 metadata,
@@ -916,39 +1043,80 @@ pub fn parse_command(
             let executed_copy_id = object
                 .get("executedCopyId")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_EXECUTED_REQUIRED", "Choose a signed original under review."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_EXECUTED_REQUIRED",
+                        "Choose a signed original under review.",
+                    )
+                })?;
             if executed_copy_id.is_empty()
                 || executed_copy_id.len() > 200
                 || executed_copy_id.chars().any(char::is_control)
             {
-                return Err(invalid("LEGAL_EXECUTED_REQUIRED", "Choose a signed original under review."));
+                return Err(invalid(
+                    "LEGAL_EXECUTED_REQUIRED",
+                    "Choose a signed original under review.",
+                ));
             }
             let decision = object
                 .get("decision")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid("LEGAL_DECISION_REQUIRED", "Choose confirm or changes requested."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_DECISION_REQUIRED",
+                        "Choose confirm or changes requested.",
+                    )
+                })?;
             if !matches!(decision, "confirm" | "changes_required") {
-                return Err(invalid("LEGAL_DECISION_REQUIRED", "Choose confirm or changes requested."));
+                return Err(invalid(
+                    "LEGAL_DECISION_REQUIRED",
+                    "Choose confirm or changes requested.",
+                ));
             }
-            let checks = object
-                .get("checks")
-                .ok_or_else(|| invalid("LEGAL_CHECKS_REQUIRED", "Record every executed-copy review check."))?;
+            let checks = object.get("checks").ok_or_else(|| {
+                invalid(
+                    "LEGAL_CHECKS_REQUIRED",
+                    "Record every executed-copy review check.",
+                )
+            })?;
             let Some(checks_object) = checks.as_object() else {
-                return Err(invalid("LEGAL_CHECKS_REQUIRED", "Record every executed-copy review check."));
+                return Err(invalid(
+                    "LEGAL_CHECKS_REQUIRED",
+                    "Record every executed-copy review check.",
+                ));
             };
-            let keys = ["contentMatches","pagesComplete","partiesVerified","signaturesComplete","authorityVerified"];
+            let keys = [
+                "contentMatches",
+                "pagesComplete",
+                "partiesVerified",
+                "signaturesComplete",
+                "authorityVerified",
+            ];
             if checks_object.len() != keys.len()
-                || keys.iter().any(|key| !checks_object.get(*key).is_some_and(Value::is_boolean))
+                || keys
+                    .iter()
+                    .any(|key| !checks_object.get(*key).is_some_and(Value::is_boolean))
             {
-                return Err(invalid("LEGAL_CHECKS_REQUIRED", "Record every executed-copy review check."));
+                return Err(invalid(
+                    "LEGAL_CHECKS_REQUIRED",
+                    "Record every executed-copy review check.",
+                ));
             }
             let reason = object
                 .get("reason")
                 .and_then(Value::as_str)
                 .map(js_trim)
-                .ok_or_else(|| invalid("LEGAL_REASON_REQUIRED", "Record the executed-copy review reason."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_REASON_REQUIRED",
+                        "Record the executed-copy review reason.",
+                    )
+                })?;
             if cp_len(reason) < 10 || cp_len(reason) > 4000 {
-                return Err(invalid("LEGAL_REASON_REQUIRED", "Record an executed-copy review reason between 10 and 4000 characters."));
+                return Err(invalid(
+                    "LEGAL_REASON_REQUIRED",
+                    "Record an executed-copy review reason between 10 and 4000 characters.",
+                ));
             }
             Ok(LegalCommand::ExecutedReview {
                 executed_copy_id: executed_copy_id.to_owned(),
@@ -963,7 +1131,12 @@ pub fn parse_command(
                 .and_then(Value::as_str)
                 .map(js_trim)
                 .filter(|id| !id.is_empty() && id.len() <= 200 && !id.chars().any(char::is_control))
-                .ok_or_else(|| invalid("LEGAL_PERSON_REQUIRED", "Choose an active person to own this record."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_PERSON_REQUIRED",
+                        "Choose an active person to own this record.",
+                    )
+                })?;
             Ok(LegalCommand::AssignOwner {
                 owner_id: owner_id.to_owned(),
                 reason: reason(object)?,
@@ -974,15 +1147,28 @@ pub fn parse_command(
                 .get("body")
                 .and_then(Value::as_str)
                 .map(js_trim)
-                .filter(|body| !body.is_empty() && cp_len(body) <= 20_000 && !body.chars().any(char::is_control))
+                .filter(|body| {
+                    !body.is_empty()
+                        && cp_len(body) <= 20_000
+                        && !body.chars().any(char::is_control)
+                })
                 .ok_or_else(|| invalid("LEGAL_COMMENT_REQUIRED", "Write a discussion comment."))?;
-            let visibility = object.get("visibility").and_then(Value::as_str).unwrap_or("internal");
+            let visibility = object
+                .get("visibility")
+                .and_then(Value::as_str)
+                .unwrap_or("internal");
             if !matches!(visibility, "internal" | "external") {
-                return Err(invalid("LEGAL_COMMENT_VISIBILITY", "Choose an internal or external comment."));
+                return Err(invalid(
+                    "LEGAL_COMMENT_VISIBILITY",
+                    "Choose an internal or external comment.",
+                ));
             }
             let section = object.get("section").and_then(Value::as_str).unwrap_or("");
             if cp_len(section) > 200 || section.chars().any(char::is_control) {
-                return Err(invalid("LEGAL_COMMENT_SECTION", "Choose a shorter discussion section."));
+                return Err(invalid(
+                    "LEGAL_COMMENT_SECTION",
+                    "Choose a shorter discussion section.",
+                ));
             }
             let document_id = object
                 .get("documentId")
@@ -990,10 +1176,19 @@ pub fn parse_command(
                 .filter(|id| !id.is_empty())
                 .map(str::to_owned);
             if visibility == "external" && document_id.is_none() {
-                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Choose the document version for external discussion."));
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Choose the document version for external discussion.",
+                ));
             }
-            if document_id.as_deref().is_some_and(|id| id.len() > 200 || id.chars().any(char::is_control)) {
-                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document from this record."));
+            if document_id
+                .as_deref()
+                .is_some_and(|id| id.len() > 200 || id.chars().any(char::is_control))
+            {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Choose a document from this record.",
+                ));
             }
             Ok(LegalCommand::Comment {
                 comment_id: derived_id("legal-comment", ""),
@@ -1013,8 +1208,14 @@ pub fn parse_command(
                 .get("relation")
                 .and_then(Value::as_str)
                 .ok_or_else(|| invalid("LEGAL_LINK_REQUIRED", "Choose how the records relate."))?;
-            if !matches!(relation, "related" | "evidence" | "amends" | "obligation" | "derived") {
-                return Err(invalid("LEGAL_LINK_REQUIRED", "Choose how the records relate."));
+            if !matches!(
+                relation,
+                "related" | "evidence" | "amends" | "obligation" | "derived"
+            ) {
+                return Err(invalid(
+                    "LEGAL_LINK_REQUIRED",
+                    "Choose how the records relate.",
+                ));
             }
             Ok(LegalCommand::Link {
                 target_id: target_id.to_owned(),
@@ -1028,7 +1229,12 @@ pub fn parse_command(
                 .and_then(Value::as_str)
                 .map(js_trim)
                 .filter(|note| cp_len(note) >= 10 && cp_len(note) <= 4_000)
-                .ok_or_else(|| invalid("LEGAL_REASON_REQUIRED", "Record a preservation acknowledgement between 10 and 4000 characters."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_REASON_REQUIRED",
+                        "Record a preservation acknowledgement between 10 and 4000 characters.",
+                    )
+                })?;
             Ok(LegalCommand::AcknowledgeNotice {
                 hold_id,
                 note: note.to_owned(),
@@ -1039,10 +1245,18 @@ pub fn parse_command(
                 .get("documentId")
                 .and_then(Value::as_str)
                 .filter(|id| !id.is_empty() && id.len() <= 200 && !id.chars().any(char::is_control))
-                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document belonging to this contract."))?;
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_DOCUMENT_REQUIRED",
+                        "Choose a document belonging to this contract.",
+                    )
+                })?;
             let signer_ids = string_list(object, "signerIds", 1, 20)?;
             if !unique(&signer_ids) {
-                return Err(invalid("LEGAL_PEOPLE_REQUIRED", "Each signer must be unique."));
+                return Err(invalid(
+                    "LEGAL_PEOPLE_REQUIRED",
+                    "Each signer must be unique.",
+                ));
             }
             Ok(LegalCommand::Approve {
                 document_id: document_id.to_owned(),
@@ -1074,12 +1288,17 @@ fn string_list(
     min: usize,
     max: usize,
 ) -> Result<Vec<String>, BusinessError> {
-    let values = object
-        .get(key)
-        .and_then(Value::as_array)
-        .ok_or_else(|| invalid("LEGAL_PEOPLE_REQUIRED", "Choose at least one current person."))?;
+    let values = object.get(key).and_then(Value::as_array).ok_or_else(|| {
+        invalid(
+            "LEGAL_PEOPLE_REQUIRED",
+            "Choose at least one current person.",
+        )
+    })?;
     if values.len() < min || values.len() > max {
-        return Err(invalid("LEGAL_PEOPLE_REQUIRED", "Choose a bounded set of current people."));
+        return Err(invalid(
+            "LEGAL_PEOPLE_REQUIRED",
+            "Choose a bounded set of current people.",
+        ));
     }
     values
         .iter()
@@ -1088,7 +1307,12 @@ fn string_list(
                 .as_str()
                 .filter(|id| !id.is_empty() && id.len() <= 200 && !id.chars().any(char::is_control))
                 .map(str::to_owned)
-                .ok_or_else(|| invalid("LEGAL_PEOPLE_REQUIRED", "Choose at least one current person."))
+                .ok_or_else(|| {
+                    invalid(
+                        "LEGAL_PEOPLE_REQUIRED",
+                        "Choose at least one current person.",
+                    )
+                })
         })
         .collect()
 }
@@ -1320,8 +1544,16 @@ pub fn plan_command(
             }
             if state == "approved"
                 && item.kind == "rule"
-                && (source.data.get("reviewNote").and_then(Value::as_str).is_none_or(str::is_empty)
-                    || source.data.get("effectiveDate").and_then(Value::as_str).is_none_or(str::is_empty))
+                && (source
+                    .data
+                    .get("reviewNote")
+                    .and_then(Value::as_str)
+                    .is_none_or(str::is_empty)
+                    || source
+                        .data
+                        .get("effectiveDate")
+                        .and_then(Value::as_str)
+                        .is_none_or(str::is_empty))
             {
                 return Err(BusinessError::new(
                     FailureKind::Conflict,
@@ -1338,7 +1570,11 @@ pub fn plan_command(
             }
             if state == "completed"
                 && item.kind == "obligation"
-                && source.data.get("completionEvidence").and_then(Value::as_str).is_none_or(str::is_empty)
+                && source
+                    .data
+                    .get("completionEvidence")
+                    .and_then(Value::as_str)
+                    .is_none_or(str::is_empty)
             {
                 return Err(BusinessError::new(
                     FailureKind::Conflict,
@@ -1362,7 +1598,11 @@ pub fn plan_command(
             email,
             expires_at,
         } => {
-            if !source.documents.iter().any(|document| document == document_id) {
+            if !source
+                .documents
+                .iter()
+                .any(|document| document == document_id)
+            {
                 return Err(invalid(
                     "LEGAL_DOCUMENT_REQUIRED",
                     "Select a document from this record.",
@@ -1459,13 +1699,19 @@ pub fn plan_command(
             approver_ids,
             reason,
         } => {
-            if !source.documents.iter().any(|document| document == document_id) {
+            if !source
+                .documents
+                .iter()
+                .any(|document| document == document_id)
+            {
                 return Err(invalid(
                     "LEGAL_DOCUMENT_REQUIRED",
                     "Select a document from this contract.",
                 ));
             }
-            if item.kind != "contract" || !matches!(item.state.as_str(), "draft" | "review" | "approval") {
+            if item.kind != "contract"
+                || !matches!(item.state.as_str(), "draft" | "review" | "approval")
+            {
                 return Err(BusinessError::new(
                     FailureKind::Conflict,
                     "LEGAL_APPROVAL_STATE",
@@ -1520,7 +1766,9 @@ pub fn plan_command(
             attachment_link_id,
             metadata,
         } => {
-            if item.kind != "contract" || !matches!(item.state.as_str(), "approved" | "executed" | "active") {
+            if item.kind != "contract"
+                || !matches!(item.state.as_str(), "approved" | "executed" | "active")
+            {
                 return Err(BusinessError::new(
                     FailureKind::Conflict,
                     "LEGAL_EXECUTED_STATE",
@@ -1623,7 +1871,10 @@ pub fn plan_command(
                 ));
             }
             if let Some(document_id) = document_id
-                && !source.documents.iter().any(|document| document == document_id)
+                && !source
+                    .documents
+                    .iter()
+                    .any(|document| document == document_id)
             {
                 return Err(invalid(
                     "LEGAL_DOCUMENT_REQUIRED",
@@ -1645,12 +1896,12 @@ pub fn plan_command(
                 item.state.clone(),
             )
         }
-        LegalCommand::Link { target_id, relation } => {
+        LegalCommand::Link {
+            target_id,
+            relation,
+        } => {
             if &item.id == target_id {
-                return Err(invalid(
-                    "LEGAL_LINK_INVALID",
-                    "Choose another record.",
-                ));
+                return Err(invalid("LEGAL_LINK_INVALID", "Choose another record."));
             }
             (
                 "link".to_owned(),
@@ -1664,19 +1915,17 @@ pub fn plan_command(
                 item.state.clone(),
             )
         }
-        LegalCommand::AcknowledgeNotice { hold_id, note } => {
-            (
-                "hold.acknowledge".to_owned(),
-                note.clone(),
-                LegalCommandEffect::AcknowledgeNotice {
-                    hold_id: hold_id.clone(),
-                    note: note.clone(),
-                },
-                None,
-                Some(hold_id.clone()),
-                item.state.clone(),
-            )
-        }
+        LegalCommand::AcknowledgeNotice { hold_id, note } => (
+            "hold.acknowledge".to_owned(),
+            note.clone(),
+            LegalCommandEffect::AcknowledgeNotice {
+                hold_id: hold_id.clone(),
+                note: note.clone(),
+            },
+            None,
+            Some(hold_id.clone()),
+            item.state.clone(),
+        ),
         LegalCommand::Approve {
             document_id,
             signer_ids,
@@ -1696,7 +1945,11 @@ pub fn plan_command(
                     "An independent reviewer must approve.",
                 ));
             }
-            if !source.documents.iter().any(|document| document == document_id) {
+            if !source
+                .documents
+                .iter()
+                .any(|document| document == document_id)
+            {
                 return Err(invalid(
                     "LEGAL_DOCUMENT_REQUIRED",
                     "Choose a document belonging to this contract.",
@@ -1740,15 +1993,20 @@ pub fn plan_command(
             document_id: result_document,
             hold_id: result_hold,
             executed_copy_id: match command {
-                LegalCommand::ExecutedReview { executed_copy_id, .. } => Some(executed_copy_id.clone()),
-                LegalCommand::ExecutedImport { .. } => {
-                    Some(derived_id("legal-executed-copy", key))
-                }
+                LegalCommand::ExecutedReview {
+                    executed_copy_id, ..
+                } => Some(executed_copy_id.clone()),
+                LegalCommand::ExecutedImport { .. } => Some(derived_id("legal-executed-copy", key)),
                 _ => None,
             },
             executed_copy_state: match command {
                 LegalCommand::ExecutedReview { decision, .. } => Some(
-                    if decision == "confirm" { "confirmed" } else { "changes_required" }.to_owned(),
+                    if decision == "confirm" {
+                        "confirmed"
+                    } else {
+                        "changes_required"
+                    }
+                    .to_owned(),
                 ),
                 LegalCommand::ExecutedImport { .. } => Some("pending_review".to_owned()),
                 _ => None,
@@ -1957,7 +2215,9 @@ mod tests {
         let duplicate = json!({"action":"approval.open","id":"item","expectedVersion":1,"documentId":"doc-1","signerIds":["signer","signer"],"approverIds":["approver"],"reason":"Open an independent approval route."});
         let duplicate_envelope = parse_envelope(&duplicate).unwrap();
         assert_eq!(
-            parse_command(&duplicate, &duplicate_envelope).unwrap_err().code,
+            parse_command(&duplicate, &duplicate_envelope)
+                .unwrap_err()
+                .code,
             "LEGAL_PEOPLE_REQUIRED"
         );
         let decide = json!({"action":"approval.decide","id":"item","expectedVersion":1,"decision":"approve","reason":"Current reviewer approves this locked version."});
@@ -2018,7 +2278,10 @@ mod tests {
         assert_eq!(plan.action, "executed.confirm");
         assert_eq!(plan.new_state, "executed");
         assert_eq!(plan.result.executed_copy_id.as_deref(), Some("copy-1"));
-        assert_eq!(plan.result.executed_copy_state.as_deref(), Some("confirmed"));
+        assert_eq!(
+            plan.result.executed_copy_state.as_deref(),
+            Some("confirmed")
+        );
         assert_eq!(
             plan.effect,
             LegalCommandEffect::ExecutedReview {
@@ -2041,9 +2304,18 @@ mod tests {
         .unwrap();
         assert_eq!(plan.action, "executed.import");
         assert_eq!(plan.operation, "legal.executed.import");
-        assert_eq!(plan.result.document_id.as_deref(), Some(derived_id("legal-executed-document", "legal-executed-import-0001").as_str()));
-        assert_eq!(plan.result.executed_copy_id.as_deref(), Some(derived_id("legal-executed-copy", "legal-executed-import-0001").as_str()));
-        assert_eq!(plan.result.executed_copy_state.as_deref(), Some("pending_review"));
+        assert_eq!(
+            plan.result.document_id.as_deref(),
+            Some(derived_id("legal-executed-document", "legal-executed-import-0001").as_str())
+        );
+        assert_eq!(
+            plan.result.executed_copy_id.as_deref(),
+            Some(derived_id("legal-executed-copy", "legal-executed-import-0001").as_str())
+        );
+        assert_eq!(
+            plan.result.executed_copy_state.as_deref(),
+            Some("pending_review")
+        );
         let incomplete = json!({"action":"executed.review","id":"item","expectedVersion":1,"executedCopyId":"copy-1","decision":"confirm","checks":{"contentMatches":true,"pagesComplete":true,"partiesVerified":true,"signaturesComplete":true,"authorityVerified":false},"reason":"All pages and signatures match the approved draft."});
         let incomplete_envelope = parse_envelope(&incomplete).unwrap();
         assert_eq!(
@@ -2204,11 +2476,9 @@ mod tests {
             "LEGAL_VERSION_REQUIRED"
         );
         assert_eq!(
-            parse_envelope(
-                &json!({"action":"transition","id":"item","expectedVersion":1})
-            )
-            .unwrap_err()
-            .code,
+            parse_envelope(&json!({"action":"transition","id":"item","expectedVersion":1}))
+                .unwrap_err()
+                .code,
             "LEGAL_TRANSITION"
         );
     }
@@ -2490,7 +2760,14 @@ mod tests {
         ] {
             let envelope = parse_envelope(&raw).unwrap();
             let command = parse_command(&raw, &envelope).unwrap();
-            let plan = plan_command(&actor, &source("draft"), &envelope, &command, "legal-plan-key").unwrap();
+            let plan = plan_command(
+                &actor,
+                &source("draft"),
+                &envelope,
+                &command,
+                "legal-plan-key",
+            )
+            .unwrap();
             assert_eq!(plan.action, action);
             assert_eq!(plan.operation, format!("legal.{action}"));
             let planned_effect = match &plan.effect {
@@ -2507,9 +2784,15 @@ mod tests {
         let envelope = parse_envelope(&raw).unwrap();
         let command = parse_command(&raw, &envelope).unwrap();
         assert_eq!(
-            plan_command(&actor, &source("draft"), &envelope, &command, "legal-plan-key")
-                .unwrap_err()
-                .code,
+            plan_command(
+                &actor,
+                &source("draft"),
+                &envelope,
+                &command,
+                "legal-plan-key"
+            )
+            .unwrap_err()
+            .code,
             "LEGAL_TRANSITION"
         );
         let raw = json!({"action":"comment","id":"item","expectedVersion":1,"body":"Public reply.","visibility":"external"});

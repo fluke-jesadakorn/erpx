@@ -6,8 +6,8 @@
 //! `project` target and never bypass the native scan receipt gate.
 pub use crate::adapters::project_attachment_intake::{
     ProjectAttachmentFileRequest, ProjectAttachmentIntakeAvailability,
-    ProjectAttachmentReservation, ProjectAttachmentSetRequest,
-    ProjectAttachmentUploadCompletion, ProjectAttachmentUploadStatus,
-    complete_project_attachment_upload, create_project_attachment_set,
-    project_attachment_upload_status, reserve_project_attachment_file,
+    ProjectAttachmentReservation, ProjectAttachmentSetRequest, ProjectAttachmentUploadCompletion,
+    ProjectAttachmentUploadStatus, complete_project_attachment_upload,
+    create_project_attachment_set, project_attachment_upload_status,
+    reserve_project_attachment_file,
 };

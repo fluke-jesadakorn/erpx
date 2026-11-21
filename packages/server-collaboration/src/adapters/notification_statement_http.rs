@@ -1,13 +1,10 @@
 //! Native notification statement HTTP ingress for caller-owned transactions.
 use crate::adapters::notification_statement::{
-    notification_statement, NotificationStatement, NotificationStatementInput,
+    NotificationStatement, NotificationStatementInput, notification_statement,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
-    body::to_bytes,
-    header,
-    routing::post,
-    serde_json,
+    body::to_bytes, header, routing::post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
@@ -36,18 +33,40 @@ struct AppState {
     holding_targets: BTreeMap<String, StatementTarget>,
 }
 fn malformed() -> BusinessError {
-    BusinessError::invalid("NOTIFICATION_STATEMENT_INVALID", "Use one notification statement request.")
+    BusinessError::invalid(
+        "NOTIFICATION_STATEMENT_INVALID",
+        "Use one notification statement request.",
+    )
 }
-fn target<'a>(state: &'a AppState, headers: &HeaderMap, slug: &str) -> Result<&'a StatementTarget, BusinessError> {
+fn target<'a>(
+    state: &'a AppState,
+    headers: &HeaderMap,
+    slug: &str,
+) -> Result<&'a StatementTarget, BusinessError> {
     let mut hosts = headers.get_all(header::HOST).iter();
-    let host = hosts.next().and_then(|v| v.to_str().ok()).unwrap_or_default().split(':').next().unwrap_or_default().to_owned();
-    if hosts.next().is_some() { return Err(malformed()); }
-    let t = state.targets.get(&(host, slug.to_owned()))
+    let host = hosts
+        .next()
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .split(':')
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    if hosts.next().is_some() {
+        return Err(malformed());
+    }
+    let t = state
+        .targets
+        .get(&(host, slug.to_owned()))
         .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
     let mut origins = headers.get_all(header::ORIGIN).iter();
     let first = origins.next().and_then(|v| v.to_str().ok());
     if origins.next().is_some() || first != Some(t.origin.as_str()) {
-        return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin."));
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "ORIGIN_FORBIDDEN",
+            "Use the application origin.",
+        ));
     }
     Ok(t)
 }
@@ -59,30 +78,64 @@ fn error(error: BusinessError) -> Response {
         FailureKind::Conflict => StatusCode::CONFLICT,
         _ => StatusCode::SERVICE_UNAVAILABLE,
     };
-    (status, Json(serde_json::json!({"error":{"code":error.code,"message":error.message}}))).into_response()
+    (
+        status,
+        Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
+    )
+        .into_response()
 }
-async fn statement(State(state): State<Arc<AppState>>, Path(slug): Path<String>, request: Request) -> Response {
+async fn statement(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
     let result = async move {
         let t = target(&state, request.headers(), &slug)?;
         let headers = request.headers().clone();
-        let bytes = to_bytes(request.into_body(), BODY_LIMIT).await.map_err(|_| malformed())?;
-        let input: NotificationStatementInput = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
-        t.backend.statement(StatementRequest { host: &t.host, headers: &headers, input }).await
-    }.await;
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let input: NotificationStatementInput =
+            serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        t.backend
+            .statement(StatementRequest {
+                host: &t.host,
+                headers: &headers,
+                input,
+            })
+            .await
+    }
+    .await;
     match result {
         Ok(s) => (StatusCode::OK, Json(serde_json::json!({"data":s}))).into_response(),
         Err(e) => error(e),
     }
 }
-async fn system_statement(State(state): State<Arc<AppState>>, Path(company_id): Path<String>, request: Request) -> Response {
+async fn system_statement(
+    State(state): State<Arc<AppState>>,
+    Path(company_id): Path<String>,
+    request: Request,
+) -> Response {
     let result = async move {
-        let t = state.company_targets.get(&company_id)
+        let t = state
+            .company_targets
+            .get(&company_id)
             .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
         let headers = request.headers().clone();
-        let bytes = to_bytes(request.into_body(), BODY_LIMIT).await.map_err(|_| malformed())?;
-        let input: NotificationStatementInput = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
-        t.backend.statement(StatementRequest { host: &t.host, headers: &headers, input }).await
-    }.await;
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let input: NotificationStatementInput =
+            serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        t.backend
+            .statement(StatementRequest {
+                host: &t.host,
+                headers: &headers,
+                input,
+            })
+            .await
+    }
+    .await;
     match result {
         Ok(s) => (StatusCode::OK, Json(serde_json::json!({"data":s}))).into_response(),
         Err(e) => error(e),
@@ -98,23 +151,49 @@ pub fn system_notification_statement_router(
     let mut company_targets = BTreeMap::new();
     for (company, target) in pairs {
         if company.is_empty() || company_targets.insert(company, target).is_some() {
-            return Err(BusinessError::invalid("NOTIFICATION_STATEMENT_CONFIG_INVALID", "Use exact distinct companies."));
+            return Err(BusinessError::invalid(
+                "NOTIFICATION_STATEMENT_CONFIG_INVALID",
+                "Use exact distinct companies.",
+            ));
         }
     }
     Ok(Router::new()
-        .route("/api/v1/companies/{company_id}/collaboration/notification-statement", post(system_statement))
-        .with_state(Arc::new(AppState { targets: BTreeMap::new(), company_targets, holding_targets: BTreeMap::new() })))
+        .route(
+            "/api/v1/companies/{company_id}/collaboration/notification-statement",
+            post(system_statement),
+        )
+        .with_state(Arc::new(AppState {
+            targets: BTreeMap::new(),
+            company_targets,
+            holding_targets: BTreeMap::new(),
+        })))
 }
 
-async fn holding_statement(State(state): State<Arc<AppState>>, Path(holding_id): Path<String>, request: Request) -> Response {
+async fn holding_statement(
+    State(state): State<Arc<AppState>>,
+    Path(holding_id): Path<String>,
+    request: Request,
+) -> Response {
     let result = async move {
-        let t = state.holding_targets.get(&holding_id)
+        let t = state
+            .holding_targets
+            .get(&holding_id)
             .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
         let headers = request.headers().clone();
-        let bytes = to_bytes(request.into_body(), BODY_LIMIT).await.map_err(|_| malformed())?;
-        let input: NotificationStatementInput = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
-        t.backend.statement(StatementRequest { host: &t.host, headers: &headers, input }).await
-    }.await;
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let input: NotificationStatementInput =
+            serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        t.backend
+            .statement(StatementRequest {
+                host: &t.host,
+                headers: &headers,
+                input,
+            })
+            .await
+    }
+    .await;
     match result {
         Ok(s) => (StatusCode::OK, Json(serde_json::json!({"data":s}))).into_response(),
         Err(e) => error(e),
@@ -127,25 +206,52 @@ pub fn holding_notification_statement_router(
     let mut holding_targets = BTreeMap::new();
     for (holding, target) in pairs {
         if holding.is_empty() || holding_targets.insert(holding, target).is_some() {
-            return Err(BusinessError::invalid("NOTIFICATION_STATEMENT_CONFIG_INVALID", "Use exact distinct holdings."));
+            return Err(BusinessError::invalid(
+                "NOTIFICATION_STATEMENT_CONFIG_INVALID",
+                "Use exact distinct holdings.",
+            ));
         }
     }
     Ok(Router::new()
-        .route("/api/v1/holdings/{holding_id}/collaboration/notification-statement-by-holding", post(holding_statement))
-        .with_state(Arc::new(AppState { targets: BTreeMap::new(), company_targets: BTreeMap::new(), holding_targets })))
+        .route(
+            "/api/v1/holdings/{holding_id}/collaboration/notification-statement-by-holding",
+            post(holding_statement),
+        )
+        .with_state(Arc::new(AppState {
+            targets: BTreeMap::new(),
+            company_targets: BTreeMap::new(),
+            holding_targets,
+        })))
 }
 
-pub fn notification_statement_router(targets: Vec<StatementTarget>) -> Result<Router, BusinessError> {
+pub fn notification_statement_router(
+    targets: Vec<StatementTarget>,
+) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
     for t in targets {
-        if t.host.is_empty() || t.holding_slug.is_empty() || t.origin.is_empty()
-            || configured.insert((t.host.clone(), t.holding_slug.clone()), t).is_some() {
-            return Err(BusinessError::invalid("NOTIFICATION_STATEMENT_CONFIG_INVALID", "Use exact distinct targets."));
+        if t.host.is_empty()
+            || t.holding_slug.is_empty()
+            || t.origin.is_empty()
+            || configured
+                .insert((t.host.clone(), t.holding_slug.clone()), t)
+                .is_some()
+        {
+            return Err(BusinessError::invalid(
+                "NOTIFICATION_STATEMENT_CONFIG_INVALID",
+                "Use exact distinct targets.",
+            ));
         }
     }
     Ok(Router::new()
-        .route("/api/v1/holdings/{holding_slug}/collaboration/notification-statement", post(statement))
-        .with_state(Arc::new(AppState { targets: configured, company_targets: BTreeMap::new(), holding_targets: BTreeMap::new() })))
+        .route(
+            "/api/v1/holdings/{holding_slug}/collaboration/notification-statement",
+            post(statement),
+        )
+        .with_state(Arc::new(AppState {
+            targets: configured,
+            company_targets: BTreeMap::new(),
+            holding_targets: BTreeMap::new(),
+        })))
 }
 // keep imports used
 #[allow(dead_code)]

@@ -31,7 +31,9 @@
     "./lib/executive/canvas-domain": "./src/lib/executive/canvas-domain.ts",
     "./lib/holding-hosts": "./src/lib/holding-hosts.ts",
     "./lib/holding-paths": "./src/lib/holding-paths.ts",
-    "./public/server": "./src/public/server.ts"
+    "./public/server": "./src/public/server.ts",
+    "./adapters/server/native-executive-evidence": "./src/adapters/server/native-executive-evidence.ts",
+    "./adapters/server/native-runtime-command": "./src/adapters/server/native-runtime-command.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

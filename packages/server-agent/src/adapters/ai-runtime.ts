@@ -1,3 +1,4 @@
+import { nativeOwnerWrite } from './native-owner-write';
 import 'server-only';
 import { aiGatewayBootstrapSources } from '@erpx/server-manage_erpx/public/ai-gateway-sources';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -379,7 +380,7 @@ export function aiSnapshotGuard(
     );
   });
 }
-export function aiUsageStatement(
+export async function aiUsageStatement(
   db: SqlDatabase,
   id: string,
   snapshot: AiProviderSnapshot,
@@ -396,23 +397,9 @@ export function aiUsageStatement(
       : snapshot.deploymentDigest
         ? 'erpx'
         : 'unknown';
-  return db
-    .prepare(
-      'INSERT INTO ai_provider_usage(id,company_id,connection_id,revision,model,feature,status,input_tokens,output_tokens,created_at,branch_id,funding_source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',
-    )
-    .bind(
-      id,
-      snapshot.companyId,
-      snapshot.connectionId,
-      snapshot.revision,
-      snapshot.model,
-      feature,
-      status,
-      inputTokens,
-      outputTokens,
-      Date.now(),
-      branchId,
-      fundingSource,
-    );
+  return nativeOwnerWrite('ag_provider_usage_insert',[
+    id,snapshot.companyId,snapshot.connectionId,snapshot.revision,snapshot.model,feature,status,
+    inputTokens,outputTokens,Date.now(),branchId,fundingSource,
+  ],`ag-usage:${id}`,{companyId:snapshot.companyId},()=>db.prepare("SELECT 1"));
 }
 export type { AiConnectionView, AiProviderOverview, AiProviderSnapshot } from '@erpx/server-agent/domain/providers';

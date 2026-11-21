@@ -28,21 +28,21 @@ export interface FinanceGroupOwnershipRepository<Effect> {
         results: (Row)[];
     }>;
     readOwnershipSourceOverlap(holdingId: string, id: string | number | null, id2: string | number | null, value: string | number, value2: string, effectiveFrom: string): Promise<Record<string, unknown> | null>;
-    stagePrepareOwnershipEditionEffect(id: string, holdingId: string, companyId: string, value: string | null, id2: string | number | null, id3: string | number | null, method: "subsidiary" | "equity" | "cost" | "excluded", ownershipBps: number, votingBps: number, controlAssessment: string, effectiveFrom: string, value2: string | null, userId: string, now: number, now2: number, hash: string, value3: string, reason: string): Effect;
-    stageDecideOwnershipEditionEffect(end: string, now: number, id: string | number | null, version: string | number | null): Effect;
+    stagePrepareOwnershipEditionEffect(id: string, holdingId: string, companyId: string, value: string | null, id2: string | number | null, id3: string | number | null, method: "subsidiary" | "equity" | "cost" | "excluded", ownershipBps: number, votingBps: number, controlAssessment: string, effectiveFrom: string, value2: string | null, userId: string, now: number, now2: number, hash: string, value3: string, reason: string): Promise<Effect>;
+    stageDecideOwnershipEditionEffect(end: string, now: number, id: string | number | null, version: string | number | null): Promise<Effect>;
     guard6(key: string, value: "ownership-version", id: string, holdingId: string, companyId: string, expectedVersion: number): Effect;
-    stageDecideOwnershipEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string): Effect;
+    stageDecideOwnershipEditionEffect2(value: "approved" | "rejected", userId: string, now: number, id: string): Promise<Effect>;
     readAcquisitionSourceEffect(companyId: string, ownershipId: string, acquisitionDate: string, currency: string, value: string | number, currentId: string): Promise<Record<string, unknown> | null>;
-    stagePrepareAcquisitionEditionEffect(calcId: string, companyId: string, holdingId: string, currency: string, calcHash: string, value: string, value2: string, value3: string, userId: string, now: number, now2: number): Effect;
-    stagePrepareAcquisitionEditionEffect2(value: string, calcId: string, userId: string, reason: string, value2: string, now: number): Effect;
-    stagePrepareAcquisitionEditionEffect3(id: string, holdingId: string, companyId: string, ownershipId: string, investee_entity_id: string | number | null, acquisitionDate: string, currency: string, value: string, value2: string, nciMeasurement: "fair_value" | "proportionate", value3: string, value4: string, value5: string, value6: string, value7: string, cguReference: string, calcId: string, userId: string, now: number, now2: number, hash: string, value8: string, reason: string, value9: string | null, value10: number | null): Effect;
+    stagePrepareAcquisitionEditionEffect(calcId: string, companyId: string, holdingId: string, currency: string, calcHash: string, value: string, value2: string, value3: string, userId: string, now: number, now2: number): Promise<Effect>;
+    stagePrepareAcquisitionEditionEffect2(value: string, calcId: string, userId: string, reason: string, value2: string, now: number): Promise<Effect>;
+    stagePrepareAcquisitionEditionEffect3(id: string, holdingId: string, companyId: string, ownershipId: string, investee_entity_id: string | number | null, acquisitionDate: string, currency: string, value: string, value2: string, nciMeasurement: "fair_value" | "proportionate", value3: string, value4: string, value5: string, value6: string, value7: string, cguReference: string, calcId: string, userId: string, now: number, now2: number, hash: string, value8: string, reason: string, value9: string | null, value10: number | null): Promise<Effect>;
     readDecideAcquisitionEditionCalc(calculation_run_id: string | number | null, companyId: string, holdingId: string): Promise<Row | null>;
     guard13(key: string, value: "acquisition-parent", id: string | number | null, companyId: string, holdingId: string, value2: number): Effect;
-    stageDecideAcquisitionEditionEffect(now: number, id: string | number | null): Effect;
+    stageDecideAcquisitionEditionEffect(now: number, id: string | number | null): Promise<Effect>;
     guard15(key: string, value: "acquisition-version", id: string, companyId: string, holdingId: string, expectedVersion: number): Effect;
-    stageDecideAcquisitionEditionEffect2(status: "approved" | "rejected", userId: string, now: number, id: string): Effect;
-    stageDecideAcquisitionEditionEffect3(status: "approved" | "rejected", userId: string, userId2: string, now: number, calculation_run_id: string | number | null, companyId: string): Effect;
-    stageDecideAcquisitionEditionEffect4(value: string, calculation_run_id: string | number | null, action: "approve" | "reject", userId: string, reason: string, value2: string, now: number): Effect;
+    stageDecideAcquisitionEditionEffect2(status: "approved" | "rejected", userId: string, now: number, id: string): Promise<Effect>;
+    stageDecideAcquisitionEditionEffect3(status: "approved" | "rejected", userId: string, userId2: string, now: number, calculation_run_id: string | number | null, companyId: string): Promise<Effect>;
+    stageDecideAcquisitionEditionEffect4(value: string, calculation_run_id: string | number | null, action: "approve" | "reject", userId: string, reason: string, value2: string, now: number): Promise<Effect>;
     readGroupOwnershipWorkspaceOwnershipacquisitionsentities(holdingId: string, companyId: string): Promise<{
         results: (Row)[];
     }>;
@@ -121,7 +121,7 @@ export function createFinanceGroupOwnershipApplication<Effect>(ports: FinanceGro
             await ports.requireFinanceTool(actor.companyId, "group_reporting");
             const e = await ownershipSource(actor, input), now = ports.clock.now();
             return ports.commands.commit(actor, key, op, input, id, 1, { id, status: "draft", version: 1 }, [
-                repository.stagePrepareOwnershipEditionEffect(id, actor.holdingId, actor.companyId, input.parentId ?? null, e.evidence.entities.find((v) => v.company_id === input.investorCompanyId)!.id, e.evidence.entities.find((v) => v.company_id === input.investeeCompanyId)!.id, input.method, input.ownershipBps, input.votingBps, input.controlAssessment, input.effectiveFrom, input.effectiveTo ?? null, actor.userId, now, now, e.hash, JSON.stringify({ input, evidence: e.evidence }), input.reason),
+                await repository.stagePrepareOwnershipEditionEffect(id, actor.holdingId, actor.companyId, input.parentId ?? null, e.evidence.entities.find((v) => v.company_id === input.investorCompanyId)!.id, e.evidence.entities.find((v) => v.company_id === input.investeeCompanyId)!.id, input.method, input.ownershipBps, input.votingBps, input.controlAssessment, input.effectiveFrom, input.effectiveTo ?? null, actor.userId, now, now, e.hash, JSON.stringify({ input, evidence: e.evidence }), input.reason),
             ]);
         });
     }
@@ -154,9 +154,9 @@ export function createFinanceGroupOwnershipApplication<Effect>(ports: FinanceGro
                 const end = new Date(Date.parse(definition.effectiveFrom) - 86400000)
                     .toISOString()
                     .slice(0, 10);
-                steps.push(repository.stageDecideOwnershipEditionEffect(end, now, e.parent.id, e.parent.version));
+                steps.push(await repository.stageDecideOwnershipEditionEffect(end, now, e.parent.id, e.parent.version));
             }
-            steps.push(repository.guard6(key, "ownership-version", id, actor.holdingId, actor.companyId, input.expectedVersion), repository.stageDecideOwnershipEditionEffect2(action === "approve" ? "approved" : "rejected", actor.userId, now, id));
+            steps.push(repository.guard6(key, "ownership-version", id, actor.holdingId, actor.companyId, input.expectedVersion), await repository.stageDecideOwnershipEditionEffect2(action === "approve" ? "approved" : "rejected", actor.userId, now, id));
             return ports.commands.commit(actor, key, op, input, id, input.expectedVersion + 1, {
                 id,
                 status: action === "approve" ? "approved" : "rejected",
@@ -251,13 +251,13 @@ export function createFinanceGroupOwnershipApplication<Effect>(ports: FinanceGro
                 calculationRunId: calcId,
                 result: e.evidence.result,
             }, [
-                repository.stagePrepareAcquisitionEditionEffect(calcId, actor.companyId, actor.holdingId, input.currency, calcHash, JSON.stringify(e.evidence.calculation), JSON.stringify(e.evidence.result), JSON.stringify({
+                await repository.stagePrepareAcquisitionEditionEffect(calcId, actor.companyId, actor.holdingId, input.currency, calcHash, JSON.stringify(e.evidence.calculation), JSON.stringify(e.evidence.result), JSON.stringify({
                     engine: "source-acquisition-v1",
                     acquisitionId: id,
                     sourceHash: e.hash,
                 }), actor.userId, now, now),
-                repository.stagePrepareAcquisitionEditionEffect2(ports.identifiers.next(), calcId, actor.userId, input.reason, await ports.sha256(JSON.stringify(e.evidence.result)), now),
-                repository.stagePrepareAcquisitionEditionEffect3(id, actor.holdingId, actor.companyId, input.ownershipId, e.evidence.ownership.investee_entity_id, input.acquisitionDate, input.currency, String(decimalToUnits(input.consideration)), String(decimalToUnits(input.previousInterest)), input.nciMeasurement, String(decimalToUnits(e.evidence.nci)), String(decimalToUnits(input.identifiableNetAssets)), String(decimalToUnits(input.deferredTax)), String(decimalToUnits(String(e.evidence.result.goodwill))), String(decimalToUnits(String(e.evidence.result.bargainPurchase))), input.cguReference, calcId, actor.userId, now, now, e.hash, JSON.stringify({ input, evidence: e.evidence }), input.reason, input.parentId ?? null, input.parentVersion ?? null),
+                await repository.stagePrepareAcquisitionEditionEffect2(ports.identifiers.next(), calcId, actor.userId, input.reason, await ports.sha256(JSON.stringify(e.evidence.result)), now),
+                await repository.stagePrepareAcquisitionEditionEffect3(id, actor.holdingId, actor.companyId, input.ownershipId, e.evidence.ownership.investee_entity_id, input.acquisitionDate, input.currency, String(decimalToUnits(input.consideration)), String(decimalToUnits(input.previousInterest)), input.nciMeasurement, String(decimalToUnits(e.evidence.nci)), String(decimalToUnits(input.identifiableNetAssets)), String(decimalToUnits(input.deferredTax)), String(decimalToUnits(String(e.evidence.result.goodwill))), String(decimalToUnits(String(e.evidence.result.bargainPurchase))), input.cguReference, calcId, actor.userId, now, now, e.hash, JSON.stringify({ input, evidence: e.evidence }), input.reason, input.parentId ?? null, input.parentVersion ?? null),
             ]);
         });
     }
@@ -299,13 +299,13 @@ export function createFinanceGroupOwnershipApplication<Effect>(ports: FinanceGro
                 ...(action === "approve" && e?.parent
                     ? [
                         repository.guard13(key, "acquisition-parent", e.parent.id, actor.companyId, actor.holdingId, Number(definition.parentVersion)),
-                        repository.stageDecideAcquisitionEditionEffect(now, e.parent.id),
+                        await repository.stageDecideAcquisitionEditionEffect(now, e.parent.id),
                     ]
                     : []),
                 repository.guard15(key, "acquisition-version", id, actor.companyId, actor.holdingId, input.expectedVersion),
-                repository.stageDecideAcquisitionEditionEffect2(status, actor.userId, now, id),
-                repository.stageDecideAcquisitionEditionEffect3(status, actor.userId, actor.userId, now, r.calculation_run_id, actor.companyId),
-                repository.stageDecideAcquisitionEditionEffect4(ports.identifiers.next(), r.calculation_run_id, action, actor.userId, input.reason, await ports.sha256(JSON.stringify(JSON.parse(String(r.source_json)).evidence.result)), now),
+                await repository.stageDecideAcquisitionEditionEffect2(status, actor.userId, now, id),
+                await repository.stageDecideAcquisitionEditionEffect3(status, actor.userId, actor.userId, now, r.calculation_run_id, actor.companyId),
+                await repository.stageDecideAcquisitionEditionEffect4(ports.identifiers.next(), r.calculation_run_id, action, actor.userId, input.reason, await ports.sha256(JSON.stringify(JSON.parse(String(r.source_json)).evidence.result)), now),
             ]);
         });
     }

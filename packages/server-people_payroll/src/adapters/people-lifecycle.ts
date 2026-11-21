@@ -1,5 +1,5 @@
+import { nativePpStatement, nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
-import { nativePeopleLifecycleSql } from '@erpx/server-collaboration/adapters/native-people-lifecycle-sql';
 import {filterPeopleLifecycleWork} from "@erpx/server-people_payroll/adapters/record-purchases";
 import {peoplePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {preparePeopleIamCommand} from "@erpx/server-people_payroll/adapters/people-iam-purchases";
@@ -217,13 +217,13 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM people_lifecycle_cases WHERE id=? AND company_id=? AND person_id=? AND workflow='legacy' AND kind IN ('onboarding','transfer') AND version=? AND status IN ('waiting_it','pending_review','scheduled') AND (status!='scheduled' OR effective_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint))", [id, companyId, personId, version]);
         },
         stageSaveLifecycleEffect(now: number, id: string, companyId: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_1'))
+            return nativePpStatement('people_lifecycle_stmt_1')
                 .bind(now, id, companyId);
         },
         stageSaveLifecycleEffect2(...args) { return peopleLifecycleIdentityAccessFacts(database, client).stageSaveLifecycleEffect2(...args); },
         stageSaveLifecycleEffect3(...args) { return peopleLifecycleIdentityAccessFacts(database, client).stageSaveLifecycleEffect3(...args); },
         stageSaveLifecycleEffect4(now: number, companyId: string, id: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_2'))
+            return nativePpStatement('people_lifecycle_stmt_2')
                 .bind(now, companyId, id);
         },
         ...peopleLifecycleAuditEffects(database),
@@ -233,16 +233,16 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
                 : "?=0", value2);
         },
         stageSaveLifecycleEffect6(id: string, companyId: string, personId: string, engagementId: string, kind: "onboarding" | "transfer" | "offboarding" | "suspend", state: "draft" | "scheduled" | "pending_review" | "waiting_it", version: number, effectiveAt: number, value: string | null, value2: number | null, value3: string, userId: string, now: number) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_3'))
+            return nativePpStatement('people_lifecycle_stmt_3')
                 .bind(id, companyId, personId, engagementId, kind, state, version, effectiveAt, value, value2, value3, userId, now);
         },
         stageSaveLifecycleEffect7(value: string, assignmentId: string, value2: "legacy" | "placement", id: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_4'))
+            return nativePpStatement('people_lifecycle_stmt_4')
                 .bind(value, assignmentId, value2, id);
         },
         guard40(...args) { return peopleLifecycleIdentityAccessFacts(database, client).guard40(...args); },
         stageSaveLifecycleEffect8(companyId: string, personId: string, id: string, effectiveAt: number) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_5'))
+            return nativePpStatement('people_lifecycle_stmt_5')
                 .bind(companyId, personId, id, effectiveAt);
         },
         guard42(key: string, value: "prepared-package", companyId: string, value2: string, package_id: string, revision: number) {
@@ -253,7 +253,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
                 revision,
             ]);
         },
-        stageSaveLifecycleEffect9(value: "retirement" | "other", id: string, companyId: string) { return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_6')).bind(value, id, companyId); },
+        stageSaveLifecycleEffect9(value: "retirement" | "other", id: string, companyId: string) { return nativePpStatement('people_lifecycle_stmt_6').bind(value, id, companyId); },
         readSaveLifecycleSettings(companyId: string) {
             return database.prepare("SELECT definition FROM people_lifecycle_settings WHERE company_id=?")
                 .bind(companyId)
@@ -265,13 +265,13 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             user_id: string | null;
         }>(); },
         guard46(...args) { return peopleLifecycleIdentityAccessFacts(database, client).guard46(...args); },
-        stageSaveLifecycleEffect10(taskId: string, companyId: string, id: string, value: string, owner: string | null, now: number, value2: boolean, lastWorkingDate: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr", kind2: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_7')).bind(taskId, companyId, id, value, owner, now, value2, lastWorkingDate, kind, kind2); },
+        stageSaveLifecycleEffect10(taskId: string, companyId: string, id: string, value: string, owner: string | null, now: number, value2: boolean, lastWorkingDate: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr", kind2: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return nativePpStatement('people_lifecycle_stmt_7').bind(taskId, companyId, id, value, owner, now, value2, lastWorkingDate, kind, kind2); },
         stageSaveLifecycleEffect11: async (value: string, companyId: string, owner: string, taskId: string, value2: string, now: number) => {
             if (!actor) throw new Error('LIFECYCLE_NOTIFICATION_ACTOR_REQUIRED');
             return nativeLifecycleNotification(database, actor, { value, companyId, owner, taskId, value2, now });
         },
         stageSaveLifecycleEffect12(value: string, companyId: string, id: string, title: string, value2: string | null, now: number, privileged: boolean) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_8'))
+            return nativePpStatement('people_lifecycle_stmt_8')
                 .bind(value, companyId, id, title, value2, now, privileged);
         },
         readCancelLifecycleRow(companyId: string, id: string) {
@@ -283,17 +283,17 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM people_lifecycle_cases WHERE id=? AND company_id=? AND version=? AND status NOT IN ('completed','cancelled') AND (status!='scheduled' OR effective_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint))", [id, companyId, expectedVersion]);
         },
         stageCancelLifecycleEffect(now: number, id: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_9'))
+            return nativePpStatement('people_lifecycle_stmt_9')
                 .bind(now, id);
         },
         stageCancelLifecycleEffect2(now: number, id: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_10'))
+            return nativePpStatement('people_lifecycle_stmt_10')
                 .bind(now, id);
         },
         stageCancelLifecycleEffect3(...args) { return peopleLifecycleIdentityAccessFacts(database, client).stageCancelLifecycleEffect3(...args); },
         stageCancelLifecycleEffect4(...args) { return peopleLifecycleIdentityAccessFacts(database, client).stageCancelLifecycleEffect4(...args); },
         stageCancelLifecycleEffect5(id: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_11'))
+            return nativePpStatement('people_lifecycle_stmt_11')
                 .bind(id);
         },
         readPeopleLifecycleWorkReviews(...args) { return peopleLifecycleIdentityAccessFacts(database, client).readPeopleLifecycleWorkReviews(...args); },
@@ -333,11 +333,11 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended')", [companyId, personId]);
         },
         stageCreateRehireEngagementEffect(id: string, personId: string, companyId: string, value: string | null, value2: string | null, positionId: string, level_id: string, worker_type: string, employment_type: string, startDate: string, title: string, currency: string, userId: string, now: number, now2: number) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_12'))
+            return nativePpStatement('people_lifecycle_stmt_12')
                 .bind(id, personId, companyId, value, value2, positionId, level_id, worker_type, employment_type, startDate, title, currency, userId, now, now2);
         },
         stageCreateRehireEngagementEffect2(now: number, companyId: string, personId: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_13'))
+            return nativePpStatement('people_lifecycle_stmt_13')
                 .bind(now, companyId, personId);
         },
         guard64(key: string, value: "settings-version", companyId: string, expectedVersion: number) {
@@ -345,11 +345,11 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         },
         guard65(...args) { return peopleLifecycleIdentityAccessFacts(database, client).guard65(...args); },
         stageSaveLifecycleSettingsEffect(companyId: string, value: number, value2: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_14'))
+            return nativePpStatement('people_lifecycle_stmt_14')
                 .bind(companyId, value, value2);
         },
         stageSaveLifecycleSettingsEffect2(itAssigneeId: string | null, companyId: string) {
-            return database.prepare(nativePeopleLifecycleSql('people_lifecycle_stmt_15'))
+            return nativePpStatement('people_lifecycle_stmt_15')
                 .bind(itAssigneeId, companyId);
         },
         applyValidatePackageEffect(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyValidatePackageEffect(...args); },
@@ -358,23 +358,23 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         applyValidatePackageEffect3(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyValidatePackageEffect3(...args); },
         applyValidatePackageEffect4(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyValidatePackageEffect4(...args); },
         readSavePackagecurrent(companyId: unknown, id: unknown) { return client!.query<AccessPackage>("SELECT * FROM people_access_packages WHERE company_id=$1 AND id=$2 FOR UPDATE", [companyId, id]); },
-        applySavePackageEffect(companyId: unknown, id: unknown, version: unknown, revision: unknown, value: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_16'), [companyId, id, version, revision, value]); },
-        applySavePackageEffect2(companyId: unknown, id: unknown, revision: unknown, value: unknown, userId: unknown, value2: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_17'), [companyId, id, revision, value, userId, value2]); },
-        applySavePackageEffect3(companyId: unknown, id: unknown, revision: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_18'), [companyId, id, revision]); },
+        applySavePackageEffect(companyId: unknown, id: unknown, version: unknown, revision: unknown, value: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_16', [companyId, id, version, revision, value]); },
+        applySavePackageEffect2(companyId: unknown, id: unknown, revision: unknown, value: unknown, userId: unknown, value2: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_17', [companyId, id, revision, value, userId, value2]); },
+        applySavePackageEffect3(companyId: unknown, id: unknown, revision: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_18', [companyId, id, revision]); },
         applyLifecycleOutboxEffect(...args) { return peopleLifecycleWorkflowFacts(database, client).applyLifecycleOutboxEffect(...args); },
         readBindPositionPackageposition(...args) { return peopleLifecycleOrganizationFacts(database, client).readBindPositionPackageposition(...args); },
         readBindPositionPackagepkg(companyId: unknown, packageId: unknown, revision: unknown) { return client!.query<LifecyclePackageRevisionFact>("SELECT r.* FROM people_package_revisions r JOIN people_access_packages p ON p.company_id=r.company_id AND p.id=r.package_id AND p.published_revision=r.revision WHERE r.company_id=$1 AND r.package_id=$2 AND r.revision=$3", [companyId, packageId, revision]); },
         readBindPositionPackagepeople(companyId: unknown, id: unknown) { return client!.query<LifecyclePersonFact>("SELECT p.legal_name,e.id,e.version FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=$1 AND e.position_id=$2 AND e.status!='ended' ORDER BY e.id", [companyId, id]); },
-        applyBindPositionPackageEffect(companyId: unknown, id: unknown, packageId: unknown, revision: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_19'), [companyId, id, packageId, revision]); },
+        applyBindPositionPackageEffect(companyId: unknown, id: unknown, packageId: unknown, revision: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_19', [companyId, id, packageId, revision]); },
         applyBindPositionPackageEffect2(...args) { return peopleLifecycleOrganizationFacts(database, client).applyBindPositionPackageEffect2(...args); },
-        applyBindPositionPackageEffect3(companyId: unknown, id: unknown, value: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_20'), [companyId, id, value]); },
+        applyBindPositionPackageEffect3(companyId: unknown, id: unknown, value: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_20', [companyId, id, value]); },
         readRequestLifecycleAccessrow(companyId: unknown, id: unknown) { return client!.query<LifecycleCase>("SELECT * FROM people_lifecycle_cases WHERE company_id=$1 AND id=$2 FOR UPDATE", [companyId, id]); },
         applyRequestLifecycleAccessEffect(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyRequestLifecycleAccessEffect(...args); },
         readRequestLifecycleAccessdefinition(companyId: unknown, package_id: unknown, package_revision: unknown) { return client!.query<LifecyclePackageRevisionFact>("SELECT definition FROM people_package_revisions WHERE company_id=$1 AND package_id=$2 AND revision=$3", [companyId, package_id, package_revision]); },
-        applyRequestLifecycleAccessEffect2(grantId: unknown, companyId: unknown, id: unknown, userId: unknown, index: unknown, value: unknown, id2: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_21'), [grantId, companyId, id, userId, index, value, id2]); },
-        applyRequestLifecycleAccessEffect3(id: unknown, value: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_22'), [id, value]); },
+        applyRequestLifecycleAccessEffect2(grantId: unknown, companyId: unknown, id: unknown, userId: unknown, index: unknown, value: unknown, id2: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_21', [grantId, companyId, id, userId, index, value, id2]); },
+        applyRequestLifecycleAccessEffect3(id: unknown, value: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_22', [id, value]); },
         readApplyLifecycleReviewrow(companyId: unknown, caseId: unknown) { return client!.query<LifecycleCase>("SELECT * FROM people_lifecycle_cases WHERE company_id=$1 AND id=$2 AND status='pending_review' FOR UPDATE", [companyId, caseId]); },
-        applyApplyLifecycleReviewEffect(id: unknown, value: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_23'), [id, value]); },
+        applyApplyLifecycleReviewEffect(id: unknown, value: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_23', [id, value]); },
         applyApplyLifecycleReviewEffect2(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyApplyLifecycleReviewEffect2(...args); },
         applyApplyLifecycleReviewEffect3(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyApplyLifecycleReviewEffect3(...args); },
         applyApplyLifecycleReviewEffect4(companyId: unknown, person_id: unknown, userId: unknown) { return client!.query<{
@@ -388,9 +388,9 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             ok: boolean;
         }>("SELECT people_person_user($1,$2,$3) ok", [companyId, person_id, userId]); },
         applyApplyLifecycleReviewEffect7(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyApplyLifecycleReviewEffect7(...args); },
-        applyApplyLifecycleReviewEffect8(id: unknown, assignment: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_24'), [id, assignment]); },
+        applyApplyLifecycleReviewEffect8(id: unknown, assignment: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_24', [id, assignment]); },
         applyApplyLifecycleReviewEffect9(id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM people_lifecycle_grants WHERE case_id=$1 AND assignment_id IS NULL", [id]); },
-        applyApplyLifecycleReviewEffect10(id: unknown, value: unknown) { return client!.query<Record<string, unknown>>(nativePeopleLifecycleSql('people_lifecycle_stmt_25'), [id, value]); } };
+        applyApplyLifecycleReviewEffect10(id: unknown, value: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_25', [id, value]); } };
     return { repository, clock: { now: Date.now }, ids: { newId: () => crypto.randomUUID() }, authorize: requirePermission, commands: projectWorkerNativeCommands(database), digest: value => createHash('sha256').update(JSON.stringify(value)).digest('hex'), grantInput, iamCommand: (actor, key, operation, input, permission, run) => fromNative(() => iamCommand(iamDb(raw) as PostgresDatabase, actor, key, operation, input, permission, c => run(applicationPorts(raw, c)),c=>preparePeopleIamCommand(c,actor,key,operation,input))), effectiveGpoRules: (...args) => fromNative(() => effectiveGpoRules(iamDb(raw) as PostgresDatabase, ...args)), eligibleClearanceOwner: (...args) => fromNative(() => eligibleClearanceOwner(database, ...args)), iamActorFromWork: (...args) => iamActorFromWork(...args), requireFreshMfa: (...args) => fromNative(() => requireFreshMfa(...args)), validateIamGrant: (...args) => fromNative(() => validateIamGrant(client!, ...args)), insertIamGrant: (...args) => fromNative(() => insertIamGrant(client!, ...args)), proposeIamReview: (...args) => fromNative(() => proposeIamReview(client!, ...args)), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), calendarCommand: (...args) => fromNative(() => calendarCommand(iamDb(raw) as PostgresDatabase, ...args)) };
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> { try {

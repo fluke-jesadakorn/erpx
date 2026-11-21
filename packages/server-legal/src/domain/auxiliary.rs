@@ -54,16 +54,35 @@ impl LegalAuxiliaryActor {
 pub enum LegalAuxiliaryRead {
     Workspace,
     Reports,
-    Retention { id: Option<String> },
-    Governance { id: Option<String> },
-    LawCorpus { rule_id: Option<String> },
-    Knowledge { query: String, as_of: Option<String> },
-    LawCitation { id: String, as_of: Option<String> },
-    Citation { id: String, as_of: Option<String> },
-    References { item_id: String },
+    Retention {
+        id: Option<String>,
+    },
+    Governance {
+        id: Option<String>,
+    },
+    LawCorpus {
+        rule_id: Option<String>,
+    },
+    Knowledge {
+        query: String,
+        as_of: Option<String>,
+    },
+    LawCitation {
+        id: String,
+        as_of: Option<String>,
+    },
+    Citation {
+        id: String,
+        as_of: Option<String>,
+    },
+    References {
+        item_id: String,
+    },
     Trust,
     SavedViews,
-    AiHistory { item_id: String },
+    AiHistory {
+        item_id: String,
+    },
 }
 
 impl LegalAuxiliaryRead {
@@ -296,7 +315,10 @@ impl LegalRetentionAction {
         })
     }
     pub const fn policy_lifecycle(self) -> bool {
-        matches!(self, Self::Policy | Self::ApprovePolicy | Self::RetirePolicy)
+        matches!(
+            self,
+            Self::Policy | Self::ApprovePolicy | Self::RetirePolicy
+        )
     }
 }
 
@@ -405,7 +427,10 @@ pub fn require_independent_review(
     Ok(())
 }
 
-pub fn destruction_transition(action: LegalRetentionAction, state: &str) -> Result<&'static str, BusinessError> {
+pub fn destruction_transition(
+    action: LegalRetentionAction,
+    state: &str,
+) -> Result<&'static str, BusinessError> {
     match action {
         LegalRetentionAction::Approve => {
             if state != "requested" {
@@ -451,7 +476,10 @@ mod tests {
             branch_id: None,
             department_id: None,
             role: role.into(),
-            permissions: permissions.iter().map(|value| (*value).to_owned()).collect(),
+            permissions: permissions
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect(),
         }
     }
 
@@ -477,10 +505,34 @@ mod tests {
 
     #[test]
     fn reads_require_the_exact_permission_and_current_company() {
-        assert!(authorize_read(&actor("legal_manager", &["legal.read"]), &LegalAuxiliaryRead::Workspace).is_ok());
-        assert!(authorize_read(&actor("legal_manager", &["legal.view"]), &LegalAuxiliaryRead::Workspace).is_err());
-        assert!(authorize_read(&actor("legal_manager", &["legal.read"]), &LegalAuxiliaryRead::Trust).is_err());
-        assert!(authorize_read(&actor("legal_manager", &["legal.manage"]), &LegalAuxiliaryRead::Trust).is_ok());
+        assert!(
+            authorize_read(
+                &actor("legal_manager", &["legal.read"]),
+                &LegalAuxiliaryRead::Workspace
+            )
+            .is_ok()
+        );
+        assert!(
+            authorize_read(
+                &actor("legal_manager", &["legal.view"]),
+                &LegalAuxiliaryRead::Workspace
+            )
+            .is_err()
+        );
+        assert!(
+            authorize_read(
+                &actor("legal_manager", &["legal.read"]),
+                &LegalAuxiliaryRead::Trust
+            )
+            .is_err()
+        );
+        assert!(
+            authorize_read(
+                &actor("legal_manager", &["legal.manage"]),
+                &LegalAuxiliaryRead::Trust
+            )
+            .is_ok()
+        );
         let mut scoped = actor("legal_manager", &["legal.read"]);
         scoped.branch_id = Some(RecordId::new("branch-one").unwrap());
         assert!(!scoped.company_scoped());
@@ -498,25 +550,51 @@ mod tests {
     fn requester_visibility_is_narrowed_to_own_requests() {
         let requester = actor("legal_requester", &["legal.read"]);
         assert!(visibility_predicate(&requester).ends_with(REQUESTER_PREDICATE));
-        assert_eq!(visibility_predicate(&actor("legal_manager", &["legal.read"])), VISIBILITY_PREDICATE);
+        assert_eq!(
+            visibility_predicate(&actor("legal_manager", &["legal.read"])),
+            VISIBILITY_PREDICATE
+        );
     }
 
     #[test]
     fn retention_lifecycle_is_parseable_and_bounded() {
-        assert_eq!(LegalRetentionAction::parse("retention.policy").unwrap().operation(), "retention.policy");
-        assert!(LegalRetentionAction::parse("retention.assign").unwrap().policy_lifecycle() == false);
-        assert!(LegalRetentionAction::parse("retention.policy").unwrap().policy_lifecycle());
+        assert_eq!(
+            LegalRetentionAction::parse("retention.policy")
+                .unwrap()
+                .operation(),
+            "retention.policy"
+        );
+        assert!(
+            LegalRetentionAction::parse("retention.assign")
+                .unwrap()
+                .policy_lifecycle()
+                == false
+        );
+        assert!(
+            LegalRetentionAction::parse("retention.policy")
+                .unwrap()
+                .policy_lifecycle()
+        );
         assert!(LegalRetentionAction::parse("retention.other").is_none());
         assert!(retention_assignable("open").is_err());
         assert!(retention_assignable("archived").is_ok());
         assert!(retention_requestable("closed", false).is_err());
         assert!(retention_requestable("open", true).is_err());
         assert!(retention_requestable("closed", true).is_ok());
-        assert_eq!(destruction_transition(LegalRetentionAction::Approve, "requested").unwrap(), "approved");
+        assert_eq!(
+            destruction_transition(LegalRetentionAction::Approve, "requested").unwrap(),
+            "approved"
+        );
         assert!(destruction_transition(LegalRetentionAction::Approve, "approved").is_err());
-        assert_eq!(destruction_transition(LegalRetentionAction::Retry, "blocked").unwrap(), "requested");
+        assert_eq!(
+            destruction_transition(LegalRetentionAction::Retry, "blocked").unwrap(),
+            "requested"
+        );
         assert!(destruction_transition(LegalRetentionAction::Retry, "approved").is_err());
-        assert_eq!(destruction_transition(LegalRetentionAction::Cancel, "requested").unwrap(), "cancelled");
+        assert_eq!(
+            destruction_transition(LegalRetentionAction::Cancel, "requested").unwrap(),
+            "cancelled"
+        );
         assert!(destruction_transition(LegalRetentionAction::Cancel, "executing").is_err());
     }
 
@@ -524,11 +602,15 @@ mod tests {
     fn independent_review_requires_a_different_person() {
         assert!(require_independent_review(false, true, "Independent review.").is_ok());
         assert_eq!(
-            require_independent_review(true, true, "Independent review.").unwrap_err().kind,
+            require_independent_review(true, true, "Independent review.")
+                .unwrap_err()
+                .kind,
             FailureKind::Forbidden
         );
         assert_eq!(
-            require_independent_review(false, false, "Independent review.").unwrap_err().kind,
+            require_independent_review(false, false, "Independent review.")
+                .unwrap_err()
+                .kind,
             FailureKind::InvalidInput
         );
     }

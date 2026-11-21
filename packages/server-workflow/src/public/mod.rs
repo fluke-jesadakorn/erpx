@@ -1,7 +1,8 @@
 pub mod commands;
-pub mod record_origin;
 pub mod job_projector;
+pub mod record_origin;
 pub mod routing_attention;
+pub mod workflow_wave3;
 
 pub mod approval_oversight;
 pub mod approval_oversight_http;
@@ -30,14 +31,14 @@ pub mod service_invoice_flow;
 pub mod field_journal_flow;
 
 pub mod asset_purchase_receipt;
-pub mod staff_approval;
+pub mod customer_portal_events;
 pub mod flow_command_target;
 pub mod quality_return_receipts;
+pub mod staff_approval;
 pub mod task_cancel;
 pub mod task_decision;
 pub mod task_reroute;
 pub mod task_revise;
-pub mod customer_portal_events;
 
-pub mod source_ordered_json;
 pub mod rfq_command_receipt;
+pub mod source_ordered_json;

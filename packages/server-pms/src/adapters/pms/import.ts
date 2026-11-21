@@ -1,16 +1,37 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { SqlDatabase, TransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase, TransactionalSqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { executeCommand, replayCommand } from "@erpx/server-workflow/public/commands";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { loadPms, persistPmsRecords } from "../../../../../packages/server-pms/src/public/pms";
 import { createPmsImport, type Batch, type PmsImportUnit, type PmsImportRepository } from "@erpx/server-pms/application/import";
-import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { pmsImportFinanceFacts } from "@erpx/server-finance/public/pms-import-facts";
-function unit(db: SqlDatabase): PmsImportUnit<SqlStatement> {
+import { nativePmsConfiguration, nativePmsImportCommand, NativePmsError } from "@erpx/feature-pms/public/native-pms";
+
+/**
+ * Cutover-import write authority is native. The six retained write facts are
+ * dispatched to the pms axum command router (typed CommandKind, exact Host and
+ * Origin derived from the registered Holding, Idempotency-Key); this adapter
+ * keeps only owner reads and the Finance opening facts. There is no TypeScript
+ * SQL fallback: a missing native configuration fails closed.
+ */
+function nativeWrite(actor: WorkContext, command: string, facts: Record<string, unknown>, key: string): any {
+    const raw = process.env.ERPX_NATIVE_PMS_CONFIG;
+    if (raw === undefined)
+        throw new NativePmsError("NATIVE_PMS_UNAVAILABLE", 503, "The native Hotel import service is unavailable.");
+    const origin = nativePmsConfiguration(raw).holdings.find(holding => holding.holdingSlug === actor.holdingSlug)?.origin;
+    if (!origin)
+        throw new NativePmsError("NATIVE_PMS_AUTHORITY_INVALID", 403, "This Holding is not registered for native import writes.");
+    const request = new Request(origin, { headers: { host: new URL(origin).host, origin } });
+    return nativePmsImportCommand(request, actor, actor.holdingSlug, command, facts, key);
+}
+
+function unit(db: SqlDatabase, actor: WorkContext, key = ""): PmsImportUnit<SqlStatement> {
     const finance = pmsImportFinanceFacts(db);
+    const write = (command: string, facts: Record<string, unknown>): any =>
+        nativeWrite(actor, command, facts, key);
     return {
         batches: (facts: {
             companyId: string;
@@ -27,7 +48,18 @@ function unit(db: SqlDatabase): PmsImportUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => db.prepare(`INSERT INTO pms_import_batches(id,company_id,property_id,cutover_date,property_version,definition_json,report_json,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).bind(facts.batchId, facts.companyId, facts.propertyId, facts.cutoverDate, facts.expectedVersion, facts.fact5, facts.fact6, facts.userId, facts.now, facts.now2),
+        }) => write("preview", {
+            batchId: facts.batchId,
+            companyId: facts.companyId,
+            propertyId: facts.propertyId,
+            cutoverDate: facts.cutoverDate,
+            expectedVersion: facts.expectedVersion,
+            definitionJson: facts.fact5,
+            reportJson: facts.fact6,
+            userId: facts.userId,
+            now: facts.now,
+            now2: facts.now2,
+        }),
         batch: (facts: {
             batchId: string;
             companyId: string;
@@ -42,7 +74,12 @@ function unit(db: SqlDatabase): PmsImportUnit<SqlStatement> {
             openingJournalId: string | null;
             fact2: number;
             id: string;
-        }) => db.prepare("UPDATE pms_import_batches SET state='approved',approved_by=?,opening_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(facts.userId, facts.openingJournalId, facts.fact2, facts.id),
+        }) => write("approve", {
+            userId: facts.userId,
+            openingJournalId: facts.openingJournalId,
+            now: facts.fact2,
+            id: facts.id,
+        }),
         writeContext: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
         party: facts => finance.party(facts),
         payment: facts => finance.payment(facts),
@@ -56,7 +93,17 @@ function unit(db: SqlDatabase): PmsImportUnit<SqlStatement> {
             total: number;
             paymentId: string | null;
             fact8: string | null;
-        }) => db.prepare(`INSERT INTO pms_import_balances(batch_id,source_key,property_id,guest_account_id,entry_id,pocket,amount_minor,finance_payment_id,finance_invoice_id) VALUES(?,?,?,?,?,?,?,?,?)`).bind(facts.id, facts.sourceKey, facts.property_id, facts.id2, facts.id3, facts.pocket, facts.total, facts.paymentId, facts.fact8).run(),
+        }) => write("balance", {
+            id: facts.id,
+            sourceKey: facts.sourceKey,
+            propertyId: facts.property_id,
+            guestAccountId: facts.id2,
+            entryId: facts.id3,
+            pocket: facts.pocket,
+            total: facts.total,
+            paymentId: facts.paymentId,
+            invoiceId: facts.fact8,
+        }),
         document: (facts: {
             fact0: string;
             property_id: string;
@@ -64,21 +111,34 @@ function unit(db: SqlDatabase): PmsImportUnit<SqlStatement> {
             fact3: string | null;
             fact4: string;
             now: number;
-        }) => db.prepare(`INSERT INTO pms_documents(id,property_id,guest_account_id,kind,finance_id,snapshot_json,created_at) VALUES(?,?,?,'opening',?,?,?)`).bind(facts.fact0, facts.property_id, facts.id, facts.fact3, facts.fact4, facts.now).run(),
+        }) => write("document", {
+            id: facts.fact0,
+            propertyId: facts.property_id,
+            guestAccountId: facts.id,
+            financeId: facts.fact3,
+            snapshotJson: facts.fact4,
+            now: facts.now,
+        }),
         property: (facts: {
             now: number;
             property_id: string;
-        }) => db.prepare("UPDATE pms_properties SET version=version+1,updated_at=? WHERE id=?").bind(facts.now, facts.property_id),
+        }) => write("property", { now: facts.now, propertyId: facts.property_id }),
         applied: (facts: {
             now: number;
             id: string;
-        }) => db.prepare("UPDATE pms_import_batches SET state='applied',version=version+1,updated_at=? WHERE id=?").bind(facts.now, facts.id), snapshot: (actor, id, lock) => loadPms(db, actor, id, lock), persist: (s, original) => persistPmsRecords(db, s, original), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
+        }) => write("applied", { now: facts.now, id: facts.id }),
+        snapshot: (actor, id, lock) => loadPms(db, actor, id, lock),
+        persist: (s, original) => persistPmsRecords(db, s, original),
+        replay: (...args) => replayCommand(db, ...args),
+        execute: (...args) => executeCommand(db, ...args)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsImportRepository<SqlStatement> { return { ...unit(db), transaction: work => db.transaction(tx => work(unit(tx))) }; }
+function repository(db: TransactionalSqlDatabase, actor: WorkContext, key = ""): PmsImportRepository<SqlStatement> {
+    return { ...unit(db, actor, key), transaction: work => db.transaction(tx => work(unit(tx, actor, key))) };
+}
 const application = createPmsImport<SqlStatement>({ clock: { now: () => Date.now() }, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), isBusinessError: (error): error is ApiError => error instanceof ApiError });
 export const pmsImportDecisionSchema = application.pmsImportDecisionSchema;
-export function pmsImportBatches(db: SqlDatabase, actor: WorkContext, propertyId: string) { return application.pmsImportBatches(unit(db), actor, propertyId); }
-export function previewPmsImport(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string) { return application.previewPmsImport(repository(db), actor, raw, key); }
-export function approvePmsImport(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string) { return application.approvePmsImport(repository(db), actor, raw, key); }
-export function applyPmsImport(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string) { return application.applyPmsImport(repository(db), actor, raw, key); }
+export function pmsImportBatches(db: SqlDatabase, actor: WorkContext, propertyId: string) { return application.pmsImportBatches(unit(db, actor), actor, propertyId); }
+export function previewPmsImport(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string) { return application.previewPmsImport(repository(db, actor, key), actor, raw, key); }
+export function approvePmsImport(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string) { return application.approvePmsImport(repository(db, actor, key), actor, raw, key); }
+export function applyPmsImport(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string) { return application.applyPmsImport(repository(db, actor, key), actor, raw, key); }

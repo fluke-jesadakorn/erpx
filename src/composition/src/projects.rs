@@ -5,21 +5,21 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest,
 };
+use erpx_server_files::public::canonical_original::LocalOriginalStore;
+use erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter;
 use erpx_server_files::public::project_attachment::{
-    PROJECT_ATTACHMENT_PURPOSES, ProjectAttachmentContentVariant, bind_project_attachment_with_current_facts,
-    project_attachment_bound_manifest, project_attachment_content, project_attachment_content_by_link,
-    project_attachment_link_ids, project_attachment_link_status, project_attachment_link_status_by_link,
+    PROJECT_ATTACHMENT_PURPOSES, ProjectAttachmentContentVariant,
+    bind_project_attachment_with_current_facts, project_attachment_bound_manifest,
+    project_attachment_content, project_attachment_content_by_link, project_attachment_link_ids,
+    project_attachment_link_status, project_attachment_link_status_by_link,
     project_attachment_links, project_attachment_links_by_set, project_attachment_set_facts,
     project_attachment_sets,
 };
 use erpx_server_files::public::project_attachment_intake::{
-    ProjectAttachmentFileRequest, ProjectAttachmentIntakeAvailability,
-    ProjectAttachmentSetRequest, complete_project_attachment_upload,
-    create_project_attachment_set, project_attachment_upload_status,
-    reserve_project_attachment_file,
+    ProjectAttachmentFileRequest, ProjectAttachmentIntakeAvailability, ProjectAttachmentSetRequest,
+    complete_project_attachment_upload, create_project_attachment_set,
+    project_attachment_upload_status, reserve_project_attachment_file,
 };
-use erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter;
-use erpx_server_files::public::canonical_original::LocalOriginalStore;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -29,36 +29,7 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
-use erpx_server_projects::public::project_commands::{
-    PgProjectMilestoneCommands, ProjectCommandActor, SaveMilestoneCommand,
-    TransitionMilestoneCommand, save_milestone, transition_milestone,
-};
-use erpx_server_projects::public::project_save::{
-    PgProjectSaveCommands, ProjectSavePurchase, SaveProjectActor, SaveProjectCommand, save_project,
-};
-use erpx_server_projects::public::project_save_http::{
-    ProjectSaveHttpBackend, ProjectSaveHttpFuture, ProjectSaveHttpRequest,
-    ProjectSaveHttpResponse,
-};
-use erpx_server_projects::public::project_commands_http::{
-    ProjectCommandHttpFuture, ProjectCommandHttpResponse, ProjectMilestoneCommandHttpBackend,
-    ProjectMilestoneSaveHttpRequest, ProjectMilestoneTransitionHttpRequest,
-};
-use erpx_server_projects::public::project_graph::{
-    PgProjectGraphRead, ProjectGraphActor, project_graph,
-};
-use erpx_server_projects::public::project_graph_http::{
-    ProjectGraphHttpBackend, ProjectGraphHttpFuture, ProjectGraphHttpRequest,
-    ProjectGraphHttpResponse,
-};
-use erpx_server_projects::public::project_structure::{
-    PgProjectStructureCommands, ProjectStructureActor, ProjectStructureCommand,
-    execute_structure_command,
-};
-use erpx_server_projects::public::project_structure_http::{
-    ProjectStructureHttpBackend, ProjectStructureHttpFuture, ProjectStructureHttpRequest,
-    ProjectStructureHttpResponse, ProjectStructureHttpTarget,
-};
+use erpx_server_people_payroll::public::staff_facts as people_staff_facts;
 use erpx_server_projects::public::project_actuals::{
     CreateCostAllocationCommand, DecideCostAllocationCommand, DecideWorkLogCommand,
     PgProjectActualsCommands, ProjectActualsActor, SaveWorkLogCommand, create_cost_allocation,
@@ -69,15 +40,18 @@ use erpx_server_projects::public::project_actuals_http::{
     ProjectActualsHttpTarget, ProjectCostAllocationDecisionHttpRequest,
     ProjectCostAllocationHttpRequest, ProjectWorkLogDecisionHttpRequest, ProjectWorkLogHttpRequest,
 };
-use erpx_server_people_payroll::public::staff_facts as people_staff_facts;
 use erpx_server_projects::public::project_attachment::{
-    PROJECT_ATTACHMENT_BIND_OPERATION, PgProjectAttachmentCommandReceipts,
-    ProjectAttachmentActor, ProjectAttachmentBindingCommand, ProjectAttachmentBoundLink,
-    ProjectAttachmentCommandReceipt, ProjectAttachmentReceiptPlan, attachment_invalid,
-    attachment_set_changed, attachment_set_empty, attachment_set_locked,
-    attachment_set_not_found, project_attachment_authority_json,
+    PROJECT_ATTACHMENT_BIND_OPERATION, PgProjectAttachmentCommandReceipts, ProjectAttachmentActor,
+    ProjectAttachmentBindingCommand, ProjectAttachmentBoundLink, ProjectAttachmentCommandReceipt,
+    ProjectAttachmentReceiptPlan, attachment_invalid, attachment_set_changed, attachment_set_empty,
+    attachment_set_locked, attachment_set_not_found, project_attachment_authority_json,
     project_attachment_command_receipt, project_attachment_fingerprint,
     replay_project_attachment_binding,
+};
+use erpx_server_projects::public::project_attachment_http::{
+    ProjectAttachmentBindHttpBackend, ProjectAttachmentBindHttpRequest,
+    ProjectAttachmentHttpFuture, ProjectAttachmentHttpResponse, ProjectAttachmentHttpTarget,
+    project_attachment_router,
 };
 use erpx_server_projects::public::project_attachment_intake_http::{
     ProjectAttachmentCompleteHttpRequest, ProjectAttachmentFileBody,
@@ -95,9 +69,34 @@ use erpx_server_projects::public::project_attachment_read_http::{
     ProjectAttachmentReadStatusByLinkHttpRequest, ProjectAttachmentReadStatusHttpRequest,
     project_attachment_read_router,
 };
-use erpx_server_projects::public::project_attachment_http::{
-    ProjectAttachmentBindHttpBackend, ProjectAttachmentBindHttpRequest, ProjectAttachmentHttpFuture,
-    ProjectAttachmentHttpResponse, ProjectAttachmentHttpTarget, project_attachment_router,
+use erpx_server_projects::public::project_commands::{
+    PgProjectMilestoneCommands, ProjectCommandActor, SaveMilestoneCommand,
+    TransitionMilestoneCommand, save_milestone, transition_milestone,
+};
+use erpx_server_projects::public::project_commands_http::{
+    ProjectCommandHttpFuture, ProjectCommandHttpResponse, ProjectMilestoneCommandHttpBackend,
+    ProjectMilestoneSaveHttpRequest, ProjectMilestoneTransitionHttpRequest,
+};
+use erpx_server_projects::public::project_graph::{
+    PgProjectGraphRead, ProjectGraphActor, project_graph,
+};
+use erpx_server_projects::public::project_graph_http::{
+    ProjectGraphHttpBackend, ProjectGraphHttpFuture, ProjectGraphHttpRequest,
+    ProjectGraphHttpResponse,
+};
+use erpx_server_projects::public::project_save::{
+    PgProjectSaveCommands, ProjectSavePurchase, SaveProjectActor, SaveProjectCommand, save_project,
+};
+use erpx_server_projects::public::project_save_http::{
+    ProjectSaveHttpBackend, ProjectSaveHttpFuture, ProjectSaveHttpRequest, ProjectSaveHttpResponse,
+};
+use erpx_server_projects::public::project_structure::{
+    PgProjectStructureCommands, ProjectStructureActor, ProjectStructureCommand,
+    execute_structure_command,
+};
+use erpx_server_projects::public::project_structure_http::{
+    ProjectStructureHttpBackend, ProjectStructureHttpFuture, ProjectStructureHttpRequest,
+    ProjectStructureHttpResponse, ProjectStructureHttpTarget,
 };
 use erpx_server_projects::public::project_wbs::PgProjectWbsRead;
 use erpx_server_projects::public::project_wbs::{ProjectReadActor, project_wbs};
@@ -234,13 +233,32 @@ pub struct ProjectsService<C> {
 
 #[derive(Clone)]
 pub enum ProjectAttachmentReadAccess {
-    Sets { project_id: String },
-    Links { project_id: String, set_id: String },
-    LinksBySet { set_id: String },
-    Status { project_id: String, link_id: String },
-    StatusByLink { link_id: String },
-    Content { project_id: String, link_id: String, variant: ProjectAttachmentContentVariant },
-    ContentByLink { link_id: String, variant: ProjectAttachmentContentVariant },
+    Sets {
+        project_id: String,
+    },
+    Links {
+        project_id: String,
+        set_id: String,
+    },
+    LinksBySet {
+        set_id: String,
+    },
+    Status {
+        project_id: String,
+        link_id: String,
+    },
+    StatusByLink {
+        link_id: String,
+    },
+    Content {
+        project_id: String,
+        link_id: String,
+        variant: ProjectAttachmentContentVariant,
+    },
+    ContentByLink {
+        link_id: String,
+        variant: ProjectAttachmentContentVariant,
+    },
 }
 
 pub enum ProjectAttachmentReadOutcome {
@@ -817,13 +835,9 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                         };
                         let response = match access {
                             ProjectAttachmentReadAccess::Sets { project_id } => {
-                                let sets = project_attachment_sets(
-                                    connection,
-                                    &actor,
-                                    &project_id,
-                                    now,
-                                )
-                                .await?;
+                                let sets =
+                                    project_attachment_sets(connection, &actor, &project_id, now)
+                                        .await?;
                                 ProjectAttachmentReadOutcome::Data(
                                     ProjectAttachmentReadHttpResponse {
                                         data: serde_json::to_value(sets)
@@ -851,10 +865,7 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                             }
                             ProjectAttachmentReadAccess::LinksBySet { set_id } => {
                                 let links = project_attachment_links_by_set(
-                                    connection,
-                                    &actor,
-                                    &set_id,
-                                    now,
+                                    connection, &actor, &set_id, now,
                                 )
                                 .await?;
                                 ProjectAttachmentReadOutcome::Data(
@@ -865,7 +876,10 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                                     },
                                 )
                             }
-                            ProjectAttachmentReadAccess::Status { project_id, link_id } => {
+                            ProjectAttachmentReadAccess::Status {
+                                project_id,
+                                link_id,
+                            } => {
                                 let status = project_attachment_link_status(
                                     connection,
                                     &actor,
@@ -884,10 +898,7 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                             }
                             ProjectAttachmentReadAccess::StatusByLink { link_id } => {
                                 let status = project_attachment_link_status_by_link(
-                                    connection,
-                                    &actor,
-                                    &link_id,
-                                    now,
+                                    connection, &actor, &link_id, now,
                                 )
                                 .await?;
                                 ProjectAttachmentReadOutcome::Data(
@@ -899,16 +910,11 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                                 )
                             }
                             ProjectAttachmentReadAccess::ContentByLink { link_id, variant } => {
-                                let store = store.as_deref().ok_or_else(|| {
-                                    PgTransactionError::Business(unavailable())
-                                })?;
+                                let store = store
+                                    .as_deref()
+                                    .ok_or_else(|| PgTransactionError::Business(unavailable()))?;
                                 let content = project_attachment_content_by_link(
-                                    connection,
-                                    store,
-                                    &actor,
-                                    &link_id,
-                                    variant,
-                                    now,
+                                    connection, store, &actor, &link_id, variant, now,
                                 )
                                 .await?;
                                 ProjectAttachmentReadOutcome::Content(
@@ -925,9 +931,9 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                                 link_id,
                                 variant,
                             } => {
-                                let store = store.as_deref().ok_or_else(|| {
-                                    PgTransactionError::Business(unavailable())
-                                })?;
+                                let store = store
+                                    .as_deref()
+                                    .ok_or_else(|| PgTransactionError::Business(unavailable()))?;
                                 let content = project_attachment_content(
                                     connection,
                                     store,
@@ -1467,8 +1473,7 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                         .await
                         .map_err(business)?;
                         Ok(ProjectAttachmentIntakeHttpResponse {
-                            data: serde_json::to_value(status)
-                                .map_err(|_| attachment_invalid())?,
+                            data: serde_json::to_value(status).map_err(|_| attachment_invalid())?,
                             context: context(current),
                         })
                     })
@@ -1482,7 +1487,10 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
 struct ProjectsIntakeSources;
 
 impl HoldingWorkSourcePreparation for ProjectsIntakeSources {
-    fn prepare<'c>(&'c self, connection: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+    fn prepare<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             // Files intake serializes on its own advisory/row locks; only the
             // Company storage policy is a shared owner source read here.
@@ -1491,8 +1499,6 @@ impl HoldingWorkSourcePreparation for ProjectsIntakeSources {
         })
     }
 }
-
-
 
 impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
     fn command_input<Input>(
@@ -1552,26 +1558,56 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                         }
                         current.require_permission("records.write")?;
                         let now = clock.now();
-                        let staff = staff_window(connection, current.user_id().as_str(), &company).await?;
+                        let staff =
+                            staff_window(connection, current.user_id().as_str(), &company).await?;
                         let wbs_new_work = purchase_allowed(
-                            connection, &holding, &company, &catalogue, "projects.wbs",
-                            CapabilityPurpose::NewWork, now,
-                        ).await;
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            "projects.wbs",
+                            CapabilityPurpose::NewWork,
+                            now,
+                        )
+                        .await;
                         let wbs_settle_existing = purchase_allowed(
-                            connection, &holding, &company, &catalogue, "projects.wbs",
-                            CapabilityPurpose::SettleExisting, now,
-                        ).await;
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            "projects.wbs",
+                            CapabilityPurpose::SettleExisting,
+                            now,
+                        )
+                        .await;
                         let cost_history = purchase_allowed(
-                            connection, &holding, &company, &catalogue, "projects.costs",
-                            CapabilityPurpose::History, now,
-                        ).await;
+                            connection,
+                            &holding,
+                            &company,
+                            &catalogue,
+                            "projects.costs",
+                            CapabilityPurpose::History,
+                            now,
+                        )
+                        .await;
                         let actor = structure_actor(
-                            current, company, staff.0, wbs_new_work, wbs_settle_existing, cost_history,
+                            current,
+                            company,
+                            staff.0,
+                            wbs_new_work,
+                            wbs_settle_existing,
+                            cost_history,
                         );
                         let mut repository = PgProjectStructureCommands::new(connection);
                         let receipt = execute_structure_command(
-                            &actor, &mut repository, &project_id, &command, &key, now,
-                        ).await?;
+                            &actor,
+                            &mut repository,
+                            &project_id,
+                            &command,
+                            &key,
+                            now,
+                        )
+                        .await?;
                         Ok(ProjectStructureHttpResponse {
                             data: serde_json::to_value(receipt).map_err(|_| unavailable())?,
                             context: context(current),
@@ -1592,25 +1628,55 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
     ) -> Result<ProjectActualsActor, BusinessError> {
         let staff = staff_window(connection, current.user_id().as_str(), company).await?;
         let time_new = purchase_allowed(
-            connection, holding, company, catalogue, "projects.time",
-            CapabilityPurpose::NewWork, now,
-        ).await;
+            connection,
+            holding,
+            company,
+            catalogue,
+            "projects.time",
+            CapabilityPurpose::NewWork,
+            now,
+        )
+        .await;
         let time_settle = purchase_allowed(
-            connection, holding, company, catalogue, "projects.time",
-            CapabilityPurpose::SettleExisting, now,
-        ).await;
+            connection,
+            holding,
+            company,
+            catalogue,
+            "projects.time",
+            CapabilityPurpose::SettleExisting,
+            now,
+        )
+        .await;
         let costs_new = purchase_allowed(
-            connection, holding, company, catalogue, "projects.costs",
-            CapabilityPurpose::NewWork, now,
-        ).await;
+            connection,
+            holding,
+            company,
+            catalogue,
+            "projects.costs",
+            CapabilityPurpose::NewWork,
+            now,
+        )
+        .await;
         let costs_settle = purchase_allowed(
-            connection, holding, company, catalogue, "projects.costs",
-            CapabilityPurpose::SettleExisting, now,
-        ).await;
+            connection,
+            holding,
+            company,
+            catalogue,
+            "projects.costs",
+            CapabilityPurpose::SettleExisting,
+            now,
+        )
+        .await;
         let cost_history = purchase_allowed(
-            connection, holding, company, catalogue, "projects.costs",
-            CapabilityPurpose::History, now,
-        ).await;
+            connection,
+            holding,
+            company,
+            catalogue,
+            "projects.costs",
+            CapabilityPurpose::History,
+            now,
+        )
+        .await;
         Ok(actuals_actor(
             current,
             company.clone(),
@@ -1632,18 +1698,29 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let catalogue = self.catalogue.clone();
-        self.actuals_command(host, proof, input, "records.write", move |connection, current, holding, company, now| {
-            let project_id = project_id.clone();
-            let command = command.clone();
-            let key = key.clone();
-            let catalogue = catalogue.clone();
-            Box::pin(async move {
-                let actor = Self::actuals_actor_at(connection, current, holding, company, &catalogue, now).await?;
-                let mut repository = PgProjectActualsCommands::new(connection);
-                let receipt = save_work_log(&actor, &mut repository, &project_id, &command, &key, now).await?;
-                Ok(receipt)
-            })
-        })
+        self.actuals_command(
+            host,
+            proof,
+            input,
+            "records.write",
+            move |connection, current, holding, company, now| {
+                let project_id = project_id.clone();
+                let command = command.clone();
+                let key = key.clone();
+                let catalogue = catalogue.clone();
+                Box::pin(async move {
+                    let actor = Self::actuals_actor_at(
+                        connection, current, holding, company, &catalogue, now,
+                    )
+                    .await?;
+                    let mut repository = PgProjectActualsCommands::new(connection);
+                    let receipt =
+                        save_work_log(&actor, &mut repository, &project_id, &command, &key, now)
+                            .await?;
+                    Ok(receipt)
+                })
+            },
+        )
         .await
     }
 
@@ -1661,19 +1738,37 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let catalogue = self.catalogue.clone();
-        self.actuals_command(host, proof, input, "records.write", move |connection, current, holding, company, now| {
-            let project_id = project_id.clone();
-            let log_id = log_id.clone();
-            let command = command.clone();
-            let key = key.clone();
-            let catalogue = catalogue.clone();
-            Box::pin(async move {
-                let actor = Self::actuals_actor_at(connection, current, holding, company, &catalogue, now).await?;
-                let mut repository = PgProjectActualsCommands::new(connection);
-                let receipt = decide_work_log(&actor, &mut repository, &project_id, &log_id, &command, &key, now).await?;
-                Ok(receipt)
-            })
-        })
+        self.actuals_command(
+            host,
+            proof,
+            input,
+            "records.write",
+            move |connection, current, holding, company, now| {
+                let project_id = project_id.clone();
+                let log_id = log_id.clone();
+                let command = command.clone();
+                let key = key.clone();
+                let catalogue = catalogue.clone();
+                Box::pin(async move {
+                    let actor = Self::actuals_actor_at(
+                        connection, current, holding, company, &catalogue, now,
+                    )
+                    .await?;
+                    let mut repository = PgProjectActualsCommands::new(connection);
+                    let receipt = decide_work_log(
+                        &actor,
+                        &mut repository,
+                        &project_id,
+                        &log_id,
+                        &command,
+                        &key,
+                        now,
+                    )
+                    .await?;
+                    Ok(receipt)
+                })
+            },
+        )
         .await
     }
 
@@ -1689,17 +1784,28 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let catalogue = self.catalogue.clone();
-        self.actuals_command(host, proof, input, "finance.write", move |connection, current, holding, company, now| {
-            let command = command.clone();
-            let key = key.clone();
-            let catalogue = catalogue.clone();
-            Box::pin(async move {
-                let actor = Self::actuals_actor_at(connection, current, holding, company, &catalogue, now).await?;
-                let mut repository = PgProjectActualsCommands::new(connection);
-                let receipt = create_cost_allocation(&actor, &mut repository, &command, &key, now).await?;
-                Ok(receipt)
-            })
-        })
+        self.actuals_command(
+            host,
+            proof,
+            input,
+            "finance.write",
+            move |connection, current, holding, company, now| {
+                let command = command.clone();
+                let key = key.clone();
+                let catalogue = catalogue.clone();
+                Box::pin(async move {
+                    let actor = Self::actuals_actor_at(
+                        connection, current, holding, company, &catalogue, now,
+                    )
+                    .await?;
+                    let mut repository = PgProjectActualsCommands::new(connection);
+                    let receipt =
+                        create_cost_allocation(&actor, &mut repository, &command, &key, now)
+                            .await?;
+                    Ok(receipt)
+                })
+            },
+        )
         .await
     }
 
@@ -1716,18 +1822,35 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let catalogue = self.catalogue.clone();
-        self.actuals_command(host, proof, input, "finance.approve", move |connection, current, holding, company, now| {
-            let allocation_id = allocation_id.clone();
-            let command = command.clone();
-            let key = key.clone();
-            let catalogue = catalogue.clone();
-            Box::pin(async move {
-                let actor = Self::actuals_actor_at(connection, current, holding, company, &catalogue, now).await?;
-                let mut repository = PgProjectActualsCommands::new(connection);
-                let receipt = decide_cost_allocation(&actor, &mut repository, &allocation_id, &command, &key, now).await?;
-                Ok(receipt)
-            })
-        })
+        self.actuals_command(
+            host,
+            proof,
+            input,
+            "finance.approve",
+            move |connection, current, holding, company, now| {
+                let allocation_id = allocation_id.clone();
+                let command = command.clone();
+                let key = key.clone();
+                let catalogue = catalogue.clone();
+                Box::pin(async move {
+                    let actor = Self::actuals_actor_at(
+                        connection, current, holding, company, &catalogue, now,
+                    )
+                    .await?;
+                    let mut repository = PgProjectActualsCommands::new(connection);
+                    let receipt = decide_cost_allocation(
+                        &actor,
+                        &mut repository,
+                        &allocation_id,
+                        &command,
+                        &key,
+                        now,
+                    )
+                    .await?;
+                    Ok(receipt)
+                })
+            },
+        )
         .await
     }
 
@@ -1747,8 +1870,11 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                 &'a HoldingId,
                 &'a CompanyId,
                 erpx_server_shared::public::TimestampMillis,
-            ) -> PgWorkFuture<'a, erpx_server_projects::public::project_actuals::ActualCommandReceipt, BusinessError>
-            + Clone
+            ) -> PgWorkFuture<
+                'a,
+                erpx_server_projects::public::project_actuals::ActualCommandReceipt,
+                BusinessError,
+            > + Clone
             + Send
             + Sync
             + 'static,
@@ -1840,8 +1966,13 @@ fn attachment_response_data(
     receipt: &ProjectAttachmentCommandReceipt,
     manifest: &[erpx_server_files::public::project_attachment::ProjectAttachmentManifestItem],
 ) -> Result<Value, BusinessError> {
-    let mut value = serde_json::to_value(receipt)
-        .map_err(|_| BusinessError::new(FailureKind::Unavailable, "PROJECTS_UNAVAILABLE", "The Projects workspace is unavailable."))?;
+    let mut value = serde_json::to_value(receipt).map_err(|_| {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "PROJECTS_UNAVAILABLE",
+            "The Projects workspace is unavailable.",
+        )
+    })?;
     let Value::Object(ref mut object) = value else {
         return Err(BusinessError::new(
             FailureKind::Unavailable,
@@ -2375,7 +2506,6 @@ impl<C: Clock + Send + Sync + 'static> ProjectGraphHttpBackend for ProjectsBacke
         })
     }
 }
-
 
 impl<C: Clock + Send + Sync + 'static> ProjectStructureHttpBackend for ProjectsBackend<C> {
     fn execute<'a>(

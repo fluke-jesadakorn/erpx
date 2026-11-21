@@ -1066,3 +1066,6 @@ export function directHttp(
     outgoing.end(body);
   });
 }
+
+export { nativeWorkflowWrite, isNativeWorkflowWrite, resolveNativeEffects } from '../adapters/native-workflow-write';
+export type { NativeWorkflowWrite, NativeWorkflowContext } from '../adapters/native-workflow-write';

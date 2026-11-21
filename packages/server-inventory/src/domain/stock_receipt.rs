@@ -433,7 +433,7 @@ pub fn validate_stock_receipt_plan(plan: &StockReceiptPlan) -> Result<(), Busine
                     .quarantine_reason
                     .as_deref()
                     .map(js_trim)
-                    .filter(|reason| (1..=2_000).contains(&cp_len(reason)));
+                    .filter(|reason| (3..=2_000).contains(&cp_len(reason)));
                 if quarantined {
                     let due = optional(&allocation.quarantine_due_date, 40)?;
                     if reason.is_none() || due.is_none() {
@@ -735,7 +735,7 @@ pub fn prepare_stock_receipt(
                     .quarantine_reason
                     .as_deref()
                     .map(js_trim)
-                    .filter(|reason| (1..=2_000).contains(&cp_len(reason)))
+                    .filter(|reason| (3..=2_000).contains(&cp_len(reason)))
                     .ok_or_else(|| {
                         invalid(
                             "QUARANTINE_EVIDENCE_REQUIRED",

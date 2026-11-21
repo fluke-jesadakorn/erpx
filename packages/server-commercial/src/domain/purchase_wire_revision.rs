@@ -1,10 +1,17 @@
 //! Legacy TypeScript wire revision. This is presentation data, not authority.
-use crate::domain::{collation::package_id_collator, packages::{CompanyPackageGrant, CompanyPackageHistoryRight}};
+use crate::domain::{
+    collation::package_id_collator,
+    packages::{CompanyPackageGrant, CompanyPackageHistoryRight},
+};
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
 use sha2::{Digest, Sha256};
 
 fn encoding_error() -> BusinessError {
-    BusinessError::new(FailureKind::Unavailable, "COMMERCIAL_WIRE_REVISION_INVALID", "The purchase revision is unavailable.")
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "COMMERCIAL_WIRE_REVISION_INVALID",
+        "The purchase revision is unavailable.",
+    )
 }
 
 fn text(value: &str) -> Result<String, BusinessError> {
@@ -15,7 +22,9 @@ fn text(value: &str) -> Result<String, BusinessError> {
 // become JavaScript Numbers before phase checks and JSON.stringify.
 fn number(value: i64) -> String {
     let value = value as f64;
-    if value == 0.0 { return "0".into(); }
+    if value == 0.0 {
+        return "0".into();
+    }
     ryu_js::Buffer::new().format_finite(value).to_owned()
 }
 
@@ -50,16 +59,43 @@ pub(crate) fn capability_revision_source(
     let mut grant_rows = Vec::new();
     for grant in grants.iter().filter(|g| g.company_id == company_id) {
         let starts = grant.starts_at as f64;
-        let phase = if starts > now { "future" } else if grant.ends_at.is_some_and(|end| (end as f64) <= now) { "expired" } else { "current" };
+        let phase = if starts > now {
+            "future"
+        } else if grant.ends_at.is_some_and(|end| (end as f64) <= now) {
+            "expired"
+        } else {
+            "current"
+        };
         let ends = grant.ends_at.map(number).unwrap_or_else(|| "null".into());
-        grant_rows.push(format!("[{},{},{},{},{},{},{}]", text(&grant.package_id)?, number(grant.package_version), number(grant.version), text(&grant.state)?, number(grant.starts_at), ends, text(phase)?));
+        grant_rows.push(format!(
+            "[{},{},{},{},{},{},{}]",
+            text(&grant.package_id)?,
+            number(grant.package_version),
+            number(grant.version),
+            text(&grant.state)?,
+            number(grant.starts_at),
+            ends,
+            text(phase)?
+        ));
     }
     // sort_by is stable, matching JS sort for localeCompare-equal tuples.
     grant_rows.sort_by(|a, b| collator.compare(a, b));
     let mut history_rows = Vec::new();
     for right in history.iter().filter(|h| h.company_id == company_id) {
-        let phase = if (right.retained_at as f64) > now { "future" } else { "retained" };
-        history_rows.push(format!("[{},{},{},{},{},{}]", text(&right.package_id)?, number(right.package_version), number(right.source_grant_version), text(&right.source_event_id)?, number(right.retained_at), text(phase)?));
+        let phase = if (right.retained_at as f64) > now {
+            "future"
+        } else {
+            "retained"
+        };
+        history_rows.push(format!(
+            "[{},{},{},{},{},{}]",
+            text(&right.package_id)?,
+            number(right.package_version),
+            number(right.source_grant_version),
+            text(&right.source_event_id)?,
+            number(right.retained_at),
+            text(phase)?
+        ));
     }
     history_rows.sort_by(|a, b| collator.compare(a, b));
     Ok(format!(

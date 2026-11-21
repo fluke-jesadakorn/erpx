@@ -115,7 +115,14 @@ fn parse_js_number(text: &str) -> Option<f64> {
     if trimmed.is_empty() {
         return Some(0.0);
     }
-    for (prefix, radix) in [("0x", 16), ("0X", 16), ("0b", 2), ("0B", 2), ("0o", 8), ("0O", 8)] {
+    for (prefix, radix) in [
+        ("0x", 16),
+        ("0X", 16),
+        ("0b", 2),
+        ("0B", 2),
+        ("0o", 8),
+        ("0O", 8),
+    ] {
         if let Some(digits) = trimmed.strip_prefix(prefix) {
             return i64::from_str_radix(digits, radix)
                 .ok()
@@ -307,10 +314,19 @@ mod tests {
         );
         // JavaScript `Number("0x10")` is 16; explicit empty/zero stay invalid.
         assert_eq!(
-            RoutingQuery::parse(&json!({"limit": "0x10"})).unwrap().limit,
+            RoutingQuery::parse(&json!({"limit": "0x10"}))
+                .unwrap()
+                .limit,
             16
         );
-        for limit in [json!(0), json!(51), json!(1.5), json!("many"), json!(null), json!("")] {
+        for limit in [
+            json!(0),
+            json!(51),
+            json!(1.5),
+            json!("many"),
+            json!(null),
+            json!(""),
+        ] {
             assert_eq!(
                 RoutingQuery::parse(&json!({ "limit": limit }))
                     .unwrap_err()
@@ -329,9 +345,7 @@ mod tests {
             "ROUTING_QUERY_INVALID"
         );
         assert_eq!(
-            RoutingQuery::parse(&json!({"after": 7}))
-                .unwrap_err()
-                .code,
+            RoutingQuery::parse(&json!({"after": 7})).unwrap_err().code,
             "ROUTING_QUERY_INVALID"
         );
         assert_eq!(

@@ -140,7 +140,9 @@ fn rendered(current: &AuthorizedWorkContext) -> Result<BrandRenderedWorkContext,
     })
 }
 
-pub(crate) fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, BusinessError> {
+pub(crate) fn command_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<CommandActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();

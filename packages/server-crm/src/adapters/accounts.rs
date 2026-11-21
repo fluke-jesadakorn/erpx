@@ -196,6 +196,8 @@ impl AccountLinkFinanceRepository for PgCrmAccountCreate<'_> {
         plan: &'a AccountLinkFinancePlan,
         now: i64,
     ) -> AccountsFuture<'a, (), Self::Error> {
-        Box::pin(async move { PgCrmAccountCreate::apply_link_finance(self, actor, plan, now).await })
+        Box::pin(
+            async move { PgCrmAccountCreate::apply_link_finance(self, actor, plan, now).await },
+        )
     }
 }

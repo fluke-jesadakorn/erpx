@@ -22,17 +22,17 @@ use erpx_server_identity_access::public::{
     work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_inventory::public::transfers::{
-    TransferAction, TransferActionInput, TransferSaveInput, TransferTransitionPlan, apply_transfer_save,
-    apply_transfer_transition, lock_transfer_sources, plan_save, plan_transition,
-    read_transfer_save_source, read_transfer_transition_source,
+    TransferAction, TransferActionInput, TransferSaveInput, TransferTransitionPlan,
+    apply_transfer_save, apply_transfer_transition, lock_transfer_sources, plan_save,
+    plan_transition, read_transfer_save_source, read_transfer_transition_source,
 };
 use erpx_server_records::public::business_evidence::{
     BusinessEvidenceRequest, prepare_business_evidence,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
-    TimestampMillis,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis,
 };
 use erpx_server_workflow::public::commands::{
     CommandActor, CommandDisposition, CommandJson, PgCommandAuthority, PgCommandLedger,
@@ -57,7 +57,11 @@ fn changed() -> BusinessError {
 
 fn number(record: &str) -> String {
     let digest = Sha256::digest(record.as_bytes());
-    let hex: String = digest.iter().take(12).map(|byte| format!("{byte:02X}")).collect();
+    let hex: String = digest
+        .iter()
+        .take(12)
+        .map(|byte| format!("{byte:02X}"))
+        .collect();
     format!("TR-{hex}")
 }
 
@@ -130,8 +134,15 @@ impl<C: Clock + Send + Sync + 'static> InventoryTransferCommand<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        self.run(host, proof, workspace, TransferWrite::Save(id, input), wire, key)
-            .await
+        self.run(
+            host,
+            proof,
+            workspace,
+            TransferWrite::Save(id, input),
+            wire,
+            key,
+        )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -394,10 +405,7 @@ async fn prepare_evidence(
     plan: &TransferTransitionPlan,
     key: &str,
     now: TimestampMillis,
-) -> Result<
-    Option<erpx_server_files::public::business_evidence::PreparedBusinessEvidence>,
-    Error,
-> {
+) -> Result<Option<erpx_server_files::public::business_evidence::PreparedBusinessEvidence>, Error> {
     if plan.attachment_set_ids.is_empty() {
         return Ok(None);
     }
@@ -507,19 +515,20 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 })
             }
             TransferWrite::Transition(id, action, input) => {
-                let source = read_transfer_transition_source(
-                    c,
-                    self.company.as_str(),
-                    branch,
-                    id,
-                    *action,
-                )
-                .await?;
+                let source =
+                    read_transfer_transition_source(c, self.company.as_str(), branch, id, *action)
+                        .await?;
                 let plan = plan_transition(&source, input, *action, &actor)?;
                 if *action == TransferAction::Post && source.transfer.delivery_mode != "transit" {
-                    self.evidence =
-                        prepare_evidence(c, self.current, self.company, &plan, self.request.key.as_str(), now)
-                            .await?;
+                    self.evidence = prepare_evidence(
+                        c,
+                        self.current,
+                        self.company,
+                        &plan,
+                        self.request.key.as_str(),
+                        now,
+                    )
+                    .await?;
                 }
                 self.prepared = Some(Prepared::Transition(plan.clone()));
                 Ok(WorkflowOutput {

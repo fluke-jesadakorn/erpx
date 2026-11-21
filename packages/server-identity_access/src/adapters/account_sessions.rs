@@ -1,6 +1,6 @@
-use crate::domain::environment::valid_environment;
 use super::account_group_recovery::browser_key;
 use super::account_holding_bindings::ConfiguredHoldingRegistry;
+use crate::domain::environment::valid_environment;
 use crate::{
     application::account_ports::DeviceProof,
     domain::account_auth::{

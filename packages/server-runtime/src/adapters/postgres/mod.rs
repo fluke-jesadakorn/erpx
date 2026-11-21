@@ -1,7 +1,7 @@
 pub(crate) mod attestation;
-pub(crate) mod jobs;
 pub(crate) mod config;
 pub(crate) mod development_lease;
+pub(crate) mod jobs;
 pub(crate) mod migrations;
 pub(crate) mod outbox_supervisor;
 pub(crate) mod pool;
@@ -35,7 +35,11 @@ impl PersistenceError {
     /// snapshot was established. The caller can retry the whole unit under a
     /// fresh snapshot; treating the retained snapshot as current is unsafe.
     pub fn serialization_failure(code: &'static str) -> Self {
-        Self { code, sql_state: Some("40001".into()), context: None }
+        Self {
+            code,
+            sql_state: Some("40001".into()),
+            context: None,
+        }
     }
     /// Classify a NOWAIT conflict from an explicitly guarded pre-snapshot
     /// source lock. Other SQL errors retain their ordinary classification.

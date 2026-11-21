@@ -70,9 +70,15 @@ pub(super) async fn assemble(
         return Err("FIELD_FILES_DATABASES_INVALID");
     }
     eprintln!("FFA_72_BEFORE");
-    let bytes = serde_json::to_vec(raw).map_err(|e| {{ eprintln!("FFA_72_SERDE {{e}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
+    let bytes = serde_json::to_vec(raw).map_err(|e| {
+        eprintln!("FFA_72_SERDE {{e}}");
+        "FIELD_FILES_CONFIGURATION_INVALID"
+    })?;
     let targets = parse_field_files_runtime_configuration(&bytes, &config.holdings_registry)
-        .map_err(|e| {{ eprintln!("FFA_74_PARSE {{e:?}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
+        .map_err(|e| {
+            eprintln!("FFA_74_PARSE {{e:?}}");
+            "FIELD_FILES_CONFIGURATION_INVALID"
+        })?;
     let reviewed = config
         .holdings
         .iter()
@@ -88,12 +94,18 @@ pub(super) async fn assemble(
             .holdings
             .iter()
             .find(|h| h.registration.holding_id == t.holding_id)
-            .ok_or_else(|| {{ eprintln!("FFA_89_HOLDING"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
+            .ok_or_else(|| {
+                eprintln!("FFA_89_HOLDING");
+                "FIELD_FILES_CONFIGURATION_INVALID"
+            })?;
         let root = t
             .providers
             .files_roots
             .get(&h.registration.files_binding)
-            .ok_or_else(|| {{ eprintln!("FFA_94_ROOT"); "FIELD_FILES_CONFIGURATION_INVALID" }})?
+            .ok_or_else(|| {
+                eprintln!("FFA_94_ROOT");
+                "FIELD_FILES_CONFIGURATION_INVALID"
+            })?
             .clone();
         let entry = grouped
             .entry(t.holding_id.clone())
@@ -112,7 +124,10 @@ pub(super) async fn assemble(
                 company_id: t.company_id,
             },
         )
-        .map_err(|e| {{ eprintln!("FFA_112_SCANCFG {{e:?}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
+        .map_err(|e| {
+            eprintln!("FFA_112_SCANCFG {{e:?}}");
+            "FIELD_FILES_CONFIGURATION_INVALID"
+        })?;
         scan_targets.push(FieldFilesScanTarget {
             databases: databases.clone(),
             providers: t.providers.clone(),
@@ -140,8 +155,10 @@ pub(super) async fn assemble(
         }
     }
     let result = (|| {
-        let catalogue =
-            Arc::new(current_package_catalogue().map_err(|e| {{ eprintln!("FFA_141_CATALOGUE {{e:?}}"); "FIELD_FILES_CONFIGURATION_INVALID" }})?);
+        let catalogue = Arc::new(current_package_catalogue().map_err(|e| {
+            eprintln!("FFA_141_CATALOGUE {{e:?}}");
+            "FIELD_FILES_CONFIGURATION_INVALID"
+        })?);
         let mut intake = Vec::new();
         let mut uploads = Vec::new();
         #[cfg(feature = "finance-field-write")]
@@ -160,7 +177,10 @@ pub(super) async fn assemble(
                 .iter()
                 .enumerate()
                 .find(|(_, h)| h.registration.holding_id == holding_id)
-                .ok_or_else(|| {{ eprintln!("FFA_160_HOLDING2"); "FIELD_FILES_CONFIGURATION_INVALID" }})?;
+                .ok_or_else(|| {
+                    eprintln!("FFA_160_HOLDING2");
+                    "FIELD_FILES_CONFIGURATION_INVALID"
+                })?;
             let authorizer = Arc::new(
                 HoldingWorkAuthorizer::new(
                     pools[0].clone(),
@@ -350,10 +370,16 @@ pub(super) async fn run_workers(
                     .as_ref()
                     .ok_or("FIELD_FILES_CONFIGURATION_INVALID")?;
                 let targets = parse_field_files_runtime_configuration(
-                    &serde_json::to_vec(raw).map_err(|e| { eprintln!("FFU_P1"); "FIELD_FILES_CONFIGURATION_INVALID" })?,
+                    &serde_json::to_vec(raw).map_err(|e| {
+                        eprintln!("FFU_P1");
+                        "FIELD_FILES_CONFIGURATION_INVALID"
+                    })?,
                     &config.holdings_registry,
                 )
-                .map_err(|e| { eprintln!("FFU_P2 {e:?}"); "FIELD_FILES_CONFIGURATION_INVALID" })?;
+                .map_err(|e| {
+                    eprintln!("FFU_P2 {e:?}");
+                    "FIELD_FILES_CONFIGURATION_INVALID"
+                })?;
                 eprintln!("FFU_COUNTS targets={{targets.len()}} workers={{workers.len()}}");
                 if targets.len() != workers.len() {
                     eprintln!("FFU_LEN_MISMATCH");

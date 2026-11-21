@@ -25,7 +25,9 @@ pub async fn require_organization_authority_sources_held(
         return Err(PersistenceError::new("ORGANIZATION_AUTHORITY_TRANSACTION_REQUIRED").into());
     }
     let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=3 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('organization_nodes'::regclass,'authority_seats'::regclass,'organization_positions'::regclass) AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')").fetch_one(connection).await?;
-    if !held{return Err(PersistenceError::new("ORGANIZATION_AUTHORITY_LOCKS_REQUIRED").into());}
+    if !held {
+        return Err(PersistenceError::new("ORGANIZATION_AUTHORITY_LOCKS_REQUIRED").into());
+    }
     Ok(())
 }
 pub struct PgOrganizationAuthorityReader<'c> {
@@ -62,31 +64,49 @@ impl<'c> PgOrganizationAuthorityReader<'c> {
 /// witnesses source identity only, not actor authority, contents, source-lock
 /// timing or protection against concurrent DDL.
 pub struct CurrentOrganizationSalesAuthorityBoundary {
-    unit: (String,i32,String,String),
-    boundary: (String,String,Vec<i64>),
+    unit: (String, i32, String, String),
+    boundary: (String, String, Vec<i64>),
 }
 impl CurrentOrganizationSalesAuthorityBoundary {
-    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),PgTransactionError<BusinessError>> {
-        if organization_sales_unit(c).await? != self.unit || organization_sales_boundary(c).await? != self.boundary {
-            return Err(PersistenceError::new("ORGANIZATION_SALES_AUTHORITY_SOURCE_CHANGED").into());
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        if organization_sales_unit(c).await? != self.unit
+            || organization_sales_boundary(c).await? != self.boundary
+        {
+            return Err(
+                PersistenceError::new("ORGANIZATION_SALES_AUTHORITY_SOURCE_CHANGED").into(),
+            );
         }
         Ok(())
     }
 }
 /// Caller must set the canonical path and acquire all owner source locks before
 /// the first snapshot. This checks currently held Organization locks only.
-pub async fn inspect_organization_sales_authority_boundary(c:&mut PgConnection)->Result<CurrentOrganizationSalesAuthorityBoundary,PgTransactionError<BusinessError>> {
-    let unit=organization_sales_unit(c).await?;
-    let boundary=organization_sales_boundary(c).await?;
-    Ok(CurrentOrganizationSalesAuthorityBoundary{unit,boundary})
+pub async fn inspect_organization_sales_authority_boundary(
+    c: &mut PgConnection,
+) -> Result<CurrentOrganizationSalesAuthorityBoundary, PgTransactionError<BusinessError>> {
+    let unit = organization_sales_unit(c).await?;
+    let boundary = organization_sales_boundary(c).await?;
+    Ok(CurrentOrganizationSalesAuthorityBoundary { unit, boundary })
 }
-async fn organization_sales_unit(c:&mut PgConnection)->Result<(String,i32,String,String),PgTransactionError<BusinessError>> {
-    if !c.is_in_transaction() || sqlx::query_scalar::<_,String>("SHOW transaction_isolation").fetch_one(&mut *c).await? != "serializable" {
+async fn organization_sales_unit(
+    c: &mut PgConnection,
+) -> Result<(String, i32, String, String), PgTransactionError<BusinessError>> {
+    if !c.is_in_transaction()
+        || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+            .fetch_one(&mut *c)
+            .await?
+            != "serializable"
+    {
         return Err(PersistenceError::new("ORGANIZATION_AUTHORITY_TRANSACTION_REQUIRED").into());
     }
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
 }
-async fn organization_sales_boundary(c:&mut PgConnection)->Result<(String,String,Vec<i64>),PgTransactionError<BusinessError>> {
+async fn organization_sales_boundary(
+    c: &mut PgConnection,
+) -> Result<(String, String, Vec<i64>), PgTransactionError<BusinessError>> {
     let (valid,role,session,oids):(bool,String,String,Vec<i64>)=sqlx::query_as(r#"
       WITH names(name) AS (SELECT unnest(ARRAY['organization_nodes','authority_seats','organization_positions']::text[])),
       rels AS (SELECT n.name,to_regclass('public.'||n.name) oid FROM names n)
@@ -94,6 +114,8 @@ async fn organization_sales_boundary(c:&mut PgConnection)->Result<(String,String
        AND (SELECT count(*)=3 AND bool_and(c.oid IS NOT NULL AND c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND NOT row_security_active(c.oid) AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))) FROM rels r LEFT JOIN pg_class c ON c.oid=r.oid),
        current_user::text,session_user::text,(SELECT array_agg(r.oid::oid::bigint ORDER BY r.name) FROM rels r)
     "#).fetch_one(c).await?;
-    if !valid {return Err(PersistenceError::new("ORGANIZATION_SALES_AUTHORITY_SOURCE_REQUIRED").into());}
-    Ok((role,session,oids))
+    if !valid {
+        return Err(PersistenceError::new("ORGANIZATION_SALES_AUTHORITY_SOURCE_REQUIRED").into());
+    }
+    Ok((role, session, oids))
 }

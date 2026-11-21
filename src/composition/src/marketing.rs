@@ -476,8 +476,14 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                         let actor = marketing_actor(current)?;
                         let now = clock.now();
                         let catalogue = current_package_catalogue()?;
-                        let replayed =
-                            command_replayed(connection, &key, &actor, "marketing.candidate.engagement", &candidate_id).await?;
+                        let replayed = command_replayed(
+                            connection,
+                            &key,
+                            &actor,
+                            "marketing.candidate.engagement",
+                            &candidate_id,
+                        )
+                        .await?;
                         let purpose = if replayed {
                             CapabilityPurpose::History
                         } else {
@@ -596,12 +602,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             CapabilityPurpose::NewWork
                         };
                         let witness = marketing_purchase_witness(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            purpose,
-                            now,
+                            connection, &holding, &company, &catalogue, purpose, now,
                         )
                         .await?;
                         let before = campaign_set_witness(connection, &actor, &record_id).await?;
@@ -620,12 +621,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             return Err(source_changed().into());
                         }
                         revalidate_marketing_purchase(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            &witness,
-                            now,
+                            connection, &holding, &company, &catalogue, &witness, now,
                         )
                         .await?;
                         Ok(receipt)
@@ -691,12 +687,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             CapabilityPurpose::NewWork
                         };
                         let witness = marketing_purchase_witness(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            purpose,
-                            now,
+                            connection, &holding, &company, &catalogue, purpose, now,
                         )
                         .await?;
                         let before = candidate_form_witness(
@@ -727,12 +718,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             return Err(source_changed().into());
                         }
                         revalidate_marketing_purchase(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            &witness,
-                            now,
+                            connection, &holding, &company, &catalogue, &witness, now,
                         )
                         .await?;
                         Ok(receipt)
@@ -797,12 +783,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             CapabilityPurpose::NewWork
                         };
                         let witness = marketing_purchase_witness(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            purpose,
-                            now,
+                            connection, &holding, &company, &catalogue, purpose, now,
                         )
                         .await?;
                         let before = asset_set_witness(connection, &actor, &record_id).await?;
@@ -821,12 +802,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             return Err(source_changed().into());
                         }
                         revalidate_marketing_purchase(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            &witness,
-                            now,
+                            connection, &holding, &company, &catalogue, &witness, now,
                         )
                         .await?;
                         Ok(receipt)
@@ -896,16 +872,10 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             CapabilityPurpose::SettleExisting
                         };
                         let witness = marketing_purchase_witness(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            purpose,
-                            now,
+                            connection, &holding, &company, &catalogue, purpose, now,
                         )
                         .await?;
-                        let before =
-                            asset_source_witness(connection, &actor, &asset_id).await?;
+                        let before = asset_source_witness(connection, &actor, &asset_id).await?;
                         let receipt = review_marketing_asset(
                             &actor,
                             &asset_id,
@@ -922,12 +892,7 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             return Err(source_changed().into());
                         }
                         revalidate_marketing_purchase(
-                            connection,
-                            &holding,
-                            &company,
-                            &catalogue,
-                            &witness,
-                            now,
+                            connection, &holding, &company, &catalogue, &witness, now,
                         )
                         .await?;
                         Ok(receipt)

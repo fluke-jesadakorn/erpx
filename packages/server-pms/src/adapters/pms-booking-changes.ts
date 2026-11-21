@@ -18,7 +18,8 @@ const signature = (env: BookingEnv, payload: string) => createHmac('sha256', env
 function signed(p: Proposal, env: BookingEnv) { const payload = Buffer.from(JSON.stringify(p)).toString('base64url'); return `${payload}.${signature(env, payload)}`; }
 function read(token: string, env: BookingEnv): Proposal { const [body, sig, extra] = token.split("."), expected = signature(env, body ?? ''); if (extra || !body || !sig || sig.length !== expected.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
     throw new ApiError(422, 'PMS_PROPOSAL_INVALID', 'Review a new proposal'); return JSON.parse(Buffer.from(body, 'base64url').toString()); }
-function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChangeUnit {
+function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = ''): PmsBookingChangeUnit {
+        const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     return {
         requirePurchase: input => requirePmsPropertyPurchase(db, input),
         readPmsRecords: (facts: {
@@ -61,7 +62,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
         updatePmsBookingChanges: (facts: {
             id: string;
             now: number;
-        }) => db.prepare("UPDATE pms_booking_changes SET state='expired' WHERE reservation_id=? AND state='payment_pending' AND expires_at<=?").bind(facts.id, facts.now).run(),
+        }) => write('pms_w002', [facts.id, facts.now]),
         insertPmsBookingChanges: (facts: {
             key: string;
             id: string;
@@ -72,7 +73,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
             fact6: "payment_pending" | "applied";
             expiresAt: number;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_changes(id,property_id,reservation_id,request_hash,reservation_version,proposal_json,state,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(facts.key, facts.id, facts.id2, facts.digest, facts.version, facts.fact5, facts.fact6, facts.expiresAt, facts.now).run(),
+        }) => write('pms_w003', [facts.key, facts.id, facts.id2, facts.digest, facts.version, facts.fact5, facts.fact6, facts.expiresAt, facts.now]),
         readPosConnections: facts => pmsBookingChangeFacts(db).readPosConnections(facts),
         readPosSettings: facts => pmsBookingChangeFacts(db).readPosSettings(facts),
         insertPmsBookingPayments: (facts: {
@@ -91,7 +92,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
             fact12: string;
             fact13: unknown;
             key: string;
-        }) => db.prepare("INSERT INTO pms_booking_payments(id,property_id,reservation_id,company_id,holding_slug,account_id,livemode,amount_minor,currency,status,expires_at,created_at,updated_at,allocation_json,methods_json,clearing_account,purpose,proposal_id) VALUES(?,?,?,?,?,?,?,?,'THB','payment_pending',?,?,?,?,?,?,'change',?)").bind(facts.attemptId, facts.id, facts.id2, facts.companyId, facts.slug, facts.account_id, facts.livemode, facts.dueNow, facts.expiresAt, facts.now, facts.now2, facts.fact11, facts.fact12, facts.fact13, facts.key).run(),
+        }) => write('pms_w004', [facts.attemptId, facts.id, facts.id2, facts.companyId, facts.slug, facts.account_id, facts.livemode, facts.dueNow, facts.expiresAt, facts.now, facts.now2, facts.fact11, facts.fact12, facts.fact13, facts.key]),
         readPmsBookingChanges3: (facts: {
             proposal_id: string | null;
         }) => db.prepare('SELECT * FROM pms_booking_changes WHERE id=? FOR UPDATE').bind(facts.proposal_id).first<{
@@ -108,24 +109,24 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
             id2: string;
             amount: number;
             now: number;
-        }) => db.prepare('INSERT INTO pms_booking_allocations(id,payment_id,stay_id,guest_account_id,entry_id,amount_minor,created_at) VALUES(?,?,?,?,?,?,?)').bind(facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now).run(),
+        }) => write('pms_w005', [facts.fact0, facts.id, facts.stayId, facts.guestAccountId, facts.id2, facts.amount, facts.now]),
         insertPmsBookingRefundRequests: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             id: string;
             amount_minor: number;
             now: number;
             now2: number;
-        }) => db.prepare("INSERT INTO pms_booking_refund_requests(id,payment_id,amount_minor,allocations_json,reason,requested_by,state,created_at,updated_at) VALUES(?,?,?,'[]','Change payment could not be assigned','system:stripe','requested',?,?)").bind(facts.fact0, facts.id, facts.amount_minor, facts.now, facts.now2).run(),
+        }) => write('pms_w006', [facts.fact0, facts.id, facts.amount_minor, facts.now, facts.now2]),
         updatePmsBookingChanges2: (facts: {
             fact0: "expired" | "applied";
             id: string;
-        }) => db.prepare('UPDATE pms_booking_changes SET state=? WHERE id=?').bind(facts.fact0, facts.id).run(),
+        }) => write('pms_w007', [facts.fact0, facts.id]),
         updatePmsBookingPayments: (facts: {
             fact0: "confirmed" | "expired" | "refund_review";
             fact1: "requested" | null;
             now: number;
             id: string;
-        }) => db.prepare('UPDATE pms_booking_payments SET status=?,refund_state=?,updated_at=? WHERE id=?').bind(facts.fact0, facts.fact1, facts.now, facts.id).run(),
+        }) => write('pms_w008', [facts.fact0, facts.fact1, facts.now, facts.id]),
         authorizedBooking: (arg0: string, arg1: number, arg2: boolean) => authorizedBooking(db, arg0, arg1, arg2),
         bookingSnapshot: (arg0: string, arg1: undefined, arg2: boolean) => bookingSnapshot(db, arg0, arg1, arg2),
         assertProductionModuleEnabled: (arg0: string, arg1: "pms") => assertProductionModuleEnabled(db, arg0, arg1),
@@ -150,10 +151,10 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
         bookingCheckout: (arg0: string, arg1: string, arg2: BookingEnv, arg3: number) => bookingCheckout(requireWhole(whole), arg0, arg1, arg2, arg3)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsBookingChangeRepository { return { ...unit(db, db), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db)), purchase) }; }
+function repository(db: TransactionalSqlDatabase, companyId = ''): PmsBookingChangeRepository { return { ...unit(db, db, companyId), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db, companyId)), purchase) }; }
 const application = createPmsBookingChange({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await resolveResources(actor.holdingId)).write), bookingSummary: (...args) => bookingSummary(...args), signed, read });
-export function publicChangeQuote(db: TransactionalSqlDatabase, token: string, kind: 'change' | 'cancel', raw: unknown, env: BookingEnv, now = Date.now(), staff?: StaffAuthority) { return application.publicChangeQuote(repository(db), token, kind, raw, env, now, staff); }
-export function confirmBookingChange(db: TransactionalSqlDatabase, slug: string, token: string, proposalToken: string, key: string, env: BookingEnv, now = Date.now(), staff?: StaffAuthority, expectedKind?: 'change' | 'cancel') { return application.confirmBookingChange(repository(db), slug, token, proposalToken, key, env, now, staff, expectedKind); }
+export function publicChangeQuote(db: TransactionalSqlDatabase, token: string, kind: 'change' | 'cancel', raw: unknown, env: BookingEnv, now = Date.now(), staff?: StaffAuthority) { return application.publicChangeQuote(repository(db, staff?.actor.companyId ?? ''), token, kind, raw, env, now, staff); }
+export function confirmBookingChange(db: TransactionalSqlDatabase, slug: string, token: string, proposalToken: string, key: string, env: BookingEnv, now = Date.now(), staff?: StaffAuthority, expectedKind?: 'change' | 'cancel') { return application.confirmBookingChange(repository(db, staff?.actor.companyId ?? ''), slug, token, proposalToken, key, env, now, staff, expectedKind); }
 export function settleBookingChange(tx: SqlDatabase, s: Snapshot, payment: BookingPaymentRow, result: {
     paid: boolean;
     providerSucceededAt: number | null;
@@ -161,5 +162,6 @@ export function settleBookingChange(tx: SqlDatabase, s: Snapshot, payment: Booki
     env: BookingEnv;
 }) { return application.settleBookingChange(unit(tx, undefined), s, payment, result); }
 import { pmsBookingChangeFacts } from "@erpx/server-pos/public/pms-booking-change-facts";
+import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
 function requireWhole(db: TransactionalSqlDatabase | undefined): TransactionalSqlDatabase { if (!db)
     throw new Error("A booking checkout requires the owning transaction-capable connection"); return db; }

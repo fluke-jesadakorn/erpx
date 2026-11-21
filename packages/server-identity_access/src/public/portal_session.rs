@@ -6,6 +6,6 @@
 //! enrollment before treating this as a `PortalCustomer`.
 pub use crate::adapters::portal_session::{require_current_portal_session, verify_portal_session};
 pub use crate::domain::portal_session::{
-    valid_audience, valid_session_token, PortalSessionProof, PortalSessionReadRequest,
-    MAX_PORTAL_AUDIENCE, MAX_PORTAL_SESSION_TOKEN,
+    MAX_PORTAL_AUDIENCE, MAX_PORTAL_SESSION_TOKEN, PortalSessionProof, PortalSessionReadRequest,
+    valid_audience, valid_session_token,
 };

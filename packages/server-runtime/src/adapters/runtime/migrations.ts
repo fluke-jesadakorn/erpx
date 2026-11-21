@@ -1,3 +1,4 @@
+import { nativeRuntimeExecuteSystem } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
 import { runtimeResourcePath } from "@erpx/server-runtime/adapters/runtime/resources";
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
@@ -86,7 +87,7 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
         continue;
       }
       await client.query('BEGIN');
-      try { await client.query(sql); await client.query('INSERT INTO erpx_migrations(name,checksum) VALUES($1,$2)', [name,checksum]); await client.query('COMMIT'); }
+      try { await client.query(sql); await nativeRuntimeExecuteSystem('', 'runtime_stmt_22', [name, checksum], `migration-${name}-${checksum}`); await client.query('COMMIT'); }
       catch (error) { await client.query('ROLLBACK'); throw error; }
     }
     await refreshCoverage(client, track);

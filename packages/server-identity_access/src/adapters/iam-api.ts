@@ -1,3 +1,5 @@
+import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {identitySnapshotSources as manageerpxSnapshotSources} from '@erpx/server-manage_erpx/public/identity-snapshot-sources';
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
@@ -43,7 +45,7 @@ import {nativeAccountHttp} from "@erpx/server-identity_access/public/native-acco
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
-import { runtimeEnv, activeHoldingBindings, holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
+import { runtimeEnv, activeHoldingBindings } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { iamPermission } from "@erpx/server-identity_access/public/iam-context";
 import {
@@ -206,24 +208,15 @@ export async function iamAccountApi(request: Request, path: string[]) {
           .bind(id, actor.userId)
           .first()
       ) {
-        for (const holding of await activeHoldingBindings())
-          await (
-            await holdingResources(holding.id)
-          ).write
-            .prepare(
-              "INSERT INTO iam_revoked_sessions SELECT DISTINCT ?,company_id,user_id,? FROM assignments WHERE user_id=? ON CONFLICT DO NOTHING",
-            )
+        for (const _holding of await activeHoldingBindings())
+          await nativePrepare("w_52777ef4470d")
             .bind(id, Date.now(), actor.userId)
             .run();
-        await env.CONTROL_DB.prepare(
-          "INSERT INTO iam_revoked_sessions VALUES(?,'platform',?,?) ON CONFLICT DO NOTHING",
-        )
+        await nativePrepare("w_1a1bf71b659f")
           .bind(id, actor.userId, Date.now())
           .run();
       }
-      await env.CONTROL_DB.prepare(
-        'DELETE FROM session WHERE id=? AND "userId"=?',
-      )
+      await nativePrepare("w_0668ea9cd0dd")
         .bind(id, actor.userId)
         .run();
       return Response.json(canonicalDestinationLinks({ data: { revoked: true } }));
@@ -402,8 +395,7 @@ export async function iamApi(
               d.reasons.join("; "),
               d.conditions.join("; "),
             ]);
-        await db
-          .prepare("INSERT INTO iam_audit VALUES(?,?,?,?,?,?,?,?)")
+        await nativePrepare("w_e130d1b143d2")
           .bind(
             crypto.randomUUID(),
             actor.companyId,
@@ -505,17 +497,14 @@ export async function iamApi(
         { id: path[1], ...v },
         "iam.manage",
         async (c) => {
-          const changed = await c.query(
-            "UPDATE iam_mappings SET status='revoked',version=version+1 WHERE id=$1 AND company_id=$2 AND version=$3 AND (scope_node_id=$4 OR $5) RETURNING id",
-            [
+          const changed = await nativeIdentityWrite("w_477f64b8b491", [
               path[1],
               actor.companyId,
               v.expectedVersion,
               actor.scopeNodeId,
               ["holding", "platform"].includes(actor.scopeKind),
-            ],
-          );
-          if (!changed.rowCount)
+            ]);
+          if (!changed.rows)
             throw new ApiError(
               409,
               "MAPPING_CHANGED",
@@ -573,11 +562,8 @@ export async function iamApi(
                 "SELF_ACCESS_CHANGE",
                 "Another person must approve your restoration.",
               );
-            const changed = await c.query(
-              "UPDATE iam_members SET status='active',version=version+1 WHERE company_id=$1 AND user_id=$2 AND status='suspended' AND version=$3 RETURNING user_id",
-              [actor.companyId, p.userId, p.version],
-            );
-            if (!changed.rowCount)
+            const changed = await nativeIdentityWrite("w_d0707ba38dc2", [actor.companyId, p.userId, p.version]);
+            if (!changed.rows)
               throw new ApiError(
                 409,
                 "IDENTITY_CHANGED",
@@ -689,15 +675,9 @@ export async function iamApi(
               .all<{ id: string }>()
           ).results;
           for (const session of sessions)
-            await c.query(
-              "INSERT INTO iam_revoked_sessions VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-              [session.id, actor.companyId, userId, Date.now()],
-            );
+            await nativeIdentityWrite("w_d162e4b42ba4", [session.id, actor.companyId, userId, Date.now()]);
           if (!actor.platform)
-            await c.query(
-              "UPDATE active_work_contexts SET assignment_id=NULL,assignment_version=NULL,revision=revision+1 WHERE company_id=$1 AND user_id=$2",
-              [actor.companyId, userId],
-            );
+            await nativeIdentityWrite("w_8774a0e28e6e", [actor.companyId, userId]);
           return {
             revoked: sessions.length,
             message: "Company sessions revoked. The user must sign in again.",
@@ -804,15 +784,9 @@ export async function iamApi(
               "PROTECTED_IDENTITY",
               "Emergency access requires an independent review.",
             );
-          await c.query(
-            "INSERT INTO iam_members(company_id,user_id,principal_id,status) VALUES($1,$2,$3,'suspended') ON CONFLICT(company_id,user_id) DO UPDATE SET status='suspended',version=iam_members.version+1",
-            [actor.companyId, userId, `local:${userId}`],
-          );
+          await nativeIdentityWrite("w_f78e88caed87", [actor.companyId, userId, `local:${userId}`]);
           if (!actor.platform)
-            await c.query(
-              "UPDATE active_work_contexts SET assignment_id=NULL,assignment_version=NULL,revision=revision+1 WHERE company_id=$1 AND user_id=$2",
-              [actor.companyId, userId],
-            );
+            await nativeIdentityWrite("w_8774a0e28e6e", [actor.companyId, userId]);
           return { suspended: true };
         },
       );

@@ -823,7 +823,6 @@ fn to_workflow(error: Error) -> WorkflowError {
 
 mod field_service_parts;
 pub use field_service_parts::{
-    field_service_parts_journal_label,
     CurrentFieldServicePartsJournalTarget, FieldServicePartsJournalFacts,
-    inspect_field_service_parts_journal_target,
+    field_service_parts_journal_label, inspect_field_service_parts_journal_target,
 };

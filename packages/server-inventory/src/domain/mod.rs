@@ -1,4 +1,5 @@
 pub(crate) mod movement;
+pub(crate) mod native_command;
 pub(crate) mod stock_register;
 pub(crate) mod stock_receipt;
 pub(crate) mod stock_issue;

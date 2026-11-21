@@ -4,7 +4,7 @@
 //! assignment inside the caller's serializable transaction. Audiences that
 //! need another owner's policy (project, PMS record, handover source) fail
 //! closed until that owner's port is composed.
-use erpx_server_runtime::public::postgres::{PgTransactionError, PersistenceError};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -168,13 +168,31 @@ mod tests {
 
     #[test]
     fn snapshot_hash_orders_comments_by_id() {
-        let post = SourceItem { id: "p", body: "body", author: "author", version: 1 };
-        let a = SourceItem { id: "a", body: "a", author: "x", version: 1 };
-        let b = SourceItem { id: "b", body: "b", author: "y", version: 1 };
+        let post = SourceItem {
+            id: "p",
+            body: "body",
+            author: "author",
+            version: 1,
+        };
+        let a = SourceItem {
+            id: "a",
+            body: "a",
+            author: "x",
+            version: 1,
+        };
+        let b = SourceItem {
+            id: "b",
+            body: "b",
+            author: "y",
+            version: 1,
+        };
         assert_eq!(
             source_hash(&post, &[b.clone(), a.clone()]),
             source_hash(&post, &[a, b])
         );
-        assert_ne!(source_hash(&post, &[]), source_hash(&post, &[]).replace('0', "1"));
+        assert_ne!(
+            source_hash(&post, &[]),
+            source_hash(&post, &[]).replace('0', "1")
+        );
     }
 }

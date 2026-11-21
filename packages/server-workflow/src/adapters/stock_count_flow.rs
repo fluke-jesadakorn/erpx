@@ -161,7 +161,11 @@ async fn capture(
     let defaults = defaults.ok_or_else(invalid)?;
     let company_defaults = read_company_defaults(c, company, None).await?;
     let events = read_events(c, company, count, None).await?;
-    if defaults.len() + company_defaults.len() + events.len() + route.as_ref().map_or(0, |r| r.steps.len()) > 2 * 1024 * 1024
+    if defaults.len()
+        + company_defaults.len()
+        + events.len()
+        + route.as_ref().map_or(0, |r| r.steps.len())
+        > 2 * 1024 * 1024
     {
         return Err(invalid());
     }
@@ -173,7 +177,11 @@ async fn capture(
         events,
     })
 }
-async fn read_company_defaults(c: &mut PgConnection, company: &str, except: Option<i64>) -> Result<String, Error> {
+async fn read_company_defaults(
+    c: &mut PgConnection,
+    company: &str,
+    except: Option<i64>,
+) -> Result<String, Error> {
     let result: Option<String> = sqlx::query_scalar("WITH rows AS MATERIALIZED (SELECT to_jsonb(d) value,revision FROM flow_defaults d WHERE company_id=$1 AND ($2::bigint IS NULL OR revision<>$2) ORDER BY revision LIMIT 501), stats AS (SELECT count(*) n,COALESCE(sum(octet_length(value::text)),0) bytes FROM rows) SELECT CASE WHEN n<=500 AND bytes<=2097152 THEN COALESCE((SELECT jsonb_agg(value ORDER BY revision) FROM rows),'[]'::jsonb)::text END FROM stats").bind(company).bind(except).fetch_one(&mut *c).await?;
     result.ok_or_else(invalid)
 }
@@ -375,8 +383,13 @@ impl StockCountFlowActionWitness {
             .and_then(|s| s.get("primaryUserId"))
             .and_then(Value::as_str);
         let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM flow_events WHERE id=$1 AND command_id=$2 AND company_id=$3 AND kind='stock_count' AND record_id=$4 AND step_key=$5 AND action=$6 AND actor_user_id=$7 AND actor_name=$8 AND reason=$9 AND record_version=$10 AND created_at=$11 AND next_step_key=$12 AND next_user_id IS NOT DISTINCT FROM $13)").bind(&self.event).bind(&self.command).bind(&self.basis.company).bind(&self.basis.count).bind(&self.step).bind(&self.action).bind(&self.actor).bind(&self.actor_name).bind(&self.reason).bind(self.record_version).bind(self.now).bind(result_status).bind(recipient).fetch_one(&mut *c).await?;
-        let command_events: i64 = sqlx::query_scalar("SELECT count(*) FROM flow_events WHERE command_id=$1").bind(&self.command).fetch_one(&mut *c).await?;
-        if !exists || command_events != 1
+        let command_events: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM flow_events WHERE command_id=$1")
+                .bind(&self.command)
+                .fetch_one(&mut *c)
+                .await?;
+        if !exists
+            || command_events != 1
             || read_events(c, &self.basis.company, &self.basis.count, Some(&self.event)).await?
                 != self.basis.image.events
         {
@@ -431,7 +444,12 @@ impl StockCountFlowAssignmentWitness {
     ) -> Result<Self, Error> {
         Self::prepare_with_default(basis, view, input, false)
     }
-    pub fn prepare_with_default(basis: StockCountFlowBasis, view: &StockCountFlowView, input: StockCountFlowAssignmentRequest<'_>, save_default: bool) -> Result<Self, Error> {
+    pub fn prepare_with_default(
+        basis: StockCountFlowBasis,
+        view: &StockCountFlowView,
+        input: StockCountFlowAssignmentRequest<'_>,
+        save_default: bool,
+    ) -> Result<Self, Error> {
         validate_view(&basis, view)?;
         if cp_len(js_trim(input.reason)) < 3
             || cp_len(js_trim(input.reason)) > 2000
@@ -549,21 +567,42 @@ impl StockCountFlowAssignmentWitness {
         )
         .await?;
         if current.route.as_ref() != Some(&self.route)
-            || current.max_revision != self.default_revision.get().copied().map_or(self.basis.image.max_revision, |v| v.max(self.basis.image.max_revision))
+            || current.max_revision
+                != self
+                    .default_revision
+                    .get()
+                    .copied()
+                    .map_or(self.basis.image.max_revision, |v| {
+                        v.max(self.basis.image.max_revision)
+                    })
             || current.defaults != self.basis.image.defaults
         {
             return Err(changed());
         }
-        if read_company_defaults(c, &self.basis.company, self.default_revision.get().copied()).await? != self.basis.image.company_defaults { return Err(changed()); }
+        if read_company_defaults(c, &self.basis.company, self.default_revision.get().copied())
+            .await?
+            != self.basis.image.company_defaults
+        {
+            return Err(changed());
+        }
         if self.save_default {
             let revision = *self.default_revision.get().ok_or_else(changed)?;
             let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM flow_defaults WHERE revision=$1 AND company_id=$2 AND kind='stock_count' AND step_key=$3 AND branch_id=$4 AND department_id IS NULL AND primary_user_id=$5 AND created_by=$6 AND reason=$7 AND created_at=$8)").bind(revision).bind(&self.basis.company).bind(self.step.key()).bind(&self.basis.branch).bind(&self.person.user_id).bind(&self.actor).bind(&self.reason).bind(self.now).fetch_one(&mut *c).await?;
-            if !valid { return Err(changed()); }
-        } else if self.default_revision.get().is_some() { return Err(changed()); }
+            if !valid {
+                return Err(changed());
+            }
+        } else if self.default_revision.get().is_some() {
+            return Err(changed());
+        }
         let reason = format!("{} → {}", self.reason, self.person.name);
         let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM flow_events WHERE id=$1 AND command_id=$2 AND company_id=$3 AND kind='stock_count' AND record_id=$4 AND step_key=$5 AND action='assign' AND actor_user_id=$6 AND actor_name=$7 AND reason=$8 AND record_version=$9 AND created_at=$10 AND next_step_key IS NULL AND next_user_id IS NULL)").bind(&self.event).bind(&self.command).bind(&self.basis.company).bind(&self.basis.count).bind(self.step.key()).bind(&self.actor).bind(&self.actor_name).bind(reason).bind(self.record_version).bind(self.now).fetch_one(&mut *c).await?;
-        let command_events: i64 = sqlx::query_scalar("SELECT count(*) FROM flow_events WHERE command_id=$1").bind(&self.command).fetch_one(&mut *c).await?;
-        if !exists || command_events != 1
+        let command_events: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM flow_events WHERE command_id=$1")
+                .bind(&self.command)
+                .fetch_one(&mut *c)
+                .await?;
+        if !exists
+            || command_events != 1
             || read_events(c, &self.basis.company, &self.basis.count, Some(&self.event)).await?
                 != self.basis.image.events
         {

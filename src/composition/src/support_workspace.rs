@@ -3,6 +3,13 @@
 //! Account session, current IAM authority and the serializable Holding unit are
 //! resolved here; business rules remain in the Support owner adapters.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_customer_authority::public::portal_session::{
+    PgPortalEnrollment, PortalCustomerRequest, PortalSessionEvidence, PortalSessionFuture,
+    PortalSessionVerifier, resolve_portal_customer,
+};
+use erpx_server_identity_access::public::portal_session::{
+    PortalSessionReadRequest, verify_portal_session,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof,
     account_inbound_http::parse_inbound_account_request,
@@ -13,44 +20,37 @@ use erpx_server_identity_access::public::{
     work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_runtime::public::postgres::{DatabasePool, PgUnitOfWork};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_support::public::service_teams::{
+    PgServiceTeams, ServiceTeamActor, ServiceTeamPreview, ServiceTeamResult, preview, save,
+};
+use erpx_server_support::public::service_teams_http::{
+    ServiceTeamHttpBackend, ServiceTeamListHttpRequest, ServiceTeamOptionsHttpRequest,
+    ServiceTeamPreviewHttpRequest, ServiceTeamSaveHttpRequest, SupportHttpFuture,
+};
+use erpx_server_support::public::support_auxiliary::{
+    PgSupportAuxiliaryReads, SupportAlertSourceSnapshot, SupportAuxiliaryReadPorts,
+    SupportAuxiliaryScope, SupportIncidentSourceSnapshot, SupportPolicySourceSnapshot,
+    SupportSalesWorkspace, SupportSessionSourceSnapshot, SupportTicketSourceSnapshot,
+};
+use erpx_server_support::public::support_auxiliary_http::{
+    SupportAuxiliaryHttpBackend, SupportAuxiliaryReadHttpRequest, SupportAuxiliarySourceKind,
+    SupportAuxiliarySourceReply, SupportAuxiliaryWorkspaceHttpRequest,
+};
+use erpx_server_support::public::support_ticket_read::SupportReadScope as OwnerReadScope;
+use erpx_server_support::public::ticket_portal::TicketPortalPorts;
 use erpx_server_support::public::ticket_portal::{
     AcknowledgementResult, BindingStatus, DecisionResult, PgTicketPortal, PortalActor,
     PortalCustomer, PortalProjection, PortalWorkspace, PrepareResult, ResponseResult, acknowledge,
     decide, prepare, respond,
 };
-use erpx_server_support::public::ticket_portal::TicketPortalPorts;
 use erpx_server_support::public::ticket_portal_http::{
     TicketPortalAcknowledgementHttpRequest, TicketPortalCustomerHttpRequest,
     TicketPortalDecisionHttpRequest, TicketPortalHttpBackend, TicketPortalPrepareHttpRequest,
     TicketPortalResponseHttpRequest, TicketPortalWorkspaceHttpRequest,
 };
-use erpx_server_customer_authority::public::portal_session::{
-    PgPortalEnrollment, PortalCustomerRequest, PortalSessionEvidence, PortalSessionFuture,
-    PortalSessionVerifier, resolve_portal_customer,
-};
-use erpx_server_identity_access::public::portal_session::{
-    PortalSessionReadRequest, verify_portal_session,
-};
-use erpx_server_runtime::public::postgres::{DatabasePool, PgUnitOfWork};
-use erpx_server_support::public::service_teams::{
-    PgServiceTeams, ServiceTeamActor, ServiceTeamPreview, ServiceTeamResult, preview, save,
-};
-use erpx_server_support::public::service_teams_http::{
-    ServiceTeamHttpBackend, SupportHttpFuture, ServiceTeamListHttpRequest,
-    ServiceTeamOptionsHttpRequest, ServiceTeamPreviewHttpRequest, ServiceTeamSaveHttpRequest,
-};
-use erpx_server_support::public::support_auxiliary::{
-    PgSupportAuxiliaryReads, SupportAuxiliaryReadPorts, SupportAuxiliaryScope,
-    SupportSalesWorkspace, SupportTicketSourceSnapshot, SupportPolicySourceSnapshot,
-    SupportAlertSourceSnapshot, SupportIncidentSourceSnapshot, SupportSessionSourceSnapshot,
-};
-use erpx_server_support::public::support_auxiliary_http::{
-    SupportAuxiliaryHttpBackend, SupportAuxiliaryReadHttpRequest,
-    SupportAuxiliarySourceKind, SupportAuxiliarySourceReply, SupportAuxiliaryWorkspaceHttpRequest,
-};
-use erpx_server_support::public::support_ticket_read::SupportReadScope as OwnerReadScope;
 use serde_json::Value;
 use sqlx::{Connection, PgConnection};
 use std::sync::Arc;
@@ -220,7 +220,10 @@ fn service_team_actor(current: &AuthorizedWorkContext) -> ServiceTeamActor {
     let assignment = selected.assignment();
     ServiceTeamActor {
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|id| id.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -238,7 +241,10 @@ fn read_scope(current: &AuthorizedWorkContext) -> OwnerReadScope {
     let assignment = selected.assignment();
     OwnerReadScope {
         company_id: workspace.company_id.clone(),
-        branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|id| id.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -315,10 +321,7 @@ impl<C: Clock + Send + Sync + 'static> ServiceTeamHttpBackend for SupportWorkspa
         })
     }
 
-    fn list<'a>(
-        &'a self,
-        request: ServiceTeamListHttpRequest<'a>,
-    ) -> SupportHttpFuture<'a, Value> {
+    fn list<'a>(&'a self, request: ServiceTeamListHttpRequest<'a>) -> SupportHttpFuture<'a, Value> {
         Box::pin(async move {
             let (proof, selection) = self.service.context(request.headers)?;
             self.service
@@ -370,7 +373,9 @@ impl<C: Clock + Send + Sync + 'static> ServiceTeamHttpBackend for SupportWorkspa
                                 clock.now().get(),
                             );
                             ports.lock_sources().await?;
-                            preview(&mut ports, &actor, id.as_deref(), &body).await.map_err(Into::into)
+                            preview(&mut ports, &actor, id.as_deref(), &body)
+                                .await
+                                .map_err(Into::into)
                         })
                     },
                 )
@@ -445,9 +450,7 @@ impl<C: Clock + Send + Sync + 'static> ServiceTeamHttpBackend for SupportWorkspa
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> SupportAuxiliaryHttpBackend
-    for SupportWorkspaceBackend<C>
-{
+impl<C: Clock + Send + Sync + 'static> SupportAuxiliaryHttpBackend for SupportWorkspaceBackend<C> {
     fn workspace<'a>(
         &'a self,
         request: SupportAuxiliaryWorkspaceHttpRequest<'a>,
@@ -523,7 +526,6 @@ impl<C: Clock + Send + Sync + 'static> SupportAuxiliaryHttpBackend
     }
 }
 
-
 impl<C: Clock + Send + Sync + 'static> SupportWorkspaceService<C> {
     fn cookie_token(headers: &HeaderMap) -> Result<String, BusinessError> {
         let raw = headers
@@ -597,7 +599,10 @@ impl<C: Clock + Send + Sync + 'static> SupportWorkspaceService<C> {
         let workspace = selected.workspace();
         PortalActor {
             company_id: workspace.company_id.as_str().to_owned(),
-            branch_id: workspace.branch_id.as_ref().map(|id| id.as_str().to_owned()),
+            branch_id: workspace
+                .branch_id
+                .as_ref()
+                .map(|id| id.as_str().to_owned()),
             department_id: workspace
                 .department_id
                 .as_ref()
@@ -663,7 +668,6 @@ impl PortalSessionVerifier for SessionVerifier<'_> {
         })
     }
 }
-
 
 impl<C: Clock + Send + Sync + 'static> TicketPortalHttpBackend for SupportWorkspaceBackend<C> {
     fn staff_workspace<'a>(
@@ -819,7 +823,10 @@ impl<C: Clock + Send + Sync + 'static> TicketPortalHttpBackend for SupportWorksp
         request: TicketPortalCustomerHttpRequest<'a>,
     ) -> SupportHttpFuture<'a, PortalProjection> {
         Box::pin(async move {
-            let customer = self.service.portal_customer(request.host, request.headers).await?;
+            let customer = self
+                .service
+                .portal_customer(request.host, request.headers)
+                .await?;
             let mut connection = self
                 .service
                 .holding_pool
@@ -841,7 +848,10 @@ impl<C: Clock + Send + Sync + 'static> TicketPortalHttpBackend for SupportWorksp
         request: TicketPortalAcknowledgementHttpRequest<'a>,
     ) -> SupportHttpFuture<'a, AcknowledgementResult> {
         Box::pin(async move {
-            let customer = self.service.portal_customer(request.host, request.headers).await?;
+            let customer = self
+                .service
+                .portal_customer(request.host, request.headers)
+                .await?;
             let body = request.body.clone();
             let id = request.binding_id.to_owned();
             let key = request.key.as_str().to_owned();
@@ -871,7 +881,6 @@ impl<C: Clock + Send + Sync + 'static> TicketPortalHttpBackend for SupportWorksp
     }
 }
 
-
 fn response_invalid() -> BusinessError {
     BusinessError::invalid("SUPPORT_RESPONSE_INVALID", "Invalid Support result.")
 }
@@ -888,7 +897,9 @@ fn text(value: &Value, key: &str) -> Result<String, BusinessError> {
 }
 
 fn number(value: &Value, key: &str) -> Result<i64, BusinessError> {
-    field(value, key).and_then(Value::as_i64).ok_or_else(response_invalid)
+    field(value, key)
+        .and_then(Value::as_i64)
+        .ok_or_else(response_invalid)
 }
 
 fn prepare_result(value: Value) -> Result<PrepareResult, Error> {

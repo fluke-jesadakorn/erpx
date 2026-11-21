@@ -174,13 +174,22 @@ impl JournalPostFlowWitness {
             now,
         })
     }
-    async fn mark_native_field_flow(&self,c:&mut PgConnection)->Result<(),Error>{
+    async fn mark_native_field_flow(&self, c: &mut PgConnection) -> Result<(), Error> {
         let (database,pid,xid,started):(String,i32,String,String)=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(&mut *c).await?;
-        if database!=self.basis.database||pid!=self.basis.backend_pid||xid!=self.basis.transaction_id.to_string()||started!=self.basis.postmaster_started{return Err(changed())}
+        if database != self.basis.database
+            || pid != self.basis.backend_pid
+            || xid != self.basis.transaction_id.to_string()
+            || started != self.basis.postmaster_started
+        {
+            return Err(changed());
+        }
         let route:Value=sqlx::query_scalar("SELECT to_jsonb(r) FROM flow_routes r WHERE company_id=$1 AND kind='journal' AND record_id=$2").bind(self.basis.company.as_str()).bind(&self.basis.journal).fetch_one(&mut *c).await?;
         let event:Value=sqlx::query_scalar("SELECT to_jsonb(e) FROM flow_events e WHERE id=$1 AND command_id=$2 AND company_id=$3 AND kind='journal' AND record_id=$4").bind(&self.event).bind(&self.command).bind(self.basis.company.as_str()).bind(&self.basis.journal).fetch_one(&mut *c).await?;
-        let marker=json!({"database":database,"pid":pid.to_string(),"xid":xid,"started":started,"route":route,"event":event});
-        sqlx::query("SELECT set_config('erpx.field_journal_flow',$1,true)").bind(marker.to_string()).execute(c).await?;
+        let marker = json!({"database":database,"pid":pid.to_string(),"xid":xid,"started":started,"route":route,"event":event});
+        sqlx::query("SELECT set_config('erpx.field_journal_flow',$1,true)")
+            .bind(marker.to_string())
+            .execute(c)
+            .await?;
         Ok(())
     }
     pub async fn apply_before(&self, c: &mut PgConnection) -> Result<(), Error> {

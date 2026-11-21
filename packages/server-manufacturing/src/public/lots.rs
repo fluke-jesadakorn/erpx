@@ -26,6 +26,6 @@ pub use crate::application::lots::{
 pub use crate::domain::lots::{
     Genealogy, MaterialAllocation, MaterialIssueRow, MaterialLotFacts, MaterialLotIssue,
     MaterialLotPlan, OutputAllocation, OutputLot, OutputLotInput, OutputLotPlan, TrackingMode,
-    parse_material_allocation, parse_output_allocation, plan_material_lots, plan_output_lots, validate_material_allocations,
-    scaled_amount,
+    parse_material_allocation, parse_output_allocation, plan_material_lots, plan_output_lots,
+    scaled_amount, validate_material_allocations,
 };

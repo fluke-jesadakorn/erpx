@@ -8,8 +8,8 @@ use erpx_server_people_payroll::public::workflow_projection_source::{
     PeopleProjectionKind, people_projection_source,
 };
 use erpx_server_runtime::public::postgres::{
-    DatabasePool, MigrationFile, MigrationTrack, OutboxAttestation, OutboxHolding,
-    OutboxHandlerRegistry, OutboxJob, OutboxJobHandler, OutboxSupervisor, OutboxSupervisorPolicy,
+    DatabasePool, MigrationFile, MigrationTrack, OutboxAttestation, OutboxHandlerRegistry,
+    OutboxHolding, OutboxJob, OutboxJobHandler, OutboxSupervisor, OutboxSupervisorPolicy,
     WorkerFuture, WorkerOutcome, attest_outbox_holding, record_outbox_attestation,
     run_outbox_supervisor, worker_failure,
 };
@@ -51,7 +51,9 @@ struct OwnerSources<'a> {
     write: &'a mut PgConnection,
 }
 
-fn people_fact(fact: erpx_server_people_payroll::public::workflow_projection_source::PeopleProjectionSource) -> ProjectionSource {
+fn people_fact(
+    fact: erpx_server_people_payroll::public::workflow_projection_source::PeopleProjectionSource,
+) -> ProjectionSource {
     ProjectionSource::new(
         fact.state,
         fact.version,
@@ -65,46 +67,48 @@ impl ProjectionOwnerSources for OwnerSources<'_> {
     fn task<'a>(&'a mut self, id: &'a str) -> ProjectionSourceFuture<'a> {
         let connection = &mut *self.write;
         Box::pin(async move {
-            Ok(
-                task_projection_source(connection, id)
-                    .await?
-                    .map(|fact| {
-                        ProjectionSource::new(
-                            fact.state,
-                            fact.version,
-                            fact.company_id,
-                            fact.branch_id,
-                            fact.department_id,
-                        )
-                    }),
-            )
+            Ok(task_projection_source(connection, id).await?.map(|fact| {
+                ProjectionSource::new(
+                    fact.state,
+                    fact.version,
+                    fact.company_id,
+                    fact.branch_id,
+                    fact.department_id,
+                )
+            }))
         })
     }
 
     fn leave<'a>(&'a mut self, id: &'a str) -> ProjectionSourceFuture<'a> {
         let connection = &mut *self.write;
         Box::pin(async move {
-            Ok(people_projection_source(connection, PeopleProjectionKind::Leave, id)
-                .await?
-                .map(people_fact))
+            Ok(
+                people_projection_source(connection, PeopleProjectionKind::Leave, id)
+                    .await?
+                    .map(people_fact),
+            )
         })
     }
 
     fn overtime<'a>(&'a mut self, id: &'a str) -> ProjectionSourceFuture<'a> {
         let connection = &mut *self.write;
         Box::pin(async move {
-            Ok(people_projection_source(connection, PeopleProjectionKind::Overtime, id)
-                .await?
-                .map(people_fact))
+            Ok(
+                people_projection_source(connection, PeopleProjectionKind::Overtime, id)
+                    .await?
+                    .map(people_fact),
+            )
         })
     }
 
     fn payroll<'a>(&'a mut self, id: &'a str) -> ProjectionSourceFuture<'a> {
         let connection = &mut *self.write;
         Box::pin(async move {
-            Ok(people_projection_source(connection, PeopleProjectionKind::Payroll, id)
-                .await?
-                .map(people_fact))
+            Ok(
+                people_projection_source(connection, PeopleProjectionKind::Payroll, id)
+                    .await?
+                    .map(people_fact),
+            )
         })
     }
 }
@@ -120,9 +124,7 @@ impl PmsSocialPorts for CompositionPmsSocialPorts {
     ) -> PmsSocialFuture<'a, Option<PmsSocialOriginal>> {
         Box::pin(async move {
             erpx_server_workflow::public::job_projector::pms_social_original(
-                connection,
-                event_id,
-                event_type,
+                connection, event_id, event_type,
             )
             .await
         })
@@ -239,12 +241,7 @@ impl PmsSocialPorts for CompositionPmsSocialPorts {
     ) -> PmsSocialFuture<'a, Vec<String>> {
         Box::pin(async move {
             erpx_server_identity_access::public::pms_social_event_recipients::pms_social_recipients(
-                connection,
-                id,
-                company_id,
-                actor_id,
-                review,
-                recipient,
+                connection, id, company_id, actor_id, review, recipient,
             )
             .await
         })
@@ -315,7 +312,9 @@ impl OutboxJobHandler for WorkflowProjectionHandler {
                 write: &mut sources_connection,
             };
             let unit = &mut *projection_connection;
-            let mut unit = unit.begin().await
+            let mut unit = unit
+                .begin()
+                .await
                 .map_err(|_| worker_failure("PROJECTION_DB_UNAVAILABLE"))?;
             if message.event_type.starts_with("pms.") {
                 let mut pms_ports = CompositionPmsSocialPorts;

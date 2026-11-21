@@ -4,7 +4,8 @@
 //! connection/route/member effects. Provider I/O never runs in this unit.
 use super::{
     directory_postgres::{
-        DirectoryRoute, PostgresDirectory, Tx, connection_without_source, limits, unavailable as directory_unavailable,
+        DirectoryRoute, PostgresDirectory, Tx, connection_without_source, limits,
+        unavailable as directory_unavailable,
     },
     directory_source_review::DirectorySourceReviewPreparation,
 };
@@ -42,10 +43,7 @@ pub struct PgDirectoryConnection<'a> {
 }
 
 impl<'a> PgDirectoryConnection<'a> {
-    pub fn new(
-        connection: &'a mut PgConnection,
-        directory: &'a Arc<PostgresDirectory>,
-    ) -> Self {
+    pub fn new(connection: &'a mut PgConnection, directory: &'a Arc<PostgresDirectory>) -> Self {
         Self {
             connection,
             directory,
@@ -57,12 +55,11 @@ impl<'a> PgDirectoryConnection<'a> {
     }
 
     async fn receipt(&mut self, key: &str, hash: &str) -> Result<Option<Value>, Error> {
-        let row = sqlx::query(
-            "SELECT request_hash,result FROM iam_receipts WHERE id=$1 FOR UPDATE",
-        )
-        .bind(key)
-        .fetch_optional(&mut *self.connection)
-        .await?;
+        let row =
+            sqlx::query("SELECT request_hash,result FROM iam_receipts WHERE id=$1 FOR UPDATE")
+                .bind(key)
+                .fetch_optional(&mut *self.connection)
+                .await?;
         let Some(row) = row else { return Ok(None) };
         let actual: String = row.try_get("request_hash")?;
         if actual != hash {
@@ -223,8 +220,16 @@ impl<'a> PgDirectoryConnection<'a> {
             .await?,
         };
         let result = json!({"id": id, "version": input.expected_version + 1, "status": "draft"});
-        self.commit(current, key, &hash, "connection.save", &payload, &result, now)
-            .await?;
+        self.commit(
+            current,
+            key,
+            &hash,
+            "connection.save",
+            &payload,
+            &result,
+            now,
+        )
+        .await?;
         Ok(result)
     }
 
@@ -359,8 +364,16 @@ impl<'a> PgDirectoryConnection<'a> {
             .map(|v| v.len())
             .unwrap_or(0);
         let result = json!({"id": id, "userCount": user_count, "groupCount": group_count, "status": "tested"});
-        self.commit(current, key, &hash, "connection.test", &payload, &result, now)
-            .await?;
+        self.commit(
+            current,
+            key,
+            &hash,
+            "connection.test",
+            &payload,
+            &result,
+            now,
+        )
+        .await?;
         Ok(result)
     }
 
@@ -440,8 +453,16 @@ impl<'a> PgDirectoryConnection<'a> {
             "status": "pending",
             "message": "Activation requires independent review.",
         });
-        self.commit(current, key, &hash, "connection.activate.propose", &payload, &result, now)
-            .await?;
+        self.commit(
+            current,
+            key,
+            &hash,
+            "connection.activate.propose",
+            &payload,
+            &result,
+            now,
+        )
+        .await?;
         Ok(result)
     }
 
@@ -471,11 +492,9 @@ impl<'a> PgDirectoryConnection<'a> {
         .await?
         .rows_affected();
         if changed != 1 {
-            return Err(connection_changed(
-                "CONNECTION_CHANGED",
-                "This connection changed.",
-            )
-            .into());
+            return Err(
+                connection_changed("CONNECTION_CHANGED", "This connection changed.").into(),
+            );
         }
         sqlx::query(
             "UPDATE iam_members SET version=version+1 WHERE connection_id=$1 AND company_id=$2",
@@ -493,8 +512,16 @@ impl<'a> PgDirectoryConnection<'a> {
         .execute(&mut *self.connection)
         .await?;
         let result = json!({"id": id, "status": "disabled"});
-        self.commit(current, key, &hash, "connection.disable", &payload, &result, now)
-            .await?;
+        self.commit(
+            current,
+            key,
+            &hash,
+            "connection.disable",
+            &payload,
+            &result,
+            now,
+        )
+        .await?;
         Ok(result)
     }
 
@@ -544,7 +571,9 @@ pub async fn current_descriptor(
         .begin_with("BEGIN ISOLATION LEVEL READ COMMITTED")
         .await
         .map_err(|_| directory_unavailable())?;
-    limits(&mut source).await.map_err(|_| directory_unavailable())?;
+    limits(&mut source)
+        .await
+        .map_err(|_| directory_unavailable())?;
     let descriptor = connection_without_source(&mut source, id, &route)
         .await
         .map_err(|e| match e {

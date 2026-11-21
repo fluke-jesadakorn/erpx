@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./adapters/native-people-payroll-command": "./src/adapters/native-people-payroll-command.ts",
     "./adapters/expense-ai-source": "./src/adapters/expense-ai-source.ts",
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
     "./adapters/leave": "./src/adapters/leave.ts",

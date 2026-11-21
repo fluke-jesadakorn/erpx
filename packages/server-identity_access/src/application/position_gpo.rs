@@ -6,18 +6,18 @@
 //! transaction, reads an HTTP request or talks to a Directory connector.
 use crate::domain::iam_roles::IamRoleActor;
 use crate::domain::position_gpo::{
-    config_blocked, config_changed, connection_required, delivery_id, idempotency_conflict,
-    inventory_filters, inventory_links, inventory_object, job_changed, mapping_changed,
-    membership_key, position_not_found, preview_changed, readback_invalid, readback_required,
-    revision_id, same_ids, target_invalid, version_conflict, waiting_key, write_not_ready,
-    ClaimRow, ConfigRetryInput, ConfigRow, ConnectionRow, DesiredRow, DirectoryState, FreshMfa,
-    GpoAction, GpoAuthority, HolderRow, Inventory, JobRetryInput, JobRow, JobStateRow, MappingRow,
-    OwnershipRow, PolicyRow, PositionFacts, PositionGpoInput, PreviewResult, PublishInput,
-    RuleStatusRow, UnmapInput, UnmapPublishInput, CONFIG_RETRY_OPERATION, INTERRUPTED_AFTER_MS,
-    PUBLISH_OPERATION, UNMAP_OPERATION,
+    CONFIG_RETRY_OPERATION, ClaimRow, ConfigRetryInput, ConfigRow, ConnectionRow, DesiredRow,
+    DirectoryState, FreshMfa, GpoAction, GpoAuthority, HolderRow, INTERRUPTED_AFTER_MS, Inventory,
+    JobRetryInput, JobRow, JobStateRow, MappingRow, OwnershipRow, PUBLISH_OPERATION, PolicyRow,
+    PositionFacts, PositionGpoInput, PreviewResult, PublishInput, RuleStatusRow, UNMAP_OPERATION,
+    UnmapInput, UnmapPublishInput, config_blocked, config_changed, connection_required,
+    delivery_id, idempotency_conflict, inventory_filters, inventory_links, inventory_object,
+    job_changed, mapping_changed, membership_key, position_not_found, preview_changed,
+    readback_invalid, readback_required, revision_id, same_ids, target_invalid, version_conflict,
+    waiting_key, write_not_ready,
 };
 use erpx_server_shared::public::BusinessError;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
 use std::pin::Pin;
@@ -276,7 +276,7 @@ pub trait PositionGpoRepository {
         now: i64,
     ) -> GpoFuture<'a, (), Self::Error>;
     fn defer_replacement<'a>(&'a mut self, id: &'a str, now: i64)
-        -> GpoFuture<'a, (), Self::Error>;
+    -> GpoFuture<'a, (), Self::Error>;
     fn membership<'a>(
         &'a mut self,
         row: &'a DesiredRow,

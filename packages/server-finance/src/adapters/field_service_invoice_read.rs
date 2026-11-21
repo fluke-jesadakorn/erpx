@@ -97,11 +97,11 @@ pub struct FinanceServiceInvoiceWorkspace {
     #[cfg_attr(feature="contracts",schema(value_type=Vec<Object>))]
     pub thai_documents: Vec<FinanceInvoiceRow>,
     #[cfg_attr(feature="contracts",ts(type="Array<Record<string, unknown>>"),schema(value_type=Vec<Object>))]
-    pub customer_receipts:Vec<FinanceInvoiceRow>,
+    pub customer_receipts: Vec<FinanceInvoiceRow>,
     pub options: FinanceInvoiceOptions,
     pub source: FinanceServiceInvoiceSource,
     #[cfg_attr(feature="contracts",ts(type="Record<string, unknown>"),schema(value_type=Object))]
-    pub posting_preview:serde_json::Value,
+    pub posting_preview: serde_json::Value,
 }
 async fn rows(
     c: &mut PgConnection,
@@ -204,19 +204,48 @@ async fn read(
     let line_history=rows(c,"SELECT jsonb_build_object('source_version',l.source_version,'origin_kind',l.origin_kind,'line_count',count(*),'subtotal_minor',sum(l.subtotal_minor),'tax_minor',sum(l.tax_minor),'created_at',min(l.created_at))::text FROM finance_invoice_line_versions l WHERE l.company_id=$1 AND l.invoice_id=$2 GROUP BY l.source_version,l.origin_kind ORDER BY l.source_version LIMIT 10001",company,id,&mut budget).await?;
     let thai_documents=rows(c,"SELECT jsonb_build_object('id',d.id,'document_number',d.document_number,'document_kind',d.document_kind,'edition',d.edition,'issue_date',d.issue_date)::text FROM finance_issued_thai_documents d WHERE d.company_id=$1 AND d.invoice_id=$2 ORDER BY d.edition LIMIT 10001 FOR SHARE OF d",company,id,&mut budget).await?;
     let customer_receipts=rows(c,"SELECT jsonb_build_object('id',r.id,'document_number',r.document_number,'currency',r.currency,'amount_minor',a.amount_minor,'payment_status',p.status)::text FROM finance_customer_receipts r JOIN finance_payments p ON p.id=r.payment_id AND p.company_id=r.company_id JOIN finance_allocations a ON a.payment_id=p.id AND a.company_id=p.company_id JOIN finance_invoices i ON i.id=a.invoice_id AND i.company_id=a.company_id WHERE i.id=$2 AND i.company_id=$1 ORDER BY r.issued_at,r.id FOR SHARE OF r,p,a,i",company,id,&mut budget).await?;
-    let posting_preview=match invoice.get("status").and_then(|v|v.as_str()) {
-        Some("voided")=>serde_json::json!({"state":"voided"}),
-        Some("no_charge_confirmed")=>serde_json::json!({"state":"no-charge-confirmed"}),
-        _=>{
-            let posted=invoice.get("journal_id").and_then(|v|v.as_str());
-            let preview_lines=if let Some(journal)=posted {
+    let posting_preview = match invoice.get("status").and_then(|v| v.as_str()) {
+        Some("voided") => serde_json::json!({"state":"voided"}),
+        Some("no_charge_confirmed") => serde_json::json!({"state":"no-charge-confirmed"}),
+        _ => {
+            let posted = invoice.get("journal_id").and_then(|v| v.as_str());
+            let preview_lines = if let Some(journal) = posted {
                 rows(c,"SELECT jsonb_build_object('id',l.account_id,'debit',l.debit_minor,'credit',l.credit_minor)::text FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=$1 AND l.journal_id=$2 ORDER BY l.ordinal,l.id FOR SHARE OF l,j",company,journal,&mut budget).await?
-            }else{
-                let amount=|name:&str|invoice.get(name).and_then(|v|v.as_i64()).ok_or_else(denied);
-                let facts=crate::domain::service_invoice_posting::ServiceInvoicePostFacts{version:amount("version")?,subtotal:amount("subtotal_minor")?,tax:amount("tax_minor")?,total:amount("total_minor")?,debit_account:text(&invoice,"debit_account_id")?,credit_account:text(&invoice,"credit_account_id")?,tax_account:invoice.get("tax_account_id").and_then(|v|v.as_str())};
-                crate::domain::service_invoice_posting::service_invoice_preview_lines(&facts)?.into_iter().map(|(id,debit,credit)|std::collections::BTreeMap::from([("id".into(),serde_json::json!(id)),("debit".into(),serde_json::json!(debit)),("credit".into(),serde_json::json!(credit))])).collect()
+            } else {
+                let amount = |name: &str| {
+                    invoice
+                        .get(name)
+                        .and_then(|v| v.as_i64())
+                        .ok_or_else(denied)
+                };
+                let facts = crate::domain::service_invoice_posting::ServiceInvoicePostFacts {
+                    version: amount("version")?,
+                    subtotal: amount("subtotal_minor")?,
+                    tax: amount("tax_minor")?,
+                    total: amount("total_minor")?,
+                    debit_account: text(&invoice, "debit_account_id")?,
+                    credit_account: text(&invoice, "credit_account_id")?,
+                    tax_account: invoice.get("tax_account_id").and_then(|v| v.as_str()),
+                };
+                crate::domain::service_invoice_posting::service_invoice_preview_lines(&facts)?
+                    .into_iter()
+                    .map(|(id, debit, credit)| {
+                        std::collections::BTreeMap::from([
+                            ("id".into(), serde_json::json!(id)),
+                            ("debit".into(), serde_json::json!(debit)),
+                            ("credit".into(), serde_json::json!(credit)),
+                        ])
+                    })
+                    .collect()
             };
-            let sum=|key:&str|preview_lines.iter().try_fold(0i64,|total,line|total.checked_add(line.get(key).and_then(|v|v.as_i64())?)).ok_or_else(limited);
+            let sum = |key: &str| {
+                preview_lines
+                    .iter()
+                    .try_fold(0i64, |total, line| {
+                        total.checked_add(line.get(key).and_then(|v| v.as_i64())?)
+                    })
+                    .ok_or_else(limited)
+            };
             serde_json::json!({"state":"ready","posted":posted.is_some(),"accounts":accounts,"lines":preview_lines,"debit":sum("debit")?,"credit":sum("credit")?})
         }
     };
@@ -256,8 +285,17 @@ impl CurrentFinanceServiceInvoiceWorkspace {
     /// Invoice-payment evidence belongs to supplier bills. This decision uses
     /// the owning, source-qualified invoice rather than a caller's target label.
     pub fn require_payment_evidence(&self) -> Result<(), BusinessError> {
-        if self.data.invoice.get("kind").and_then(serde_json::Value::as_str) != Some("payable") {
-            return Err(BusinessError::invalid("PAYABLE_REQUIRED", "Payment slips belong to supplier bills."));
+        if self
+            .data
+            .invoice
+            .get("kind")
+            .and_then(serde_json::Value::as_str)
+            != Some("payable")
+        {
+            return Err(BusinessError::invalid(
+                "PAYABLE_REQUIRED",
+                "Payment slips belong to supplier bills.",
+            ));
         }
         Ok(())
     }
@@ -288,9 +326,22 @@ pub async fn read_service_invoice_workspace(
 
 /// Finance owns the current journal author exclusion; Workflow never queries
 /// journal tables. Callers re-read this projection before completing the unit.
-pub async fn service_invoice_flow_excluded(c:&mut PgConnection,actor:&FinanceActor,id:&str)->Result<Vec<String>,Error>{
- unit(c).await?;
- let row:Option<(String,Option<String>,Option<String>)>=sqlx::query_as("SELECT i.created_by,i.approved_by,(SELECT j.posted_by FROM finance_journals j WHERE j.id=i.journal_id AND j.company_id=i.company_id) FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2 AND i.source_type='field_service' FOR SHARE OF i").bind(id).bind(actor.company_id.as_str()).fetch_optional(c).await?;
- let(creator,approved,posted)=row.ok_or_else(||BusinessError::new(FailureKind::NotFound,"INVOICE_NOT_FOUND","Invoice not found in this company."))?;
- Ok([Some(creator),approved,posted].into_iter().flatten().collect())
+pub async fn service_invoice_flow_excluded(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &str,
+) -> Result<Vec<String>, Error> {
+    unit(c).await?;
+    let row:Option<(String,Option<String>,Option<String>)>=sqlx::query_as("SELECT i.created_by,i.approved_by,(SELECT j.posted_by FROM finance_journals j WHERE j.id=i.journal_id AND j.company_id=i.company_id) FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2 AND i.source_type='field_service' FOR SHARE OF i").bind(id).bind(actor.company_id.as_str()).fetch_optional(c).await?;
+    let (creator, approved, posted) = row.ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "INVOICE_NOT_FOUND",
+            "Invoice not found in this company.",
+        )
+    })?;
+    Ok([Some(creator), approved, posted]
+        .into_iter()
+        .flatten()
+        .collect())
 }

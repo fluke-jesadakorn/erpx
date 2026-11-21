@@ -15,6 +15,11 @@ use erpx_server_records::public::record_context_http::{
     RecordsContextHttpBackend, RecordsContextHttpCommand, RecordsContextHttpFuture,
     RecordsContextHttpRequest, RecordsContextHttpResponse,
 };
+use erpx_server_records::public::record_details::{RecordDetailsQuery, record_details};
+use erpx_server_records::public::record_details_http::{
+    RecordsDetailsHttpBackend, RecordsDetailsHttpCommand, RecordsDetailsHttpFuture,
+    RecordsDetailsHttpRequest, RecordsDetailsHttpResponse,
+};
 use erpx_server_records::public::record_registry::{
     PgRecordRegistry, RecordRegistryGuard, RecordView, RegistryQuery, record_registry_list,
     record_registry_page,
@@ -22,11 +27,6 @@ use erpx_server_records::public::record_registry::{
 use erpx_server_records::public::record_registry_http::{
     RecordsRegistryHttpBackend, RecordsRegistryHttpCommand, RecordsRegistryHttpFuture,
     RecordsRegistryHttpRequest, RecordsRegistryHttpResponse,
-};
-use erpx_server_records::public::record_details::{RecordDetailsQuery, record_details};
-use erpx_server_records::public::record_details_http::{
-    RecordsDetailsHttpBackend, RecordsDetailsHttpCommand, RecordsDetailsHttpFuture,
-    RecordsDetailsHttpRequest, RecordsDetailsHttpResponse,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -166,7 +166,9 @@ impl RecordRegistryGuard for RecordsRegistryGuardImpl {
     }
 }
 
-pub(crate) fn records_actor(current: &AuthorizedWorkContext) -> Result<RecordContextActor, BusinessError> {
+pub(crate) fn records_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<RecordContextActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
@@ -370,17 +372,12 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
                         current.require_permission("records.read")?;
                         let actor = records_actor(current)?;
                         let now = clock.now().get();
-                        let query = RecordDetailsQuery::new(&module_id, &record_id, Some(&page_text))?;
+                        let query =
+                            RecordDetailsQuery::new(&module_id, &record_id, Some(&page_text))?;
                         let mut repository = PgRecordContext::new(connection);
                         let mut guard = RecordsContextGuardImpl;
-                        let data = record_details(
-                            &mut repository,
-                            &mut guard,
-                            &actor,
-                            &query,
-                            now,
-                        )
-                        .await?;
+                        let data = record_details(&mut repository, &mut guard, &actor, &query, now)
+                            .await?;
                         Ok(RecordsDetailsHttpResponse {
                             data,
                             context: context_value(current),

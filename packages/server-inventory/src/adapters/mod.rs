@@ -1,4 +1,7 @@
 pub(crate) mod commerce_order_cancellation;
+pub(crate) mod native_command_http;
+pub(crate) mod native_command_postgres;
+pub(crate) mod native_command_sql;
 pub(crate) mod quality_origin_allocation_join;
 pub(crate) mod quality_lineage_counts;
 pub(crate) mod movement_read;

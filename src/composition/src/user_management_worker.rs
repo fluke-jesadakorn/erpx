@@ -35,8 +35,7 @@ fn now() -> i64 {
 }
 
 async fn open(url: &str) -> Result<DatabasePool, &'static str> {
-    let config =
-        DatabaseConfig::from_url(url).map_err(|_| "USER_MANAGEMENT_DATABASE_INVALID")?;
+    let config = DatabaseConfig::from_url(url).map_err(|_| "USER_MANAGEMENT_DATABASE_INVALID")?;
     connect_pool(
         &config,
         PoolLimits {

@@ -6,8 +6,8 @@
 //! authority. The delivery claim is the retained single-statement
 //! `FOR UPDATE SKIP LOCKED` lease.
 use crate::application::booking::PmsBookingMailRepository;
-use crate::domain::booking::PmsBookingQueuedMail;
 use crate::application::room_board::PmsBoardFuture;
+use crate::domain::booking::PmsBookingQueuedMail;
 use crate::domain::booking::{
     MAX_SUMMARY_ACCOUNTS, MAX_SUMMARY_ENTRIES, MAX_SUMMARY_ROOMS, PmsBookingEmailClaim,
     PmsBookingEmailRow, PmsBookingMailFacts, PmsBookingMailKind, PmsBookingTokenRef,
@@ -58,10 +58,7 @@ impl<'a> PgPmsBookingMailRepository<'a> {
         Self { connection }
     }
 
-    async fn property(
-        &mut self,
-        property_id: &str,
-    ) -> Result<PmsPropertyRow, Error> {
+    async fn property(&mut self, property_id: &str) -> Result<PmsPropertyRow, Error> {
         let row = sqlx::query(
             "SELECT id,company_id,branch_id,name,business_date,state,config_json,version \
              FROM pms_properties WHERE id=$1",
@@ -309,11 +306,7 @@ impl PmsBookingMailRepository for PgPmsBookingMailRepository<'_> {
         })
     }
 
-    fn mark_sent<'a>(
-        &'a mut self,
-        id: &'a str,
-        now: i64,
-    ) -> PmsBoardFuture<'a, (), Self::Error> {
+    fn mark_sent<'a>(&'a mut self, id: &'a str, now: i64) -> PmsBoardFuture<'a, (), Self::Error> {
         Box::pin(async move {
             sqlx::query(
                 "UPDATE pms_booking_emails SET state='sent',sent_at=$1,lease_until=NULL,last_error=NULL \
@@ -498,15 +491,15 @@ mod fixture;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::fixture;
+    use super::*;
     use crate::application::booking::{
-        PmsBookingMailCipher, PmsBookingMailConfig, PmsBookingPurchaseGuard, authorize_booking_link,
-        booking_rate_limit, deliver_booking_emails, queue_booking_mail,
+        PmsBookingMailCipher, PmsBookingMailConfig, PmsBookingPurchaseGuard,
+        authorize_booking_link, booking_rate_limit, deliver_booking_emails, queue_booking_mail,
     };
     use crate::application::room_board::PmsBoardFuture;
     use crate::domain::booking::{
-        PmsBookingLinkKind, TOKEN_TTL_MS, booking_token_hash, booking_link_token,
+        PmsBookingLinkKind, TOKEN_TTL_MS, booking_link_token, booking_token_hash,
     };
     use erpx_server_runtime::public::postgres::{
         DatabasePool, MigrationTrack, load_migrations, migrate_database,
@@ -558,7 +551,8 @@ mod tests {
     }
 
     async fn migrate(pool: &DatabasePool) {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
         let migrations = load_migrations(&root, MigrationTrack::HoldingWrite)
             .await
             .unwrap();
@@ -606,7 +600,11 @@ mod tests {
                 "guest",
                 json!({"name": "Ada", "email": "ada@example.com"}),
             ),
-            ("type-1", "room_type", json!({"name": "Deluxe", "capacity": 2})),
+            (
+                "type-1",
+                "room_type",
+                json!({"name": "Deluxe", "capacity": 2}),
+            ),
             (
                 "stay-1",
                 "stay",
@@ -630,7 +628,10 @@ mod tests {
         }
     }
 
-    async fn email_state(pool: &DatabasePool, id: &str) -> (String, i64, Option<i64>, Option<String>) {
+    async fn email_state(
+        pool: &DatabasePool,
+        id: &str,
+    ) -> (String, i64, Option<i64>, Option<String>) {
         let row = sqlx::query(
             "SELECT state,attempts,lease_until,last_error FROM pms_booking_emails WHERE id=$1",
         )
@@ -673,29 +674,57 @@ mod tests {
             .await
             .unwrap();
             assert_eq!(queued.expires_at, 1_000 + TOKEN_TTL_MS);
-            assert_eq!(queued.token, booking_link_token("secret", PmsBookingLinkKind::Access, "token-1"));
+            assert_eq!(
+                queued.token,
+                booking_link_token("secret", PmsBookingLinkKind::Access, "token-1")
+            );
 
-            let token_row = sqlx::query("SELECT token_hash,expires_at FROM pms_booking_tokens WHERE id='token-1'")
-                .fetch_one(&mut *repository.connection)
-                .await
-                .unwrap();
-            assert_eq!(token_row.get::<String, _>("token_hash"), booking_token_hash(&queued.token));
+            let token_row = sqlx::query(
+                "SELECT token_hash,expires_at FROM pms_booking_tokens WHERE id='token-1'",
+            )
+            .fetch_one(&mut *repository.connection)
+            .await
+            .unwrap();
+            assert_eq!(
+                token_row.get::<String, _>("token_hash"),
+                booking_token_hash(&queued.token)
+            );
             assert_eq!(token_row.get::<i64, _>("expires_at"), queued.expires_at);
 
-            let reference = authorize_booking_link(&mut repository, &NoopGuard, &queued.token, 1_000)
-                .await
-                .unwrap();
+            let reference =
+                authorize_booking_link(&mut repository, &NoopGuard, &queued.token, 1_000)
+                    .await
+                    .unwrap();
             assert_eq!(reference.property_id, "property");
             assert_eq!(reference.reservation_id, "reservation-1");
-            assert!(authorize_booking_link(&mut repository, &NoopGuard, &queued.token, 1_000 + TOKEN_TTL_MS).await.is_err());
+            assert!(
+                authorize_booking_link(
+                    &mut repository,
+                    &NoopGuard,
+                    &queued.token,
+                    1_000 + TOKEN_TTL_MS
+                )
+                .await
+                .is_err()
+            );
 
             // First claim takes the lease and increments attempts.
-            let claim = repository.claim_next_email(121_000, 1_000).await.unwrap().unwrap();
+            let claim = repository
+                .claim_next_email(121_000, 1_000)
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(claim.id, "mail-1");
             assert_eq!(claim.attempts, 1);
             assert_eq!(email_state(&pool, "mail-1").await.0, "sending");
             // A live lease is never stolen and next_attempt_at has not arrived.
-            assert!(repository.claim_next_email(121_000, 1_000).await.unwrap().is_none());
+            assert!(
+                repository
+                    .claim_next_email(121_000, 1_000)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
 
             // Package refusal returns the mail to pending without consuming the attempt.
             repository
@@ -707,7 +736,11 @@ mod tests {
             assert_eq!(error.as_deref(), Some("PACKAGE_REQUIRED"));
 
             // A due retry is claimed again, then a hard failure consumes the attempt.
-            let claim = repository.claim_next_email(121_000, 61_000).await.unwrap().unwrap();
+            let claim = repository
+                .claim_next_email(121_000, 61_000)
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(claim.attempts, 1);
             repository
                 .mark_retry("mail-1", "pending", 63_000)
@@ -718,12 +751,25 @@ mod tests {
             assert_eq!(error.as_deref(), Some("EMAIL_DELIVERY_FAILED"));
 
             // Successful delivery marks the row sent and clears the lease.
-            let claim = repository.claim_next_email(163_000, 63_000).await.unwrap().unwrap();
+            let claim = repository
+                .claim_next_email(163_000, 63_000)
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(claim.attempts, 2);
             repository.mark_sent("mail-1", 63_000).await.unwrap();
             let (state, attempts, lease, error) = email_state(&pool, "mail-1").await;
-            assert_eq!((state.as_str(), attempts, lease, error), ("sent", 2, None, None));
-            assert!(repository.claim_next_email(163_000, 63_000).await.unwrap().is_none());
+            assert_eq!(
+                (state.as_str(), attempts, lease, error),
+                ("sent", 2, None, None)
+            );
+            assert!(
+                repository
+                    .claim_next_email(163_000, 63_000)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
 
             // The bounded worker turn renews the link and settles the mail.
             let second = queue_booking_mail(
@@ -757,10 +803,11 @@ mod tests {
                 assert_eq!(calls[0].0, "pms-booking-mail-2");
                 assert!(calls[0].1.contains(&second.token));
             }
-            let renewed = sqlx::query("SELECT expires_at FROM pms_booking_tokens WHERE id='token-2'")
-                .fetch_one(pool.raw())
-                .await
-                .unwrap();
+            let renewed =
+                sqlx::query("SELECT expires_at FROM pms_booking_tokens WHERE id='token-2'")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap();
             assert_eq!(renewed.get::<i64, _>("expires_at"), 70_000 + TOKEN_TTL_MS);
 
             // Public request bucket: three allowed, the fourth refused, stale pruned.
@@ -784,11 +831,10 @@ mod tests {
                 .await
                 .unwrap();
             repository.prune_rate_limits(0).await.unwrap();
-            let remaining: i64 =
-                sqlx::query_scalar("SELECT count(*) FROM pms_booking_limits")
-                    .fetch_one(pool.raw())
-                    .await
-                    .unwrap();
+            let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM pms_booking_limits")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
             assert_eq!(remaining, 1);
         })
         .await;

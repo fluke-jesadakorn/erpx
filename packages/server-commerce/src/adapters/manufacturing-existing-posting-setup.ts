@@ -1,11 +1,13 @@
 import 'server-only';
+
+import { nativeOwnerStatement } from "@erpx/server-commerce/adapters/native-owner-write";
 import {createHash,randomUUID} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
-import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {isTransactionalSqlDatabase,type SqlDatabase,type SqlStatement} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
@@ -22,6 +24,13 @@ import {manufacturingExistingPostingMarker} from '@erpx/server-commerce/adapters
 import {manufacturingExistingPostingSetupSchema,type ManufacturingExistingPostingSetupResult,type ManufacturingExistingPostingSetupView} from '@erpx/server-commerce/domain/manufacturing-existing-posting-setup';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
+/** Native owner statement for the existing-posting confirmation. No SQL is
+ * staged in TypeScript: the axum command owns the write and the statement's
+ * run() executes it inside the caller's Holding transaction. */
+function nativeMfgProof(actor: WorkContext, before: Awaited<ReturnType<typeof snapshot>>, proof: Record<string, unknown>, key: string, operation: string): SqlStatement {
+  const values = [actor.companyId, before.configuration!.chartId, before.configuration!.inventoryAccountId, before.mapping, JSON.stringify(proof), actor.userId, Date.now(), key, operation, actor.companyId];
+  return nativeOwnerStatement('mfg-existing-posting-confirmation', values, actor.companyId, actor.userId, key, actor.companyId);
+}
 const operation='commerce.manufacturing-posting-setup.confirm-existing',capabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 type StoredResult=ManufacturingExistingPostingSetupResult&{_manufacturingExistingPostingSetup:Record<string,unknown>};
 function changed(){return new ApiError(409,'MANUFACTURING_POSTING_SOURCE_CHANGED','The original mapping, reviewed defaults or production/Stock/Finance source changed. Review the unchanged mapping again.');}
@@ -81,7 +90,7 @@ export async function confirmExistingManufacturingPostingSetup(actor:WorkContext
    await validateManufacturingExistingPostingFinanceState(database,actor,before.configuration);
    const proof={kind:'manufacturing-existing-posting-setup',companyId:actor.companyId,confirmationCommandId:key,mapping:JSON.parse(before.mapping) as Record<string,unknown>,expectedSalesDefaults:before.finance.expectedSalesDefaults,effectiveService:before.finance.service};
    result=await executeCommand(database,actor,key,operation,input,actor.companyId,1,{id:actor.companyId,status:'confirmed-existing' as const,version:1 as const,[manufacturingExistingPostingMarker]:proof},[
-    database.prepare('INSERT INTO commerce_mfg_existing_posting_confirmations(company_id,command_id,request_hash,chart_id,inventory_account_id,version,mapping_json,proof_json,created_by,created_at) SELECT ?,r.command_id,r.request_hash,?,?,1,?::jsonb,?::jsonb,?,? FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.record_id=?').bind(actor.companyId,before.configuration.chartId,before.configuration.inventoryAccountId,before.mapping,JSON.stringify(proof),actor.userId,Date.now(),key,operation,actor.companyId),
+    nativeMfgProof(actor, before, proof, key, operation),
    ]);
   }
   const expectedReceipt=await receiptImage(database,actor.companyId,key),expectedNative=await nativeImage(database,actor.companyId);

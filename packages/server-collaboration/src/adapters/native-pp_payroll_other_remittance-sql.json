@@ -1,3 +1,0 @@
-{
-  "pp_payroll_other_remittance_stmt_1": "INSERT INTO hr_payroll_statutory_remittances(id,company_id,run_id,kind,amount_minor,liability_account_id,bank_account_id,bank_transaction_id,journal_id,bank_reference,recorded_by,recorded_at,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
-}

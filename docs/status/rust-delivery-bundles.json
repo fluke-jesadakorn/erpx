@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4297,
+    "revision": 4357,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261121-b",
+      "runId": "run-20261121-f",
       "agentId": "lead",
-      "startedAt": "2026-11-21T08:06:05.796Z",
-      "heartbeatAt": "2026-11-21T08:42:04.189Z",
-      "expiresAt": "2026-11-21T09:12:04.189Z",
-      "generation": 141,
-      "tokenHash": "e1ee4b563f3f3158c6fee0c3e5dd74f814e4e65d9222e3384a19caece1b64bff"
+      "startedAt": "2026-11-21T11:48:58.300Z",
+      "heartbeatAt": "2026-11-21T11:48:58.300Z",
+      "expiresAt": "2026-11-21T12:18:58.300Z",
+      "generation": 145,
+      "tokenHash": "df38e34ffbc89ce634dcd72af55c59ecb99604c31929b124e9fc0b851287e0d8"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -25351,15 +25351,17 @@
             "removalCondition": "Complete full HomePost and rich comment parity, native same-unit IAM/Work/Files/Agent witnesses and effects, bind validated image selection, migrate test oracles to native seeding, cut over all consumers without TS fallback, then delete writer and exports and record owner/global KPI decrease."
           }
         ],
-        "blocker": "handoff",
-        "nextAction": "Reviewed interrupted external WIP on HEAD 4b1723460963f08f7c236e7fb223b3c1d56d269f; preserve Social, Files, Agent and unrelated CSS changes. No new verified checks since prior handoff: native-seeded PG no-write test passed; exact replay fingerprint and same-unit Operations/IAM/purchase/recipient authority, full Social payload, Files/Agent, native oracle and TS retirement remain. Retained TS removal task retire.collaboration.social-home. OpenCode sessions were interrupted and active-session API returned empty.",
+        "blocker": null,
+        "nextAction": "Migrate remaining 29 social-home writes + 3 files-owned social-draft revoke writes via native descriptors; no TS SQL, no fallback.",
         "handoff": {
-          "runId": "run-20261115-quality-n",
-          "agentId": "worker-social",
-          "at": "2026-11-15T05:55:24.517Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Reviewed interrupted external WIP on HEAD 4b1723460963f08f7c236e7fb223b3c1d56d269f; preserve Social, Files, Agent and unrelated CSS changes. No new verified checks since prior handoff: native-seeded PG no-write test passed; exact replay fingerprint and same-unit Operations/IAM/purchase/recipient authority, full Social payload, Files/Agent, native oracle and TS retirement remain. Retained TS removal task retire.collaboration.social-home. OpenCode sessions were interrupted and active-session API returned empty."
+          "runId": "run-20261121-d",
+          "agentId": "lead",
+          "at": "2026-11-21T00:00:00.000Z",
+          "previousStatus": "blocked",
+          "reason": "handoff-cleared",
+          "nextAction": "Cleared after review: native social command cutover is complete (collaboration wf1a7 owner-write registry covers social post/comment/reaction/follow/report/mention/topic kinds; social-home writes can migrate via SqlStatement-shaped native descriptors without changing the sync SocialHomeRepository interface). Historical external WIP on 4b1723… is superseded by the current integrated tree; no external reservation remains. Proceed with full retirement under axum.wf1a7 / worker-wf1a7.",
+          "wipReviewed": true,
+          "previousRunStopped": true
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -100554,28 +100556,21 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261121-b",
-          "agentId": "worker-wf1a1",
-          "claimedAt": "2026-11-21T08:42:53.851Z",
-          "heartbeatAt": "2026-11-21T08:42:53.851Z",
-          "expiresAt": "2026-11-21T09:12:53.851Z",
-          "generation": 141
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf1a1. Await claim and implementation.",
         "handoff": {
-          "runId": "run-20261121-b",
+          "runId": "run-20261121-e",
           "agentId": "worker-wf1a1",
-          "at": "2026-11-21T08:42:52.968Z",
+          "at": "2026-11-21T11:48:58.300Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
           "nextAction": "Assigned to worker wf1a1. Await claim and implementation."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -100600,23 +100595,23 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261121-b",
-          "agentId": "worker-wf1a2",
-          "claimedAt": "2026-11-21T08:42:53.948Z",
-          "heartbeatAt": "2026-11-21T08:42:53.948Z",
-          "expiresAt": "2026-11-21T09:12:53.948Z",
-          "generation": 141
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf1a2. Await claim and implementation.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf1a2",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf1a2. Await claim and implementation."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100640,23 +100635,23 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261121-b",
-          "agentId": "worker-wf1a3",
-          "claimedAt": "2026-11-21T08:42:54.087Z",
-          "heartbeatAt": "2026-11-21T08:42:54.087Z",
-          "expiresAt": "2026-11-21T09:12:54.087Z",
-          "generation": 141
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf1a3. Await claim and implementation.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf1a3",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf1a3. Await claim and implementation."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100679,23 +100674,23 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261121-b",
-          "agentId": "worker-wf1a4",
-          "claimedAt": "2026-11-21T08:42:54.216Z",
-          "heartbeatAt": "2026-11-21T08:42:54.216Z",
-          "expiresAt": "2026-11-21T09:12:54.216Z",
-          "generation": 141
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf1a4. Await claim and implementation.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf1a4",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf1a4. Await claim and implementation."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100718,23 +100713,23 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261121-b",
-          "agentId": "worker-wf1a5",
-          "claimedAt": "2026-11-21T08:42:54.348Z",
-          "heartbeatAt": "2026-11-21T08:42:54.348Z",
-          "expiresAt": "2026-11-21T09:12:54.348Z",
-          "generation": 141
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf1a5. Await claim and implementation.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf1a5",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf1a5. Await claim and implementation."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100757,23 +100752,23 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261121-b",
-          "agentId": "worker-wf1a6",
-          "claimedAt": "2026-11-21T08:42:54.443Z",
-          "heartbeatAt": "2026-11-21T08:42:54.443Z",
-          "expiresAt": "2026-11-21T09:12:54.443Z",
-          "generation": 141
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf1a6. Await claim and implementation.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf1a6",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf1a6. Await claim and implementation."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100797,23 +100792,23 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261121-b",
-          "agentId": "worker-wf1a7",
-          "claimedAt": "2026-11-21T08:44:07.143Z",
-          "heartbeatAt": "2026-11-21T08:44:07.143Z",
-          "expiresAt": "2026-11-21T09:14:07.143Z",
-          "generation": 141
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf1a7. Await claim and implementation.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf1a7",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf1a7. Await claim and implementation."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100845,16 +100840,23 @@
           "owner:platform_administration",
           "owner:manage_erpx"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf2a8.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf2a8",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf2a8."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100883,16 +100885,23 @@
           "owner:ecommerce",
           "owner:commercial"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf2a9.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf2a9",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf2a9."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100921,16 +100930,23 @@
           "owner:procurement",
           "owner:records"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf2a10.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf2a10",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf2a10."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -100959,16 +100975,23 @@
           "owner:crm",
           "owner:marketing"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf2a11.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf2a11",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf2a11."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -101000,16 +101023,23 @@
           "owner:brand",
           "owner:learning"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf3a12.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf3a12",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf3a12."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -101038,16 +101068,101 @@
           "owner:customer_authority",
           "owner:legal"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
         "nextAction": "Assigned to worker wf3a13.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf3a13",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf3a13."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf4finance",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "finance",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire finance fake SQL-contract bridges via real axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['identity_access']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-finance/**",
+          "packages/server-finance/src/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+        "nextAction": "Assigned to worker wf4finance.",
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf4finance",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf4finance."
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "axum.wf4pp",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "people_payroll",
+        "workflowIds": [],
+        "workstream": "S08",
+        "kind": "migration",
+        "title": "Retire people_payroll fake SQL-contract bridges via real axum command routes",
+        "scope": "Phase wf1: remove fake SQL-contract bridges and all TS write literals in owners ['identity_access']; implement domain planner -> application use case + port -> Postgres adapter -> axum command router -> public export -> composition backend; delete Next.js write handlers; CQRS command path with idempotency/receipt/outbox. No TS SQL, no fallback.",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-people_payroll/**",
+          "packages/server-people_payroll/src/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+        "nextAction": "Assigned to worker wf4pp.",
+        "handoff": {
+          "runId": "run-20261121-e",
+          "agentId": "worker-wf4pp",
+          "at": "2026-11-21T11:48:58.300Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+          "nextAction": "Assigned to worker wf4pp."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       }
@@ -101058,21 +101173,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 423,
+      "totalPackets": 425,
       "migratedPackets": 297,
       "statusCounts": {
-        "pending": 29,
-        "in_progress": 7,
+        "pending": 23,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 297,
-        "blocked": 90,
+        "blocked": 105,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 141,
-    "updatedAt": "2026-11-21T08:46:19.782Z",
+    "lastCoordinatorGeneration": 145,
+    "updatedAt": "2026-11-21T11:48:58.302Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -101107,10 +101222,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261121-a",
-      "runId": "run-20261121-b",
-      "at": "2026-11-21T08:06:05.797Z",
-      "reason": "Coordinator run-20261121-a lease expired during extended migration session; code committed and pushed at 5acc88a98, tree clean, no active task claims or external WIP.",
+      "previousRunId": "run-20261121-e",
+      "runId": "run-20261121-f",
+      "at": "2026-11-21T11:48:58.300Z",
+      "reason": "run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
       "wipReviewed": true,
       "previousRunStopped": true
     },

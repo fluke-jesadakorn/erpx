@@ -11,7 +11,6 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use erpx_server_sales::public::sales_order_cancellation::{
     PgSalesCancellation, SalesCancellationActor, SalesCancellationCommand,
     cancel_confirmed_sales_order,
@@ -21,6 +20,7 @@ use erpx_server_sales::public::sales_order_cancellation_http::{
     SalesOrderCancellationHttpRequest, SalesOrderCancellationHttpResponse,
     SalesOrderCancellationHttpTarget,
 };
+use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;

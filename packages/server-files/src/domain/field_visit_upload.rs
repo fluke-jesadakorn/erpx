@@ -50,7 +50,8 @@ pub fn normalize_fresh_owner_file(
         "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif"
     );
     let component = match owner {
-        super::field_visit_intake::IntakeOwner::FieldVisit | super::field_visit_intake::IntakeOwner::FieldJournal => "record",
+        super::field_visit_intake::IntakeOwner::FieldVisit
+        | super::field_visit_intake::IntakeOwner::FieldJournal => "record",
         super::field_visit_intake::IntakeOwner::FinancePayment => "action",
     };
     if !owner.supports(owner.target_type(), component, purpose) {

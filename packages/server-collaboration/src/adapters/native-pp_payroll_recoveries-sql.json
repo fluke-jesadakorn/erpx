@@ -1,9 +1,0 @@
-{
-  "pp_payroll_recoveries_stmt_1": "INSERT INTO hr_payroll_recovery_events(id,recovery_id,company_id,action,actor_id,recovery_version,evidence_json,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-  "pp_payroll_recoveries_stmt_2": "INSERT INTO hr_payroll_recoveries(id,company_id,original_run_id,original_item_id,engagement_id,person_id,employee_user_id,source_ref,source_snapshot_json,source_digest,policy_json,policy_digest,amount_minor,currency,installment_count,first_deduction_period,reason,evidence_ref,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,\\'THB\\',?,?,?,?,?,?,?)",
-  "pp_payroll_recoveries_stmt_3": "UPDATE hr_payroll_recoveries SET status=?,version=version+1,consent_by=?,consent_at=?,consent_html=?,consent_sha256=?,updated_at=? WHERE id=?",
-  "pp_payroll_recoveries_stmt_4": "UPDATE hr_payroll_recoveries SET status=?,version=version+1,reviewed_by=?,legal_basis_ref=?,updated_at=? WHERE id=?",
-  "pp_payroll_recoveries_stmt_5": "INSERT INTO hr_payroll_advances(id,company_id,engagement_id,person_id,status,version,amount_minor,installment_count,first_deduction_period,currency,reason,requested_by,approved_by,review_reason,created_at,reviewed_at,updated_at,recovery_id) VALUES(?,?,?,?,'approved',2,?,?,?,'THB',?,?,?,?,?,?,?,?)",
-  "pp_payroll_recoveries_stmt_6": "UPDATE hr_payroll_recoveries SET status='recognized',version=version+1,journal_id=?,advance_id=?,recognized_by=?,updated_at=? WHERE id=?",
-  "pp_payroll_recoveries_stmt_7": "INSERT INTO hr_payroll_advance_repayments(id,advance_id,company_id,sequence,due_period_start,due_period_end,amount_minor,created_at) VALUES(?,?,?,?,?,?,?,?)"
-}

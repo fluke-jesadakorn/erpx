@@ -10,6 +10,12 @@ import { validatePackageDependencies } from "@erpx/server-commercial/domain/pack
 import { packageGrantBatchCommands, type PackageGrantBatch, type PackageGrantBatchPreview, type PackageGrantBatchUnit } from "@erpx/server-commercial/application/package-grant-batches";
 
 import { packageWriterFence } from "@erpx/server-commercial/adapters/package-locks";
+import { nativeGrantSave } from "@erpx/server-commercial/adapters/native-wave2";
+import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
+async function ownerWrite(kind: any, values: readonly unknown[], recordId: string, key: string, holdId?: string) {
+  try { return await nativeCommercialOwnerWrite(kind, values, recordId, 'system', key, holdId); }
+  catch (error) { if (error instanceof NativeCommercialOwnerWriteError) throw new Error(error.code + ': ' + error.message); throw error; }
+}
 
 type Row = { company_id: string; package_id: string; package_version: number; state: CompanyPackageGrant["state"]; starts_at: number; ends_at: number | null; version: number; reason: string; evidence: string };
 const grantFromRow = (row: Row): CompanyPackageGrant => ({ companyId: row.company_id, packageId: row.package_id, packageVersion: Number(row.package_version), state: row.state, startsAt: Number(row.starts_at), endsAt: row.ends_at === null ? null : Number(row.ends_at), version: Number(row.version), reason: row.reason, evidence: row.evidence });
@@ -66,12 +72,27 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
       save: async (input, current, actorId, hash) => {
         legacyGrant(input.grant);
         const g = input.grant, instant = now();
-        await database.prepare(`INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at)
-          VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(company_id,package_id) DO UPDATE SET package_version=excluded.package_version,state=excluded.state,starts_at=excluded.starts_at,
-          ends_at=excluded.ends_at,version=excluded.version,reason=excluded.reason,evidence=excluded.evidence,updated_at=excluded.updated_at`)
-          .bind(g.companyId, g.packageId, g.packageVersion, g.state, g.startsAt, g.endsAt, g.version, g.reason, g.evidence, instant).run();
-        await database.prepare(`INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) VALUES(?,?,?,?,?,?,?,?)`)
-          .bind(input.idempotencyKey, g.companyId, g.packageId, actorId, hash, current ? JSON.stringify(current) : null, JSON.stringify(g), instant).run();
+        // Write authority moved to the native Commercial axum command route:
+        // it executes the grant upsert and grant-event insert in the caller's
+        // serializable unit, with its own receipt/audit/outbox. No TS SQL and
+        // no fallback remain here; missing native config fails closed.
+        await nativeGrantSave({
+          companyId: g.companyId,
+          packageId: g.packageId,
+          packageVersion: g.packageVersion,
+          state: g.state,
+          startsAt: g.startsAt,
+          endsAt: g.endsAt,
+          version: g.version,
+          reason: g.reason,
+          evidence: g.evidence,
+          updatedAt: instant,
+          actorId,
+          idempotencyKey: input.idempotencyKey,
+          requestHash: hash,
+          beforeJson: current ? JSON.stringify(current) : null,
+          afterJson: JSON.stringify(g),
+        });
       },
     };
   }
@@ -83,7 +104,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
         if (locking) {
           // The grant trigger also advances this row for older compatible code.
           // Lock it to detect inserts outside an older SERIALIZABLE snapshot.
-          await database.prepare("INSERT INTO company_package_revisions(company_id,version) VALUES(?,0) ON CONFLICT DO NOTHING").bind(companyId).run();
+          await ownerWrite('grant.revision-anchor', [companyId], companyId, `commercial:revision:${companyId}`);
           await database.prepare("SELECT version FROM company_package_revisions WHERE company_id=? FOR UPDATE").bind(companyId).first();
         }
         return readCompanyPackageGrants(database, companyId, locking);
@@ -97,8 +118,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
         return row ? { hash: row.request_hash, result: typeof row.result_json === "string" ? JSON.parse(row.result_json) as PackageGrantBatchPreview : row.result_json } : null;
       },
       saveReceipt: async (key, digest, actorId, result) => {
-        await database.prepare("INSERT INTO company_package_change_sets(id,company_id,actor_id,request_hash,result_json,created_at) VALUES(?,?,?,?,?,?)")
-          .bind(key, result.companyId, actorId, digest, JSON.stringify(result), now()).run();
+        await ownerWrite('change-set.receipt', [key, result.companyId, actorId, digest, JSON.stringify(result), now()], result.companyId, key);
       },
     };
   }

@@ -36,17 +36,27 @@ pub struct RetainedCrmQualification<'a> {
     image: String,
 }
 impl RetainedCrmQualification<'_> {
-    pub fn facts(&self) -> &QualifiedCrmLeadFacts { &self.facts }
+    pub fn facts(&self) -> &QualifiedCrmLeadFacts {
+        &self.facts
+    }
     /// Coordinator-owned copy of the after-image. The reviewed account link is
     /// retained separately because this owner witness does not grant access.
     pub fn retain_owned(&self) -> OwnedCrmQualificationRetention {
-        OwnedCrmQualificationRetention { facts: self.facts.clone(), image: self.image.clone() }
+        OwnedCrmQualificationRetention {
+            facts: self.facts.clone(),
+            image: self.image.clone(),
+        }
     }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         self.link.require_current(c).await?;
         let current = qualification_image(c, &self.facts).await?;
         if current.as_deref() != Some(self.image.as_str()) {
-            return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_QUALIFICATION_CHANGED", "The original qualification changed.").into());
+            return Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Conflict,
+                "CRM_QUALIFICATION_CHANGED",
+                "The original qualification changed.",
+            )
+            .into());
         }
         Ok(())
     }
@@ -61,22 +71,40 @@ pub struct OwnedCrmQualificationRetention {
     image: String,
 }
 impl OwnedCrmQualificationRetention {
-    pub fn facts(&self) -> &QualifiedCrmLeadFacts { &self.facts }
-    pub async fn require_current(&self, c: &mut PgConnection, link: &CurrentCrmReviewedAccountLink) -> Result<(), Error> {
+    pub fn facts(&self) -> &QualifiedCrmLeadFacts {
+        &self.facts
+    }
+    pub async fn require_current(
+        &self,
+        c: &mut PgConnection,
+        link: &CurrentCrmReviewedAccountLink,
+    ) -> Result<(), Error> {
         link.require_current(c).await?;
         if qualification_image(c, &self.facts).await?.as_deref() != Some(self.image.as_str()) {
-            return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_QUALIFICATION_CHANGED", "The original qualification changed.").into());
+            return Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Conflict,
+                "CRM_QUALIFICATION_CHANGED",
+                "The original qualification changed.",
+            )
+            .into());
         }
         Ok(())
     }
 }
 
-async fn qualification_image(c: &mut PgConnection, f: &QualifiedCrmLeadFacts) -> Result<Option<String>, Error> {
+async fn qualification_image(
+    c: &mut PgConnection,
+    f: &QualifiedCrmLeadFacts,
+) -> Result<Option<String>, Error> {
     Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_array(to_jsonb(l),to_jsonb(o),to_jsonb(deal),to_jsonb(lead_event))::text,'UTF8')),'hex') FROM public.crm_leads l JOIN public.crm_opportunities o ON o.id=$3 AND o.lead_id=l.id JOIN public.crm_case_events deal ON deal.id=$4 AND deal.lead_id=l.id AND deal.opportunity_id=o.id JOIN public.crm_case_events lead_event ON lead_event.id=$5 AND lead_event.lead_id=l.id AND lead_event.opportunity_id IS NULL WHERE l.company_id=$1 AND l.id=$2 AND l.owner_id=$6 AND l.status='qualified' AND l.version=$7 AND l.updated_at=$8")
         .bind(&f.company_id).bind(&f.lead_id).bind(&f.opportunity_id).bind(format!("crm-event-{}-deal",f.command_key)).bind(format!("crm-event-{}-lead",f.command_key)).bind(&f.owner_id).bind(f.version).bind(f.updated_at).fetch_optional(c).await?)
 }
 
-async fn qualification_lead_preimage(c: &mut PgConnection, company: &str, lead: &str) -> Result<Option<String>, Error> {
+async fn qualification_lead_preimage(
+    c: &mut PgConnection,
+    company: &str,
+    lead: &str,
+) -> Result<Option<String>, Error> {
     // Qualify may change only these three fields on the lead. Bind every other
     // persisted field, including future schema fields, across the effect.
     Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(l)-'status'-'version'-'updated_at')::text,'UTF8')),'hex') FROM public.crm_leads l WHERE l.company_id=$1 AND l.id=$2")
@@ -86,8 +114,14 @@ async fn qualification_lead_preimage(c: &mut PgConnection, company: &str, lead: 
 /// Stage the owner effect and capture the actual after-image atomically. The
 /// caller resolves Workflow replay first and retains external proofs separately.
 pub async fn apply_crm_qualification_retained<'a>(
-    c: &mut PgConnection, actor: &LeadActor, lead_id: &str, command_key: &str,
-    input: &LeadChangeInput, currency: &str, link: &'a CurrentCrmReviewedAccountLink, now: i64,
+    c: &mut PgConnection,
+    actor: &LeadActor,
+    lead_id: &str,
+    command_key: &str,
+    input: &LeadChangeInput,
+    currency: &str,
+    link: &'a CurrentCrmReviewedAccountLink,
+    now: i64,
 ) -> Result<RetainedCrmQualification<'a>, Error> {
     serializable(c).await?;
     let mut savepoint = c.begin().await?;
@@ -123,8 +157,14 @@ pub async fn apply_crm_qualification_retained<'a>(
         Ok(RetainedCrmQualification { link, facts, image })
     }.await;
     match staged {
-        Ok(retained) => { savepoint.commit().await?; Ok(retained) }
-        Err(error) => { savepoint.rollback().await?; Err(error) }
+        Ok(retained) => {
+            savepoint.commit().await?;
+            Ok(retained)
+        }
+        Err(error) => {
+            savepoint.rollback().await?;
+            Err(error)
+        }
     }
 }
 
@@ -133,44 +173,131 @@ pub async fn apply_crm_qualification_retained<'a>(
 /// Commerce currency, purchase, Workflow receipt and Collaboration effects in
 /// this same transaction. Neither this function nor its inputs grant access.
 pub async fn apply_crm_qualification(
-    c: &mut PgConnection, actor: &LeadActor, lead_id: &str, command_key: &str,
-    input: &LeadChangeInput, currency: &str, link: &CurrentCrmReviewedAccountLink, now: i64,
+    c: &mut PgConnection,
+    actor: &LeadActor,
+    lead_id: &str,
+    command_key: &str,
+    input: &LeadChangeInput,
+    currency: &str,
+    link: &CurrentCrmReviewedAccountLink,
+    now: i64,
 ) -> Result<String, Error> {
-    Ok(apply_crm_qualification_retained(c, actor, lead_id, command_key, input, currency, link, now).await?.facts.opportunity_id.clone())
+    Ok(
+        apply_crm_qualification_retained(
+            c,
+            actor,
+            lead_id,
+            command_key,
+            input,
+            currency,
+            link,
+            now,
+        )
+        .await?
+        .facts
+        .opportunity_id
+        .clone(),
+    )
 }
 
 async fn apply_crm_qualification_inner(
-    c: &mut PgConnection, actor: &LeadActor, lead_id: &str, command_key: &str,
-    input: &LeadChangeInput, currency: &str, link: &CurrentCrmReviewedAccountLink, now: i64,
+    c: &mut PgConnection,
+    actor: &LeadActor,
+    lead_id: &str,
+    command_key: &str,
+    input: &LeadChangeInput,
+    currency: &str,
+    link: &CurrentCrmReviewedAccountLink,
+    now: i64,
 ) -> Result<String, Error> {
     let plan = validate_lead_change(actor, input)?;
     if plan.action != "qualify" || command_key.is_empty() {
-        return Err(BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "A qualification command and key are required.").into());
+        return Err(BusinessError::invalid(
+            "CRM_LEAD_INPUT_INVALID",
+            "A qualification command and key are required.",
+        )
+        .into());
     }
-    let party = plan.customer_id.as_deref().ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "A customer is required."))?;
+    let party = plan.customer_id.as_deref().ok_or_else(|| {
+        BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "A customer is required.")
+    })?;
     if !link.matches(&actor.company_id, lead_id, party) {
-        return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_SOURCE_CHANGED", "The reviewed account link does not match this command.").into());
+        return Err(BusinessError::new(
+            erpx_server_shared::public::FailureKind::Conflict,
+            "CRM_SOURCE_CHANGED",
+            "The reviewed account link does not match this command.",
+        )
+        .into());
     }
     link.require_current(c).await?;
-    let expected = plan.expected_value.as_deref().ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "An expected value is required."))?;
+    let expected = plan.expected_value.as_deref().ok_or_else(|| {
+        BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "An expected value is required.")
+    })?;
     let (whole, fraction) = expected.split_once('.').unwrap_or((expected, ""));
-    let whole: i64 = whole.parse().map_err(|_| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a valid expected value."))?;
-    let fractional: i64 = if fraction.is_empty() { 0 } else { fraction.parse::<i64>().map_err(|_| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a valid expected value."))? * if fraction.len() == 1 { 10 } else { 1 } };
-    let amount = whole.checked_mul(100).and_then(|v| v.checked_add(fractional)).filter(|v| *v <= 9_007_199_254_740_991).ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Expected value is too large."))?;
+    let whole: i64 = whole.parse().map_err(|_| {
+        BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a valid expected value.")
+    })?;
+    let fractional: i64 = if fraction.is_empty() {
+        0
+    } else {
+        fraction.parse::<i64>().map_err(|_| {
+            BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a valid expected value.")
+        })? * if fraction.len() == 1 { 10 } else { 1 }
+    };
+    let amount = whole
+        .checked_mul(100)
+        .and_then(|v| v.checked_add(fractional))
+        .filter(|v| *v <= 9_007_199_254_740_991)
+        .ok_or_else(|| {
+            BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Expected value is too large.")
+        })?;
     let row = sqlx::query("SELECT owner_id,status,version FROM public.crm_leads WHERE id=$1 AND company_id=$2 FOR UPDATE").bind(lead_id).bind(&actor.company_id).fetch_optional(&mut *c).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound, "CRM_LEAD_NOT_FOUND", "Lead not found in this scope."))?;
     let version: i64 = row.try_get("version")?;
     let owner: String = row.try_get("owner_id")?;
     let status: String = row.try_get("status")?;
-    if version != input.expected_version { return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_LEAD_VERSION_CHANGED", "The lead changed. Reload and retry.").into()); }
-    if owner != actor.user_id { return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Forbidden, "CRM_OWNER_REQUIRED", "The assigned salesperson must qualify this lead.").into()); }
-    if status != "open" { return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_STATE_CHANGED", "Review the current lead or opportunity state.").into()); }
-    let next_version = version.checked_add(1).ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Lead version is too large."))?;
+    if version != input.expected_version {
+        return Err(BusinessError::new(
+            erpx_server_shared::public::FailureKind::Conflict,
+            "CRM_LEAD_VERSION_CHANGED",
+            "The lead changed. Reload and retry.",
+        )
+        .into());
+    }
+    if owner != actor.user_id {
+        return Err(BusinessError::new(
+            erpx_server_shared::public::FailureKind::Forbidden,
+            "CRM_OWNER_REQUIRED",
+            "The assigned salesperson must qualify this lead.",
+        )
+        .into());
+    }
+    if status != "open" {
+        return Err(BusinessError::new(
+            erpx_server_shared::public::FailureKind::Conflict,
+            "CRM_STATE_CHANGED",
+            "Review the current lead or opportunity state.",
+        )
+        .into());
+    }
+    let next_version = version.checked_add(1).ok_or_else(|| {
+        BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Lead version is too large.")
+    })?;
     let opportunity_id = format!("opportunity-{command_key}");
     sqlx::query("INSERT INTO public.crm_opportunities(id,lead_id,customer_id,expected_minor,currency,close_date,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8)").bind(&opportunity_id).bind(lead_id).bind(party).bind(amount).bind(currency).bind(plan.close_date.as_deref()).bind(&actor.user_id).bind(now).execute(&mut *c).await?;
     let updated = sqlx::query("UPDATE public.crm_leads SET status='qualified',version=version+1,updated_at=$1 WHERE id=$2 AND company_id=$3 AND owner_id=$4 AND status='open' AND version=$5").bind(now).bind(lead_id).bind(&actor.company_id).bind(&actor.user_id).bind(version).execute(&mut *c).await?.rows_affected();
-    if updated != 1 { return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_SOURCE_CHANGED", "The original CRM source changed.").into()); }
+    if updated != 1 {
+        return Err(BusinessError::new(
+            erpx_server_shared::public::FailureKind::Conflict,
+            "CRM_SOURCE_CHANGED",
+            "The original CRM source changed.",
+        )
+        .into());
+    }
     let snapshot = serde_json::json!({"action":"qualify","expectedVersion":input.expected_version,"customerId":party,"expectedValue":expected,"closeDate":plan.close_date,"reason":plan.reason});
-    for (suffix, opportunity, event_version) in [("deal", Some(opportunity_id.as_str()), 1_i64), ("lead", None, next_version)] {
+    for (suffix, opportunity, event_version) in [
+        ("deal", Some(opportunity_id.as_str()), 1_i64),
+        ("lead", None, next_version),
+    ] {
         sqlx::query("INSERT INTO public.crm_case_events(id,lead_id,opportunity_id,version,action,actor_id,reason,snapshot_json,created_at) VALUES($1,$2,$3,$4,'qualify',$5,$6,$7,$8)").bind(format!("crm-event-{command_key}-{suffix}")).bind(lead_id).bind(opportunity).bind(event_version).bind(&actor.user_id).bind(&plan.reason).bind(&snapshot).bind(now).execute(&mut *c).await?;
     }
     link.require_current(c).await?;
@@ -412,11 +539,7 @@ pub fn deal_event_id(command_key: &str) -> String {
 
 fn snapshot<T: serde::Serialize>(value: &T) -> Result<serde_json::Value, Error> {
     serde_json::to_value(value).map_err(|_| {
-        BusinessError::invalid(
-            "CRM_LEAD_INPUT_INVALID",
-            "Use a valid CRM command payload.",
-        )
-        .into()
+        BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a valid CRM command payload.").into()
     })
 }
 
@@ -521,7 +644,10 @@ impl<'a> PgCrmLeadCommands<'a> {
                 customer_id: row.try_get("customer_id")?,
                 currency: row.try_get("currency")?,
                 quote_id: row.try_get::<Option<String>, _>("quote_id").ok().flatten(),
-                quote_version: row.try_get::<Option<i64>, _>("quote_version").ok().flatten(),
+                quote_version: row
+                    .try_get::<Option<i64>, _>("quote_version")
+                    .ok()
+                    .flatten(),
                 sales_id: row.try_get::<Option<String>, _>("sales_id").ok().flatten(),
             })
         })
@@ -672,7 +798,12 @@ impl<'a> PgCrmLeadCommands<'a> {
                     .await?;
             }
             "qualify" => {
-                return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Unavailable, "CRM_QUALIFICATION_COMPOSITION_REQUIRED", "Qualification requires its complete transactional composition.").into());
+                return Err(BusinessError::new(
+                    erpx_server_shared::public::FailureKind::Unavailable,
+                    "CRM_QUALIFICATION_COMPOSITION_REQUIRED",
+                    "Qualification requires its complete transactional composition.",
+                )
+                .into());
             }
             _ => {}
         }
@@ -827,8 +958,7 @@ impl<'a> PgCrmLeadCommands<'a> {
             )
             .into());
         }
-        let owner_is_actor =
-            actor.user_id == record.owner_id;
+        let owner_is_actor = actor.user_id == record.owner_id;
         crate::domain::leads_native::require_lead_state_for_change(
             &plan.action,
             &record.status,
@@ -1014,8 +1144,7 @@ impl<'a> PgCrmLeadCommands<'a> {
             )
             .into());
         }
-        let owner_is_actor =
-            actor.user_id == lead.owner_id;
+        let owner_is_actor = actor.user_id == lead.owner_id;
         crate::domain::leads_native::require_opportunity_state(
             &plan.action,
             &opportunity.stage,
@@ -1054,15 +1183,17 @@ impl<'a> PgCrmLeadCommands<'a> {
         if !native_opportunity_action(&plan.action) {
             return Err(not_native(&plan.action).into());
         }
-        let next_opportunity_version =
-            plan.expected_version.checked_add(1).ok_or_else(|| {
-                BusinessError::invalid(
-                    "CRM_OPPORTUNITY_INPUT_INVALID",
-                    "Opportunity version is too large.",
-                )
-            })?;
+        let next_opportunity_version = plan.expected_version.checked_add(1).ok_or_else(|| {
+            BusinessError::invalid(
+                "CRM_OPPORTUNITY_INPUT_INVALID",
+                "Opportunity version is too large.",
+            )
+        })?;
         let next_lead_version = plan.lead_version.checked_add(1).ok_or_else(|| {
-            BusinessError::invalid("CRM_OPPORTUNITY_INPUT_INVALID", "Lead version is too large.")
+            BusinessError::invalid(
+                "CRM_OPPORTUNITY_INPUT_INVALID",
+                "Lead version is too large.",
+            )
         })?;
         let updated = match plan.action.as_str() {
             "link-quote" => {
@@ -1188,7 +1319,10 @@ impl<'a> PgCrmLeadCommands<'a> {
         .await?;
         let mut deal_snapshot = snapshot.clone();
         if let serde_json::Value::Object(object) = &mut deal_snapshot {
-            object.insert("stage".into(), serde_json::Value::String(plan.stage.clone()));
+            object.insert(
+                "stage".into(),
+                serde_json::Value::String(plan.stage.clone()),
+            );
         }
         let deal_event = deal_event_id(command_key);
         sqlx::query(
@@ -1224,10 +1358,13 @@ impl<'a> PgCrmLeadCommands<'a> {
         let lead_image = lead_image(&mut *self.connection, &facts.company_id, &facts.lead_id)
             .await?
             .ok_or_else(|| changed("CRM_LEAD_CHANGED"))?;
-        let opportunity_image =
-            opportunity_image(&mut *self.connection, &facts.company_id, &facts.opportunity_id)
-                .await?
-                .ok_or_else(|| changed("CRM_OPPORTUNITY_CHANGED"))?;
+        let opportunity_image = opportunity_image(
+            &mut *self.connection,
+            &facts.company_id,
+            &facts.opportunity_id,
+        )
+        .await?
+        .ok_or_else(|| changed("CRM_OPPORTUNITY_CHANGED"))?;
         let retained = RetainedCrmOpportunityChange {
             lead_image,
             opportunity_image,
@@ -1261,7 +1398,10 @@ impl<'a> PgCrmLeadCommands<'a> {
                 customer_id: row.try_get("customer_id")?,
                 currency: row.try_get("currency")?,
                 quote_id: row.try_get::<Option<String>, _>("quote_id").ok().flatten(),
-                quote_version: row.try_get::<Option<i64>, _>("quote_version").ok().flatten(),
+                quote_version: row
+                    .try_get::<Option<i64>, _>("quote_version")
+                    .ok()
+                    .flatten(),
                 sales_id: row.try_get::<Option<String>, _>("sales_id").ok().flatten(),
             })
         })

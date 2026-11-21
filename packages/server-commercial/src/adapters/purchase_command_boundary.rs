@@ -241,9 +241,8 @@ impl PurchaseCommandBoundary {
         step: &'static str,
         now: i64,
     ) -> Result<(), Error> {
-        let mut query = QueryBuilder::<Postgres>::new(
-            "WITH purchase_scope AS MATERIALIZED (SELECT ",
-        );
+        let mut query =
+            QueryBuilder::<Postgres>::new("WITH purchase_scope AS MATERIALIZED (SELECT ");
         query
             .push_bind(self.scope.company_id.as_str().to_owned())
             .push("::text company_id, ")
@@ -260,7 +259,11 @@ impl PurchaseCommandBoundary {
             self.scope.purpose,
         );
         query.push(" THEN 1 ELSE 0 END AS bigint) FROM purchase_scope s");
-        query.build().execute(&mut *connection).await.map_err(map_sql)?;
+        query
+            .build()
+            .execute(&mut *connection)
+            .await
+            .map_err(map_sql)?;
         Ok(())
     }
 
@@ -269,9 +272,8 @@ impl PurchaseCommandBoundary {
         connection: &mut PgConnection,
         catalogue: &CommercialCatalogue,
     ) -> Result<Option<(PackageDecision, PurchaseShadowCheckedObservation)>, Error> {
-        let mut query = QueryBuilder::<Postgres>::new(
-            "WITH purchase_scope AS MATERIALIZED (SELECT ",
-        );
+        let mut query =
+            QueryBuilder::<Postgres>::new("WITH purchase_scope AS MATERIALIZED (SELECT ");
         query
             .push_bind(self.scope.company_id.as_str().to_owned())
             .push("::text company_id, floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms) SELECT s.now_ms, ")

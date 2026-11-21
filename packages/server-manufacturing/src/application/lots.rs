@@ -159,9 +159,7 @@ pub async fn post_output_lots<R: ManufacturingLotRepository>(
         Some(plan) => plan,
         None => return Ok(None),
     };
-    repository
-        .commit_output_lots(&plan, &posting)
-        .await?;
+    repository.commit_output_lots(&plan, &posting).await?;
     Ok(Some(OutputLotPosting {
         lots: plan.lots.len(),
         genealogy_rows: plan.genealogy.len(),

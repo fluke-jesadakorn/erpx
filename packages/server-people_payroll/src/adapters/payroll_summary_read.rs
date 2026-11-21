@@ -10,12 +10,18 @@ use crate::application::payroll_summary::{
 use crate::domain::payroll_summary::{
     PayrollMonth, PayrollReadActor, PayrollRunRow, PayrollSummaryRow, PayrollWorkRow,
 };
+use base64::{
+    Engine, alphabet,
+    engine::{
+        DecodePaddingMode,
+        general_purpose::{GeneralPurpose, GeneralPurposeConfig, URL_SAFE_NO_PAD},
+    },
+};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
-use sqlx::{Connection, PgConnection, Row};
-use base64::{Engine, alphabet, engine::{DecodePaddingMode, general_purpose::{GeneralPurpose, GeneralPurposeConfig, URL_SAFE_NO_PAD}}};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -28,30 +34,63 @@ struct HistoryCursor {
 }
 
 fn invalid_history_cursor() -> BusinessError {
-    BusinessError::new(FailureKind::InvalidInput, "INVALID_CURSOR", "Restart this search to load results.")
+    BusinessError::new(
+        FailureKind::InvalidInput,
+        "INVALID_CURSOR",
+        "Restart this search to load results.",
+    )
 }
 
 fn history_scope(company: &CompanyId) -> String {
     // This is JSON.stringify([[companyId, 'payroll'], true, 30]).
-    let input = serde_json::to_vec(&serde_json::json!([[company.as_str(), "payroll"], true, 30])).expect("JSON scope");
+    let input = serde_json::to_vec(&serde_json::json!([
+        [company.as_str(), "payroll"],
+        true,
+        30
+    ]))
+    .expect("JSON scope");
     format!("{:x}", Sha256::digest(input))
 }
 
-fn decode_history_cursor(raw: Option<&str>, scope: &str) -> Result<Option<HistoryCursor>, BusinessError> {
-    let Some(raw) = raw.filter(|value| !value.is_empty()) else { return Ok(None) };
-    if raw.encode_utf16().count() > 4096 { return Err(invalid_history_cursor()); }
+fn decode_history_cursor(
+    raw: Option<&str>,
+    scope: &str,
+) -> Result<Option<HistoryCursor>, BusinessError> {
+    let Some(raw) = raw.filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    if raw.encode_utf16().count() > 4096 {
+        return Err(invalid_history_cursor());
+    }
     // Buffer.from(value, 'base64url') also accepts standard alphabet and ignores
     // non-alphabet characters; stop at padding as Node does.
-    let mut bytes: Vec<u8> = raw.bytes().take_while(|b| *b != b'=')
+    let mut bytes: Vec<u8> = raw
+        .bytes()
+        .take_while(|b| *b != b'=')
         .filter_map(|b| match b {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' => Some(b),
-            b'+' => Some(b'-'), b'/' => Some(b'_'), _ => None,
-        }).collect();
-    if bytes.len() % 4 == 1 { bytes.pop(); }
-    let decoder = GeneralPurpose::new(&alphabet::URL_SAFE, GeneralPurposeConfig::new().with_decode_allow_trailing_bits(true).with_decode_padding_mode(DecodePaddingMode::Indifferent));
-    let decoded = decoder.decode(bytes).map_err(|_| invalid_history_cursor())?;
-    let value: HistoryCursor = serde_json::from_str(&String::from_utf8_lossy(&decoded)).map_err(|_| invalid_history_cursor())?;
-    if value.scope != scope { return Err(invalid_history_cursor()); }
+            b'+' => Some(b'-'),
+            b'/' => Some(b'_'),
+            _ => None,
+        })
+        .collect();
+    if bytes.len() % 4 == 1 {
+        bytes.pop();
+    }
+    let decoder = GeneralPurpose::new(
+        &alphabet::URL_SAFE,
+        GeneralPurposeConfig::new()
+            .with_decode_allow_trailing_bits(true)
+            .with_decode_padding_mode(DecodePaddingMode::Indifferent),
+    );
+    let decoded = decoder
+        .decode(bytes)
+        .map_err(|_| invalid_history_cursor())?;
+    let value: HistoryCursor = serde_json::from_str(&String::from_utf8_lossy(&decoded))
+        .map_err(|_| invalid_history_cursor())?;
+    if value.scope != scope {
+        return Err(invalid_history_cursor());
+    }
     Ok(Some(value))
 }
 
@@ -62,27 +101,51 @@ mod history_cursor_tests {
     #[test]
     fn node_buffer_base64url_accepts_padding_whitespace_standard_alphabet_and_tail_bits() {
         let scope = history_scope(&CompanyId::new("company").unwrap());
-        let (original, encoded) = ["\u{ffff}", "a\u{ffff}", "ab\u{ffff}"].into_iter().map(|key| {
-            let cursor = HistoryCursor { key: key.into(), id: "id".into(), reverse: false, scope: scope.clone() };
-            let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).unwrap());
-            (cursor, encoded)
-        }).find(|(_, value)| value.contains('_') || value.contains('-')).unwrap();
+        let (original, encoded) = ["\u{ffff}", "a\u{ffff}", "ab\u{ffff}"]
+            .into_iter()
+            .map(|key| {
+                let cursor = HistoryCursor {
+                    key: key.into(),
+                    id: "id".into(),
+                    reverse: false,
+                    scope: scope.clone(),
+                };
+                let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).unwrap());
+                (cursor, encoded)
+            })
+            .find(|(_, value)| value.contains('_') || value.contains('-'))
+            .unwrap();
         assert!(encoded.contains('_') || encoded.contains('-'));
         let standard = encoded.replace('-', "+").replace('_', "/");
-        for raw in [format!("!{encoded}==ignored"), format!(" \n{standard}=ignored"), encoded.clone()] {
+        for raw in [
+            format!("!{encoded}==ignored"),
+            format!(" \n{standard}=ignored"),
+            encoded.clone(),
+        ] {
             let cursor = decode_history_cursor(Some(&raw), &scope).unwrap().unwrap();
             assert_eq!(cursor.key, original.key);
             assert_eq!(cursor.id, original.id);
         }
         let mut json = serde_json::to_vec(&original).unwrap();
-        while json.len() % 3 == 0 { json.push(b' '); }
+        while json.len() % 3 == 0 {
+            json.push(b' ');
+        }
         let mut noncanonical = URL_SAFE_NO_PAD.encode(json).into_bytes();
         let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
         let last = noncanonical.len() - 1;
-        let value = alphabet.iter().position(|v| *v == noncanonical[last]).unwrap();
+        let value = alphabet
+            .iter()
+            .position(|v| *v == noncanonical[last])
+            .unwrap();
         noncanonical[last] = alphabet[value | 1];
         let noncanonical = String::from_utf8(noncanonical).unwrap();
-        assert_eq!(decode_history_cursor(Some(&noncanonical), &scope).unwrap().unwrap().key, original.key);
+        assert_eq!(
+            decode_history_cursor(Some(&noncanonical), &scope)
+                .unwrap()
+                .unwrap()
+                .key,
+            original.key
+        );
         assert!(decode_history_cursor(Some("YQ=="), &scope).is_err());
         assert!(decode_history_cursor(Some(&encoded), "foreign-scope").is_err());
         assert!(decode_history_cursor(Some(""), &scope).unwrap().is_none());
@@ -107,33 +170,70 @@ pub async fn payroll_history(
     } else {
         "WITH list AS (SELECT r.*,r.pay_date||':'||r.created_at::text AS page_key FROM hr_payroll_runs r WHERE r.company_id=$1) SELECT id,page_key,to_jsonb(list) AS item FROM list WHERE ($2::text IS NULL OR (page_key,id) < ($2,$3)) ORDER BY page_key DESC,id DESC LIMIT 31"
     };
-    let rows = sqlx::query(query).bind(actor.company_id.as_str())
+    let rows = sqlx::query(query)
+        .bind(actor.company_id.as_str())
         .bind(cursor.as_ref().map(|value| value.key.as_str()))
-        .bind(cursor.as_ref().map(|value| value.id.as_str())).fetch_all(&mut *c).await?;
+        .bind(cursor.as_ref().map(|value| value.id.as_str()))
+        .fetch_all(&mut *c)
+        .await?;
     let overflow = rows.len() > 30;
     let mut items = Vec::with_capacity(rows.len().min(30));
     for row in rows.into_iter().take(30) {
         let item: serde_json::Value = row.try_get("item")?;
         // The existing PostgreSQL adapter rejects bigint values outside JS's
         // exact integer range before handing rows to the page.
-        if item.as_object().is_some_and(|object| object.values().any(|value|
-            value.as_i64().is_some_and(|n| n.unsigned_abs() > 9_007_199_254_740_991))) {
-            return Err(BusinessError::new(FailureKind::Unavailable, "DATABASE_NUMBER_OUT_OF_RANGE", "Payroll data is unavailable.").into());
+        if item.as_object().is_some_and(|object| {
+            object.values().any(|value| {
+                value
+                    .as_i64()
+                    .is_some_and(|n| n.unsigned_abs() > 9_007_199_254_740_991)
+            })
+        }) {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "DATABASE_NUMBER_OUT_OF_RANGE",
+                "Payroll data is unavailable.",
+            )
+            .into());
         }
         items.push(item);
     }
-    if reverse { items.reverse(); }
+    if reverse {
+        items.reverse();
+    }
     let encode = |item: &serde_json::Value, reverse| -> Result<String, BusinessError> {
         let cursor = HistoryCursor {
-            key: item["page_key"].as_str().ok_or_else(invalid_history_cursor)?.to_owned(),
-            id: item["id"].as_str().ok_or_else(invalid_history_cursor)?.to_owned(),
-            reverse, scope: scope.clone(),
+            key: item["page_key"]
+                .as_str()
+                .ok_or_else(invalid_history_cursor)?
+                .to_owned(),
+            id: item["id"]
+                .as_str()
+                .ok_or_else(invalid_history_cursor)?
+                .to_owned(),
+            reverse,
+            scope: scope.clone(),
         };
-        Ok(URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).map_err(|_| invalid_history_cursor())?))
+        Ok(URL_SAFE_NO_PAD
+            .encode(serde_json::to_vec(&cursor).map_err(|_| invalid_history_cursor())?))
     };
-    let previous_cursor = if !items.is_empty() && if reverse { overflow } else { cursor.is_some() } { Some(encode(&items[0], true)?) } else { None };
-    let next_cursor = if !items.is_empty() && if reverse { cursor.is_some() } else { overflow } { Some(encode(items.last().expect("nonempty"), false)?) } else { None };
-    Ok(crate::domain::payroll_summary::PayrollHistoryPage { has_more: next_cursor.is_some(), items, next_cursor, previous_cursor })
+    let previous_cursor = if !items.is_empty() && if reverse { overflow } else { cursor.is_some() }
+    {
+        Some(encode(&items[0], true)?)
+    } else {
+        None
+    };
+    let next_cursor = if !items.is_empty() && if reverse { cursor.is_some() } else { overflow } {
+        Some(encode(items.last().expect("nonempty"), false)?)
+    } else {
+        None
+    };
+    Ok(crate::domain::payroll_summary::PayrollHistoryPage {
+        has_more: next_cursor.is_some(),
+        items,
+        next_cursor,
+        previous_cursor,
+    })
 }
 
 async fn serializable(connection: &mut PgConnection) -> Result<(), Error> {
@@ -261,10 +361,7 @@ impl<'a> PgPayrollRead<'a> {
 
     /// Work rows stay ordered by owner `updated_at DESC` so Workflow can keep
     /// recency and own-item ordering without reading payroll SQL itself.
-    pub async fn work_rows(
-        &mut self,
-        company: &CompanyId,
-    ) -> Result<Vec<PayrollWorkRow>, Error> {
+    pub async fn work_rows(&mut self, company: &CompanyId) -> Result<Vec<PayrollWorkRow>, Error> {
         serializable(&mut *self.connection).await?;
         let rows = sqlx::query(
             "SELECT r.company_id,r.id,r.pay_group_id,r.pay_date,r.status,r.mode,\

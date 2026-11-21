@@ -18,9 +18,7 @@ use erpx_server_brand::public::branding_http::{
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::{holding_mutation_request, parse_inbound_account_request},
-    effective_authority::{
-        AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest,
-    },
+    effective_authority::{AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest},
     work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
@@ -247,9 +245,9 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
                         )?;
                         let mut ports = PgBranding::new(connection, &actor, clock.now().get());
                         let data = match kind {
-                            BrandingPresentationReadKind::Workspace => {
-                                serde_json::to_value(resolve_workspace_brand(&mut ports, &context).await?)
-                            }
+                            BrandingPresentationReadKind::Workspace => serde_json::to_value(
+                                resolve_workspace_brand(&mut ports, &context).await?,
+                            ),
                             BrandingPresentationReadKind::Document => serde_json::to_value(
                                 resolve_document_brand(
                                     &mut ports,
@@ -259,9 +257,9 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
                                 )
                                 .await?,
                             ),
-                            BrandingPresentationReadKind::Profiles => {
-                                serde_json::to_value(list_brand_profiles(&mut ports, &context).await?)
-                            }
+                            BrandingPresentationReadKind::Profiles => serde_json::to_value(
+                                list_brand_profiles(&mut ports, &context).await?,
+                            ),
                             BrandingPresentationReadKind::Storefront => serde_json::to_value(
                                 read_storefront_app_brand(&mut ports, &context).await?,
                             ),
@@ -280,7 +278,8 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
             )
             .await
     }
-    pub async fn command(        &self,
+    pub async fn command(
+        &self,
         host: &str,
         proof: DeviceProof,
         mut input: HoldingWorkspaceRequest,
@@ -400,10 +399,7 @@ impl<C: Clock + Send + Sync + 'static> BrandingBackend<C> {
 }
 
 impl<C: Clock + Send + Sync + 'static> BrandingHttpBackend for BrandingBackend<C> {
-    fn read<'a>(
-        &'a self,
-        request: BrandingHttpReadRequest<'a>,
-    ) -> BrandingHttpFuture<'a, Value> {
+    fn read<'a>(&'a self, request: BrandingHttpReadRequest<'a>) -> BrandingHttpFuture<'a, Value> {
         Box::pin(async move {
             let (proof, selection) = self.read_context(request.headers)?;
             self.service

@@ -24,8 +24,13 @@ pub type PeopleGrantsHttpFuture<'a, T> =
 /// `Apply` carries the reviewed token and the caller's Idempotency-Key.
 #[derive(Clone, Debug)]
 pub enum PeopleGrantsHttpCommand {
-    Preview { change: Value },
-    Apply { token: String, idempotency_key: String },
+    Preview {
+        change: Value,
+    },
+    Apply {
+        token: String,
+        idempotency_key: String,
+    },
 }
 
 pub struct PeopleGrantsHttpRequest<'a> {
@@ -197,7 +202,9 @@ fn strict_key(headers: &HeaderMap) -> Result<String, BusinessError> {
 
 /// Holding ingress for the reviewed People access commands. Platform callers
 /// have no route here; People access is Company-scoped by contract.
-pub fn people_grants_http_router(targets: PeopleGrantsHttpTargets) -> Result<Router, BusinessError> {
+pub fn people_grants_http_router(
+    targets: PeopleGrantsHttpTargets,
+) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
     for target in targets {
         if target.host.is_empty()

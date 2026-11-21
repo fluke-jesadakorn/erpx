@@ -991,15 +991,18 @@ mod tests {
                     MessagingReadKind::History { .. } => {
                         MessagingHttpReadReply::History(Box::new(MessagingHistoryData {
                             room: room_view(),
-                            messages: vec![serde_json::to_value(&MessageRow {
-                                id: "message-1".into(),
-                                room_id: "room-1".into(),
-                                seq: 1,
-                                sender_id: "user".into(),
-                                sender_name: "User".into(),
-                                body: "Hello".into(),
-                                created_at: 1,
-                            }).unwrap()],
+                            messages: vec![
+                                serde_json::to_value(&MessageRow {
+                                    id: "message-1".into(),
+                                    room_id: "room-1".into(),
+                                    seq: 1,
+                                    sender_id: "user".into(),
+                                    sender_name: "User".into(),
+                                    body: "Hello".into(),
+                                    created_at: 1,
+                                })
+                                .unwrap(),
+                            ],
                             has_more: false,
                         }))
                     }
@@ -1007,7 +1010,9 @@ mod tests {
                         MessagingHttpReadReply::Members(Box::new(MessagingMembersData {
                             id,
                             is_team,
-                            members: vec![serde_json::json!({"id":"user","name":"User","email":"user@example.test"})],
+                            members: vec![
+                                serde_json::json!({"id":"user","name":"User","email":"user@example.test"}),
+                            ],
                             detail: serde_json::json!({"id":"members"}),
                         }))
                     }

@@ -3,8 +3,8 @@
 //! the retired TS worker, on a caller-owned serializable unit.
 use erpx_server_identity_access::public::SystemAccountClock;
 use erpx_server_operations::public::staff_tasks::{
-    PgStaffTaskSources, PgStaffTasks, ProjectFact,
-    StaffTaskFactDelegates, StaffTaskFuture, StaffTaskRepository, escalate_staff_tasks,
+    PgStaffTaskSources, PgStaffTasks, ProjectFact, StaffTaskFactDelegates, StaffTaskFuture,
+    StaffTaskRepository, escalate_staff_tasks,
 };
 use erpx_server_projects::public::staff_facts::staff_project;
 use erpx_server_runtime::public::postgres::{DatabasePool, PoolLimits};
@@ -78,10 +78,7 @@ impl StaffTaskFactDelegates for AlertSources {
 }
 
 /// One serializable sweep of the caller's Holding database.
-pub async fn run_once(
-    write: &PgPool,
-    now: i64,
-) -> Result<(u64, u64), BusinessError> {
+pub async fn run_once(write: &PgPool, now: i64) -> Result<(u64, u64), BusinessError> {
     let production = std::env::var("NODE_ENV").ok().as_deref() == Some("production");
     let mut tx = write.begin().await.map_err(|_| {
         BusinessError::new(
