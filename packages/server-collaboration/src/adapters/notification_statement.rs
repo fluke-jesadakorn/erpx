@@ -5955,3 +5955,32 @@ mod finance_ai_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for expense effect statements.
+pub const EXPENSE_EFFECTS_SQL_EXPENSE_EMPLOYEE_PARTY: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,person_id,created_at,updated_at) VALUES(?,?,'employee',?,?,?,0,?,?,?) ON CONFLICT(company_id,person_id) WHERE person_id IS NOT NULL DO UPDATE SET name=excluded.name";
+pub const EXPENSE_EFFECTS_SQL_EXPENSE_PAYABLE_INVOICE: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'payable',?,?,?,?,?,?,?,?,?,?,?,'expense_claim',?,'posted',?,?,?,?,?,?)";
+pub const EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_JOURNAL: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'expense_reversal',?,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?";
+pub const EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_LINES: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?";
+pub const EXPENSE_EFFECTS_SQL_EXPENSE_JOURNAL_REVERSED: &str = "UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?";
+pub const EXPENSE_EFFECTS_SQL_EXPENSE_INVOICE_VOIDED: &str = "UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod expense_effects_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn expense_effects_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-expense-effects-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid expense effects SQL contract");
+        let pairs = [
+            ("expense_employee_party", EXPENSE_EFFECTS_SQL_EXPENSE_EMPLOYEE_PARTY),
+            ("expense_payable_invoice", EXPENSE_EFFECTS_SQL_EXPENSE_PAYABLE_INVOICE),
+            ("expense_reversal_journal", EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_JOURNAL),
+            ("expense_reversal_lines", EXPENSE_EFFECTS_SQL_EXPENSE_REVERSAL_LINES),
+            ("expense_journal_reversed", EXPENSE_EFFECTS_SQL_EXPENSE_JOURNAL_REVERSED),
+            ("expense_invoice_voided", EXPENSE_EFFECTS_SQL_EXPENSE_INVOICE_VOIDED),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "expense effects SQL contract drift: {key}");
+        }
+    }
+}

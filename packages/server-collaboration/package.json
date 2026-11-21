@@ -341,7 +341,8 @@
     "./adapters/native-consolidation-sql": "./src/adapters/native-consolidation-sql.ts",
     "./adapters/native-pos-core-sql": "./src/adapters/native-pos-core-sql.ts",
     "./adapters/native-company-money-sql": "./src/adapters/native-company-money-sql.ts",
-    "./adapters/native-finance-ai-sql": "./src/adapters/native-finance-ai-sql.ts"
+    "./adapters/native-finance-ai-sql": "./src/adapters/native-finance-ai-sql.ts",
+    "./adapters/native-expense-effects-sql": "./src/adapters/native-expense-effects-sql.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
