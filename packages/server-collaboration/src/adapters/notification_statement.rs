@@ -4800,3 +4800,73 @@ pub async fn books_account_mapping_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "INSERT INTO finance_book_account_mappings(rule_id,primary_account_id,secondary_account_id) VALUES(?,?,?)".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance withholding: native-owned wh_withholding_consumed statement.
+pub async fn wh_withholding_consumed_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_withholding_assessments SET status='consumed',consumed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding: native-owned wh_assessment_reversed statement.
+pub async fn wh_assessment_reversed_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_withholding_assessments SET status='reversed',reversal_journal_id=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding: native-owned wh_thai_document_cancel statement.
+pub async fn wh_thai_document_cancel_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_thai_document_events(id,document_id,company_id,action,reason,actor_id,command_id,created_at) VALUES(?,?,?,'cancelled',?,?,?,?) ON CONFLICT(document_id,action) DO NOTHING".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding: native-owned wh_assessment_insert statement.
+pub async fn wh_assessment_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_withholding_assessments(id,company_id,payment_id,payment_version,payer_identity_id,payer_identity_version,payee_identity_id,payee_identity_version,liability_account_id,liability_account_version,payment_date,form_kind,gross_minor,income_minor,tax_minor,source_fingerprint,source_snapshot_json,rule_pack_version,rule_pack_digest,classification_evidence,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding: native-owned wh_income_line_insert statement.
+pub async fn wh_income_line_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_withholding_income_lines(id,assessment_id,company_id,invoice_id,invoice_version,invoice_line_revision,source_line_id,description,category,contract_ref,contract_total_minor,allocated_gross_minor,prior_paid_gross_minor,original_income_minor,income_minor,prior_withheld_minor,rate_bps,tax_minor,source_snapshot_json,ordinal,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding: native-owned wh_payment_withholding statement.
+pub async fn wh_payment_withholding_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_payments SET withholding_assessment_id=?,withheld_minor=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance withholding: native-owned wh_assessment_decision statement.
+pub async fn wh_assessment_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_withholding_assessments SET status=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
