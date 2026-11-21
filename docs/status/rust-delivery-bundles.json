@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4531,
+    "revision": 4533,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:40:30.078Z",
-      "expiresAt": "2026-11-21T19:10:30.078Z",
+      "heartbeatAt": "2026-11-21T18:40:51.660Z",
+      "expiresAt": "2026-11-21T19:10:51.660Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -27867,8 +27867,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:40:30.078Z",
-          "expiresAt": "2026-11-21T19:10:30.078Z",
+          "heartbeatAt": "2026-11-21T18:40:51.660Z",
+          "expiresAt": "2026-11-21T19:10:51.660Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43766,8 +43766,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:40:30.078Z",
-          "expiresAt": "2026-11-21T19:10:30.078Z",
+          "heartbeatAt": "2026-11-21T18:40:51.660Z",
+          "expiresAt": "2026-11-21T19:10:51.660Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47037,8 +47037,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:40:30.078Z",
-          "expiresAt": "2026-11-21T19:10:30.078Z",
+          "heartbeatAt": "2026-11-21T18:40:51.660Z",
+          "expiresAt": "2026-11-21T19:10:51.660Z",
           "generation": 147
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -47475,8 +47475,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:40:30.078Z",
-          "expiresAt": "2026-11-21T19:10:30.078Z",
+          "heartbeatAt": "2026-11-21T18:40:51.660Z",
+          "expiresAt": "2026-11-21T19:10:51.660Z",
           "generation": 147
         },
         "baseSha": null,
@@ -47673,8 +47673,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:41.639Z",
-          "heartbeatAt": "2026-11-21T18:40:30.078Z",
-          "expiresAt": "2026-11-21T19:10:30.078Z",
+          "heartbeatAt": "2026-11-21T18:40:51.660Z",
+          "expiresAt": "2026-11-21T19:10:51.660Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47764,11 +47764,29 @@
             "result": "passed",
             "sourceSha": "fc114fd85c8b42e2d9b6589c183964e5e6ab703e",
             "note": "Route auto-mounted via existing pms_http_router mount. Remaining: feature-pms TS bridge (native-pms.ts pattern) + rewire application line 421 + delete TS combined-row site. Site-1 status lock stays TS (must remain in-txn)."
+          },
+          {
+            "command": "tsc:server-pms",
+            "result": "passed",
+            "sourceSha": "fc114fd85c8b42e2d9b6589c183964e5e6ab703e",
+            "note": "bun x tsc --noEmit -p packages/server-pms clean; feature-pms has only 2 pre-existing unrelated errors in feature-records"
+          },
+          {
+            "command": "test:unit pms.native-refund-context.unit",
+            "result": "passed",
+            "sourceSha": "fc114fd85c8b42e2d9b6589c183964e5e6ab703e",
+            "note": "6/6 bridge transport tests pass via registered runner (catalogue entry added)"
+          },
+          {
+            "command": "test:unit pms.application.unit",
+            "result": "passed",
+            "sourceSha": "fc114fd85c8b42e2d9b6589c183964e5e6ab703e",
+            "note": "134/134 pass incl 91 pms-application (no test reaches rewired line; proxy fakes unaffected)"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Composition impl done + mounted. Next: feature-pms TS bridge (copy native-pms.ts config pattern) + rewire retryBookingRefund line 421 to it + delete TS readPmsBookingRefundRequests7 site; verify against native service on same DB. Site-1 (status FOR UPDATE) stays TS with removalTaskId until full command migrates.",
+        "nextAction": "Bridge + rewire done and unit-verified. Next: e2e retry flow against native service on same DB (needs service boot env), then close slice with SELECT KPI.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -51207,8 +51225,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:40:30.078Z",
-          "expiresAt": "2026-11-21T19:10:30.078Z",
+          "heartbeatAt": "2026-11-21T18:40:51.660Z",
+          "expiresAt": "2026-11-21T19:10:51.660Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105170,7 +105188,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:40:30.079Z",
+    "updatedAt": "2026-11-21T18:48:05.753Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

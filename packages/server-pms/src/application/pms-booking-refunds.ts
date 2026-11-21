@@ -3,6 +3,7 @@ import { record, records, type Snapshot } from "@erpx/server-pms/domain/pms";
 import { executePms } from "@erpx/feature-pms/lib/pms-engine";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { refundRequestContext } from "@erpx/server-pms/adapters/native-refund-context";
 import type { Effects } from "@erpx/feature-pms/lib/pms-engine";
 import type { Clock } from "@erpx/server-shared/application/ports";
 import type { BookingPaymentRow, BookingEnv } from "@erpx/server-pms/public/pms-booking";
@@ -153,14 +154,6 @@ export type PmsBookingRefundUnit = {
         now: number;
         id: string;
     }): Promise<PmsProviderRows<Record<string, unknown>>>;
-    readPmsBookingRefundRequests7(facts: {
-        id: string;
-        companyId: string;
-    }): Promise<(Request & {
-        property_id: string;
-        account_id: string;
-        livemode: boolean;
-    }) | null>;
     readPmsBookingRefundRequests8(facts: {
         id: string;
     }): Promise<Request | null>;
@@ -415,10 +408,10 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
         }
     }
     /** Retry only after Stripe confirms that the previous refund failed or was cancelled. */
-    async function retryBookingRefund(db: PmsBookingRefundRepository, actor: WorkContext, id: string, reason: string) {
+    async function retryBookingRefund(db: PmsBookingRefundRepository, actor: WorkContext, id: string, reason: string, incoming: Pick<Headers, 'get'>) {
         ports.require(actor, 'pms.approve');
         if (actor.departmentId || reason.trim().length < 3) throw ports.error(422,'PMS_REFUND_RETRY_INPUT','Use PMS and enter a recovery reason');
-        const found = await db.readPmsBookingRefundRequests7({ id: id, companyId: actor.companyId });
+        const found = await refundRequestContext(incoming, actor.holdingId, id);
         if (!found || found.state !== 'failed' || !found.provider_id || samePerson(actor, found.requested_by))
             throw ports.error(409, 'PMS_REFUND_RETRY_UNAVAILABLE', 'An independent PMS reviewer must select a failed provider refund');
         const purchase: PmsPropertyPurchase = { propertyId: found.property_id, purpose: "settle-existing", actor, permission: "pms.approve" };

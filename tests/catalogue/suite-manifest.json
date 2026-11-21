@@ -88271,6 +88271,44 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS refund-context transport must retain fail-closed configuration, exact Host/Holding/session forwarding, bounded response validation and the retained null-on-absent contract without a TypeScript combined-row fallback."
+      },
+      "apps": [
+        "pms",
+        "booking"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-pms",
+        "@erpx/server-pms",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "pms.native-refund-context.unit",
+      "framework": "vitest",
+      "files": [
+        "tests/unit/pms/native-refund-context.test.ts"
+      ],
+      "verificationInputs": [
+        "packages/server-pms/src/adapters/native-refund-context.ts",
+        "packages/server-pms/src/adapters/pms-booking-refunds.ts",
+        "packages/server-pms/src/application/pms-booking-refunds.ts"
+      ]
+    },
+    {
       "id": "records.rust-record-context.unit",
       "lane": "unit",
       "owner": "shared.records",

@@ -18,6 +18,6 @@ export async function POST(request:Request,{params}:Context){
   if(!isTransactionalSqlDatabase(write))throw new Error('POSTGRES_REQUIRED');
   if(body.action && !['approve','retry','recover-receipt'].includes(body.action))throw new ApiError(422,'PMS_REFUND_ACTION','Choose an available refund action');
   const reason=typeof body.reason==='string'?body.reason:'';
-  return Response.json(canonicalDestinationLinks({data:body.action==='recover-receipt'?await recoverBookingReceipt(write,actor,body.id,reason):body.action==='retry'?await retryBookingRefund(write,actor,body.id,reason):await approveBookingRefund(write,actor,body.id)}),{headers:{'Cache-Control':'private, no-store'}});
+  return Response.json(canonicalDestinationLinks({data:body.action==='recover-receipt'?await recoverBookingReceipt(write,actor,body.id,reason):body.action==='retry'?await retryBookingRefund(write,actor,body.id,reason,request.headers):await approveBookingRefund(write,actor,body.id)}),{headers:{'Cache-Control':'private, no-store'}});
  }catch(error){return errorResponse(error);}
 }

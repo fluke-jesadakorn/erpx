@@ -158,14 +158,6 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             now: number;
             id: string;
         }) => write('pms_w021', [facts.now, facts.id]),
-        readPmsBookingRefundRequests7: (facts: {
-            id: string;
-            companyId: string;
-        }) => db.prepare("SELECT r.*,p.property_id,p.account_id,p.livemode FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE r.id=? AND p.company_id=?").bind(facts.id, facts.companyId).first<Request & {
-            property_id: string;
-            account_id: string;
-            livemode: boolean;
-        }>(),
         readPmsBookingRefundRequests8: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_booking_refund_requests WHERE id=? FOR UPDATE').bind(facts.id).first<Request>(),
@@ -202,4 +194,4 @@ export function approveBookingRefund(db: TransactionalSqlDatabase, actor: WorkCo
 export function bookingRefundsForFinance(actor: WorkContext) { return application.bookingRefundsForFinance(actor); }
 export function recoverBookingReceipt(db: TransactionalSqlDatabase, actor: WorkContext, requestId: string, reason: string) { return application.recoverBookingReceipt(repository(db, actor.companyId), actor, requestId, reason); }
 export function processBookingRefund(db: TransactionalSqlDatabase, id: string, now = Date.now()) { return application.processBookingRefund(repository(db), id, now); }
-export function retryBookingRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string, reason: string) { return application.retryBookingRefund(repository(db, actor.companyId), actor, id, reason); }
+export function retryBookingRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string, reason: string, incoming: Pick<Headers, 'get'>) { return application.retryBookingRefund(repository(db, actor.companyId), actor, id, reason, incoming); }
