@@ -1,3 +1,4 @@
+import { expenseDrafts } from '@erpx/server-collaboration/adapters/native-expense-drafts';
 import{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements}from '@erpx/server-people_payroll/adapters/expense-requirements';
 export{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements};
 
@@ -113,19 +114,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
     current?.prepared_by ?? actor.userId,
     now,
   ];
-  steps.push(
-    current
-      ? write
-          .prepare(
-            "UPDATE finance_expenses SET request_kind=?,payee_party_id=?,employee_id=?,engagement_id=?,branch_id=?,department_id=?,claimant_user_id=?,claimant_name=?,expense_date=?,merchant=?,currency=?,amount_minor=?,tax_minor=?,category_account_id=?,receipt_reference=?,business_purpose=?,prepared_by=?,updated_at=?,status='draft',workflow_version=2,workflow_stage='draft',version=version+1 WHERE id=?",
-          )
-          .bind(...values, recordId)
-      : write
-          .prepare(
-            "INSERT INTO finance_expenses(request_kind,payee_party_id,employee_id,engagement_id,branch_id,department_id,claimant_user_id,claimant_name,expense_date,merchant,currency,amount_minor,tax_minor,category_account_id,receipt_reference,business_purpose,prepared_by,updated_at,id,company_id,created_by,created_at,workflow_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,2)",
-          )
-          .bind(...values, recordId, actor.companyId, actor.userId, now),
-  );
+  steps.push(await expenseDrafts(write, actor.companyId).write(!current, values, recordId, actor.userId, now));
 
       return expenseMutation({ id: recordId, status: "draft", version }, steps);
     },
