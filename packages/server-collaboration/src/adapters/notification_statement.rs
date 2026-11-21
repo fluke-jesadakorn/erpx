@@ -4479,3 +4479,74 @@ pub async fn finance_year_closing_decision_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_year_closings SET status=?,journal_id=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+
+/// Inbox: record an event (idempotent by company/event key).
+pub async fn inbox_event_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO inbox_events(id,company_id,event_key,source_type,source_id,source_version,actor_user_id,category,preview,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(company_id,event_key) DO NOTHING".to_owned(), values: values_from_json(input)? })
+}
+
+/// Inbox: deliver an event to a user (idempotent by event/user).
+pub async fn inbox_delivery_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at) VALUES(?,?,?,?,?) ON CONFLICT(event_id,user_id) DO NOTHING".to_owned(), values: values_from_json(input)? })
+}
+
+/// Inbox: change a delivery read/archive state.
+pub async fn inbox_delivery_state_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE inbox_deliveries SET read_at=?,archived_at=? WHERE id=? AND company_id=? AND user_id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Inbox: acknowledge a legacy staff notification.
+pub async fn inbox_staff_notification_read_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Inbox: insert a notice.
+pub async fn inbox_notice_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO inbox_notices(id,company_id,sender_user_id,title,body,audience_json,recipient_count,created_at) VALUES(?,?,?,?,?,?::jsonb,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Inbox: target a notice at a user.
+pub async fn inbox_notice_target_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO inbox_notice_targets(notice_id,company_id,user_id) VALUES(?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Inbox: mark a notice target delivered.
+pub async fn inbox_notice_target_complete_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE inbox_notice_targets SET delivered_at=? WHERE notice_id=? AND user_id=? AND delivered_at IS NULL".to_owned(), values: values_from_json(input)? })
+}

@@ -53,7 +53,7 @@ export interface InboxRepository {
         id: string;
     } | null>;
     deliverNotice(value: string, id: string, company_id: string, user_id: string, now: number): Promise<unknown>;
-    completeNoticeTarget(now: number, notice_id: string, user_id: string): Promise<unknown>;
+    completeNoticeTarget(now: number, notice_id: string, user_id: string, companyId: string): Promise<unknown>;
     pendingMetrics(): Promise<{
         count: number;
         oldest: number | null;
@@ -268,7 +268,7 @@ export function createInboxApplication<Effect>(ports: InboxPorts<Effect>) {
                 if (event)
                     await r.deliverNotice(ports.identifiers.next(), event.id, target.company_id, target.user_id, ports.clock.now());
             }
-            await r.completeNoticeTarget(ports.clock.now(), target.notice_id, target.user_id);
+            await r.completeNoticeTarget(ports.clock.now(), target.notice_id, target.user_id, target.company_id);
         }
         return targets.length;
     }

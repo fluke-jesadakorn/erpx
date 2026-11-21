@@ -1,3 +1,4 @@
+import { nativeInboxStatements } from './native-inbox-statements';
 import {nativeFieldInboxCandidates,nativeFieldInboxState} from './native-field-inbox';
 import {workSourceReadScope} from "@erpx/server-operations/public/record-purchases";
 import {benefitSourceReadScope} from "@erpx/server-benefits/public/record-purchases";
@@ -57,18 +58,14 @@ const candidateSql = `SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_
   WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL`;
 function application(db: SqlDatabase) {
     const repository: InboxRepository = { async publishEvent(id: string, companyId: string, key: string, sourceType: string, sourceId: string, sourceVersion: number, value: string | null, category: InboxCategory, preview: string, now: number) {
-            return db.prepare(`INSERT INTO inbox_events(id,company_id,event_key,source_type,source_id,source_version,actor_user_id,category,preview,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(company_id,event_key) DO NOTHING`)
-                .bind(id, companyId, key, sourceType, sourceId, sourceVersion, value, category, preview, now).run();
+            return await nativeInboxStatements(db, companyId).eventInsert([id, companyId, key, sourceType, sourceId, sourceVersion, value, category, preview, now]);
         }, async publishedEvent(companyId: string, key: string) {
             return db.prepare("SELECT id FROM inbox_events WHERE company_id=? AND event_key=?")
                 .bind(companyId, key).first<{
                 id: string;
             }>();
         }, async deliverEvent(value: string, id: string, companyId: string, userId: string, now: number) {
-            return db.prepare(`INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at)
-      VALUES(?,?,?,?,?) ON CONFLICT(event_id,user_id) DO NOTHING`)
-                .bind(value, id, companyId, userId, now).run();
+            return await nativeInboxStatements(db, companyId).deliveryInsert([value, id, companyId, userId, now]);
         }, async noticeExists(source_id: string, companyId: string) {
             return db.prepare("SELECT id FROM inbox_notices WHERE id=? AND company_id=?")
                 .bind(source_id, companyId).first();
@@ -77,22 +74,18 @@ function application(db: SqlDatabase) {
     JOIN inbox_events e ON e.id=d.event_id WHERE d.id=? AND d.company_id=? AND d.user_id=?`)
                 .bind(id, companyId, userId).first<Candidate>();
         }, async changeDeliveryState(readAt: number | null, archivedAt: number | null, id: string, companyId: string, userId: string) {
-            return db.prepare("UPDATE inbox_deliveries SET read_at=?,archived_at=? WHERE id=? AND company_id=? AND user_id=?")
-                .bind(readAt, archivedAt, id, companyId, userId).run();
+            return await nativeInboxStatements(db, companyId).deliveryState([readAt, archivedAt, id, companyId, userId]);
         }, async changeLegacyState(readAt: number | null, id: string, companyId: string, userId: string) {
-            return db.prepare("UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?")
-                .bind(readAt, id, companyId, userId).run();
+            return await nativeInboxStatements(db, companyId).staffNotificationRead([readAt, id, companyId, userId]);
         }, async recentNoticeCount(companyId: string, userId: string, value: number) {
             return db.prepare("SELECT count(*)::int n FROM inbox_notices WHERE company_id=? AND sender_user_id=? AND created_at>?")
                 .bind(companyId, userId, value).first<{
                 n: number;
             }>();
         }, async insertNotice(id: string, companyId: string, userId: string, title: string, body: string, value: string, length: number, now: number) {
-            return db.prepare("INSERT INTO inbox_notices(id,company_id,sender_user_id,title,body,audience_json,recipient_count,created_at) VALUES(?,?,?,?,?,?::jsonb,?,?)")
-                .bind(id, companyId, userId, title, body, value, length, now).run();
+            return await nativeInboxStatements(db, companyId).noticeInsert([id, companyId, userId, title, body, value, length, now]);
         }, async targetNotice(id: string, companyId: string, userId: string) {
-            return db.prepare("INSERT INTO inbox_notice_targets(notice_id,company_id,user_id) VALUES(?,?,?)")
-                .bind(id, companyId, userId).run();
+            return await nativeInboxStatements(db, companyId).noticeTargetInsert([id, companyId, userId]);
         }, async pendingTargets() {
             return db.prepare("SELECT notice_id,company_id,user_id FROM inbox_notice_targets WHERE delivered_at IS NULL ORDER BY notice_id,user_id LIMIT 50")
                 .all<{
@@ -106,11 +99,9 @@ function application(db: SqlDatabase) {
                 id: string;
             }>();
         }, async deliverNotice(value: string, id: string, company_id: string, user_id: string, now: number) {
-            return db.prepare("INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at) VALUES(?,?,?,?,?) ON CONFLICT(event_id,user_id) DO NOTHING")
-                .bind(value, id, company_id, user_id, now).run();
-        }, async completeNoticeTarget(now: number, notice_id: string, user_id: string) {
-            return db.prepare("UPDATE inbox_notice_targets SET delivered_at=? WHERE notice_id=? AND user_id=? AND delivered_at IS NULL")
-                .bind(now, notice_id, user_id).run();
+            return await nativeInboxStatements(db, company_id).deliveryInsert([value, id, company_id, user_id, now]);
+        }, async completeNoticeTarget(now: number, notice_id: string, user_id: string, companyId: string) {
+            return await nativeInboxStatements(db, companyId).noticeTargetComplete([now, notice_id, user_id]);
         }, async pendingMetrics() {
             return db.prepare(`SELECT count(*)::int count,min(n.created_at) oldest
     FROM inbox_notice_targets t JOIN inbox_notices n ON n.id=t.notice_id WHERE t.delivered_at IS NULL`)
@@ -172,7 +163,7 @@ export function changeInboxState(db: SqlDatabase, actor: WorkContext, id: string
 export function markStaffNotificationRead(db:SqlDatabase,actor:WorkContext,id:string,key:string,now=Date.now()){
     return exposed(async()=>{
         if(await nativeInboxDelivery(db,actor,id))return nativeFieldInboxState(actor,id,'{"read":true}',key);
-        return db.prepare("UPDATE staff_notifications SET read_at=? WHERE id=? AND company_id=? AND user_id=?").bind(now,id,actor.companyId,actor.userId).run();
+        return await nativeInboxStatements(db, actor.companyId).staffNotificationRead([now,id,actor.companyId,actor.userId]);
     });
 }
 export function drainInboxNotices(db: SqlDatabase) { return exposed(() => application(db).drainInboxNotices()); }
