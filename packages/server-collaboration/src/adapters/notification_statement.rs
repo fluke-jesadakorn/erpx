@@ -4017,3 +4017,30 @@ pub async fn people_beta_engagement_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// People: relocate organization employees and engagements (department move).
+pub async fn people_org_relocation_engagement_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE hr_engagements SET branch_id=?,department_id=?,updated_at=? WHERE company_id=? AND department_id=? AND status IN ('draft','onboarding','active','suspended')".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People: relocate active employees (department move).
+pub async fn people_org_relocation_employee_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE employees SET branch_id=?,department_id=? WHERE company_id=? AND department_id=? AND status='active'".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
