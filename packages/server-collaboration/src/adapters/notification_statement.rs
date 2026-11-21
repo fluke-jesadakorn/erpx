@@ -4232,3 +4232,55 @@ pub async fn finance_collection_decide_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_collection_cases SET status=?,version=version+1,reviewed_by=CASE WHEN ?='approved' THEN ? ELSE reviewed_by END,review_reason=CASE WHEN ?='approved' THEN ? ELSE review_reason END,reviewed_at=CASE WHEN ?='approved' THEN ? ELSE reviewed_at END WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+
+/// Finance: prepare a calculation run.
+pub async fn finance_calc_run_prepare_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_calculation_runs(id,company_id,holding_id,kind,policy_id,policy_version,period_id,currency,currency_scale,source_hash,input_json,result_json,explanation_json,status,version,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'prepared',1,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: record a calculation prepare event.
+pub async fn finance_calc_event_prepare_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_calculation_events VALUES(?,?,1,'prepare',?,'Prepared deterministic calculation',?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: decide on a calculation run (reviewer column chosen by caller).
+pub async fn finance_calc_run_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let column = safe_table(&input.table_name)?;
+    Ok(NotificationStatement { sql: format!("UPDATE finance_calculation_runs SET status=?,version=version+1,updated_at=?,{column}=? WHERE id=?"), values: values_from_json(input)? })
+}
+
+/// Finance: record a calculation decision event.
+pub async fn finance_calc_event_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_calculation_events VALUES(?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: record a period-close check.
+pub async fn finance_close_check_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_close_checks(id,company_id,period_id,check_key,source_version,status,count_value,detail_json,checked_at,checked_by) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(period_id,check_key,source_version) DO NOTHING".to_owned(), values: values_from_json(input)? })
+}

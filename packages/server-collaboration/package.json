@@ -315,7 +315,8 @@
     "./adapters/native-organization-node-channels": "./src/adapters/native-organization-node-channels.ts",
     "./adapters/native-collaboration-backfill": "./src/adapters/native-collaboration-backfill.ts",
     "./adapters/native-legal-job-health": "./src/adapters/native-legal-job-health.ts",
-    "./adapters/native-finance-collections": "./src/adapters/native-finance-collections.ts"
+    "./adapters/native-finance-collections": "./src/adapters/native-finance-collections.ts",
+    "./adapters/native-finance-engines": "./src/adapters/native-finance-engines.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
