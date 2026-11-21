@@ -336,7 +336,8 @@
     "./adapters/native-business-contract-sql": "./src/adapters/native-business-contract-sql.ts",
     "./adapters/native-finance-bank-automation": "./src/adapters/native-finance-bank-automation.ts",
     "./adapters/native-finance-tax-register": "./src/adapters/native-finance-tax-register.ts",
-    "./adapters/native-group-ownership-sql": "./src/adapters/native-group-ownership-sql.ts"
+    "./adapters/native-group-ownership-sql": "./src/adapters/native-group-ownership-sql.ts",
+    "./adapters/native-commerce-facts-sql": "./src/adapters/native-commerce-facts-sql.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

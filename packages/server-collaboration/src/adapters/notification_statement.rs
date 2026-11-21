@@ -5752,3 +5752,40 @@ mod group_ownership_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for commerce finance fact statements.
+pub const COMMERCE_FACTS_SQL_COMMERCE_INVOICE_OUTSTANDING: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=base_outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
+pub const COMMERCE_FACTS_SQL_COMMERCE_REFUND_OBLIGATION_INSERT: &str = "INSERT INTO finance_refund_obligations(id,company_id,branch_id,department_id,return_id,invoice_id,party_id,direction,currency,chart_id,balance_account_id,amount_minor,outstanding_minor,base_amount_minor,base_outstanding_minor,source_credit_journal_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_INSERT: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)";
+pub const COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_LINES_INSERT: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES(?,?,?,?,?,?,?,?)";
+pub const COMMERCE_FACTS_SQL_COMMERCE_INVOICE_INSERT: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,source_version,status,created_by,created_at,updated_at) VALUES(?,?,?,?,CASE WHEN ?='receivable' THEN erpx_sales_document_number(?,'INV',?) ELSE ? END,?,?,?,?,?,?,?,?,?,?,'commerce_fulfillment',?,?,'draft',?,?,?)";
+pub const COMMERCE_FACTS_SQL_COMMERCE_PAYMENT_INSERT: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,base_amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at,payment_slip_id) VALUES(?,?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?,?)";
+pub const COMMERCE_FACTS_SQL_COMMERCE_ALLOCATION_INSERT: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const COMMERCE_FACTS_SQL_COMMERCE_INVOICE_ADJUST: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=GREATEST(0,base_outstanding_minor-?),status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
+pub const COMMERCE_FACTS_SQL_COMMERCE_PARTY_UPDATE: &str = "UPDATE finance_parties SET code=?,name=?,payment_terms_days=?,credit_limit_minor=?,status=?,notification_email=?,notification_consent=?,version=version+1,updated_at=? WHERE id=?";
+pub const COMMERCE_FACTS_SQL_COMMERCE_PARTY_INSERT: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,status,notification_email,notification_consent,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+#[cfg(test)]
+mod commerce_facts_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn commerce_facts_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-commerce-facts-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid commerce facts SQL contract");
+        let pairs = [
+            ("commerce_invoice_outstanding", COMMERCE_FACTS_SQL_COMMERCE_INVOICE_OUTSTANDING),
+            ("commerce_refund_obligation_insert", COMMERCE_FACTS_SQL_COMMERCE_REFUND_OBLIGATION_INSERT),
+            ("commerce_journal_insert", COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_INSERT),
+            ("commerce_journal_lines_insert", COMMERCE_FACTS_SQL_COMMERCE_JOURNAL_LINES_INSERT),
+            ("commerce_invoice_insert", COMMERCE_FACTS_SQL_COMMERCE_INVOICE_INSERT),
+            ("commerce_payment_insert", COMMERCE_FACTS_SQL_COMMERCE_PAYMENT_INSERT),
+            ("commerce_allocation_insert", COMMERCE_FACTS_SQL_COMMERCE_ALLOCATION_INSERT),
+            ("commerce_invoice_adjust", COMMERCE_FACTS_SQL_COMMERCE_INVOICE_ADJUST),
+            ("commerce_party_update", COMMERCE_FACTS_SQL_COMMERCE_PARTY_UPDATE),
+            ("commerce_party_insert", COMMERCE_FACTS_SQL_COMMERCE_PARTY_INSERT),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "commerce facts SQL contract drift: {key}");
+        }
+    }
+}
