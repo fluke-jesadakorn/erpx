@@ -6,6 +6,7 @@
 //! and the Commercial package entitlement remain composition responsibilities
 //! behind [`PmsHttpBackend`].
 use crate::domain::front_desk::PmsFrontDeskSelection;
+use crate::domain::refund::PmsRefundContextSelection;
 use crate::domain::room_board::{PmsBoardSection, PmsBoardSelection, cp_len};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -30,6 +31,13 @@ pub struct PmsHttpFrontDeskRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub selection: PmsFrontDeskSelection,
+}
+
+pub struct PmsHttpRefundContextRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub selection: PmsRefundContextSelection,
 }
 
 #[derive(Clone, Debug)]
@@ -60,6 +68,21 @@ pub trait PmsHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "PMS_FRONT_DESK_UNAVAILABLE",
                 "The native hotel front desk is unavailable.",
+            ))
+        })
+    }
+    /// Refund request-context reads are added without forcing an existing
+    /// room-board backend to serve a queue it does not implement.
+    /// Composition must opt in explicitly; the default fails closed.
+    fn refund_context<'a>(
+        &'a self,
+        _request: PmsHttpRefundContextRequest<'a>,
+    ) -> PmsHttpFuture<'a, PmsHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PMS_REFUND_CONTEXT_UNAVAILABLE",
+                "The native refund request context is unavailable.",
             ))
         })
     }
@@ -260,6 +283,43 @@ fn front_desk_malformed() -> BusinessError {
     )
 }
 
+fn refund_context_malformed() -> BusinessError {
+    BusinessError::invalid(
+        "PMS_REFUND_CONTEXT_REQUEST_INVALID",
+        "Use one bounded refund request selection.",
+    )
+}
+
+fn refund_context_selection(request: &Request) -> Result<PmsRefundContextSelection, BusinessError> {
+    let Some(query) = request.uri().query() else {
+        return Err(refund_context_malformed());
+    };
+    if query.len() > QUERY_LIMIT {
+        return Err(refund_context_malformed());
+    }
+    let mut parsed = PmsRefundContextSelection::default();
+    let mut seen = std::collections::BTreeSet::new();
+    for pair in query.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+        let name = percent_decode(name)?;
+        let value = percent_decode(value)?;
+        if !seen.insert(name.clone()) {
+            return Err(refund_context_malformed());
+        }
+        match name.as_str() {
+            "request" => {
+                parsed.request_id = id(&value, "PMS_REFUND_CONTEXT_REQUEST_INVALID")?;
+            }
+            _ => return Err(refund_context_malformed()),
+        }
+    }
+    parsed.validate().map_err(|_| refund_context_malformed())?;
+    Ok(parsed)
+}
+
 fn front_desk_selection(request: &Request) -> Result<PmsFrontDeskSelection, BusinessError> {
     let Some(query) = request.uri().query() else {
         return Ok(PmsFrontDeskSelection::default());
@@ -325,6 +385,10 @@ pub fn pms_http_router(targets: Vec<PmsHttpTarget>) -> Result<Router, BusinessEr
             "/api/v1/holdings/{holding_slug}/pms/front-desk",
             get(read_front_desk),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/pms/booking-refunds/context",
+            get(read_refund_context),
+        )
         .with_state(Arc::new(PmsHttpState {
             targets: configured,
         })))
@@ -374,6 +438,35 @@ async fn read_front_desk(
         target
             .backend
             .front_desk(PmsHttpFrontDeskRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                selection,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_refund_context(
+    State(state): State<Arc<PmsHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let selection = refund_context_selection(&request)?;
+        let headers = request.headers().clone();
+        let _ = to_bytes(request.into_body(), 0)
+            .await
+            .map_err(|_| refund_context_malformed())?;
+        target
+            .backend
+            .refund_context(PmsHttpRefundContextRequest {
                 host: &target.host,
                 holding_slug: &target.holding_slug,
                 headers: &headers,

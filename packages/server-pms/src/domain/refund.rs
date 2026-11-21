@@ -79,6 +79,26 @@ pub struct PmsRefundRequestContext {
     pub account_id: String,
     pub livemode: bool,
 }
+
+/// Bounded selection for the refund request-context read: the refund request
+/// id. The Company scope is resolved by composition from the session, never
+/// from transport input.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PmsRefundContextSelection {
+    pub request_id: String,
+}
+
+impl PmsRefundContextSelection {
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if self.request_id.is_empty() || cp_len(&self.request_id) > 200 {
+            return Err(BusinessError::invalid(
+                "PMS_REFUND_CONTEXT_REQUEST_INVALID",
+                "Use one bounded refund request selection.",
+            ));
+        }
+        Ok(())
+    }
+}
 /// `pms_booking_payments` row facts used by the refund flow.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PmsRefundPayment {
