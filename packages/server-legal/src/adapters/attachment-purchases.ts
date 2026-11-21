@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -22,7 +23,7 @@ export async function legalAttachmentPurchaseScope(database:SqlDatabase,actor:Wo
  return {companyId:actor.companyId,targetId:id,actor,purpose:legalOwnedAttachmentPurpose(database,actor,id)??'new-work',capabilities:[legalKindCapability(row.kind),'legal.documents'],witness:row.image};
 }
 export async function authorizeLegalAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){
- const scope=await legalAttachmentPurchaseScope(database,actor,type,id);if(!scope)return;const key=`legal-file-read:${randomUUID()}`;await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);for(const capability of scope.capabilities)await checkPurchasedCapability(database,await legalPackageEnforcementMode(),{companyId:scope.companyId,capability,purpose:operation==='read'?'history':scope.purpose});
+ const scope=await legalAttachmentPurchaseScope(database,actor,type,id);if(!scope)return;const key=`legal-file-read:${randomUUID()}`;await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);for(const capability of scope.capabilities)await checkPurchasedCapability(database,await legalPackageEnforcementMode(),{companyId:scope.companyId,capability,purpose:operation==='read'?'history':scope.purpose});
 }
 export async function legalAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly LegalAttachmentPurchase[]){
  if(!scopes.length||await legalPackageEnforcementMode()==='disabled')return [];

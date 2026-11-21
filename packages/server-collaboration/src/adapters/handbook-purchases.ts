@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {createHash,randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
@@ -20,7 +21,7 @@ export function handbookPresentationContext(actor:WorkContext){return createHash
 async function current(database:SqlDatabase,actor:WorkContext,command=false){
  const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');
  if(!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${scope.where} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','collaboration')}`).bind(actor.companyId,actor.branchId,actor.departmentId,...scope.args).first())throw new ApiError(403,'WORK_HANDBOOK_AUTHORITY_CHANGED','Choose a current account with access to this Company handbook.');
- if(command){const key=`handbook-current:${randomUUID()}`;await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);}
+ if(command){const key=`handbook-current:${randomUUID()}`;await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);}
 }
 /** Only minimal controls leave the owner. Original Company membership and
  * owner-appointed editor authority remain separate checks in the service. */
