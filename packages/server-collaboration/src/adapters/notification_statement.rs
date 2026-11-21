@@ -5120,3 +5120,113 @@ pub async fn asset_disposal_decision_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_asset_disposals SET status=?,journal_id=?,decided_by=?,version=?,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance instrument: native-owned instrument_edition_insert statement.
+pub async fn instrument_edition_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_instrument_editions(id,company_id,root_id,parent_id,kind,number,name,chart_id,edition,content_json,schedule_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_edition_supersede statement.
+pub async fn instrument_edition_supersede_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_instrument_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_bank_match statement.
+pub async fn instrument_bank_match_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='journal',matched_id=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_edition_decision statement.
+pub async fn instrument_edition_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_instrument_editions SET status=?,reviewed_by=?,activation_journal_id=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_run_insert statement.
+pub async fn instrument_run_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_instrument_runs(id,company_id,instrument_id,kind,ordinal,input_json,result_json,source_hash,bank_transaction_id,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_bank_match2 statement.
+pub async fn instrument_bank_match2_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='journal',matched_id=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_edition_agree statement.
+pub async fn instrument_edition_agree_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_instrument_editions SET status=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_run_decision statement.
+pub async fn instrument_run_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_instrument_runs SET status=?,reviewed_by=?,journal_id=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_bank_unmatch statement.
+pub async fn instrument_bank_unmatch_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='unmatched',matched_type=NULL,matched_id=NULL,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_run_reverse statement.
+pub async fn instrument_run_reverse_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_instrument_runs SET status='reversed',reversal_journal_id=?,version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance instrument: native-owned instrument_edition_activate statement.
+pub async fn instrument_edition_activate_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_instrument_editions SET status='active',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}

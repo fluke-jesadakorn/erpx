@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceInstruments } from '@erpx/server-collaboration/adapters/native-finance-instruments';
 import "server-only";
 import type { z } from "zod";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
@@ -75,47 +76,18 @@ prepareEditionCommit:async(facts)=>{const {actor,input,key,op,id,e,now}=facts;re
       1,
       { id, status: "draft", version: 1, principal: e.calculation.principal },
       [
-        db
-          .prepare(
-            "INSERT INTO finance_instrument_editions(id,company_id,root_id,parent_id,kind,number,name,chart_id,edition,content_json,schedule_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            id,
-            actor.companyId,
-            e.parent?.root_id ?? id,
-            e.parent?.id ?? null,
-            input.kind,
-            input.number,
-            input.name,
-            input.chartId,
-            Number(e.parent?.edition ?? 0) + 1,
-            JSON.stringify(input),
-            JSON.stringify(e.calculation),
-            e.hash,
-            actor.userId,
-            input.reason,
-            now,
-            now,
-          ),
+          await nativeFinanceInstruments(db, actor.companyId).editionInsert([id, actor.companyId, e.parent?.root_id ?? id, e.parent?.id ?? null, input.kind, input.number, input.name, input.chartId, Number(e.parent?.edition ?? 0) + 1, JSON.stringify(input), JSON.stringify(e.calculation), e.hash, actor.userId, input.reason, now, now,]),
       ],
     );},
 decideEditionCommit:async(facts)=>{const {actor,id,input,key,op,e,journalId,status,parentUpdatedAt,updatedAt}=facts;const journal=journalId?journals.get(journalId):null;      const steps: SqlStatement[] = [];
     if (e?.parent)
       steps.push(
-        db
-          .prepare(
-            "UPDATE finance_instrument_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(parentUpdatedAt!, e.parent.id),
+          await nativeFinanceInstruments(db, actor.companyId).editionSupersede([parentUpdatedAt!, e.parent.id]),
       );
     if (journal) steps.push(...journal.steps);
     if (e?.bank && journal)
       steps.push(
-        db
-          .prepare(
-            "UPDATE finance_bank_transactions SET match_status='matched',matched_type='journal',matched_id=?,version=version+1 WHERE id=?",
-          )
-          .bind(journal.result.id, e.bank.id),
+          await nativeFinanceInstruments(db, actor.companyId).bankMatch([journal.result.id, e.bank.id]),
       );
     steps.push(
       assertion(
@@ -125,17 +97,7 @@ decideEditionCommit:async(facts)=>{const {actor,id,input,key,op,e,journalId,stat
         "EXISTS(SELECT 1 FROM finance_instrument_editions WHERE id=? AND company_id=? AND version=? AND status='draft')",
         [id, actor.companyId, input.expectedVersion],
       ),
-      db
-        .prepare(
-          "UPDATE finance_instrument_editions SET status=?,reviewed_by=?,activation_journal_id=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(
-          status,
-          actor.userId,
-          journal?.result.id ?? null,
-          updatedAt,
-          id,
-        ),
+        await nativeFinanceInstruments(db, actor.companyId).editionDecision([status, actor.userId, journal?.result.id ?? null, updatedAt, id,]),
     );
     return executeCommand(
       db,
@@ -163,25 +125,7 @@ prepareRunCommit:async(facts)=>{const {actor,id,input,key,op,runId,e,now}=facts;
       1,
       { id: runId, status: "draft", version: 1, result: e.result },
       [
-        db
-          .prepare(
-            "INSERT INTO finance_instrument_runs(id,company_id,instrument_id,kind,ordinal,input_json,result_json,source_hash,bank_transaction_id,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            runId,
-            actor.companyId,
-            id,
-            input.kind,
-            e.ordinal,
-            JSON.stringify(input),
-            JSON.stringify(e.result),
-            e.hash,
-            input.bankTransactionId,
-            actor.userId,
-            input.reason,
-            now,
-            now,
-          ),
+          await nativeFinanceInstruments(db, actor.companyId).runInsert([runId, actor.companyId, id, input.kind, e.ordinal, JSON.stringify(input), JSON.stringify(e.result), e.hash, input.bankTransactionId, actor.userId, input.reason, now, now,]),
       ],
     );},
 run:async(actor,id)=>db
@@ -193,20 +137,8 @@ run:async(actor,id)=>db
 decideRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,journalId,status,agreementStatus,agreementUpdatedAt,updatedAt}=facts;const journal=journalId?journals.get(journalId):null;    const steps = journal
       ? [
           ...journal.steps,
-          db
-            .prepare(
-              "UPDATE finance_bank_transactions SET match_status='matched',matched_type='journal',matched_id=?,version=version+1 WHERE id=?",
-            )
-            .bind(journal.result.id, run.bank_transaction_id),
-          db
-            .prepare(
-              "UPDATE finance_instrument_editions SET status=?,version=version+1,updated_at=? WHERE id=?",
-            )
-            .bind(
-              agreementStatus,
-              agreementUpdatedAt!,
-              row.id,
-            ),
+            await nativeFinanceInstruments(db, actor.companyId).bankMatch2([journal.result.id, run.bank_transaction_id]),
+            await nativeFinanceInstruments(db, actor.companyId).editionAgree([agreementStatus, agreementUpdatedAt!, row.id,]),
         ]
       : [];
     steps.push(
@@ -217,17 +149,7 @@ decideRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,journalId,st
         "EXISTS(SELECT 1 FROM finance_instrument_runs WHERE id=? AND company_id=? AND version=? AND status='draft')",
         [id, actor.companyId, input.expectedVersion],
       ),
-      db
-        .prepare(
-          "UPDATE finance_instrument_runs SET status=?,reviewed_by=?,journal_id=?,version=version+1,updated_at=? WHERE id=?",
-        )
-        .bind(
-          status,
-          actor.userId,
-          journal?.result.id ?? null,
-          updatedAt,
-          id,
-        ),
+        await nativeFinanceInstruments(db, actor.companyId).runDecision([status, actor.userId, journal?.result.id ?? null, updatedAt, id,]),
     );
     return executeCommand(
       db,
@@ -280,21 +202,9 @@ reverseRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,reversalId,
           "EXISTS(SELECT 1 FROM finance_bank_transactions WHERE id=? AND company_id=? AND match_status='matched' AND matched_type='journal' AND matched_id=?)",
           [run.bank_transaction_id, actor.companyId, run.journal_id],
         ),
-        db
-          .prepare(
-            "UPDATE finance_bank_transactions SET match_status='unmatched',matched_type=NULL,matched_id=NULL,version=version+1 WHERE id=?",
-          )
-          .bind(run.bank_transaction_id),
-        db
-          .prepare(
-            "UPDATE finance_instrument_runs SET status='reversed',reversal_journal_id=?,version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(reversal.id, now, id),
-        db
-          .prepare(
-            "UPDATE finance_instrument_editions SET status='active',version=version+1,updated_at=? WHERE id=?",
-          )
-          .bind(now, row.id),
+          await nativeFinanceInstruments(db, actor.companyId).bankUnmatch([run.bank_transaction_id]),
+          await nativeFinanceInstruments(db, actor.companyId).runReverse([reversal.id, now, id]),
+          await nativeFinanceInstruments(db, actor.companyId).editionActivate([now, row.id]),
       ],
     );}}}
 function nativeInstruments(ownedTransaction?:SqlDatabase,readDatabase?:SqlDatabase){return createFinanceInstruments({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,hash:sha256,transaction:async(actor,run)=>ownedTransaction?run(nativeInstrumentRepository(ownedTransaction)):financeTransaction((await holdingResources(actor.holdingId)).write,db=>run(nativeInstrumentRepository(db))),ownedTransaction:async(actor,run)=>financeOwnedTransaction((await holdingResources(actor.holdingId)).write,ownedTransaction,db=>run(nativeInstrumentRepository(db))),workspace:async actor=>{const write=readDatabase??(await holdingResources(actor.holdingId)).write;  const [editions, runs, accounts, periods, bank] = await Promise.all([
