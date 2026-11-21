@@ -6101,3 +6101,50 @@ mod finance_main_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for people technology provisioning statements.
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_1: &str = "INSERT INTO people_provision_operations(id,company_id,definition,evidence,status,created_by,assignment_id,session_id,created_at,updated_at) VALUES($1,$2,$3,$4,'queued',$5,$6,$7,$8,$8)";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_2: &str = "INSERT INTO people_applied_packages(id,company_id,person_id,engagement_id,position_id,package_id,package_revision,definition,source_kind,scope,operation_id,authorizing_assignment_id,valid_from,valid_until,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$13)";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_3: &str = "INSERT INTO people_provision_grants(id,operation_id,application_id,definition,review_id) VALUES($1,$2,$3,$4,$5)";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_4: &str = "UPDATE people_provision_operations SET steps=$2 WHERE id=$1";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_5: &str = "UPDATE people_provision_grants SET assignment_id=$2 WHERE id=$1";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_6: &str = "UPDATE people_provision_operations SET status=$2,steps=$3,last_error=$4 WHERE id=$1";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_7: &str = "UPDATE people_applied_packages SET ended_at=$3 WHERE company_id=$1 AND person_id=$2 AND operation_id IS DISTINCT FROM $4 AND ended_at IS NULL";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_8: &str = "UPDATE people_access_cutoffs SET restored_at=$3 WHERE company_id=$1 AND person_id=$2 AND cancelled_at IS NULL AND restored_at IS NULL AND effective_at<=$3";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_9: &str = "UPDATE people_preparation_tasks t SET status='completed',version=t.version+1,updated_at=$3 FROM people_lifecycle_cases lc WHERE t.case_id=lc.id AND lc.company_id=$1 AND lc.engagement_id=$2 AND lc.workflow='placement' AND lc.status='completed' AND lc.kind IN ('onboarding','transfer') AND t.title='Prepare access for employee placement' AND t.status='pending'";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_10: &str = "UPDATE people_applied_packages SET ended_at=$2 WHERE id=$1";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_11: &str = "UPDATE people_applied_packages SET ended_at=$2 WHERE id=ANY($1::text[]) AND ended_at IS NULL";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_12: &str = "INSERT INTO people_preparation_tasks(id,company_id,kind,title,updated_at,privileged,application_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_13: &str = "UPDATE people_provision_operations SET status='completed',steps=$2,version=version+1,updated_at=$3,last_error=NULL WHERE id=$1";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_14: &str = "UPDATE people_provision_operations SET status='blocked',last_error=$2,version=version+1,updated_at=$3 WHERE id=$1";
+pub const TECH_PROVISION_SQL_TECH_PROVISION_STMT_15: &str = "UPDATE people_provision_operations SET status='queued',session_id=$2,version=version+1,last_error=NULL,updated_at=$3 WHERE id=$1";
+
+#[cfg(test)]
+mod tech_provision_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn tech_provision_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-tech-provision-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid tech provisioning SQL contract");
+        let pairs = [
+            ("tech_provision_stmt_1", TECH_PROVISION_SQL_TECH_PROVISION_STMT_1),
+            ("tech_provision_stmt_2", TECH_PROVISION_SQL_TECH_PROVISION_STMT_2),
+            ("tech_provision_stmt_3", TECH_PROVISION_SQL_TECH_PROVISION_STMT_3),
+            ("tech_provision_stmt_4", TECH_PROVISION_SQL_TECH_PROVISION_STMT_4),
+            ("tech_provision_stmt_5", TECH_PROVISION_SQL_TECH_PROVISION_STMT_5),
+            ("tech_provision_stmt_6", TECH_PROVISION_SQL_TECH_PROVISION_STMT_6),
+            ("tech_provision_stmt_7", TECH_PROVISION_SQL_TECH_PROVISION_STMT_7),
+            ("tech_provision_stmt_8", TECH_PROVISION_SQL_TECH_PROVISION_STMT_8),
+            ("tech_provision_stmt_9", TECH_PROVISION_SQL_TECH_PROVISION_STMT_9),
+            ("tech_provision_stmt_10", TECH_PROVISION_SQL_TECH_PROVISION_STMT_10),
+            ("tech_provision_stmt_11", TECH_PROVISION_SQL_TECH_PROVISION_STMT_11),
+            ("tech_provision_stmt_12", TECH_PROVISION_SQL_TECH_PROVISION_STMT_12),
+            ("tech_provision_stmt_13", TECH_PROVISION_SQL_TECH_PROVISION_STMT_13),
+            ("tech_provision_stmt_14", TECH_PROVISION_SQL_TECH_PROVISION_STMT_14),
+            ("tech_provision_stmt_15", TECH_PROVISION_SQL_TECH_PROVISION_STMT_15),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "tech provisioning SQL contract drift: {key}");
+        }
+    }
+}
