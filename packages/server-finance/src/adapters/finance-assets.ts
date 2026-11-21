@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceAssets } from '@erpx/server-collaboration/adapters/native-finance-assets';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
 import { z } from "zod";
@@ -21,8 +22,8 @@ function assetGuards(write: SqlDatabase, actor: WorkContext, id: string, asset: 
         assertion(write, id, "asset-version", "EXISTS(SELECT 1 FROM finance_assets WHERE id=? AND company_id=? AND version=? AND status=?)", [asset.id, actor.companyId, asset.version, asset.status]),
     ];
 }
-function event(write: SqlDatabase, actor: WorkContext, key: string, assetId: string, assetVersion: number, type: string, payload: unknown, createdAt: number) {
-    return write.prepare("INSERT INTO finance_asset_events(id,asset_id,company_id,event_type,asset_version,command_id,payload_json,actor_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(`asset-event-${key}`, assetId, actor.companyId, type, assetVersion, key, JSON.stringify(payload), actor.userId, createdAt);
+async function event(write: SqlDatabase, actor: WorkContext, key: string, assetId: string, assetVersion: number, type: string, payload: unknown, createdAt: number) {
+    return await nativeFinanceAssets(write, actor.companyId).eventInsert([`asset-event-${key}`, assetId, actor.companyId, type, assetVersion, key, JSON.stringify(payload), actor.userId, createdAt]);
 }
 export async function assetDetail(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>nativeAssets(db).assetDetail(actor, id),"finance.accounting",false,["finance.asset-recognition","finance.asset-disposal"]); }
 export async function assetPage(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>nativeAssets(db).assetPage(actor),"finance.accounting",false,["finance.asset-recognition","finance.asset-disposal"]); }
@@ -82,43 +83,43 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
             const write = await database(actor);
             const money = moneyPlans.get("cost")!;
             return executeCommand(write, actor, key, "finance.asset.create", input, id, 1, result, [
-                write.prepare("INSERT INTO finance_assets(id,company_id,asset_number,name,account_id,depreciation_account_id,depreciation_expense_account_id,currency,cost_minor,residual_minor,useful_life_months,in_service_date,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)").bind(id, actor.companyId, input.assetNumber, input.name, input.accountId, input.depreciationAccountId ?? null, input.depreciationExpenseAccountId ?? null, input.currency, amount.cost, amount.residual, input.usefulLifeMonths, input.inServiceDate, actor.userId, now, now),
-                money.statement, event(write, actor, key, id, 1, "created", input, now),
+                await nativeFinanceAssets(write, actor.companyId).assetInsert([id, actor.companyId, input.assetNumber, input.name, input.accountId, input.depreciationAccountId ?? null, input.depreciationExpenseAccountId ?? null, input.currency, amount.cost, amount.residual, input.usefulLifeMonths, input.inServiceDate, actor.userId, now, now]),
+                money.statement, await event(write, actor, key, id, 1, "created", input, now),
             ]);
         },
         commitEdit: async ({ actor, input, key, id, asset, amount, next, now, result }) => {
             const write = await database(actor);
             const money = moneyPlans.get("cost")!;
             return executeCommand(write, actor, key, "finance.asset.edit", input, id, next, result, [...assetGuards(write, actor, key, asset),
-                write.prepare("UPDATE finance_assets SET asset_number=?,name=?,account_id=?,depreciation_account_id=?,depreciation_expense_account_id=?,currency=?,cost_minor=?,residual_minor=?,useful_life_months=?,in_service_date=?,version=?,updated_at=? WHERE id=?").bind(input.assetNumber, input.name, input.accountId, input.depreciationAccountId ?? null, input.depreciationExpenseAccountId ?? null, input.currency, amount.cost, amount.residual, input.usefulLifeMonths, input.inServiceDate, next, now, id),
-                money.statement, event(write, actor, key, id, next, "edited", input, now),
+                await nativeFinanceAssets(write, actor.companyId).assetUpdate([input.assetNumber, input.name, input.accountId, input.depreciationAccountId ?? null, input.depreciationExpenseAccountId ?? null, input.currency, amount.cost, amount.residual, input.usefulLifeMonths, input.inServiceDate, next, now, id]),
+                money.statement, await event(write, actor, key, id, next, "edited", input, now),
             ]);
         },
         commitCancel: async ({ actor, input, key, id, asset, now, result }) => {
             const write = await database(actor);
-            return executeCommand(write, actor, key, "finance.asset.cancel", input, id, result.version, result, [...assetGuards(write, actor, key, asset), write.prepare("UPDATE finance_assets SET status='retired',version=?,updated_at=? WHERE id=?").bind(result.version, now, id), event(write, actor, key, id, result.version, "cancelled", input, now)]);
+            return executeCommand(write, actor, key, "finance.asset.cancel", input, id, result.version, result, [...assetGuards(write, actor, key, asset), await nativeFinanceAssets(write, actor.companyId).assetRetire([result.version, now, id]), await event(write, actor, key, id, result.version, "cancelled", input, now)]);
         },
         commitActivate: async ({ actor, input, key, id, asset, next, now, result, journalId, decisionId, decisionHash }) => {
             const write = await database(actor);
             const journal = journals.get(journalId)!;
-            return executeCommand(write, actor, key, "finance.asset.activate", input, id, next, result, [...assetGuards(write, actor, key, asset), ...journal.steps, write.prepare("UPDATE finance_assets SET status='in_service',activation_journal_id=?,activated_by=?,version=?,updated_at=? WHERE id=?").bind(journal.result.id, actor.userId, next, now, id), event(write, actor, key, id, next, "activated", { ...input, journalId: journal.result.id }, now), financeOwnerDecisionEffects(write).appendReviewedDecision({id:decisionId,commandId:key,recordId:id,action:"activate",actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:asset.version,inputDigest:decisionHash,createdAt:now})]);
+            return executeCommand(write, actor, key, "finance.asset.activate", input, id, next, result, [...assetGuards(write, actor, key, asset), ...journal.steps, await nativeFinanceAssets(write, actor.companyId).assetActivate([journal.result.id, actor.userId, next, now, id]), await event(write, actor, key, id, next, "activated", { ...input, journalId: journal.result.id }, now), financeOwnerDecisionEffects(write).appendReviewedDecision({id:decisionId,commandId:key,recordId:id,action:"activate",actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:asset.version,inputDigest:decisionHash,createdAt:now})]);
         },
         commitDepreciation: async ({ actor, input, key, id, asset, next, index, amount, target, now, result, journalId }) => {
             const write = await database(actor);
             const journal = journals.get(journalId)!, money = moneyPlans.get("depreciation")!;
-            return executeCommand(write, actor, key, "finance.asset.depreciate", input, id, next, result, [...assetGuards(write, actor, key, asset), assertion(write, key, "asset-policy-owner", "NOT EXISTS(SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status IN ('active','superseded'))", [id]), assertion(write, key, "asset-disposal", "NOT EXISTS(SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft')", [id]), ...journal.steps, money.statement, write.prepare("INSERT INTO finance_asset_depreciations(id,asset_id,company_id,depreciation_month,ordinal,period_id,entry_date,amount_minor,journal_id,asset_version,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(`asset-depreciation-${key}`, id, actor.companyId, input.entryDate.slice(0, 7), index + 1, input.periodId, input.entryDate, amount, journal.result.id, next, key, now), write.prepare("UPDATE finance_assets SET accumulated_depreciation_minor=?,version=?,updated_at=? WHERE id=?").bind(Number(target), next, now, id), event(write, actor, key, id, next, "depreciated", { ...input, amountMinor: amount, journalId: journal.result.id }, now)]);
+            return executeCommand(write, actor, key, "finance.asset.depreciate", input, id, next, result, [...assetGuards(write, actor, key, asset), assertion(write, key, "asset-policy-owner", "NOT EXISTS(SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status IN ('active','superseded'))", [id]), assertion(write, key, "asset-disposal", "NOT EXISTS(SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft')", [id]), ...journal.steps, money.statement, await nativeFinanceAssets(write, actor.companyId).depreciationInsert([`asset-depreciation-${key}`, id, actor.companyId, input.entryDate.slice(0, 7), index + 1, input.periodId, input.entryDate, amount, journal.result.id, next, key, now]), await nativeFinanceAssets(write, actor.companyId).depreciationUpdate([Number(target), next, now, id]), await event(write, actor, key, id, next, "depreciated", { ...input, amountMinor: amount, journalId: journal.result.id }, now)]);
         },
         commitPrepareDisposal: async ({ actor, input, key, id, asset, disposalId, amount, now, result, policy }) => {
             const write = await database(actor);
-            return executeCommand(write, actor, key, "finance.asset.disposal.prepare", input, disposalId, 1, result, [...assetGuards(write, actor, key, asset), write.prepare("INSERT INTO finance_asset_disposals(id,asset_id,company_id,asset_version,period_id,entry_date,proceeds_minor,proceeds_account_id,gain_account_id,loss_account_id,evidence_ref,created_by,created_at,updated_at,policy_source_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(disposalId, id, actor.companyId, asset.version, input.periodId, input.entryDate, amount, input.proceedsAccountId ?? null, input.gainAccountId, input.lossAccountId, input.evidenceRef, actor.userId, now, now, policy.hash), event(write, actor, key, id, asset.version, "disposal_prepared", { ...input, disposalId }, now)]);
+            return executeCommand(write, actor, key, "finance.asset.disposal.prepare", input, disposalId, 1, result, [...assetGuards(write, actor, key, asset), await nativeFinanceAssets(write, actor.companyId).disposalInsert([disposalId, id, actor.companyId, asset.version, input.periodId, input.entryDate, amount, input.proceedsAccountId ?? null, input.gainAccountId, input.lossAccountId, input.evidenceRef, actor.userId, now, now, policy.hash]), await event(write, actor, key, id, asset.version, "disposal_prepared", { ...input, disposalId }, now)]);
         },
         commitDisposal: async ({ actor, id, action, input, key, operation, disposal, asset, journalId, secondaryJournalIds, now, result, decisionId, decisionHash }) => {
             const write = await database(actor), steps = decisionSteps;
             if (action === "post") {
                 const journal = journals.get(journalId!)!, policy = policies.get(id)!, money = moneyPlans.get("proceeds")!;
-                steps.push(...journal.steps, ...policy.steps, money.statement, write.prepare("UPDATE finance_assets SET status='retired',version=version+1,updated_at=? WHERE id=?").bind(now, asset.id));
+                steps.push(...journal.steps, ...policy.steps, money.statement, await nativeFinanceAssets(write, actor.companyId).disposalRetire([now, asset.id]));
             }
-            steps.push(write.prepare("UPDATE finance_asset_disposals SET status=?,journal_id=?,decided_by=?,version=?,updated_at=? WHERE id=?").bind(result.status, journalId, actor.userId, result.version, now, id), event(write, actor, key, asset.id, result.assetVersion, action === "post" ? "disposed" : "disposal_cancelled", { ...input, disposalId: id, journalId, secondaryJournalIds }, now), financeOwnerDecisionEffects(write).appendReviewedDecision({id:decisionId,commandId:key,recordId:id,action:action,actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:disposal.version,inputDigest:decisionHash,createdAt:now}));
+            steps.push(await nativeFinanceAssets(write, actor.companyId).disposalDecision([result.status, journalId, actor.userId, result.version, now, id]), await event(write, actor, key, asset.id, result.assetVersion, action === "post" ? "disposed" : "disposal_cancelled", { ...input, disposalId: id, journalId, secondaryJournalIds }, now), financeOwnerDecisionEffects(write).appendReviewedDecision({id:decisionId,commandId:key,recordId:id,action:action,actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:disposal.version,inputDigest:decisionHash,createdAt:now}));
             return executeCommand(write, actor, key, operation, input, id, result.version, result, steps);
         }
     });
