@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceReporting } from '@erpx/server-collaboration/adapters/native-finance-reporting';
 import {financeReportingCompanyFacts} from '@erpx/server-organization/public/finance-reporting-company-facts';
 import { fiscalCloseSourceSql } from "@erpx/server-finance/public/finance-fiscal-close-source";
 import "server-only";
@@ -60,16 +61,16 @@ function nativeReporting(provided?:SqlDatabase) {
             return executeCommand(write, actor, key, op, input, id, 1, { id, status: "draft", version: 1, edition, sourceFingerprint }, [
                 ...sourceGuards(write, actor, key, input.chartId, profile.id, profile.version, sourceRevision),
                 assertion(write, key, "statement-edition", "NOT EXISTS(SELECT 1 FROM finance_statement_packages WHERE chart_id=? AND start_date=? AND end_date=? AND edition=?)", [input.chartId, input.startDate, input.endDate, edition]),
-                write.prepare("INSERT INTO finance_statement_packages(id,company_id,chart_id,profile_id,profile_version,start_date,end_date,comparative_start_date,comparative_end_date,previous_package_id,edition,source_revision,source_fingerprint,presentation_json,notes_json,snapshot_json,reason,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, input.chartId, profile.id, profile.version, input.startDate, input.endDate, input.comparativeStartDate, input.comparativeEndDate, input.previousPackageId ?? null, edition, sourceRevision, sourceFingerprint, JSON.stringify(input.presentation), JSON.stringify(input.notes), JSON.stringify(snapshot), input.reason, actor.userId, now, now),
-                write.prepare("INSERT INTO finance_statement_events VALUES(?,?,?,'prepared',?,1,?,?,?)").bind(`statement-event-${key}`, id, actor.companyId, actor.userId, input.reason, key, now),
+                await nativeFinanceReporting(write, actor.companyId).statementPackage([id, actor.companyId, input.chartId, profile.id, profile.version, input.startDate, input.endDate, input.comparativeStartDate, input.comparativeEndDate, input.previousPackageId ?? null, edition, sourceRevision, sourceFingerprint, JSON.stringify(input.presentation), JSON.stringify(input.notes), JSON.stringify(snapshot), input.reason, actor.userId, now, now]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventPrepared([`statement-event-${key}`, id, actor.companyId, actor.userId, input.reason, key, now]),
             ]);
         }, commitStatementDecision: async ({ actor, id, action, input, key, op, row, html, sha256, now, status, next }) => {
             const write = await database();
             return executeCommand(write, actor, key, op, input, id, next, { id, status, version: next, edition: Number(row.edition), sha256 }, [
                 ...(action === "issue" ? sourceGuards(write, actor, key, String(row.chart_id), String(row.profile_id), Number(row.profile_version), Number(row.source_revision)) : []),
                 assertion(write, key, "statement-version", "EXISTS(SELECT 1 FROM finance_statement_packages WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, input.expectedVersion]),
-                write.prepare("UPDATE finance_statement_packages SET status=?,reviewed_by=?,review_reason=?,reviewed_at=?,export_html=?,export_sha256=?,version=version+1,updated_at=? WHERE id=?").bind(status, actor.userId, input.reason, now, html, sha256, now, id),
-                write.prepare("INSERT INTO finance_statement_events VALUES(?,?,?,?,?,?,?,?,?)").bind(`statement-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now),
+                await nativeFinanceReporting(write, actor.companyId).statementPackageDecision([status, actor.userId, input.reason, now, html, sha256, now, id]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventDecision([`statement-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now]),
             ]);
         }, commitYearClosing: async ({ actor, input, key, id, op, profile, sourceRevision, sourceFingerprint, snapshot, profit, now }) => {
             const write = await database();
@@ -77,8 +78,8 @@ function nativeReporting(provided?:SqlDatabase) {
                 ...sourceGuards(write, actor, key, input.chartId, profile.id, profile.version, sourceRevision),
                 assertion(write, key, "earlier-periods", "NOT EXISTS(SELECT 1 FROM finance_periods WHERE company_id=? AND id<>? AND start_date<=? AND end_date>=? AND state<>'closed')", [actor.companyId, input.periodId, input.endDate, input.startDate]),
                 assertion(write, key, "year-drafts", "NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND chart_id=? AND entry_date BETWEEN ? AND ? AND status IN ('draft','in_review'))", [actor.companyId, input.chartId, input.startDate, input.endDate]),
-                write.prepare("INSERT INTO finance_year_closings(id,company_id,chart_id,profile_id,profile_version,start_date,end_date,period_id,retained_earnings_account_id,source_revision,source_fingerprint,snapshot_json,profit_minor,reason,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, input.chartId, profile.id, profile.version, input.startDate, input.endDate, input.periodId, input.retainedEarningsAccountId, sourceRevision, sourceFingerprint, JSON.stringify(snapshot), profit, input.reason, actor.userId, now, now),
-                write.prepare("INSERT INTO finance_year_closing_events VALUES(?,?,?,'prepared',?,1,?,?,?)").bind(`year-closing-event-${key}`, id, actor.companyId, actor.userId, input.reason, key, now),
+                await nativeFinanceReporting(write, actor.companyId).yearClosingInsert([id, actor.companyId, input.chartId, profile.id, profile.version, input.startDate, input.endDate, input.periodId, input.retainedEarningsAccountId, sourceRevision, sourceFingerprint, JSON.stringify(snapshot), profit, input.reason, actor.userId, now, now]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventPrepared([`year-closing-event-${key}`, id, actor.companyId, actor.userId, input.reason, key, now]),
             ]);
         }, commitClosingDecision: async ({ actor, id, action, input, key, op, row, now, status, next, journalId }) => {
             const write = await database();
@@ -88,8 +89,8 @@ function nativeReporting(provided?:SqlDatabase) {
                 assertion(write, key, "closing-version", "EXISTS(SELECT 1 FROM finance_year_closings WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, input.expectedVersion]),
                 ...(action === "post" ? [assertion(write, key, "closing-period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND end_date=?)", [row.period_id, actor.companyId, row.end_date]), assertion(write, key, "earlier-periods", "NOT EXISTS(SELECT 1 FROM finance_periods WHERE company_id=? AND id<>? AND start_date<=? AND end_date>=? AND state<>'closed')", [actor.companyId, row.period_id, row.end_date, row.start_date])] : []),
                 ...(journal?.steps ?? []), ...(money ? [money.statement] : []),
-                write.prepare("UPDATE finance_year_closings SET status=?,journal_id=?,reviewed_by=?,review_reason=?,reviewed_at=?,version=version+1,updated_at=? WHERE id=?").bind(status, journal?.result.id ?? null, actor.userId, input.reason, now, now, id),
-                write.prepare("INSERT INTO finance_year_closing_events VALUES(?,?,?,?,?,?,?,?,?)").bind(`year-closing-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now),
+                await nativeFinanceReporting(write, actor.companyId).yearClosingDecision([status, journal?.result.id ?? null, actor.userId, input.reason, now, now, id]),
+                await nativeFinanceReporting(write, actor.companyId).statementEventDecision([`year-closing-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now]),
             ]);
         }
     });

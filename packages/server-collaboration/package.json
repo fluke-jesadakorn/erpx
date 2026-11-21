@@ -319,7 +319,8 @@
     "./adapters/native-finance-engines": "./src/adapters/native-finance-engines.ts",
     "./adapters/native-finance-intercompany": "./src/adapters/native-finance-intercompany.ts",
     "./adapters/native-finance-starter": "./src/adapters/native-finance-starter.ts",
-    "./adapters/native-organization-draft-placement": "./src/adapters/native-organization-draft-placement.ts"
+    "./adapters/native-organization-draft-placement": "./src/adapters/native-organization-draft-placement.ts",
+    "./adapters/native-finance-reporting": "./src/adapters/native-finance-reporting.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
