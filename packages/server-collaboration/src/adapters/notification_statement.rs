@@ -6195,3 +6195,52 @@ mod leave_self_service_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for people evaluation statements.
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_1: &str = "UPDATE hr_evaluation_definitions SET payload_json=?,version=version+1,updated_by=?,reason=?,updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_2: &str = "INSERT INTO hr_evaluation_definitions(id,company_id,kind,payload_json,created_by,updated_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_3: &str = "INSERT INTO hr_evaluation_definitions(id,company_id,kind,payload_json,created_by,updated_by,reason,created_at,updated_at) VALUES(?,?,'benchmark',?,?,?,?,?,?)";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_4: &str = "INSERT INTO hr_evaluation_assessments(id,company_id,engagement_id,cycle_id,role_id,role_version,period_start,period_end,content_json,created_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_5: &str = "UPDATE hr_evaluation_assessments SET period_start=?,period_end=?,content_json=?,reviewed_by=?,updated_by=?,reason=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_6: &str = "UPDATE hr_evaluation_assessments SET status=?,updated_by=?,confirmed_by=?,reviewed_by=CASE WHEN ?='draft' THEN NULL ELSE reviewed_by END,reason=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_7: &str = "INSERT INTO hr_evaluation_evidence(id,company_id,assessment_id,source_type,source_id,description,observed_on,source_json,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_8: &str = "UPDATE hr_evaluation_assessments SET version=version+1,reviewed_by=?,updated_by=?,reason='Evidence added',updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_9: &str = "INSERT INTO hr_evaluation_pay_basis(engagement_id,company_id,version,effective_from,payload_json,confirmed_by,created_at) VALUES(?,?,?,?,?,?,?)";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_10: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,effective_to,pay_frequency,base_amount_minor,hourly_rate_minor,daily_rate_minor,standard_daily_hours,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_11: &str = "INSERT INTO hr_evaluation_compensation_drafts(id,company_id,assessment_id,assessment_version,compensation_id,previous_id,previous_version,engagement_version,policy_id,policy_version,basis_version,reason,created_by,created_at,updated_at,previous_json,proposed_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_12: &str = "UPDATE hr_compensation_revisions SET effective_to=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_13: &str = "UPDATE hr_compensation_revisions SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_14: &str = "UPDATE hr_evaluation_compensation_drafts SET status='approved',approved_by=?,review_reason=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_15: &str = "UPDATE hr_compensation_revisions SET status='superseded',version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_16: &str = "UPDATE hr_evaluation_compensation_drafts SET status='cancelled',review_reason=?,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod people_eval_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn people_eval_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-people-eval-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid people evaluation SQL contract");
+        let pairs = [
+            ("people_eval_stmt_1", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_1),
+            ("people_eval_stmt_2", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_2),
+            ("people_eval_stmt_3", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_3),
+            ("people_eval_stmt_4", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_4),
+            ("people_eval_stmt_5", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_5),
+            ("people_eval_stmt_6", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_6),
+            ("people_eval_stmt_7", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_7),
+            ("people_eval_stmt_8", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_8),
+            ("people_eval_stmt_9", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_9),
+            ("people_eval_stmt_10", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_10),
+            ("people_eval_stmt_11", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_11),
+            ("people_eval_stmt_12", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_12),
+            ("people_eval_stmt_13", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_13),
+            ("people_eval_stmt_14", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_14),
+            ("people_eval_stmt_15", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_15),
+            ("people_eval_stmt_16", PEOPLE_EVAL_SQL_PEOPLE_EVAL_STMT_16),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "people evaluation SQL contract drift: {key}");
+        }
+    }
+}
