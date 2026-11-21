@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4499,
+    "revision": 4503,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:19:02.147Z",
-      "expiresAt": "2026-11-21T18:49:02.147Z",
+      "heartbeatAt": "2026-11-21T18:20:11.185Z",
+      "expiresAt": "2026-11-21T18:50:11.185Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -27867,8 +27867,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:19:02.147Z",
-          "expiresAt": "2026-11-21T18:49:02.147Z",
+          "heartbeatAt": "2026-11-21T18:20:11.185Z",
+          "expiresAt": "2026-11-21T18:50:11.185Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47023,8 +47023,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:19:02.147Z",
-          "expiresAt": "2026-11-21T18:49:02.147Z",
+          "heartbeatAt": "2026-11-21T18:20:11.185Z",
+          "expiresAt": "2026-11-21T18:50:11.185Z",
           "generation": 147
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -47461,8 +47461,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:19:02.147Z",
-          "expiresAt": "2026-11-21T18:49:02.147Z",
+          "heartbeatAt": "2026-11-21T18:20:11.185Z",
+          "expiresAt": "2026-11-21T18:50:11.185Z",
           "generation": 147
         },
         "baseSha": null,
@@ -51096,15 +51096,29 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "pending",
-        "claim": null,
-        "baseSha": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "claimedAt": "2026-11-21T18:20:06.492Z",
+          "heartbeatAt": "2026-11-21T18:20:11.185Z",
+          "expiresAt": "2026-11-21T18:50:11.185Z",
+          "generation": 147
+        },
+        "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "audit:fixture-oracle-readiness",
+            "result": "passed",
+            "sourceSha": "dea183dd231ca26213425897bafdc4f4d3e614fb",
+            "note": "Native roster_position_exit staging exists (roster_position_exit_postgres.rs) with Rust unit+postgres tests; TS integration people-roster.test.ts:364 still consumes roster-exit-fixture.ts oracle. Fixture NOT yet deletable: test exit step must migrate to native seeding first."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Native roster integration harness must seed the same owner rows before the fixture copy is deleted.",
+        "nextAction": "Migrate people-roster.test.ts exit step (line 364) from rosterPositionExitStatements fixture to native roster_position_exit staging, verify postgres suite, then delete roster-exit-fixture.ts.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -105033,8 +105047,8 @@
       "totalPackets": 425,
       "migratedPackets": 317,
       "statusCounts": {
-        "pending": 18,
-        "in_progress": 3,
+        "pending": 17,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 317,
@@ -105044,7 +105058,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:19:02.148Z",
+    "updatedAt": "2026-11-21T18:20:11.187Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
