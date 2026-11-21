@@ -348,7 +348,8 @@
     "./adapters/native-leave-self-service-sql": "./src/adapters/native-leave-self-service-sql.ts",
     "./adapters/native-people-eval-sql": "./src/adapters/native-people-eval-sql.ts",
     "./adapters/native-people-roster-sql": "./src/adapters/native-people-roster-sql.ts",
-    "./adapters/native-people-lifecycle-sql": "./src/adapters/native-people-lifecycle-sql.ts"
+    "./adapters/native-people-lifecycle-sql": "./src/adapters/native-people-lifecycle-sql.ts",
+    "./adapters/native-people-payroll-sql": "./src/adapters/native-people-payroll-sql.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -6370,3 +6370,110 @@ mod people_lifecycle_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for main people payroll statements.
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_1: &str = "UPDATE hr_payroll_cost_assignments SET evidence_status='verified',source='hr_attestation',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_2: &str = "INSERT INTO hr_payroll_cost_assignment_verifications(id,company_id,assignment_id,verified_by,evidence_ref,previous_version,created_at) VALUES(?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_3: &str = "UPDATE hr_time_entries t SET cost_assignment_id=a.id,cost_branch_id=a.branch_id,cost_department_id=a.department_id,version=t.version+1,updated_at=?\n      FROM hr_payroll_cost_assignments a WHERE a.id=? AND a.company_id=? AND t.engagement_id=a.engagement_id AND t.status='approved'\n      AND t.work_date>=a.effective_from AND (a.effective_to IS NULL OR t.work_date<=a.effective_to)\n      AND t.cost_assignment_id IS NULL";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_4: &str = "INSERT INTO hr_command_receipts(command_id,operation,request_hash,result_json,created_at) VALUES(?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_5: &str = "INSERT INTO hr_people(id,user_id,company_id,legal_name,preferred_name,email,phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_6: &str = "INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,end_date,manager_person_id,job_title,currency,pay_group_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_7: &str = "INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,effective_to,pay_frequency,base_amount_minor,hourly_rate_minor,daily_rate_minor,standard_daily_hours,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_8: &str = "UPDATE hr_engagements SET pay_group_id=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_9: &str = "UPDATE hr_compensation_revisions SET status=?,approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_10: &str = "UPDATE hr_engagements SET status=?,end_date=CASE WHEN ?='ended' THEN ? ELSE end_date END,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_11: &str = "UPDATE employees SET status=CASE WHEN EXISTS(SELECT 1 FROM hr_engagements WHERE person_id=? AND status='active') THEN 'active' ELSE 'inactive' END WHERE person_id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_12: &str = "INSERT INTO hr_time_entries(id,engagement_id,company_id,work_date,regular_hours,overtime_hours,note,status,submitted_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_13: &str = "UPDATE hr_time_entries SET work_date=?,regular_hours=?,overtime_hours=?,note=?,status='submitted',approved_by=NULL,rejection_reason=NULL,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_14: &str = "UPDATE hr_time_entries SET status='rejected',rejection_reason=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_15: &str = "UPDATE hr_time_entries SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_16: &str = "INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,overtime_multiplier_bps,proration_method,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_17: &str = "INSERT INTO hr_country_packs(id,country_code,version,status,rules_json,export_formats_json,created_by,created_at,updated_at,adapter_id,source_digest,effective_from,effective_to) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_18: &str = "UPDATE hr_country_packs SET status=?,approval_evidence=?,validated_by=?,record_version=record_version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_19: &str = "INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'final_pay','calculating',?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_20: &str = "INSERT INTO hr_payroll_final_pay_preparations(id,company_id,task_id,case_id,engagement_id,run_id,reason,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_21: &str = "INSERT INTO hr_payroll_final_pay_events(id,preparation_id,task_id,run_id,company_id,action,actor_id,task_version,evidence_json,created_at) VALUES(?,?,?,?,?,'prepared',?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_22: &str = "INSERT INTO hr_payroll_advances(id,company_id,engagement_id,person_id,amount_minor,installment_count,first_deduction_period,currency,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_23: &str = "INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,'requested',?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_24: &str = "UPDATE hr_payroll_advances SET status=?,version=version+1,approved_by=CASE WHEN ?='approved' THEN ? ELSE approved_by END,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_25: &str = "INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_26: &str = "INSERT INTO hr_payroll_advance_repayments(id,advance_id,company_id,sequence,due_period_start,due_period_end,amount_minor,created_at) VALUES(?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_27: &str = "INSERT INTO hr_payroll_account_mappings(id,company_id,pay_group_id,chart_id,accounts_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'draft',?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_28: &str = "UPDATE hr_payroll_account_mappings SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND pay_group_id=? AND status='approved'";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_29: &str = "UPDATE hr_payroll_account_mappings SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_30: &str = "UPDATE hr_payroll_runs SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_31: &str = "INSERT INTO hr_payroll_corrections(id,run_id,company_id,run_version,run_revision,input_digest,totals_json,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_32: &str = "INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?, 'requested',?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_33: &str = "UPDATE hr_payroll_corrections SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_34: &str = "INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_35: &str = "UPDATE hr_payroll_runs SET status='calculating',approved_by=NULL,version=version+1,error_message=?,updated_at=? WHERE id=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_36: &str = "INSERT INTO hr_payroll_review_exports(id,run_id,run_revision,file_key,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_37: &str = "INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,total_minor,bank_account_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_38: &str = "INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_39: &str = "UPDATE hr_payment_batches SET status='draft',retry_requested_by=?,approved_by=NULL,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_40: &str = "UPDATE hr_payment_batches SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='draft' AND version=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_41: &str = "INSERT INTO hr_payment_batch_exports(id,company_id,batch_id,batch_version,file_key,checksum_sha256,item_count,total_minor,exported_by,exported_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_42: &str = "UPDATE hr_payment_batches SET status='exported',file_key=?,file_checksum=?,exported_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_43: &str = "INSERT INTO hr_payroll_payment_settlements(id,company_id,batch_id,batch_item_id,bank_transaction_id,journal_id,confirmed_by,confirmed_at) VALUES(?,?,?,?,?,?,?,?)";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_44: &str = "UPDATE hr_payment_batch_items SET status=?,confirmation_ref=?,settled_at=? WHERE batch_id=? AND reference=? AND status IN ('outstanding','failed')";
+pub const PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_45: &str = "UPDATE hr_payment_batches SET status=?,version=version+1,updated_at=? WHERE id=? AND company_id=?";
+
+#[cfg(test)]
+mod people_payroll_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn people_payroll_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-people-payroll-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid main people payroll SQL contract");
+        let pairs = [
+            ("people_payroll_stmt_1", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_1),
+            ("people_payroll_stmt_2", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_2),
+            ("people_payroll_stmt_3", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_3),
+            ("people_payroll_stmt_4", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_4),
+            ("people_payroll_stmt_5", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_5),
+            ("people_payroll_stmt_6", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_6),
+            ("people_payroll_stmt_7", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_7),
+            ("people_payroll_stmt_8", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_8),
+            ("people_payroll_stmt_9", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_9),
+            ("people_payroll_stmt_10", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_10),
+            ("people_payroll_stmt_11", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_11),
+            ("people_payroll_stmt_12", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_12),
+            ("people_payroll_stmt_13", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_13),
+            ("people_payroll_stmt_14", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_14),
+            ("people_payroll_stmt_15", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_15),
+            ("people_payroll_stmt_16", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_16),
+            ("people_payroll_stmt_17", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_17),
+            ("people_payroll_stmt_18", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_18),
+            ("people_payroll_stmt_19", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_19),
+            ("people_payroll_stmt_20", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_20),
+            ("people_payroll_stmt_21", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_21),
+            ("people_payroll_stmt_22", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_22),
+            ("people_payroll_stmt_23", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_23),
+            ("people_payroll_stmt_24", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_24),
+            ("people_payroll_stmt_25", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_25),
+            ("people_payroll_stmt_26", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_26),
+            ("people_payroll_stmt_27", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_27),
+            ("people_payroll_stmt_28", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_28),
+            ("people_payroll_stmt_29", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_29),
+            ("people_payroll_stmt_30", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_30),
+            ("people_payroll_stmt_31", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_31),
+            ("people_payroll_stmt_32", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_32),
+            ("people_payroll_stmt_33", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_33),
+            ("people_payroll_stmt_34", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_34),
+            ("people_payroll_stmt_35", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_35),
+            ("people_payroll_stmt_36", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_36),
+            ("people_payroll_stmt_37", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_37),
+            ("people_payroll_stmt_38", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_38),
+            ("people_payroll_stmt_39", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_39),
+            ("people_payroll_stmt_40", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_40),
+            ("people_payroll_stmt_41", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_41),
+            ("people_payroll_stmt_42", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_42),
+            ("people_payroll_stmt_43", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_43),
+            ("people_payroll_stmt_44", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_44),
+            ("people_payroll_stmt_45", PEOPLE_PAYROLL_SQL_PEOPLE_PAYROLL_STMT_45),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "main people payroll SQL contract drift: {key}");
+        }
+    }
+}
