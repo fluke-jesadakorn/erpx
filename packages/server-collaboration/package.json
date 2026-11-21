@@ -305,7 +305,8 @@
     "./adapters/native-people-batch-c": "./src/adapters/native-people-batch-c.ts",
     "./adapters/native-command-assertions": "./src/adapters/native-command-assertions.ts",
     "./adapters/native-organization-channels": "./src/adapters/native-organization-channels.ts",
-    "./adapters/native-backfill-attachment": "./src/adapters/native-backfill-attachment.ts"
+    "./adapters/native-backfill-attachment": "./src/adapters/native-backfill-attachment.ts",
+    "./adapters/native-beta-resource-cleanup": "./src/adapters/native-beta-resource-cleanup.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

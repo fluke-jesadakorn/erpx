@@ -3894,3 +3894,30 @@ pub async fn legal_backfill_external_attachment_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Collaboration: expire stale beta AI usage reservations (holding worker).
+pub async fn beta_ai_usage_expire_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE social_ai_usage SET state='failed' WHERE state='reserved' AND lease_until<?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Collaboration: expire stale beta AI drafts (holding worker).
+pub async fn beta_ai_draft_expire_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE social_ai_drafts SET state='failed',result_json=NULL WHERE (state='pending' AND created_at<?) OR (state='ready' AND expires_at<?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
