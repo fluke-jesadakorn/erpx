@@ -283,7 +283,8 @@
     "./adapters/native-finance-intercompany-pairs": "./src/adapters/native-finance-intercompany-pairs.ts",
     "./adapters/native-payroll-deductions": "./src/adapters/native-payroll-deductions.ts",
     "./adapters/native-payroll-final-pay-cancellation": "./src/adapters/native-payroll-final-pay-cancellation.ts",
-    "./adapters/native-expense-drafts": "./src/adapters/native-expense-drafts.ts"
+    "./adapters/native-expense-drafts": "./src/adapters/native-expense-drafts.ts",
+    "./adapters/native-finance-sales-defaults": "./src/adapters/native-finance-sales-defaults.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -8,6 +8,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { calculateInvoiceLines } from "@erpx/server-finance/domain/finance-invoice-lines";
+import { financeSalesDefaults } from '@erpx/server-collaboration/adapters/native-finance-sales-defaults';
 import { salesInvoiceDraftSchema, salesDefaultsSchema, salesDefaultsDecisionSchema, salesQuerySchema, type SalesDefaults, type ReceiptSnapshot } from "@erpx/server-finance/domain/sales";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -50,7 +51,7 @@ async function prepareDefaults(tx:SqlDatabase,actor:WorkContext,input:z.infer<ty
  const accounts=await validateDefaults(tx,actor,input),now=Date.now();
  return executeCommand(tx,actor,key,'finance.sales-defaults.prepare',request,id,1,{id,status:'draft' as const,version:1 as const},[
   ...accounts.map((account,index)=>assertion(tx,key,`account-${index}`,'EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status=\'active\')',[account.id,actor.companyId,account.version])),
-  tx.prepare('INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,tax_account_id,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(id,actor.companyId,input.chartId,input.currency,input.receivableAccountId,input.revenueAccountId,input.taxAccountId??null,input.reason,actor.userId,now,now),
+  await financeSalesDefaults(tx,actor.companyId).create({id,companyId:actor.companyId,chartId:input.chartId,currency:input.currency,receivableAccountId:input.receivableAccountId,revenueAccountId:input.revenueAccountId,taxAccountId:input.taxAccountId??null,reason:input.reason,userId:actor.userId,now}),
  ]);
 }
 async function decideDefaults(tx:SqlDatabase,actor:WorkContext,id:string,input:z.infer<typeof salesDefaultsDecisionSchema>,key:string,request:unknown){
@@ -61,8 +62,8 @@ async function decideDefaults(tx:SqlDatabase,actor:WorkContext,id:string,input:z
  await validateDefaults(tx,actor,{chartId:row.chart_id,currency:row.currency,receivableAccountId:row.receivable_account_id,revenueAccountId:row.revenue_account_id,taxAccountId:row.tax_account_id??undefined,reason:row.reason});
  const status=input.action==='approve'?'approved' as const:'rejected' as const,now=Date.now();
  return executeCommand(tx,actor,key,'finance.sales-defaults.decide',request,id,input.expectedVersion+1,{id,status,version:input.expectedVersion+1},[
-  ...(status==='approved'?[tx.prepare("UPDATE finance_sales_defaults SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND currency=? AND status='approved'").bind(now,actor.companyId,row.currency)]:[]),
-  tx.prepare('UPDATE finance_sales_defaults SET status=?,reviewed_by=?,review_reason=?,version=version+1,updated_at=? WHERE id=?').bind(status,actor.userId,input.reason,now,id),
+  ...(status==='approved'?[await financeSalesDefaults(tx,actor.companyId).supersede({now,companyId:actor.companyId,currency:row.currency})]:[]),
+  await financeSalesDefaults(tx,actor.companyId).decide({status,userId:actor.userId,reason:input.reason,now,id}),
  ]);
 }
 export async function prepareSalesDefaults(actor:WorkContext,raw:z.input<typeof salesDefaultsSchema>,key:string){

@@ -3302,3 +3302,43 @@ pub async fn expense_draft_write_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: create sales defaults draft.
+pub async fn finance_sales_defaults_create_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,tax_account_id,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: supersede the current approved sales defaults.
+pub async fn finance_sales_defaults_supersede_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_sales_defaults SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND currency=? AND status='approved'".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance: decide on sales defaults.
+pub async fn finance_sales_defaults_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_sales_defaults SET status=?,reviewed_by=?,review_reason=?,version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
