@@ -286,7 +286,8 @@
     "./adapters/native-expense-drafts": "./src/adapters/native-expense-drafts.ts",
     "./adapters/native-finance-sales-defaults": "./src/adapters/native-finance-sales-defaults.ts",
     "./adapters/native-payroll-statutory": "./src/adapters/native-payroll-statutory.ts",
-    "./adapters/native-finance-accounting-profiles": "./src/adapters/native-finance-accounting-profiles.ts"
+    "./adapters/native-finance-accounting-profiles": "./src/adapters/native-finance-accounting-profiles.ts",
+    "./adapters/native-hospitality-tax-documents": "./src/adapters/native-hospitality-tax-documents.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

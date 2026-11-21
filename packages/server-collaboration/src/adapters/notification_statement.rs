@@ -3396,3 +3396,31 @@ pub async fn finance_accounting_profile_decide_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance/hospitality: record a tax document.
+pub async fn hospitality_tax_doc_record_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO hospitality_tax_documents(id,company_id,invoice_id,source_type,issuer,external_reference,issued_on,currency,total_minor,tax_minor,document_total_minor,document_tax_minor,state,version,recorded_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'recorded',1,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance/hospitality: verify/void a tax document (decision column supplied by caller).
+pub async fn hospitality_tax_doc_decide_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let column = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("UPDATE hospitality_tax_documents SET state=?,version=?,{column}=?,reason=?,updated_at=? WHERE id=? AND company_id=? AND version=?"),
+        values: values_from_json(input)?,
+    })
+}
