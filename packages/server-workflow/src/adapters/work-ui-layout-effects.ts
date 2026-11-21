@@ -1,2 +1,3 @@
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-export const workLayoutClearAssertions=(db:SqlDatabase,key:string)=>db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key);
+import { nativeClearCommandAssertions } from "@erpx/server-collaboration/adapters/native-command-assertions";
+export const workLayoutClearAssertions=(db:SqlDatabase,key:string,companyId:string)=>nativeClearCommandAssertions(db,companyId,key);
