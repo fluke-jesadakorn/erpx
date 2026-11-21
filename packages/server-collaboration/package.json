@@ -323,7 +323,8 @@
     "./adapters/native-finance-reporting": "./src/adapters/native-finance-reporting.ts",
     "./adapters/native-inbox-statements": "./src/adapters/native-inbox-statements.ts",
     "./adapters/native-finance-accruals": "./src/adapters/native-finance-accruals.ts",
-    "./adapters/native-pms-finance-facts": "./src/adapters/native-pms-finance-facts.ts"
+    "./adapters/native-pms-finance-facts": "./src/adapters/native-pms-finance-facts.ts",
+    "./adapters/native-finance-books": "./src/adapters/native-finance-books.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

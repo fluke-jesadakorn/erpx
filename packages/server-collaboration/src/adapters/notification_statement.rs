@@ -4730,3 +4730,73 @@ pub async fn pms_finance_bank_match_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=? AND match_status IN ('unmatched','proposed')".to_owned(), values: values_from_json(input)? })
 }
+
+/// Finance book: native-owned books_opening_journal statement.
+pub async fn books_opening_journal_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,is_opening,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,id,?,?,?,base_currency,1000000,'book_opening',?,'Reviewed secondary book opening','posted',1,?,?,?,?,? FROM finance_charts WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance book: native-owned books_opening_journal_lines statement.
+pub async fn books_opening_journal_lines_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?,?,secondary_account_id,?,?,?,?,?,? FROM finance_book_account_mappings WHERE rule_id=? AND primary_account_id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance book: native-owned books_rule_decision statement.
+pub async fn books_rule_decision_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_book_rules SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance book: native-owned books_dimension_definition statement.
+pub async fn books_dimension_definition_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_dimension_definitions(id,company_id,code,name,required,created_by,created_at) VALUES(?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance book: native-owned books_dimension_value statement.
+pub async fn books_dimension_value_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_dimension_values(id,dimension_id,company_id,code,name,created_at) VALUES(?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance book: native-owned books_rule_prepare statement.
+pub async fn books_rule_prepare_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_book_rules(id,company_id,primary_chart_id,secondary_chart_id,effective_date,prepared_by,reason,opening_json,opening_hash,opening_period_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance book: native-owned books_account_mapping statement.
+pub async fn books_account_mapping_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_book_account_mappings(rule_id,primary_account_id,secondary_account_id) VALUES(?,?,?)".to_owned(), values: values_from_json(input)? })
+}

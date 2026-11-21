@@ -1,4 +1,5 @@
 import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceBooks } from '@erpx/server-collaboration/adapters/native-finance-books';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
 import type { z } from "zod";
@@ -108,57 +109,16 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,rule,now,rows,
       if (createOpening) {
         const jid = `book-opening-${id}`;
         steps.push(
-          db
-            .prepare(
-              "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,is_opening,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,id,?,?,?,base_currency,1000000,'book_opening',?,'Reviewed secondary book opening','posted',1,?,?,?,?,? FROM finance_charts WHERE id=?",
-            )
-            .bind(
-              jid,
-              rule.opening_period_id,
-              jid,
-              rule.effective_date,
-              id,
-              rule.prepared_by,
-              actor.userId,
-              now,
-              now,
-              now,
-              rule.secondary_chart_id,
-            ),
+            await nativeFinanceBooks(db, actor.companyId).openingJournal([jid, rule.opening_period_id, jid, rule.effective_date, id, rule.prepared_by, actor.userId, now, now, now, rule.secondary_chart_id,]),
         );
-        rows.forEach((r, i) =>
+        for (const [i, r] of rows.entries()) {
           steps.push(
-            db
-              .prepare(
-                "INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?,?,secondary_account_id,?,?,?,?,?,? FROM finance_book_account_mappings WHERE rule_id=? AND primary_account_id=?",
-              )
-              .bind(
-                `${jid}-${i}`,
-                jid,
-                Math.max(r.minor, 0),
-                Math.max(-r.minor, 0),
-                Math.max(r.minor, 0),
-                Math.max(-r.minor, 0),
-                r.dimensions,
-                i,
-                id,
-                r.accountId,
-              ),
-          ),
-        );
+              await nativeFinanceBooks(db, actor.companyId).openingJournalLines([`${jid}-${i}`, jid, Math.max(r.minor, 0), Math.max(-r.minor, 0), Math.max(r.minor, 0), Math.max(-r.minor, 0), r.dimensions, i, id, r.accountId,]),
+          );
+        }
       }}
     steps.push(
-      db
-        .prepare(
-          "UPDATE finance_book_rules SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=? WHERE id=?",
-        )
-        .bind(
-          action === "approve" ? "approved" : "rejected",
-          actor.userId,
-          input.reason,
-          now,
-          id,
-        ),
+        await nativeFinanceBooks(db, actor.companyId).ruleDecision([action === "approve" ? "approved" : "rejected", actor.userId, input.reason, now, id,]),
     );
     return executeCommand(
       db,
@@ -239,26 +199,10 @@ dimensionCommit:async(facts)=>{const {actor,input,key,op,id,now,valueIds}=facts;
     1,
     { id, status: "active", version: 1 },
     [
-      write
-        .prepare(
-          "INSERT INTO finance_dimension_definitions(id,company_id,code,name,required,created_by,created_at) VALUES(?,?,?,?,?,?,?)",
-        )
-        .bind(
-          id,
-          actor.companyId,
-          input.code,
-          input.name,
-          input.required ? 1 : 0,
-          actor.userId,
-          now,
-        ),
-      ...input.values.map((v) =>
-        write
-          .prepare(
-            "INSERT INTO finance_dimension_values(id,dimension_id,company_id,code,name,created_at) VALUES(?,?,?,?,?,?)",
-          )
-          .bind(valueIds[valueIndex++], id, actor.companyId, v.code, v.name, now),
-      ),
+        await nativeFinanceBooks(write, actor.companyId).dimensionDefinition([id, actor.companyId, input.code, input.name, input.required ? 1 : 0, actor.userId, now,]),
+      ...(await Promise.all(input.values.map((v) =>
+          nativeFinanceBooks(write, actor.companyId).dimensionValue([valueIds[valueIndex++], id, actor.companyId, v.code, v.name, now]),
+      ))),
     ],
   );},
 charts:async(actor,primaryChartId,secondaryChartId)=>(await write
@@ -325,30 +269,10 @@ prepareCommit:async(facts)=>{const {actor,input,key,op,id,now,openingHash,rows}=
     1,
     { id, status: "draft", version: 1, openingHash, opening: rows },
     [
-      write
-        .prepare(
-          "INSERT INTO finance_book_rules(id,company_id,primary_chart_id,secondary_chart_id,effective_date,prepared_by,reason,opening_json,opening_hash,opening_period_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          id,
-          actor.companyId,
-          input.primaryChartId,
-          input.secondaryChartId,
-          input.effectiveDate,
-          actor.userId,
-          input.reason,
-          JSON.stringify(rows),
-          openingHash,
-          input.openingPeriodId,
-          now,
-        ),
-      ...input.mappings.map((m) =>
-        write
-          .prepare(
-            "INSERT INTO finance_book_account_mappings(rule_id,primary_account_id,secondary_account_id) VALUES(?,?,?)",
-          )
-          .bind(id, m.primaryAccountId, m.secondaryAccountId),
-      ),
+        await nativeFinanceBooks(write, actor.companyId).rulePrepare([id, actor.companyId, input.primaryChartId, input.secondaryChartId, input.effectiveDate, actor.userId, input.reason, JSON.stringify(rows), openingHash, input.openingPeriodId, now,]),
+      ...(await Promise.all(input.mappings.map((m) =>
+          nativeFinanceBooks(write, actor.companyId).accountMapping([id, m.primaryAccountId, m.secondaryAccountId]),
+      ))),
     ],
   );}})}
 export const financeBookWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>provided?nativeBooks(provided).financeBookWorkspace(actor):withFinancePurchasedRead(actor,db=>nativeBooks(db).financeBookWorkspace(actor));
