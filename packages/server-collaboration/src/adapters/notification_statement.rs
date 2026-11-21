@@ -5873,3 +5873,34 @@ mod pos_core_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for company money statements.
+pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT: &str = "INSERT INTO money_transaction_snapshots\n      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)\n      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_BATCH_INSERT: &str = "INSERT INTO money_transaction_snapshots\n            (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)\n            VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?)').join(',')}";
+pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT2: &str = "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,carried_source_type,carried_source_id,carried_amount_kind,carried_allocation_offset_units)\n    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT3: &str = "INSERT INTO money_transaction_snapshots\n      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,\n       original_source_type,original_source_id,original_amount_kind)\n      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const COMPANY_MONEY_SQL_CURRENCY_PREFERENCE_INSERT: &str = "INSERT INTO user_currency_preferences(company_id,user_id,display_currency,updated_at)\n      VALUES(?,?,?,?) ON CONFLICT(company_id,user_id) DO UPDATE SET display_currency=excluded.display_currency,version=user_currency_preferences.version+1,updated_at=excluded.updated_at";
+pub const COMPANY_MONEY_SQL_FX_RATE_INSERT: &str = "INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)";
+pub const COMPANY_MONEY_SQL_CURRENCY_SCALE_INSERT: &str = "INSERT INTO company_currency_scales(company_id,currency,scale,configured_by,configured_at) VALUES(?,?,?,?,?) ON CONFLICT(company_id,currency) DO NOTHING";
+
+#[cfg(test)]
+mod company_money_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn company_money_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-company-money-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid company money SQL contract");
+        let pairs = [
+            ("money_snapshot_insert", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT),
+            ("money_snapshot_batch_insert", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_BATCH_INSERT),
+            ("money_snapshot_insert2", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT2),
+            ("money_snapshot_insert3", COMPANY_MONEY_SQL_MONEY_SNAPSHOT_INSERT3),
+            ("currency_preference_insert", COMPANY_MONEY_SQL_CURRENCY_PREFERENCE_INSERT),
+            ("fx_rate_insert", COMPANY_MONEY_SQL_FX_RATE_INSERT),
+            ("currency_scale_insert", COMPANY_MONEY_SQL_CURRENCY_SCALE_INSERT),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "company money SQL contract drift: {key}");
+        }
+    }
+}

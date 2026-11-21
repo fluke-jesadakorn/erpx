@@ -339,7 +339,8 @@
     "./adapters/native-group-ownership-sql": "./src/adapters/native-group-ownership-sql.ts",
     "./adapters/native-commerce-facts-sql": "./src/adapters/native-commerce-facts-sql.ts",
     "./adapters/native-consolidation-sql": "./src/adapters/native-consolidation-sql.ts",
-    "./adapters/native-pos-core-sql": "./src/adapters/native-pos-core-sql.ts"
+    "./adapters/native-pos-core-sql": "./src/adapters/native-pos-core-sql.ts",
+    "./adapters/native-company-money-sql": "./src/adapters/native-company-money-sql.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

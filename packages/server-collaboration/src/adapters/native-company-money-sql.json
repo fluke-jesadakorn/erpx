@@ -1,0 +1,9 @@
+{
+  "money_snapshot_insert": "INSERT INTO money_transaction_snapshots\n      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)\n      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+  "money_snapshot_batch_insert": "INSERT INTO money_transaction_snapshots\n            (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)\n            VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?)').join(',')}",
+  "money_snapshot_insert2": "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,carried_source_type,carried_source_id,carried_amount_kind,carried_allocation_offset_units)\n    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  "money_snapshot_insert3": "INSERT INTO money_transaction_snapshots\n      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,\n       original_source_type,original_source_id,original_amount_kind)\n      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  "currency_preference_insert": "INSERT INTO user_currency_preferences(company_id,user_id,display_currency,updated_at)\n      VALUES(?,?,?,?) ON CONFLICT(company_id,user_id) DO UPDATE SET display_currency=excluded.display_currency,version=user_currency_preferences.version+1,updated_at=excluded.updated_at",
+  "fx_rate_insert": "INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)",
+  "currency_scale_insert": "INSERT INTO company_currency_scales(company_id,currency,scale,configured_by,configured_at) VALUES(?,?,?,?,?) ON CONFLICT(company_id,currency) DO NOTHING"
+}

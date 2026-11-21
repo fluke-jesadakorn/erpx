@@ -1,5 +1,6 @@
 import{companyRates}from '@erpx/server-finance/public/company-money-rates';
 import { withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeCompanyMoneySql } from '@erpx/server-collaboration/adapters/native-company-money-sql';
 import { createCompanyMoney } from '@erpx/server-finance/application/company-money';
 import type { CarrySource, SnapshotSource, SnapshotInput } from '@erpx/server-finance/domain/company-money';
 import "server-only";
@@ -34,9 +35,7 @@ export async function snapshotMoney(db: SqlDatabase, actor: Pick<WorkContext, "c
         amountUnits: plan.amountUnits, usdUnits: plan.usdUnits, currencyScale: plan.currencyScale,
         rateId: plan.rateId,
         usedLatestFallback: plan.usedLatestFallback,
-        statement: db.prepare(`INSERT INTO money_transaction_snapshots
-      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+        statement: db.prepare(nativeCompanyMoneySql('money_snapshot_insert'))
             .bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, input.currency, plan.currencyScale, plan.amountUnits, plan.usdUnits, plan.rateId, plan.usedLatestFallback, plan.capturedAt),
     };
 }
@@ -52,9 +51,7 @@ export async function snapshotMoneyBatch(db: SqlDatabase, actor: Pick<WorkContex
             return [actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, input.currency,
                 plan.currencyScale, plan.amountUnits, plan.usdUnits, plan.rateId, plan.usedLatestFallback, plan.capturedAt];
         });
-        statements.push(db.prepare(`INSERT INTO money_transaction_snapshots
-            (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at)
-            VALUES ${chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?)').join(',')}`).bind(...values));
+        statements.push(db.prepare(nativeCompanyMoneySql('money_snapshot_batch_insert')).bind(...values));
     }
     return { plans, statements };
 }
@@ -74,8 +71,7 @@ export async function snapshotMoneyCarry(db: SqlDatabase, actor: Pick<WorkContex
 }) {
     const plan = await moneyService(db).snapshotMoneyCarry(actor, input);
     return { amountUnits: plan.amountUnits, usdUnits: plan.usdUnits, currencyScale: plan.currencyScale, rateId: plan.rateId, usedLatestFallback: plan.usedLatestFallback,
-        statement: db.prepare(`INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,carried_source_type,carried_source_id,carried_amount_kind,carried_allocation_offset_units)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, plan.currency, plan.currencyScale, plan.amountUnits, plan.usdUnits, plan.rateId, plan.usedLatestFallback, plan.capturedAt, input.original.sourceType, input.original.sourceId, input.original.amountKind, plan.allocationOffsetUnits) };
+        statement: db.prepare(nativeCompanyMoneySql('money_snapshot_insert2')).bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, plan.currency, plan.currencyScale, plan.amountUnits, plan.usdUnits, plan.rateId, plan.usedLatestFallback, plan.capturedAt, input.original.sourceType, input.original.sourceId, input.original.amountKind, plan.allocationOffsetUnits) };
 }
 /** A return reverses the original evidence, including rounding, instead of quoting today's FX. */
 export async function snapshotMoneyReversal(db: SqlDatabase, actor: Pick<WorkContext, "companyId">, input: {
@@ -96,10 +92,7 @@ export async function snapshotMoneyReversal(db: SqlDatabase, actor: Pick<WorkCon
         currency: plan.currency, currencyScale: plan.currencyScale,
         rateId: plan.rateId, usedLatestFallback: plan.usedLatestFallback,
         amountUnits: plan.amountUnits,
-        statement: db.prepare(`INSERT INTO money_transaction_snapshots
-      (company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at,
-       original_source_type,original_source_id,original_amount_kind)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        statement: db.prepare(nativeCompanyMoneySql('money_snapshot_insert3'))
             .bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, plan.currency, plan.currencyScale, plan.amountUnits, "0", plan.rateId, plan.usedLatestFallback, plan.capturedAt, input.original.sourceType, input.original.sourceId, input.original.amountKind),
     };
 }
@@ -126,18 +119,17 @@ function moneyService(provided?: SqlDatabase,boundRequest?:unknown) {
             display_currency: string;
         }>(), carrySource: async (actor, original) => (await db(actor)).prepare(`SELECT currency,currency_scale,amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback,original_source_type FROM money_transaction_snapshots WHERE company_id=? AND source_type=? AND source_id=? AND amount_kind=?`).bind(actor.companyId, original.sourceType, original.sourceId, original.amountKind).first<CarrySource>(), reversalSource: async (actor, original) => (await db(actor)).prepare(`SELECT currency,currency_scale,amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback FROM money_transaction_snapshots WHERE company_id=? AND source_type=? AND source_id=? AND amount_kind=?`).bind(actor.companyId, original.sourceType, original.sourceId, original.amountKind).first<SnapshotSource>(), commitPreference: async ({ actor, input, key, now }) => {
             const write = await db(actor);
-            return executeCommand(write, actor, key, "money.preference.set", input, `${actor.companyId}:${actor.userId}`, 1, { currency: input.currency }, [write.prepare(`INSERT INTO user_currency_preferences(company_id,user_id,display_currency,updated_at)
-      VALUES(?,?,?,?) ON CONFLICT(company_id,user_id) DO UPDATE SET display_currency=excluded.display_currency,version=user_currency_preferences.version+1,updated_at=excluded.updated_at`)
+            return executeCommand(write, actor, key, "money.preference.set", input, `${actor.companyId}:${actor.userId}`, 1, { currency: input.currency }, [write.prepare(nativeCompanyMoneySql('currency_preference_insert'))
                     .bind(actor.companyId, actor.userId, input.currency, now)]);
         }, commitRate: async ({ actor, input, key, id, now }) => {
             const write = await db(actor);
             return executeCommand(write, actor, key, "money.rate.confirm", boundRequest??input, id, 1, { id, currency: input.currency, effectiveDate: input.effectiveDate, currencyPerUsd: input.currencyPerUsd, confirmedAt: now }, [
-                write.prepare("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)")
+                write.prepare(nativeCompanyMoneySql('fx_rate_insert'))
                     .bind(id, actor.companyId, input.currency, input.effectiveDate, input.currencyPerUsd, actor.userId, now, input.note),
             ]);
         }, commitScale: async ({ actor, input, key, now }) => {
             const write = await db(actor);
-            return executeCommand(write, actor, key, "money.scale.configure", input, `${actor.companyId}:${input.currency}`, 1, { currency: input.currency, scale: input.scale }, [write.prepare("INSERT INTO company_currency_scales(company_id,currency,scale,configured_by,configured_at) VALUES(?,?,?,?,?) ON CONFLICT(company_id,currency) DO NOTHING")
+            return executeCommand(write, actor, key, "money.scale.configure", input, `${actor.companyId}:${input.currency}`, 1, { currency: input.currency, scale: input.scale }, [write.prepare(nativeCompanyMoneySql('currency_scale_insert'))
                     .bind(actor.companyId, input.currency, input.scale, actor.userId, now)]);
         } });
 }
