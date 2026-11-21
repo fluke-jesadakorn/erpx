@@ -478,7 +478,7 @@ export interface PeoplePayrollRepository<Effect> {
     stageCreatePaymentBatchStatements(batchId: string, companyId: string, sourceType: "contractor" | "payroll", sourceId: string, currency: string, value: "draft", formatCode: string, total: number, value2: string | null, userId: string, now: number, now2: number): Effect;
     guard185(commandId: string, value: "supplier-payment-reservation", sourceId: string): Effect;
     guard186(commandId: string, value: "contractor-batch-unique", companyId: string, sourceId: string, batchId: string): Effect;
-    stageCreatePaymentBatchEffect(now: number, sourceId: string, companyId: string): Effect;
+    stageCreatePaymentBatchEffect(now: number, sourceId: string, companyId: string): Promise<Effect>;
     stageCreatePaymentBatchEffect2(value: string, batchId: string, engagement_id: string | null, person_id: string | null, value2: string, value3: string, net_minor: number, currency: string): Effect;
     readPreparePaymentRetryBatch(batchId: string, companyId: string): Promise<{
         source_type: string;
@@ -583,7 +583,7 @@ export interface PeoplePayrollRepository<Effect> {
     readConfirmPaymentBatchPayrollItem(source_id: string, engagement_id: string | null, amount_minor: number): Promise<PayrollPostingItem | null>;
     guard216(commandId: string, value: string, id: string, companyId: string, bankVersion: number, bank_account_id: string, currency: string, value2: number, confirmationRef: string): Effect;
     stageConfirmPaymentBatchEffect(value: string, companyId: string, batchId: string, id: string, id2: string, id3: string, userId: string, now: number): Effect;
-    stageConfirmPaymentBatchEffect2(id: string, id2: string, bankVersion: number): Effect;
+    stageConfirmPaymentBatchEffect2(id: string, id2: string, bankVersion: number, companyId: string): Promise<Effect>;
     stageConfirmPaymentBatchEffect3(value: "failed" | "settled", value2: string | null, value3: number | null, batchId: string, reference: string): Effect;
     stageConfirmPaymentBatchEffect4(status: "partially_settled" | "settled", now: number, batchId: string, companyId: string): Effect;
     readGetPaymentFileBatch(batchId: string, companyId: string): Promise<{
@@ -1534,7 +1534,7 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
             repository.stageCreatePaymentBatchStatements(batchId, actor.companyId, input.sourceType, input.sourceId, currency, "draft", input.formatCode, total, input.sourceType === "payroll" ? input.bankAccountId ?? null : null, actor.userId, now, now)
         ];
         if (input.sourceType === 'contractor')
-            statements.push(repository.guard185(commandId, 'supplier-payment-reservation', input.sourceId), repository.guard186(commandId, 'contractor-batch-unique', actor.companyId, input.sourceId, batchId), repository.stageCreatePaymentBatchEffect(now, input.sourceId, actor.companyId));
+            statements.push(repository.guard185(commandId, 'supplier-payment-reservation', input.sourceId), repository.guard186(commandId, 'contractor-batch-unique', actor.companyId, input.sourceId, batchId), await repository.stageCreatePaymentBatchEffect(now, input.sourceId, actor.companyId));
         for (const item of items.results) {
             const reviewed = item.input_snapshot_json ? (JSON.parse(item.input_snapshot_json) as {
                 payee?: {
@@ -1704,7 +1704,7 @@ export function createPeoplePayrollApplication<Effect>(ports: PeoplePayrollPorts
                     throw new BusinessRuleError(409, "PAYROLL_COST_ALLOCATION_INVALID", "The payable cost-unit allocation does not match the confirmed bank debit.");
                 const journal = await ports.prepareJournal(actor, { chartId: posting.chart_id, periodId: periods[0].id, entryDate: transaction.transaction_date, currency: batch.currency, memo: `Payroll payment ${item.reference} · ${row.confirmationRef}`, sourceType: "payroll_payment", sourceId: item.id, isOpening: false, lines: [...payableLines, { accountId: batch.bank_account_id!, debit: "0", credit: minorToDecimal(item.amount_minor), description: "Confirmed payroll bank debit", dimensions: {} }] }, `${commandId}-settlement-${index}`, "posted");
                 steps.push(repository.guard216(commandId, `bank-transaction-${index}`, transaction.id, actor.companyId, row.bankVersion, batch.bank_account_id, batch.currency, -item.amount_minor, row.confirmationRef));
-                steps.push(...journal.steps, repository.stageConfirmPaymentBatchEffect(`payroll-settlement-${commandId}-${index}`, actor.companyId, batchId, item.id, transaction.id, journal.result.id, actor.userId, now), repository.stageConfirmPaymentBatchEffect2(item.id, transaction.id, row.bankVersion));
+                steps.push(...journal.steps, repository.stageConfirmPaymentBatchEffect(`payroll-settlement-${commandId}-${index}`, actor.companyId, batchId, item.id, transaction.id, journal.result.id, actor.userId, now), await repository.stageConfirmPaymentBatchEffect2(item.id, transaction.id, row.bankVersion, actor.companyId));
             }
         }
         steps.push(...input.rows.map(row => repository.stageConfirmPaymentBatchEffect3(row.status === "confirmed" ? "settled" : "failed", row.confirmationRef ?? null, row.status === "confirmed" ? now : null, batchId, row.reference)), repository.stageConfirmPaymentBatchEffect4(status, now, batchId, actor.companyId));

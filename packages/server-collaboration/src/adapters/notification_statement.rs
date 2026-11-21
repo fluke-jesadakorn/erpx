@@ -3616,3 +3616,30 @@ pub async fn finance_company_tool_set_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance/payroll: bump the source invoice version when a payment batch is created.
+pub async fn finance_payroll_batch_invoice_version_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=? AND company_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance/payroll: match a bank transaction to a payroll payment.
+pub async fn finance_payroll_batch_bank_match_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payroll_payment',matched_id=?,version=version+1 WHERE id=? AND version=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
