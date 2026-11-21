@@ -49,7 +49,7 @@ export interface LeaveRepository<Effect> {
     guard14(key: string, value: string, sourceId: string, id: string, company_id: string, purposeKey: string, checksumSha256: string, mediaType: string, bytes: number): Effect;
     guard15(key: string, value: "leave-evidence-no-pending", id: string, company_id: string): Effect;
     guard16(key: string, value: "leave-evidence-required-count", value2: (string | number)[], legacyIncluded: boolean): Effect;
-    stageDecideEvidenceManifestStep(value: string, id: string, company_id: string, id2: string, key: string, expectedVersion: number, value2: string | null, userId: string, value3: string, now: number): Effect;
+    stageDecideEvidenceManifestStep(value: string, id: string, company_id: string, id2: string, key: string, expectedVersion: number, value2: string | null, userId: string, value3: string, now: number): Promise<Effect>;
     stageDecideEffect(id: string, company_id: string): Effect;
     stageDecideEffect2(state: "pending_approval" | "approved" | "rejected", note: string, userId: string, value: 0 | 1, key: string, now: number, id: string): Effect;
     stageDecideEffect3(value: string, key: string, id: string, operation: "leave.approve" | "leave.reject", userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number): Effect;
@@ -227,7 +227,7 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
         ];
         const evidenceManifestStep = evidenceManifest.length
             ? [
-                repository.stageDecideEvidenceManifestStep(`leave-evidence-${key}`, id, checked.company_id, decision.instance.id, key, input.expectedVersion, checked.policy_version_id ?? null, context.userId, JSON.stringify({
+                await repository.stageDecideEvidenceManifestStep(`leave-evidence-${key}`, id, checked.company_id, decision.instance.id, key, input.expectedVersion, checked.policy_version_id ?? null, context.userId, JSON.stringify({
                     policy: evidencePolicy,
                     files: evidenceManifest,
                 }), now),

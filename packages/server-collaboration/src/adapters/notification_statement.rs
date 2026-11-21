@@ -3724,3 +3724,43 @@ pub async fn people_expense_payment_cancel_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// People: decide on a leave evidence manifest.
+pub async fn people_leave_evidence_manifest_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO leave_evidence_manifests(id,request_id,company_id,approval_instance_id,decision_command_id,request_version,policy_version_id,reviewer_user_id,manifest_json,created_at) VALUES(?,?,?,?,?,?,?,?,?::jsonb,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People: reschedule a preparation task.
+pub async fn people_prep_task_reschedule_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE people_preparation_tasks SET due_date=?,assignee_id=?,responsibility=?,version=version+1,updated_at=? WHERE id=? AND company_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People: complete a preparation task.
+pub async fn people_prep_task_complete_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE people_preparation_tasks SET status=?,completion_reason=?,document_references=?::jsonb,completed_by=?,completed_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

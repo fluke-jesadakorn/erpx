@@ -1,4 +1,5 @@
 import {nativeCalendarRetirementNotification} from "./native-calendar-retirement-notification";
+import { nativePeopleBatchB } from '@erpx/server-collaboration/adapters/native-people-batch-b';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
 const organizationFinalSources=organizationFinalOwnerProjections();
@@ -32,7 +33,7 @@ export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase, actor?: Work
             value4: number;
             value5: string;
             value6: string;
-        }) => db.prepare("UPDATE people_preparation_tasks SET due_date=?,assignee_id=?,responsibility=?,version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value6).run(),
+        }) => nativePeopleBatchB(db).prepReschedule(facts.value6,[facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value6]).then(s=>s.run()),
         write9: (facts: {
             value1: string;
             value2: string;
@@ -53,7 +54,7 @@ export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase, actor?: Work
             value5: number;
             value6: string;
             value7: string;
-        }) => db.prepare("UPDATE people_preparation_tasks SET status=?,completion_reason=?,document_references=?::jsonb,completed_by=?,completed_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value5, facts.value6, facts.value7).run(),
+        }) => nativePeopleBatchB(db).prepComplete(facts.value7,[facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value5, facts.value6, facts.value7]).then(s=>s.run()),
         read25: (facts: {
             value1: string;
             value2: string;
