@@ -16,5 +16,6 @@ pub use crate::domain::refund::{
     ADVANCE_BALANCE_CODE, MAX_REFUND_PARTS, MAX_REFUND_ROWS, PmsPosting, PmsPostingLine,
     PmsProviderReceipt, PmsProviderRefund, PmsRefundAccount, PmsRefundDocument, PmsRefundEffects,
     PmsRefundFinanceRow, PmsRefundPart, PmsRefundPayment, PmsRefundPrior, PmsRefundRequest,
+    PmsRefundRequestContext,
     PmsRefundResult, PmsRefundSelection, PmsRefundSource, account_facts, parse_parts, parts_json,
 };

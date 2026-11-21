@@ -873,8 +873,12 @@ mod booking_refunds {
             account_id: "acct-1".into(),
             livemode: false,
             amount_minor: 5000,
+            currency: "THB".into(),
             status: "confirmed".into(),
             checkout_id: Some("cs-1".into()),
+            checkout_url: None,
+            expires_at: 2,
+            refund_state: None,
             clearing_account: Some("edc-1".into()),
             methods_json: "[\"card\"]".into(),
             created_at: 1,
@@ -983,6 +987,41 @@ mod booking_refunds {
             request_id: &'a str,
         ) -> PmsBoardFuture<'a, Option<PmsRefundRequest>, Self::Error> {
             Box::pin(async move { Ok(state(&self.store).requests.get(request_id).cloned()) })
+        }
+
+        fn payment_status_for_update<'a>(
+            &'a mut self,
+            payment_id: &'a str,
+        ) -> PmsBoardFuture<'a, Option<String>, Self::Error> {
+            Box::pin(async move {
+                Ok(state(&self.store).payments.get(payment_id).map(|p| p.status.clone()))
+            })
+        }
+
+        fn request_with_payment_context<'a>(
+            &'a mut self,
+            request_id: &'a str,
+            company_id: &'a str,
+        ) -> PmsBoardFuture<
+            'a,
+            Option<erpx_server_pms::public::refund::PmsRefundRequestContext>,
+            Self::Error,
+        > {
+            Box::pin(async move {
+                let state = state(&self.store);
+                let request = state.requests.get(request_id)?.clone();
+                let payment = state.payments.get(&request.payment_id)?;
+                if payment.company_id != company_id {
+                    return Ok(None);
+                }
+                drop(state);
+                Ok(Some(erpx_server_pms::public::refund::PmsRefundRequestContext {
+                    property_id: payment.property_id.clone(),
+                    account_id: payment.account_id.clone(),
+                    livemode: payment.livemode,
+                    request,
+                }))
+            })
         }
 
         fn sources<'a>(
@@ -1549,6 +1588,23 @@ mod booking_refunds {
                 &'a mut self,
                 _id: &'a str,
             ) -> PmsBoardFuture<'a, Option<PmsRefundPayment>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn payment_status_for_update<'a>(
+                &'a mut self,
+                _id: &'a str,
+            ) -> PmsBoardFuture<'a, Option<String>, Self::Error> {
+                Box::pin(async { Ok(None) })
+            }
+            fn request_with_payment_context<'a>(
+                &'a mut self,
+                _id: &'a str,
+                _company: &'a str,
+            ) -> PmsBoardFuture<
+                'a,
+                Option<erpx_server_pms::public::refund::PmsRefundRequestContext>,
+                Self::Error,
+            > {
                 Box::pin(async { Ok(None) })
             }
             fn request<'a>(

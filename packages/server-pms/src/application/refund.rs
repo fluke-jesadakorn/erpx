@@ -9,7 +9,8 @@ use crate::application::room_board::PmsBoardFuture;
 use crate::domain::refund::{
     MAX_REFUND_ROWS, PmsPosting, PmsProviderReceipt, PmsProviderRefund, PmsRefundAccount,
     PmsRefundDocument, PmsRefundEffects, PmsRefundFinanceRow, PmsRefundPart, PmsRefundPayment,
-    PmsRefundPrior, PmsRefundRequest, PmsRefundResult, PmsRefundSelection, PmsRefundSource,
+    PmsRefundPrior, PmsRefundRequest, PmsRefundRequestContext, PmsRefundResult, PmsRefundSelection,
+    PmsRefundSource,
     account_facts, apply_refund_liability, apply_refund_settle, apply_unallocated_receipt,
     conflict, forbidden, invalid, not_found, parse_parts, parts_json, plan_refund_request,
     require_finance_scope, require_independent_approval, require_online_accounting,
@@ -94,6 +95,18 @@ pub trait PmsRefundRepository: Send {
         &'a mut self,
         request_id: &'a str,
     ) -> PmsBoardFuture<'a, Option<PmsRefundRequest>, Self::Error>;
+    /// Locked `status` of one booking payment (status-only read for update).
+    fn payment_status_for_update<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+    ) -> PmsBoardFuture<'a, Option<String>, Self::Error>;
+    /// Refund request joined with its payment's property, account and
+    /// livemode facts (single replacement for the TS combined row).
+    fn request_with_payment_context<'a>(
+        &'a mut self,
+        request_id: &'a str,
+        company_id: &'a str,
+    ) -> PmsBoardFuture<'a, Option<PmsRefundRequestContext>, Self::Error>;
     fn sources<'a>(
         &'a mut self,
         payment_id: &'a str,

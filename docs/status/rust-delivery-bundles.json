@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4516,
+    "revision": 4519,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:27:18.726Z",
-      "expiresAt": "2026-11-21T18:57:18.726Z",
+      "heartbeatAt": "2026-11-21T18:29:35.869Z",
+      "expiresAt": "2026-11-21T18:59:35.869Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -27867,8 +27867,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:27:18.726Z",
-          "expiresAt": "2026-11-21T18:57:18.726Z",
+          "heartbeatAt": "2026-11-21T18:29:35.869Z",
+          "expiresAt": "2026-11-21T18:59:35.869Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43766,8 +43766,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:27:18.726Z",
-          "expiresAt": "2026-11-21T18:57:18.726Z",
+          "heartbeatAt": "2026-11-21T18:29:35.869Z",
+          "expiresAt": "2026-11-21T18:59:35.869Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47037,8 +47037,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:27:18.726Z",
-          "expiresAt": "2026-11-21T18:57:18.726Z",
+          "heartbeatAt": "2026-11-21T18:29:35.869Z",
+          "expiresAt": "2026-11-21T18:59:35.869Z",
           "generation": 147
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -47475,8 +47475,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:27:18.726Z",
-          "expiresAt": "2026-11-21T18:57:18.726Z",
+          "heartbeatAt": "2026-11-21T18:29:35.869Z",
+          "expiresAt": "2026-11-21T18:59:35.869Z",
           "generation": 147
         },
         "baseSha": null,
@@ -47673,8 +47673,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:41.639Z",
-          "heartbeatAt": "2026-11-21T18:27:18.726Z",
-          "expiresAt": "2026-11-21T18:57:18.726Z",
+          "heartbeatAt": "2026-11-21T18:29:35.869Z",
+          "expiresAt": "2026-11-21T18:59:35.869Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47704,11 +47704,23 @@
             "result": "passed",
             "sourceSha": "f8515874af2eea20593c07e92e1991522e9f04ad",
             "note": "4 real table columns now native (0299 verified); remaining 4 TS-only fields (allocation_json/payment_intent_id/purpose/proposal_id) have no column in 0299 - need source identification, out of scope"
+          },
+          {
+            "command": "cargo-check:erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "00bce70c8c90a3f953bba6acb8d0da41a04e03ea",
+            "note": "cargo check green after adding payment_status_for_update + request_with_payment_context (trait, postgres impl, public export, 2 test fakes)"
+          },
+          {
+            "command": "cargo-test:erpx-server-pms-lib",
+            "result": "passed",
+            "sourceSha": "00bce70c8c90a3f953bba6acb8d0da41a04e03ea",
+            "note": "39 passed 1 failed; sole failure booking_mail_postgres_lifecycle needs ERPX_TEST_ADMIN_URL (no DB in env, pre-existing environmental)"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refund payment parity narrowed (4 real columns native). Next: extend combined row + status-locked read, switch booking-refunds route + booking-changes, then delete refund TS.",
+        "nextAction": "Native status-locked read + combined request/payment-context row added with fakes. Next: switch booking-refunds route + booking-changes consumers to these ports, then delete the 2 TS read sites.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -51147,8 +51159,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:27:18.726Z",
-          "expiresAt": "2026-11-21T18:57:18.726Z",
+          "heartbeatAt": "2026-11-21T18:29:35.869Z",
+          "expiresAt": "2026-11-21T18:59:35.869Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105110,7 +105122,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:27:18.727Z",
+    "updatedAt": "2026-11-21T18:29:35.871Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

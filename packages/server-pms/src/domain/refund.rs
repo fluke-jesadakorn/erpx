@@ -68,6 +68,17 @@ pub struct PmsRefundRequest {
     pub legacy_review: bool,
 }
 
+/// `pms_booking_refund_requests` row joined with its payment's property,
+/// account and livemode facts (one native replacement for the TS
+/// `request + property_id/account_id/livemode` combined row).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PmsRefundRequestContext {
+    #[serde(flatten)]
+    pub request: PmsRefundRequest,
+    pub property_id: String,
+    pub account_id: String,
+    pub livemode: bool,
+}
 /// `pms_booking_payments` row facts used by the refund flow.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PmsRefundPayment {

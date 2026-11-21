@@ -149,6 +149,48 @@ impl PmsRefundRepository for PgPmsRefundRepository<'_> {
         })
     }
 
+    fn payment_status_for_update<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+    ) -> PmsBoardFuture<'a, Option<String>, Self::Error> {
+        Box::pin(async move {
+            let row = sqlx::query("SELECT status FROM pms_booking_payments WHERE id=$1 FOR UPDATE")
+                .bind(payment_id)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+            row.map(|row| row.try_get("status").map_err(Error::from))
+                .transpose()
+        })
+    }
+
+    fn request_with_payment_context<'a>(
+        &'a mut self,
+        request_id: &'a str,
+        company_id: &'a str,
+    ) -> PmsBoardFuture<'a, Option<crate::domain::refund::PmsRefundRequestContext>, Self::Error> {
+        Box::pin(async move {
+            let row = sqlx::query(
+                "SELECT r.*,p.property_id,p.account_id,p.livemode \
+                 FROM pms_booking_refund_requests r \
+                 JOIN pms_booking_payments p ON p.id=r.payment_id \
+                 WHERE r.id=$1 AND p.company_id=$2",
+            )
+            .bind(request_id)
+            .bind(company_id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok(crate::domain::refund::PmsRefundRequestContext {
+                    request: request_row(&row)?,
+                    property_id: row.try_get("property_id")?,
+                    account_id: row.try_get("account_id")?,
+                    livemode: row.try_get("livemode")?,
+                })
+            })
+            .transpose()
+        })
+    }
+
     fn sources<'a>(
         &'a mut self,
         payment_id: &'a str,
