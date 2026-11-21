@@ -1,4 +1,5 @@
 import "server-only";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {createHash} from 'node:crypto';
 import type { SqlDatabase, TransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -57,7 +58,7 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
         const current=await lockCustomerPortalBinding(db,binding.binding_id,actor.email.toLowerCase());
         if(!current||current.company_id!==binding.company_id||current.order_id!==binding.order_id||current.customer_id!==binding.customer_id||current.email!==binding.email||current.order_version!==binding.order_version||current.state!==binding.state||current.status!=='approved'||Number(current.expires_at)<=Date.now()||!await customerPortalIdentityExists(db,binding.binding_id,actor))throw new ApiError(403,'CUSTOMER_PORTAL_BINDING_UNAVAILABLE','The original customer binding or document changed before commit.');
         await release();
-        const observed=await db.batch([...boundary.after,db.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);
+        const observed=await db.batch([...boundary.after,await nativeClearCommandAssertions(db, binding.company_id, key)]);boundary.observe?.(observed);
       };
     },
     evidence: async (command, actor) => {

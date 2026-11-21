@@ -76,7 +76,7 @@ export async function withHandbookPurchasedCommand<Result>(owner:SqlDatabase,act
   await flushFinanceDeferredEffects(database);
   if(mode==='enforced')await current(database,actor,true);await authorize(database);
   if(await image(database,actor.companyId,command.id)!==expected)throw changed();
-  const observed=await database.batch([...boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);boundary.observe?.(observed);
+  const observed=await database.batch([...boundary.after,await nativeClearCommandAssertions(database, actor.companyId, key)]);boundary.observe?.(observed);
   return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}
 }
