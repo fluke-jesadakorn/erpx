@@ -1,0 +1,13 @@
+{
+  "prepare_policy_edition": "INSERT INTO finance_asset_policy_editions(id,company_id,asset_id,parent_id,content_json,source_hash,prepared_by,reason,created_at,updated_at,basis_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+  "supersede_policy_edition": "UPDATE finance_asset_policy_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?",
+  "decide_policy_edition": "UPDATE finance_asset_policy_editions SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?",
+  "prepare_policy_run": "INSERT INTO finance_asset_policy_runs(id,company_id,asset_id,policy_id,ordinal,entry_date,input_json,result_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  "update_asset_carrying": "UPDATE finance_assets SET accumulated_depreciation_minor=?,version=version+1,updated_at=? WHERE id=?",
+  "bump_policy_edition": "UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?",
+  "asset_depreciation_event": "INSERT INTO finance_asset_events(id,asset_id,company_id,event_type,asset_version,command_id,payload_json,actor_id,created_at) VALUES(?,?,?,'depreciated',?,?,?,?,?)",
+  "decide_policy_run": "UPDATE finance_asset_policy_runs SET status=?,reviewed_by=?,journal_ids_json=?,version=version+1,updated_at=? WHERE id=?",
+  "reverse_asset_carrying": "UPDATE finance_assets SET accumulated_depreciation_minor=accumulated_depreciation_minor-?,version=version+1,updated_at=? WHERE id=?",
+  "reverse_policy_version": "UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?",
+  "reverse_policy_run": "UPDATE finance_asset_policy_runs SET status='reversed',reversal_ids_json=?,reversal_entry_date=?,version=version+1,updated_at=? WHERE id=?"
+}

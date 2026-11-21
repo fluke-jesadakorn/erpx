@@ -5420,3 +5420,43 @@ pub async fn wh_bank_match2_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='withholding_remittance_reversal',matched_id=?,version=version+1 WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// Native-owned SQL contract for finance asset policy statements. The checked-in
+/// JSON mirror is consumed synchronously by TS; this test enforces parity.
+pub const ASSET_POLICY_SQL_PREPARE_POLICY_EDITION: &str = "INSERT INTO finance_asset_policy_editions(id,company_id,asset_id,parent_id,content_json,source_hash,prepared_by,reason,created_at,updated_at,basis_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const ASSET_POLICY_SQL_SUPERSEDE_POLICY_EDITION: &str = "UPDATE finance_asset_policy_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?";
+pub const ASSET_POLICY_SQL_DECIDE_POLICY_EDITION: &str = "UPDATE finance_asset_policy_editions SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const ASSET_POLICY_SQL_PREPARE_POLICY_RUN: &str = "INSERT INTO finance_asset_policy_runs(id,company_id,asset_id,policy_id,ordinal,entry_date,input_json,result_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const ASSET_POLICY_SQL_UPDATE_ASSET_CARRYING: &str = "UPDATE finance_assets SET accumulated_depreciation_minor=?,version=version+1,updated_at=? WHERE id=?";
+pub const ASSET_POLICY_SQL_BUMP_POLICY_EDITION: &str = "UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?";
+pub const ASSET_POLICY_SQL_ASSET_DEPRECIATION_EVENT: &str = "INSERT INTO finance_asset_events(id,asset_id,company_id,event_type,asset_version,command_id,payload_json,actor_id,created_at) VALUES(?,?,?,'depreciated',?,?,?,?,?)";
+pub const ASSET_POLICY_SQL_DECIDE_POLICY_RUN: &str = "UPDATE finance_asset_policy_runs SET status=?,reviewed_by=?,journal_ids_json=?,version=version+1,updated_at=? WHERE id=?";
+pub const ASSET_POLICY_SQL_REVERSE_ASSET_CARRYING: &str = "UPDATE finance_assets SET accumulated_depreciation_minor=accumulated_depreciation_minor-?,version=version+1,updated_at=? WHERE id=?";
+pub const ASSET_POLICY_SQL_REVERSE_POLICY_VERSION: &str = "UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?";
+pub const ASSET_POLICY_SQL_REVERSE_POLICY_RUN: &str = "UPDATE finance_asset_policy_runs SET status='reversed',reversal_ids_json=?,reversal_entry_date=?,version=version+1,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod asset_policy_contract_tests {
+    use super::*;
+    #[test]
+    fn asset_policy_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-asset-policy-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid asset policy SQL contract");
+        let pairs = [
+            ("prepare_policy_edition", ASSET_POLICY_SQL_PREPARE_POLICY_EDITION),
+            ("supersede_policy_edition", ASSET_POLICY_SQL_SUPERSEDE_POLICY_EDITION),
+            ("decide_policy_edition", ASSET_POLICY_SQL_DECIDE_POLICY_EDITION),
+            ("prepare_policy_run", ASSET_POLICY_SQL_PREPARE_POLICY_RUN),
+            ("update_asset_carrying", ASSET_POLICY_SQL_UPDATE_ASSET_CARRYING),
+            ("bump_policy_edition", ASSET_POLICY_SQL_BUMP_POLICY_EDITION),
+            ("asset_depreciation_event", ASSET_POLICY_SQL_ASSET_DEPRECIATION_EVENT),
+            ("decide_policy_run", ASSET_POLICY_SQL_DECIDE_POLICY_RUN),
+            ("reverse_asset_carrying", ASSET_POLICY_SQL_REVERSE_ASSET_CARRYING),
+            ("reverse_policy_version", ASSET_POLICY_SQL_REVERSE_POLICY_VERSION),
+            ("reverse_policy_run", ASSET_POLICY_SQL_REVERSE_POLICY_RUN),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "asset policy SQL contract drift: {key}");
+        }
+    }
+}

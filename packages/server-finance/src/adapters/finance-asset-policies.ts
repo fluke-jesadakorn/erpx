@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeAssetPolicySql } from '@erpx/server-collaboration/adapters/native-asset-policy-sql';
 import { assetPolicyRunSchema } from '@erpx/server-finance/domain/due-inputs';
 import "server-only";
 import { z } from "zod";
@@ -99,12 +100,12 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, preparePolicy(id: string, companyId: string, assetId: string, value: string | number | null, value2: string, hash: string, userId: string, reason: string, now: number, now2: number, value3: string) {
             const db = read();
             return db
-                .prepare("INSERT INTO finance_asset_policy_editions(id,company_id,asset_id,parent_id,content_json,source_hash,prepared_by,reason,created_at,updated_at,basis_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+                .prepare(nativeAssetPolicySql('prepare_policy_edition'))
                 .bind(id, companyId, assetId, value, value2, hash, userId, reason, now, now2, value3);
         }, supersedePolicy(now: number, id: string | number | null) {
             const db = read();
             return db
-                .prepare("UPDATE finance_asset_policy_editions SET status='superseded',version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('supersede_policy_edition'))
                 .bind(now, id);
         }, guardPolicyVersion(key: string, value: "asset-policy-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
@@ -112,7 +113,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, decidePolicy(value: "active" | "rejected", userId: string, now: number, id: string) {
             const db = read();
             return db
-                .prepare("UPDATE finance_asset_policy_editions SET status=?,reviewed_by=?,version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('decide_policy_edition'))
                 .bind(value, userId, now, id);
         }, async openPeriod(periodId: string, companyId: string, entryDate: string, entryDate2: string) {
             const db = read();
@@ -129,7 +130,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, prepareRun(runId: string, companyId: string, id: string | number | null, id2: string, ordinal: number, entryDate: string, value: string, value2: string, hash: string, userId: string, reason: string, now: number, now2: number) {
             const db = read();
             return db
-                .prepare("INSERT INTO finance_asset_policy_runs(id,company_id,asset_id,policy_id,ordinal,entry_date,input_json,result_json,source_hash,prepared_by,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                .prepare(nativeAssetPolicySql('prepare_policy_run'))
                 .bind(runId, companyId, id, id2, ordinal, entryDate, value, value2, hash, userId, reason, now, now2);
         }, async run(id: string, companyId: string) {
             const db = read();
@@ -140,17 +141,17 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, updateAssetCarrying(value: string, now: number, id: string | number | null) {
             const db = read();
             return db
-                .prepare("UPDATE finance_assets SET accumulated_depreciation_minor=?,version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('update_asset_carrying'))
                 .bind(value, now, id);
         }, updatePolicyVersion(now: number, id: string | number | null) {
             const db = read();
             return db
-                .prepare("UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('bump_policy_edition'))
                 .bind(now, id);
         }, assetEvent(value: string, id: string | number | null, companyId: string, value2: number, key: string, value3: string, userId: string, now: number) {
             const db = read();
             return db
-                .prepare("INSERT INTO finance_asset_events(id,asset_id,company_id,event_type,asset_version,command_id,payload_json,actor_id,created_at) VALUES(?,?,?,'depreciated',?,?,?,?,?)")
+                .prepare(nativeAssetPolicySql('asset_depreciation_event'))
                 .bind(value, id, companyId, value2, key, value3, userId, now);
         }, guardRunVersion(key: string, value: "asset-policy-run-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
@@ -158,7 +159,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, decideRun(value: "posted" | "rejected", userId: string, value2: string, now: number, id: string) {
             const db = read();
             return db
-                .prepare("UPDATE finance_asset_policy_runs SET status=?,reviewed_by=?,journal_ids_json=?,version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('decide_policy_run'))
                 .bind(value, userId, value2, now, id);
         }, async laterRuns(id: string | number | null, ordinal: string | number | null) {
             const db = read();
@@ -175,17 +176,17 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, reverseAssetCarrying(value: string, now: number, id: string | number | null) {
             const db = read();
             return db
-                .prepare("UPDATE finance_assets SET accumulated_depreciation_minor=accumulated_depreciation_minor-?,version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('reverse_asset_carrying'))
                 .bind(value, now, id);
         }, reversePolicyVersion(now: number, id: string | number | null) {
             const db = read();
             return db
-                .prepare("UPDATE finance_asset_policy_editions SET version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('reverse_policy_version'))
                 .bind(now, id);
         }, reverseRun(value: string, entryDate: string, now: number, id: string) {
             const db = read();
             return db
-                .prepare("UPDATE finance_asset_policy_runs SET status='reversed',reversal_ids_json=?,reversal_entry_date=?,version=version+1,updated_at=? WHERE id=?")
+                .prepare(nativeAssetPolicySql('reverse_policy_run'))
                 .bind(value, entryDate, now, id);
         }, async workspacePolicies(companyId: string) {
             const db = read();
