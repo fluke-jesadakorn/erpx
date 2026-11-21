@@ -1,6 +1,7 @@
 import{units,requireLegalAttachmentReadPreparation,deferLegalAttachmentReadCheck}from '@erpx/server-legal/adapters/attachment-read-state';
 export{requireLegalAttachmentReadPreparation,deferLegalAttachmentReadCheck};
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from 'node:crypto';
 import {featureSpecs} from '@erpx/feature-legal/lib/legal/features';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
@@ -27,7 +28,7 @@ export function legalItemPurchasePredicate(alias:string,purpose:CapabilityPurpos
 export async function requireCurrentLegalCommandAuthority(database:SqlDatabase,actor:WorkContext,key:string,permission:string){
  const row=await database.prepare(`SELECT ${assignmentReadSql('legal_current_scope',permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) legal_current_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first('allowed');
  if(!row)throw new ApiError(403,'LEGAL_ACCESS_CHANGED','Choose a current Legal assignment.');
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 export async function legalPurchaseControls(database:SqlDatabase,actor:WorkContext):Promise<LegalPurchaseControls|undefined>{const mode=await legalPackageEnforcementMode();if(mode==='disabled')return;await requireCurrentLegalCommandAuthority(database,actor,`legal-read:${randomUUID()}`,'legal.read');const access=await readPurchasedAccesses(database,mode,actor.companyId,capabilities);return Object.fromEntries(capabilities.map(code=>[code,{newWork:access[code].newWork,settleExisting:access[code].settleExisting,history:access[code].history,revision:access[code].revision}]));}
 /** Preserve the original Company-manager preparation path for rules/templates;

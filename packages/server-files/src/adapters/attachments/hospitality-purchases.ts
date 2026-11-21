@@ -1,4 +1,5 @@
 import {messagingAttachmentCommandBoundary,type MessagingAttachmentPurchase} from "@erpx/server-collaboration/public/messaging-attachment-purchases";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {ecommerceAttachmentCommandBoundary,type EcommerceAttachmentPurchase} from "@erpx/server-ecommerce/public/attachment-purchases";
 import {workTaskAttachmentCommandBoundary,type WorkTaskAttachmentPurchase} from "@erpx/server-operations/public/task-attachment-purchases";
 import {portalAttachmentCommandBoundary,type PortalAttachmentPurchase} from "@erpx/server-customer_authority/public/attachment-purchases";
@@ -57,11 +58,11 @@ async function hospitalityBoundary(database: SqlDatabase, scopes: readonly Hospi
     const mode = await modeFor(scope.owner);
     if (mode === "disabled") continue;
     const key = `hospitality-file-purchase:${crypto.randomUUID()}`;
-    boundaries.push({ key, boundary: purchaseCommandBoundary(database, mode, key, scope)! });
+    boundaries.push({ key, companyId: scope.companyId, boundary: purchaseCommandBoundary(database, mode, key, scope)! });
   }
   if (!boundaries.length) return undefined;
   return { before: boundaries.flatMap(item => item.boundary.before), after: [...boundaries.flatMap(item => item.boundary.after),
-    ...boundaries.map(item => database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key))],
+    ...await Promise.all(boundaries.map(item => nativeClearCommandAssertions(database, item.companyId, item.key)))],
     observe: boundaries.some(item => !!item.boundary.observe) ? observePurchaseResults : undefined };
 }
 

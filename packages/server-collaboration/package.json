@@ -302,7 +302,8 @@
     "./adapters/native-finance-supplier-bill": "./src/adapters/native-finance-supplier-bill.ts",
     "./adapters/native-people-batch-a": "./src/adapters/native-people-batch-a.ts",
     "./adapters/native-people-batch-b": "./src/adapters/native-people-batch-b.ts",
-    "./adapters/native-people-batch-c": "./src/adapters/native-people-batch-c.ts"
+    "./adapters/native-people-batch-c": "./src/adapters/native-people-batch-c.ts",
+    "./adapters/native-command-assertions": "./src/adapters/native-command-assertions.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

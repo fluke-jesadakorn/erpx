@@ -1,4 +1,5 @@
 import "server-only";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
@@ -27,7 +28,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  (SELECT ?::text company_id,?::text branch_id,?::text department_id) learning_scope`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"LEARNING_ACCESS_CHANGED","Choose a current Learning assignment.");
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 export async function learningPurchaseControls(database:SqlDatabase,actor:WorkContext):Promise<LearningPurchaseControls|undefined>{
  const mode=await learningPackageEnforcementMode();if(mode==="disabled")return undefined;

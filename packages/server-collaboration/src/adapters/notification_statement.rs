@@ -3805,3 +3805,17 @@ pub async fn people_attachment_owner_version_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Workflow: clear the assertion rows retained for a command.
+pub async fn workflow_command_assertion_clear_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "DELETE FROM command_assertions WHERE command_id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}

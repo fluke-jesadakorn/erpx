@@ -1,4 +1,5 @@
 import "server-only";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -79,7 +80,7 @@ export async function requireCRMCurrentAuthority(database:SqlDatabase,actor:Work
   const row=await database.prepare(`SELECT ${assignmentReadSql("crm_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) crm_scope`).bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
   if(!row?.allowed)throw new ApiError(403,"CRM_ACCESS_CHANGED","The original sales assignment is no longer current.");
  }
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 export async function crmSourceAccess(database:SqlDatabase,actor:WorkContext,target?:CRMPurchaseTarget):Promise<CRMPurchaseControls|undefined>{
  const mode=await commercePackageEnforcementMode();if(mode==="disabled")return undefined;

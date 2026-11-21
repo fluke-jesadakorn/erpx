@@ -1,4 +1,5 @@
 import "server-only";
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
@@ -32,7 +33,7 @@ export async function requireMarketingCurrentAuthority(database:SqlDatabase,acto
   const row=await database.prepare(`SELECT ${assignmentReadSql('marketing_scope',permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) marketing_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,'MARKETING_ACCESS_CHANGED','The original Marketing assignment is no longer current.');
  }
  const selected=await database.prepare("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?").bind(actor.assignmentId).first<{allowed:boolean}>();if(!selected?.allowed)throw new ApiError(403,'MARKETING_ACCESS_CHANGED','The original Marketing module is no longer selected.');
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);
+ await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 export async function marketingSourceAccess(database:SqlDatabase,actor:WorkContext,target?:MarketingPurchaseTarget):Promise<MarketingPurchaseControls|undefined>{const mode=await commercePackageEnforcementMode();if(mode==='disabled')return undefined;await requireMarketingCurrentAuthority(database,actor,['records.read'],`marketing-read:${randomUUID()}`);if(target)await source(database,actor,target);const access=(await readPurchasedAccesses(database,mode,actor.companyId,['sales.marketing']))['sales.marketing'];return {newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision};}
 export async function requireMarketingPurchasedRead(database:SqlDatabase,actor:WorkContext,target?:MarketingPurchaseTarget){const access=await marketingSourceAccess(database,actor,target);if(access&&!access.history)throw new ApiError(403,'PACKAGE_REQUIRED','The Marketing addon or retained history is required.');return access;}

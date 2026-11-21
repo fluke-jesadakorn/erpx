@@ -1,4 +1,5 @@
 import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import type {CalendarPurchaseControls} from '@erpx/feature-work_projection/lib/calendar-purchases';
@@ -30,7 +31,7 @@ export function calendarCommandPurpose(input:CalendarCommand):CapabilityPurpose{
 async function current(database:SqlDatabase,actor:WorkContext,key:string,guards=false){
  const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');
  if(!await database.prepare(`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...scope.args).first())throw new ApiError(403,'CALENDAR_AUTHORITY_CHANGED','Choose a current Calendar account, Company and role.');
- if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);
+ if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 async function ready(database:SqlDatabase,actor:WorkContext){
  if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Manual Work Calendar is not released for this Company.');
