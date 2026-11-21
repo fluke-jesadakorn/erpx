@@ -1,7 +1,7 @@
 //! Native PMS room-board HTTP transport facts over a real loopback listener.
 use erpx_server_pms::public::pms_http::{
-    PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest, PmsHttpResponse,
-    PmsHttpTarget, pms_http_router,
+    PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest,
+    PmsHttpRefundContextRequest, PmsHttpResponse, PmsHttpTarget, pms_http_router,
 };
 use erpx_server_runtime::public::http_support::{
     Router, serde_json::Value, serde_json::json, serve,
@@ -85,6 +85,25 @@ impl PmsHttpBackend for Backend {
             }
             Ok(PmsHttpResponse {
                 data: json!({"properties": [], "snapshot": null}),
+                context: json!({"userId": "user"}),
+            })
+        })
+    }
+    fn refund_context<'a>(
+        &'a self,
+        request: PmsHttpRefundContextRequest<'a>,
+    ) -> PmsHttpFuture<'a, PmsHttpResponse> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        self.seen.lock().unwrap().push(format!(
+            "refund:{}:{}:{}",
+            request.host, request.holding_slug, request.selection.request_id
+        ));
+        Box::pin(async move {
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(PmsHttpResponse {
+                data: json!({"id": "req-1", "property_id": "prop-1"}),
                 context: json!({"userId": "user"}),
             })
         })
@@ -335,4 +354,90 @@ fn configuration_rejects_non_https_and_duplicate_targets() {
         }])
         .is_err()
     );
+}
+
+#[tokio::test]
+async fn refund_context_returns_request_context_and_private_headers() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let (status, value, head) = call(
+        address,
+        "/api/v1/holdings/acme/pms/booking-refunds/context?request=req-1",
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(value["data"]["id"], "req-1");
+    assert_eq!(value["data"]["property_id"], "prop-1");
+    assert_eq!(value["context"]["userId"], "user");
+    assert!(head.contains("cache-control: private, no-store"));
+    assert!(head.contains("referrer-policy: no-referrer"));
+    assert!(head.contains("x-content-type-options: nosniff"));
+    assert_eq!(
+        backend.seen.lock().unwrap().as_slice(),
+        ["refund:acme.example.test:acme:req-1"]
+    );
+    task.abort();
+}
+
+#[tokio::test]
+async fn refund_context_rejects_unknown_targets_and_malformed_queries_before_the_backend() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    for (path, expected) in [
+        ("/api/v1/holdings/other/pms/booking-refunds/context?request=req-1", 404),
+        ("/api/v1/holdings/acme/pms/booking-refunds/context", 422),
+        (
+            "/api/v1/holdings/acme/pms/booking-refunds/context?request=one&request=two",
+            422,
+        ),
+        (
+            "/api/v1/holdings/acme/pms/booking-refunds/context?request=",
+            422,
+        ),
+        (
+            "/api/v1/holdings/acme/pms/booking-refunds/context?request=%ZZ",
+            422,
+        ),
+        (
+            "/api/v1/holdings/acme/pms/booking-refunds/context?unknown=value",
+            422,
+        ),
+        (
+            "/api/v1/holdings/acme/pms/booking-refunds/context?request=req-1&company=co-1",
+            422,
+        ),
+    ] {
+        let (status, value, _) = call(address, path).await;
+        assert_eq!(status, expected, "{path} returned {value}");
+    }
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn refund_context_route_fails_closed_when_a_backend_does_not_implement_it() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let task = tokio::spawn(async move {
+        serve(
+            listener,
+            pms_http_router(vec![PmsHttpTarget {
+                host: "acme.example.test".into(),
+                holding_slug: "acme".into(),
+                origin: "https://acme.example.test".into(),
+                backend: Arc::new(BoardOnlyBackend),
+            }])
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    });
+    let (status, value, _) = call(
+        address,
+        "/api/v1/holdings/acme/pms/booking-refunds/context?request=req-1",
+    )
+    .await;
+    assert_eq!(status, 503);
+    assert_eq!(value["error"]["code"], "PMS_REFUND_CONTEXT_UNAVAILABLE");
+    task.abort();
 }

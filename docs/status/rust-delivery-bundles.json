@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4557,
+    "revision": 4559,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:58:26.285Z",
-      "expiresAt": "2026-11-21T19:28:26.285Z",
+      "heartbeatAt": "2026-11-21T18:59:40.937Z",
+      "expiresAt": "2026-11-21T19:29:40.937Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -25420,8 +25420,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:51:45.673Z",
-          "heartbeatAt": "2026-11-21T18:58:26.285Z",
-          "expiresAt": "2026-11-21T19:28:26.285Z",
+          "heartbeatAt": "2026-11-21T18:59:40.937Z",
+          "expiresAt": "2026-11-21T19:29:40.937Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -25720,8 +25720,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:58:22.273Z",
-          "heartbeatAt": "2026-11-21T18:58:26.285Z",
-          "expiresAt": "2026-11-21T19:28:26.285Z",
+          "heartbeatAt": "2026-11-21T18:59:40.937Z",
+          "expiresAt": "2026-11-21T19:29:40.937Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -27920,8 +27920,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:58:26.285Z",
-          "expiresAt": "2026-11-21T19:28:26.285Z",
+          "heartbeatAt": "2026-11-21T18:59:40.937Z",
+          "expiresAt": "2026-11-21T19:29:40.937Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43819,8 +43819,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:58:26.285Z",
-          "expiresAt": "2026-11-21T19:28:26.285Z",
+          "heartbeatAt": "2026-11-21T18:59:40.937Z",
+          "expiresAt": "2026-11-21T19:29:40.937Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -51538,8 +51538,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:58:26.285Z",
-          "expiresAt": "2026-11-21T19:28:26.285Z",
+          "heartbeatAt": "2026-11-21T18:59:40.937Z",
+          "expiresAt": "2026-11-21T19:29:40.937Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105501,7 +105501,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:58:26.287Z",
+    "updatedAt": "2026-11-21T18:59:40.939Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
