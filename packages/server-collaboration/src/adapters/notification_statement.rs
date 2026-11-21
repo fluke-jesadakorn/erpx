@@ -5834,3 +5834,42 @@ mod consolidation_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for POS core finance fact statements.
+pub const POS_CORE_SQL_POS_JOURNAL_INSERT: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'pos',?,?,'posted',1,?,?,?,?,?)";
+pub const POS_CORE_SQL_POS_JOURNAL_LINES_INSERT: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const POS_CORE_SQL_POS_PAYMENT_INSERT: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'receipt',?,?,?,?,0,?,'settled',?,?,?,?,?)";
+pub const POS_CORE_SQL_POS_PARTY_INSERT: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer','POS-WALKIN','POS walk-in customer',?,'active',?,?) ON CONFLICT(id) DO NOTHING";
+pub const POS_CORE_SQL_POS_INVOICE_INSERT: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'receivable',?,?,?,?,?,?,?,0,?,?,?,'pos',?,'paid',?,?,?,?,?,?)";
+pub const POS_CORE_SQL_POS_PAYMENT_PARTY_UPDATE: &str = "UPDATE finance_payments SET party_id=? WHERE id=?";
+pub const POS_CORE_SQL_POS_ALLOCATION_INSERT: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)";
+pub const POS_CORE_SQL_POS_ACCOUNT_INSERT: &str = "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const POS_CORE_SQL_POS_BANK_MATCH: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?";
+pub const POS_CORE_SQL_POS_BANK_MATCH_PAYOUT: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='pos_payout',matched_id=?,version=version+1 WHERE id=?";
+pub const POS_CORE_SQL_POS_REFUND_PAYMENT_INSERT: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'refund',?,?,?,?,0,?,'settled',?,?,?,?,?)";
+
+#[cfg(test)]
+mod pos_core_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn pos_core_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-pos-core-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid POS core SQL contract");
+        let pairs = [
+            ("pos_journal_insert", POS_CORE_SQL_POS_JOURNAL_INSERT),
+            ("pos_journal_lines_insert", POS_CORE_SQL_POS_JOURNAL_LINES_INSERT),
+            ("pos_payment_insert", POS_CORE_SQL_POS_PAYMENT_INSERT),
+            ("pos_party_insert", POS_CORE_SQL_POS_PARTY_INSERT),
+            ("pos_invoice_insert", POS_CORE_SQL_POS_INVOICE_INSERT),
+            ("pos_payment_party_update", POS_CORE_SQL_POS_PAYMENT_PARTY_UPDATE),
+            ("pos_allocation_insert", POS_CORE_SQL_POS_ALLOCATION_INSERT),
+            ("pos_account_insert", POS_CORE_SQL_POS_ACCOUNT_INSERT),
+            ("pos_bank_match", POS_CORE_SQL_POS_BANK_MATCH),
+            ("pos_bank_match_payout", POS_CORE_SQL_POS_BANK_MATCH_PAYOUT),
+            ("pos_refund_payment_insert", POS_CORE_SQL_POS_REFUND_PAYMENT_INSERT),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "POS core SQL contract drift: {key}");
+        }
+    }
+}
