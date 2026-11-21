@@ -32,10 +32,9 @@ function service() {
             version: number;
         }>(), revoke: async (_actor, id, version, key) => revokeIamAssignment(write as PostgresDatabase, iam, id, version, 'Revoked from employee profile', key), reserve: async (_actor, key, operation, payload, id) => { await iamCommand(write as PostgresDatabase, iam, key, operation, payload, 'iam.manage', async () => ({ id })); },
         store: async (actor, personId, person, input, id, tokenHash, expiry) => {
-            const env = await environment();
             await Promise.all([
                 nativePrepare("w_49035caf9839").bind(actor.holdingId, personId, id),
-                env.CONTROL_DB.prepare("UPDATE account_invitation_delivery_jobs d SET state='cancelled',error='INVITATION_SUPERSEDED',lease_token=NULL,lease_until=NULL,updated_at=? FROM account_invitations i WHERE d.invitation_id=i.id AND i.holding_id=? AND i.person_id=? AND i.status='revoked' AND i.id!=? AND d.state!='sent'").bind(Date.now(), actor.holdingId, personId, id),
+                nativePrepare("invitation_delivery_cancel_superseded").bind(Date.now(), actor.holdingId, personId, id),
                 nativePrepare("w_a45387e378ed").bind(id, tokenHash, actor.holdingId, actor.companyId, personId, person.email, person.legal_name, JSON.stringify({ role: input.role, expires: expiry }), input.scope, input.scope !== "holding" ? person.branch_id : null, actor.userId, actor.assignmentId, Date.now() + 48 * 3600000, Date.now(), input.scope === "department" ? person.department_id : null),
                 nativePrepare("w_66d09ee20563").bind(`account-invite-delivery-${id}`, id, actor.holdingId, actor.companyId, Date.now(), Date.now(), Date.now()),
             ]);

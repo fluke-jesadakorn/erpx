@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4493,
+    "revision": 4496,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:17:19.437Z",
-      "expiresAt": "2026-11-21T18:47:19.437Z",
+      "heartbeatAt": "2026-11-21T18:18:15.589Z",
+      "expiresAt": "2026-11-21T18:48:15.589Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -27859,7 +27859,7 @@
           "resource:composition"
         ],
         "status": "in_progress",
-        "nextAction": "Routed account name update to native account_user_name_update (broad UPDATE 7->6); next: invitation supersede via native identity_write.rs:159 + directory revoke, then classify remaining templated bumps.",
+        "nextAction": "Routed invitation supersede to native (broad UPDATE 6->5, cumulative 7->5); next: directory revoke + system-evidence tails.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
@@ -27867,8 +27867,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:17:19.437Z",
-          "expiresAt": "2026-11-21T18:47:19.437Z",
+          "heartbeatAt": "2026-11-21T18:18:15.589Z",
+          "expiresAt": "2026-11-21T18:48:15.589Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -28074,6 +28074,20 @@
             "result": "passed",
             "sourceSha": "c2023f3c9bac5539e7100d75edf2c76b6fe5733b",
             "note": "cargo check -p erpx-server-finance -p erpx-server-identity-access -p erpx-server-legal green (prior slice, TS-only change)"
+          },
+          {
+            "command": "retirement:ts-writes broad UPDATE audit packages/server-identity_access/src (excl FOR UPDATE)",
+            "result": "passed",
+            "sourceSha": "fdbbd9b611fb6356734fa37696c12ae22f1b2730",
+            "before": 6,
+            "after": 5,
+            "note": "working tree: invitation supersede routed to native invitation_delivery_cancel_superseded; cumulative 7->5"
+          },
+          {
+            "command": "tsc:packages/server-identity_access",
+            "result": "passed",
+            "sourceSha": "fdbbd9b611fb6356734fa37696c12ae22f1b2730",
+            "note": "bun x tsc --noEmit -p packages/server-identity_access/tsconfig.json exit 0 (working tree)"
           }
         ],
         "retainedLegacy": [
@@ -47003,8 +47017,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:17:19.437Z",
-          "expiresAt": "2026-11-21T18:47:19.437Z",
+          "heartbeatAt": "2026-11-21T18:18:15.589Z",
+          "expiresAt": "2026-11-21T18:48:15.589Z",
           "generation": 147
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -47441,8 +47455,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:17:19.437Z",
-          "expiresAt": "2026-11-21T18:47:19.437Z",
+          "heartbeatAt": "2026-11-21T18:18:15.589Z",
+          "expiresAt": "2026-11-21T18:48:15.589Z",
           "generation": 147
         },
         "baseSha": null,
@@ -105024,7 +105038,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:17:19.439Z",
+    "updatedAt": "2026-11-21T18:18:15.590Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
