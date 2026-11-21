@@ -32,7 +32,7 @@ readAssignLevelEngagement(id:string,companyId:string):Promise<{
       department_id: string | null;
     }|null>;
 guard11(key:string,value:"engagement-version",id:string,companyId:string,expectedVersion:number):Effect;
-stageAssignLevelEffect(levelId:string,now:number,id:string):Effect;
+stageAssignLevelEffect(levelId:string,now:number,id:string,companyId:string):Promise<Effect>;
 readSetDepartmentHeadDepartment(id:string,companyId:string):Promise<{ branch_id: string | null }|null>;
 guard14(key:string,value:"department",id:string,companyId:string):Effect;
 guard15(key:string,value:"head-version",expectedVersion:number,id:string,id2:string,expectedVersion2:number):Effect;
@@ -143,7 +143,7 @@ async function assignLevel(
         engagement.level_id,
         input.reason,
       ),
-      r.stageAssignLevelEffect(input.levelId,ports.clock.now(),id),
+      await r.stageAssignLevelEffect(input.levelId,ports.clock.now(),id,actor.companyId),
       ...await ports.recommendationStatements(actor as WorkContext,{
         engagementId:id,positionId:engagement.position_id,levelId:input.levelId,
         priorLevelId:engagement.level_id,startDate:new Date(ports.clock.now()).toISOString().slice(0,10),currency:engagement.currency,

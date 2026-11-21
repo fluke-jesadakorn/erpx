@@ -3764,3 +3764,44 @@ pub async fn people_prep_task_complete_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// People/payroll: record a statutory remittance.
+pub async fn people_statutory_remittance_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO hr_payroll_statutory_remittances(id,company_id,run_id,kind,amount_minor,liability_account_id,bank_account_id,bank_transaction_id,journal_id,bank_reference,recorded_by,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People: assign an engagement level.
+pub async fn people_assign_level_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE hr_engagements SET level_id=?,version=version+1,updated_at=? WHERE id=?".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// People: bump an attachment owner record version (table chosen by server-side descriptor).
+pub async fn people_attachment_owner_version_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let table = safe_table(&input.table_name)?;
+    Ok(NotificationStatement {
+        sql: format!("UPDATE {table} SET version=version+1,updated_at=? WHERE id=? AND version=?"),
+        values: values_from_json(input)?,
+    })
+}

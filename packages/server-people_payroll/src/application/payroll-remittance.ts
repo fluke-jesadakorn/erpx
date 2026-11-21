@@ -11,7 +11,7 @@ lockRun(runId:string,companyId:string):Effect;
 guard8(key:string,value:"payroll-posted",runId:string,companyId:string,expectedRunVersion:number):Effect;
 guard9(key:string,value:"liability-balance",journal_id:string,value2:string,amountMinor:number,runId:string,kind:"withholding_tax" | "social_security"):Effect;
 guard10(key:string,value:"bank-match",bankTransactionId:string,companyId:string,bankVersion:number,value2:number,currency:string,bankReference:string,period_end:string,bankAccountId:string):Effect;
-insertRemittance(remittanceId:string,companyId:string,runId:string,kind:"withholding_tax" | "social_security",amountMinor:number,accountId:string,bankAccountId:string,bankTransactionId:string,id:string,bankReference:string,userId:string,now:number):Effect;
+insertRemittance(remittanceId:string,companyId:string,runId:string,kind:"withholding_tax" | "social_security",amountMinor:number,accountId:string,bankAccountId:string,bankTransactionId:string,id:string,bankReference:string,userId:string,now:number):Promise<Effect>;
 matchBank(remittanceId:string,bankTransactionId:string,bankVersion:number,companyId:string):Promise<Effect>;}export interface PayrollRemittancePorts<Effect>{repository:PayrollRemittanceRepository<Effect>;clock:Clock;production():Promise<boolean>;authorize(actor:WorkContext,permission:string):WorkContext;prepare(holdingId:string):Promise<void>;commands:PayrollStatutoryCommands<Effect>;statutoryReady(runId:string):Promise<void>;journal(actor:WorkContext,input:z.infer<typeof createJournalSchema>,key:string,state:'posted') :Promise<{result:{id:string};steps:Effect[]}>;}export function createPayrollRemittanceApplication<Effect>(ports:PayrollRemittancePorts<Effect>){const repository=ports.repository;async function postedRun(companyId: string, runId: string): Promise<PostedRun> {
   const run = await repository.postedRun(runId,companyId);
   if (!run) throw new BusinessRuleError(409,"PAYROLL_POSTING_MISSING","A posted payroll accrual is required before remitting statutory liabilities.");
@@ -72,7 +72,7 @@ async function remitPayrollLiability(actor: WorkContext, runId: string, input: z
     repository.guard9(key,"liability-balance",run.journal_id,descriptions[input.kind],input.amountMinor,runId,input.kind),
     repository.guard10(key,"bank-match",input.bankTransactionId,actor.companyId,input.bankVersion,-input.amountMinor,run.currency,input.bankReference,run.period_end,input.bankAccountId),
     ...journal.steps,
-    repository.insertRemittance(remittanceId,actor.companyId,runId,input.kind,input.amountMinor,due.accountId,input.bankAccountId,input.bankTransactionId,journal.result.id,input.bankReference,actor.userId,now),
+    await repository.insertRemittance(remittanceId,actor.companyId,runId,input.kind,input.amountMinor,due.accountId,input.bankAccountId,input.bankTransactionId,journal.result.id,input.bankReference,actor.userId,now),
     await repository.matchBank(remittanceId,input.bankTransactionId,input.bankVersion,actor.companyId),
   ]);
 }return {getPayrollLiabilities,remitPayrollLiability};}
