@@ -1,4 +1,5 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 
 export function betaInvitationSources(db:SqlDatabase){return {prepareAcceptanceAudit(value:string,key:string,id:string,value2:string,id2:string,now:number){return db
         .prepare(
@@ -12,4 +13,4 @@ export function betaInvitationSources(db:SqlDatabase){return {prepareAcceptanceA
           id2,
           now,
         );},
-clearAcceptanceAssertions(key:string){return db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key);}};}
+clearAcceptanceAssertions(key:string,companyId:string){return nativeClearCommandAssertions(db,companyId,key);}};}

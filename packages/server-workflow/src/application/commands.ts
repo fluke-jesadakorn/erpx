@@ -4,7 +4,7 @@ import {financialConstraintError,type CommandActor} from '@erpx/server-workflow/
 export type CommandBoundary<Effect> = { before: Effect[]; after: Effect[] };
 export interface CommandRepository<Effect> {
   receipt(id:string):Promise<{request_hash:string;result_json:string;operation?:string;actor_id?:string;record_id?:string;authority_json?:string|null}|null>;
-  clearAssertions(id:string):Effect;
+  clearAssertions(id:string,companyId:string):Promise<Effect>;
   insertReceipt(actor:CommandActor,id:string,operation:string,digest:string,recordId:string,result:unknown,now:number):Effect;
   captureAssignmentAuthority(actor:CommandActor,id:string):Effect;
   audit(actor:CommandActor,id:string,operation:string,recordId:string,version:number,now:number,eventId:string):Effect;
@@ -28,7 +28,7 @@ export function createCommandApplication<Effect>(ports:CommandPorts<Effect>) {
   async function validateReplayAuthority(actor:CommandActor){
     if(!actor.authority&&actor.iam?.queuedAssignmentVersion===undefined)return;
     const key=ports.identifiers.next();
-    try{await ports.batch([...ports.workContextGuards(actor,key),...ports.iamMutationGuards(actor,key),repository.clearAssertions(key)]);}
+    try{await ports.batch([...ports.workContextGuards(actor,key),...ports.iamMutationGuards(actor,key),await repository.clearAssertions(key, actor.companyId)]);}
     catch(error){if((error as {code?:string}).code==='23514')throw new BusinessRuleError(409,'WORK_CONTEXT_CHANGED','Your access changed. Reload and review before retrying.');throw error;}
   }
   async function replayCommand<Result=Record<string,unknown>>(actor:CommandActor,id:string,operation:string,recordId:string,input:unknown):Promise<Result|null>{
@@ -57,7 +57,7 @@ export function createCommandApplication<Effect>(ports:CommandPorts<Effect>) {
     effects=await ports.prepareOwnerStatements(actor,id,operation,input,recordId,version,effects);
     const now=ports.clock.now(),state=typeof result==='object'&&result!==null?((result as Record<string,unknown>).state??(result as Record<string,unknown>).status):undefined;
     try{
-      await ports.batch([...(boundary?.before??[]),...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),repository.insertReceipt(actor,id,operation,digest,recordId,result,now),ports.assignmentGuard(actor,id),repository.captureAssignmentAuthority(actor,id),...effects,repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),...(boundary?.after??[]),repository.clearAssertions(id)]);
+      await ports.batch([...(boundary?.before??[]),...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),repository.insertReceipt(actor,id,operation,digest,recordId,result,now),ports.assignmentGuard(actor,id),repository.captureAssignmentAuthority(actor,id),...effects,repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),...(boundary?.after??[]),await repository.clearAssertions(id, actor.companyId)]);
       return result;
     }catch(error){
       // The owning transaction retries the whole handoff for these failures.

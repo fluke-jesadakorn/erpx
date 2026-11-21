@@ -57,7 +57,7 @@ describe('Approval administration owner queries',()=>{
 });
 function strict<T extends object>(facts:Partial<T>):T{return new Proxy(facts,{get(target,name){if(name in target)return target[name as keyof T];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as T;}
 function command(overrides:Partial<CommandPorts<string>>={},facts:Partial<CommandRepository<string>>={}){
- const repository:CommandRepository<string>={receipt:async()=>null,clearAssertions:()=> 'clear',insertReceipt:()=> 'receipt',captureAssignmentAuthority:()=> 'capture',audit:()=> 'audit',outbox:()=> 'outbox',...facts};
+ const repository:CommandRepository<string>={receipt:async()=>null,clearAssertions:async()=> 'clear',insertReceipt:()=> 'receipt',captureAssignmentAuthority:()=> 'capture',audit:()=> 'audit',outbox:()=> 'outbox',...facts};
  const batch=vi.fn<CommandPorts<string>['batch']>(async()=>{}),prepare=vi.fn(async(_actor:CommandActor,_id:string,_operation:string,_input:unknown,_record:string,_version:number,effects:string[])=>effects);
  const ports:CommandPorts<string>={repository,clock:{now:()=>42},identifiers:{next:()=> 'event-id'},digest:async value=>JSON.stringify(value),workContextGuards:()=>['context'],iamMutationGuards:()=>['iam'],assignmentGuard:()=> 'assignment',prepareOwnerStatements:prepare,batch,activeContext:async()=>null,activeGrant:async()=>null,...overrides};
  return {app:createCommandApplication(ports),batch,prepare,ports};

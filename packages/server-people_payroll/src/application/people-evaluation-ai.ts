@@ -37,7 +37,7 @@ export interface PeopleEvaluationAiRepository<Effect> {
     }>;
     guard5(key: string, value: "evaluation-ai-lease", id: string, token: string, now: number): Effect;
     stageRunEvaluationAiEffect2(value: string, now: number, id: string, token: string): Effect;
-    stageRunEvaluationAiEffect3(key: string): Effect;
+    stageRunEvaluationAiEffect3(key: string, companyId: string): Promise<Effect>;
     stageRunEvaluationAiEffect4(state: "failed" | "stale", value: string, now: number, id: string, token: string): Promise<{
         success: boolean;
         meta?: {
@@ -179,8 +179,8 @@ export function createPeopleEvaluationAiApplication<Effect>(ports: PeopleEvaluat
             if (latest.hash !== job.source_hash || JSON.stringify(latestProvider.snapshot) !== job.provider_json)
                 throw new BusinessRuleError(409, "EVALUATION_AI_STALE", "Evidence or permissions changed during AI processing.");
             const key = ports.ids.newId();
-            const complete=async()=>{const purchased=await ports.purchasedExecution?.(actor)??[];await ports.batch([...purchased,...ports.iamMutationGuards(actor, key), ports.aiSnapshotGuard(key, latestProvider.snapshot), repository.guard5(key, "evaluation-ai-lease", id, token, ports.clock.now()), repository.stageRunEvaluationAiEffect2(JSON.stringify(result), ports.clock.now(), id, token), ports.aiUsageStatement(`${id}:${job.attempts}`, latestProvider.snapshot, "people_evaluation", "succeeded", output.inputTokens, output.outputTokens), repository.stageRunEvaluationAiEffect3(key)]);};
-            if(ports.completeExecution)await ports.completeExecution(actor,image,complete,async()=>{await ports.batch([...ports.iamMutationGuards(actor,key),ports.aiSnapshotGuard(key,latestProvider.snapshot),repository.stageRunEvaluationAiEffect3(key)]);});else await complete();
+            const complete=async()=>{const purchased=await ports.purchasedExecution?.(actor)??[];await ports.batch([...purchased,...ports.iamMutationGuards(actor, key), ports.aiSnapshotGuard(key, latestProvider.snapshot), repository.guard5(key, "evaluation-ai-lease", id, token, ports.clock.now()), repository.stageRunEvaluationAiEffect2(JSON.stringify(result), ports.clock.now(), id, token), ports.aiUsageStatement(`${id}:${job.attempts}`, latestProvider.snapshot, "people_evaluation", "succeeded", output.inputTokens, output.outputTokens), await repository.stageRunEvaluationAiEffect3(key, actor.companyId)]);};
+            if(ports.completeExecution)await ports.completeExecution(actor,image,complete,async()=>{await ports.batch([...ports.iamMutationGuards(actor,key),ports.aiSnapshotGuard(key,latestProvider.snapshot),await repository.stageRunEvaluationAiEffect3(key, actor.companyId)]);});else await complete();
         }
         catch (error) {
             const state = error instanceof BusinessRuleError && (error.status === 403 || error.status === 409) ? "stale" : "failed";
