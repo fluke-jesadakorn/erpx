@@ -53,7 +53,8 @@ fn request_row(row: &PgRow) -> Result<PmsRefundRequest, Error> {
         approved_by: row.try_get("approved_by")?,
         provider_id: row.try_get("provider_id")?,
         state: row.try_get("state")?,
-        generation: row.try_get("generation")?,
+        // `generation` is INTEGER in Postgres; widen to the domain i64.
+        generation: i64::from(row.try_get::<i32, _>("generation")?),
         legacy_review: row.try_get("legacy_review").unwrap_or(false),
     })
 }
@@ -746,5 +747,104 @@ impl PmsRefundRepository for PgPmsRefundRepository<'_> {
                 .await?;
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../../tests/support/rust-postgres.rs"]
+mod fixture;
+
+#[cfg(test)]
+mod tests {
+    use super::fixture;
+    use super::*;
+    use crate::application::refund::PmsRefundRepository;
+    use erpx_server_runtime::public::postgres::{
+        DatabasePool, MigrationTrack, load_migrations, migrate_database,
+    };
+
+    async fn migrate(pool: &DatabasePool) {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations = load_migrations(&root, MigrationTrack::HoldingWrite)
+            .await
+            .unwrap();
+        migrate_database(pool, MigrationTrack::HoldingWrite, &migrations)
+            .await
+            .unwrap();
+    }
+
+    async fn seed(pool: &DatabasePool) {
+        migrate(pool).await;
+        sqlx::query(
+            "INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,version,created_by,updated_at) \
+             VALUES('prop-1','co-1','br-1','Riverside','2026-11-04','open','{}',1,'maker',1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) \
+             VALUES('res-1','prop-1','reservation','{\"number\":\"BK-1\"}',1,1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO pms_booking_payments(id,property_id,reservation_id,company_id,holding_slug,account_id,livemode,amount_minor,currency,checkout_id,checkout_url,status,expires_at,created_at,updated_at) \
+             VALUES('pay-1','prop-1','res-1','co-1','acme','acct-1',false,5000,'THB','cs-1','https://pay.example/cs-1','confirmed',99,1,1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO pms_booking_refund_requests(id,payment_id,amount_minor,allocations_json,reason,requested_by,state,generation,created_at,updated_at) \
+             VALUES('req-1','pay-1',2000,'[]','Guest asked','user-1','requested',0,1,1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn refund_status_and_context_reads() {
+        fixture::with_database(2, |pool| async move {
+            seed(&pool).await;
+            let mut connection = pool.raw().acquire().await.unwrap();
+            let mut repository = PgPmsRefundRepository::new(&mut connection);
+
+            assert_eq!(
+                repository.payment_status_for_update("pay-1").await.unwrap(),
+                Some("confirmed".to_owned())
+            );
+            assert_eq!(
+                repository.payment_status_for_update("missing").await.unwrap(),
+                None
+            );
+
+            let payment = repository.payment_by_id("pay-1").await.unwrap().unwrap();
+            assert_eq!(payment.currency, "THB");
+            assert_eq!(payment.checkout_url.as_deref(), Some("https://pay.example/cs-1"));
+            assert_eq!(payment.expires_at, 99);
+            assert_eq!(payment.refund_state, None);
+
+            let context = repository
+                .request_with_payment_context("req-1", "co-1")
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(context.request.id, "req-1");
+            assert_eq!(context.property_id, "prop-1");
+            assert_eq!(context.account_id, "acct-1");
+            assert!(!context.livemode);
+            assert_eq!(
+                repository
+                    .request_with_payment_context("req-1", "other-co")
+                    .await
+                    .unwrap(),
+                None
+            );
+        })
+        .await;
     }
 }

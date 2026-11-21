@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4522,
+    "revision": 4525,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-a",
       "agentId": "lead",
       "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T18:30:23.960Z",
-      "expiresAt": "2026-11-21T19:00:23.960Z",
+      "heartbeatAt": "2026-11-21T18:33:36.309Z",
+      "expiresAt": "2026-11-21T19:03:36.309Z",
       "generation": 147,
       "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
     },
@@ -27867,8 +27867,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T18:30:23.960Z",
-          "expiresAt": "2026-11-21T19:00:23.960Z",
+          "heartbeatAt": "2026-11-21T18:33:36.309Z",
+          "expiresAt": "2026-11-21T19:03:36.309Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -43766,8 +43766,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T18:30:23.960Z",
-          "expiresAt": "2026-11-21T19:00:23.960Z",
+          "heartbeatAt": "2026-11-21T18:33:36.309Z",
+          "expiresAt": "2026-11-21T19:03:36.309Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47037,8 +47037,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:11:56.679Z",
-          "heartbeatAt": "2026-11-21T18:30:23.960Z",
-          "expiresAt": "2026-11-21T19:00:23.960Z",
+          "heartbeatAt": "2026-11-21T18:33:36.309Z",
+          "expiresAt": "2026-11-21T19:03:36.309Z",
           "generation": 147
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -47475,8 +47475,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:04:14.604Z",
-          "heartbeatAt": "2026-11-21T18:30:23.960Z",
-          "expiresAt": "2026-11-21T19:00:23.960Z",
+          "heartbeatAt": "2026-11-21T18:33:36.309Z",
+          "expiresAt": "2026-11-21T19:03:36.309Z",
           "generation": 147
         },
         "baseSha": null,
@@ -47673,8 +47673,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:24:41.639Z",
-          "heartbeatAt": "2026-11-21T18:30:23.960Z",
-          "expiresAt": "2026-11-21T19:00:23.960Z",
+          "heartbeatAt": "2026-11-21T18:33:36.309Z",
+          "expiresAt": "2026-11-21T19:03:36.309Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -47722,11 +47722,29 @@
             "result": "passed",
             "sourceSha": "4b0fba99e0267a3740c2c3a78fce6d4b3b043f3c",
             "note": "Refund WRITES already native (pms_w013+ via pms_owner_write registry); only 2 read sites remain TS (status FOR UPDATE, combined row) with new native repo methods. No refund_http.rs route, no feature-pms TS bridge, no composition mount exist - bridge build needs DB verification, deferred. No edits."
+          },
+          {
+            "command": "cargo-test:erpx-server-pms-lib-refund_postgres",
+            "result": "passed",
+            "sourceSha": "4b0fba99e0267a3740c2c3a78fce6d4b3b043f3c",
+            "note": "New refund_status_and_context_reads PG test passes against local PG18 disposable DB (paid path: status lock, payment 4-col mapping, context join, wrong-company None)"
+          },
+          {
+            "command": "cargo-test:erpx-server-pms-lib-full",
+            "result": "passed",
+            "sourceSha": "4b0fba99e0267a3740c2c3a78fce6d4b3b043f3c",
+            "note": "41 passed 0 failed with ERPX_TEST_ADMIN_URL on local PG18 (incl previously DB-blocked booking_mail lifecycle). Also fixed pre-existing generation int4->i64 decode bug in request_row found by the new test."
+          },
+          {
+            "command": "pg:local-dev-cluster",
+            "result": "passed",
+            "sourceSha": "4b0fba99e0267a3740c2c3a78fce6d4b3b043f3c",
+            "note": "Started local PG18 (/opt/homebrew/var/postgresql@18) on 5432; created erpx_test_admin (nosuperuser, createdb) for leased erpx_dev_rust_* DBs. No staging/prod DB touched."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Writes already native. Reads need new refund_http.rs route + feature-pms TS bridge + composition mount + application rewire (lines 319/421), then delete the 2 TS read sites. Requires DB to verify - deferred until PG available.",
+        "nextAction": "Native reads DB-verified (41/41 lib). Next: build refund_http.rs read route + feature-pms TS bridge + composition mount, rewire application lines 319/421, delete the 2 TS read sites.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -51165,8 +51183,8 @@
           "runId": "run-20261122-a",
           "agentId": "lead",
           "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T18:30:23.960Z",
-          "expiresAt": "2026-11-21T19:00:23.960Z",
+          "heartbeatAt": "2026-11-21T18:33:36.309Z",
+          "expiresAt": "2026-11-21T19:03:36.309Z",
           "generation": 147
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -105128,7 +105146,7 @@
       }
     },
     "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T18:30:23.962Z",
+    "updatedAt": "2026-11-21T18:33:36.310Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
