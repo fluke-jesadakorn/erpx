@@ -4660,3 +4660,73 @@ pub async fn finance_accrual_schedule_post_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_accrual_schedules SET next_run_date=?,status=CASE WHEN ? THEN 'completed' ELSE status END,version=version+1,updated_at=? WHERE id=? AND status='active' AND version=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// PMS finance fact: native-owned statement for INSERT INTO finance_parties.
+pub async fn pms_finance_party_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer',?,?,?,'active',?,?) ON CONFLICT(id) DO NOTHING".to_owned(), values: values_from_json(input)? })
+}
+
+/// PMS finance fact: native-owned statement for INSERT INTO finance_invoices.
+pub async fn pms_finance_invoice_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,approved_by,posted_at,created_at,updated_at) VALUES(?,?,?,'receivable',?,?,?,?,?,?,?,?,?,?,?,'pms',?,?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// PMS finance fact: native-owned statement for INSERT INTO finance_payments.
+pub async fn pms_finance_payment_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// PMS finance fact: native-owned statement for DELETE FROM finance_allocations WHERE in.
+pub async fn pms_finance_allocation_delete_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "DELETE FROM finance_allocations WHERE invoice_id=? AND company_id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// PMS finance fact: native-owned statement for UPDATE finance_invoices SET outstanding_.
+pub async fn pms_finance_invoice_update_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_invoices SET outstanding_minor=?,base_outstanding_minor=?,status=CASE WHEN ?=0 THEN 'paid' WHEN ?<total_minor THEN 'partially_paid' ELSE 'posted' END,version=version+1,updated_at=? WHERE id=? AND company_id=?".to_owned(), values: values_from_json(input)? })
+}
+
+/// PMS finance fact: native-owned statement for INSERT INTO finance_allocations.
+pub async fn pms_finance_allocation_insert_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// PMS finance fact: native-owned statement for UPDATE finance_bank_transactions SET mat.
+pub async fn pms_finance_bank_match_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=? AND match_status IN ('unmatched','proposed')".to_owned(), values: values_from_json(input)? })
+}

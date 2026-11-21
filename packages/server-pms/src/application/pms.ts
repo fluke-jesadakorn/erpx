@@ -643,6 +643,7 @@ export type PmsUnit<Effect extends PmsEffect> = {
     updateFinanceBankTransactions2(facts: {
         id: string;
         matchedBankId: string;
+        companyId: string;
     }): Promise<PmsRows<Record<string, unknown>>>;
     updatePmsProperties3(facts: {
         name: string;
@@ -1973,7 +1974,7 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
                     if (!receipt)
                         throw ports.error(409, 'PMS_RECEIPT_MISSING', 'The verified transfer did not produce a receipt');
                     await tx.updatePmsTransferRequests2({ userId: actor.userId, matchedBankId: matchedBankId, id: outcome.id, id2: receipt.id, fact4: ports.clock.now(), id3: verifiedTransfer.id });
-                    await tx.updateFinanceBankTransactions2({ id: receipt.id, matchedBankId: matchedBankId });
+                    await tx.updateFinanceBankTransactions2({ id: receipt.id, matchedBankId: matchedBankId, companyId: actor.companyId });
                 }
                 await tx.updatePmsProperties3({ name: s.property.name, businessDate: s.property.businessDate, state: s.property.state, fact3: JSON.stringify(s.property.config), version: s.property.version, fact5: ports.clock.now(), id: s.property.id });
                 if (outcome.effects.nightJob)
