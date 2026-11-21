@@ -37,7 +37,7 @@ beforeEach(async () => {
   ]);
   async function person(name: string, ownerRole: boolean): Promise<WorkContext> {
     const id = key();
-    await db.batch(memberStatements(db, company, branch,
+    await db.batch(await memberStatements(db, company, branch,
       { id, name, email: `${id}@example.test`, emailVerified: true }, ownerRole, null));
     return {
       userId: id, name, email: `${id}@example.test`, assignmentId: `beta-assignment-${id}`,

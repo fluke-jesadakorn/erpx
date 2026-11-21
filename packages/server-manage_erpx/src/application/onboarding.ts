@@ -31,7 +31,7 @@ preparePrincipal(value:string,id:string,name:string,now:number):Effect;
 prepareBinding(holding_id:string,slug:string,company_name:string,write:string,read:string,files:string):Effect;
 prepareBilling(holding_id:string,now:number):Effect;
 prepareActiveSlot(now:number,holding_id:string,id:string):Effect;batch(effects:Effect[]):Promise<void>;}
-export function createBetaBootstrapEffects<Effect>(r:BetaHoldingRepository<Effect>,clock:Clock){function memberStatements(
+export function createBetaBootstrapEffects<Effect>(r:BetaHoldingRepository<Effect>,clock:Clock){async function memberStatements(
   company: string,
   branch: string,
   user: BetaUser,
@@ -44,9 +44,9 @@ export function createBetaBootstrapEffects<Effect>(r:BetaHoldingRepository<Effec
     department = `department-${branch}`;
   return [
     r.prepareMembership(user.id,invitation,now),
-    r.preparePerson(person,user.id,company,user.name,user.email,user.id,now,now),
-    r.prepareEmployee(`employee-${user.id}`,user.id,company,branch,department,user.name,now),
-    r.prepareEngagement(`engagement-${user.id}`,person,company,branch,department,user.id,now,now,`level-${company}`),
+    await r.preparePerson(person,user.id,company,user.name,user.email,user.id,now,now),
+    await r.prepareEmployee(`employee-${user.id}`,user.id,company,branch,department,user.name,now),
+    await r.prepareEngagement(`engagement-${user.id}`,person,company,branch,department,user.id,now,now,`level-${company}`),
     r.prepareAssignment(`beta-assignment-${user.id}`,user.id,owner ? "holding_owner" : "employee",company,owner ? null : branch,now,grant?.validUntil ?? now + 90 * 86400000,owner ? "holding" : "branch",owner ? null : branch,grant?.parentId ?? null,grant ? "manual" : "legacy"),
   ];
 }

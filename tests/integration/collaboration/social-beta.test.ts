@@ -126,7 +126,7 @@ beforeEach(async () => {
   const staff = async (name: string, role: string): Promise<WorkContext> => {
     const id = key();
     await db.batch(
-      memberStatements(
+      await memberStatements(
         db,
         company,
         branch,
