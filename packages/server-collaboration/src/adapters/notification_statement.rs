@@ -4325,3 +4325,54 @@ pub async fn finance_intercompany_status_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_intercompany_transactions SET status=?,version=version+1 WHERE id=? AND holding_id=?".to_owned(), values: values_from_json(input)? })
 }
+
+
+/// Finance: start a company chart.
+pub async fn finance_starter_chart_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_charts(id,company_id,name,base_currency,accounting_basis,created_by,created_at,updated_at) VALUES(?,?,?,'THB','Company policy pending review',?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: start a chart account.
+pub async fn finance_starter_account_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: start an accounting period.
+pub async fn finance_starter_period_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES(?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: start a dimension definition.
+pub async fn finance_starter_dimension_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_dimension_definitions(id,company_id,code,name,required,created_by,created_at) VALUES(?,?,?,?,0,?,?)".to_owned(), values: values_from_json(input)? })
+}
+
+/// Finance: start a dimension value.
+pub async fn finance_starter_dimension_value_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement { sql: "INSERT INTO finance_dimension_values(id,company_id,dimension_id,code,name,created_at) VALUES(?,?,?,?,?,?)".to_owned(), values: values_from_json(input)? })
+}

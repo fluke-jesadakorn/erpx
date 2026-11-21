@@ -317,7 +317,8 @@
     "./adapters/native-legal-job-health": "./src/adapters/native-legal-job-health.ts",
     "./adapters/native-finance-collections": "./src/adapters/native-finance-collections.ts",
     "./adapters/native-finance-engines": "./src/adapters/native-finance-engines.ts",
-    "./adapters/native-finance-intercompany": "./src/adapters/native-finance-intercompany.ts"
+    "./adapters/native-finance-intercompany": "./src/adapters/native-finance-intercompany.ts",
+    "./adapters/native-finance-starter": "./src/adapters/native-finance-starter.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
