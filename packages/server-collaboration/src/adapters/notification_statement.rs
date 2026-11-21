@@ -5789,3 +5789,48 @@ mod commerce_facts_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for finance consolidation statements.
+pub const CONSOLIDATION_SQL_ELIMINATION_INSERT: &str = "INSERT INTO finance_consolidation_eliminations(id,run_id,description,debit_account_id,credit_account_id,amount_minor,status,journal_id,version,source_transaction_id,created_by,created_at,updated_at,evidence_json)\n      VALUES(?,?,?,?,?,?, 'proposed',NULL,1,?,?,?,?,?)";
+pub const CONSOLIDATION_SQL_ELIMINATION_EVENT_PREPARE: &str = "INSERT INTO finance_consolidation_elimination_events(id,elimination_id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const CONSOLIDATION_SQL_ELIMINATION_APPROVE: &str = "UPDATE finance_consolidation_eliminations SET status='approved',approved_by=?,approved_at=?,version=version+1,updated_at=? WHERE id=? AND version=? AND status='proposed'";
+pub const CONSOLIDATION_SQL_JOURNAL_INSERT: &str = "INSERT INTO finance_consolidation_journals(id,run_id,holding_id,journal_number,entry_date,currency,memo,status,source_hash,version,created_by,posted_by,posted_at,created_at,updated_at)\n        VALUES(?,?,?,?,?,?,?,'posted',?,1,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING";
+pub const CONSOLIDATION_SQL_JOURNAL_LINES_DEBIT: &str = "INSERT INTO finance_consolidation_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,ordinal) VALUES(?,?,?, ?,?,0,?)";
+pub const CONSOLIDATION_SQL_JOURNAL_LINES_CREDIT: &str = "INSERT INTO finance_consolidation_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,ordinal) VALUES(?,?,?, ?,0,?,?)";
+pub const CONSOLIDATION_SQL_JOURNAL_POST: &str = "UPDATE finance_consolidation_journals SET status='posted',version=version+1,posted_by=?,posted_at=?,updated_at=? WHERE id=? AND run_id=?";
+pub const CONSOLIDATION_SQL_ELIMINATION_POST: &str = "UPDATE finance_consolidation_eliminations SET status='posted',consolidation_journal_id=?,posted_by=?,posted_at=?,version=version+1,updated_at=? WHERE id=? AND version=? AND status='approved'";
+pub const CONSOLIDATION_SQL_ELIMINATION_EVENT_DECIDE: &str = "INSERT INTO finance_consolidation_elimination_events(id,elimination_id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const CONSOLIDATION_SQL_RUN_INSERT: &str = "INSERT INTO finance_consolidation_runs(id,holding_id,presentation_currency,as_of_date,status,source_snapshot_json,source_hash,version,created_by,created_at,updated_at) VALUES(?,?,?,?, 'draft',?,?,1,?,?,?)";
+pub const CONSOLIDATION_SQL_RUN_EVENT_PREPARE: &str = "INSERT INTO finance_consolidation_events(id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const CONSOLIDATION_SQL_RUN_EVENT_DECIDE: &str = "INSERT INTO finance_consolidation_events(id,run_id,holding_id,action,from_status,to_status,actor_id,version,reason,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const CONSOLIDATION_SQL_UPDATE_RUN_PREFIX: &str = "UPDATE finance_consolidation_runs SET ";
+pub const CONSOLIDATION_SQL_UPDATE_RUN_SUFFIX: &str = " WHERE id=? AND holding_id=? AND status=? AND version=?";
+
+#[cfg(test)]
+mod consolidation_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn consolidation_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-consolidation-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid consolidation SQL contract");
+        let pairs = [
+            ("elimination_insert", CONSOLIDATION_SQL_ELIMINATION_INSERT),
+            ("elimination_event_prepare", CONSOLIDATION_SQL_ELIMINATION_EVENT_PREPARE),
+            ("elimination_approve", CONSOLIDATION_SQL_ELIMINATION_APPROVE),
+            ("journal_insert", CONSOLIDATION_SQL_JOURNAL_INSERT),
+            ("journal_lines_debit", CONSOLIDATION_SQL_JOURNAL_LINES_DEBIT),
+            ("journal_lines_credit", CONSOLIDATION_SQL_JOURNAL_LINES_CREDIT),
+            ("journal_post", CONSOLIDATION_SQL_JOURNAL_POST),
+            ("elimination_post", CONSOLIDATION_SQL_ELIMINATION_POST),
+            ("elimination_event_decide", CONSOLIDATION_SQL_ELIMINATION_EVENT_DECIDE),
+            ("run_insert", CONSOLIDATION_SQL_RUN_INSERT),
+            ("run_event_prepare", CONSOLIDATION_SQL_RUN_EVENT_PREPARE),
+            ("run_event_decide", CONSOLIDATION_SQL_RUN_EVENT_DECIDE),
+            ("update_run_prefix", CONSOLIDATION_SQL_UPDATE_RUN_PREFIX),
+            ("update_run_suffix", CONSOLIDATION_SQL_UPDATE_RUN_SUFFIX),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "consolidation SQL contract drift: {key}");
+        }
+    }
+}
