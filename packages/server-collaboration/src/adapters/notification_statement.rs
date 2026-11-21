@@ -4126,3 +4126,17 @@ pub async fn org_node_room_rename_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Collaboration: backfill specialized attachment linkage on a messaging file.
+pub async fn collaboration_backfill_messaging_attachment_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "UPDATE messaging_files SET attachment_set_id=?,attachment_link_id=?,attachment_source_id=? WHERE id=? AND attachment_source_id IS NULL".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
