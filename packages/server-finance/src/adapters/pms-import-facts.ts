@@ -1,4 +1,5 @@
 import "server-only";
+import { financePmsImport } from '@erpx/server-collaboration/adapters/native-finance-pms-import';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function pmsImportFinanceFacts(db: SqlDatabase) {
     return {
@@ -37,7 +38,7 @@ export function pmsImportFinanceFacts(db: SqlDatabase) {
             name: string;
             now: number;
             now2: number;
-        }) => db.prepare(`INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer',?,?,'THB','active',?,?) ON CONFLICT(id) DO NOTHING`).bind(facts.partyId, facts.companyId, facts.fact2, facts.name, facts.now, facts.now2).run(),
+        }) => financePmsImport(db, facts.companyId).party({ partyId: facts.partyId, companyId: facts.companyId, code: facts.fact2, name: facts.name, now: facts.now, now2: facts.now2 }).then(s => s.run()),
         payment: (facts: {
             paymentId: string;
             companyId: string;
@@ -50,6 +51,6 @@ export function pmsImportFinanceFacts(db: SqlDatabase) {
             approved_by: string;
             now: number;
             now2: number;
-        }) => db.prepare(`INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'receipt',?,?,'THB',?,0,'settled',?,?,?,?,?)`).bind(facts.paymentId, facts.companyId, facts.partyId, facts.fact3, facts.cutoverDate, facts.total, facts.opening_journal_id, facts.created_by, facts.approved_by, facts.now, facts.now2).run()
+        }) => financePmsImport(db, facts.companyId).payment({ paymentId: facts.paymentId, companyId: facts.companyId, partyId: facts.partyId, paymentNumber: facts.fact3, cutoverDate: facts.cutoverDate, total: facts.total, journalId: facts.opening_journal_id, createdBy: facts.created_by, approvedBy: facts.approved_by, now: facts.now, now2: facts.now2 }).then(s => s.run())
     };
 }

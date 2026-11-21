@@ -3424,3 +3424,30 @@ pub async fn hospitality_tax_doc_decide_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance/PMS import: create a customer party.
+pub async fn finance_pms_party_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer',?,?,'THB','active',?,?) ON CONFLICT(id) DO NOTHING".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
+
+/// Finance/PMS import: create a settled receipt payment.
+pub async fn finance_pms_payment_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'receipt',?,?,'THB',?,0,'settled',?,?,?,?,?)".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
