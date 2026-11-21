@@ -1,1 +1,1 @@
-export { prepareCustomerAuthorityFinanceReferences,prepareCustomerAuthorityMergedParty,prepareCustomerAuthorityIdentityChange,customerAuthorityIdentitySource,customerAuthorityMergeParties,customerAuthorityPartyCurrency,customerAuthorityCandidates } from "@erpx/server-finance/adapters/customer-authority-changes";
+export { customerAuthorityIdentitySource,customerAuthorityMergeParties,customerAuthorityPartyCurrency,customerAuthorityCandidates } from "@erpx/server-finance/adapters/customer-authority-changes";
