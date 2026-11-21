@@ -43,7 +43,7 @@ function commandPorts(owner: PostgresDatabase, actor: { userId: string; sessionI
             : await nativePrepare("w_3317045d0c3e")
               .bind(input.language, input.appearance, instant, actor.userId, input.expectedVersion).first();
           if (!row) throw new ApiError(409, "ACCOUNT_PREFERENCES_CHANGED", "Your account settings changed. Reload and review the current settings.");
-          if (input.name !== input.expectedName) await transaction.prepare('UPDATE "user" SET name=?,"updatedAt"=? WHERE id=?')
+          if (input.name !== input.expectedName) await nativePrepare("account_user_name_update")
             .bind(input.name, instant, actor.userId).run();
           return (await readAccountProfile(transaction, actor.userId))!;
         },
