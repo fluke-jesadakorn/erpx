@@ -28,7 +28,7 @@ function sourceQuery(target:Target,file=false){
 const sourceArgs=(actor:WorkContext,target:Target)=>[target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
 export async function assetOwnerSourceImage(database:SqlDatabase,actor:WorkContext,target:Target,file=false){return database.prepare(sourceQuery(target,file)).bind(...sourceArgs(actor,target)).first<string>("image");}
 const source=assetOwnerSourceImage;
-export function assetOwnerSourceGuards(database:SqlDatabase,actor:WorkContext,target:Target,key:string,witness:string,file=false){return [assertion(database,key,file?"asset-file-owner":"assets-owner-source",`(${sourceQuery(target,file)})=?`,[...sourceArgs(actor,target),witness]),database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)];}
+export async function assetOwnerSourceGuards(database:SqlDatabase,actor:WorkContext,target:Target,key:string,witness:string,file=false){return [assertion(database,key,file?"asset-file-owner":"assets-owner-source",`(${sourceQuery(target,file)})=?`,[...sourceArgs(actor,target),witness]), await nativeClearCommandAssertions(database, actor.companyId, key)];}
 /** Writer leases serialize before the source snapshot; SHARE followed by the
  * original Asset update can deadlock between unrelated Companies. */
 export function assetOwnerSourceReadLocks(database:SqlDatabase,companyId:string){const locks=companyPurchaseReadLocks(database,companyId);return [locks[0],database.prepare("LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE"),database.prepare("LOCK TABLE finance_assets IN SHARE MODE"),...maintenancePurchaseSourceReadLocks(database),...locks.slice(1)];}
