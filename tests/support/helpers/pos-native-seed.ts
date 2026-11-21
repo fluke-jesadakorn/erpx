@@ -12,7 +12,6 @@ import { iamMutationGuards } from '@erpx/server-identity_access/public/iam-store
 import { workContextGuards } from '@erpx/server-workflow/public/command-guards';
 import { posCoreIdentityAccessFacts } from '@erpx/server-identity_access/public/pos-core-facts';
 import { posCoreWorkflowFacts } from '@erpx/server-workflow/public/pos-core-facts';
-import { posCoreFilesFacts } from '@erpx/server-files/public/pos-core-facts';
 import { posCoreOrganizationFacts } from '@erpx/server-organization/public/pos-core-facts';
 import { posCoreFinanceFacts } from '@erpx/server-finance/public/pos-core-facts';
 import { posCoreCommerceFacts } from '@erpx/server-commerce/public/pos-core-facts';
@@ -132,7 +131,9 @@ export async function seedPosCommand(
       fail('POS_ATTACHMENT_INPUT', 'Choose evidence for the current record revision.', 422);
     if (attachmentSetIds.length) {
       const placeholders = attachmentSetIds.map(() => '?').join(',');
-      const sets = (await posCoreFilesFacts(transaction).readAttachmentSets1({ companyId: actor.companyId, fact1: attachmentSetIds, placeholders })).results;
+      // Test-only oracle: the retired TS Files facts wrapper was removed; read the
+      // owner rows directly inside this seed transaction (mirrors readAttachmentSets1).
+      const sets = (await transaction.prepare(`SELECT id,purpose_key,component_kind FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(actor.companyId, ...attachmentSetIds).all<{ id: string; purpose_key: string; component_kind: string }>()).results;
       if (sets.length !== new Set(attachmentSetIds).size || sets.some(set => set.component_kind !== 'action' || set.purpose_key !== attachmentDescriptor!.purposeKey))
         fail('POS_ATTACHMENT_PURPOSE', 'Choose only the evidence purpose for this POS action.', 422);
     }

@@ -462,19 +462,47 @@ async fn pending_tax(c: &mut PgConnection, company: &str, end: &str) -> Result<i
     count(c, PENDING_VAT_REVIEW_SQL, &[end, company]).await
 }
 
-async fn expansion_pending(
+/// One authoritative expansion-close source task. The `kind`/`id` pair is the
+/// native read model that replaces the retired TypeScript SQL bridge.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExpansionClosePendingRow {
+    pub kind: String,
+    pub id: String,
+}
+
+/// Native expansion-close pending source-task list. Every SQL statement lives
+/// in `EXPANSION_CLOSE_SQL` above; this port only maps the authoritative rows.
+pub async fn expansion_close_pending(
     c: &mut PgConnection,
     company: &str,
     start: &str,
     end: &str,
-) -> Result<i64, Error> {
+) -> Result<Vec<ExpansionClosePendingRow>, Error> {
     let rows = sqlx::query(EXPANSION_CLOSE_SQL)
         .bind(company)
         .bind(start)
         .bind(end)
         .fetch_all(&mut *c)
         .await?;
-    Ok(rows.len() as i64)
+    rows.into_iter()
+        .map(|row| {
+            Ok(ExpansionClosePendingRow {
+                kind: row.try_get("kind")?,
+                id: row.try_get("id")?,
+            })
+        })
+        .collect()
+}
+
+async fn expansion_pending(
+    c: &mut PgConnection,
+    company: &str,
+    start: &str,
+    end: &str,
+) -> Result<i64, Error> {
+    Ok(expansion_close_pending(c, company, start, end).await?.len() as i64)
 }
 
 async fn supplier_bills(c: &mut PgConnection, company: &str, end: &str) -> Result<i64, Error> {

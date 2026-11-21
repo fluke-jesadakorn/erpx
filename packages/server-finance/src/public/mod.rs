@@ -140,6 +140,9 @@ pub mod bank_reconciliation;
 pub mod bank_workspace;
 
 pub mod period_close;
+pub mod expansion_close_http;
+pub mod company_money;
+pub mod company_money_http;
 
 pub mod pos_journal;
 pub mod pos_sources;

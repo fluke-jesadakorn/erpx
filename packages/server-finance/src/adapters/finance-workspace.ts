@@ -10,7 +10,7 @@ import {calculateCloseReconciliations} from '@erpx/server-finance/public/finance
 import { intercompanyWorkspace } from "@erpx/server-finance/public/finance-intercompany";
 import { consolidationRunWorkspace } from "@erpx/server-finance/public/finance-consolidation";
 import { pendingVatReviewSql } from "@erpx/server-finance/public/finance-tax-register";
-import {financeExpansionClosePending} from "@erpx/server-finance/public/finance-expansion-close";
+import {financeExpansionClosePending} from "@erpx/server-finance/public/native-expansion-close";
 import { readListPage } from "@erpx/server-work_projection/public/list-page";
 import {financeSetupAuthority} from "@erpx/server-finance/public/finance-starter";
 

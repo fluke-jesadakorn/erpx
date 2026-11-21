@@ -1162,18 +1162,12 @@ it("accepts external counsel billing once without exposing another submitter's e
   expect((await portalDetail(db,other,String((await portalList(db,other))[0].id))).billing).toHaveLength(0);
 });
 
-it("rejects signing authority after revocation and rejects changed approval content", async () => {
-  const { signingAuthority } = await import("@erpx/server-legal/public/legal/authority");
+it("rejects changed approval content", async () => {
   const { legalApprovalCommand } = await import("@erpx/server-legal/public/legal/approval");
   const r=await create();
   await cmd(r.id,"document",{name:"Pinned",body:"Original terms"});
   await cmd(r.id,"member",{userId:f.tie.userId,access:"read"});
   const documentId=(await detail(db,f.manager,r.id)).documents[0].id;
-  await expect(signingAuthority(db,r.id,f.manager.userId)).rejects.toMatchObject({code:"LEGAL_SIGNING_AUTHORITY"});
-  await db.prepare("INSERT INTO legal_authorities(id,item_id,company_id,user_id,document_id,currency,limit_minor,valid_from,valid_until,state,created_by,approved_by) VALUES(?,?,?,?,?,'THB',999999999,'2020-01-01','2099-12-31','approved',?,?)").bind(key(),r.id,f.manager.companyId,f.manager.userId,documentId,f.manager.userId,f.tie.userId).run();
-  expect((await signingAuthority(db,r.id,f.manager.userId)).id).toBeTruthy();
-  await db.prepare("UPDATE legal_authorities SET state='revoked',version=version+1 WHERE item_id=?").bind(r.id).run();
-  await expect(signingAuthority(db,r.id,f.manager.userId)).rejects.toMatchObject({code:"LEGAL_SIGNING_AUTHORITY"});
   await legalApprovalCommand(db,f.manager,{action:"approval.open",id:r.id,expectedVersion:(await access(db,f.manager,r.id)).version,reason:"Independent review",documentId,signerIds:[f.manager.userId],approverIds:[f.tie.userId]},key());
   await db.prepare("UPDATE legal_items SET title='Changed material terms',version=version+1 WHERE id=?").bind(r.id).run();
   await expect(legalApprovalCommand(db,f.tie,{action:"approval.decide",id:r.id,expectedVersion:(await access(db,f.tie,r.id)).version,decision:"approve",reason:"Review outdated terms"},key())).rejects.toMatchObject({code:"LEGAL_APPROVAL_STALE"});

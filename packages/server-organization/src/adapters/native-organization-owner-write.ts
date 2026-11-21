@@ -1,6 +1,5 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
-import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
 /**
@@ -121,41 +120,6 @@ export async function nativeOrgExecute(
       'idempotency-key': key,
       'x-erpx-context-company': companyId,
     },
-    command(kind, values, key, now),
-    config.timeoutMs,
-  );
-  const data = payload.data!;
-  if (typeof data.kind !== 'string' || typeof data.rows !== 'number')
-    throw new ApiError(503, 'NATIVE_ORGANIZATION_RESPONSE_INVALID', 'The native owner write was invalid.');
-  return { kind: data.kind, rows: data.rows };
-}
-
-/** Browser-WorkContext write executed by the native owner unit. */
-export async function nativeOrgBrowserExecute(
-  actor: WorkContext,
-  kind: string,
-  values: unknown[],
-  key: string,
-  now = Date.now(),
-): Promise<{ kind: string; rows: number }> {
-  const config = configuration();
-  const holding = config.holdings.find(item => item.holdingSlug === actor.holdingSlug && item.holdingId === actor.holdingId);
-  if (!holding || !identifier(actor.companyId) || !identifier(actor.userId))
-    throw new ApiError(503, 'NATIVE_ORGANIZATION_AUTHORITY_INVALID', 'The native Organization authority is unavailable.');
-  const headers: Record<string, string> = {
-    host: new URL(holding.origin).host,
-    origin: holding.origin,
-    'content-type': 'application/json',
-    'idempotency-key': key,
-    'x-erpx-context-company': actor.companyId,
-    'x-erpx-context-user': actor.userId,
-    'x-erpx-context-assignment': actor.assignmentId,
-    'x-erpx-context-revision': String(actor.authority?.revision ?? 0),
-    'x-erpx-context-assignment-version': String(actor.authority?.assignmentVersion ?? 0),
-  };
-  const payload = await post(
-    `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/organization/owner-write`,
-    headers,
     command(kind, values, key, now),
     config.timeoutMs,
   );

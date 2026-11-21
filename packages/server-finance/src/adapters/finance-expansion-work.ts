@@ -6,7 +6,7 @@ import { createFinanceExpansionWork, type DueWorkRow, type CloseWorkPeriod } fro
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { requirePermission } from '@erpx/server-identity_access/public/iam-permissions';
 import { holdingResources } from '../../../../packages/server-runtime/src/public/runtime';
-import { financeExpansionClosePending } from '@erpx/server-finance/public/finance-expansion-close';
+import { financeExpansionClosePending } from '@erpx/server-finance/public/native-expansion-close';
 export async function financeExpansionWork(actor: WorkContext) {
     actor=requirePermission(actor,"finance.read");
     const write=(await holdingResources(actor.holdingId)).write,mode=await financePackageEnforcementMode(),history=await groupHistoryPredicate();

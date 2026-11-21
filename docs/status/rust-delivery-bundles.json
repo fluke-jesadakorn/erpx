@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4438,
+    "revision": 4459,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261121-f",
+      "runId": "run-20261121-g",
       "agentId": "lead",
-      "startedAt": "2026-11-21T11:48:58.300Z",
-      "heartbeatAt": "2026-11-21T11:48:58.300Z",
-      "expiresAt": "2026-11-21T12:18:58.300Z",
-      "generation": 145,
-      "tokenHash": "df38e34ffbc89ce634dcd72af55c59ecb99604c31929b124e9fc0b851287e0d8"
+      "startedAt": "2026-11-21T16:49:29.885Z",
+      "heartbeatAt": "2026-11-21T16:49:29.885Z",
+      "expiresAt": "2026-11-21T17:19:29.886Z",
+      "generation": 146,
+      "tokenHash": "d191d3b0c980f9a6f20ad27f19fe0329791b1e33593e9647b13401343893f950"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -43744,21 +43744,30 @@
           "packages/server-commerce/Cargo.toml",
           "packages/server-commerce/package.json",
           "tests/unit/commerce/**",
-          "tests/integration/commerce/**"
+          "tests/integration/commerce/**",
+          "tests/support/collaboration/customer-authority-notifications-fixture.ts",
+          "tests/support/inventory/reservation-alert-notice-fixture.ts"
         ],
         "resources": [
           "owner:commerce"
         ],
-        "status": "pending",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank the 502 SELECT statements in packages/server-commerce/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+        "nextAction": "Integrate this diff; regenerate derived source inventories still listing the 4 deleted files (workspaces:styles, apps/*/turbo.json inputs, standard-coverage.json) in a coordinated pass with other owners' concurrent deletions; open follow-up slices for the two live UPDATEs (workflow-command-effects.ts, billing-test-finance.ts) which need new native command kinds.",
+        "handoff": {
+          "runId": "run-20261121-f",
+          "agentId": "wf-com",
+          "at": "2026-11-21T16:49:29.884Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+          "nextAction": "Integrate this diff; regenerate derived source inventories still listing the 4 deleted files (workspaces:styles, apps/*/turbo.json inputs, standard-coverage.json) in a coordinated pass with other owners' concurrent deletions; open follow-up slices for the two live UPDATEs (workflow-command-effects.ts, billing-test-finance.ts) which need new native command kinds."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -43779,21 +43788,29 @@
           "packages/server-files/Cargo.toml",
           "packages/server-files/package.json",
           "tests/unit/files/**",
-          "tests/integration/files/**"
+          "tests/integration/files/**",
+          "tests/support/helpers/pos-native-seed.ts"
         ],
         "resources": [
           "owner:files"
         ],
-        "status": "pending",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank the 328 SELECT statements in packages/server-files/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+        "nextAction": "Lead: integrate the retirement diff; confirm KPI 411->408 SELECT; update packages/contracts/src/ownership.json (2 deleted adapters); open follow-ups for the kept field-outbox-predicate mirror (live jobs.ts:2 importer, outside worker paths) and the 10 residual aliased UPDATE writers before closing the task.",
+        "handoff": {
+          "runId": "run-20261121-f",
+          "agentId": "wf-files",
+          "at": "2026-11-21T16:49:29.884Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+          "nextAction": "Lead: integrate the retirement diff; confirm KPI 411->408 SELECT; update packages/contracts/src/ownership.json (2 deleted adapters); open follow-ups for the kept field-outbox-predicate mirror (live jobs.ts:2 importer, outside worker paths) and the 10 residual aliased UPDATE writers before closing the task."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -43819,16 +43836,23 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "pending",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank the 1741 SELECT statements in packages/server-finance/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+        "nextAction": "Lead: mount expansion_close_router and company_money_read_router from the finance public facades in src/composition (implement the backend traits with the exported convenience readers), add ERPX_NATIVE_FINANCE_EXPANSION_CLOSE_CONFIG and ERPX_NATIVE_FINANCE_COMPANY_MONEY_CONFIG to the private native service env, then run the finance integration suite against a native service on the same databases. All four local checks pass; TS SELECT KPI 1726->1703.",
+        "handoff": {
+          "runId": "run-20261121-f",
+          "agentId": "wf-fin",
+          "at": "2026-11-21T16:49:29.884Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+          "nextAction": "Lead: mount expansion_close_router and company_money_read_router from the finance public facades in src/composition (implement the backend traits with the exported convenience readers), add ERPX_NATIVE_FINANCE_EXPANSION_CLOSE_CONFIG and ERPX_NATIVE_FINANCE_COMPANY_MONEY_CONFIG to the private native service env, then run the finance integration suite against a native service on the same databases. All four local checks pass; TS SELECT KPI 1726->1703."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -43854,16 +43878,23 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "pending",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank the 572 SELECT statements in packages/server-identity_access/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+        "nextAction": "Verify the 7 identity_access deletions, package.json export removals and 2 test edits; re-run structure:check after the concurrent server-inventory deletion (packages/server-inventory/src/application/counts.ts, a field_service suite verification input) is reconciled; no composition mount needed.",
+        "handoff": {
+          "runId": "run-20261121-f",
+          "agentId": "wf-ia",
+          "at": "2026-11-21T16:49:29.884Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+          "nextAction": "Verify the 7 identity_access deletions, package.json export removals and 2 test edits; re-run structure:check after the concurrent server-inventory deletion (packages/server-inventory/src/application/counts.ts, a field_service suite verification input) is reconciled; no composition mount needed."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -43884,27 +43915,28 @@
           "packages/server-inventory/Cargo.toml",
           "packages/server-inventory/package.json",
           "tests/unit/inventory/**",
+          "tests/unit/manage_erpx/inventory-services.test.ts",
           "tests/integration/inventory/**"
         ],
         "resources": [
           "owner:inventory"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
-        "nextAction": "Partial landed+verified by lead (SELECT 397->395, quality-lot/quality-workspace-lots retired after native-consumer switch). Resume classification of the remaining ~395 SELECTs by live consumer; switch families with existing native ports, classify presentation/transport residuals with removalCondition.",
+        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+        "nextAction": "Integrate slice: moved 2 inventory fact-read families to native statement kinds inventory_stmt_16..21 (scope holding), retired TS oracles transfers.ts + landed-costs.ts, unit test drops oracle imports; all 4 checks pass. Lead must add a native read route returning row payloads (current nativeInventoryStatement returns rows:[] and PgNativeCommandRepository discards SELECT rows), then switch the two callers to it. counts.ts retained because tests/support/manufacturing/legacy-count/inventory-counts.ts (out of claim, tagged fixture) still imports createInventoryCountApplication; delete it and its package.json export under retire.manufacturing after that fixture migrates. See .scratch/dev/rust-migration/handoff-retire.reads.inventory.json.",
         "handoff": {
-          "runId": "run-20261117-axum-b",
-          "agentId": "worker-c",
-          "at": "2026-11-17T06:51:35.746Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
-          "nextAction": "Partial landed+verified by lead (SELECT 397->395, quality-lot/quality-workspace-lots retired after native-consumer switch). Resume classification of the remaining ~395 SELECTs by live consumer; switch families with existing native ports, classify presentation/transport residuals with removalCondition."
+          "runId": "run-20261121-f",
+          "agentId": "wf-inv",
+          "at": "2026-11-21T16:49:29.884Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+          "nextAction": "Integrate slice: moved 2 inventory fact-read families to native statement kinds inventory_stmt_16..21 (scope holding), retired TS oracles transfers.ts + landed-costs.ts, unit test drops oracle imports; all 4 checks pass. Lead must add a native read route returning row payloads (current nativeInventoryStatement returns rows:[] and PgNativeCommandRepository discards SELECT rows), then switch the two callers to it. counts.ts retained because tests/support/manufacturing/legacy-count/inventory-counts.ts (out of claim, tagged fixture) still imports createInventoryCountApplication; delete it and its package.json export under retire.manufacturing after that fixture migrates. See .scratch/dev/rust-migration/handoff-retire.reads.inventory.json."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -43931,22 +43963,22 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
-        "nextAction": "SWITCH RECIPE (discovery done at a8722f1b3): native auxiliary router is mounted (src/composition/src/private_development_api.rs legal_auxiliary_targets -> legal_auxiliary_router, URL /api/v1/holdings/{holding_slug}/legal/{*path}, parse_auxiliary_path covers workspace/reports/trust/views/laws/knowledge/citations/retention/governance/law-citations/references/ai). UNPORTED_READS stays TS: people, runtime-health, release-acceptance, features, rule-impact, processing, export, evidence, hold-preview. Route packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts imports ~14 TS barrels at lines 3-23 and calls them at ~14 GET sites; add client wrappers in packages/feature-legal/src/adapters/server/native-legal.ts (pattern: createNativeLegalClient call(transport,config,incoming,actor,path,body)), switch the ported ops, keep the 9 unported on TS, then delete unreachable barrels + adapter SELECTs (verify zero importers repo-wide), run tests/integration/legal + unit, record SELECT KPI before/after. Active run run-20261117-axum-b.",
+        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+        "nextAction": "Lead: integrate the deletion packet (4 files, -27/+1 lines), then triage the 9 reported UNPORTED_READS in packages/server-legal/src/adapters/legal_http_auxiliary.rs as separate migration tasks.",
         "handoff": {
-          "runId": "run-20261117-axum-b",
-          "agentId": "worker-b",
-          "at": "2026-11-17T06:51:35.746Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run lease expired during worker model switches; no code edits by cancelled workers, POS slice re-dispatched on mtplx qwen36-35b low",
-          "nextAction": "SWITCH RECIPE (discovery done at a8722f1b3): native auxiliary router is mounted (src/composition/src/private_development_api.rs legal_auxiliary_targets -> legal_auxiliary_router, URL /api/v1/holdings/{holding_slug}/legal/{*path}, parse_auxiliary_path covers workspace/reports/trust/views/laws/knowledge/citations/retention/governance/law-citations/references/ai). UNPORTED_READS stays TS: people, runtime-health, release-acceptance, features, rule-impact, processing, export, evidence, hold-preview. Route packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts imports ~14 TS barrels at lines 3-23 and calls them at ~14 GET sites; add client wrappers in packages/feature-legal/src/adapters/server/native-legal.ts (pattern: createNativeLegalClient call(transport,config,incoming,actor,path,body)), switch the ported ops, keep the 9 unported on TS, then delete unreachable barrels + adapter SELECTs (verify zero importers repo-wide), run tests/integration/legal + unit, record SELECT KPI before/after. Active run run-20261117-axum-b."
+          "runId": "run-20261121-f",
+          "agentId": "wf-legal",
+          "at": "2026-11-21T16:49:29.884Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+          "nextAction": "Lead: integrate the deletion packet (4 files, -27/+1 lines), then triage the 9 reported UNPORTED_READS in packages/server-legal/src/adapters/legal_http_auxiliary.rs as separate migration tasks."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -43973,16 +44005,23 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "pending",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank the 416 SELECT statements in packages/server-organization/src/**/*.ts by live consumer. Port the highest-value read families to native owner ports, switch the consumers, delete the TS SQL, and record the read count pair. Report every read that must stay TS with removalTaskId + removalCondition.",
-        "handoff": null,
+        "blocker": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+        "nextAction": "Integrate the one-file diff deleting dead nativeOrgBrowserExecute in packages/server-organization/src/adapters/native-organization-owner-write.ts (plus its unused WorkContext import). Do NOT delete the two organization-roster-read TS files: no native roster/member read port or bridge exists in the organization Rust crate. Open a follow-up task to add a native roster read port + TS bridge and repoint all 5 importers (access.ts, organization.ts, presentation-queries.ts, profile-facts.ts, scripts/seed/seed-acme-organization.ts) before retrying roster retirement. Evidence: .scratch/dev/rust-migration/handoff-retire.reads.organization.json",
+        "handoff": {
+          "runId": "run-20261121-f",
+          "agentId": "wf-org",
+          "at": "2026-11-21T16:49:29.884Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "Recovery: Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
+          "nextAction": "Integrate the one-file diff deleting dead nativeOrgBrowserExecute in packages/server-organization/src/adapters/native-organization-owner-write.ts (plus its unused WorkContext import). Do NOT delete the two organization-roster-read TS files: no native roster/member read port or bridge exists in the organization Rust crate. Open a follow-up task to add a native roster read port + TS bridge and repoint all 5 importers (access.ts, organization.ts, presentation-queries.ts, profile-facts.ts, scripts/seed/seed-acme-organization.ts) before retrying roster retirement. Evidence: .scratch/dev/rust-migration/handoff-retire.reads.organization.json"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -101536,18 +101575,18 @@
       "totalPackets": 425,
       "migratedPackets": 312,
       "statusCounts": {
-        "pending": 23,
+        "pending": 18,
         "in_progress": 0,
-        "ready_for_integration": 0,
+        "ready_for_integration": 7,
         "integrating": 0,
         "migrated": 312,
-        "blocked": 90,
+        "blocked": 88,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 145,
-    "updatedAt": "2026-11-21T11:57:25.745Z",
+    "lastCoordinatorGeneration": 146,
+    "updatedAt": "2026-11-21T16:49:29.889Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -101582,10 +101621,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261121-e",
-      "runId": "run-20261121-f",
-      "at": "2026-11-21T11:48:58.300Z",
-      "reason": "run-e lease expired 11:04Z, no live coordinator; WIP reviewed (1156 migration entries, no secrets, unrelated root .ts excluded); 15 axum wave tasks completed with handoffs, ledger not finalized",
+      "previousRunId": "run-20261121-f",
+      "runId": "run-20261121-g",
+      "at": "2026-11-21T16:49:29.887Z",
+      "reason": "Previous coordinator run-20261121-f expired; worker processes stopped and preserved Wave 1 WIP reviewed by the same lead in this checkout",
       "wipReviewed": true,
       "previousRunStopped": true
     },
