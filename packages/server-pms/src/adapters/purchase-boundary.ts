@@ -1,4 +1,5 @@
 import { flushFinanceDeferredEffects } from "@erpx/server-finance/public/finance-transactions";
+import { nativeClearCommandAssertionsMany } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
@@ -29,7 +30,7 @@ export async function withPmsPurchasedCommand<Result>(owner: TransactionalSqlDat
       await flushFinanceDeferredEffects(transaction);
       const assertions = [key, ...scopes.map((_, index) => `${key}:pms-purchase:${index}`)];
       const observed = await transaction.batch([...workContextGuards(transaction, actor, key), ...iamMutationGuards(transaction, actor, key), ...boundaries.flatMap(boundary => boundary.after),
-        transaction.prepare(`DELETE FROM command_assertions WHERE command_id IN (${assertions.map(() => "?").join(",")})`).bind(...assertions)]);
+        await nativeClearCommandAssertionsMany(transaction, actor.companyId, assertions)]);
       boundaries[0]?.observe?.(observed);
       return result;
     }, options);

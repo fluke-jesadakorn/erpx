@@ -3819,3 +3819,20 @@ pub async fn workflow_command_assertion_clear_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Workflow: clear assertion rows for several commands at once.
+pub async fn workflow_command_assertion_clear_many_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    let values = values_from_json(input)?;
+    if values.is_empty() { return Err(invalid().into()); }
+    let placeholders = vec!["?"; values.len()].join(",");
+    Ok(NotificationStatement {
+        sql: format!("DELETE FROM command_assertions WHERE command_id IN ({placeholders})"),
+        values,
+    })
+}

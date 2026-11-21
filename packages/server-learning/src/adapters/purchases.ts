@@ -104,7 +104,7 @@ export async function withLearningPurchasedCommand<Result>(owner:SqlDatabase,act
   const final=await image(database,actor,command.target);
   if(JSON.stringify(actor)!==context||JSON.stringify(expected)!==JSON.stringify(final)||command.sourceWitness&&witness!==await command.sourceWitness(database)||command.readOnlySourceWitness&&readOnlyWitness!==await command.readOnlySourceWitness(database))throw new ApiError(409,"LEARNING_SOURCE_CHANGED","The Learning source changed after its owner effects.");
   await current(database,actor,key,"records.write");if(permission!=="records.write")await current(database,actor,key,permission);
-  const observations=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(item.key)]));
+  const observations=await database.batch((await Promise.all(boundaries.map(async item=>[...item.boundary.after, await nativeClearCommandAssertions(database, actor.companyId, item.key)]))).flat());
   boundaries[0]?.boundary.observe?.(observations);return result;
   }finally{commands.delete(database);}
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
