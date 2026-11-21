@@ -5715,3 +5715,40 @@ pub async fn statutory_package_supersede_statement(
     ready(connection, company).await?;
     Ok(NotificationStatement { sql: "UPDATE finance_statutory_packages SET status='superseded',version=version+1,updated_at=? WHERE id=?".to_owned(), values: values_from_json(input)? })
 }
+
+/// Native-owned SQL contract for finance group-ownership statements.
+pub const GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_INSERT: &str = "INSERT INTO finance_ownership_interests(id,holding_id,company_id,parent_id,investor_entity_id,investee_entity_id,accounting_method,ownership_bps,voting_bps,control_assessment,effective_from,effective_to,created_by,created_at,updated_at,source_hash,source_json,reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_RETIRE: &str = "UPDATE finance_ownership_interests SET status='retired',effective_to=?,version=version+1,updated_at=? WHERE id=? AND version=?";
+pub const GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_DECIDE: &str = "UPDATE finance_ownership_interests SET status=?,approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_INSERT: &str = "INSERT INTO finance_calculation_runs(id,company_id,holding_id,kind,policy_version,currency,currency_scale,source_hash,input_json,result_json,explanation_json,status,prepared_by,created_at,updated_at) VALUES(?,?,?,'consolidation',1,?,2,?,?,?,?,'prepared',?,?,?)";
+pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_PREPARE: &str = "INSERT INTO finance_calculation_events VALUES(?,?,1,'prepare',?,?,?,?)";
+pub const GROUP_OWNERSHIP_SQL_ACQUISITION_INSERT: &str = "INSERT INTO finance_acquisitions(id,holding_id,company_id,ownership_id,investee_entity_id,acquisition_date,currency,consideration_minor,previous_interest_minor,nci_measurement,nci_minor,identifiable_net_assets_minor,deferred_tax_minor,goodwill_minor,bargain_purchase_minor,cgu_reference,calculation_run_id,created_by,created_at,updated_at,source_hash,source_json,reason,parent_id,parent_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const GROUP_OWNERSHIP_SQL_ACQUISITION_SUPERSEDE: &str = "UPDATE finance_acquisitions SET status='superseded',version=version+1,updated_at=? WHERE id=?";
+pub const GROUP_OWNERSHIP_SQL_ACQUISITION_DECIDE: &str = "UPDATE finance_acquisitions SET status=?,approved_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_DECIDE: &str = "UPDATE finance_calculation_runs SET status=?,reviewed_by=?,approved_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='prepared'";
+pub const GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_DECIDE: &str = "INSERT INTO finance_calculation_events VALUES(?,?,2,?,?,?,?,?)";
+
+#[cfg(test)]
+mod group_ownership_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn group_ownership_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-group-ownership-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid group ownership SQL contract");
+        let pairs = [
+            ("ownership_interest_insert", GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_INSERT),
+            ("ownership_interest_retire", GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_RETIRE),
+            ("ownership_interest_decide", GROUP_OWNERSHIP_SQL_OWNERSHIP_INTEREST_DECIDE),
+            ("group_calc_run_insert", GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_INSERT),
+            ("group_calc_event_prepare", GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_PREPARE),
+            ("acquisition_insert", GROUP_OWNERSHIP_SQL_ACQUISITION_INSERT),
+            ("acquisition_supersede", GROUP_OWNERSHIP_SQL_ACQUISITION_SUPERSEDE),
+            ("acquisition_decide", GROUP_OWNERSHIP_SQL_ACQUISITION_DECIDE),
+            ("group_calc_run_decide", GROUP_OWNERSHIP_SQL_GROUP_CALC_RUN_DECIDE),
+            ("group_calc_event_decide", GROUP_OWNERSHIP_SQL_GROUP_CALC_EVENT_DECIDE),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "group ownership SQL contract drift: {key}");
+        }
+    }
+}
