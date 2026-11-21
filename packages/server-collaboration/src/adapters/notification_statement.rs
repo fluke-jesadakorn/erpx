@@ -3602,3 +3602,17 @@ pub async fn finance_group_edition_decide_statement(
         values: values_from_json(input)?,
     })
 }
+
+
+/// Finance: set a company tool eligibility flag (upsert).
+pub async fn finance_company_tool_set_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    Ok(NotificationStatement {
+        sql: "INSERT INTO finance_company_tools(company_id,tool,enabled,version,changed_by,reason,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,tool) DO UPDATE SET enabled=excluded.enabled,version=excluded.version,changed_by=excluded.changed_by,reason=excluded.reason,updated_at=excluded.updated_at".to_owned(),
+        values: values_from_json(input)?,
+    })
+}
