@@ -5984,3 +5984,118 @@ mod expense_effects_sql_contract_tests {
         }
     }
 }
+
+/// Native-owned SQL contract for main finance statements.
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_1: &str = "INSERT INTO finance_charts(id,company_id,name,base_currency,accounting_basis,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_2: &str = "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,parent_id,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_3: &str = "UPDATE finance_accounts SET status=?,version=version+1,updated_at=? WHERE id=? AND chart_id=? AND company_id=? AND version=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_4: &str = "INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES(?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_5: &str = "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,tax_registration,payment_terms_days,credit_limit_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_6: &str = "INSERT INTO finance_tax_codes(id,company_id,code,name,rate_micros,recoverable_micros,effective_from,effective_to,status) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_7: &str = "INSERT INTO finance_budgets(id,company_id,name,fiscal_year,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_8: &str = "INSERT INTO finance_leases(id,company_id,lease_number,counterparty,currency,commencement_date,end_date,payment_frequency,payment_minor,discount_rate_micros,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_9: &str = "INSERT INTO finance_loans(id,company_id,loan_number,lender,currency,principal_minor,annual_rate_micros,commencement_date,maturity_date,outstanding_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_10: &str = "INSERT INTO finance_revenue_contracts(id,company_id,customer_id,contract_number,currency,transaction_price_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_11: &str = "INSERT INTO finance_revenue_obligations(id,contract_id,description,allocated_minor,recognition_method,start_date,end_date,revenue_account_id,deferred_account_id) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_12: &str = "INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(chart_id,code) DO UPDATE SET name=excluded.name,category=excluded.category,currency=excluded.currency,is_control=excluded.is_control,control_kind=excluded.control_kind,version=finance_accounts.version+1,updated_at=excluded.updated_at";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_13: &str = "UPDATE finance_journals SET status='posted',version=version+1,posted_by=?,posted_at=?,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_14: &str = "UPDATE finance_invoices SET status='posted',approved_by=?,posted_at=?,version=version+1,updated_at=? WHERE company_id=? AND source_type='opening_import' AND source_id=? AND status='draft'";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_15: &str = "INSERT INTO finance_batch_review_items(command_id,journal_id,company_id,reviewed_version,reviewed_by,assignment_id,evidence_digest,reason,reviewed_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_16: &str = "UPDATE finance_invoices SET party_id=?,kind=?,invoice_number=?,invoice_date=?,due_date=?,currency=?,subtotal_minor=?,tax_minor=?,total_minor=?,outstanding_minor=?,tax_code=?,debit_account_id=?,credit_account_id=?,tax_account_id=?,created_by=?,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_17: &str = "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,tax_code,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_18: &str = "UPDATE finance_invoices SET line_mode=?,line_revision=? WHERE id=? AND company_id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_19: &str = "UPDATE finance_invoices SET status='posted',journal_id=?,fx_rate_micros=?,base_total_minor=?,base_outstanding_minor=?,approved_by=?,posted_at=?,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_20: &str = "UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_21: &str = "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_22: &str = "UPDATE finance_payments SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_23: &str = "UPDATE finance_payments SET status='released',released_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_24: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,realized_fx_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_25: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=base_outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_26: &str = "UPDATE finance_payments SET outstanding_minor=0,status='settled',journal_id=?,fx_rate_micros=?,base_amount_minor=?,fx_journal_id=?,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_27: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_28: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'payment_reversal',?,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_29: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_30: &str = "UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_31: &str = "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,posted_by,posted_at,created_at,updated_at) SELECT ?,company_id,chart_id,?,?,?,currency,fx_rate_micros,'payment_fx_reversal',?,?,'posted',?,?,?,?,? FROM finance_journals WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_32: &str = "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) SELECT ?||'-'||ordinal,?,account_id,description,credit_minor,debit_minor,base_credit_minor,base_debit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_33: &str = "UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=?,reversed_at=?,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_34: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor+?,base_outstanding_minor=base_outstanding_minor+?,status=CASE WHEN outstanding_minor+?=total_minor THEN 'posted' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_35: &str = "UPDATE finance_bank_transactions SET match_status='unmatched',matched_type=NULL,matched_id=NULL,version=version+1 WHERE company_id=? AND matched_type='payment' AND matched_id=? AND match_status='matched'";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_36: &str = "UPDATE finance_payments SET status='voided',version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_37: &str = "INSERT INTO finance_payment_reversals(id,payment_id,reversal_journal_id,fx_reversal_journal_id,reason,reversed_by,reversed_at) VALUES(?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_38: &str = "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,base_invoice_minor,base_payment_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_39: &str = "UPDATE finance_payments SET outstanding_minor=outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'settled' ELSE status END,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_40: &str = "UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=GREATEST(0,base_outstanding_minor-?),status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_41: &str = "UPDATE finance_accounts SET is_control=1,control_kind='bank',version=version+CASE WHEN control_kind='none' THEN 1 ELSE 0 END,updated_at=? WHERE id=? AND company_id=? AND control_kind='none'";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_42: &str = "INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,closing_fx_rate_micros,base_closing_minor,source_hash,imported_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_43: &str = "INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,description,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_44: &str = "UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_45: &str = "INSERT INTO finance_fx_revaluation_runs(id,company_id,chart_id,period_id,entry_date,base_currency,rates_json,source_hash,gain_account_id,loss_account_id,preparation_proof,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_46: &str = "INSERT INTO finance_fx_revaluation_lines(id,run_id,invoice_id,kind,currency,control_account_id,transaction_outstanding_minor,prior_base_minor,revalued_base_minor,adjustment_minor,rate_micros) VALUES(?,?,?,?,?,?,?,?,?,?,?)";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_47: &str = "UPDATE finance_fx_revaluation_runs SET status='rejected',decision_proof=?,approved_by=?,version=2,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_48: &str = "UPDATE finance_invoices SET base_outstanding_minor=base_outstanding_minor+?,version=version+1,updated_at=? WHERE id=?";
+pub const FINANCE_MAIN_SQL_FINANCE_STMT_49: &str = "UPDATE finance_fx_revaluation_runs SET status='posted',journal_id=?,decision_proof=?,approved_by=?,version=2,updated_at=? WHERE id=?";
+
+#[cfg(test)]
+mod finance_main_sql_contract_tests {
+    use super::*;
+    #[test]
+    fn finance_main_sql_contract_matches_native_consts() {
+        let raw = include_str!("native-finance-main-sql.json");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("invalid main finance SQL contract");
+        let pairs = [
+            ("finance_stmt_1", FINANCE_MAIN_SQL_FINANCE_STMT_1),
+            ("finance_stmt_2", FINANCE_MAIN_SQL_FINANCE_STMT_2),
+            ("finance_stmt_3", FINANCE_MAIN_SQL_FINANCE_STMT_3),
+            ("finance_stmt_4", FINANCE_MAIN_SQL_FINANCE_STMT_4),
+            ("finance_stmt_5", FINANCE_MAIN_SQL_FINANCE_STMT_5),
+            ("finance_stmt_6", FINANCE_MAIN_SQL_FINANCE_STMT_6),
+            ("finance_stmt_7", FINANCE_MAIN_SQL_FINANCE_STMT_7),
+            ("finance_stmt_8", FINANCE_MAIN_SQL_FINANCE_STMT_8),
+            ("finance_stmt_9", FINANCE_MAIN_SQL_FINANCE_STMT_9),
+            ("finance_stmt_10", FINANCE_MAIN_SQL_FINANCE_STMT_10),
+            ("finance_stmt_11", FINANCE_MAIN_SQL_FINANCE_STMT_11),
+            ("finance_stmt_12", FINANCE_MAIN_SQL_FINANCE_STMT_12),
+            ("finance_stmt_13", FINANCE_MAIN_SQL_FINANCE_STMT_13),
+            ("finance_stmt_14", FINANCE_MAIN_SQL_FINANCE_STMT_14),
+            ("finance_stmt_15", FINANCE_MAIN_SQL_FINANCE_STMT_15),
+            ("finance_stmt_16", FINANCE_MAIN_SQL_FINANCE_STMT_16),
+            ("finance_stmt_17", FINANCE_MAIN_SQL_FINANCE_STMT_17),
+            ("finance_stmt_18", FINANCE_MAIN_SQL_FINANCE_STMT_18),
+            ("finance_stmt_19", FINANCE_MAIN_SQL_FINANCE_STMT_19),
+            ("finance_stmt_20", FINANCE_MAIN_SQL_FINANCE_STMT_20),
+            ("finance_stmt_21", FINANCE_MAIN_SQL_FINANCE_STMT_21),
+            ("finance_stmt_22", FINANCE_MAIN_SQL_FINANCE_STMT_22),
+            ("finance_stmt_23", FINANCE_MAIN_SQL_FINANCE_STMT_23),
+            ("finance_stmt_24", FINANCE_MAIN_SQL_FINANCE_STMT_24),
+            ("finance_stmt_25", FINANCE_MAIN_SQL_FINANCE_STMT_25),
+            ("finance_stmt_26", FINANCE_MAIN_SQL_FINANCE_STMT_26),
+            ("finance_stmt_27", FINANCE_MAIN_SQL_FINANCE_STMT_27),
+            ("finance_stmt_28", FINANCE_MAIN_SQL_FINANCE_STMT_28),
+            ("finance_stmt_29", FINANCE_MAIN_SQL_FINANCE_STMT_29),
+            ("finance_stmt_30", FINANCE_MAIN_SQL_FINANCE_STMT_30),
+            ("finance_stmt_31", FINANCE_MAIN_SQL_FINANCE_STMT_31),
+            ("finance_stmt_32", FINANCE_MAIN_SQL_FINANCE_STMT_32),
+            ("finance_stmt_33", FINANCE_MAIN_SQL_FINANCE_STMT_33),
+            ("finance_stmt_34", FINANCE_MAIN_SQL_FINANCE_STMT_34),
+            ("finance_stmt_35", FINANCE_MAIN_SQL_FINANCE_STMT_35),
+            ("finance_stmt_36", FINANCE_MAIN_SQL_FINANCE_STMT_36),
+            ("finance_stmt_37", FINANCE_MAIN_SQL_FINANCE_STMT_37),
+            ("finance_stmt_38", FINANCE_MAIN_SQL_FINANCE_STMT_38),
+            ("finance_stmt_39", FINANCE_MAIN_SQL_FINANCE_STMT_39),
+            ("finance_stmt_40", FINANCE_MAIN_SQL_FINANCE_STMT_40),
+            ("finance_stmt_41", FINANCE_MAIN_SQL_FINANCE_STMT_41),
+            ("finance_stmt_42", FINANCE_MAIN_SQL_FINANCE_STMT_42),
+            ("finance_stmt_43", FINANCE_MAIN_SQL_FINANCE_STMT_43),
+            ("finance_stmt_44", FINANCE_MAIN_SQL_FINANCE_STMT_44),
+            ("finance_stmt_45", FINANCE_MAIN_SQL_FINANCE_STMT_45),
+            ("finance_stmt_46", FINANCE_MAIN_SQL_FINANCE_STMT_46),
+            ("finance_stmt_47", FINANCE_MAIN_SQL_FINANCE_STMT_47),
+            ("finance_stmt_48", FINANCE_MAIN_SQL_FINANCE_STMT_48),
+            ("finance_stmt_49", FINANCE_MAIN_SQL_FINANCE_STMT_49),
+        ];
+        for (key, native) in pairs {
+            assert_eq!(parsed[key].as_str(), Some(native), "main finance SQL contract drift: {key}");
+        }
+    }
+}
