@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4989,
+    "revision": 4990,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17206,7 +17206,7 @@
           "expiresAt": "2026-11-22T18:38:22.662Z",
           "generation": 150
         },
-        "baseSha": "c4d4be6f65efd8073f44cc4b7aafb6e30dec84f2",
+        "baseSha": "f5852bb7e3e6f37cadaaea7b3698215d3f7ae5d1",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17299,11 +17299,25 @@
             "result": "failed",
             "sourceSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
             "note": "dev :3100 alive but /api/health 503 (degraded baseline); console-dev /api/health 530 (no ERPX tunnel in this checkout); private :3101 unreachable (not restarted: production service, out of scope to touch); public acme + console-dev 530 (no tunnel). No staging touched."
+          },
+          {
+            "command": "retirement:ts-statements (global literal-DML in packages/server-*/src/**/*.ts)",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "f5852bb7e3e6f37cadaaea7b3698215d3f7ae5d1",
+            "note": "Recorded baseline 2894 vs measured HEAD: `git grep -I -o -E 'INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET' HEAD -- 'packages/server-*/src/**/*.ts' | wc -l` => 0. Repo-wide including tests/fixtures is 4845 and is out of this metric's scope."
+          },
+          {
+            "command": "ts-authority inventory (server-*/src TS importing native descriptors)",
+            "result": "passed",
+            "sourceSha": "f5852bb7e3e6f37cadaaea7b3698215d3f7ae5d1",
+            "note": "17 TS files still import native descriptors (procurement/owner/workflow/collaboration/files statement shims). Literal DML is already zero, so remaining retirement debt is descriptor/*-authority callers plus oracle-only test subpaths, not SQL text."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "BILL SLICE CLOSED (rust ready + caller switched + route fallback removed): root cause of earlier 404 = procurement targets pushed inside operationsCompanies loop (private_development_api L3688-3706); fixed by configuring operationsCompanies (no product-code change needed). Grader chain solved: PERMISSION -> PACKAGE_REQUIRED -> granted supply+finance v1 w/ mandatory company_package_grant_events rows. NATIVE: :3198 POST capture => 404 RECEIPT_NOT_FOUND. GATEWAY->AXUM PROVEN: GET 200 + POST 404 RECEIPT_NOT_FOUND with ERPX_NATIVE_PROCUREMENT_CONFIG set. TS authority removed: 3 supply routes now native-only (503 NATIVE_PROCUREMENT_UNAVAILABLE when unconfigured), no TS fallback. TS writers capture/decide/policy retained ONLY as integration-test/browser-simulation oracle (7 call sites) => removalTaskId retire.procurement.supplier-bill-writers, condition = migrate oracle to native seeding. KPI before/after literal-DML = 0 -> 0 (no literal DML involved; authority delta is route-level). typecheck clean.",
+        "nextAction": "GLOBAL KPI RECORDED at f5852bb: literal-DML in packages/server-*/src/**/*.ts = 0 vs baseline 2894 (repo-wide incl tests/fixtures = 4845, out of scope). Remaining retirement debt = 17 TS files importing native descriptors plus oracle-only test subpaths. Next slices retire descriptor fallbacks with route-level KPI like the proven bill slice: collaboration social-home (needs parity witnesses, not SQL), messaging overview.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107501,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:08:22.663Z",
+    "updatedAt": "2026-11-22T18:09:42.881Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
