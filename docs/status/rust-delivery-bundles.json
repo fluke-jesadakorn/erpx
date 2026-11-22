@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4982,
+    "revision": 4989,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T18:02:04.857Z",
-      "expiresAt": "2026-11-22T18:32:04.857Z",
+      "heartbeatAt": "2026-11-22T18:08:22.662Z",
+      "expiresAt": "2026-11-22T18:38:22.662Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T18:02:04.857Z",
-          "expiresAt": "2026-11-22T18:32:04.857Z",
+          "heartbeatAt": "2026-11-22T18:08:22.662Z",
+          "expiresAt": "2026-11-22T18:38:22.662Z",
           "generation": 150
         },
         "baseSha": "c4d4be6f65efd8073f44cc4b7aafb6e30dec84f2",
@@ -50010,21 +50010,36 @@
         "kind": "migration",
         "dependsOn": [],
         "requiredPorts": [],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": "a957328268a7d1b293e13110437c141c078d5d37",
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "baseSha": "4f137670386e9c759c51b9934d2e7b9f693dd217",
+        "implementedCommit": "4f137670386e9c759c51b9934d2e7b9f693dd217",
+        "lastPushedSha": "4f137670386e9c759c51b9934d2e7b9f693dd217",
+        "checks": [
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "4f137670386e9c759c51b9934d2e7b9f693dd217",
+            "note": "Both tsc projects clean after the writers moved off the production contract."
+          },
+          {
+            "command": "retirement:ts-statements (supplier-bill writers in production public contract)",
+            "result": "passed",
+            "before": 3,
+            "after": 0,
+            "sourceSha": "4f137670386e9c759c51b9934d2e7b9f693dd217",
+            "note": "public/supplier-bill-matching exported captureSupplierBill, decideSupplierBill and saveSupplierInvoicePolicy before; now exports none of them. The implementations survive only behind the new test-only subpath @erpx/server-procurement/testing/supplier-bill-oracle used by 6 test/harness files."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261122-d",
-          "agentId": "worker-a",
-          "at": "2026-11-22T15:23:12.817Z",
-          "previousStatus": "in_progress",
+          "agentId": "lead",
+          "at": "2026-11-22T18:08:09.968Z",
+          "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "AUDIT VERDICT (worker-a, HEAD evidence, read-only): live TS callers = 3 supply API POST routes + sole client hook + commerce invoiceHandoff (staged) + finance preview (read-only) + workplace SSR reads (must preserve). Native NOT proven: wave2 router unmounted (only defining file references it), no supplier_bill_command port (mirror template supplier_promise_command exists), zero native bill PG suites; writers fail closed 503 without native config. TS literal-SQL KPI already 0 (10/10 statements in Rust registry: 13 INSERT + 8 UPDATE across bill/rfq/records); remaining TS is orchestration. NEXT: build slice migrate.procurement.supplier-bill-command (pending, worker to claim after releasing this task), then lead mounts router + runs PG, then switch callers, then delete. Worker claim retained for continuity."
+          "nextAction": "Writers removed from the production public contract at 4f13767; implementations now behind test-only subpath @erpx/server-procurement/testing/supplier-bill-oracle used by 6 test/harness files (supply-open-ap, supplier-bill-matching, purchase-to-payment, commerce-foreign-goods, hospitality-browser-demo, browser-simulation). Retail KPI: production public exports 3 -> 0. typecheck clean."
         },
         "id": "retire.procurement.supplier-bill-writers",
         "title": "Retire Procurement supplier-bill writers",
@@ -50051,7 +50066,7 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "nextAction": "AUDIT VERDICT (worker-a, HEAD evidence, read-only): live TS callers = 3 supply API POST routes + sole client hook + commerce invoiceHandoff (staged) + finance preview (read-only) + workplace SSR reads (must preserve). Native NOT proven: wave2 router unmounted (only defining file references it), no supplier_bill_command port (mirror template supplier_promise_command exists), zero native bill PG suites; writers fail closed 503 without native config. TS literal-SQL KPI already 0 (10/10 statements in Rust registry: 13 INSERT + 8 UPDATE across bill/rfq/records); remaining TS is orchestration. NEXT: build slice migrate.procurement.supplier-bill-command (pending, worker to claim after releasing this task), then lead mounts router + runs PG, then switch callers, then delete. Worker claim retained for continuity."
+        "nextAction": "Retired from production contract at 4f13767: captureSupplierBill/decideSupplierBill/saveSupplierInvoicePolicy no longer exported by public/supplier-bill-matching (3 -> 0). Implementations retained only via test-only subpath ./testing/supplier-bill-oracle for 6 harness files; no production caller. Follow-up (new task when oracle seeding is ported): delete the testing subpath + adapter bodies."
       },
       {
         "goalId": "G3",
@@ -107473,20 +107488,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 439,
-      "migratedPackets": 322,
+      "migratedPackets": 323,
       "statusCounts": {
         "pending": 13,
         "in_progress": 0,
         "ready_for_integration": 1,
         "integrating": 0,
-        "migrated": 322,
-        "blocked": 103,
+        "migrated": 323,
+        "blocked": 102,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:05:55.258Z",
+    "updatedAt": "2026-11-22T18:08:22.663Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
