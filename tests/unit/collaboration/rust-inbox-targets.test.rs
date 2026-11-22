@@ -3,27 +3,29 @@ use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
     InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, LearningInboxTargets,
     OperationsInboxTargets, PayrollInboxTargets, PeopleInboxTargets, ProcurementInboxTargets,
-    QualityInboxTargets, SupportInboxTargets, TalentInboxTargets, bangkok_coverage_weeks,
-    benefit_election_href, calendar_appointment_href, commerce_order_capability,
-    commerce_order_href, crm_activity_href, crm_lead_href, customer_followup_href,
-    encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
-    finance_journal_href, finance_refund_href, inventory_history_capabilities,
-    inventory_transit_href, is_calendar_inbox_target, is_commerce_inbox_target,
-    is_crm_inbox_target, is_finance_inbox_target, is_inventory_inbox_target,
-    is_learning_inbox_target, is_operations_inbox_target, is_owned_inbox_target,
-    is_payroll_inbox_target, is_people_inbox_target, is_procurement_inbox_target,
-    is_quality_inbox_target, is_roster_monday, is_support_inbox_target, is_talent_inbox_target,
-    landed_cost_href, learning_assignment_href, learning_history_capabilities, leave_href,
-    legal_kind_capability, legal_record_href, manufacturing_order_href, marketing_candidate_href,
+    QualityInboxTargets, RecordsInboxTargets, SupportInboxTargets, TalentInboxTargets,
+    bangkok_coverage_weeks, benefit_election_href, calendar_appointment_href,
+    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
+    customer_followup_href, employee_request_href, encode_uri_component, expense_href,
+    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
+    inventory_history_capabilities, inventory_transit_href, is_calendar_inbox_target,
+    is_commerce_inbox_target, is_crm_inbox_target, is_finance_inbox_target,
+    is_inventory_inbox_target, is_learning_inbox_target, is_operations_inbox_target,
+    is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
+    is_procurement_inbox_target, is_quality_inbox_target, is_records_inbox_target,
+    is_roster_monday, is_support_inbox_target, is_talent_inbox_target, landed_cost_href,
+    learning_assignment_href, learning_history_capabilities, leave_href, legal_kind_capability,
+    legal_record_href, manufacturing_order_href, marketing_candidate_href,
     operational_exception_href, operations_history_capabilities, overtime_href,
     parse_roster_coverage_id, payroll_advance_href, payroll_correction_href, post_href,
     procurement_history_capability, procurement_rfq_href, quality_alert_href,
-    quality_history_capabilities, quality_hold_href, retirement_case_href,
-    retained_inbox_destination, roster_request_href, roster_week_href, source_record_label,
-    staff_task_href, stock_count_href, support_history_capability, support_incident_href,
-    support_session_href, support_sla_href, support_ticket_href, supplier_bill_href,
-    supplier_promise_href, talent_application_href, talent_history_capabilities,
-    uses_enforced_layer,
+    quality_history_capabilities, quality_hold_href, records_expense_href,
+    records_history_capabilities, records_leave_href, records_source_kind,
+    retirement_case_href, retained_inbox_destination, roster_request_href, roster_week_href,
+    source_record_label, staff_task_href, stock_count_href, support_history_capability,
+    support_incident_href, support_session_href, support_sla_href, support_ticket_href,
+    supplier_bill_href, supplier_promise_href, talent_application_href,
+    talent_history_capabilities, uses_enforced_layer,
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
@@ -1202,4 +1204,94 @@ fn operations_kind_capability_tables_match_the_retained_gates() {
         &[] as &[&str]
     );
     assert_eq!(operations_history_capabilities(""), &[] as &[&str]);
+}
+
+#[test]
+fn records_slice_routes_to_the_native_delegate() {
+    for source_type in ["leave", "leave_cancellation", "expense", "request"] {
+        assert!(is_records_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "overtime",
+        "task",
+        "post",
+        "operational_exception",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_records_inbox_target(other), "{other}");
+    }
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&RecordsInboxTargets::new(None, None));
+    assert_inbox_target_port(&RecordsInboxTargets::default());
+    assert_inbox_target_port(
+        &RecordsInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn records_hrefs_match_the_raw_typescript_projection() {
+    assert_eq!(
+        records_leave_href("leave-1"),
+        "/tasks/people_payroll/leave-1"
+    );
+    assert_eq!(
+        records_expense_href("exp-1"),
+        "/expenses/exp-1"
+    );
+    assert_eq!(employee_request_href("req-1"), "/requests/req-1");
+    // The records table keeps raw ids (no encodeURIComponent on these rows).
+    assert_eq!(
+        retained_inbox_destination("leave", ID).expect("leave").href.as_deref(),
+        Some("/tasks/people_payroll/seg/one two")
+    );
+    assert_eq!(
+        retained_inbox_destination("expense", ID).expect("expense").href.as_deref(),
+        Some("/expenses/seg/one two")
+    );
+    assert_eq!(
+        retained_inbox_destination("request", ID).expect("request").href.as_deref(),
+        Some("/requests/seg/one two")
+    );
+}
+
+#[test]
+fn records_kind_mapping_matches_the_notification_switch() {
+    assert_eq!(records_source_kind("leave", None), "leave");
+    assert_eq!(records_source_kind("leave_cancellation", None), "leave");
+    assert_eq!(records_source_kind("expense", None), "expense");
+    assert_eq!(
+        records_source_kind("request", Some("purchase")),
+        "purchase_request"
+    );
+    assert_eq!(
+        source_record_label(&records_source_kind("request", Some("service"))),
+        "Service request"
+    );
+    assert_eq!(
+        source_record_label(&records_source_kind("leave_cancellation", None)),
+        "Leave"
+    );
+}
+
+#[test]
+fn records_kind_capability_tables_match_the_retained_gates() {
+    assert_eq!(
+        records_history_capabilities("leave"),
+        &["people.workforce"]
+    );
+    assert_eq!(
+        records_history_capabilities("leave_cancellation"),
+        &["people.workforce"]
+    );
+    assert_eq!(
+        records_history_capabilities("expense"),
+        &["people.expenses"]
+    );
+    assert_eq!(records_history_capabilities("request"), &[] as &[&str]);
+    assert_eq!(records_history_capabilities("overtime"), &[] as &[&str]);
+    assert_eq!(records_history_capabilities(""), &[] as &[&str]);
 }

@@ -1977,7 +1977,7 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
             FinanceInboxTargets, InboxHttpReadReply, InboxNotificationQuery, InboxReadKind,
             InventoryInboxTargets, LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets,
             PeopleInboxTargets, PgInboxTargets, PgInboxUnit, ProcurementInboxTargets, QualityInboxTargets,
-            SupportInboxTargets, TalentInboxTargets,
+            RecordsInboxTargets, SupportInboxTargets, TalentInboxTargets,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -2101,6 +2101,18 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                                 ),
                                 Box::new(
                                     OperationsInboxTargets::new(
+                                        workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                        workspace.department_id.as_ref().map(|id| id.as_str()),
+                                    )
+                                    .assignment(Some(selected.assignment().id.as_str())),
+                                ),
+                                // Records settles last: the people delegate earlier in the
+                                // chain keeps settling leave/expense as today, while the
+                                // records delegate adds request plus the oracle-faithful
+                                // purchase-gated leave/expense arms (proven in isolation,
+                                // available for cutover reorder).
+                                Box::new(
+                                    RecordsInboxTargets::new(
                                         workspace.branch_id.as_ref().map(|id| id.as_str()),
                                         workspace.department_id.as_ref().map(|id| id.as_str()),
                                     )

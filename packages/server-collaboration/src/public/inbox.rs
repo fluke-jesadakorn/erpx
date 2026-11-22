@@ -61,6 +61,11 @@ pub use crate::adapters::inbox_operations::{
     OperationsInboxTargets, is_operations_inbox_target, operational_exception_href,
     operations_history_capabilities, post_href, staff_task_href,
 };
+pub use crate::adapters::inbox_records::{
+    RecordsInboxTargets, employee_request_href, is_records_inbox_target,
+    records_expense_href, records_history_capabilities, records_leave_href,
+    records_source_kind,
+};
 pub use crate::adapters::inbox_talent::{
     TalentInboxTargets, is_talent_inbox_target, manufacturing_order_href,
     marketing_candidate_href, talent_application_href, talent_history_capabilities,

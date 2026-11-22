@@ -69,6 +69,8 @@ pub(crate) mod inbox_talent;
 
 pub(crate) mod inbox_operations;
 
+pub(crate) mod inbox_records;
+
 pub(crate) mod social_http;
 
 pub(crate) mod social_http_wire;
