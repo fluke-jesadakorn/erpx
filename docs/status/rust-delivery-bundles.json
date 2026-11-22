@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4930,
+    "revision": 4933,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T16:31:54.507Z",
-      "expiresAt": "2026-11-22T17:01:54.507Z",
+      "heartbeatAt": "2026-11-22T16:34:15.315Z",
+      "expiresAt": "2026-11-22T17:04:15.315Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T16:31:54.507Z",
-          "expiresAt": "2026-11-22T17:01:54.507Z",
+          "heartbeatAt": "2026-11-22T16:34:15.315Z",
+          "expiresAt": "2026-11-22T17:04:15.315Z",
           "generation": 150
         },
-        "baseSha": "250f82059ded86db1e7c3c633bb4407c38c06aaf",
+        "baseSha": "304c9624a21be82ad42aa452c06a486c840f567a",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17303,7 +17303,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "All 3 maps LANDED. Finance: singles (create/edit/post/reverse) native-first w/503 fallback = switched; gaps = due-draft schedule/decide+workspace (no router/transport; route+SSR TS-direct), drainFinanceDueDrafts (TS job), postJournalBatch (TS-only route) — all under blocked migrate.finance family. Payroll: reads + run create/calc/cancel/post native mounted w/ config-gated fallback; gaps = lifecycle/schedule/preview/expenseAI drains (no native workers; TS jobs.ts live), decide cmds (approve/submit/correction/advance/schedule not in allow-list), pay batches/remittance (no native ports) — under blocked migrate.people_payroll.employees_leave_expenses / retire.people_payroll.people-payroll / calculate-post-observation. Files/WF (recorded): prepareAttachmentBinding callers unswitched (transport exists) -> caller-switch slice; upload/migrate/scan/drain/pubs + generic executeCommand/rerouteApproval/decision-effects need NEW ports (blocked migrate.workflow / retire.workflow). No new tasks created; details belong to those blocked tasks. worker-a bill claim active; foreign WIP untouched. Container proof still Linux-only.",
+        "nextAction": "Dispatch probe: handover-publish claim REJECTED (RESOURCE_ALREADY_CLAIMED) — overlaps blocked retire.collaboration.social-home (owner:collaboration+operations territory, incl. handover/social-home writes). Correct sequencing: social-home first. Dispatched read-only surface.apps readiness probe (route-by-route native-backed vs TS-direct + mount cross-check) to decide next dispatch; finance/payroll/files maps recorded. worker-a bill claim active; foreign WIP untouched. Container proof still Linux-only.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T16:31:54.507Z",
-          "expiresAt": "2026-11-22T17:01:54.507Z",
+          "heartbeatAt": "2026-11-22T16:34:15.315Z",
+          "expiresAt": "2026-11-22T17:04:15.315Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107437,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T16:33:40.201Z",
+    "updatedAt": "2026-11-22T16:34:57.213Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
