@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4765,
+    "revision": 4769,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T12:07:51.929Z",
-      "expiresAt": "2026-11-22T12:37:51.929Z",
+      "heartbeatAt": "2026-11-22T12:08:23.343Z",
+      "expiresAt": "2026-11-22T12:38:23.343Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T12:07:51.929Z",
-          "expiresAt": "2026-11-22T12:37:51.929Z",
+          "heartbeatAt": "2026-11-22T12:08:23.343Z",
+          "expiresAt": "2026-11-22T12:38:23.343Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17836,6 +17836,11 @@
           "packages/server-finance/src/**",
           "packages/server-commerce/src/**",
           "packages/server-people_payroll/src/**",
+          "packages/server-support/src/adapters/support-sla-alerts.ts",
+          "packages/server-support/src/adapters/support-incident-read.ts",
+          "packages/server-support/src/adapters/support-sla.ts",
+          "packages/server-support/src/adapters/support.ts",
+          "packages/server-support/src/adapters/support-sessions.ts",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
@@ -17846,9 +17851,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-22T10:45:28.036Z",
-          "heartbeatAt": "2026-11-22T12:07:51.929Z",
-          "expiresAt": "2026-11-22T12:37:51.929Z",
+          "claimedAt": "2026-11-22T12:08:55.655Z",
+          "heartbeatAt": "2026-11-22T12:08:55.655Z",
+          "expiresAt": "2026-11-22T12:38:55.655Z",
           "generation": 150
         },
         "baseSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
@@ -18098,8 +18103,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "People slice integrated at d2381cff (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: support/procurement/inventory/sales/quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
-        "handoff": null,
+        "nextAction": "Refined: support oracle paths added (read-only oracle reference for sla_alert/incident/policy/ticket/session delegates). Calendar/CRM/commerce/finance/payroll/people integrated+proven. Next: worker re-claims and builds the support slice, then procurement/inventory/sales/quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow families.",
+        "handoff": {
+          "runId": "run-20261122-d",
+          "agentId": "worker-a",
+          "at": "2026-11-22T12:08:32.633Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "People slice integrated at d2381cff (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: support/procurement/inventory/sales/quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
         "plannedPackage": "erpx-server-collaboration",
@@ -106785,7 +106797,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T12:07:51.930Z",
+    "updatedAt": "2026-11-22T12:08:55.657Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
