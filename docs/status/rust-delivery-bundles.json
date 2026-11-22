@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5156,
+    "revision": 5164,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T21:01:22.793Z",
-      "expiresAt": "2026-11-22T21:31:22.793Z",
+      "heartbeatAt": "2026-11-22T21:09:01.411Z",
+      "expiresAt": "2026-11-22T21:39:01.411Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T21:08:44.615Z",
-          "heartbeatAt": "2026-11-22T21:08:44.615Z",
-          "expiresAt": "2026-11-22T21:38:44.615Z",
+          "claimedAt": "2026-11-22T21:13:43.738Z",
+          "heartbeatAt": "2026-11-22T21:13:43.738Z",
+          "expiresAt": "2026-11-22T21:43:43.738Z",
           "generation": 150
         },
-        "baseSha": "e9a1b3e27c9750fc0c8e88ad3ee57fee73eef0de",
+        "baseSha": "54ea1715a5aaf552ac52b4e4ed07f3f9930dce13",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN AT e9a1b3e27. Mounted the dead Manufacturing wave-3 composition: module declared in lib.rs, profile and owner-write routers merged for every Holding target with the Holding pool, profile backend made Company-resolving, TS native-accounting-profile client added and prepare/decideManufacturingPostingProfile switched to it (no fail-closed fallback). Rebuilt erpx-server and restarted :3198/v5; end-to-end curl proves the mounted route and the restored guards: 422 MANUFACTURING_CURRENCY_ADAPTER (missing chart) and 422 MANUFACTURING_WIP_ACCOUNT (shared WIP), BOUNDARY_DEBUG audience=Some; dev :3100 health 200. cargo check 0, manufacturing lib 16/16, root typecheck 0. planning gate still red: manufacturing.production.integration is 40/40 at the native Commerce warehouse-save (response code hidden by the generic message) and Finance owner-write needs actor holding test/h001 which v5 does not serve. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
+        "nextAction": "TURN AT 54ea1715a. Found and fixed a systemic native-transport defect: Node fetch forbids overriding Host, so the fetch-based native clients (32 files) sent Host 127.0.0.1:3198 and owner routers answered 404. Commerce warehouse-save and the new Manufacturing accounting-profile client now POST over node:http with explicit Host/Origin and retain error bodies; root typecheck 0. Suite evidence: manufacturing.production.integration beforeEach moved from 404 target-not-found to the server-side 503 \"The native Commerce service is unavailable.\" (PgTransactionError::Persistence), so the target and command now resolve. Remaining for the planning gate: diagnose that persistence failure (SQLx tracing) and the Finance owner-write test/h001 target. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:02:54.384Z",
+          "at": "2026-11-22T21:12:02.179Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "TURN AT 7ec950ef5. Restored the native Manufacturing profile source rules the wave-3 cutover dropped: require_profile_sources rejects shared WIP and non-THB/missing chart after replay; PgProfileCommand.chart_currency reads finance_charts; erpx-server-manufacturing lib 8/8. Fixtures in manufacturing.production.test.ts now native-seed the approved profile and THB rate instead of calling retired writers, and the profile command cases assert the retained TS path fails closed. The planning gate is still open: src/composition/src/manufacturing_wave3.rs is not compiled or mounted, and its profile backend hard-scopes one Company, so the native profile/owner-write routes are dead code needing a company-resolving backend plus a TS client (allowedPaths extension to lib.rs + manufacturing_wave3.rs). manufacturing.production.integration remains 40/40: with the live v5 native server configured the Commerce warehouse-save route receives the frame but rejects the fixture save, and Finance owner-write matches actor holdingSlug test/h001 which v5 does not serve. Decisions still needed: PG 18.6 restore vs 18.x assertion alignment; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
+          "nextAction": "TURN AT e9a1b3e27. Mounted the dead Manufacturing wave-3 composition: module declared in lib.rs, profile and owner-write routers merged for every Holding target with the Holding pool, profile backend made Company-resolving, TS native-accounting-profile client added and prepare/decideManufacturingPostingProfile switched to it (no fail-closed fallback). Rebuilt erpx-server and restarted :3198/v5; end-to-end curl proves the mounted route and the restored guards: 422 MANUFACTURING_CURRENCY_ADAPTER (missing chart) and 422 MANUFACTURING_WIP_ACCOUNT (shared WIP), BOUNDARY_DEBUG audience=Some; dev :3100 health 200. cargo check 0, manufacturing lib 16/16, root typecheck 0. planning gate still red: manufacturing.production.integration is 40/40 at the native Commerce warehouse-save (response code hidden by the generic message) and Finance owner-write needs actor holding test/h001 which v5 does not serve. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -51982,16 +51982,19 @@
           "fixtures/**",
           "tests/catalogue/**",
           "src/composition/src/lib.rs",
-          "src/composition/src/manufacturing_wave3.rs"
+          "src/composition/src/manufacturing_wave3.rs",
+          "packages/server-commerce/src/adapters/native-wave2.ts",
+          "packages/server-manufacturing/src/adapters/native-accounting-profile.ts"
         ],
         "resources": [
           "owner:planning",
           "owner:manufacturing",
-          "resource:composition"
+          "resource:composition",
+          "owner:commerce"
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "e9a1b3e27c9750fc0c8e88ad3ee57fee73eef0de",
+        "baseSha": "54ea1715a5aaf552ac52b4e4ed07f3f9930dce13",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52074,14 +52077,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "WAVE-3 ROUTES NOW MOUNTED at e9a1b3e27. manufacturing_wave3 is declared in composition lib.rs; both accounting_profile_wave3_http_router and owner_write_wave3_http are merged in private_development_api for every Holding target with pools[i+1]; ManufacturingProfileBackend no longer hard-scopes one Company (it uses the signed x-erpx-context-company and the repository scope). Added packages/server-manufacturing/src/adapters/native-accounting-profile.ts (config ERPX_NATIVE_MANUFACTURING_ACCOUNTING_CONFIG) and switched prepare/decideManufacturingPostingProfile to it; package export added. Rebuilt erpx-server and restarted :3198 with v5; curl POST /api/v1/holdings/acme/manufacturing/accounting-profile with acme Host/Origin returns 422 MANUFACTURING_CURRENCY_ADAPTER for a missing chart and 422 MANUFACTURING_WIP_ACCOUNT for shared WIP, with BOUNDARY_DEBUG audience=Some; dev :3100 health 200. cargo check -p erpx-service (existing-business,private-development-api) 0, erpx-server-manufacturing lib 16/16, root typecheck 0. REMAINING: manufacturing.production.integration is still 40/40 at beforeEach saveMaster -> native Commerce /commerce/warehouse-save (client sends only x-erpx-context-user; the response code is hidden behind \"The warehouse could not be saved.\"); Finance owner-write matches actor holdingSlug test/h001 which v5 does not serve. Next: expose the warehouse-save error code, then add a fixture-compatible holding target or seed warehouses natively, and rerun the suite.",
+        "nextAction": "TRANSPORT PARITY FIXED at 54ea1715a. Refined scope to add packages/server-commerce/src/adapters/native-wave2.ts and packages/server-manufacturing/src/adapters/native-accounting-profile.ts (+ owner:commerce). Root cause: Node fetch forbids overriding Host, so every fetch-based native client sent Host 127.0.0.1:3198 and the owner routers returned 404 target-not-found. Both clients now POST over node:http with an explicit Host/Origin and keep the response body for errors. Evidence: manufacturing.production.integration beforeEach moved from 404 (target lookup) to the server-side 503 \"The native Commerce service is unavailable.\" (PgTransactionError::Persistence mapped by commerce_wave2 business()), proving the request now reaches the registered acme target and the command runs. Remaining: identify that persistence failure (likely a test-DB row/constraint in the commerce warehouse/ledger transaction) by enabling SQLx tracing, then rerun; Finance owner-write still needs a test/h001 target or a native seed. Mounted profile route from e9a1b3e27 remains proven by curl (422 THB/WIP guards).",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:08:44.550Z",
+          "at": "2026-11-22T21:13:43.670Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "WAVE-3 ROUTES NOW MOUNTED at e9a1b3e27. manufacturing_wave3 is declared in composition lib.rs; both accounting_profile_wave3_http_router and owner_write_wave3_http are merged in private_development_api for every Holding target with pools[i+1]; ManufacturingProfileBackend no longer hard-scopes one Company (it uses the signed x-erpx-context-company and the repository scope). Added packages/server-manufacturing/src/adapters/native-accounting-profile.ts (config ERPX_NATIVE_MANUFACTURING_ACCOUNTING_CONFIG) and switched prepare/decideManufacturingPostingProfile to it; package export added. Rebuilt erpx-server and restarted :3198 with v5; curl POST /api/v1/holdings/acme/manufacturing/accounting-profile with acme Host/Origin returns 422 MANUFACTURING_CURRENCY_ADAPTER for a missing chart and 422 MANUFACTURING_WIP_ACCOUNT for shared WIP, with BOUNDARY_DEBUG audience=Some; dev :3100 health 200. cargo check -p erpx-service (existing-business,private-development-api) 0, erpx-server-manufacturing lib 16/16, root typecheck 0. REMAINING: manufacturing.production.integration is still 40/40 at beforeEach saveMaster -> native Commerce /commerce/warehouse-save (client sends only x-erpx-context-user; the response code is hidden behind \"The warehouse could not be saved.\"); Finance owner-write matches actor holdingSlug test/h001 which v5 does not serve. Next: expose the warehouse-save error code, then add a fixture-compatible holding target or seed warehouses natively, and rerun the suite."
+          "nextAction": "TRANSPORT PARITY FIXED at 54ea1715a. Refined scope to add packages/server-commerce/src/adapters/native-wave2.ts and packages/server-manufacturing/src/adapters/native-accounting-profile.ts (+ owner:commerce). Root cause: Node fetch forbids overriding Host, so every fetch-based native client sent Host 127.0.0.1:3198 and the owner routers returned 404 target-not-found. Both clients now POST over node:http with an explicit Host/Origin and keep the response body for errors. Evidence: manufacturing.production.integration beforeEach moved from 404 (target lookup) to the server-side 503 \"The native Commerce service is unavailable.\" (PgTransactionError::Persistence mapped by commerce_wave2 business()), proving the request now reaches the registered acme target and the command runs. Remaining: identify that persistence failure (likely a test-DB row/constraint in the commerce warehouse/ledger transaction) by enabling SQLx tracing, then rerun; Finance owner-write still needs a test/h001 target or a native seed. Mounted profile route from e9a1b3e27 remains proven by curl (422 THB/WIP guards)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107937,7 +107940,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T21:08:51.615Z",
+    "updatedAt": "2026-11-22T21:13:50.977Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
