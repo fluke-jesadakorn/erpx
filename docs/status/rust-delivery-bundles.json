@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5074,
+    "revision": 5078,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:06:33.270Z",
-      "expiresAt": "2026-11-22T20:36:33.270Z",
+      "heartbeatAt": "2026-11-22T20:07:38.417Z",
+      "expiresAt": "2026-11-22T20:37:38.417Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17231,8 +17231,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T20:06:33.270Z",
-          "expiresAt": "2026-11-22T20:36:33.270Z",
+          "heartbeatAt": "2026-11-22T20:07:38.417Z",
+          "expiresAt": "2026-11-22T20:37:38.417Z",
           "generation": 150
         },
         "baseSha": "cf104ced8cdd8b5b3ff98a3d39219a797758b5a8",
@@ -39749,7 +39749,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "6a5c8c4b3004dfd5f3117c1ed1c65fe063a3e043",
+        "baseSha": "ace6d15ae1155a91358638fa2ba5d035a90ece31",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -39770,14 +39770,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "PATH-BLOCKED for the remaining projector drain. Verified this turn: (a) native side is mounted and owned - src/composition/src/workflow_projection_worker.rs declares owned_predicate() for task.*, routine.run, leave.* (except policy), overtime.* (except eligibility), people.payroll.* and PMS social events, and the binary entrypoint `erpx-server workflow-projection-worker --development-config <file>` exists; (b) Rust workflow lib tests 29/29 pass with ERPX_BUN_BIN=/Users/fluke/.bun/bin/bun; workflow-services unit 42/42 pass; (c) flow-panel-product-entry has 2 pre-existing environment-drift failures (/work-role vs /choose-work-role and apps-dev origin), unrelated to this slice. BLOCKER: the retained caller is packages/server-runtime/src/adapters/runtime/jobs.ts:11 (`import { project } from @erpx/server-workflow/public/job-projector`), which is outside this task allowedPaths (workflow src + tests only); switching the Next jobs supervisor to the Rust worker entrypoint needs the runtime owner path plus a runbook/ops change, and the TS branch deletion only follows that switch. Need either an allowedPaths extension for packages/server-runtime/src/adapters/runtime/jobs.ts or a runtime-owned task to do the switch; deleting TS branches first would drop every family the Rust worker does not own.",
+        "nextAction": "SCOPE SPLIT MEASURED (why the last deletion is not a one-file switch). Rust workflow-projection-worker owns only: task.*, routine.run, leave.* (except policy), overtime.* (except eligibility), people.payroll.* and PMS social events (src/composition/src/workflow_projection_worker.rs owned_predicate). The retained TS projector still performs these side-effect families, none of which has a native Rust owner drain: drainExecutiveGeneration, drainExpenseAi, drainFinanceAi, drainLegalAi, drainRequestAi, drainSocialAgent, and the sales customer-notification delivery (workflowCustomerNotificationId / deliverCustomerNotification), plus commitWorkflowProjection in server-work_projection. Deleting packages/server-workflow/src/adapters/job-projector.ts or switching packages/server-runtime/src/adapters/runtime/jobs.ts to the worker now would silently stop those families. Required order: (1) port each of the six side-effect owners to Rust (owner crates) with ProjectionSideEffects implementations, (2) extend owned_predicate, (3) switch jobs.ts (needs allowedPaths extension or a runtime-owned task), (4) delete TS branches/barrels and record the Workflow KPI pair. This task cannot close in one edit; it is a multi-owner program.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:06:29.861Z",
+          "at": "2026-11-22T20:08:40.790Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "PATH-BLOCKED for the remaining projector drain. Verified this turn: (a) native side is mounted and owned - src/composition/src/workflow_projection_worker.rs declares owned_predicate() for task.*, routine.run, leave.* (except policy), overtime.* (except eligibility), people.payroll.* and PMS social events, and the binary entrypoint `erpx-server workflow-projection-worker --development-config <file>` exists; (b) Rust workflow lib tests 29/29 pass with ERPX_BUN_BIN=/Users/fluke/.bun/bin/bun; workflow-services unit 42/42 pass; (c) flow-panel-product-entry has 2 pre-existing environment-drift failures (/work-role vs /choose-work-role and apps-dev origin), unrelated to this slice. BLOCKER: the retained caller is packages/server-runtime/src/adapters/runtime/jobs.ts:11 (`import { project } from @erpx/server-workflow/public/job-projector`), which is outside this task allowedPaths (workflow src + tests only); switching the Next jobs supervisor to the Rust worker entrypoint needs the runtime owner path plus a runbook/ops change, and the TS branch deletion only follows that switch. Need either an allowedPaths extension for packages/server-runtime/src/adapters/runtime/jobs.ts or a runtime-owned task to do the switch; deleting TS branches first would drop every family the Rust worker does not own."
+          "nextAction": "SCOPE SPLIT MEASURED (why the last deletion is not a one-file switch). Rust workflow-projection-worker owns only: task.*, routine.run, leave.* (except policy), overtime.* (except eligibility), people.payroll.* and PMS social events (src/composition/src/workflow_projection_worker.rs owned_predicate). The retained TS projector still performs these side-effect families, none of which has a native Rust owner drain: drainExecutiveGeneration, drainExpenseAi, drainFinanceAi, drainLegalAi, drainRequestAi, drainSocialAgent, and the sales customer-notification delivery (workflowCustomerNotificationId / deliverCustomerNotification), plus commitWorkflowProjection in server-work_projection. Deleting packages/server-workflow/src/adapters/job-projector.ts or switching packages/server-runtime/src/adapters/runtime/jobs.ts to the worker now would silently stop those families. Required order: (1) port each of the six side-effect owners to Rust (owner crates) with ProjectionSideEffects implementations, (2) extend owned_predicate, (3) switch jobs.ts (needs allowedPaths extension or a runtime-owned task), (4) delete TS branches/barrels and record the Workflow KPI pair. This task cannot close in one edit; it is a multi-owner program."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -107762,7 +107762,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:07:35.008Z",
+    "updatedAt": "2026-11-22T20:08:40.791Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
