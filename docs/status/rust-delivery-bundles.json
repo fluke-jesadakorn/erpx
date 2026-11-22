@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4710,
+    "revision": 4714,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:44:03.889Z",
-      "expiresAt": "2026-11-22T11:14:03.889Z",
+      "heartbeatAt": "2026-11-22T10:44:22.871Z",
+      "expiresAt": "2026-11-22T11:14:22.871Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T10:44:03.889Z",
-          "expiresAt": "2026-11-22T11:14:03.889Z",
+          "heartbeatAt": "2026-11-22T10:44:22.871Z",
+          "expiresAt": "2026-11-22T11:14:22.871Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17819,7 +17819,7 @@
         "workstream": "S13",
         "kind": "migration",
         "title": "Owner inbox destination/visibility port for every notification source",
-        "scope": "Add an owner-owned destination/visibility port for Inbox notification source types (calendar, crm_activity, finance/commerce/payroll/count/procurement, staff notifications legacy rows), wire it through PgInboxUnit, then switch the feature-apps inbox notifications read. Field rows stay native-Field-only.",
+        "scope": "Add an owner-owned destination/visibility port for Inbox notification source types (calendar, crm_activity, finance/commerce/payroll/count/procurement, staff notifications legacy rows), wire it through PgInboxUnit, then switch the feature-apps inbox notifications read. Field rows stay native-Field-only. Calendar sources live in server-work_projection (collaborationInboxSources: calendarAppointment/calendarRecipient, wired as owner0 in server-collaboration/src/adapters/inbox.ts); there is no server-calendar package. Calendar-first: native calendar visibility delegate bound through PgInboxTargets with PG proof.",
         "dependsOn": [
           "inventory.collaboration",
           "ports.common"
@@ -17830,7 +17830,8 @@
         "allowedPaths": [
           "packages/server-collaboration/src/**",
           "packages/server-collaboration/Cargo.toml",
-          "packages/server-calendar/src/**",
+          "packages/server-work_projection/src/adapters/collaboration-inbox-sources.ts",
+          "packages/server-work_projection/src/public/collaboration-inbox-sources.ts",
           "packages/server-crm/src/**",
           "packages/server-finance/src/**",
           "packages/server-commerce/src/**",
@@ -17841,15 +17842,22 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-d",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-22T10:45:28.036Z",
+          "heartbeatAt": "2026-11-22T10:45:28.036Z",
+          "expiresAt": "2026-11-22T11:15:28.036Z",
+          "generation": 150
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement or delegate each source type's visibility check as a native owner read and bind it through PgInboxTargets; calendar must be ported first (currently TS-only).",
+        "nextAction": "Refined: no server-calendar package exists; calendar inbox sources are work_projection-owned (collaborationInboxSources owner0 wiring). Worker-ready calendar-first slice: native calendar visibility delegate + PG proof; lead integrates (manifest + PG run + push).",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -106316,7 +106324,7 @@
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/"
         ],
         "baseSha": "d50ab9fe9592cc7354cf2b9a469fe037b0f55e85",
-        "blocker": null,
+        "blocker": "released with work preserved",
         "checks": [
           {
             "command": "cargo check -p erpx-service",
@@ -106403,14 +106411,7 @@
             "note": "Proved at 0a95a7f2 over real loopback HTTP: paywall both ways, ensure-on-read (auto-provisioned org-channel), org/member/team branches, RoomView parity, sender-excluded unread. Native files (composition wiring, messaging_native.rs) unchanged since; this commit touches only the TS route fallback."
           }
         ],
-        "claim": {
-          "runId": "run-20261122-d",
-          "agentId": "lead",
-          "claimedAt": "2026-11-22T10:34:07.313Z",
-          "heartbeatAt": "2026-11-22T10:44:03.889Z",
-          "expiresAt": "2026-11-22T11:14:03.889Z",
-          "generation": 150
-        },
+        "claim": null,
         "dependsOn": [],
         "deliverables": [
           "Purchase-gating parity decision implemented (native gate or explicit product exemption)",
@@ -106422,10 +106423,10 @@
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T10:20:33.525Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Wiring proved at 2d4d47e5. Next: native-in-dev availability, then route switch + deletion. Claim released."
+          "at": "2026-11-22T10:45:02.729Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
+          "nextAction": "Route cut integrated at d50ab9f (pushed, graph+tsc green, gateway proof on record). Presenter residual scoped: messagingWorkspace SSR consumers are workplace inbox/messages + inbox/teams _screen.tsx (outside this task paths) calling via presentation-queries (signature has no Request/headers; native needs HTTP). Blocked on environment: ERPX_NATIVE_COLLABORATION_CONFIG is set only by the isolated container bootstrap (dev-container-start.ts, linux/root only) — absent in this macOS shared-dev checkout by design. Next: run the presenter switch inside the container workspace (or widen task paths), then delete TS messagingOverview + record ts-statements delta."
         },
         "id": "retire.collaboration.messaging-overview-transport",
         "implementedCommit": null,
@@ -106454,7 +106455,7 @@
         ],
         "scope": "Transport cutover for messaging overview: native read_overview is now a functional superset (member/team/org branches, RoomView fields). The feature-apps messaging route still prefers native only when ERPX_NATIVE_COLLABORATION_CONFIG is set and falls back to TS messagingOverview, which additionally does (1) purchase gating returning empty+puchase when history unpurchased, (2) ensureOrganizationChannels provisioning side effect, (3) direct-room display-name decoration. None may be silently dropped. Unread sender-exclusion also still differs (TS excludes own messages) and needs consumer sign-off before alignment.",
         "scopeRefinementRequired": false,
-        "status": "integrating",
+        "status": "blocked",
         "title": "Cut messaging overview route to native-only",
         "workflowIds": [],
         "workstream": "S01"
@@ -106532,18 +106533,18 @@
       "totalPackets": 437,
       "migratedPackets": 321,
       "statusCounts": {
-        "pending": 15,
-        "in_progress": 0,
+        "pending": 14,
+        "in_progress": 1,
         "ready_for_integration": 1,
-        "integrating": 1,
+        "integrating": 0,
         "migrated": 321,
-        "blocked": 99,
+        "blocked": 100,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:44:03.891Z",
+    "updatedAt": "2026-11-22T10:45:28.037Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
