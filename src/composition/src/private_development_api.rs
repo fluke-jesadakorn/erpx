@@ -3272,6 +3272,15 @@ async fn assemble_checked(
         let mut work_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
         let mut executive_evidence_routers: Vec<Router> = Vec::new();
         let mut commercial_native_routers: Vec<Router> = Vec::new();
+        let mut ecommerce_native_routers: Vec<Router> = Vec::new();
+        let mut marketing_native_routers: Vec<Router> = Vec::new();
+        let mut marketing_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
+        let mut control_native_routers: Vec<Router> = Vec::new();
+        let mut admin_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
+        let mut manage_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
         // Private development assembly: scheduled predicates admit locally and
         // production rendering still fails closed because it is not enabled.
         let runtime_policy =
@@ -4101,6 +4110,84 @@ async fn assemble_checked(
                         )
                         .map_err(|_| "PRIVATE_API_EXECUTIVE_EVIDENCE_CONFIGURATION_INVALID")?,
                     );
+                    ecommerce_native_routers.push(
+                        crate::ecommerce_wave2::ecommerce_checkout_wave2_composed_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::ecommerce_wave2::CheckoutWave2Backend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )
+                        .map_err(|_| "PRIVATE_API_ECOMMERCE_WAVE2_CONFIGURATION_INVALID")?,
+                    );
+                    marketing_native_routers.push(
+                        crate::marketing_wave2_native::marketing_native_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::marketing_wave2_native::MarketingNativeBackend::new(
+                                    pools[i + 1].clone(),
+                                    pools[0].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_MARKETING_NATIVE_CONFIGURATION_INVALID")?,
+                    );
+                    marketing_company_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    marketing_native_routers.push(
+                        crate::marketing_wave2::marketing_wave2_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::marketing_wave2::MarketingWave2Backend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )
+                        .map_err(|_| "PRIVATE_API_MARKETING_WAVE2_CONFIGURATION_INVALID")?,
+                    );
+                    control_native_routers.push(
+                        crate::platform_administration_wave2::engineering_enrollment_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::platform_administration_wave2::EngineeringEnrollmentBackend::new(
+                                    pools[0].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
+                    );
+                    control_native_routers.push(
+                        crate::manage_erpx_wave2::email_delivery_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::manage_erpx_wave2::EmailDeliveryBackend::new(
+                                pools[0].clone(),
+                            )),
+                        )
+                        .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
+                    );
+                    admin_owner_targets.push((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        false,
+                    ));
+                    manage_owner_targets.push((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        false,
+                    ));
                     commercial_native_routers.push(
                         crate::commercial_wave2::commercial_grant_save_wave2_router(
                             holding.host.clone(),
@@ -6855,6 +6942,62 @@ async fn assemble_checked(
         }
         for commercial_router in commercial_native_routers {
             router = router.merge(commercial_router);
+        }
+        for ecommerce_router in ecommerce_native_routers {
+            router = router.merge(ecommerce_router);
+        }
+        for marketing_router in marketing_native_routers {
+            router = router.merge(marketing_router);
+        }
+        if !marketing_company_pools.is_empty() {
+            let marketing_companies: Vec<String> =
+                marketing_company_pools.keys().cloned().collect();
+            let marketing_backend = Arc::new(
+                crate::marketing_wave2_native::MarketingNativeBackend::new(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    pools[0].clone(),
+                    Arc::new(SharedClock(clock.clone())),
+                )
+                .with_companies(marketing_company_pools.clone()),
+            );
+            router = router.merge(
+                crate::marketing_wave2_native::marketing_native_company_router(
+                    marketing_companies,
+                    marketing_backend,
+                )
+                .map_err(|_| "PRIVATE_API_MARKETING_NATIVE_CONFIGURATION_INVALID")?,
+            );
+        }
+        for control_router in control_native_routers {
+            router = router.merge(control_router);
+        }
+        if !agent_pools.is_empty() {
+            let admin_owner_backend = Arc::new(
+                crate::platform_administration_wave2::PlatformAdministrationOwnerWriteBackend::new(
+                    agent_pools.clone(),
+                    pools[0].clone(),
+                ),
+            );
+            router = router.merge(
+                crate::platform_administration_wave2::platform_administration_owner_write_router(
+                    admin_owner_backend,
+                    admin_owner_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
+            );
+            let manage_owner_backend = Arc::new(
+                crate::manage_erpx_wave2::ManageErpxOwnerWriteBackend::new(
+                    agent_pools.clone(),
+                    pools[0].clone(),
+                ),
+            );
+            router = router.merge(
+                crate::manage_erpx_wave2::manage_erpx_owner_write_router(
+                    manage_owner_backend,
+                    manage_owner_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
+            );
         }
         if !inventory_company_pools.is_empty() {
             let inventory_companies: Vec<String> =

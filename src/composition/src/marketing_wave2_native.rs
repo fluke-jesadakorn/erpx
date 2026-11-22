@@ -126,6 +126,7 @@ async fn ledger(
 pub struct MarketingNativeBackend<C> {
     holding: DatabasePool,
     control: DatabasePool,
+    companies: std::collections::BTreeMap<String, DatabasePool>,
     clock: Arc<C>,
 }
 impl<C: Clock + Send + Sync + 'static> MarketingNativeBackend<C> {
@@ -133,8 +134,18 @@ impl<C: Clock + Send + Sync + 'static> MarketingNativeBackend<C> {
         Self {
             holding,
             control,
+            companies: std::collections::BTreeMap::new(),
             clock,
         }
+    }
+
+    /// Worker path: resolve the owner pool by the admitted Company header.
+    pub fn with_companies(
+        mut self,
+        companies: std::collections::BTreeMap<String, DatabasePool>,
+    ) -> Self {
+        self.companies = companies;
+        self
     }
 }
 
@@ -142,7 +153,11 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for MarketingNat
     fn execute<'a>(&'a self, request: NativeCommandHttpRequest<'a>) -> NativeCommandHttpFuture<'a> {
         Box::pin(async move {
             let caller = caller(request.headers)?;
-            let command: NativeCommand = request.command.clone();
+            let command = erpx_server_marketing::public::native_command::NativeCommand {
+                kind: request.command.kind.clone(),
+                values: request.command.values.clone(),
+                now: request.command.now,
+            };
             let key = request.key.to_owned();
             let kind = command.kind.clone();
             let now = if command.now > 0 {
@@ -154,8 +169,12 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for MarketingNat
             let pool = if scope == "control" {
                 self.control.clone()
             } else {
-                self.holding.clone()
+                self.companies
+                    .get(&caller.company_id)
+                    .cloned()
+                    .unwrap_or_else(|| self.holding.clone())
             };
+            let company_label = caller.company_id.clone();
             let write_command = command.clone();
             let write_key = key.clone();
             let (rows, result) = PgUnitOfWork::new(pool)
@@ -179,7 +198,7 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for MarketingNat
                 .await
                 .map_err(business)?;
             let _ = rows;
-            Ok(json!({"data": result, "context": {"companyId": caller.company_id}}))
+            Ok(json!({"data": result, "context": {"companyId": company_label}}))
         })
     }
 }

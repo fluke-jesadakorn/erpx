@@ -74,6 +74,7 @@ impl<C: Clock + Send + Sync + 'static> EngineeringEnrollmentHttpBackend
             let control = self.control.clone();
             let data = PgUnitOfWork::new(control)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let input = input.clone();
                     Box::pin(async move {
                         let mut repository = PgEngineeringEnrollment::new(&mut *connection);
                         enroll_engineering_verification(&mut repository, &input, now).await
@@ -145,6 +146,11 @@ impl OwnerWriteHttpBackend for PlatformAdministrationOwnerWriteBackend {
                 .to_owned();
             PgUnitOfWork::new(pool)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let kind = kind.clone();
+                    let values = values.clone();
+                    let company = company.clone();
+                    let actor = actor.clone();
+                    let key = key.clone();
                     Box::pin(async move {
                         let mut repository = PgOwnerWrite::new(&mut *connection);
                         let command = erpx_server_platform_administration::public::owner_write::OwnerWriteCommand {

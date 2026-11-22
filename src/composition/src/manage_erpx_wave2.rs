@@ -65,6 +65,7 @@ impl EmailDeliveryHttpBackend for EmailDeliveryBackend {
             let control = self.control.clone();
             let data = PgUnitOfWork::new(control)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let input = input.clone();
                     Box::pin(async move {
                         let mut repository = PgEmailDelivery::new(&mut *connection);
                         reserve_email_delivery(&mut repository, &input).await
@@ -136,6 +137,11 @@ impl OwnerWriteHttpBackend for ManageErpxOwnerWriteBackend {
                 .to_owned();
             PgUnitOfWork::new(pool)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let kind = kind.clone();
+                    let values = values.clone();
+                    let company = company.clone();
+                    let actor = actor.clone();
+                    let key = key.clone();
                     Box::pin(async move {
                         let mut repository = PgOwnerWrite::new(&mut *connection);
                         let command = erpx_server_manage_erpx::public::owner_write::OwnerWriteCommand {
