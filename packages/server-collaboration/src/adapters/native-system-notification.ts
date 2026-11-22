@@ -50,11 +50,19 @@ export async function nativeSystemNotificationStatement(
     'idempotency-key': key,
     'x-erpx-context-company': companyId,
   });
+  // The native input is camelCase with deny_unknown_fields; the retained
+  // TypeScript callers still carry a few snake_case keys (values_json, ...).
+  const payload = Object.fromEntries(
+    Object.entries({ ...input, companyId, now, idempotencyKey: key }).map(([name, value]) => [
+      name.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()),
+      value,
+    ]),
+  );
   let response: Response;
   try {
     response = await fetch(
       `${config.privateBaseUrl}/api/v1/companies/${encodeURIComponent(companyId)}/collaboration/notification-statement`,
-      { method: 'POST', headers, body: JSON.stringify({ ...input, companyId, now, idempotencyKey: key }), cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+      { method: 'POST', headers, body: JSON.stringify(payload), cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
     );
   } catch {
     throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');

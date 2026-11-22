@@ -31,6 +31,10 @@ struct AppState {
     targets: BTreeMap<(String, String), StatementTarget>,
     company_targets: BTreeMap<String, StatementTarget>,
     holding_targets: BTreeMap<String, StatementTarget>,
+    /// A single-target system deployment can serve any dynamic Company id; the
+    /// statement backend reads the real company from the request body. Multiple
+    /// targets stay fail-closed.
+    default_company: Option<StatementTarget>,
 }
 fn malformed() -> BusinessError {
     BusinessError::invalid(
@@ -120,6 +124,7 @@ async fn system_statement(
         let t = state
             .company_targets
             .get(&company_id)
+            .or(state.default_company.as_ref())
             .ok_or_else(|| BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
         let headers = request.headers().clone();
         let bytes = to_bytes(request.into_body(), BODY_LIMIT)
@@ -157,6 +162,11 @@ pub fn system_notification_statement_router(
             ));
         }
     }
+    let default_company = if company_targets.len() == 1 {
+        company_targets.values().next().cloned()
+    } else {
+        None
+    };
     Ok(Router::new()
         .route(
             "/api/v1/companies/{company_id}/collaboration/notification-statement",
@@ -166,6 +176,7 @@ pub fn system_notification_statement_router(
             targets: BTreeMap::new(),
             company_targets,
             holding_targets: BTreeMap::new(),
+            default_company,
         })))
 }
 
@@ -221,6 +232,7 @@ pub fn holding_notification_statement_router(
             targets: BTreeMap::new(),
             company_targets: BTreeMap::new(),
             holding_targets,
+            default_company: None,
         })))
 }
 
@@ -251,6 +263,7 @@ pub fn notification_statement_router(
             targets: configured,
             company_targets: BTreeMap::new(),
             holding_targets: BTreeMap::new(),
+            default_company: None,
         })))
 }
 // keep imports used
