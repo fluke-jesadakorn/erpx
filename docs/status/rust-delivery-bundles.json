@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4575,
+    "revision": 4581,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261122-a",
+      "runId": "run-20261122-b",
       "agentId": "lead",
-      "startedAt": "2026-11-21T18:03:20.314Z",
-      "heartbeatAt": "2026-11-21T19:12:54.048Z",
-      "expiresAt": "2026-11-21T19:42:54.048Z",
-      "generation": 147,
-      "tokenHash": "b839811dedd5a1067eeaa3bb407b84573c3a3c5b15b0f538e49cc9049c07bbc0"
+      "startedAt": "2026-11-22T00:39:04.712Z",
+      "heartbeatAt": "2026-11-22T00:50:49.096Z",
+      "expiresAt": "2026-11-22T01:20:49.096Z",
+      "generation": 148,
+      "tokenHash": "53f99330ca633cb8d55de3c77ac4345c8abee50394b34581389207750597c4f9"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -25415,15 +25415,8 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T18:51:45.673Z",
-          "heartbeatAt": "2026-11-21T19:12:54.048Z",
-          "expiresAt": "2026-11-21T19:42:54.048Z",
-          "generation": 147
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": "17363f280c8d92ea6f429111ad4d21c710f4d924",
         "lastPushedSha": "17363f280c8d92ea6f429111ad4d21c710f4d924",
@@ -25513,15 +25506,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
         "nextAction": "Kind registry tested (arity 3). Next: e2e bump via native service on same DB; then attachment version-bump ports + billing-test sandbox classification.",
         "handoff": {
-          "runId": "run-20261113-b",
-          "agentId": "worker-commerce-retire",
-          "at": "2026-11-12T20:32:47.343Z",
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-22T00:39:04.712Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead: split the remaining 21 adapter/commerce.ts writes plus 30 other Commerce writes into command-level retire packets (save/return/invoice/settlement) with native counterparts."
+          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+          "nextAction": "Kind registry tested (arity 3). Next: e2e bump via native service on same DB; then attachment version-bump ports + billing-test sandbox classification."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -25715,15 +25708,8 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T18:58:22.273Z",
-          "heartbeatAt": "2026-11-21T19:12:54.048Z",
-          "expiresAt": "2026-11-21T19:42:54.048Z",
-          "generation": 147
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -25736,15 +25722,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
         "nextAction": "Build 4 native Files methods (attach_upload_source_to_draft_link, bind_draft_link, expire_legacy_attachment_drafts, expire_unused_social_*_uploads) then switch callers in service.ts:424/643, cleanupAttachmentDrafts, savePostDraft/postAction; keep link.expired/set.expired events.",
         "handoff": {
-          "runId": "run-20261113-f",
+          "runId": "run-20261122-a",
           "agentId": "lead",
-          "at": "2026-11-13T01:54:17.066Z",
-          "previousStatus": "blocked",
-          "reason": "released with work preserved",
-          "nextAction": "Audited the 15 residual Files TS files at 5f1d2d5e5: every one still has a live importer (support-ticket-portal-files via Support customer portal reads, private-attachment-reads via Finance attachment reads, customer-portal-files via customer_authority/customer_360 portals, pos-images-facts via POS images, beta-resource-cleanup via manage_erpx cleanup, document-derivatives via the workplace derivatives route + agent test, orphan-preservation via migration/application, migration/legal/collaboration/expense files via their owners). No file is safe to delete inside the Files-only path set; removal requires the native producer for the consuming owner and the consumer switch. service-repository.ts 55 is the generic engine blocked on the remaining non-field/non-support native producer. Resume after migrate.files.support-attachment-mount and the generic owner expansions."
+          "at": "2026-11-22T00:39:04.712Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+          "nextAction": "Build 4 native Files methods (attach_upload_source_to_draft_link, bind_draft_link, expire_legacy_attachment_drafts, expire_unused_social_*_uploads) then switch callers in service.ts:424/643, cleanupAttachmentDrafts, savePostDraft/postAction; keep link.expired/set.expired events."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -27911,19 +27897,12 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "in_progress",
+        "status": "blocked",
         "nextAction": "Account name + invitation supersede routed (broad 7->5). Directory revoke trio verified NO exact native match (assignment-revoke needs company_id/assignments-only; role-update targets iam_roles; membership-revoke targets directory sources) - needs bounded native port, not one-line swap. Next: system-evidence generic port or files/commerce residuals.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell.",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T18:16:43.955Z",
-          "heartbeatAt": "2026-11-21T19:12:54.048Z",
-          "expiresAt": "2026-11-21T19:42:54.048Z",
-          "generation": 147
-        },
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
         "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
@@ -28157,14 +28136,14 @@
             "removalCondition": "Mount the native PeopleRelationshipsHttpBackend in composition, register the Holding route, add the TS transport client and switch peopleRelationshipsSnapshot/previewPeopleRelationships/applyPeopleRelationships, then delete the 18 TS statements and exports."
           }
         ],
-        "blocker": null,
+        "blocker": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
         "handoff": {
-          "runId": "run-20261114-a",
-          "agentId": "worker-iam-retire",
-          "at": "2026-11-14T03:43:30.808Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Previous run-20261114-a expired; WIP reviewed, no active processes",
-          "nextAction": "Native emergency access and dead writers retired (IAM 118 -> 110). Remaining 110 blocked on IAM migrations, GPO rules, account recovery, iam-api branches, product SSO, people lifecycle, technology/provisioning, preferences and cross-owner fact adapters; composition mounts still needed."
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-22T00:39:04.712Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+          "nextAction": "Account name + invitation supersede routed (broad 7->5). Directory revoke trio verified NO exact native match (assignment-revoke needs company_id/assignments-only; role-update targets iam_roles; membership-revoke targets directory sources) - needs bounded native port, not one-line swap. Next: system-evidence generic port or files/commerce residuals."
         }
       },
       {
@@ -43816,12 +43795,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261122-a",
+          "runId": "run-20261122-b",
           "agentId": "lead",
-          "claimedAt": "2026-11-21T18:24:36.188Z",
-          "heartbeatAt": "2026-11-21T19:12:54.048Z",
-          "expiresAt": "2026-11-21T19:42:54.048Z",
-          "generation": 147
+          "claimedAt": "2026-11-22T00:51:11.538Z",
+          "heartbeatAt": "2026-11-22T00:51:11.538Z",
+          "expiresAt": "2026-11-22T01:21:11.538Z",
+          "generation": 148
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
@@ -43832,12 +43811,25 @@
             "result": "passed",
             "sourceSha": "40a1e90add90d521eaf2b15395898d259cd66329",
             "note": "Static parity: handbook.ts PARITY_OK vs native handbook.rs (list/editor/article/revision/history all match; native consumer native-handbook-page.ts exists). messaging/inbox/social-stories/web-push GAP with exact missing fields recorded. No edits; verification only."
+          },
+          {
+            "command": "audit:roomview-parity-design",
+            "result": "passed",
+            "sourceSha": "f957d897f3d05dfca1561758d18a73d64ada6064",
+            "note": "Native RoomView lacks preview (body/Attachment 160 chars), updated_at (COALESCE latest msg, room created_at), team_id, private; unread semantic differs (TS excludes own messages). organization_node_id is application-attached (optional) - out of native scope. Extension: 4 columns + 2 subselects in read_overview; verify no existing native-overview consumers depend on current unread before changing it."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Handbook read parity OK but NOT cutover-ready: 3 live TS consumers remain (presentation-queries.ts x4, staff-notifications.ts dynamic import, agent workspace-assistant.ts) - switch them to nativeHandbookReads first, then delete handbook.ts (7 SELECT). Other 4 families need native extensions (RoomView preview/updated_at, inbox 7 reads, social stories, web-push read unit).",
-        "handoff": null,
+        "nextAction": "Extend native RoomView with team_id/private/preview/updated_at (exact subselects recorded); confirm no consumer depends on current unread semantics; then switch rooms() + delete TS site.",
+        "handoff": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-22T00:39:04.712Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+          "nextAction": "Handbook read parity OK but NOT cutover-ready: 3 live TS consumers remain (presentation-queries.ts x4, staff-notifications.ts dynamic import, agent workspace-assistant.ts) - switch them to nativeHandbookReads first, then delete handbook.ts (7 SELECT). Other 4 families need native extensions (RoomView preview/updated_at, inbox 7 reads, social stories, web-push read unit)."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -51533,15 +51525,8 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T18:20:06.492Z",
-          "heartbeatAt": "2026-11-21T19:12:54.048Z",
-          "expiresAt": "2026-11-21T19:42:54.048Z",
-          "generation": 147
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -51560,9 +51545,16 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
         "nextAction": "BLOCKED on DB: 5432 ECONNREFUSED, no psql here. When DB available: migrate people-roster.test.ts:364 exit step to native roster_position_exit staging, run rust + pg suites, then delete roster-exit-fixture.ts.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-22T00:39:04.712Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+          "nextAction": "BLOCKED on DB: 5432 ECONNREFUSED, no psql here. When DB available: migrate people-roster.test.ts:364 exit step to native roster_position_exit staging, run rust + pg suites, then delete roster-exit-fixture.ts."
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -105677,15 +105669,8 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-a",
-          "agentId": "lead",
-          "claimedAt": "2026-11-21T19:03:11.471Z",
-          "heartbeatAt": "2026-11-21T19:12:54.048Z",
-          "expiresAt": "2026-11-21T19:42:54.048Z",
-          "generation": 147
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -105704,8 +105689,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+        "handoff": {
+          "runId": "run-20261122-a",
+          "agentId": "lead",
+          "at": "2026-11-22T00:39:04.712Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+          "nextAction": "Binary ready. Next: write --test-config (1-3 holdings, loopback, leased erpx_dev_rust_* DBs), seed holdings/Company/session+pms rows, boot private-api, curl refund-context route, then switch retryBookingRefund line 421 caller and delete TS site."
+        },
         "nextAction": "Binary ready. Next: write --test-config (1-3 holdings, loopback, leased erpx_dev_rust_* DBs), seed holdings/Company/session+pms rows, boot private-api, curl refund-context route, then switch retryBookingRefund line 421 caller and delete TS site.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -105721,17 +105713,17 @@
       "migratedPackets": 318,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 6,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 318,
-        "blocked": 87,
+        "blocked": 92,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 147,
-    "updatedAt": "2026-11-21T19:12:54.049Z",
+    "lastCoordinatorGeneration": 148,
+    "updatedAt": "2026-11-22T00:51:11.604Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -105766,10 +105758,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261121-g",
-      "runId": "run-20261122-a",
-      "at": "2026-11-21T18:03:20.316Z",
-      "reason": "Previous run-20261121-g expired 17:19Z Nov21; no live coordinator process, no ledger lock, WIP reviewed: HEAD f8ad7e5c1 clean with junk .ts + 7 ready read slices needing lead integration",
+      "previousRunId": "run-20261122-a",
+      "runId": "run-20261122-b",
+      "at": "2026-11-22T00:39:04.713Z",
+      "reason": "Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
       "wipReviewed": true,
       "previousRunStopped": true
     },
