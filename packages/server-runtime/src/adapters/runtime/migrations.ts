@@ -1,10 +1,20 @@
-import { nativeRuntimeExecuteSystem } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
 import { runtimeResourcePath } from "@erpx/server-runtime/adapters/runtime/resources";
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import type { PoolClient } from 'pg';
+
+// The receipt insert is owned by the Rust crate (runtime_stmt_22) and mirrored
+// by runtime-migrations-sql.json; the test in native_command_sql.rs keeps the
+// two identical. It must run on the caller's connection inside the same
+// transaction as the DDL, not over the HTTP command ingress: the ingress may
+// point at a different database that has no ledger tables.
+const { migrations_insert: migrationReceiptSql } = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../runtime-migrations-sql.json'), 'utf8'),
+) as { migrations_insert: string };
 
 export type MigrationStatus = {
   track: 'control' | 'control-read' | 'holding-write' | 'holding-read';
@@ -87,7 +97,7 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
         continue;
       }
       await client.query('BEGIN');
-      try { await client.query(sql); await nativeRuntimeExecuteSystem('', 'runtime_stmt_22', [name, checksum], `migration-${name}-${checksum}`); await client.query('COMMIT'); }
+      try { await client.query(sql); await client.query(migrationReceiptSql, [name, checksum]); await client.query('COMMIT'); }
       catch (error) { await client.query('ROLLBACK'); throw error; }
     }
     await refreshCoverage(client, track);

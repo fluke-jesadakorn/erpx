@@ -182,6 +182,16 @@ mod tests {
             assert_eq!(max, s.bind_count, "{}", s.kind);
         }
     }
+
+    #[test]
+    fn migration_receipt_contract_matches_owned_statement() {
+        let contract: serde_json::Value =
+            serde_json::from_str(include_str!("../runtime-migrations-sql.json")).expect("contract json");
+        assert_eq!(
+            contract.get("migrations_insert").and_then(|value| value.as_str()),
+            statement("runtime_stmt_22").map(|s| s.sql),
+        );
+    }
 }
 
 /// Kinds whose SQL is rendered at runtime by a composition port rather than
