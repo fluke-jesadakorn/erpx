@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5122,
+    "revision": 5128,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:39:06.703Z",
-      "expiresAt": "2026-11-22T21:09:06.703Z",
+      "heartbeatAt": "2026-11-22T20:40:18.781Z",
+      "expiresAt": "2026-11-22T21:10:18.781Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,9 +17230,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T20:39:03.320Z",
-          "heartbeatAt": "2026-11-22T20:39:06.703Z",
-          "expiresAt": "2026-11-22T21:09:06.703Z",
+          "claimedAt": "2026-11-22T20:40:27.813Z",
+          "heartbeatAt": "2026-11-22T20:40:27.813Z",
+          "expiresAt": "2026-11-22T21:10:27.813Z",
           "generation": 150
         },
         "baseSha": "ecf0f5ae49f08e847146d947172fef51c4221202",
@@ -17350,7 +17350,7 @@
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:31:57.204Z",
+          "at": "2026-11-22T20:40:27.521Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
           "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done."
@@ -27175,7 +27175,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "52bf145de408c64224d1e15fba5fcc3336bf2145",
+        "baseSha": "764d0f1f39d562432bf74a10e6ce2ed96ec57b3d",
         "implementedCommit": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
         "lastPushedSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
         "checks": [
@@ -27306,14 +27306,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "PROGRESS AT 77b57db7+/current HEAD (still blocked by real parity, not KPI). (1) Owner KPI is 0: 31 -> 0 literal and 0 alias; the commerce-stock-owner-effects TS writer is gone (now a native statement descriptor). (2) Fixed a stale oracle that broke the owner suite: tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs imported commerce-facts.ts through Node to capture the legacy SQL, but the function now returns a native descriptor and Node 26 strip-only rejects server-runtime http.ts parameter properties. Replaced it with a native-seeded behaviour test (6 kind/state cases, 3/3 target tests pass). (3) Remaining REAL parity blockers unchanged: TS receipt hash used Zod-normalized ordered input while the native private ingress hashes raw input; legacy TS receipt replay and pre-fix native journalId:null receipt are untested; native replay does not revalidate the retained Commerce/Finance receipt/journal source as TS landed-costs-purchases did. (4) tests/unit/inventory/rust-stock-receipt.test.rs also fails with GUARD_CHANGED because its oracle reads the removed TS guard string in server-commerce/application/commerce.ts - that file is outside this task allowedPaths. Next: canonicalize the native receipt hash, add replay/legacy receipt cases, and refresh or retire the stock-receipt oracle (needs tests/unit/inventory path).",
+        "nextAction": "HASH/REPLAY PARITY ANALYSED (not a one-line fix). Identity today: the client mints the command key in packages/feature-inventory/src/adapters/server/native-inventory-command.ts keyFor(kind, values) = sha256(kind + JSON.stringify(values)) over the RAW values array, while the retained TS landed-cost boundary (landed-cost-purchases.ts withLandedCostPurchasedCommand) derives its key from Zod-normalized ordered input and additionally re-reads command_receipts for replay and revalidates the retained Commerce receipt + Finance journal source before writing. Fixing parity needs: (1) a per-kind canonical serializer emitting the same ordered normalized payload as the Zod schema, (2) migration/compatibility for existing landed-cost receipt keys so replay of pre-fix commands still matches, (3) native replay revalidation of receipt/journal witnesses. This spans feature-inventory + server-inventory + commerce/finance witnesses; a blind canonicalize would orphan existing receipts. Blocked pending that design decision. Still failing outside allowedPaths: tests/unit/inventory/rust-stock-receipt.test.rs GUARD_CHANGED (reads a removed TS guard string).",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:39:03.256Z",
+          "at": "2026-11-22T20:40:27.749Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "PROGRESS AT 77b57db7+/current HEAD (still blocked by real parity, not KPI). (1) Owner KPI is 0: 31 -> 0 literal and 0 alias; the commerce-stock-owner-effects TS writer is gone (now a native statement descriptor). (2) Fixed a stale oracle that broke the owner suite: tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs imported commerce-facts.ts through Node to capture the legacy SQL, but the function now returns a native descriptor and Node 26 strip-only rejects server-runtime http.ts parameter properties. Replaced it with a native-seeded behaviour test (6 kind/state cases, 3/3 target tests pass). (3) Remaining REAL parity blockers unchanged: TS receipt hash used Zod-normalized ordered input while the native private ingress hashes raw input; legacy TS receipt replay and pre-fix native journalId:null receipt are untested; native replay does not revalidate the retained Commerce/Finance receipt/journal source as TS landed-costs-purchases did. (4) tests/unit/inventory/rust-stock-receipt.test.rs also fails with GUARD_CHANGED because its oracle reads the removed TS guard string in server-commerce/application/commerce.ts - that file is outside this task allowedPaths. Next: canonicalize the native receipt hash, add replay/legacy receipt cases, and refresh or retire the stock-receipt oracle (needs tests/unit/inventory path)."
+          "nextAction": "HASH/REPLAY PARITY ANALYSED (not a one-line fix). Identity today: the client mints the command key in packages/feature-inventory/src/adapters/server/native-inventory-command.ts keyFor(kind, values) = sha256(kind + JSON.stringify(values)) over the RAW values array, while the retained TS landed-cost boundary (landed-cost-purchases.ts withLandedCostPurchasedCommand) derives its key from Zod-normalized ordered input and additionally re-reads command_receipts for replay and revalidates the retained Commerce receipt + Finance journal source before writing. Fixing parity needs: (1) a per-kind canonical serializer emitting the same ordered normalized payload as the Zod schema, (2) migration/compatibility for existing landed-cost receipt keys so replay of pre-fix commands still matches, (3) native replay revalidation of receipt/journal witnesses. This spans feature-inventory + server-inventory + commerce/finance witnesses; a blind canonicalize would orphan existing receipts. Blocked pending that design decision. Still failing outside allowedPaths: tests/unit/inventory/rust-stock-receipt.test.rs GUARD_CHANGED (reads a removed TS guard string)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -107935,7 +107935,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:39:06.704Z",
+    "updatedAt": "2026-11-22T20:40:27.815Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
