@@ -9,6 +9,7 @@ import {
   supplierInvoicePolicy,
   supplierInvoicePolicySchema,
 } from "@erpx/server-procurement/public/supplier-bill-matching";
+import {ownedSaveSupplierBillPolicy} from "@erpx/feature-procurement/public/native-supplier-bill-command-owned";
 
 type Context = { params: Promise<{ holdingSlug: string }> };
 
@@ -33,8 +34,9 @@ export async function POST(request: Request, context: Context) {
     if (!key)
       throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Idempotency-Key is required.");
     const actor = await requireWorkContext((await context.params).holdingSlug);
+    const holdingSlug = (await context.params).holdingSlug;
     const input = supplierInvoicePolicySchema.parse(await request.json());
-    return Response.json(canonicalDestinationLinks({ data: await saveSupplierInvoicePolicy(actor, input, key) }));
+    return Response.json(canonicalDestinationLinks({ data: (await ownedSaveSupplierBillPolicy(actor, holdingSlug, input, key)) ?? await saveSupplierInvoicePolicy(actor, input, key) }));
   } catch (error) {
     if (error instanceof z.ZodError)
       return errorResponse(new ApiError(422, "VALIDATION_FAILED", error.issues[0]?.message ?? "Invalid input."));
