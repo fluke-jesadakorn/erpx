@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4705,
+    "revision": 4707,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:41:02.600Z",
-      "expiresAt": "2026-11-22T11:11:02.600Z",
+      "heartbeatAt": "2026-11-22T10:41:21.187Z",
+      "expiresAt": "2026-11-22T11:11:21.187Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T10:41:02.600Z",
-          "expiresAt": "2026-11-22T11:11:02.600Z",
+          "heartbeatAt": "2026-11-22T10:41:21.187Z",
+          "expiresAt": "2026-11-22T11:11:21.187Z",
           "generation": 150
         },
-        "baseSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
+        "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17281,11 +17281,29 @@
             "result": "passed",
             "sourceSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
             "note": "Raw write-SQL in TS (INSERT/DELETE/UPDATE incl. aliases/dynamic): 0. Remaining TS business execution surface: 136 .ts files calling executeCommand (unchanged; per-family native ports still required)."
+          },
+          {
+            "command": "architecture:check (fresh, pushed candidate)",
+            "result": "failed",
+            "sourceSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
+            "note": "Red, all pre-existing: 193 module-private-import + 161 owner-private-import + 4 core-dependency-direction + 1 entrypoint-sql + 1 presentation-runtime-composition + 1 core-runtime-facade + 1 core-global-environment (+1 structure note). Zero violations reference this run's slices (route cut, unread parity, ensure wiring, finance orphan deletion); flagged native-refund-notification/commerce.ts imports date to ac1830c67/43ffc6a62."
+          },
+          {
+            "command": "structure:check (fresh, pushed candidate)",
+            "result": "passed",
+            "sourceSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
+            "note": "Repository layout passed: test lanes/owners, providers and support categories."
+          },
+          {
+            "command": "availability:health sweep (end-of-work)",
+            "result": "failed",
+            "sourceSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
+            "note": "dev :3100 alive but /api/health 503 (degraded baseline); console-dev /api/health 530 (no ERPX tunnel in this checkout); private :3101 unreachable (not restarted: production service, out of scope to touch); public acme + console-dev 530 (no tunnel). No staging touched."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Combined gates on pushed candidate recorded: tsc/structure/cargo-check/graph green; architecture:check red pre-existing (195, none in recent slices, needs owner triage); KPI raw-SQL 0, executeCommand surface 136. Next: per-family native ports; provisioning needs org owner.",
+        "nextAction": "Fresh gates on 07b93cc3d recorded: structure green; architecture red pre-existing (none from this run slices); availability swept (dev 503, tunnel-dependent hosts 530, :3101 untouched). Next: per-family native ports; presenter switch needs container workspace.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -106389,8 +106407,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:34:07.313Z",
-          "heartbeatAt": "2026-11-22T10:41:02.600Z",
-          "expiresAt": "2026-11-22T11:11:02.600Z",
+          "heartbeatAt": "2026-11-22T10:41:21.187Z",
+          "expiresAt": "2026-11-22T11:11:21.187Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -106525,7 +106543,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:41:02.601Z",
+    "updatedAt": "2026-11-22T10:42:29.256Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
