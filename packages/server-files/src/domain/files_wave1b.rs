@@ -193,6 +193,8 @@ const SQL_MIG_024: &str = "INSERT INTO attachment_storage_ledger(id,company_id,a
 
 
 /// Social-draft revoke writers (were the last 3 Files owner TS writes).
+pub const SF_EXPIRE_DRAFT_UPLOADS: &str = "SF_EXPIRE_DRAFT_UPLOADS";
+const SQL_SF_EXPIRE_DRAFT_UPLOADS: &str = "UPDATE upload_intents u SET status='expired',updated_at=$1 WHERE u.owner_type='social_draft' AND u.owner_id=$2 AND u.status='ready' AND NOT EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND a.revoked_at IS NULL)"; // binds=2
 pub const SF_REVOKE_DRAFT: &str = "SF_REVOKE_DRAFT";
 const SQL_SF_REVOKE_DRAFT: &str = "UPDATE attachments SET revoked_at=$1 WHERE owner_type='social_draft' AND owner_id=$2 AND revoked_at IS NULL AND NOT (id = ANY(ARRAY(SELECT jsonb_array_elements_text($3::jsonb))))";
 pub const SF_REVOKE_POST: &str = "SF_REVOKE_POST";
@@ -392,6 +394,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     ORPH_002 => SQL_ORPH_002,
     ORPH_003 => SQL_ORPH_003,
     SF_REVOKE_DRAFT => SQL_SF_REVOKE_DRAFT,
+    SF_EXPIRE_DRAFT_UPLOADS => SQL_SF_EXPIRE_DRAFT_UPLOADS,
     SF_REVOKE_POST => SQL_SF_REVOKE_POST,
     SF_REVOKE_COMMENT => SQL_SF_REVOKE_COMMENT,
     MIG_023 => SQL_MIG_023,

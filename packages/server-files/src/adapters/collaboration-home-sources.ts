@@ -6,8 +6,7 @@ export function collaborationHomeSources(db: SqlDatabase) {
     return { revokeUnusedDraftFiles(now: number, recordId: string, keptAttachmentIds: string[]) {
             return nativeWrite('SF_REVOKE_DRAFT', [now, recordId, JSON.stringify(keptAttachmentIds)]);
         }, expireUnusedDraftUploads(now: number, recordId: string) {
-            return db.prepare("UPDATE upload_intents u SET status='expired',updated_at=? WHERE u.owner_type='social_draft' AND u.owner_id=? AND u.status='ready' AND NOT EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND a.revoked_at IS NULL)")
-                .bind(now, recordId);
+            return nativeWrite('SF_EXPIRE_DRAFT_UPLOADS', [now, recordId]);
         }, async publishImages(ids: string[], id: string, companyId: string) {
             return db.prepare(`SELECT a.id FROM attachments a JOIN upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id
       WHERE a.id IN (${ids.map(() => "?").join(",")}) AND a.owner_type='social_draft' AND a.owner_id=? AND d.company_id=? AND a.revoked_at IS NULL
