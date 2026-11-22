@@ -1,12 +1,15 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
-    InboxTargetPort, InboxTargetVisibility, calendar_appointment_href, commerce_order_capability,
-    commerce_order_href, crm_activity_href, crm_lead_href, encode_uri_component,
-    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
-    is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
-    is_finance_inbox_target, is_owned_inbox_target, retained_inbox_destination, source_record_label,
+    InboxTargetPort, InboxTargetVisibility, PayrollInboxTargets, calendar_appointment_href,
+    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
+    encode_uri_component, finance_document_capability, finance_invoice_href, finance_journal_href,
+    finance_refund_href, is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
+    is_finance_inbox_target, is_owned_inbox_target, is_payroll_inbox_target,
+    payroll_advance_href, payroll_correction_href, retained_inbox_destination, source_record_label,
+    uses_enforced_layer,
 };
+use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
 const ID: &str = "seg/one two";
 const ENCODED: &str = "seg%2Fone%20two";
@@ -434,4 +437,68 @@ fn finance_document_capability_table_matches_the_retained_bases() {
     assert_eq!(finance_document_capability("supplier_batch"), None);
     assert_eq!(finance_document_capability("payment"), None);
     assert_eq!(finance_document_capability(""), None);
+}
+
+#[test]
+fn payroll_slice_routes_to_the_native_delegate() {
+    assert!(is_payroll_inbox_target("payroll_correction"));
+    assert!(is_payroll_inbox_target("payroll_advance"));
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "crm_activity",
+        "commerce_order",
+        "invoice",
+        "refund",
+        "supplier_batch",
+        "support_ticket",
+        "payroll",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_payroll_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the payroll sources.
+    assert!(!is_calendar_inbox_target("payroll_correction"));
+    assert!(!is_crm_inbox_target("payroll_advance"));
+    assert!(!is_commerce_inbox_target("payroll_correction"));
+    assert!(!is_finance_inbox_target("payroll_advance"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&PayrollInboxTargets::new(None, None));
+    assert_inbox_target_port(&PayrollInboxTargets::default());
+    assert_inbox_target_port(
+        &PayrollInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn payroll_hrefs_encode_both_segments_exactly_like_the_typescript_projection() {
+    assert_eq!(
+        payroll_correction_href(ID, "cor-1"),
+        "/people/payroll/runs/seg%2Fone%20two#correction-cor-1"
+    );
+    assert_eq!(
+        payroll_correction_href("run-1", ID),
+        "/people/payroll/runs/run-1#correction-seg%2Fone%20two"
+    );
+    assert_eq!(
+        payroll_advance_href(ID),
+        "/people/payroll/advances#payroll-advance-seg%2Fone%20two"
+    );
+    assert_eq!(
+        payroll_advance_href("adv-1"),
+        "/people/payroll/advances#payroll-advance-adv-1"
+    );
+    assert_eq!(source_record_label("payroll_correction"), "Payroll correction");
+    assert_eq!(source_record_label("payroll_advance"), "Payroll advance");
+}
+
+#[test]
+fn payroll_layer_selection_follows_the_enforced_mode_check() {
+    assert!(uses_enforced_layer(PackageEnforcementMode::Enforced));
+    assert!(!uses_enforced_layer(PackageEnforcementMode::Disabled));
+    assert!(!uses_enforced_layer(PackageEnforcementMode::Shadow));
 }

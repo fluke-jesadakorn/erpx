@@ -28,3 +28,7 @@ pub use crate::adapters::inbox_finance::{
     FinanceInboxTargets, finance_document_capability, finance_invoice_href, finance_journal_href,
     finance_refund_href, is_finance_inbox_target,
 };
+pub use crate::adapters::inbox_payroll::{
+    PayrollInboxTargets, is_payroll_inbox_target, payroll_advance_href, payroll_correction_href,
+    uses_enforced_layer,
+};

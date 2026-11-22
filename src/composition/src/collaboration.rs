@@ -1975,7 +1975,7 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
         use erpx_server_collaboration::public::inbox::{
             CalendarInboxTargets, ChainedInboxTargets, CommerceInboxTargets, CrmInboxTargets,
             FinanceInboxTargets, InboxHttpReadReply, InboxNotificationQuery, InboxReadKind,
-            PgInboxTargets, PgInboxUnit,
+            PayrollInboxTargets, PgInboxTargets, PgInboxUnit,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -2036,6 +2036,13 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                                 ),
                                 Box::new(
                                     FinanceInboxTargets::new(
+                                        workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                        workspace.department_id.as_ref().map(|id| id.as_str()),
+                                    )
+                                    .assignment(Some(selected.assignment().id.as_str())),
+                                ),
+                                Box::new(
+                                    PayrollInboxTargets::new(
                                         workspace.branch_id.as_ref().map(|id| id.as_str()),
                                         workspace.department_id.as_ref().map(|id| id.as_str()),
                                     )
