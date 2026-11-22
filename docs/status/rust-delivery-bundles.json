@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5051,
+    "revision": 5055,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T19:50:34.436Z",
-      "expiresAt": "2026-11-22T20:20:34.436Z",
+      "heartbeatAt": "2026-11-22T19:53:53.362Z",
+      "expiresAt": "2026-11-22T20:23:53.362Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T19:50:34.436Z",
-          "expiresAt": "2026-11-22T20:20:34.436Z",
+          "heartbeatAt": "2026-11-22T19:53:53.362Z",
+          "expiresAt": "2026-11-22T20:23:53.362Z",
           "generation": 150
         },
         "baseSha": "7356a8ecf6743fce13b9efaf40db29166c2fd4e3",
@@ -50630,21 +50630,51 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "353b9b7c4e02438b055360e641019d1d014bfe78",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements packages/server-files/src (alias UPDATE)",
+            "result": "passed",
+            "sourceSha": "353b9b7c4e02438b055360e641019d1d014bfe78",
+            "sourceKind": "committed",
+            "before": 2,
+            "after": 1,
+            "note": "collaboration-home-sources expireUnusedDraftUploads switched to native SF_EXPIRE_DRAFT_UPLOADS; expireUnusedPostUploads remains (needs the social-draft projection predicate). Global alias KPI 3 -> 2."
+          },
+          {
+            "command": "cargo check -p erpx-server-files",
+            "result": "passed",
+            "sourceSha": "353b9b7c4e02438b055360e641019d1d014bfe78",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "353b9b7c4e02438b055360e641019d1d014bfe78",
+            "sourceKind": "committed",
+            "note": "Exit 0."
+          },
+          {
+            "command": "POST :3198 files/commands SF_EXPIRE_DRAFT_UPLOADS and SF_REVOKE_DRAFT",
+            "result": "passed",
+            "sourceSha": "353b9b7c4e02438b055360e641019d1d014bfe78",
+            "sourceKind": "committed",
+            "note": "Both 200 rows:0 after admitting SF_* into KINDS - latent defect fixed: SF_REVOKE_DRAFT/POST/COMMENT were never in the allow-list, so every native social revoke would have returned 422."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261118-i",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-19T01:35:37.004Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run-20261118-i lease expired 00:41Z; no coordinator process alive; WIP reviewed: heartbeat-only ledger diff, untracked pos_events.rs (files/pos claim), css @source cleanup, opencode.json",
-          "nextAction": "Write census: service-repository 55 (separate task retire.files.service-repository); attachments/migration.ts 24 (backfill+reconcile; consumers = dev-only local scripts preserve-orphan-files/reconcile-attachments/audit-file-provenance/retire-attachment-fixture-blockers, local+erpx_dev_ guards); legal-portal-repository 10; legal-portal-binding 3; legal-destruction-source-facts 3; expense-native-effects 3; collaboration-home-sources 3; one write each: support-ticket-portal-files, private-attachment-reads, pos-images-facts, document-derivatives, customer-portal-files, beta-resource-cleanup, orphan-preservation. No native rust backfill/reconcile equivalent exists. Decide per module: port to native owner port vs archive idempotent-completed ops scripts. Requires dev PG available before parity tests."
+          "at": "2026-11-22T19:57:17.009Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "PROGRESS: fixed a latent allow-list defect - SF_REVOKE_DRAFT/SF_REVOKE_POST/SF_REVOKE_COMMENT were implemented in sql() but missing from KINDS, so every native social revoke returned 422; they are admitted now and probed 200. Also added SF_EXPIRE_DRAFT_UPLOADS and switched collaboration-home-sources expireUnusedDraftUploads to it; alias-UPDATE files KPI 2 -> 1 (global 3 -> 2). Remaining files site: expireUnusedPostUploads requires the social-draft projection predicate (socialDraftFilesReadSql) in the native statement, and its caller unit runs in social-home (owner:collaboration) - coordinate with retire.collaboration.social-home before deletion."
         },
-        "nextAction": "Write census: service-repository 55 (separate task retire.files.service-repository); attachments/migration.ts 24 (backfill+reconcile; consumers = dev-only local scripts preserve-orphan-files/reconcile-attachments/audit-file-provenance/retire-attachment-fixture-blockers, local+erpx_dev_ guards); legal-portal-repository 10; legal-portal-binding 3; legal-destruction-source-facts 3; expense-native-effects 3; collaboration-home-sources 3; one write each: support-ticket-portal-files, private-attachment-reads, pos-images-facts, document-derivatives, customer-portal-files, beta-resource-cleanup, orphan-preservation. No native rust backfill/reconcile equivalent exists. Decide per module: port to native owner port vs archive idempotent-completed ops scripts. Requires dev PG available before parity tests."
+        "nextAction": "PROGRESS: fixed a latent allow-list defect - SF_REVOKE_DRAFT/SF_REVOKE_POST/SF_REVOKE_COMMENT were implemented in sql() but missing from KINDS, so every native social revoke returned 422; they are admitted now and probed 200. Also added SF_EXPIRE_DRAFT_UPLOADS and switched collaboration-home-sources expireUnusedDraftUploads to it; alias-UPDATE files KPI 2 -> 1 (global 3 -> 2). Remaining files site: expireUnusedPostUploads requires the social-draft projection predicate (socialDraftFilesReadSql) in the native statement, and its caller unit runs in social-home (owner:collaboration) - coordinate with retire.collaboration.social-home before deletion."
       },
       {
         "id": "retire.benefits.residual-writers",
@@ -107659,7 +107689,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T19:53:43.174Z",
+    "updatedAt": "2026-11-22T19:57:17.011Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
