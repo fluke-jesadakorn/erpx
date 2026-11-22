@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4964,
+    "revision": 4966,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T17:24:27.834Z",
-      "expiresAt": "2026-11-22T17:54:27.834Z",
+      "heartbeatAt": "2026-11-22T17:41:43.560Z",
+      "expiresAt": "2026-11-22T18:11:43.560Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T17:24:27.834Z",
-          "expiresAt": "2026-11-22T17:54:27.834Z",
+          "heartbeatAt": "2026-11-22T17:41:43.560Z",
+          "expiresAt": "2026-11-22T18:11:43.560Z",
           "generation": 150
         },
-        "baseSha": "3cc957e6dbdaf0e90a89f4dcd9d8149109a22fc8",
+        "baseSha": "934c35ea1021a12c0006be69ee5e243e20619bb7",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17303,7 +17303,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "DEV AUTH UNBLOCKED (user pre-approved infra creation): root cause of 500 = account authority needed native listener :3199 (nothing ran there; binary was also stale pre-mount -> rebuilt from HEAD). Config accepted once accountBootstrap removed (bootstrap demands financeJournalReads) and accountHost set to account-dev-erpx.jesadakorn.com; 3 holdings required (control holding_bindings has acme/northstar/erpx; 2 holdings => PRIVATE_API_BINDINGS_MISMATCH). :3199 now listening, /api/health 200. Bill route (bib lines) went 500 INTERNAL_ERROR -> 401 UNAUTHENTICATED. Seeder needs MinIO:19100+Redis:6379 (installed, not running) -> started both, health 200/PONG. server-only shimmed in node_modules only (repo untouched, backup /tmp/server-only-index.bak). seed-local running. Next: verify seeded login + authenticated bill TS-fallback call, then retire TS writers/KPI.",
+        "nextAction": "DEV AUTH ~done: rebuilt stale binary; :3199 native listener runs (health 200) with v4 config (bootstrap+financeJournalReads required; 3 holdings required else BINDINGS_MISMATCH). Seeded users via seed-local after starting MinIO:19100 (bucket erpx created with mc) + Redis:6379; signed-in jesadakorn.kirtnu@gmail.com/12345678 -> HTTP 200 + cookies. Bill route: 500 -> 401 (guard correct). BLOCKER: holding audience needs __Host-erpx-product session bound to audience holding:development:h001:<host>; manual insert into sso_session_bindings (session_id unique; authenticated_at/absolute_expires_at bigint ms; max 12h) inserted OK but get-session with Host acme still null -> session row token is a DIGEST of cookie (cookie 9855.. vs stored 57a8..), so product cookie must be a raw secret whose sha256 matches session.token; need native mint (sso flow requires __Host-erpx-sso txn cookie). NEXT: compute digest-compatible session (insert session.token=sha256(secret)) or drive /sso/start with proper txn, then authenticated bill call + TS-fallback proof.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T17:24:27.834Z",
-          "expiresAt": "2026-11-22T17:54:27.834Z",
+          "heartbeatAt": "2026-11-22T17:41:43.560Z",
+          "expiresAt": "2026-11-22T18:11:43.560Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107437,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T17:33:11.128Z",
+    "updatedAt": "2026-11-22T17:41:43.561Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
