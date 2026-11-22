@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4949,
+    "revision": 4951,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T16:48:49.727Z",
-      "expiresAt": "2026-11-22T17:18:49.727Z",
+      "heartbeatAt": "2026-11-22T16:49:19.863Z",
+      "expiresAt": "2026-11-22T17:19:19.863Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T16:48:49.727Z",
-          "expiresAt": "2026-11-22T17:18:49.727Z",
+          "heartbeatAt": "2026-11-22T16:49:19.863Z",
+          "expiresAt": "2026-11-22T17:19:19.863Z",
           "generation": 150
         },
-        "baseSha": "1b0034915204854d83cc5b78dc77d3f93113eea8",
+        "baseSha": "b0dfa46c9fe1d1daba069a67b843587be3d89e7a",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17303,7 +17303,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Worker-a live (claim 15:23Z, handoff null) — nothing to integrate; claim untouched. Bill-task nextAction stale (\"IMPLEMENTED (uncommitted)\" — actually committed 0f95dd0, now 1b00349+); cannot correct without worker-a claim, noted here instead. No colocated-test precedent in packages/* (all tests under tests/, catalogue-enforced) so transport unit test stays unwritten until worker-a releases tests/unit/procurement. No unblocked dispatch left: handover resource-locked, surface deps-blocked, read-tail path-conflicts, attachment/files need new ports+config+container. Await worker-a handoff or Linux host.",
+        "nextAction": "Legal read-tail backlog (for blocked retire.legal.read-tail-followup): 289 SELECTs in server-legal/src at HEAD. Ranked top: legal/service.ts 19, legal/portal.ts 15, legal/law-corpus.ts 14, package-obligations.ts 13, legal/operations.ts + legal/access.ts 12. Live consumers via public/legal/* barrels: feature-legal-portal route, feature-legal route, customer_360 portal adapter, catalogue capability-delivery. Port-present: native legal trust/retention/auxiliary/records routers mounted (private_development_api 6621-6645); per-family native counterpart mapping left to retire task owner (needs container proof for any deletion). KPI before=289 (legal). worker-a live, no handoff; foreign WIP untouched.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T16:48:49.727Z",
-          "expiresAt": "2026-11-22T17:18:49.727Z",
+          "heartbeatAt": "2026-11-22T16:49:19.863Z",
+          "expiresAt": "2026-11-22T17:19:19.863Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107437,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T16:48:49.729Z",
+    "updatedAt": "2026-11-22T16:50:12.710Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
