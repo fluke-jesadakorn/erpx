@@ -139,6 +139,30 @@ async fn denied_rows_drop_instead_of_failing_the_page() {
 }
 
 #[tokio::test]
+async fn summary_counts_only_visible_rows() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        let summary = PgUnitOfWork::new(pool.clone())
+            .run_once(TransactionOptions::default(), move |connection| {
+                Box::pin(async move {
+                    let scope =
+                        InboxScope::new("co", "user-1", "grant-1", 1).map_err(PgTransactionError::Business)?;
+                    let mut targets = PgInboxTargets::with_delegate(None, None, DropProbe);
+                    let mut unit = PgInboxUnit::new(connection, scope, &mut targets);
+                    unit.summary().await
+                })
+            })
+            .await
+            .unwrap();
+        // Denied, missing and unknown rows drop out of the badge count like
+        // the retained summary walks filtered pages.
+        assert_eq!(summary.unread, 1);
+        assert_eq!(summary.categories.work, 1);
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn unavailable_rows_still_fail_the_page() {    fixture::with_database(2, |pool| async move {
         seed(&pool).await;
         sqlx::raw_sql(

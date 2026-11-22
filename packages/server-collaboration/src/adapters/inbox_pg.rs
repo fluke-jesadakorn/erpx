@@ -256,21 +256,58 @@ impl<'c> PgInboxUnit<'c> {
 
     pub async fn summary(&mut self) -> Result<InboxSummaryData, Error> {
         self.verify().await?;
-        let rows = sqlx::query(
-            "SELECT e.category,count(*)::bigint FROM inbox_deliveries d \
-             JOIN inbox_events e ON e.id=d.event_id AND e.company_id=d.company_id \
-             WHERE d.company_id=$1 AND d.user_id=$2 AND d.archived_at IS NULL AND d.read_at IS NULL \
-             GROUP BY e.category",
-        )
-        .bind(self.scope.company_id.as_str())
-        .bind(self.scope.user_id.as_str())
-        .fetch_all(&mut *self.connection)
-        .await?;
+        // Filtered counts mirror the retained TypeScript summary, which walks
+        // fully visibility-filtered pages: denied, unknown and missing rows do
+        // not inflate the badge. Field-service rows count like the retained
+        // read resolves them (the page path stays loud-deferred).
         let mut categories = InboxCategoryCounts::default();
-        for row in rows {
-            let category: String = row.try_get(0)?;
-            let count: i64 = row.try_get(1)?;
-            count_category(&mut categories, &category, count);
+        let mut batch_at: Option<i64> = None;
+        let mut batch_id: Option<String> = None;
+        loop {
+            let rows = sqlx::query(
+                "SELECT d.id,d.event_id,d.delivered_at,e.source_type,e.source_id,\
+                        e.source_version,e.category \
+                 FROM inbox_deliveries d \
+                 JOIN inbox_events e ON e.id=d.event_id AND e.company_id=d.company_id \
+                 WHERE d.company_id=$1 AND d.user_id=$2 AND d.archived_at IS NULL AND d.read_at IS NULL \
+                 AND ($3::bigint IS NULL OR (d.delivered_at,d.id)<($3,$4)) \
+                 ORDER BY d.delivered_at DESC,d.id DESC LIMIT 100",
+            )
+            .bind(self.scope.company_id.as_str())
+            .bind(self.scope.user_id.as_str())
+            .bind(batch_at)
+            .bind(batch_id.as_deref())
+            .fetch_all(&mut *self.connection)
+            .await?;
+            if rows.is_empty() {
+                break;
+            }
+            let full = rows.len() == 100;
+            for row in rows {
+                let at: i64 = row.try_get(2)?;
+                let id: String = row.try_get(0)?;
+                batch_at = Some(at);
+                batch_id = Some(id);
+                let source_type: String = row.try_get(3)?;
+                if source_type == "field_service_order" {
+                    let category: String = row.try_get(6)?;
+                    count_category(&mut categories, &category, 1);
+                    continue;
+                }
+                let source_id: String = row.try_get(4)?;
+                let source_version: i64 = row.try_get(5)?;
+                if self
+                    .resolve_target(&source_type, &source_id, source_version)
+                    .await?
+                    .is_some()
+                {
+                    let category: String = row.try_get(6)?;
+                    count_category(&mut categories, &category, 1);
+                }
+            }
+            if !full {
+                break;
+            }
         }
         let unread = categories.work
             + categories.calendar
@@ -374,6 +411,59 @@ impl<'c> PgInboxUnit<'c> {
         })
     }
 
+    /// Retained per-row destination proof shared by the page item and the
+    /// filtered summary walk: notices resolve locally, every other type
+    /// goes through the composition port with the per-row drop mapping.
+    async fn resolve_target(
+        &mut self,
+        source_type: &str,
+        source_id: &str,
+        source_version: i64,
+    ) -> Result<Option<InboxTarget>, Error> {
+        if source_type == "notice" {
+            let exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM inbox_notices WHERE id=$1 AND company_id=$2)",
+            )
+            .bind(source_id)
+            .bind(self.scope.company_id.as_str())
+            .fetch_one(&mut *self.connection)
+            .await?;
+            if !exists {
+                return Ok(None);
+            }
+            return Ok(Some(InboxTarget::default()));
+        }
+        match self
+            .targets
+            .target(
+                &mut *self.connection,
+                self.scope.company_id.as_str(),
+                self.scope.user_id.as_str(),
+                source_type,
+                source_id,
+                source_version,
+            )
+            .await
+        {
+            Ok(target) => Ok(target),
+            // A denied source disappears from this projection; it must
+            // not interrupt the whole Inbox page. Mirrors the retained
+            // TypeScript per-row 403/404 catch. Unknown source types drop
+            // the same way the projection skips them (`else continue`),
+            // while storage, transaction, port and Unavailable errors
+            // still fail the page.
+            Err(error)
+                if matches!(
+                    error.kind,
+                    FailureKind::Forbidden | FailureKind::NotFound
+                ) || error.code == "INBOX_TARGET_SOURCE_UNSUPPORTED" =>
+            {
+                Ok(None)
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
     async fn item(&mut self, row: sqlx::postgres::PgRow) -> Result<Option<InboxItemData>, Error> {
         let id: String = row.try_get(0)?;
         let event_id: String = row.try_get(1)?;
@@ -393,50 +483,11 @@ impl<'c> PgInboxUnit<'c> {
             )
             .into());
         }
-        let target = if source_type == "notice" {
-            let exists: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM inbox_notices WHERE id=$1 AND company_id=$2)",
-            )
-            .bind(&source_id)
-            .bind(self.scope.company_id.as_str())
-            .fetch_one(&mut *self.connection)
-            .await?;
-            if !exists {
-                return Ok(None);
-            }
-            InboxTarget::default()
-        } else {
-            let target = match self
-                .targets
-                .target(
-                    &mut *self.connection,
-                    self.scope.company_id.as_str(),
-                    self.scope.user_id.as_str(),
-                    &source_type,
-                    &source_id,
-                    source_version,
-                )
-                .await
-            {
-                Ok(Some(target)) => target,
-                Ok(None) => return Ok(None),
-                // A denied source disappears from this projection; it must
-                // not interrupt the whole Inbox page. Mirrors the retained
-                // TypeScript per-row 403/404 catch. Unknown source types drop
-                // the same way the projection skips them (`else continue`),
-                // while storage, transaction, port and Unavailable errors
-                // still fail the page.
-                Err(error)
-                    if matches!(
-                        error.kind,
-                        FailureKind::Forbidden | FailureKind::NotFound
-                    ) || error.code == "INBOX_TARGET_SOURCE_UNSUPPORTED" =>
-                {
-                    return Ok(None);
-                }
-                Err(error) => return Err(error.into()),
-            };
-            target
+        let Some(target) = self
+            .resolve_target(&source_type, &source_id, source_version)
+            .await?
+        else {
+            return Ok(None);
         };
         Ok(Some(InboxItemData {
             id,
