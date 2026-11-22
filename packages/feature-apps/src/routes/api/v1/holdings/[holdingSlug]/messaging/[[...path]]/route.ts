@@ -4,7 +4,7 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import {channelSchema,createMessagingChannel,createMessagingRoom,createMessagingTeam,manageMessaging,manageSchema,messageSchema,messagingFile,messagingHistory,messagingMembers,messagingOverview,messagingPeople,readMessaging,roomSchema,sendMessagingMessage,teamSchema} from '@erpx/server-collaboration/public/messaging';
+import {channelSchema,createMessagingChannel,createMessagingRoom,createMessagingTeam,manageMessaging,manageSchema,messageSchema,messagingFile,messagingHistory,messagingMembers,messagingPeople,readMessaging,roomSchema,sendMessagingMessage,teamSchema} from '@erpx/server-collaboration/public/messaging';
 import { uploadMessagingFile,discardMessagingFile } from "@erpx/server-collaboration/public/messaging-files";
 import { nativeCreateChannel, nativeCreateRoom, nativeCreateTeam, nativeMarkRead, nativeMessagingAvailable, nativeMessagingFileContent, nativeMessagingHistory, nativeMessagingMembers, nativeMessagingOverview, nativeSendMessage } from "@erpx/server-collaboration/public/native-messaging-page";
 import { attachmentContent } from "@erpx/server-files/public/attachments/service";
@@ -33,11 +33,15 @@ async function handle(request: Request, context: Context) {
       url = new URL(request.url);
     let data: unknown;
     if (request.method === "GET") {
-      if (!p.length)
-        data = nativeMessagingAvailable()
-          ? await nativeMessagingOverview(request, holdingSlug)
-          : await messagingOverview(db, actor);
-      else if (p[0] === "people" && p.length === 1)
+      if (!p.length) {
+        if (!nativeMessagingAvailable())
+          throw new ApiError(
+            503,
+            "NATIVE_COLLABORATION_UNAVAILABLE",
+            "The native messaging overview service is unavailable.",
+          );
+        data = await nativeMessagingOverview(request, holdingSlug);
+      } else if (p[0] === "people" && p.length === 1)
         data = await messagingPeople(
           db,
           actor,
