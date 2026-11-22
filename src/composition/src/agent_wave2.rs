@@ -22,6 +22,7 @@ use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_server_shared::public::BusinessError;
+use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -98,6 +99,7 @@ impl AgentQuotaHttpBackend for AgentQuotaBackend {
             Self::company(request.headers, &expected_company)?;
             let data = PgUnitOfWork::new(pool)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let kind = kind.clone();
                     Box::pin(async move {
                         let mut repository = PgCompanyQuota::new(&mut *connection);
                         let data = match kind {
@@ -177,6 +179,11 @@ impl OwnerWriteHttpBackend for AgentOwnerWriteBackend {
                 .to_owned();
             PgUnitOfWork::new(pool)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let kind = kind.clone();
+                    let values = values.clone();
+                    let company = company.clone();
+                    let actor = actor.clone();
+                    let key = key.clone();
                     Box::pin(async move {
                         let mut repository = PgOwnerWrite::new(&mut *connection);
                         let command = erpx_server_agent::public::owner_write::OwnerWriteCommand {

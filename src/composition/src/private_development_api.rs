@@ -3252,6 +3252,22 @@ async fn assemble_checked(
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
         let mut commerce_native_routers: Vec<Router> = Vec::new();
+        let mut records_native_routers: Vec<Router> = Vec::new();
+        let mut records_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
+        let mut procurement_native_routers: Vec<Router> = Vec::new();
+        let mut procurement_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
+        let mut agent_quota_targets: Vec<(String, String, String)> = Vec::new();
+        let mut agent_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
+        let mut agent_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
         // Private development assembly: scheduled predicates admit locally and
         // production rendering still fails closed because it is not enabled.
         let runtime_policy =
@@ -4021,6 +4037,51 @@ async fn assemble_checked(
                     crm_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
                     inventory_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    records_company_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    records_native_routers.push(
+                        crate::records_wave2::records_wave2_native_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::records_wave2::RecordsNativeBackend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )
+                        .map_err(|_| "PRIVATE_API_RECORDS_NATIVE_CONFIGURATION_INVALID")?,
+                    );
+                    procurement_company_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    procurement_native_routers.push(
+                        crate::procurement_wave2::procurement_wave2_native_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::procurement_wave2::ProcurementNativeBackend::new(
+                                    pools[i + 1].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_PROCUREMENT_NATIVE_CONFIGURATION_INVALID")?,
+                    );
+                    agent_pools.insert(
+                        holding.registration.slug.clone(),
+                        pools[i + 1].clone(),
+                    );
+                    agent_quota_targets.push((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                    ));
+                    agent_owner_targets.push((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        false,
+                    ));
                     commerce_native_routers.push(
                         crate::commerce_wave2::commerce_warehouse_save_composed_router(
                             holding.host.clone(),
@@ -6652,6 +6713,71 @@ async fn assemble_checked(
         }
         for commerce_router in commerce_native_routers {
             router = router.merge(commerce_router);
+        }
+        for records_router in records_native_routers {
+            router = router.merge(records_router);
+        }
+        if !records_company_pools.is_empty() {
+            let records_companies: Vec<String> = records_company_pools.keys().cloned().collect();
+            let records_backend = Arc::new(
+                crate::records_wave2::RecordsNativeBackend::new(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    Arc::new(SharedClock(clock.clone())),
+                )
+                .with_companies(records_company_pools.clone()),
+            );
+            router = router.merge(
+                crate::records_wave2::records_wave2_company_router(
+                    records_companies,
+                    records_backend,
+                )
+                .map_err(|_| "PRIVATE_API_RECORDS_NATIVE_CONFIGURATION_INVALID")?,
+            );
+        }
+        for procurement_router in procurement_native_routers {
+            router = router.merge(procurement_router);
+        }
+        if !procurement_company_pools.is_empty() {
+            let procurement_companies: Vec<String> =
+                procurement_company_pools.keys().cloned().collect();
+            let procurement_backend = Arc::new(
+                crate::procurement_wave2::ProcurementNativeBackend::new(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    Arc::new(SharedClock(clock.clone())),
+                )
+                .with_companies(procurement_company_pools.clone()),
+            );
+            router = router.merge(
+                crate::procurement_wave2::procurement_wave2_company_router(
+                    procurement_companies,
+                    procurement_backend,
+                )
+                .map_err(|_| "PRIVATE_API_PROCUREMENT_NATIVE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !agent_pools.is_empty() {
+            let quota_backend = Arc::new(crate::agent_wave2::AgentQuotaBackend::new(
+                agent_pools.clone(),
+            ));
+            for (host, slug, origin) in agent_quota_targets {
+                router = router.merge(
+                    crate::agent_wave2::agent_quota_router(
+                        host,
+                        slug,
+                        origin,
+                        quota_backend.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_AGENT_QUOTA_CONFIGURATION_INVALID")?,
+                );
+            }
+            let owner_backend = Arc::new(crate::agent_wave2::AgentOwnerWriteBackend::new(
+                agent_pools.clone(),
+                pools[0].clone(),
+            ));
+            router = router.merge(
+                crate::agent_wave2::agent_owner_write_router(owner_backend, agent_owner_targets)
+                    .map_err(|_| "PRIVATE_API_AGENT_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
         }
         if !inventory_company_pools.is_empty() {
             let inventory_companies: Vec<String> =

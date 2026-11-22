@@ -133,11 +133,25 @@ async fn ledger(
 /// committed timestamp.
 pub struct RecordsNativeBackend<C> {
     holding: DatabasePool,
+    companies: std::collections::BTreeMap<String, DatabasePool>,
     clock: Arc<C>,
 }
 impl<C: Clock + Send + Sync + 'static> RecordsNativeBackend<C> {
     pub fn new(holding: DatabasePool, clock: Arc<C>) -> Self {
-        Self { holding, clock }
+        Self {
+            holding,
+            companies: std::collections::BTreeMap::new(),
+            clock,
+        }
+    }
+
+    /// Worker path: resolve the owner pool by the admitted Company header.
+    pub fn with_companies(
+        mut self,
+        companies: std::collections::BTreeMap<String, DatabasePool>,
+    ) -> Self {
+        self.companies = companies;
+        self
     }
 }
 
@@ -145,7 +159,11 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RecordsNativ
     fn execute<'a>(&'a self, request: NativeCommandHttpRequest<'a>) -> NativeCommandHttpFuture<'a> {
         Box::pin(async move {
             let caller = caller(request.headers)?;
-            let command: NativeCommand = request.command.clone();
+            let command = erpx_server_records::public::native_command::NativeCommand {
+                kind: request.command.kind.clone(),
+                values: request.command.values.clone(),
+                now: request.command.now,
+            };
             let key = request.key.to_owned();
             let kind = command.kind.clone();
             let now = if command.now > 0 {
@@ -154,9 +172,16 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RecordsNativ
                 self.clock.now().get()
             };
             admit(&command)?;
+            let company_label = caller.company_id.clone();
+            let kind_label = kind.clone();
+            let pool = self
+                .companies
+                .get(&caller.company_id)
+                .cloned()
+                .unwrap_or_else(|| self.holding.clone());
             let write_command = command.clone();
             let write_key = key.clone();
-            let rows = PgUnitOfWork::new(self.holding.clone())
+            let rows = PgUnitOfWork::new(pool)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
                     let write_command = write_command.clone();
                     let write_key = write_key.clone();
@@ -166,17 +191,16 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RecordsNativ
                         let mut repository = PgNativeCommandRepository::new(connection);
                         let outcome =
                             execute_native_command(&write_command, &write_key, &mut repository)
-                                .await?;
+                                .await
+                                .map_err(PgTransactionError::Business)?;
                         drop(repository);
-                        ledger(connection, &caller, &kind, &write_key, now, outcome.rows)
-                            .await
-                            .map_err(business)?;
+                        ledger(connection, &caller, &kind, &write_key, now, outcome.rows).await?;
                         Ok(outcome.rows)
                     })
                 })
                 .await
                 .map_err(business)?;
-            Ok(json!({"data": {"kind": kind, "rows": rows}, "context": {"companyId": caller.company_id}}))
+            Ok(json!({"data": {"kind": kind_label, "rows": rows}, "context": {"companyId": company_label}}))
         })
     }
 }
