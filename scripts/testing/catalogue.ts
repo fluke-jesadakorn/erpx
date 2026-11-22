@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -66,12 +67,24 @@ export function assertExplicitSelectionIncluded(selection: Selection, suites: Su
   for (const id of selection.suiteIds ?? []) if (!suites.some(suite => suite.id === id)) throw new Error(`EXCLUDED_EXPLICIT_TEST_SUITE:${id}`);
 }
 
+/** Committed test paths; null when root is not the repository top level (copies, sandboxes). */
+function committedTests(root: string): Set<string> | null {
+  try {
+    if (execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: root, encoding: "utf8" }).trim() !== resolve(root)) return null;
+    const out = execFileSync("git", ["ls-files", "-z", "--", "tests"], { cwd: root, encoding: "utf8" });
+    return new Set(out.split("\0").filter(Boolean));
+  } catch { return null; }
+}
+
 export function discoverTests(root: string): string[] {
+  const committed = committedTests(root);
   const visit = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(directory, entry.name);
     return entry.isDirectory() ? visit(path) : /\.(?:test\.(?:[cm]?[jt]sx?|rs)|spec\.[cm]?[jt]sx?)$/.test(entry.name) ? [relative(root, path).replaceAll("\\", "/")] : [];
   });
-  return visit(resolve(root, "tests")).sort();
+  // Uncommitted files are another worker's WIP, not catalogue entries; CI only
+  // ever sees committed paths, so the inventory invariant is unchanged there.
+  return visit(resolve(root, "tests")).filter(file => !committed || committed.has(file)).sort();
 }
 
 /** Imports, re-exports, literal import() and require() participate in impact and isolation checks. */
