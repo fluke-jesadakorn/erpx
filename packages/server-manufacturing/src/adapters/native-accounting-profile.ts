@@ -1,4 +1,5 @@
 import 'server-only';
+import { Agent, request as httpRequest } from 'node:http';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
@@ -72,11 +73,53 @@ function config(): Settings {
   };
 }
 
-function headers(actor: WorkContext, key: string, cfg: Settings): Headers {
+
+/** Post with an explicit Host header; fetch forbids overriding Host. */
+function post(
+  url: URL,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<{ status: number; value: unknown }> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const outgoing = httpRequest(
+      url,
+      {
+        method: 'POST',
+        agent,
+        headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+        signal: AbortSignal.timeout(timeoutMs),
+        maxHeaderSize: 8192,
+      },
+      incoming => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        incoming.on('end', () => {
+          agent.destroy();
+          const text = Buffer.concat(chunks).toString('utf8');
+          let value: unknown = null;
+          try { value = text ? JSON.parse(text) : null; } catch { value = null; }
+          resolve({ status: incoming.statusCode ?? 502, value });
+        });
+        incoming.on('error', error => { agent.destroy(); reject(error); });
+      },
+    );
+    outgoing.on('error', error => { agent.destroy(); reject(error); });
+    outgoing.end(body);
+  });
+}
+
+function headers(actor: WorkContext, key: string, cfg: Settings): Record<string, string> {
   const permissions = actor.iam?.permissions ?? [];
   if (!permissions.length || !actor.modules.length)
     fail('SIGN_IN_REQUIRED', 401, 'Sign in to manage the production accounting profile.');
-  return new Headers({
+  return {
     host: cfg.host,
     origin: cfg.origin,
     accept: 'application/json',
@@ -87,7 +130,7 @@ function headers(actor: WorkContext, key: string, cfg: Settings): Headers {
     'x-erpx-context-assignment': actor.assignmentId,
     'x-erpx-context-permissions': permissions.join(','),
     'x-erpx-context-modules': actor.modules.join(','),
-  });
+  };
 }
 
 /** Create or review one profile through the native command; returns its data. */
@@ -100,27 +143,26 @@ export async function nativeManufacturingProfile(
 ): Promise<Record<string, unknown>> {
   const cfg = config();
   const suffix = kind === 'create' ? '' : `/${encodeURIComponent(profileId ?? '')}`;
-  let response: Response;
+  let reply: { status: number; value: unknown };
   try {
-    response = await fetch(
-      `${cfg.base}/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/manufacturing/accounting-profile${suffix}`,
-      {
-        method: 'POST',
-        headers: headers(actor, key, cfg),
-        body: JSON.stringify(body),
-        cache: 'no-store',
-        signal: AbortSignal.timeout(cfg.timeoutMs),
-      },
+    reply = await post(
+      new URL(
+        `/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/manufacturing/accounting-profile${suffix}`,
+        cfg.base,
+      ),
+      headers(actor, key, cfg),
+      JSON.stringify(body),
+      cfg.timeoutMs,
     );
   } catch {
     fail('NATIVE_MANUFACTURING_ACCOUNTING_UNAVAILABLE', 503, 'The native Manufacturing accounting service is unavailable.');
   }
-  const value: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  const value = reply.value;
+  if (reply.status !== 200) {
     const error = record(value) && record(value.error) ? value.error : {};
     fail(
       typeof error.code === 'string' ? error.code : 'NATIVE_MANUFACTURING_ACCOUNTING_FAILED',
-      response.status,
+      reply.status,
       typeof error.message === 'string' ? error.message : 'The Manufacturing accounting command could not be completed.',
     );
   }

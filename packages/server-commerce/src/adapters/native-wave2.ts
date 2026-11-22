@@ -1,4 +1,5 @@
 import 'server-only';
+import { Agent, request as httpRequest } from 'node:http';
 
 /**
  * Native Commerce wave2 warehouse-master transport. A thin private fetch client
@@ -102,31 +103,71 @@ export type NativeWarehouseSaveFields = Readonly<{
   actorId: string;
 }>;
 
+
+/** Post with an explicit Host header; fetch forbids overriding Host. */
+function post(
+  url: URL,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<{ status: number; value: unknown }> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const outgoing = httpRequest(
+      url,
+      {
+        method: 'POST',
+        agent,
+        headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+        signal: AbortSignal.timeout(timeoutMs),
+        maxHeaderSize: 8192,
+      },
+      incoming => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        incoming.on('end', () => {
+          agent.destroy();
+          const text = Buffer.concat(chunks).toString('utf8');
+          let value: unknown = null;
+          try { value = text ? JSON.parse(text) : null; } catch { value = null; }
+          resolve({ status: incoming.statusCode ?? 502, value });
+        });
+        incoming.on('error', error => { agent.destroy(); reject(error); });
+      },
+    );
+    outgoing.on('error', error => { agent.destroy(); reject(error); });
+    outgoing.end(body);
+  });
+}
+
 /** Commit one warehouse master write through the native axum command route. */
 export async function nativeWarehouseSave(
   fields: NativeWarehouseSaveFields,
   idempotencyKey: string,
 ): Promise<{ id: string; companyId: string }> {
   const cfg = config();
-  const headers = new Headers({
-    host: cfg.host,
-    origin: cfg.origin,
-    accept: 'application/json',
-    'content-type': 'application/json',
-    'idempotency-key': idempotencyKey,
-    'x-erpx-context-user': fields.actorId,
-  });
-  let response: Response;
+  let reply: { status: number; value: unknown };
   try {
-    response = await fetch(
-      `${cfg.base}/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/commerce/warehouse-save`,
+    reply = await post(
+      new URL(
+        `/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/commerce/warehouse-save`,
+        cfg.base,
+      ),
       {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(fields),
-        cache: 'no-store',
-        signal: AbortSignal.timeout(cfg.timeoutMs),
+        host: cfg.host,
+        origin: cfg.origin,
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'idempotency-key': idempotencyKey,
+        'x-erpx-context-user': fields.actorId,
       },
+      JSON.stringify(fields),
+      cfg.timeoutMs,
     );
   } catch {
     throw new NativeCommerceWave2Error(
@@ -135,12 +176,12 @@ export async function nativeWarehouseSave(
       'The native Commerce warehouse service is unavailable.',
     );
   }
-  const value: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  const value = reply.value;
+  if (reply.status !== 200) {
     const error = isRecord(value) && isRecord(value.error) ? value.error : {};
     throw new NativeCommerceWave2Error(
       typeof error.code === 'string' ? error.code : 'COMMERCE_WAREHOUSE_SAVE_FAILED',
-      response.status,
+      reply.status,
       typeof error.message === 'string' ? error.message : 'The warehouse could not be saved.',
     );
   }
