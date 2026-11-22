@@ -49,3 +49,7 @@ pub use crate::adapters::inbox_inventory::{
     InventoryInboxTargets, customer_followup_href, inventory_history_capabilities,
     inventory_transit_href, is_inventory_inbox_target, landed_cost_href, stock_count_href,
 };
+pub use crate::adapters::inbox_quality::{
+    QualityInboxTargets, is_quality_inbox_target, legal_kind_capability, legal_record_href,
+    quality_alert_href, quality_history_capabilities, quality_hold_href,
+};

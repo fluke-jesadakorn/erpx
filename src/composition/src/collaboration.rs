@@ -1976,7 +1976,7 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
             CalendarInboxTargets, ChainedInboxTargets, CommerceInboxTargets, CrmInboxTargets,
             FinanceInboxTargets, InboxHttpReadReply, InboxNotificationQuery, InboxReadKind,
             InventoryInboxTargets, PayrollInboxTargets, PeopleInboxTargets, PgInboxTargets,
-            PgInboxUnit, ProcurementInboxTargets, SupportInboxTargets,
+            PgInboxUnit, ProcurementInboxTargets, QualityInboxTargets, SupportInboxTargets,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -2072,6 +2072,13 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                                 ),
                                 Box::new(
                                     InventoryInboxTargets::new(
+                                        workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                        workspace.department_id.as_ref().map(|id| id.as_str()),
+                                    )
+                                    .assignment(Some(selected.assignment().id.as_str())),
+                                ),
+                                Box::new(
+                                    QualityInboxTargets::new(
                                         workspace.branch_id.as_ref().map(|id| id.as_str()),
                                         workspace.department_id.as_ref().map(|id| id.as_str()),
                                     )

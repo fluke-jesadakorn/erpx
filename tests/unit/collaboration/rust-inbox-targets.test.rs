@@ -2,16 +2,19 @@
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
     InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, PayrollInboxTargets,
-    PeopleInboxTargets, ProcurementInboxTargets, SupportInboxTargets, bangkok_coverage_weeks,
-    calendar_appointment_href, commerce_order_capability, commerce_order_href, crm_activity_href,
-    crm_lead_href, customer_followup_href, encode_uri_component, expense_href,
-    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
-    inventory_history_capabilities, inventory_transit_href, is_calendar_inbox_target,
-    is_commerce_inbox_target, is_crm_inbox_target, is_finance_inbox_target, is_inventory_inbox_target,
+    PeopleInboxTargets, ProcurementInboxTargets, QualityInboxTargets, SupportInboxTargets,
+    bangkok_coverage_weeks, calendar_appointment_href, commerce_order_capability,
+    commerce_order_href, crm_activity_href, crm_lead_href, customer_followup_href,
+    encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
+    finance_journal_href, finance_refund_href, inventory_history_capabilities,
+    inventory_transit_href, is_calendar_inbox_target, is_commerce_inbox_target,
+    is_crm_inbox_target, is_finance_inbox_target, is_inventory_inbox_target,
     is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
-    is_procurement_inbox_target, is_roster_monday, is_support_inbox_target, landed_cost_href,
-    leave_href, overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
-    procurement_history_capability, procurement_rfq_href, retirement_case_href,
+    is_procurement_inbox_target, is_quality_inbox_target, is_roster_monday,
+    is_support_inbox_target, landed_cost_href, leave_href, legal_kind_capability,
+    legal_record_href, overtime_href, parse_roster_coverage_id, payroll_advance_href,
+    payroll_correction_href, procurement_history_capability, procurement_rfq_href,
+    quality_alert_href, quality_history_capabilities, quality_hold_href, retirement_case_href,
     retained_inbox_destination, roster_request_href, roster_week_href, source_record_label,
     stock_count_href, support_history_capability, support_incident_href, support_session_href,
     support_sla_href, support_ticket_href, supplier_bill_href, supplier_promise_href,
@@ -875,4 +878,100 @@ fn inventory_kind_capability_table_matches_the_retained_gates() {
     );
     assert_eq!(inventory_history_capabilities("commerce_order"), &[] as &[&str]);
     assert_eq!(inventory_history_capabilities(""), &[] as &[&str]);
+}
+
+#[test]
+fn quality_slice_routes_to_the_native_delegate() {
+    for source_type in ["quality_hold", "quality_alert", "legal"] {
+        assert!(is_quality_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "commerce_order",
+        "invoice",
+        "payroll_correction",
+        "roster_week",
+        "support_ticket",
+        "inventory_transit",
+        "quality",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_quality_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the quality sources.
+    assert!(!is_calendar_inbox_target("quality_hold"));
+    assert!(!is_crm_inbox_target("quality_alert"));
+    assert!(!is_commerce_inbox_target("legal"));
+    assert!(!is_finance_inbox_target("quality_hold"));
+    assert!(!is_support_inbox_target("legal"));
+    assert!(!is_procurement_inbox_target("quality_alert"));
+    assert!(!is_inventory_inbox_target("quality_hold"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&QualityInboxTargets::new(None, None));
+    assert_inbox_target_port(&QualityInboxTargets::default());
+    assert_inbox_target_port(
+        &QualityInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn quality_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(quality_hold_href("hold-1"), "/quality/hold-1");
+    assert_eq!(quality_hold_href(ID), format!("/quality/{ENCODED}"));
+    assert_eq!(quality_alert_href("hold-1"), "/quality/hold-1");
+    assert_eq!(quality_alert_href(ID), format!("/quality/{ENCODED}"));
+    assert_eq!(legal_record_href("leg-1"), "/legal?record=leg-1");
+    assert_eq!(legal_record_href(ID), format!("/legal?record={ENCODED}"));
+    assert_eq!(source_record_label("quality_hold"), "Quality hold");
+    assert_eq!(source_record_label("quality_alert"), "Quality follow-up");
+    assert_eq!(source_record_label("legal"), "Legal");
+}
+
+#[test]
+fn quality_kind_capability_tables_match_the_retained_gates() {
+    assert_eq!(
+        quality_history_capabilities("quality_hold"),
+        &[
+            "supply.quality",
+            "supply.receiving",
+            "supply.stock",
+            "sales.orders",
+            "inventory.stock-core"
+        ]
+    );
+    assert_eq!(
+        quality_history_capabilities("quality_alert"),
+        &[
+            "supply.quality",
+            "supply.receiving",
+            "supply.stock",
+            "sales.orders",
+            "inventory.stock-core"
+        ]
+    );
+    assert_eq!(
+        quality_history_capabilities("legal"),
+        &[
+            "legal.contracts",
+            "legal.documents",
+            "legal.matters",
+            "legal.obligations",
+            "legal.access"
+        ]
+    );
+    assert_eq!(quality_history_capabilities("quality"), &[] as &[&str]);
+    assert_eq!(quality_history_capabilities(""), &[] as &[&str]);
+    assert_eq!(legal_kind_capability("contract"), "legal.contracts");
+    assert_eq!(legal_kind_capability("template"), "legal.contracts");
+    assert_eq!(legal_kind_capability("request"), "legal.matters");
+    assert_eq!(legal_kind_capability("matter"), "legal.matters");
+    assert_eq!(legal_kind_capability("counsel"), "legal.matters");
+    assert_eq!(legal_kind_capability("ip"), "legal.matters");
+    assert_eq!(legal_kind_capability("obligation"), "legal.obligations");
+    assert_eq!(legal_kind_capability("rule"), "legal.obligations");
 }
