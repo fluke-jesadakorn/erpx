@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4666,
+    "revision": 4679,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:02:46.013Z",
-      "expiresAt": "2026-11-22T10:32:46.013Z",
+      "heartbeatAt": "2026-11-22T10:03:08.318Z",
+      "expiresAt": "2026-11-22T10:33:08.318Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T10:02:46.013Z",
-          "expiresAt": "2026-11-22T10:32:46.013Z",
+          "heartbeatAt": "2026-11-22T10:03:08.318Z",
+          "expiresAt": "2026-11-22T10:33:08.318Z",
           "generation": 150
         },
         "baseSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
@@ -105738,16 +105738,69 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "baseSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+        "implementedCommit": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+        "lastPushedSha": "dab67f4498e46366ef68903a2d103351e092262c",
+        "checks": [
+          {
+            "command": "retirement:ts-statements packages/server-finance/src/adapters/refund-notification-source.ts",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "before": 1,
+            "after": 0,
+            "note": "Deleted orphaned SELECT fragment builder + barrel + 2 package.json export entries. Zero live consumers (only historical relocation docs); native successor nativeRefundNotification already serves commerce.ts, finance-billing-corrections.ts, refunds.ts."
+          },
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "note": "GRAPH OK after barrel/export removal; no dangling specifiers."
+          },
+          {
+            "command": "typecheck:tsc --noEmit (repo, both projects)",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "note": "Green; deletion leaves no dangling imports."
+          },
+          {
+            "command": "test:unit --suite=finance.refunds.unit",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "note": "57/57 (incl. refund-bank-evidence-transport 3/3 after fixing its pre-existing missing isNativeServicePaymentRequest mock from cfebf81ad). finance.refund-fx.integration cannot execute under direct vitest (server-only import gate, pre-existing runner limitation, no reference to deleted module)."
+          },
+          {
+            "command": "retirement:ts-statements packages/server-finance/src/adapters/refund-notification-source.ts",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "before": 1,
+            "after": 0,
+            "note": "Deleted orphaned SELECT fragment builder + barrel + 2 package.json export entries. Zero live consumers (only historical relocation docs); native successor nativeRefundNotification already serves commerce.ts, finance-billing-corrections.ts, refunds.ts."
+          },
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "note": "GRAPH OK after barrel/export removal; no dangling specifiers."
+          },
+          {
+            "command": "typecheck:tsc --noEmit (repo, both projects)",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "note": "Green; deletion leaves no dangling imports."
+          },
+          {
+            "command": "test:unit --suite=finance.refunds.unit",
+            "result": "passed",
+            "sourceSha": "016aa490e00a766bf423c6b7d7a8fe0b35ad1704",
+            "note": "57/57 (incl. refund-bank-evidence-transport 3/3 after fixing its pre-existing missing isNativeServicePaymentRequest mock from cfebf81ad). finance.refund-fx.integration cannot execute under direct vitest (server-only import gate, pre-existing runner limitation, no reference to deleted module)."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "nextAction": "Rank remaining SELECT statements by live consumer; start with port-present families whose native read already exists; record per-family KPI before/after.",
+        "nextAction": "Integrated at dab67f44. Orphan TS read deleted with covering native successor; no retained legacy.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -106282,16 +106335,16 @@
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T09:59:30.843Z",
+          "at": "2026-11-22T10:16:10.098Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Gateway proof complete and recorded. Provisioning slice belongs to an organization owner; route switch follows it. Claim released."
+          "nextAction": "Ensure port ready; composition wiring is the next lead slice, then route switch + deletion."
         },
         "id": "retire.collaboration.messaging-overview-transport",
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Gateway proof complete and recorded. Provisioning slice belongs to an organization owner; route switch follows it. Claim released.",
+        "nextAction": "Ensure port ready; composition wiring is the next lead slice, then route switch + deletion.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
@@ -106305,6 +106358,69 @@
         "title": "Cut messaging overview route to native-only",
         "workflowIds": [],
         "workstream": "S01"
+      },
+      {
+        "allowedPaths": [
+          "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
+          "packages/server-organization/src/public/organization_nodes.rs",
+          "tests/integration/organization/rust-organization-channels-postgres.test.rs"
+        ],
+        "baseSha": "dab67f4498e46366ef68903a2d103351e092262c",
+        "blocker": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-organization --all-targets",
+            "result": "passed",
+            "sourceSha": "dab67f4498e46366ef68903a2d103351e092262c",
+            "note": "Clean incl. new ensure port, public re-export, registered test target (lead fixed one turbofish annotation in the worker's rollback test)."
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --lib",
+            "result": "passed",
+            "sourceSha": "dab67f4498e46366ef68903a2d103351e092262c",
+            "note": "18 passed (worker)."
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --test organization_channels_postgres",
+            "result": "passed",
+            "sourceSha": "dab67f4498e46366ef68903a2d103351e092262c",
+            "note": "3 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): idempotent provision + name-sync, noop without active company node, caller-transaction ownership incl. rollback and no-transaction refusal."
+          }
+        ],
+        "claim": {
+          "runId": "run-20261122-d",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-22T10:04:48.044Z",
+          "heartbeatAt": "2026-11-22T10:04:48.044Z",
+          "expiresAt": "2026-11-22T10:34:48.044Z",
+          "generation": 150
+        },
+        "dependsOn": [],
+        "deliverables": [
+          "Native ensure_organization_channels port (public API) usable from composition without opening a second pool or committing independently",
+          "PG integration proof: missing org team/channel rows created idempotently; existing rows untouched (name sync semantics preserved or explicitly decided)",
+          "No TypeScript changes; no composition changes (lead wires the caller separately)"
+        ],
+        "goalId": "G4",
+        "handoff": null,
+        "id": "retire.organization.ensure-channels-port",
+        "implementedCommit": null,
+        "kind": "migration",
+        "lastPushedSha": null,
+        "nextAction": "Port integrated at dab67f44 with PG proof (3/3). Stays non-migrated until the messaging transport switch retires the TS ensure call and records the retirement delta.",
+        "owner": "organization",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "requiredPorts": [],
+        "resources": [
+          "owner:organization"
+        ],
+        "retainedLegacy": [],
+        "scope": "Organization-owned lazy provisioning parity for messaging overview. Context: TS ensureOrganizationChannels stages collaboration_org_team/_room statements (already native-executed via collaboration_org_team_statement/_room_statement, wired in composition). Native PgOrganizationNodes.apply_channels exists but is private and tied to the node-review flow. Needed: a public company-level ensure entrypoint that provisions missing org-team/org-channel rows idempotently inside the CALLER's transaction (read-only overview units cannot write; the caller owns the unit). Study TS stageOrganizationChannels semantics (teamAt/roomsAt, display-name sync) and preserve or explicitly decide each behavior with tests. Do NOT touch packages/server-collaboration, src/composition, TypeScript, or the ledger.",
+        "scopeRefinementRequired": false,
+        "status": "in_progress",
+        "title": "Native org-channel ensure port (organization-owned)",
+        "workflowIds": [],
+        "workstream": "S01"
       }
     ],
     "migrationProgress": {
@@ -106313,21 +106429,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 436,
-      "migratedPackets": 320,
+      "totalPackets": 437,
+      "migratedPackets": 321,
       "statusCounts": {
-        "pending": 18,
-        "in_progress": 0,
+        "pending": 17,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 320,
+        "migrated": 321,
         "blocked": 98,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:02:46.015Z",
+    "updatedAt": "2026-11-22T10:16:10.099Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
