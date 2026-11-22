@@ -4820,6 +4820,46 @@ impl<C: Clock + Send + Sync + 'static>
     }
 }
 
+/// System-context statement backend: resolves the Company from the request
+/// payload and plans the notification INSERT without a browser DeviceProof.
+pub struct SystemNotificationBackend;
+
+impl StatementBackend for SystemNotificationBackend {
+    fn statement<'a>(&'a self, request: StatementRequest<'a>) -> StatementFuture<'a> {
+        Box::pin(async move {
+            if request.input.kind.as_deref() == Some("workflow_command_assertion_clear") {
+                let values: Vec<serde_json::Value> = serde_json::from_str(
+                    request.input.values_json.as_deref().unwrap_or("[]"),
+                )
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "NOTIFICATION_STATEMENT_INVALID",
+                        "Use one notification statement request.",
+                    )
+                })?;
+                return Ok(
+                    erpx_server_collaboration::public::notification_statement::NotificationStatement {
+                        sql: erpx_server_collaboration::public::notification_statement::WORKFLOW_ASSERTION_CLEAR_SQL
+                            .to_owned(),
+                        values,
+                    },
+                );
+            }
+            let company = erpx_server_shared::public::CompanyId::new(&request.input.company_id)
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "NOTIFICATION_STATEMENT_INVALID",
+                        "Use one notification statement request.",
+                    )
+                })?;
+            erpx_server_collaboration::public::notification_statement::plan_notification_statement(
+                &company,
+                &request.input,
+            )
+        })
+    }
+}
+
 impl<C: Clock + Send + Sync + 'static> StatementBackend for CollaborationWorkBackend<C> {
     fn statement<'a>(&'a self, request: StatementRequest<'a>) -> StatementFuture<'a> {
         Box::pin(async move {

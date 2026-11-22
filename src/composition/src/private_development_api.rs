@@ -3415,6 +3415,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut collaboration_work_targets = Vec::new();
         let mut notification_statement_targets = Vec::new();
+        let mut notification_statement_system_targets = Vec::new();
         let mut notification_statement_companies = Vec::new();
         let mut notification_statement_holdings = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4089,6 +4090,16 @@ async fn assemble_checked(
                                     Arc::new(SharedClock(clock.clone())),
                                 )),
                             )),
+                        },
+                    );
+                    notification_statement_system_targets.push(
+                        erpx_server_collaboration::public::notification_statement_http::StatementTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(
+                                crate::collaboration::SystemNotificationBackend,
+                            ),
                         },
                     );
                     notification_statement_companies.push(company.clone());
@@ -6858,7 +6869,7 @@ async fn assemble_checked(
             let pairs = notification_statement_companies
                 .into_iter()
                 .map(|company| company.as_str().to_owned())
-                .zip(notification_statement_targets.clone().into_iter())
+                .zip(notification_statement_system_targets.clone().into_iter())
                 .collect::<Vec<_>>();
             router = router.merge(
                 erpx_server_collaboration::public::notification_statement_http::system_notification_statement_router(
@@ -9175,17 +9186,14 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     // System callers (workers, migrations) have no browser WorkContext and
     // cannot set Host from Node fetch. The Company-keyed native command route is
     // therefore reachable on the loopback listener, which is never public.
+    let path = request.uri().path();
     let loopback_system_command = host == state.loopback
-        && request.uri().path().starts_with("/api/v1/companies/")
-        && (request.uri().path().ends_with("/native-command")
-            || request
-                .uri()
-                .path()
-                .ends_with("/workflow/wave3-command")
-            || request
-                .uri()
-                .path()
-                .ends_with("/collaboration/notification-statement"));
+        && (path.starts_with("/api/v1/companies/")
+            && (path.ends_with("/native-command")
+                || path.ends_with("/workflow/wave3-command")
+                || path.ends_with("/collaboration/notification-statement"))
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/workflow/wave3-execute"));
     if state.policy.audience(host).is_none()
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))

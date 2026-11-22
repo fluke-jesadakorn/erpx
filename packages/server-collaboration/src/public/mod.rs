@@ -73,7 +73,9 @@ pub mod social_source_policy {
 /// Native-owned notification statement port.
 pub mod notification_statement {
     pub use crate::adapters::notification_statement::{
-        NotificationStatement, NotificationStatementInput, asset_activate_statement,
+        NotificationStatement, NotificationStatementInput, plan_notification_statement,
+        WORKFLOW_ASSERTION_CLEAR_SQL,
+        asset_activate_statement,
         asset_depreciation_insert_statement, asset_depreciation_update_statement,
         asset_disposal_decision_statement, asset_disposal_insert_statement,
         asset_disposal_retire_statement, asset_event_insert_statement, asset_insert_statement,

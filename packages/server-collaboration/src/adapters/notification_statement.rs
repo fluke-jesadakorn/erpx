@@ -109,13 +109,12 @@ pub(crate) async fn ready(connection: &mut PgConnection, company: &CompanyId) ->
     Ok(())
 }
 
-/// Build the authoritative notification INSERT on the caller's unit.
-pub async fn notification_statement(
-    connection: &mut PgConnection,
+/// Pure planner for system/worker callers that execute the INSERT in their own
+/// unit. It never inspects a connection or a browser proof.
+pub fn plan_notification_statement(
     company: &CompanyId,
     input: &NotificationStatementInput,
-) -> Result<NotificationStatement, Error> {
-    ready(connection, company).await?;
+) -> Result<NotificationStatement, BusinessError> {
     if input.user_id.is_empty()
         || input.record_id.is_empty()
         || input.record_type.is_empty()
@@ -139,6 +138,16 @@ pub async fn notification_statement(
             serde_json::Value::Number(input.now.into()),
         ],
     })
+}
+
+/// Build the authoritative notification INSERT on the caller's unit.
+pub async fn notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    plan_notification_statement(company, input).map_err(Into::into)
 }
 
 #[cfg(test)]
