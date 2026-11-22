@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4702,
+    "revision": 4704,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:35:43.713Z",
-      "expiresAt": "2026-11-22T11:05:43.713Z",
+      "heartbeatAt": "2026-11-22T10:36:02.786Z",
+      "expiresAt": "2026-11-22T11:06:02.787Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T10:35:43.713Z",
-          "expiresAt": "2026-11-22T11:05:43.713Z",
+          "heartbeatAt": "2026-11-22T10:36:02.786Z",
+          "expiresAt": "2026-11-22T11:06:02.787Z",
           "generation": 150
         },
         "baseSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
@@ -106389,8 +106389,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:34:07.313Z",
-          "heartbeatAt": "2026-11-22T10:35:43.713Z",
-          "expiresAt": "2026-11-22T11:05:43.713Z",
+          "heartbeatAt": "2026-11-22T10:36:02.786Z",
+          "expiresAt": "2026-11-22T11:06:02.787Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -106413,7 +106413,7 @@
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Route cut integrated at d50ab9f (native-only overview, 503 when unconfigured; graph+tsc green; gateway proof on record). NOT migrated: TS messagingOverview implementation retained for workplace SSR presenter + suites (recorded with removal conditions). Next: presenter SSR switch to native transport, then TS deletion + retirement:ts-statements delta.",
+        "nextAction": "Route cut integrated at d50ab9f (pushed, graph+tsc green, gateway proof on record). Presenter residual scoped: messagingWorkspace SSR consumers are workplace inbox/messages + inbox/teams _screen.tsx (outside this task paths) calling via presentation-queries (signature has no Request/headers; native needs HTTP). Blocked on environment: ERPX_NATIVE_COLLABORATION_CONFIG is set only by the isolated container bootstrap (dev-container-start.ts, linux/root only) — absent in this macOS shared-dev checkout by design. Next: run the presenter switch inside the container workspace (or widen task paths), then delete TS messagingOverview + record ts-statements delta.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
@@ -106525,7 +106525,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:35:43.714Z",
+    "updatedAt": "2026-11-22T10:40:51.664Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
