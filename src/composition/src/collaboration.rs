@@ -898,11 +898,15 @@ fn room_view(room: &erpx_server_collaboration::public::messaging_native::RoomSna
         kind: room.kind.as_str().to_owned(),
         name: room.name.clone(),
         owner_id: room.owner_id.clone(),
+        team_id: room.team_id.clone(),
+        private: room.private,
         version: room.version,
         last_seq: room.last_seq,
         unread: 0,
+        preview: None,
         members: room.members.clone(),
         last_message_at: None,
+        updated_at: Some(room.created_at),
     }
 }
 
