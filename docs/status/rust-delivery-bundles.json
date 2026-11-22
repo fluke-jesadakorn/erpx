@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5060,
+    "revision": 5064,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T19:57:20.504Z",
-      "expiresAt": "2026-11-22T20:27:20.504Z",
+      "heartbeatAt": "2026-11-22T19:59:11.653Z",
+      "expiresAt": "2026-11-22T20:29:11.653Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -15560,7 +15560,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "70a0c875eb9290263a69b39f41cb6f8ee00372dc",
         "implementedCommit": "1d59e1879bcd4a2f1d4a7a935be74690f64f087c",
         "lastPushedSha": "1d59e1879bcd4a2f1d4a7a935be74690f64f087c",
         "checks": [
@@ -15692,15 +15692,15 @@
             "removalCondition": "Same route switch; delete the zod schema and its consumer."
           }
         ],
-        "blocker": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
-        "nextAction": "Native ProjectionSideEffects and routing-attention read are committed. Lead: create/bind retire.workflow (done), mount ProjectionSideEffects in composition for the customer-notice path first, add each family to owned_predicate only when its owner drain is native, and switch the workplace routing-attention route after native resolveFlow/page reads exist. Then delete the TS branches and record the Workflow KPI pair.",
+        "blocker": "released with work preserved",
+        "nextAction": "LAST ALIAS-UPDATE SITE ANALYSED (packages/server-workflow/src/adapters/flow-planning-ports.ts:47). This is not a mount or allow-list gap: the statement is `UPDATE flow_events e SET next_step_key=(state),next_user_id=(recipient) FROM <table[kind]> d JOIN flow_routes r ... WHERE e.command_id=?` where BOTH expressions and the table are selected per FlowKind across 11 owners (expense/leave/staff_task/request/stock_count/transfer/order/invoice/journal/payroll/record). state embeds approval_instances current_step and finance/commerce/payroll projections (financeFinalSources.flow_routing_finance_journals_j_join, commerceFinalSources.flow_routing_commerce_fulfillments_f_from, peoplepayrollFinalSources.flow_routing_hr_payment_batches_from) plus expense workflow_stage/version and request approval_json path expressions; recipient reads r.steps_json -> state. A partial Rust port for a subset of kinds would silently change workflow routing, so the whole typed resolver must land at once. Plan: add FlowAdvancePort in packages/server-workflow/src/public + application with a typed FlowKind enum, port the three owner source fragments into the workflow crate, execute the UPDATE on the caller transaction, add PG integration cases per kind, then switch flow-planning-ports.ts and delete the TS statement; owner KPI 1 -> 0. This is a multi-turn owner port, not a quick switch. Claim released for coordination.",
         "handoff": {
-          "runId": "run-20261114-c",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-14T09:46:31.060Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Previous run gen 66 expired; WIP reviewed, social-upload-discard-port cutover is next actionable slice",
-          "nextAction": "Native ProjectionSideEffects and routing-attention read are committed. Lead: create/bind retire.workflow (done), mount ProjectionSideEffects in composition for the customer-notice path first, add each family to owned_predicate only when its owner drain is native, and switch the workplace routing-attention route after native resolveFlow/page reads exist. Then delete the TS branches and record the Workflow KPI pair."
+          "at": "2026-11-22T20:00:06.587Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "LAST ALIAS-UPDATE SITE ANALYSED (packages/server-workflow/src/adapters/flow-planning-ports.ts:47). This is not a mount or allow-list gap: the statement is `UPDATE flow_events e SET next_step_key=(state),next_user_id=(recipient) FROM <table[kind]> d JOIN flow_routes r ... WHERE e.command_id=?` where BOTH expressions and the table are selected per FlowKind across 11 owners (expense/leave/staff_task/request/stock_count/transfer/order/invoice/journal/payroll/record). state embeds approval_instances current_step and finance/commerce/payroll projections (financeFinalSources.flow_routing_finance_journals_j_join, commerceFinalSources.flow_routing_commerce_fulfillments_f_from, peoplepayrollFinalSources.flow_routing_hr_payment_batches_from) plus expense workflow_stage/version and request approval_json path expressions; recipient reads r.steps_json -> state. A partial Rust port for a subset of kinds would silently change workflow routing, so the whole typed resolver must land at once. Plan: add FlowAdvancePort in packages/server-workflow/src/public + application with a typed FlowKind enum, port the three owner source fragments into the workflow crate, execute the UPDATE on the caller transaction, add PG integration cases per kind, then switch flow-planning-ports.ts and delete the TS statement; owner KPI 1 -> 0. This is a multi-turn owner port, not a quick switch. Claim released for coordination."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-workflow",
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T19:57:20.504Z",
-          "expiresAt": "2026-11-22T20:27:20.504Z",
+          "heartbeatAt": "2026-11-22T19:59:11.653Z",
+          "expiresAt": "2026-11-22T20:29:11.653Z",
           "generation": 150
         },
         "baseSha": "7356a8ecf6743fce13b9efaf40db29166c2fd4e3",
@@ -107718,7 +107718,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T19:59:01.485Z",
+    "updatedAt": "2026-11-22T20:00:06.588Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
