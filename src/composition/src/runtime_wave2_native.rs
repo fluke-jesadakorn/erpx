@@ -38,7 +38,10 @@ fn unavailable() -> BusinessError {
 fn business(e: Error) -> BusinessError {
     match e {
         PgTransactionError::Business(e) => e,
-        PgTransactionError::Persistence(_) => unavailable(),
+        PgTransactionError::Persistence(error) => {
+            eprintln!("RUNTIME_NATIVE_PERSISTENCE {error:?}");
+            unavailable()
+        }
     }
 }
 

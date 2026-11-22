@@ -8664,8 +8664,15 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     {
         return Err(BoundaryDenial::ProxyMetadata);
     }
+    // System callers (workers, migrations) have no browser WorkContext and
+    // cannot set Host from Node fetch. The Company-keyed native command route is
+    // therefore reachable on the loopback listener, which is never public.
+    let loopback_system_command = host == state.loopback
+        && request.uri().path().starts_with("/api/v1/companies/")
+        && request.uri().path().ends_with("/runtime/native-command");
     if state.policy.audience(host).is_none()
-        && !(host == state.loopback && matches!(request.uri().path(), "/api/health" | "/api/ready"))
+        && !(host == state.loopback
+            && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))
     {
         eprintln!("BOUNDARY_DEBUG path={} host={} audience=None loopback={}", request.uri().path(), host, state.loopback);
         return Err(BoundaryDenial::NotFound);
