@@ -144,6 +144,10 @@ name = "inbox_payroll_postgres"
 path = "../../tests/integration/collaboration/rust-inbox-payroll-postgres.test.rs"
 
 [[test]]
+name = "inbox_people_postgres"
+path = "../../tests/integration/collaboration/rust-inbox-people-postgres.test.rs"
+
+[[test]]
 name = "collaboration_work_pg"
 path = "../../tests/integration/collaboration/rust-collaboration-work-pg-postgres.test.rs"
 

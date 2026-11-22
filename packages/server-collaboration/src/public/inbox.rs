@@ -32,3 +32,8 @@ pub use crate::adapters::inbox_payroll::{
     PayrollInboxTargets, is_payroll_inbox_target, payroll_advance_href, payroll_correction_href,
     uses_enforced_layer,
 };
+pub use crate::adapters::inbox_people::{
+    PeopleInboxTargets, bangkok_coverage_weeks, expense_href, is_people_inbox_target,
+    is_roster_monday, leave_href, overtime_href, parse_roster_coverage_id, retirement_case_href,
+    roster_request_href, roster_week_href,
+};

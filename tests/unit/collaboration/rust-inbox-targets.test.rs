@@ -1,13 +1,15 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
-    InboxTargetPort, InboxTargetVisibility, PayrollInboxTargets, calendar_appointment_href,
-    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
-    encode_uri_component, finance_document_capability, finance_invoice_href, finance_journal_href,
-    finance_refund_href, is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
-    is_finance_inbox_target, is_owned_inbox_target, is_payroll_inbox_target,
-    payroll_advance_href, payroll_correction_href, retained_inbox_destination, source_record_label,
-    uses_enforced_layer,
+    InboxTargetPort, InboxTargetVisibility, PayrollInboxTargets, PeopleInboxTargets,
+    bangkok_coverage_weeks, calendar_appointment_href, commerce_order_capability,
+    commerce_order_href, crm_activity_href, crm_lead_href, encode_uri_component, expense_href,
+    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
+    is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
+    is_finance_inbox_target, is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
+    is_roster_monday, leave_href, overtime_href, parse_roster_coverage_id, payroll_advance_href,
+    payroll_correction_href, retirement_case_href, retained_inbox_destination,
+    roster_request_href, roster_week_href, source_record_label, uses_enforced_layer,
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
@@ -501,4 +503,121 @@ fn payroll_layer_selection_follows_the_enforced_mode_check() {
     assert!(uses_enforced_layer(PackageEnforcementMode::Enforced));
     assert!(!uses_enforced_layer(PackageEnforcementMode::Disabled));
     assert!(!uses_enforced_layer(PackageEnforcementMode::Shadow));
+}
+
+#[test]
+fn people_slice_routes_to_the_native_delegate() {
+    for source_type in [
+        "roster_week",
+        "roster_request",
+        "roster_coverage",
+        "overtime",
+        "leave",
+        "leave_cancellation",
+        "expense",
+        "retirement_clearance",
+    ] {
+        assert!(is_people_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "commerce_order",
+        "invoice",
+        "payroll_correction",
+        "request",
+        "task",
+        "post",
+        "support_ticket",
+        "people",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_people_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the people sources.
+    assert!(!is_calendar_inbox_target("overtime"));
+    assert!(!is_crm_inbox_target("leave"));
+    assert!(!is_commerce_inbox_target("expense"));
+    assert!(!is_finance_inbox_target("retirement_clearance"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&PeopleInboxTargets::new(None, None));
+    assert_inbox_target_port(&PeopleInboxTargets::default());
+    assert_inbox_target_port(
+        &PeopleInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn people_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(
+        roster_week_href("dep-1", "2026-11-16"),
+        "/people/roster?department=dep-1&week=2026-11-16"
+    );
+    assert_eq!(
+        roster_week_href("a/b c", "2026-11-16"),
+        "/people/roster?department=a%2Fb%20c&week=2026-11-16"
+    );
+    assert_eq!(
+        roster_request_href("dep-1", "2026-11-16", "req-1"),
+        "/people/roster?department=dep-1&week=2026-11-16&view=requests&request=req-1"
+    );
+    assert_eq!(
+        roster_request_href("dep-1", "2026-11-16", "a/b"),
+        "/people/roster?department=dep-1&week=2026-11-16&view=requests&request=a%2Fb"
+    );
+    // Overtime/leave/expense hrefs carry the raw record id, no encoding.
+    assert_eq!(overtime_href("ovt-1/2"), "/overtime/ovt-1/2");
+    assert_eq!(leave_href("lea-1/2"), "/tasks/people_payroll/lea-1/2");
+    assert_eq!(expense_href("exp-1/2"), "/expenses/exp-1/2");
+    assert_eq!(
+        retirement_case_href("case-1"),
+        "/people/clearance/case-1"
+    );
+    assert_eq!(source_record_label("leave"), "Leave");
+    assert_eq!(source_record_label("expense"), "Expense");
+    assert_eq!(source_record_label("overtime"), "Overtime");
+    assert_eq!(source_record_label("retirement_clearance"), "Retirement clearance");
+}
+
+#[test]
+fn people_coverage_ids_parse_byte_identically_to_the_typescript_regex() {
+    assert_eq!(
+        parse_roster_coverage_id("dep-1:2026-11-16:person-1"),
+        Some(("dep-1", "2026-11-16", "person-1"))
+    );
+    assert_eq!(
+        parse_roster_coverage_id("a:b:2026-11-16:p1"),
+        Some(("a:b", "2026-11-16", "p1"))
+    );
+    assert_eq!(
+        parse_roster_coverage_id(":2026-11-16:p1"),
+        Some(("", "2026-11-16", "p1"))
+    );
+    for invalid in [
+        "dep-1:2026-11-16:",
+        "dep-1:2026-11-16",
+        "dep-1:not-a-date:p1",
+        "dep-1:2026-11-16:two:parts:extra",
+        "",
+    ] {
+        assert_eq!(parse_roster_coverage_id(invalid), None, "{invalid}");
+    }
+}
+
+#[test]
+fn people_mondays_and_bangkok_weeks_match_the_retained_calendar() {
+    assert!(is_roster_monday("2026-11-16"));
+    assert!(is_roster_monday("2026-11-23"));
+    for not_monday in ["2026-11-17", "2026-11-22", "2026-02-29", "not-a-date", ""] {
+        assert!(!is_roster_monday(not_monday), "{not_monday}");
+    }
+    // 2026-11-22T12:00:00+07:00 is a Sunday: week starts 2026-11-16.
+    assert_eq!(
+        bangkok_coverage_weeks(1_795_323_600_000),
+        Some(("2026-11-16".into(), "2026-11-23".into()))
+    );
 }
