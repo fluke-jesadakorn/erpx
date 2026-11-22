@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5095,
+    "revision": 5101,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:17:52.448Z",
-      "expiresAt": "2026-11-22T20:47:52.448Z",
+      "heartbeatAt": "2026-11-22T20:21:53.586Z",
+      "expiresAt": "2026-11-22T20:51:53.586Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,9 +17230,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T20:16:21.551Z",
-          "heartbeatAt": "2026-11-22T20:17:52.448Z",
-          "expiresAt": "2026-11-22T20:47:52.448Z",
+          "claimedAt": "2026-11-22T20:22:02.948Z",
+          "heartbeatAt": "2026-11-22T20:22:02.948Z",
+          "expiresAt": "2026-11-22T20:52:02.948Z",
           "generation": 150
         },
         "baseSha": "ecf0f5ae49f08e847146d947172fef51c4221202",
@@ -17350,10 +17350,10 @@
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:13:00.963Z",
+          "at": "2026-11-22T20:22:02.653Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "HANDOFF: releasing audit.runtime to claim retire.learning.residual-writers (suite needs the src/composition path). Audit state at d98446f32: literal write KPI 0, alias KPI 0, dual-writer files 0, 66 native-descriptor files, 11386 SELECT tokens still TS (audit.read-tail owner), unused Next APIs unconfirmed, retire.workflow needs six non-native drains + jobs.ts switch, planning retire needs the two foreign .test.rs registered, migrations.ts 42P01 unfixed."
+          "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -38225,7 +38225,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "2271576f9777c8029556f803db0a90828c5717eb",
         "implementedCommit": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
         "lastPushedSha": "2b8070670a2be1d43b52e2e649bc22d23eb1335c",
         "checks": [
@@ -38338,15 +38338,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Lead: add native CRM identity guest-link/sharing + lead-create writers, then retire the remaining 22.",
+        "blocker": "released with work preserved",
+        "nextAction": "AUDITED AT HEAD: the owner write KPI is already 0 (literal and alias) and the identity guest-link/sharing writers now call nativeCrmExecute crm_stmt_12/13 (leads_native.rs owns lead create), so the writer-retirement part of the scope is satisfied. ONE pre-existing owner test still fails, so the task cannot pass its gate honestly: crm_pipeline_postgres::reviewed_account_link_is_scoped_retained_and_bound_to_the_original_unit panics at test line 145 - after ROLLBACK TO SAVEPOINT before_source_locks, CurrentCrmReviewedAccountLink::require_current returns Persistence(CRM_SOURCE_TRANSACTION_REQUIRED) from activity_source::unit() instead of the expected Business(CRM_SOURCE_CHANGED); unit() requires is_in_transaction() plus serializable isolation. All other cases pass: 26/26 when crm_pipeline_postgres runs with --test-threads=1 (parallel runs hit PG 53200 OOM from fixtures) and cargo check -p erpx-server-crm passes. Not closing with a cherry-picked check set. Next: fix require_current/unit ordering for the savepoint path (or confirm sqlx status tracking after ROLLBACK TO SAVEPOINT) then close with retirement:ts-writes 30 -> 0 and the full test pass.",
         "handoff": {
-          "runId": "run-20261113-h",
-          "agentId": "worker-crm-leads",
-          "at": "2026-11-13T04:59:05.487Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "Lead: add native CRM identity guest-link/sharing + lead-create writers, then retire the remaining 22."
+          "runId": "run-20261122-d",
+          "agentId": "lead",
+          "at": "2026-11-22T20:22:02.882Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "AUDITED AT HEAD: the owner write KPI is already 0 (literal and alias) and the identity guest-link/sharing writers now call nativeCrmExecute crm_stmt_12/13 (leads_native.rs owns lead create), so the writer-retirement part of the scope is satisfied. ONE pre-existing owner test still fails, so the task cannot pass its gate honestly: crm_pipeline_postgres::reviewed_account_link_is_scoped_retained_and_bound_to_the_original_unit panics at test line 145 - after ROLLBACK TO SAVEPOINT before_source_locks, CurrentCrmReviewedAccountLink::require_current returns Persistence(CRM_SOURCE_TRANSACTION_REQUIRED) from activity_source::unit() instead of the expected Business(CRM_SOURCE_CHANGED); unit() requires is_in_transaction() plus serializable isolation. All other cases pass: 26/26 when crm_pipeline_postgres runs with --test-threads=1 (parallel runs hit PG 53200 OOM from fixtures) and cargo check -p erpx-server-crm passes. Not closing with a cherry-picked check set. Next: fix require_current/unit ordering for the savepoint path (or confirm sqlx status tracking after ROLLBACK TO SAVEPOINT) then close with retirement:ts-writes 30 -> 0 and the full test pass."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -107842,7 +107842,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:17:52.450Z",
+    "updatedAt": "2026-11-22T20:22:02.949Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
