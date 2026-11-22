@@ -16,7 +16,25 @@ use erpx_server_identity_access::public::{
     staff_notifications::supplier_promise_recipients,
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_collaboration::public::notification_statement::{
+    NotificationStatementInput, finance_supplier_bill_draft_void_statement,
+    supplier_bill_notification_statement,
+};
+use erpx_server_commerce::public::owner_write::{PgOwnerWrite, execute_owner_write};
 use erpx_server_operations::public::staff_tasks::notify_staff_record;
+use erpx_server_procurement::public::supplier_bill_command::{
+    BillHead, CaptureAttributes, CaptureLineFact, CaptureOrderFact, CapturePostingFact,
+    CapturePreparedLine, CaptureReceiptFact, PgSupplierBillCommand, PolicyHead, PostingConfig,
+    StoredSupplierBillReceipt, SupplierBillCapturePlan, SupplierBillCommandActor,
+    SupplierBillCommandFuture, SupplierBillCommandRepository, SupplierBillCommandStaging,
+    SupplierBillCommitPlan, SupplierBillDecidePlan, SupplierBillPolicyPlan, SupplierBillReadback,
+    SupplierBillRecordReceipt, capture_supplier_bill, decide_supplier_bill, save_supplier_bill_policy,
+};
+use erpx_server_procurement::public::supplier_bill_command_http::{
+    SupplierBillCaptureHttpRequest, SupplierBillCommandHttpBackend, SupplierBillCommandHttpFuture,
+    SupplierBillCommandHttpResponse, SupplierBillCommandHttpTarget, SupplierBillDecideHttpRequest,
+    SupplierBillPolicyHttpRequest, supplier_bill_command_http_router,
+};
 use erpx_server_procurement::public::supplier_promise_command::{
     RecordSupplierPromiseCommand, SupplierPromiseCommandActor,
 };
@@ -133,6 +151,63 @@ fn procurement_command_actor(
         permissions: current.command_iam_metadata().permissions.clone(),
         modules: current.modules().to_vec(),
         expires_at: current.expires_at(),
+    })
+}
+
+fn bill_command_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<SupplierBillCommandActor, BusinessError> {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    Ok(SupplierBillCommandActor {
+        user_id: current.user_id().as_str().to_owned(),
+        assignment_id: assignment.id.as_str().to_owned(),
+        company_id: workspace.company_id.clone(),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        revision: selected.revision(),
+        assignment_version: assignment.version,
+        permissions: current.command_iam_metadata().permissions.clone(),
+        expires_at: current.expires_at(),
+    })
+}
+
+/// Retained bill foundations; capture/decide settle existing purchases, policy
+/// authorizes new work. A recorded receipt replays as history.
+const BILL_FOUNDATIONS: [&str; 3] = [
+    "supply.purchasing",
+    "supply.receiving",
+    "finance.inventory-valuation",
+];
+
+async fn bill_purchase_purpose(
+    connection: &mut PgConnection,
+    key: &CommandKey,
+    operation: &str,
+    actor: &SupplierBillCommandActor,
+    fallback: CapabilityPurpose,
+) -> Result<CapabilityPurpose, Error> {
+    let replay: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=$1 AND \
+         operation=$2 AND actor_id=$3 AND authority_json::jsonb->>'companyId'=$4)",
+    )
+    .bind(key.as_str())
+    .bind(operation)
+    .bind(&actor.user_id)
+    .bind(actor.company_id.as_str())
+    .fetch_one(&mut *connection)
+    .await?;
+    Ok(if replay {
+        CapabilityPurpose::History
+    } else {
+        fallback
     })
 }
 
@@ -460,6 +535,379 @@ impl<C: Clock + Send + Sync + 'static> ProcurementService<C> {
             )
             .await
     }
+
+    /// Native supplier-bill capture: retained `finance.write` + `commerce.read`
+    /// permissions with settle-existing admission over the three bill
+    /// foundations. Cross-owner receipt-version/links run in-process; the void
+    /// and notify hooks execute owner-built statements in the same unit.
+    pub async fn capture_bill(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        key: CommandKey,
+        input: Value,
+    ) -> Result<SupplierBillCommandHttpResponse, Error> {
+        if selection.company_id != self.configuration.company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("procurement".into()),
+                    destination: "procurement.bill.capture".into(),
+                    api: true,
+                },
+                ProcurementSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let input = input.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("commerce.read")?;
+                        let actor = bill_command_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let purpose = bill_purchase_purpose(
+                            connection,
+                            &key,
+                            "procurement.bill.capture",
+                            &actor,
+                            CapabilityPurpose::SettleExisting,
+                        )
+                        .await?;
+                        let witness = {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            reader
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: BILL_FOUNDATIONS
+                                            .iter()
+                                            .map(|value| (*value).to_owned())
+                                            .collect(),
+                                        purpose,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    now,
+                                )
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?
+                                .clone()
+                        };
+                        let mut unit = BillCommandUnit::new(connection);
+                        let receipt = {
+                            let (repository, intents) =
+                                (&mut unit.repository, &mut unit.intents);
+                            let mut staging = BillStaging { intents };
+                            capture_supplier_bill(
+                                &actor,
+                                repository,
+                                &mut staging,
+                                &input,
+                                key.as_str(),
+                                now,
+                            )
+                            .await?
+                        };
+                        unit.settle(&actor, now).await?;
+                        {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                unit.connection(),
+                                &catalogue,
+                            );
+                            reader
+                                .revalidate(&witness, now)
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?;
+                        }
+                        let data = serde_json::to_value(&receipt).map_err(|_| unavailable())?;
+                        Ok(SupplierBillCommandHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Native supplier-bill decision: retained `finance.read` + `finance.write`
+    /// + `finance.approve` permissions with settle-existing admission. A
+    /// return of a draft invoice voids it and clears its links in-unit.
+    pub async fn decide_bill(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        key: CommandKey,
+        match_id: String,
+        input: Value,
+    ) -> Result<SupplierBillCommandHttpResponse, Error> {
+        if selection.company_id != self.configuration.company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: "finance.approve".into(),
+                    module: Some("procurement".into()),
+                    destination: "procurement.bill.decision".into(),
+                    api: true,
+                },
+                ProcurementSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let match_id = match_id.clone();
+                    let input = input.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("finance.write")?;
+                        current.require_permission("finance.approve")?;
+                        let actor = bill_command_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        // The retained operation varies by action; purpose is
+                        // settle-existing for a fresh decision, history on replay.
+                        let replay_approve: bool = sqlx::query_scalar(
+                            "SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=$1 AND \
+                             operation='procurement.bill.approve' AND actor_id=$2 AND \
+                             authority_json::jsonb->>'companyId'=$3)",
+                        )
+                        .bind(key.as_str())
+                        .bind(&actor.user_id)
+                        .bind(actor.company_id.as_str())
+                        .fetch_one(&mut *connection)
+                        .await?;
+                        let replay_return: bool = sqlx::query_scalar(
+                            "SELECT EXISTS(SELECT 1 FROM command_receipts WHERE command_id=$1 AND \
+                             operation='procurement.bill.return' AND actor_id=$2 AND \
+                             authority_json::jsonb->>'companyId'=$3)",
+                        )
+                        .bind(key.as_str())
+                        .bind(&actor.user_id)
+                        .bind(actor.company_id.as_str())
+                        .fetch_one(&mut *connection)
+                        .await?;
+                        let purpose = if replay_approve || replay_return {
+                            CapabilityPurpose::History
+                        } else {
+                            CapabilityPurpose::SettleExisting
+                        };
+                        let witness = {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            reader
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: BILL_FOUNDATIONS
+                                            .iter()
+                                            .map(|value| (*value).to_owned())
+                                            .collect(),
+                                        purpose,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    now,
+                                )
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?
+                                .clone()
+                        };
+                        let mut unit = BillCommandUnit::new(connection);
+                        let receipt = {
+                            let (repository, intents) =
+                                (&mut unit.repository, &mut unit.intents);
+                            let mut staging = BillStaging { intents };
+                            decide_supplier_bill(
+                                &actor,
+                                repository,
+                                &mut staging,
+                                &match_id,
+                                &input,
+                                key.as_str(),
+                                now,
+                            )
+                            .await?
+                        };
+                        unit.settle(&actor, now).await?;
+                        {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                unit.connection(),
+                                &catalogue,
+                            );
+                            reader
+                                .revalidate(&witness, now)
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?;
+                        }
+                        let data = serde_json::to_value(&receipt).map_err(|_| unavailable())?;
+                        Ok(SupplierBillCommandHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Native supplier-invoice policy save: retained `finance.approve`
+    /// permission with new-work admission over the bill foundations.
+    pub async fn save_policy_bill(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        key: CommandKey,
+        input: Value,
+    ) -> Result<SupplierBillCommandHttpResponse, Error> {
+        if selection.company_id != self.configuration.company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: "finance.approve".into(),
+                    module: Some("procurement".into()),
+                    destination: "procurement.invoice-policy.update".into(),
+                    api: true,
+                },
+                ProcurementSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let input = input.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.approve")?;
+                        let actor = bill_command_actor(current)?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let purpose = bill_purchase_purpose(
+                            connection,
+                            &key,
+                            "procurement.invoice-policy.update",
+                            &actor,
+                            CapabilityPurpose::NewWork,
+                        )
+                        .await?;
+                        let witness = {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            reader
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: BILL_FOUNDATIONS
+                                            .iter()
+                                            .map(|value| (*value).to_owned())
+                                            .collect(),
+                                        purpose,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    now,
+                                )
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?
+                                .clone()
+                        };
+                        let mut unit = BillCommandUnit::new(connection);
+                        let receipt = save_supplier_bill_policy(
+                            &actor,
+                            &mut unit.repository,
+                            &input,
+                            key.as_str(),
+                            now,
+                        )
+                        .await?;
+                        unit.settle(&actor, now).await?;
+                        {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                unit.connection(),
+                                &catalogue,
+                            );
+                            reader
+                                .revalidate(&witness, now)
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?;
+                        }
+                        let data = serde_json::to_value(&receipt).map_err(|_| unavailable())?;
+                        Ok(SupplierBillCommandHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 /// Mirror the retained `withProcurementPurchasedCommand` purpose exactly: a
@@ -677,6 +1125,614 @@ impl<C: Clock + Send + Sync + 'static> SupplierPromiseCommandHttpBackend for Pro
     }
 }
 
+impl<C: Clock + Send + Sync + 'static> SupplierBillCommandHttpBackend for ProcurementBackend<C> {
+    fn capture<'a>(
+        &'a self,
+        request: SupplierBillCaptureHttpRequest<'a>,
+    ) -> SupplierBillCommandHttpFuture<'a, SupplierBillCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let key = request.key.clone();
+            let input = request.input.clone();
+            self.service
+                .capture_bill(request.host, proof, selection, key, input)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn decide<'a>(
+        &'a self,
+        request: SupplierBillDecideHttpRequest<'a>,
+    ) -> SupplierBillCommandHttpFuture<'a, SupplierBillCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let key = request.key.clone();
+            let match_id = request.match_id.to_owned();
+            let input = request.input.clone();
+            self.service
+                .decide_bill(request.host, proof, selection, key, match_id, input)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn save_policy<'a>(
+        &'a self,
+        request: SupplierBillPolicyHttpRequest<'a>,
+    ) -> SupplierBillCommandHttpFuture<'a, SupplierBillCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let key = request.key.clone();
+            let input = request.input.clone();
+            self.service
+                .save_policy_bill(request.host, proof, selection, key, input)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+/// Cross-owner staging intents recorded by the bill port and executed by the
+/// service inside the same caller-owned serializable transaction, in order.
+/// Commerce receipt-version and invoice-link hooks run through the in-process
+/// owner write (stronger than the retained HTTP dispatch); the Finance
+/// draft-void and Collaboration notification hooks execute owner-built
+/// statements locally.
+enum BillStagingIntent {
+    OwnerWrite {
+        kind: &'static str,
+        values: Vec<Value>,
+        record_id: String,
+        key: String,
+    },
+    Links {
+        match_id: String,
+        invoice_id: Option<String>,
+    },
+    VoidDraft {
+        match_id: String,
+    },
+    Notify {
+        match_id: String,
+        key: String,
+    },
+}
+
+/// Composition-owned unit binding the procurement repository to the
+/// cross-owner staging hooks over one caller transaction.
+struct BillCommandUnit<'c> {
+    repository: PgSupplierBillCommand<'c>,
+    intents: Vec<BillStagingIntent>,
+}
+
+impl<'c> BillCommandUnit<'c> {
+    fn new(connection: &'c mut PgConnection) -> Self {
+        Self {
+            repository: PgSupplierBillCommand::new(connection),
+            intents: Vec::new(),
+        }
+    }
+
+    fn connection(&mut self) -> &mut PgConnection {
+        self.repository.connection()
+    }
+}
+
+impl<'c> SupplierBillCommandRepository for BillCommandUnit<'c> {
+    type Error = Error;
+
+    fn receipt<'a>(
+        &'a mut self,
+        key: &'a str,
+    ) -> SupplierBillCommandFuture<'a, Option<StoredSupplierBillReceipt>, Self::Error> {
+        Box::pin(async move { self.repository.receipt(key).await })
+    }
+
+    fn capture_receipt<'a>(
+        &'a mut self,
+        actor: &'a SupplierBillCommandActor,
+        fulfillment_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, Option<CaptureReceiptFact>, Self::Error> {
+        Box::pin(async move { self.repository.capture_receipt(actor, fulfillment_id).await })
+    }
+
+    fn capture_order<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, Option<CaptureOrderFact>, Self::Error> {
+        Box::pin(async move { self.repository.capture_order(order_id).await })
+    }
+
+    fn posting_config<'a>(
+        &'a mut self,
+        actor: &'a SupplierBillCommandActor,
+    ) -> SupplierBillCommandFuture<'a, Option<PostingConfig>, Self::Error> {
+        Box::pin(async move { self.repository.posting_config(actor).await })
+    }
+
+    fn receipt_postings<'a>(
+        &'a mut self,
+        journal_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, Vec<CapturePostingFact>, Self::Error> {
+        Box::pin(async move { self.repository.receipt_postings(journal_id).await })
+    }
+
+    fn receipt_lines<'a>(
+        &'a mut self,
+        fulfillment_ids: &'a [String],
+    ) -> SupplierBillCommandFuture<'a, Vec<CaptureLineFact>, Self::Error> {
+        Box::pin(async move { self.repository.receipt_lines(fulfillment_ids).await })
+    }
+
+    fn bill<'a>(
+        &'a mut self,
+        actor: &'a SupplierBillCommandActor,
+        match_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, Option<BillHead>, Self::Error> {
+        Box::pin(async move { self.repository.bill(actor, match_id).await })
+    }
+
+    fn bill_variance<'a>(
+        &'a mut self,
+        match_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, bool, Self::Error> {
+        Box::pin(async move { self.repository.bill_variance(match_id).await })
+    }
+
+    fn variance_account_ok<'a>(
+        &'a mut self,
+        actor: &'a SupplierBillCommandActor,
+        account_id: &'a str,
+        chart_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.repository
+                .variance_account_ok(actor, account_id, chart_id)
+                .await
+        })
+    }
+
+    fn policy<'a>(
+        &'a mut self,
+        actor: &'a SupplierBillCommandActor,
+    ) -> SupplierBillCommandFuture<'a, Option<PolicyHead>, Self::Error> {
+        Box::pin(async move { self.repository.policy(actor).await })
+    }
+
+    fn company_authority<'a>(
+        &'a mut self,
+        actor: &'a SupplierBillCommandActor,
+        now: TimestampMillis,
+    ) -> SupplierBillCommandFuture<'a, bool, Self::Error> {
+        Box::pin(async move { self.repository.company_authority(actor, now).await })
+    }
+
+    fn bill_image<'a>(
+        &'a mut self,
+        actor: &'a SupplierBillCommandActor,
+        match_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, Option<serde_json::Value>, Self::Error> {
+        Box::pin(async move { self.repository.bill_image(actor, match_id).await })
+    }
+
+    fn verify_capture_receipts<'a>(
+        &'a mut self,
+        receipts: &'a [(String, String, i64)],
+    ) -> SupplierBillCommandFuture<'a, bool, Self::Error> {
+        Box::pin(async move { self.repository.verify_capture_receipts(receipts).await })
+    }
+
+    fn verify_decide_state<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillDecidePlan,
+        bill_status: &'a str,
+    ) -> SupplierBillCommandFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.repository.verify_decide_state(plan, bill_status).await
+        })
+    }
+
+    fn verify_policy_version<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillPolicyPlan,
+        current_version: i64,
+    ) -> SupplierBillCommandFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.repository
+                .verify_policy_version(plan, current_version)
+                .await
+        })
+    }
+
+    fn insert_match<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillCapturePlan,
+        attributes: &'a CaptureAttributes,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move { self.repository.insert_match(plan, attributes).await })
+    }
+
+    fn insert_match_receipt<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillCapturePlan,
+        index: usize,
+        fulfillment_id: &'a str,
+        expected_version: i64,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.repository
+                .insert_match_receipt(plan, index, fulfillment_id, expected_version)
+                .await
+        })
+    }
+
+    fn insert_match_lines<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillCapturePlan,
+        lines: &'a [CapturePreparedLine],
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move { self.repository.insert_match_lines(plan, lines).await })
+    }
+
+    fn insert_event<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillCommitPlan,
+        match_id: &'a str,
+        version: i64,
+        action: &'a str,
+        note: &'a str,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.repository
+                .insert_event(plan, match_id, version, action, note)
+                .await
+        })
+    }
+
+    fn apply_decision<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillDecidePlan,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move { self.repository.apply_decision(plan).await })
+    }
+
+    fn deactivate_match_receipts<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillDecidePlan,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move { self.repository.deactivate_match_receipts(plan).await })
+    }
+
+    fn upsert_policy<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillPolicyPlan,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move { self.repository.upsert_policy(plan).await })
+    }
+
+    fn insert_policy_event<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillPolicyPlan,
+        previous: &'a str,
+        reason: &'a str,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.repository
+                .insert_policy_event(plan, previous, reason)
+                .await
+        })
+    }
+
+    fn insert_receipt<'a>(
+        &'a mut self,
+        key: &'a str,
+        operation: &'a str,
+        actor: &'a SupplierBillCommandActor,
+        request_fingerprint: &'a str,
+        record_id: &'a str,
+        result_json: &'a str,
+        authority_json: &'a str,
+        now: TimestampMillis,
+    ) -> SupplierBillCommandFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.repository
+                .insert_receipt(
+                    key,
+                    operation,
+                    actor,
+                    request_fingerprint,
+                    record_id,
+                    result_json,
+                    authority_json,
+                    now,
+                )
+                .await
+        })
+    }
+
+    fn audit<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillCommitPlan,
+        receipt: &'a SupplierBillRecordReceipt,
+        authority_json: &'a str,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move { self.repository.audit(plan, receipt, authority_json).await })
+    }
+
+    fn outbox<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillCommitPlan,
+        receipt: &'a SupplierBillRecordReceipt,
+        authority_json: &'a str,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move { self.repository.outbox(plan, receipt, authority_json).await })
+    }
+
+    fn readback<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        match_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, Option<SupplierBillReadback>, Self::Error> {
+        Box::pin(async move { self.repository.readback(company, match_id).await })
+    }
+}
+
+/// Execute an owner-built notification statement on the caller transaction.
+/// Mirrors the retained `?` positional placeholders to Postgres `$n`. The SQL
+/// text is owner-built with bound values only; audited safe.
+async fn execute_notification_statement(
+    connection: &mut PgConnection,
+    sql: &str,
+    values: &[Value],
+) -> Result<(), Error> {
+    let mut rewritten = String::with_capacity(sql.len());
+    let mut index = 0usize;
+    for ch in sql.chars() {
+        if ch == '?' {
+            index += 1;
+            rewritten.push('$');
+            rewritten.push_str(&index.to_string());
+        } else {
+            rewritten.push(ch);
+        }
+    }
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(rewritten.as_str()));
+    for value in values {
+        query = match value {
+            Value::String(text) => query.bind(text.as_str()),
+            Value::Number(number) if number.is_i64() => {
+                query.bind(number.as_i64().unwrap_or(0))
+            }
+            Value::Number(number) => query.bind(number.as_f64().unwrap_or(0.0)),
+            Value::Bool(flag) => query.bind(*flag),
+            Value::Null => query.bind(Option::<String>::None),
+            Value::Array(_) | Value::Object(_) => query.bind(value.to_string()),
+        };
+    }
+    query.execute(&mut *connection).await?;
+    Ok(())
+}
+
+/// Borrowed staging sink with disjoint borrows from the repository so the
+/// application use case can take `&mut repository` and `&mut staging`
+/// without a double mutable borrow of the unit.
+struct BillStaging<'a> {
+    intents: &'a mut Vec<BillStagingIntent>,
+}
+
+impl SupplierBillCommandStaging for BillStaging<'_> {
+    type Error = Error;
+
+    fn stage_receipt_version<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.intents.push(BillStagingIntent::OwnerWrite {
+                kind: "supplier.fulfillment-version",
+                values: vec![Value::String(fulfillment_id.to_owned())],
+                record_id: fulfillment_id.to_owned(),
+                key: format!("supplier:fulfillment-version:{fulfillment_id}"),
+            });
+            Ok(())
+        })
+    }
+
+    fn stage_receipt_links<'a>(
+        &'a mut self,
+        match_id: &'a str,
+        invoice_id: Option<&'a str>,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.intents.push(BillStagingIntent::Links {
+                match_id: match_id.to_owned(),
+                invoice_id: invoice_id.map(str::to_owned),
+            });
+            Ok(())
+        })
+    }
+
+    fn stage_draft_void<'a>(
+        &'a mut self,
+        plan: &'a SupplierBillDecidePlan,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.intents.push(BillStagingIntent::VoidDraft {
+                match_id: plan.match_id.clone(),
+            });
+            Ok(())
+        })
+    }
+
+    fn notify_bill<'a>(
+        &'a mut self,
+        match_id: &'a str,
+        key: &'a str,
+    ) -> SupplierBillCommandFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.intents.push(BillStagingIntent::Notify {
+                match_id: match_id.to_owned(),
+                key: key.to_owned(),
+            });
+            Ok(())
+        })
+    }
+}
+
+impl<'c> BillCommandUnit<'c> {
+    /// Run the recorded staging intents in order inside the caller
+    /// transaction, after the application use case returns.
+    async fn settle(&mut self, actor: &SupplierBillCommandActor, now: TimestampMillis) -> Result<(), Error> {
+        let company = actor.company_id.clone();
+        for intent in std::mem::take(&mut self.intents) {
+            match intent {
+                BillStagingIntent::OwnerWrite {
+                    kind,
+                    values,
+                    record_id,
+                    key,
+                } => {
+                    let raw = serde_json::json!({"kind": kind, "values": values, "recordId": record_id});
+                    let key = CommandKey::new(key).map_err(Error::from)?;
+                    let mut owner =
+                        PgOwnerWrite::new(self.connection(), company.as_str());
+                    execute_owner_write("system", &raw, Some(&key), &mut owner, now)
+                        .await
+                        .map_err(|error| match error {
+                            PgTransactionError::Business(error) => {
+                                PgTransactionError::Business(error)
+                            }
+                            PgTransactionError::Persistence(error) => {
+                                PgTransactionError::Persistence(error)
+                            }
+                        })?;
+                }
+                BillStagingIntent::Links { match_id, invoice_id } => {
+                    let rows: Vec<(String,)> = if invoice_id.is_some() {
+                        sqlx::query_as(
+                            "SELECT fulfillment_id FROM procurement_bill_match_receipts \
+                             WHERE match_id=$1 AND active=TRUE",
+                        )
+                        .bind(&match_id)
+                        .fetch_all(&mut *self.connection())
+                        .await?
+                    } else {
+                        sqlx::query_as(
+                            "SELECT fulfillment_id FROM procurement_bill_match_receipts \
+                             WHERE match_id=$1",
+                        )
+                        .bind(&match_id)
+                        .fetch_all(&mut *self.connection())
+                        .await?
+                    };
+                    let ids: Vec<String> =
+                        rows.into_iter().map(|row| row.0).collect();
+                    let _ = invoice_id;
+                    let raw = serde_json::json!({"kind": "supplier.fulfillment-links", "values": [invoice_id, serde_json::json!(serde_json::to_string(&ids).map_err(|_| unavailable())?)], "recordId": match_id});
+                    let key = CommandKey::new(format!("supplier:fulfillment-links:{match_id}"))
+                        .map_err(Error::from)?;
+                    let mut owner =
+                        PgOwnerWrite::new(self.connection(), company.as_str());
+                    execute_owner_write("system", &raw, Some(&key), &mut owner, now)
+                        .await
+                        .map_err(|error| match error {
+                            PgTransactionError::Business(error) => {
+                                PgTransactionError::Business(error)
+                            }
+                            PgTransactionError::Persistence(error) => {
+                                PgTransactionError::Persistence(error)
+                            }
+                        })?;
+                }
+                BillStagingIntent::VoidDraft { match_id } => {
+                    let row: Option<(Option<String>, Option<i64>)> = sqlx::query_as(
+                        "SELECT i.id,i.version FROM finance_invoices i \
+                         JOIN procurement_bill_matches m ON m.invoice_id=i.id \
+                         WHERE m.id=$1 AND m.company_id=$2",
+                    )
+                    .bind(&match_id)
+                    .bind(company.as_str())
+                    .fetch_optional(&mut *self.connection())
+                    .await?;
+                    if let Some((Some(invoice_id), Some(invoice_version))) = row {
+                        let _ = invoice_version;
+                        let statement = finance_supplier_bill_draft_void_statement(
+                            self.connection(),
+                            &company,
+                            &NotificationStatementInput {
+                                company_id: company.as_str().to_owned(),
+                                user_id: String::new(),
+                                record_type: String::new(),
+                                record_id: String::new(),
+                                record_version: 0,
+                                message: String::new(),
+                                now: now.get(),
+                                idempotency_key: String::new(),
+                                kind: Some(
+                                    "finance_supplier_bill_draft_void".to_owned(),
+                                ),
+                                lead_id: None,
+                                identifier: None,
+                                approver_user_id: None,
+                                item_id: None,
+                                bill_id: None,
+                                rfq_id: None,
+                                audience: None,
+                                event: None,
+                                order_id: None,
+                                change: None,
+                                timestamp: None,
+                                post_id: None,
+                                source_hash: None,
+                                ai_draft_id: None,
+                                document_table: None,
+                                recipient_sql: None,
+                                node_id: None,
+                                scope_node_id: None,
+                                runtime_predicate: None,
+                                table_name: None,
+                                cte_prefix: None,
+                                source_access_sql: None,
+                                target_kind: None,
+                                target_id: None,
+                                values_json: Some(
+                                    serde_json::json!([now.get(), invoice_id]).to_string(),
+                                ),
+                            },
+                        )
+                        .await
+                        .map_err(Error::from)?;
+                        execute_notification_statement(
+                            self.connection(),
+                            &statement.sql,
+                            &statement.values,
+                        )
+                        .await?;
+                    }
+                }
+                BillStagingIntent::Notify { match_id, key } => {
+                    let statement = supplier_bill_notification_statement(
+                        self.connection(),
+                        &company,
+                        &match_id,
+                        &key,
+                    )
+                    .await
+                    .map_err(Error::from)?;
+                    execute_notification_statement(
+                        self.connection(),
+                        &statement.sql,
+                        &statement.values,
+                    )
+                    .await?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[allow(dead_code)]
 fn _router(targets: Vec<SupplierPromiseHistoryHttpTarget>) -> Result<axum::Router, BusinessError> {
     supplier_promise_history_router(targets)
@@ -687,4 +1743,11 @@ fn _command_router(
     targets: Vec<SupplierPromiseCommandHttpTarget>,
 ) -> Result<axum::Router, BusinessError> {
     supplier_promise_command_http_router(targets)
+}
+
+#[allow(dead_code)]
+fn _bill_command_router(
+    targets: Vec<SupplierBillCommandHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
+    supplier_bill_command_http_router(targets)
 }

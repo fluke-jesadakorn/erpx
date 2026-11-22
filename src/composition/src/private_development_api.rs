@@ -3409,6 +3409,7 @@ async fn assemble_checked(
         let mut portal_attachment_targets = Vec::new();
         let mut procurement_targets = Vec::new();
         let mut procurement_command_targets = Vec::new();
+        let mut procurement_bill_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut projects_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4209,6 +4210,14 @@ async fn assemble_checked(
                 );
                 procurement_command_targets.push(
                     erpx_server_procurement::public::supplier_promise_command_http::SupplierPromiseCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: procurement_backend.clone(),
+                    },
+                );
+                procurement_bill_command_targets.push(
+                    erpx_server_procurement::public::supplier_bill_command_http::SupplierBillCommandHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -6922,6 +6931,12 @@ async fn assemble_checked(
         if !procurement_command_targets.is_empty() {
             router = router.merge(
                 erpx_server_procurement::public::supplier_promise_command_http::supplier_promise_command_http_router(procurement_command_targets)
+                    .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !procurement_bill_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_procurement::public::supplier_bill_command_http::supplier_bill_command_http_router(procurement_bill_command_targets)
                     .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
             );
         }

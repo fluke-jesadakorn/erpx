@@ -32,6 +32,11 @@ impl<'c> PgSupplierBillCommand<'c> {
         Self { connection }
     }
 
+    /// Composition-owned cross-owner staging shares the caller transaction.
+    pub fn connection(&mut self) -> &mut PgConnection {
+        &mut self.connection
+    }
+
     async fn ready(&mut self) -> Result<(), Error> {
         require_serializable(self.connection).await
     }
