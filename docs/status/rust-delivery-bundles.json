@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5108,
+    "revision": 5115,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:22:11.918Z",
-      "expiresAt": "2026-11-22T20:52:11.918Z",
+      "heartbeatAt": "2026-11-22T20:28:59.729Z",
+      "expiresAt": "2026-11-22T20:58:59.729Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,9 +17230,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T20:28:50.651Z",
-          "heartbeatAt": "2026-11-22T20:28:50.651Z",
-          "expiresAt": "2026-11-22T20:58:50.651Z",
+          "claimedAt": "2026-11-22T20:31:26.186Z",
+          "heartbeatAt": "2026-11-22T20:31:26.186Z",
+          "expiresAt": "2026-11-22T21:01:26.186Z",
           "generation": 150
         },
         "baseSha": "ecf0f5ae49f08e847146d947172fef51c4221202",
@@ -17350,7 +17350,7 @@
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:28:50.306Z",
+          "at": "2026-11-22T20:29:36.022Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
           "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done."
@@ -26099,11 +26099,11 @@
           "owner:organization",
           "resource:composition"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": "4b1723460963f08f7c236e7fb223b3c1d56d269f",
-        "implementedCommit": "321242f3b220b494cd6ae416c77ca05ded260b09",
-        "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "baseSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+        "implementedCommit": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+        "lastPushedSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
         "checks": [
           {
             "command": "cargo check -p erpx-server-collaboration",
@@ -26224,6 +26224,63 @@
             "result": "passed",
             "sourceSha": "4b1723460963f08f7c236e7fb223b3c1d56d269f",
             "note": "1 passed on latest uncommitted date/sourceVersion WIP, isolated leased dev PostgreSQL; no post or receipt created while authority unavailable."
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed",
+            "before": 169,
+            "after": 0,
+            "note": "At baseSha 4b172346 the owner had 169 literal write statements; at HEAD 0 literal and 0 alias. social-home is a thin native shim (32 native references, 347 lines)."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "ERPX_BUN_BIN=… cargo test -p erpx-server-collaboration --test social_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed",
+            "note": "14/14 pass single-threaded."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_http",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed",
+            "note": "5/5 pass."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test social_draft_uploads_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed",
+            "note": "5/5 pass: Files-owned social draft upload revoke/expiry units."
+          },
+          {
+            "command": "bunx vitest run tests/unit/collaboration/collaboration-services.test.ts",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed",
+            "note": "121/121 pass."
+          },
+          {
+            "command": "bun run --filter '@erpx/server-collaboration' typecheck",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed",
+            "note": "Exit 0."
+          },
+          {
+            "command": "POST :3198 /api/v1/holdings/acme/feed, /feed/{id}/comments, /feed/{id}/reactions",
+            "result": "passed",
+            "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
+            "sourceKind": "committed",
+            "note": "All three return 422 SOCIAL_INPUT_INVALID, proving the native social router is mounted and validating."
           }
         ],
         "retainedLegacy": [
@@ -26234,7 +26291,7 @@
           }
         ],
         "blocker": null,
-        "nextAction": "Migrate remaining 29 social-home writes + 3 files-owned social-draft revoke writes via native descriptors; no TS SQL, no fallback.",
+        "nextAction": "CLOSED at the pushed SHA: collaboration owner write KPI 169 -> 0 (0 literal, 0 alias); social-home is a native shim; native feed/comment/reaction routers return 422 SOCIAL_INPUT_INVALID; social_postgres 14/14, social_http 5/5, files social_draft_uploads 5/5, collaboration-services unit 121/121, package typecheck 0. RETENTION: rich-content/HomePost/IAM/Work/Files/Agent parity witnesses and reads remain owned by the migrate collaboration tasks and audit.read-tail; tests that shell out need ERPX_BUN_BIN/ERPX_NODE_BIN and PG suites need --test-threads=1.",
         "handoff": {
           "runId": "run-20261121-d",
           "agentId": "lead",
@@ -107865,20 +107922,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 439,
-      "migratedPackets": 328,
+      "migratedPackets": 329,
       "statusCounts": {
         "pending": 12,
         "in_progress": 0,
         "ready_for_integration": 1,
         "integrating": 0,
-        "migrated": 328,
-        "blocked": 98,
+        "migrated": 329,
+        "blocked": 97,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:28:50.652Z",
+    "updatedAt": "2026-11-22T20:31:26.187Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
