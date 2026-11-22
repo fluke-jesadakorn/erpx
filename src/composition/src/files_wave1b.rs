@@ -4,7 +4,7 @@
 //! `mod files_wave1b;` and mounts `files_command_router` with exact registered
 //! Holding targets. The owner crate owns all SQL and executes writes in Rust.
 use erpx_server_files::public::files_wave1b::{
-    CommandResult, FilesCommandInput, PostgresFilesCommandPort, unit_error, validate,
+    CommandResult, FilesCommandInput, PostgresFilesCommandPort, validate,
 };
 use erpx_server_files::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandRequest, FilesCommandTarget,
@@ -94,6 +94,7 @@ pub async fn execute_on_unit(
     key: &str,
     input: &FilesCommandInput,
 ) -> Result<CommandResult, BusinessError> {
+    use erpx_server_files::public::files_wave1b::FilesCommandPort as _;
     let company = CompanyId::new(company_id).map_err(|_| invalid())?;
     let mut port = PostgresFilesCommandPort;
     port.execute(
@@ -106,10 +107,74 @@ pub async fn execute_on_unit(
         input.now,
     )
     .await
-    .map_err(unit_error)
 }
 
 /// Build the exact registered-Holding router (lead supplies targets).
 pub fn mounted_router(targets: Vec<FilesCommandTarget>) -> Result<Router, BusinessError> {
     files_command_router(targets)
+}
+
+/// Pool-per-Company executor used by the private development assembly.
+pub struct FilesCommandPools {
+    pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+}
+
+impl FilesCommandPools {
+    pub fn new(
+        pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+    ) -> Self {
+        Self { pools }
+    }
+}
+
+impl FilesCommandExecutor for FilesCommandPools {
+    fn execute<'a>(
+        &'a self,
+        company_id: &'a str,
+        key: &'a str,
+        input: &'a FilesCommandInput,
+    ) -> FilesCommandFuture<'a> {
+        use erpx_server_runtime::public::postgres::{
+            PgTransactionError, PgUnitOfWork, TransactionOptions,
+        };
+        let pool = self.pools.get(company_id).cloned();
+        let company_id = company_id.to_owned();
+        let input = FilesCommandInput {
+            kind: input.kind.clone(),
+            values: input.values.clone(),
+            now: input.now,
+            company_id: input.company_id.clone(),
+        };
+        let key = key.to_owned();
+        Box::pin(async move {
+            let pool = pool.ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "FILES_COMMAND_UNAVAILABLE",
+                    "The native Files command port is unavailable.",
+                )
+            })?;
+            let outcome = PgUnitOfWork::new(pool)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let company_id = company_id.clone();
+                    let input = input.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        execute_on_unit(connection, &company_id, &key, &input)
+                            .await
+                            .map_err(PgTransactionError::Business)
+                    })
+                })
+                .await;
+            match outcome {
+                Ok(value) => Ok(value),
+                Err(PgTransactionError::Business(error)) => Err(error),
+                Err(PgTransactionError::Persistence(_)) => Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "FILES_COMMAND_PERSISTENCE",
+                    "The native Files command unit is unavailable.",
+                )),
+            }
+        })
+    }
 }

@@ -3410,6 +3410,7 @@ async fn assemble_checked(
         let mut procurement_targets = Vec::new();
         let mut procurement_command_targets = Vec::new();
         let mut procurement_bill_command_targets = Vec::new();
+        let mut files_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut projects_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3684,6 +3685,22 @@ async fn assemble_checked(
                 .collect()
             }
             None => BTreeMap::new(),
+        };
+        // Native Files command executor: one pool per Company so the owner write
+        // runs inside that Holding's serializable unit.
+        let files_executor = {
+            let mut by_company = std::collections::BTreeMap::new();
+            for (i, holding) in config.holdings.iter().enumerate() {
+                for company in config
+                    .operations_companies
+                    .get(&holding.registration.holding_id)
+                    .into_iter()
+                    .flatten()
+                {
+                    by_company.insert(company.as_str().to_owned(), pools[i + 1].clone());
+                }
+            }
+            Arc::new(crate::files_wave1b::FilesCommandPools::new(by_company))
         };
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(companies) = config
@@ -4215,6 +4232,16 @@ async fn assemble_checked(
                         origin: format!("https://{}", holding.host),
                         backend: procurement_backend.clone(),
                     },
+                );
+                files_command_targets.push(
+                    Arc::new(crate::files_wave1b::FilesCommandBackendImpl::new(
+                        files_executor.clone(),
+                    ))
+                    .target(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                        ),
                 );
                 procurement_bill_command_targets.push(
                     erpx_server_procurement::public::supplier_bill_command_http::SupplierBillCommandHttpTarget {
@@ -6938,6 +6965,13 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_procurement::public::supplier_bill_command_http::supplier_bill_command_http_router(procurement_bill_command_targets)
                     .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
+            );
+        }
+
+        if !files_command_targets.is_empty() {
+            router = router.merge(
+                crate::files_wave1b::mounted_router(files_command_targets)
+                    .map_err(|_| "PRIVATE_API_FILES_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

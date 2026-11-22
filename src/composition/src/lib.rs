@@ -101,6 +101,7 @@ pub mod directory_operation_worker;
 pub mod ecommerce;
 pub mod executive_connections;
 pub mod files;
+pub mod files_wave1b;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_bank_http;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
