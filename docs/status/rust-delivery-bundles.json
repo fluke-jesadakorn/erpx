@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4805,
+    "revision": 4809,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T13:13:27.236Z",
-      "expiresAt": "2026-11-22T13:43:27.236Z",
+      "heartbeatAt": "2026-11-22T13:13:52.370Z",
+      "expiresAt": "2026-11-22T13:43:52.370Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T13:13:27.236Z",
-          "expiresAt": "2026-11-22T13:43:27.236Z",
+          "heartbeatAt": "2026-11-22T13:13:52.370Z",
+          "expiresAt": "2026-11-22T13:43:52.370Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17854,6 +17854,8 @@
           "packages/server-talent/src/adapters/talent.ts",
           "packages/server-marketing/src/adapters/marketing.ts",
           "packages/server-manufacturing/src/adapters/production.ts",
+          "packages/server-learning/src/adapters/learning.ts",
+          "packages/server-benefits/src/adapters/benefits.ts",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
@@ -17864,9 +17866,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-22T12:53:22.079Z",
-          "heartbeatAt": "2026-11-22T13:13:27.236Z",
-          "expiresAt": "2026-11-22T13:43:27.236Z",
+          "claimedAt": "2026-11-22T13:14:33.290Z",
+          "heartbeatAt": "2026-11-22T13:14:33.290Z",
+          "expiresAt": "2026-11-22T13:44:33.290Z",
           "generation": 150
         },
         "baseSha": "83121e21a22afea622afeaccd68b5b97e1568e34",
@@ -18296,14 +18298,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Talent slice integrated at 83121e21 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
+        "nextAction": "Refined: learning + benefits oracle paths added (read-only reference for learning_assignment/benefit_election delegates). Eleven slices integrated+proven. Next: worker re-claims and builds the slice, then operations/records/identity_access/organization/customer_authority/workflow families.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "at": "2026-11-22T12:53:03.389Z",
+          "at": "2026-11-22T13:14:09.342Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Quality/legal slice integrated at 8bf1eb70 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
+          "nextAction": "Talent slice integrated at 83121e21 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -106990,7 +106992,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T13:13:27.238Z",
+    "updatedAt": "2026-11-22T13:14:33.292Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
