@@ -192,6 +192,10 @@ name = "inbox_workflow_postgres"
 path = "../../tests/integration/collaboration/rust-inbox-workflow-postgres.test.rs"
 
 [[test]]
+name = "inbox_page_drop_postgres"
+path = "../../tests/integration/collaboration/rust-inbox-page-drop-postgres.test.rs"
+
+[[test]]
 name = "collaboration_work_pg"
 path = "../../tests/integration/collaboration/rust-collaboration-work-pg-postgres.test.rs"
 

@@ -380,7 +380,7 @@ impl<'c> PgInboxUnit<'c> {
             }
             InboxTarget::default()
         } else {
-            let Some(target) = self
+            let target = match self
                 .targets
                 .target(
                     &mut *self.connection,
@@ -390,9 +390,23 @@ impl<'c> PgInboxUnit<'c> {
                     &source_id,
                     source_version,
                 )
-                .await?
-            else {
-                return Ok(None);
+                .await
+            {
+                Ok(Some(target)) => target,
+                Ok(None) => return Ok(None),
+                // A denied source disappears from this projection; it must
+                // not interrupt the whole Inbox page. Mirrors the retained
+                // TypeScript per-row 403/404 catch. Storage, transaction and
+                // Unavailable errors still fail the page.
+                Err(error)
+                    if matches!(
+                        error.kind,
+                        FailureKind::Forbidden | FailureKind::NotFound
+                    ) =>
+                {
+                    return Ok(None);
+                }
+                Err(error) => return Err(error.into()),
             };
             target
         };

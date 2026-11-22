@@ -95,3 +95,7 @@ export function nativeInboxPeople(request: Request, holdingSlug: string, query: 
 export function nativeInboxNotices(request: Request, holdingSlug: string) {
   return read(request, holdingSlug, '/notices');
 }
+
+export function nativeInboxNotifications(request: Request, holdingSlug: string, search: string) {
+  return read(request, holdingSlug, `/notifications${search}`);
+}
