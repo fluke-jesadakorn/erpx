@@ -561,22 +561,27 @@ async fn overview_includes_organization_channel_for_node_members_only() {
         sqlx::raw_sql(
             "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES \
              ('company','company','company','Company',NULL,'company',NULL,'active'), \
-             ('node-1','company','announcements','Announcements',NULL,'company',NULL,'active'); \
+             ('node-1','company','announcements','Announcements',NULL,'company',NULL,'active'), \
+             ('node-2','company','suspended','Suspended',NULL,'company',NULL,'suspended'); \
              INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES \
-             ('person-org','org-user','company','Org User','TH','seed',1,1); \
+             ('person-org','org-user','company','Org User','TH','seed',1,1), \
+             ('person-rev','revoked-user','company','Revoked User','TH','seed',1,1); \
              INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES \
-             ('eng-org','person-org','company','employee','salaried','active','2020-01-01','Member','THB','seed',1,1); \
+             ('eng-org','person-org','company','employee','salaried','active','2020-01-01','Member','THB','seed',1,1), \
+             ('eng-rev','person-rev','company','employee','salaried','active','2020-01-01','Member','THB','seed',1,1); \
              INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES \
              ('*','employee','Employee',true,1,'active') \
              ON CONFLICT(company_id,id) DO UPDATE SET published_revision=excluded.published_revision,status='active'; \
              INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES \
              ('*','employee',1,'[\"iam.self\"]','[]','[\"holding\",\"branch\",\"department\"]','system',0) \
              ON CONFLICT(company_id,role_id,revision) DO NOTHING; \
-             INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until) VALUES \
-             ('assign-org','org-user','employee','{}','company',0,9999999999999); \
+             INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,revoked_at) VALUES \
+             ('assign-org','org-user','employee','{}','company',0,9999999999999,NULL), \
+             ('assign-rev','revoked-user','employee','{}','company',0,9999999999999,1); \
              INSERT INTO messaging_teams(id,company_id,name,owner_id,created_at) VALUES ('team-org','company','Org','org-user',1700000000000); \
              INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,private,version,last_seq,created_at,organization_node_id) VALUES \
-             ('room-org','company','channel','Announcements','org-user','team-org',false,1,0,1700000000000,'node-1');",
+             ('room-org','company','channel','Announcements','org-user','team-org',false,1,0,1700000000000,'node-1'), \
+             ('room-suspended','company','channel','Suspended','org-user','team-org',false,1,0,1700000000000,'node-2');",
         )
         .execute(&mut *c)
         .await
@@ -596,6 +601,12 @@ async fn overview_includes_organization_channel_for_node_members_only() {
             .await
             .unwrap();
         assert!(hidden.is_empty());
+        tx.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        let revoked = read_overview(&mut tx, &actor("revoked-user", "company"))
+            .await
+            .unwrap();
+        assert!(revoked.is_empty());
         tx.rollback().await.unwrap();
     })
     .await;
