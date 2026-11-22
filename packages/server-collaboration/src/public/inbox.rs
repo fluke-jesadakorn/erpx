@@ -41,3 +41,7 @@ pub use crate::adapters::inbox_support::{
     SupportInboxTargets, is_support_inbox_target, support_history_capability, support_incident_href,
     support_session_href, support_sla_href, support_ticket_href,
 };
+pub use crate::adapters::inbox_procurement::{
+    ProcurementInboxTargets, is_procurement_inbox_target, procurement_history_capability,
+    procurement_rfq_href, supplier_bill_href, supplier_promise_href,
+};

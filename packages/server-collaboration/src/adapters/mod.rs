@@ -57,6 +57,8 @@ pub(crate) mod inbox_people;
 
 pub(crate) mod inbox_support;
 
+pub(crate) mod inbox_procurement;
+
 pub(crate) mod social_http;
 
 pub(crate) mod social_http_wire;
