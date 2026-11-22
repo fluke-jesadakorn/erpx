@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4786,
+    "revision": 4788,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T12:26:40.849Z",
-      "expiresAt": "2026-11-22T12:56:40.849Z",
+      "heartbeatAt": "2026-11-22T12:32:12.107Z",
+      "expiresAt": "2026-11-22T13:02:12.107Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T12:26:40.849Z",
-          "expiresAt": "2026-11-22T12:56:40.849Z",
+          "heartbeatAt": "2026-11-22T12:32:12.107Z",
+          "expiresAt": "2026-11-22T13:02:12.107Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17859,11 +17859,11 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T12:26:36.284Z",
-          "heartbeatAt": "2026-11-22T12:26:40.849Z",
-          "expiresAt": "2026-11-22T12:56:40.849Z",
+          "heartbeatAt": "2026-11-22T12:32:12.107Z",
+          "expiresAt": "2026-11-22T13:02:12.107Z",
           "generation": 150
         },
-        "baseSha": "5348f822e7a69c85a99e950f785215d2ef6ab410",
+        "baseSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -18178,11 +18178,47 @@
             "result": "passed",
             "sourceSha": "5348f822e7a69c85a99e950f785215d2ef6ab410",
             "note": "Composition eight-way chain wiring compiles; 0 errors."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
+            "note": "Worker inventory delegate + public re-exports + registered PG test target compile; 0 errors."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_targets",
+            "result": "passed",
+            "sourceSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
+            "note": "31 passed incl. worker routing/href/capability extension."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_inventory_postgres",
+            "result": "passed",
+            "sourceSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
+            "note": "12 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): landed order href, count/transit/followup hrefs, gate-order denial codes, role/purchase denials, fail-closed, rollback. Lead fixed a moved-value borrow in the worker's fail-closed test."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_procurement_postgres",
+            "result": "passed",
+            "sourceSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
+            "note": "10 passed (regression re-run)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_support_postgres",
+            "result": "passed",
+            "sourceSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
+            "note": "11 passed (regression re-run)."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
+            "note": "Composition nine-way chain wiring compiles; 0 errors."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refined: inventory + sales oracle paths added (read-only oracle reference for landed_cost/stock_count/inventory_transit/customer_followup delegates). Calendar/CRM/commerce/finance/payroll/people/support/procurement integrated+proven. Next: worker re-claims and builds the inventory slice, then quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow families.",
+        "nextAction": "Inventory slice integrated at 9cfb9e71 (delegate + chain wiring + PG 12/12 proven, pushed). Stays non-migrated: quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
@@ -106876,7 +106912,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T12:26:40.851Z",
+    "updatedAt": "2026-11-22T12:34:16.795Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
