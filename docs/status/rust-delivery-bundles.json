@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4609,
+    "revision": 4612,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T08:38:06.348Z",
-      "expiresAt": "2026-11-22T09:08:06.348Z",
+      "heartbeatAt": "2026-11-22T08:39:15.631Z",
+      "expiresAt": "2026-11-22T09:09:15.631Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T08:38:06.348Z",
-          "expiresAt": "2026-11-22T09:08:06.348Z",
+          "heartbeatAt": "2026-11-22T08:39:15.631Z",
+          "expiresAt": "2026-11-22T09:09:15.631Z",
           "generation": 149
         },
         "baseSha": null,
@@ -17212,7 +17212,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Dev blocker CLEARED: graph passes, dev 3100 detached and serving (health 503 degraded baseline - scanner/jobs/migration unready). Remaining availability gaps: 3101 down, public hosts unverified (tunnel), retired Console 404 + Holding pages pending browser pass.",
+        "nextAction": "Billing+sales restores migrated at d9dd1a534 (remote verified). Foreign untracked scripts/local/refund-context-e2e.ts breaks repo tsc (TS2749) - owner must fix; blocks typecheck gate. Next ready: retire.reads.collaboration.org-access-port (pending, fully scoped) for the rooms() TS-switch; retire.reads.collaboration in_progress.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -43805,8 +43805,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:24:42.288Z",
-          "heartbeatAt": "2026-11-22T08:38:06.348Z",
-          "expiresAt": "2026-11-22T09:08:06.348Z",
+          "heartbeatAt": "2026-11-22T08:39:15.631Z",
+          "expiresAt": "2026-11-22T09:09:15.631Z",
           "generation": 149
         },
         "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
@@ -105991,6 +105991,48 @@
         "title": "Retire dead Field TS-oracle scripts (dev blocker)",
         "workflowIds": [],
         "workstream": "S08"
+      },
+      {
+        "allowedPaths": [
+          "packages/server-collaboration/src/adapters/messaging_native.rs",
+          "packages/server-organization/src/public/organization_nodes.rs",
+          "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
+          "src/composition/src/collaboration.rs",
+          "tests/integration/collaboration/rust-messaging-postgres.test.rs"
+        ],
+        "baseSha": null,
+        "blocker": null,
+        "checks": [],
+        "claim": null,
+        "dependsOn": [],
+        "deliverables": [
+          "Native messaging_room_organization_sql public predicate reusing member_sql",
+          "read_overview OR-branch for organization_node_id rooms; PG integration proof with org-channel room",
+          "TS rooms() switched to native transport; TS site + barrels deleted; retirement:ts-statements delta recorded"
+        ],
+        "goalId": "G4",
+        "handoff": null,
+        "id": "retire.reads.collaboration.org-access-port",
+        "implementedCommit": null,
+        "kind": "migration",
+        "lastPushedSha": null,
+        "nextAction": "Expose native org-channel predicate from postgres_organization_nodes member_sql (exact port of organizationChannelEngagementSql), add the OR (r.organization_node_id IS NOT NULL AND ...) branch to read_overview, prove with PG integration test using migration 0011 org-channel room, then switch TS rooms() and delete the TS site.",
+        "owner": "collaboration",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "requiredPorts": [
+          "organization.member-sql"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "owner:organization"
+        ],
+        "retainedLegacy": [],
+        "scope": "Close the last rooms() parity gap: TS messagingRoomAccessSql covers organization_node_id rooms (migration 0011 org channels: kind=channel, private=false, node-bound) via organization_nodes active + member predicate; native read_overview lacks that OR-branch. Native member_sql in postgres_organization_nodes.rs is documented as the exact port of organizationChannelEngagementSql. Reuse it behind a new public predicate; no new authority semantics. Unread sender-exclusion alignment is a separate consumer-sign-off decision.",
+        "scopeRefinementRequired": false,
+        "status": "pending",
+        "title": "Native org-channel access branch for rooms() cutover",
+        "workflowIds": [],
+        "workstream": "S01"
       }
     ],
     "migrationProgress": {
@@ -105999,10 +106041,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 434,
+      "totalPackets": 435,
       "migratedPackets": 320,
       "statusCounts": {
-        "pending": 20,
+        "pending": 21,
         "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -106013,7 +106055,7 @@
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T08:39:07.444Z",
+    "updatedAt": "2026-11-22T08:40:05.549Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
