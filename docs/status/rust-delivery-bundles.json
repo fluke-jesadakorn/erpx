@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4581,
+    "revision": 4587,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261122-b",
+      "runId": "run-20261122-c",
       "agentId": "lead",
-      "startedAt": "2026-11-22T00:39:04.712Z",
-      "heartbeatAt": "2026-11-22T00:50:49.096Z",
-      "expiresAt": "2026-11-22T01:20:49.096Z",
-      "generation": 148,
-      "tokenHash": "53f99330ca633cb8d55de3c77ac4345c8abee50394b34581389207750597c4f9"
+      "startedAt": "2026-11-22T08:24:38.648Z",
+      "heartbeatAt": "2026-11-22T08:24:38.720Z",
+      "expiresAt": "2026-11-22T08:54:38.720Z",
+      "generation": 149,
+      "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -43795,14 +43795,14 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261122-b",
+          "runId": "run-20261122-c",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T00:51:11.538Z",
-          "heartbeatAt": "2026-11-22T00:51:11.538Z",
-          "expiresAt": "2026-11-22T01:21:11.538Z",
-          "generation": 148
+          "claimedAt": "2026-11-22T08:24:42.288Z",
+          "heartbeatAt": "2026-11-22T08:24:42.288Z",
+          "expiresAt": "2026-11-22T08:54:42.288Z",
+          "generation": 149
         },
-        "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
+        "baseSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -43817,18 +43817,66 @@
             "result": "passed",
             "sourceSha": "f957d897f3d05dfca1561758d18a73d64ada6064",
             "note": "Native RoomView lacks preview (body/Attachment 160 chars), updated_at (COALESCE latest msg, room created_at), team_id, private; unread semantic differs (TS excludes own messages). organization_node_id is application-attached (optional) - out of native scope. Extension: 4 columns + 2 subselects in read_overview; verify no existing native-overview consumers depend on current unread before changing it."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "HEAD",
+            "note": "RoomView extended with team_id/private/preview/updated_at; all targets compile (only pre-existing unused-import warnings)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib messaging_http",
+            "result": "passed",
+            "sourceSha": "HEAD",
+            "note": "9 passed incl. extended overview field assertions (teamId null, private false, preview, updatedAt)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test messaging_http",
+            "result": "passed",
+            "sourceSha": "HEAD",
+            "note": "4 passed: collaboration.rust-messaging-http.unit suite incl. new payload fields."
+          },
+          {
+            "command": "test:integration --suite=collaboration.rust-messaging-postgres.integration",
+            "result": "passed",
+            "sourceSha": "HEAD",
+            "note": "3 passed on disposable PG: extended read_overview SQL validated live (preview hello, updated_at==last_message_at, team_id None, private false); unread semantics unchanged."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
+            "note": "RoomView extended with team_id/private/preview/updated_at; all targets compile (only pre-existing unused-import warnings)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib messaging_http",
+            "result": "passed",
+            "sourceSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
+            "note": "9 passed incl. extended overview field assertions (teamId null, private false, preview, updatedAt)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test messaging_http",
+            "result": "passed",
+            "sourceSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
+            "note": "4 passed: collaboration.rust-messaging-http.unit suite incl. new payload fields."
+          },
+          {
+            "command": "test:integration --suite=collaboration.rust-messaging-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
+            "note": "3 passed on disposable PG: extended read_overview SQL validated live (preview hello, updated_at==last_message_at, team_id None, private false); unread semantics unchanged."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Extend native RoomView with team_id/private/preview/updated_at (exact subselects recorded); confirm no consumer depends on current unread semantics; then switch rooms() + delete TS site.",
+        "nextAction": "RoomView extension implemented+verified at e84569e5 (team_id/private/preview/updated_at, live PG proof). Remaining: (1) unread sender-exclusion switch needs native-overview consumer sign-off; (2) rooms() TS switch blocked on native org-node access branch (TS access covers organization_node_id rooms, native WHERE does not) — needs native org-branch port before TS deletion; (3) then switch rooms() + delete TS site and record retirement:ts-statements delta.",
         "handoff": {
-          "runId": "run-20261122-a",
+          "runId": "run-20261122-b",
           "agentId": "lead",
-          "at": "2026-11-22T00:39:04.712Z",
+          "at": "2026-11-22T08:24:38.647Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
-          "nextAction": "Handbook read parity OK but NOT cutover-ready: 3 live TS consumers remain (presentation-queries.ts x4, staff-notifications.ts dynamic import, agent workspace-assistant.ts) - switch them to nativeHandbookReads first, then delete handbook.ts (7 SELECT). Other 4 families need native extensions (RoomView preview/updated_at, inbox 7 reads, social stories, web-push read unit)."
+          "reason": "Recovery: Previous run-20261122-b stopped (heartbeat 00:51Z, now 08:23Z, no live coordinator process); WIP reviewed: ledger heartbeat-only diff + 2 untracked pms refund-context e2e helpers preserved; PG 5432 up, no dev server on 3100 yet",
+          "nextAction": "Extend native RoomView with team_id/private/preview/updated_at (exact subselects recorded); confirm no consumer depends on current unread semantics; then switch rooms() + delete TS site."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -105722,8 +105770,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 148,
-    "updatedAt": "2026-11-22T00:51:11.604Z",
+    "lastCoordinatorGeneration": 149,
+    "updatedAt": "2026-11-22T08:27:35.145Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -105758,10 +105806,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261122-a",
-      "runId": "run-20261122-b",
-      "at": "2026-11-22T00:39:04.713Z",
-      "reason": "Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
+      "previousRunId": "run-20261122-b",
+      "runId": "run-20261122-c",
+      "at": "2026-11-22T08:24:38.649Z",
+      "reason": "Previous run-20261122-b stopped (heartbeat 00:51Z, now 08:23Z, no live coordinator process); WIP reviewed: ledger heartbeat-only diff + 2 untracked pms refund-context e2e helpers preserved; PG 5432 up, no dev server on 3100 yet",
       "wipReviewed": true,
       "previousRunStopped": true
     },
