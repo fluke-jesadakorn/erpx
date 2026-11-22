@@ -154,7 +154,7 @@ async function rawGet(path: string) {
     const s = new Socket();
     s.once('error', reject);
     s.connect(PORT, '127.0.0.1', () => { s.write(req); });
-    s.on('data', d => chunks.push(d));
+    s.on('data', (d: Buffer) => chunks.push(d));
     s.on('close', () => resolve());
   });
   const response = Buffer.concat(chunks).toString('utf8');

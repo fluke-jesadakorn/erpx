@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4661,
+    "revision": 4665,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:00:02.527Z",
-      "expiresAt": "2026-11-22T10:30:02.527Z",
+      "heartbeatAt": "2026-11-22T10:00:34.666Z",
+      "expiresAt": "2026-11-22T10:30:34.666Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17197,9 +17197,16 @@
         "resources": [
           "shared-integration"
         ],
-        "status": "blocked",
-        "claim": null,
-        "baseSha": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-d",
+          "agentId": "lead",
+          "claimedAt": "2026-11-22T10:02:32.960Z",
+          "heartbeatAt": "2026-11-22T10:02:32.960Z",
+          "expiresAt": "2026-11-22T10:32:32.960Z",
+          "generation": 150
+        },
+        "baseSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17238,11 +17245,47 @@
             "result": "passed",
             "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
             "note": "4 passed incl. org-channel proof (post-gate; gate defaults disabled in this env so reads unaffected)."
+          },
+          {
+            "command": "typecheck:tsc --noEmit (repo, both projects)",
+            "result": "passed",
+            "sourceSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
+            "note": "Green on pushed candidate after fixing own e2e script type error (Socket data handler)."
+          },
+          {
+            "command": "audit:structure-check",
+            "result": "passed",
+            "sourceSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
+            "note": "Repository layout passed: test lanes/owners, providers and support categories."
+          },
+          {
+            "command": "audit:architecture-check",
+            "result": "failed",
+            "sourceSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
+            "note": "195 violations (entrypoint-sql, module-private-import, presentation-runtime-composition, owner-private-import); none reference files changed in recent slices (composition collaboration/private_api, collaboration/organization crates, billing/sales restores, e2e scripts). Pre-existing across other owners; needs owner-by-owner triage, tracked separately."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
+            "note": "0 errors on pushed candidate (default features)."
+          },
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
+            "note": "loadWorkspaceGraph GRAPH OK on pushed candidate."
+          },
+          {
+            "command": "audit:retirement-kpi-extended",
+            "result": "passed",
+            "sourceSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
+            "note": "Raw write-SQL in TS (INSERT/DELETE/UPDATE incl. aliases/dynamic): 0. Remaining TS business execution surface: 136 .ts files calling executeCommand (unchanged; per-family native ports still required)."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: run-20261122-c lease expired during messaging e2e proof (now 09:59Z, expiry 09:47Z); no live coordinator process; WIP reconciled: gateway-proof commit 896a93ca pushed scope done, ledger checks pending record, no stray services/DB leases held (verified 0 erpx-server procs, disposable DBs dropped by e2e cleanup)",
-        "nextAction": "Native purchase gate integrated in composition (638a4c02). Provisioning still TS-owned (org slice). Next: per-family native ports; purchase/provisioning need commercial/org owners.",
+        "blocker": null,
+        "nextAction": "Combined gates on pushed candidate recorded: tsc/structure/cargo-check/graph green; architecture:check red pre-existing (195, none in recent slices, needs owner triage); KPI raw-SQL 0, executeCommand surface 136. Next: per-family native ports; provisioning needs org owner.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -106284,7 +106327,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:00:02.528Z",
+    "updatedAt": "2026-11-22T10:02:33.038Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
