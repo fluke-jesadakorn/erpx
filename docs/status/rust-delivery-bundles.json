@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4892,
+    "revision": 4895,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T15:18:02.296Z",
-      "expiresAt": "2026-11-22T15:48:02.296Z",
+      "heartbeatAt": "2026-11-22T15:18:56.749Z",
+      "expiresAt": "2026-11-22T15:48:56.749Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T15:18:02.296Z",
-          "expiresAt": "2026-11-22T15:48:02.296Z",
+          "heartbeatAt": "2026-11-22T15:18:56.749Z",
+          "expiresAt": "2026-11-22T15:48:56.749Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -50030,7 +50030,6 @@
           "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/supplier-bills/**",
           "packages/server-commerce/src/**",
           "packages/server-finance/src/**",
-          "src/composition/src/**",
           "tests/integration/procurement/**",
           "tests/unit/procurement/**",
           "tests/support/helpers/business-file-targets.ts",
@@ -50045,7 +50044,7 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "nextAction": "Audit actual live callers and native owner authority first; preserve current Portal WIP, migrate native seeded tests and remove TS writer/export only after all six gates. HEAD Procurement KPI 24, total 1961."
+        "nextAction": "Audit actual live callers and native owner authority first (read-only recon); composition wiring stays lead-owned shared integration — worker reports gaps, lead wires. Preserve current Portal WIP; migrate native seeded tests and remove TS writer/export only after all six gates."
       },
       {
         "goalId": "G3",
@@ -107373,7 +107372,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T15:18:02.297Z",
+    "updatedAt": "2026-11-22T15:19:17.250Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
