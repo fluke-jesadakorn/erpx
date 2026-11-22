@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4813,
+    "revision": 4816,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T13:21:10.069Z",
-      "expiresAt": "2026-11-22T13:51:10.069Z",
+      "heartbeatAt": "2026-11-22T13:21:31.052Z",
+      "expiresAt": "2026-11-22T13:51:31.052Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T13:21:10.069Z",
-          "expiresAt": "2026-11-22T13:51:10.069Z",
+          "heartbeatAt": "2026-11-22T13:21:31.052Z",
+          "expiresAt": "2026-11-22T13:51:31.052Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17856,21 +17856,16 @@
           "packages/server-manufacturing/src/adapters/production.ts",
           "packages/server-learning/src/adapters/learning.ts",
           "packages/server-benefits/src/adapters/benefits.ts",
+          "packages/server-operations/src/adapters/operations-exceptions.ts",
+          "packages/server-operations/src/adapters/staff-task-read.ts",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-d",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-22T13:14:33.290Z",
-          "heartbeatAt": "2026-11-22T13:21:10.069Z",
-          "expiresAt": "2026-11-22T13:51:10.069Z",
-          "generation": 150
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "cace5825eabc4ada25310aa527323b4c58f80255",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -18333,15 +18328,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Learning slice integrated at cace5825 (delegate + chain wiring + PG 9/9 proven, pushed). Stays non-migrated: operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
+        "blocker": "released with work preserved",
+        "nextAction": "Refined: operations oracle paths added (read-only reference for operational_exception/task/post delegates; social-source oracle is collaboration-internal). Twelve slices integrated+proven. Next: worker re-claims and builds the slice, then records/identity_access/organization/customer_authority/workflow families.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "at": "2026-11-22T13:14:09.342Z",
+          "at": "2026-11-22T13:21:52.786Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Talent slice integrated at 83121e21 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
+          "nextAction": "Learning slice integrated at cace5825 (delegate + chain wiring + PG 9/9 proven, pushed). Stays non-migrated: operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -107018,17 +107013,17 @@
       "migratedPackets": 321,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 321,
-        "blocked": 100,
+        "blocked": 101,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T13:21:10.071Z",
+    "updatedAt": "2026-11-22T13:22:03.996Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
