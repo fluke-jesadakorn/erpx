@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4999,
+    "revision": 5000,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17206,7 +17206,7 @@
           "expiresAt": "2026-11-22T18:42:48.698Z",
           "generation": 150
         },
-        "baseSha": "f5852bb7e3e6f37cadaaea7b3698215d3f7ae5d1",
+        "baseSha": "960b132ba100a771ce967ea13a1dc28f45c488c4",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17317,7 +17317,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "GLOBAL KPI RECORDED at f5852bb: literal-DML in packages/server-*/src/**/*.ts = 0 vs baseline 2894 (repo-wide incl tests/fixtures = 4845, out of scope). Remaining retirement debt = 17 TS files importing native descriptors plus oracle-only test subpaths. Next slices retire descriptor fallbacks with route-level KPI like the proven bill slice: collaboration social-home (needs parity witnesses, not SQL), messaging overview.",
+        "nextAction": "Planning retire is evidence-blocked, not work-blocked: its own check list contains result=failed for manufacturing.production.integration at 918c15726, and the CLI refuses migrated while any check fails. Attempted rerun at HEAD twice: (a) raw vitest fails on server-only shim, (b) repo runner `bun scripts/testing/test.ts integration --suite=manufacturing.production.integration` aborts at TEST_INVENTORY_MISMATCH naming two FOREIGN untracked files tests/integration/finance/rust-finance-due-draft-schedule-postgres.test.rs and tests/integration/people_payroll/rust-payroll-schedule-postgres.test.rs. Those belong to another writer WIP in this checkout - lead must not register/delete them. Blocks catalogue-wide suite execution (also structure:check). Needed from user: authorize registering those two suites (manifest + Cargo target) or have their owner finish; then rerun suite and close the Planning retire task.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -107515,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:12:48.699Z",
+    "updatedAt": "2026-11-22T18:15:04.879Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
