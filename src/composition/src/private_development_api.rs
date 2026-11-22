@@ -3251,6 +3251,7 @@ async fn assemble_checked(
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
+        let mut commerce_native_routers: Vec<Router> = Vec::new();
         // Private development assembly: scheduled predicates admit locally and
         // production rendering still fails closed because it is not enabled.
         let runtime_policy =
@@ -4020,6 +4021,18 @@ async fn assemble_checked(
                     crm_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
                     inventory_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    commerce_native_routers.push(
+                        crate::commerce_wave2::commerce_warehouse_save_composed_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::commerce_wave2::WarehouseSaveBackend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )
+                        .map_err(|_| "PRIVATE_API_COMMERCE_WAVE2_CONFIGURATION_INVALID")?,
+                    );
                     inventory_native_routers.push(
                         crate::inventory_wave2::inventory_wave2_native_router(
                             holding.host.clone(),
@@ -6636,6 +6649,9 @@ async fn assemble_checked(
         }
         for inventory_router in inventory_native_routers {
             router = router.merge(inventory_router);
+        }
+        for commerce_router in commerce_native_routers {
+            router = router.merge(commerce_router);
         }
         if !inventory_company_pools.is_empty() {
             let inventory_companies: Vec<String> =
