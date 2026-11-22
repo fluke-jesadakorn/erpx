@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4794,
+    "revision": 4796,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T12:35:29.119Z",
-      "expiresAt": "2026-11-22T13:05:29.119Z",
+      "heartbeatAt": "2026-11-22T12:43:33.320Z",
+      "expiresAt": "2026-11-22T13:13:33.320Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T12:35:29.119Z",
-          "expiresAt": "2026-11-22T13:05:29.119Z",
+          "heartbeatAt": "2026-11-22T12:43:33.320Z",
+          "expiresAt": "2026-11-22T13:13:33.320Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17862,11 +17862,11 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T12:35:23.920Z",
-          "heartbeatAt": "2026-11-22T12:35:29.119Z",
-          "expiresAt": "2026-11-22T13:05:29.119Z",
+          "heartbeatAt": "2026-11-22T12:43:33.320Z",
+          "expiresAt": "2026-11-22T13:13:33.320Z",
           "generation": 150
         },
-        "baseSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
+        "baseSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -18217,11 +18217,47 @@
             "result": "passed",
             "sourceSha": "9cfb9e711b09487998b27b6bed5fbd6867ebf099",
             "note": "Composition nine-way chain wiring compiles; 0 errors."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
+            "note": "Worker quality delegate + public re-exports + registered PG test target compile; 0 errors."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_targets",
+            "result": "passed",
+            "sourceSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
+            "note": "34 passed incl. worker routing/href/capability extension."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_quality_postgres",
+            "result": "passed",
+            "sourceSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
+            "note": "11 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): ticket status split, alert hold source, legal scope, spec capability, missing-row codes, fail-closed, rollback. Lead fixed a moved-value borrow, added the lot-balance seed row required by quality_lot_guard, and fixed NULL spec_id decode (optional root, not missing row)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_inventory_postgres",
+            "result": "passed",
+            "sourceSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
+            "note": "12 passed (regression re-run)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_procurement_postgres",
+            "result": "passed",
+            "sourceSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
+            "note": "10 passed (regression re-run)."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
+            "note": "Composition ten-way chain wiring compiles; 0 errors."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refined: quality + legal oracle paths added (read-only oracle reference for quality_hold/quality_alert/legal delegates). Nine slices integrated+proven. Next: worker re-claims and builds the quality/legal slice, then marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow families.",
+        "nextAction": "Quality/legal slice integrated at 8bf1eb70 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
@@ -106915,7 +106951,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T12:35:29.121Z",
+    "updatedAt": "2026-11-22T12:52:10.404Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
