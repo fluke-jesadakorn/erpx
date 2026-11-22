@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4715,
+    "revision": 4717,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:45:36.270Z",
-      "expiresAt": "2026-11-22T11:15:36.270Z",
+      "heartbeatAt": "2026-11-22T10:48:41.426Z",
+      "expiresAt": "2026-11-22T11:18:41.426Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T10:45:36.270Z",
-          "expiresAt": "2026-11-22T11:15:36.270Z",
+          "heartbeatAt": "2026-11-22T10:48:41.426Z",
+          "expiresAt": "2026-11-22T11:18:41.426Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17847,17 +17847,42 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T10:45:28.036Z",
-          "heartbeatAt": "2026-11-22T10:45:36.270Z",
-          "expiresAt": "2026-11-22T11:15:36.270Z",
+          "heartbeatAt": "2026-11-22T10:48:41.426Z",
+          "expiresAt": "2026-11-22T11:18:41.426Z",
           "generation": 150
         },
-        "baseSha": null,
+        "baseSha": "da2ffee84733e52b0cd23934f1732b074089a94b",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "da2ffee84733e52b0cd23934f1732b074089a94b",
+            "note": "Worker delegate + public re-export + registered PG test target compile; 0 errors."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_targets",
+            "result": "passed",
+            "sourceSha": "da2ffee84733e52b0cd23934f1732b074089a94b",
+            "note": "7 passed incl. new delegate-routing + href-encoding tests."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_calendar_postgres",
+            "result": "passed",
+            "sourceSha": "da2ffee84733e52b0cd23934f1732b074089a94b",
+            "note": "7 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): exact href+source, encoding, creator-without-attendee visible, uninvited/foreign invisible, removed without href, unknown fail-closed, caller-transaction rollback."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "da2ffee84733e52b0cd23934f1732b074089a94b",
+            "note": "Composition with_delegate(CalendarInboxTargets) wiring compiles; 0 errors."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refined: no server-calendar package exists; calendar inbox sources are work_projection-owned (collaborationInboxSources owner0 wiring). Worker-ready calendar-first slice: native calendar visibility delegate + PG proof; lead integrates (manifest + PG run + push).",
+        "nextAction": "Calendar slice integrated at da2ffee8 (delegate + wiring + PG 7/7 proven, pushed). Stays non-migrated: crm/finance/commerce/payroll/staff-legacy delegates + feature-apps inbox read switch remain. Worker claim retained.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -106544,7 +106569,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:45:36.272Z",
+    "updatedAt": "2026-11-22T10:50:36.787Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
