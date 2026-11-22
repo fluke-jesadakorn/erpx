@@ -53,3 +53,7 @@ pub use crate::adapters::inbox_quality::{
     QualityInboxTargets, is_quality_inbox_target, legal_kind_capability, legal_record_href,
     quality_alert_href, quality_history_capabilities, quality_hold_href,
 };
+pub use crate::adapters::inbox_talent::{
+    TalentInboxTargets, is_talent_inbox_target, manufacturing_order_href,
+    marketing_candidate_href, talent_application_href, talent_history_capabilities,
+};

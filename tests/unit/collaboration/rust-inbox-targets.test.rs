@@ -3,22 +3,23 @@ use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
     InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, PayrollInboxTargets,
     PeopleInboxTargets, ProcurementInboxTargets, QualityInboxTargets, SupportInboxTargets,
-    bangkok_coverage_weeks, calendar_appointment_href, commerce_order_capability,
-    commerce_order_href, crm_activity_href, crm_lead_href, customer_followup_href,
-    encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
-    finance_journal_href, finance_refund_href, inventory_history_capabilities,
+    TalentInboxTargets, bangkok_coverage_weeks, calendar_appointment_href,
+    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
+    customer_followup_href, encode_uri_component, expense_href, finance_document_capability,
+    finance_invoice_href, finance_journal_href, finance_refund_href, inventory_history_capabilities,
     inventory_transit_href, is_calendar_inbox_target, is_commerce_inbox_target,
     is_crm_inbox_target, is_finance_inbox_target, is_inventory_inbox_target,
     is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
     is_procurement_inbox_target, is_quality_inbox_target, is_roster_monday,
-    is_support_inbox_target, landed_cost_href, leave_href, legal_kind_capability,
-    legal_record_href, overtime_href, parse_roster_coverage_id, payroll_advance_href,
-    payroll_correction_href, procurement_history_capability, procurement_rfq_href,
-    quality_alert_href, quality_history_capabilities, quality_hold_href, retirement_case_href,
+    is_support_inbox_target, is_talent_inbox_target, landed_cost_href, leave_href,
+    legal_kind_capability, legal_record_href, manufacturing_order_href, marketing_candidate_href,
+    overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
+    procurement_history_capability, procurement_rfq_href, quality_alert_href,
+    quality_history_capabilities, quality_hold_href, retirement_case_href,
     retained_inbox_destination, roster_request_href, roster_week_href, source_record_label,
     stock_count_href, support_history_capability, support_incident_href, support_session_href,
     support_sla_href, support_ticket_href, supplier_bill_href, supplier_promise_href,
-    uses_enforced_layer,
+    talent_application_href, talent_history_capabilities, uses_enforced_layer,
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
@@ -974,4 +975,86 @@ fn quality_kind_capability_tables_match_the_retained_gates() {
     assert_eq!(legal_kind_capability("ip"), "legal.matters");
     assert_eq!(legal_kind_capability("obligation"), "legal.obligations");
     assert_eq!(legal_kind_capability("rule"), "legal.obligations");
+}
+
+#[test]
+fn talent_slice_routes_to_the_native_delegate() {
+    for source_type in [
+        "talent_application",
+        "marketing_candidate",
+        "manufacturing_order",
+    ] {
+        assert!(is_talent_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "commerce_order",
+        "invoice",
+        "payroll_correction",
+        "roster_week",
+        "support_ticket",
+        "inventory_transit",
+        "talent",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_talent_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the talent sources.
+    assert!(!is_calendar_inbox_target("talent_application"));
+    assert!(!is_crm_inbox_target("marketing_candidate"));
+    assert!(!is_commerce_inbox_target("manufacturing_order"));
+    assert!(!is_finance_inbox_target("talent_application"));
+    assert!(!is_support_inbox_target("marketing_candidate"));
+    assert!(!is_inventory_inbox_target("manufacturing_order"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&TalentInboxTargets::new(None, None));
+    assert_inbox_target_port(&TalentInboxTargets::default());
+    assert_inbox_target_port(
+        &TalentInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn talent_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(talent_application_href("app-1"), "/talent/app-1");
+    assert_eq!(talent_application_href(ID), format!("/talent/{ENCODED}"));
+    assert_eq!(marketing_candidate_href("cand-1"), "/marketing/cand-1");
+    assert_eq!(marketing_candidate_href(ID), format!("/marketing/{ENCODED}"));
+    assert_eq!(manufacturing_order_href("ord-1"), "/manufacturing/ord-1");
+    assert_eq!(
+        manufacturing_order_href(ID),
+        format!("/manufacturing/{ENCODED}")
+    );
+    assert_eq!(source_record_label("talent_application"), "Talent application");
+    assert_eq!(
+        source_record_label("marketing_candidate"),
+        "Marketing candidate"
+    );
+    assert_eq!(
+        source_record_label("manufacturing_order"),
+        "Manufacturing order"
+    );
+}
+
+#[test]
+fn talent_kind_capability_tables_match_the_retained_gates() {
+    assert_eq!(
+        talent_history_capabilities("talent_application"),
+        &["recruit.candidates", "recruit.applications", "recruit.offers"]
+    );
+    assert_eq!(
+        talent_history_capabilities("marketing_candidate"),
+        &["sales.marketing"]
+    );
+    assert_eq!(
+        talent_history_capabilities("manufacturing_order"),
+        &["manufacturing.execution", "planning.advanced-mrp"]
+    );
+    assert_eq!(talent_history_capabilities("talent"), &[] as &[&str]);
+    assert_eq!(talent_history_capabilities(""), &[] as &[&str]);
 }
