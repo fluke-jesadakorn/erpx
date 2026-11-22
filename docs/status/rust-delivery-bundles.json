@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5068,
+    "revision": 5072,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:00:10.210Z",
-      "expiresAt": "2026-11-22T20:30:10.210Z",
+      "heartbeatAt": "2026-11-22T20:04:14.465Z",
+      "expiresAt": "2026-11-22T20:34:14.465Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17231,8 +17231,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T20:00:10.210Z",
-          "expiresAt": "2026-11-22T20:30:10.210Z",
+          "heartbeatAt": "2026-11-22T20:04:14.465Z",
+          "expiresAt": "2026-11-22T20:34:14.465Z",
           "generation": 150
         },
         "baseSha": "7356a8ecf6743fce13b9efaf40db29166c2fd4e3",
@@ -39749,20 +39749,35 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "5be7048326a3ee9684da5702594a1e68fc899d89",
+        "baseSha": "6a5c8c4b3004dfd5f3117c1ed1c65fe063a3e043",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "ERPX_BUN_BIN=/Users/fluke/.bun/bin/bun cargo test -p erpx-server-workflow --lib",
+            "result": "passed",
+            "sourceSha": "6a5c8c4b3004dfd5f3117c1ed1c65fe063a3e043",
+            "sourceKind": "committed",
+            "note": "29/29 pass, including routing_matches_actual_typescript_classification (fails only when ERPX_BUN_BIN is absent) and the new flow_advance contract test."
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/shared.workflow/workflow-services.test.ts",
+            "result": "passed",
+            "sourceSha": "6a5c8c4b3004dfd5f3117c1ed1c65fe063a3e043",
+            "sourceKind": "committed",
+            "note": "42/42 pass."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Claimed only to fix a dev-bundle crash: packages/server-workflow/src/adapters/native-command-assertion-sql.ts built its contract path from fileURLToPath(new URL(...)); Turbopack ships its own URL class so Node rejected it (ERR_INVALID_ARG_TYPE) and every Holding page importing the adapter returned 500. Now uses fileURLToPath(import.meta.url)+dirname/join; verified /, /supply, /finance => 200. No retirement progress on this task: remaining projectors/routing-attention writers are untouched (native ProjectionSideEffects mount + project_event switch still open per previous next action).",
+        "nextAction": "PATH-BLOCKED for the remaining projector drain. Verified this turn: (a) native side is mounted and owned - src/composition/src/workflow_projection_worker.rs declares owned_predicate() for task.*, routine.run, leave.* (except policy), overtime.* (except eligibility), people.payroll.* and PMS social events, and the binary entrypoint `erpx-server workflow-projection-worker --development-config <file>` exists; (b) Rust workflow lib tests 29/29 pass with ERPX_BUN_BIN=/Users/fluke/.bun/bin/bun; workflow-services unit 42/42 pass; (c) flow-panel-product-entry has 2 pre-existing environment-drift failures (/work-role vs /choose-work-role and apps-dev origin), unrelated to this slice. BLOCKER: the retained caller is packages/server-runtime/src/adapters/runtime/jobs.ts:11 (`import { project } from @erpx/server-workflow/public/job-projector`), which is outside this task allowedPaths (workflow src + tests only); switching the Next jobs supervisor to the Rust worker entrypoint needs the runtime owner path plus a runbook/ops change, and the TS branch deletion only follows that switch. Need either an allowedPaths extension for packages/server-runtime/src/adapters/runtime/jobs.ts or a runtime-owned task to do the switch; deleting TS branches first would drop every family the Rust worker does not own.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T18:52:06.997Z",
+          "at": "2026-11-22T20:06:29.861Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Claimed only to fix a dev-bundle crash: packages/server-workflow/src/adapters/native-command-assertion-sql.ts built its contract path from fileURLToPath(new URL(...)); Turbopack ships its own URL class so Node rejected it (ERR_INVALID_ARG_TYPE) and every Holding page importing the adapter returned 500. Now uses fileURLToPath(import.meta.url)+dirname/join; verified /, /supply, /finance => 200. No retirement progress on this task: remaining projectors/routing-attention writers are untouched (native ProjectionSideEffects mount + project_event switch still open per previous next action)."
+          "nextAction": "PATH-BLOCKED for the remaining projector drain. Verified this turn: (a) native side is mounted and owned - src/composition/src/workflow_projection_worker.rs declares owned_predicate() for task.*, routine.run, leave.* (except policy), overtime.* (except eligibility), people.payroll.* and PMS social events, and the binary entrypoint `erpx-server workflow-projection-worker --development-config <file>` exists; (b) Rust workflow lib tests 29/29 pass with ERPX_BUN_BIN=/Users/fluke/.bun/bin/bun; workflow-services unit 42/42 pass; (c) flow-panel-product-entry has 2 pre-existing environment-drift failures (/work-role vs /choose-work-role and apps-dev origin), unrelated to this slice. BLOCKER: the retained caller is packages/server-runtime/src/adapters/runtime/jobs.ts:11 (`import { project } from @erpx/server-workflow/public/job-projector`), which is outside this task allowedPaths (workflow src + tests only); switching the Next jobs supervisor to the Rust worker entrypoint needs the runtime owner path plus a runbook/ops change, and the TS branch deletion only follows that switch. Need either an allowedPaths extension for packages/server-runtime/src/adapters/runtime/jobs.ts or a runtime-owned task to do the switch; deleting TS branches first would drop every family the Rust worker does not own."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -107747,7 +107762,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:04:10.970Z",
+    "updatedAt": "2026-11-22T20:06:29.862Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
