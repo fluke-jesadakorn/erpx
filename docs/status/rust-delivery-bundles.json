@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4835,
+    "revision": 4837,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T14:02:14.501Z",
-      "expiresAt": "2026-11-22T14:32:14.501Z",
+      "heartbeatAt": "2026-11-22T14:05:23.245Z",
+      "expiresAt": "2026-11-22T14:35:23.245Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T14:02:14.501Z",
-          "expiresAt": "2026-11-22T14:32:14.501Z",
+          "heartbeatAt": "2026-11-22T14:05:23.245Z",
+          "expiresAt": "2026-11-22T14:35:23.245Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17877,11 +17877,11 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T14:02:10.522Z",
-          "heartbeatAt": "2026-11-22T14:02:14.501Z",
-          "expiresAt": "2026-11-22T14:32:14.501Z",
+          "heartbeatAt": "2026-11-22T14:05:23.245Z",
+          "expiresAt": "2026-11-22T14:35:23.245Z",
           "generation": 150
         },
-        "baseSha": "e8dec8af32eeb959bff39b53823819ff0a406b66",
+        "baseSha": "c858eec4acf4de03238463962a61fd555b935bf8",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -18412,11 +18412,47 @@
             "note": "Composition fourteen-way chain wiring compiles; 0 errors. Records chained last with documented shadowing rationale.",
             "result": "passed",
             "sourceSha": "e8dec8af32eeb959bff39b53823819ff0a406b66"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "note": "Worker governance delegate + public re-exports + registered PG test target compile; 0 errors (after lead test-assertion repair).",
+            "result": "passed",
+            "sourceSha": "c858eec4acf4de03238463962a61fd555b935bf8"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_targets",
+            "note": "50 passed incl. worker routing/href/capability extension.",
+            "result": "passed",
+            "sourceSha": "c858eec4acf4de03238463962a61fd555b935bf8"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_governance_postgres",
+            "note": "8 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): exact hrefs, drop-when-invisible as Ok(None), rollback. Lead fixed assert_eq!-on-Option (is_none) and rename CHECK seed.",
+            "result": "passed",
+            "sourceSha": "c858eec4acf4de03238463962a61fd555b935bf8"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_records_postgres",
+            "note": "9 passed (regression re-run).",
+            "result": "passed",
+            "sourceSha": "c858eec4acf4de03238463962a61fd555b935bf8"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_people_postgres",
+            "note": "11 passed (regression re-run).",
+            "result": "passed",
+            "sourceSha": "c858eec4acf4de03238463962a61fd555b935bf8"
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "note": "Composition fifteen-way chain wiring compiles; 0 errors. Governance chained last, order-free None semantics.",
+            "result": "passed",
+            "sourceSha": "c858eec4acf4de03238463962a61fd555b935bf8"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refined: identity_access + organization oracle paths added (read-only reference for iam_access_review/organization_change/company_business_acceptance delegates). Fourteen slices integrated+proven. Next: worker re-claims and builds the slice, then customer_authority/workflow families.",
+        "nextAction": "Governance slice integrated at c858eec (delegate + chain wiring + PG 8/8 proven, pushed; chained last, order-free None semantics). Stays non-migrated: customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
@@ -107110,7 +107146,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T14:02:14.502Z",
+    "updatedAt": "2026-11-22T14:09:15.298Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
