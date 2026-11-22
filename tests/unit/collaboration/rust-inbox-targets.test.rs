@@ -1,17 +1,18 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
-    InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, PayrollInboxTargets,
-    PeopleInboxTargets, ProcurementInboxTargets, QualityInboxTargets, SupportInboxTargets,
-    TalentInboxTargets, bangkok_coverage_weeks, calendar_appointment_href,
-    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
-    customer_followup_href, encode_uri_component, expense_href, finance_document_capability,
-    finance_invoice_href, finance_journal_href, finance_refund_href, inventory_history_capabilities,
-    inventory_transit_href, is_calendar_inbox_target, is_commerce_inbox_target,
-    is_crm_inbox_target, is_finance_inbox_target, is_inventory_inbox_target,
-    is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
-    is_procurement_inbox_target, is_quality_inbox_target, is_roster_monday,
-    is_support_inbox_target, is_talent_inbox_target, landed_cost_href, leave_href,
+    InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, LearningInboxTargets,
+    PayrollInboxTargets, PeopleInboxTargets, ProcurementInboxTargets, QualityInboxTargets,
+    SupportInboxTargets, TalentInboxTargets, bangkok_coverage_weeks, benefit_election_href,
+    calendar_appointment_href, commerce_order_capability, commerce_order_href, crm_activity_href,
+    crm_lead_href, customer_followup_href, encode_uri_component, expense_href,
+    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
+    inventory_history_capabilities, inventory_transit_href, is_calendar_inbox_target,
+    is_commerce_inbox_target, is_crm_inbox_target, is_finance_inbox_target,
+    is_inventory_inbox_target, is_learning_inbox_target, is_owned_inbox_target,
+    is_payroll_inbox_target, is_people_inbox_target, is_procurement_inbox_target,
+    is_quality_inbox_target, is_roster_monday, is_support_inbox_target, is_talent_inbox_target,
+    landed_cost_href, learning_assignment_href, learning_history_capabilities, leave_href,
     legal_kind_capability, legal_record_href, manufacturing_order_href, marketing_candidate_href,
     overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
     procurement_history_capability, procurement_rfq_href, quality_alert_href,
@@ -1057,4 +1058,65 @@ fn talent_kind_capability_tables_match_the_retained_gates() {
     );
     assert_eq!(talent_history_capabilities("talent"), &[] as &[&str]);
     assert_eq!(talent_history_capabilities(""), &[] as &[&str]);
+}
+
+#[test]
+fn learning_slice_routes_to_the_native_delegate() {
+    for source_type in ["learning_assignment", "benefit_election"] {
+        assert!(is_learning_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "commerce_order",
+        "invoice",
+        "payroll_correction",
+        "roster_week",
+        "support_ticket",
+        "talent_application",
+        "learning",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_learning_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the learning sources.
+    assert!(!is_calendar_inbox_target("learning_assignment"));
+    assert!(!is_crm_inbox_target("benefit_election"));
+    assert!(!is_commerce_inbox_target("learning_assignment"));
+    assert!(!is_finance_inbox_target("benefit_election"));
+    assert!(!is_talent_inbox_target("learning_assignment"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&LearningInboxTargets::new(None, None));
+    assert_inbox_target_port(&LearningInboxTargets::default());
+    assert_inbox_target_port(
+        &LearningInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn learning_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(learning_assignment_href("asg-1"), "/learning/asg-1");
+    assert_eq!(learning_assignment_href(ID), format!("/learning/{ENCODED}"));
+    assert_eq!(benefit_election_href("el-1"), "/benefits/el-1");
+    assert_eq!(benefit_election_href(ID), format!("/benefits/{ENCODED}"));
+    assert_eq!(source_record_label("learning_assignment"), "Learning assignment");
+    assert_eq!(source_record_label("benefit_election"), "Benefit election");
+}
+
+#[test]
+fn learning_kind_capability_tables_match_the_retained_gates() {
+    assert_eq!(
+        learning_history_capabilities("learning_assignment"),
+        &["learn.assignments"]
+    );
+    assert_eq!(
+        learning_history_capabilities("benefit_election"),
+        &["people.benefits"]
+    );
+    assert_eq!(learning_history_capabilities("learning"), &[] as &[&str]);
+    assert_eq!(learning_history_capabilities(""), &[] as &[&str]);
 }
