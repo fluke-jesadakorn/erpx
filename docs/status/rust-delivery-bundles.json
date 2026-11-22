@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5115,
+    "revision": 5121,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:28:59.729Z",
-      "expiresAt": "2026-11-22T20:58:59.729Z",
+      "heartbeatAt": "2026-11-22T20:31:34.740Z",
+      "expiresAt": "2026-11-22T21:01:34.740Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,9 +17230,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T20:31:26.186Z",
-          "heartbeatAt": "2026-11-22T20:31:26.186Z",
-          "expiresAt": "2026-11-22T21:01:26.186Z",
+          "claimedAt": "2026-11-22T20:39:03.320Z",
+          "heartbeatAt": "2026-11-22T20:39:03.320Z",
+          "expiresAt": "2026-11-22T21:09:03.320Z",
           "generation": 150
         },
         "baseSha": "ecf0f5ae49f08e847146d947172fef51c4221202",
@@ -17350,7 +17350,7 @@
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:29:36.022Z",
+          "at": "2026-11-22T20:31:57.204Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
           "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done."
@@ -27175,7 +27175,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "52bf145de408c64224d1e15fba5fcc3336bf2145",
         "implementedCommit": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
         "lastPushedSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
         "checks": [
@@ -27305,15 +27305,15 @@
             "removalCondition": "Move landed-cost GET and presenter reads to a full-payload native read authority, migrate their TS oracle and delete remaining adapter/export."
           }
         ],
-        "blocker": "handoff",
-        "nextAction": "HEAD and verified pushed SHA 77b57db71c7d58608a71d7155a21a0dcc32c30b5; preserve landed-cost domain, composition, HTTP test, manifest/catalogue and native allocation test WIP. Unit, owner PG, service compile, real Account/IAM HTTP including native create/cancel replay and 115 TS suite pass; structure passes. BLOCKERS: TS receipt hash uses Zod-normalized ordered input but native private ingress hashes raw input; legacy TS receipt replay and pre-fix native journalId:null receipt untested; native replay does not revalidate retained Commerce/Finance receipt/journal source as TS landed-cost-purchases does. GET remains TS under retire.reads.inventory and historical TS allocation corpus under retire.inventory.commerce-stock-owner-effects. Reclaim with owner Commerce, Finance, IAM, Inventory and composition resources; bind source witnesses and correct ingress/replay identity without modifying receipts; use real native-seeded source and historical fingerprints, prove full payload/errors/replay then remove TS writer and exports. Inventory KPI 31 total 1961.",
+        "blocker": "released with work preserved",
+        "nextAction": "PROGRESS AT 77b57db7+/current HEAD (still blocked by real parity, not KPI). (1) Owner KPI is 0: 31 -> 0 literal and 0 alias; the commerce-stock-owner-effects TS writer is gone (now a native statement descriptor). (2) Fixed a stale oracle that broke the owner suite: tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs imported commerce-facts.ts through Node to capture the legacy SQL, but the function now returns a native descriptor and Node 26 strip-only rejects server-runtime http.ts parameter properties. Replaced it with a native-seeded behaviour test (6 kind/state cases, 3/3 target tests pass). (3) Remaining REAL parity blockers unchanged: TS receipt hash used Zod-normalized ordered input while the native private ingress hashes raw input; legacy TS receipt replay and pre-fix native journalId:null receipt are untested; native replay does not revalidate the retained Commerce/Finance receipt/journal source as TS landed-costs-purchases did. (4) tests/unit/inventory/rust-stock-receipt.test.rs also fails with GUARD_CHANGED because its oracle reads the removed TS guard string in server-commerce/application/commerce.ts - that file is outside this task allowedPaths. Next: canonicalize the native receipt hash, add replay/legacy receipt cases, and refresh or retire the stock-receipt oracle (needs tests/unit/inventory path).",
         "handoff": {
-          "runId": "run-20261115-quality-n",
-          "agentId": "worker-inventory",
-          "at": "2026-11-15T08:29:42.930Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "HEAD and verified pushed SHA 77b57db71c7d58608a71d7155a21a0dcc32c30b5; preserve landed-cost domain, composition, HTTP test, manifest/catalogue and native allocation test WIP. Unit, owner PG, service compile, real Account/IAM HTTP including native create/cancel replay and 115 TS suite pass; structure passes. BLOCKERS: TS receipt hash uses Zod-normalized ordered input but native private ingress hashes raw input; legacy TS receipt replay and pre-fix native journalId:null receipt untested; native replay does not revalidate retained Commerce/Finance receipt/journal source as TS landed-cost-purchases does. GET remains TS under retire.reads.inventory and historical TS allocation corpus under retire.inventory.commerce-stock-owner-effects. Reclaim with owner Commerce, Finance, IAM, Inventory and composition resources; bind source witnesses and correct ingress/replay identity without modifying receipts; use real native-seeded source and historical fingerprints, prove full payload/errors/replay then remove TS writer and exports. Inventory KPI 31 total 1961."
+          "runId": "run-20261122-d",
+          "agentId": "lead",
+          "at": "2026-11-22T20:39:03.256Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "PROGRESS AT 77b57db7+/current HEAD (still blocked by real parity, not KPI). (1) Owner KPI is 0: 31 -> 0 literal and 0 alias; the commerce-stock-owner-effects TS writer is gone (now a native statement descriptor). (2) Fixed a stale oracle that broke the owner suite: tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs imported commerce-facts.ts through Node to capture the legacy SQL, but the function now returns a native descriptor and Node 26 strip-only rejects server-runtime http.ts parameter properties. Replaced it with a native-seeded behaviour test (6 kind/state cases, 3/3 target tests pass). (3) Remaining REAL parity blockers unchanged: TS receipt hash used Zod-normalized ordered input while the native private ingress hashes raw input; legacy TS receipt replay and pre-fix native journalId:null receipt are untested; native replay does not revalidate the retained Commerce/Finance receipt/journal source as TS landed-costs-purchases did. (4) tests/unit/inventory/rust-stock-receipt.test.rs also fails with GUARD_CHANGED because its oracle reads the removed TS guard string in server-commerce/application/commerce.ts - that file is outside this task allowedPaths. Next: canonicalize the native receipt hash, add replay/legacy receipt cases, and refresh or retire the stock-receipt oracle (needs tests/unit/inventory path)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -107935,7 +107935,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:31:26.187Z",
+    "updatedAt": "2026-11-22T20:39:03.321Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
