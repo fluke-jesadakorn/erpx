@@ -931,6 +931,51 @@ async fn messaging_member_names(
         .ok_or_else(unavailable)
 }
 
+/// Direct rooms carry the other participant's display name, mirroring the
+/// retained TypeScript overview (`people.find(...)?.name ?? "Former member"`).
+/// Group/channel rows keep their stored names.
+async fn decorate_direct_room_names(
+    control: &erpx_server_runtime::public::postgres::DatabasePool,
+    user_id: &str,
+    mut rooms: Vec<RoomView>,
+) -> Result<Vec<RoomView>, BusinessError> {
+    let ids: Vec<String> = rooms
+        .iter()
+        .filter(|room| room.kind == "direct")
+        .filter_map(|room| {
+            room.members
+                .iter()
+                .find(|member| member.as_str() != user_id)
+                .cloned()
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    if ids.is_empty() {
+        return Ok(rooms);
+    }
+    let mut names = std::collections::HashMap::new();
+    for value in messaging_member_names(control, &ids).await? {
+        if let (Some(id), Some(name)) = (
+            value.get("id").and_then(|id| id.as_str()),
+            value.get("name").and_then(|name| name.as_str()),
+        ) {
+            names.insert(id.to_owned(), name.to_owned());
+        }
+    }
+    for room in rooms.iter_mut().filter(|room| room.kind == "direct") {
+        let other = room
+            .members
+            .iter()
+            .find(|member| member.as_str() != user_id)
+            .map(String::as_str);
+        room.name = other
+            .and_then(|id| names.get(id).cloned())
+            .unwrap_or_else(|| "Former member".to_owned());
+    }
+    Ok(rooms)
+}
+
 pub struct MessagingService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: SocialConfiguration,
@@ -1009,6 +1054,12 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                 let mut rooms =
                                     PgMessagingUnit::read_only(connection, scope.clone());
                                 let rooms = rooms.overview().await?;
+                                let rooms = decorate_direct_room_names(
+                                    &control,
+                                    current.user_id().as_str(),
+                                    rooms,
+                                )
+                                .await?;
                                 let mut teams = PgMessagingTeamUnit::read_only(connection, scope);
                                 let teams = teams.teams().await?;
                                 MessagingHttpReadReply::Overview(Box::new(MessagingOverviewData {
