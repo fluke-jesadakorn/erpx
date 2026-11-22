@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4970,
+    "revision": 4972,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T17:52:23.095Z",
-      "expiresAt": "2026-11-22T18:22:23.095Z",
+      "heartbeatAt": "2026-11-22T17:54:18.786Z",
+      "expiresAt": "2026-11-22T18:24:18.786Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T17:52:23.095Z",
-          "expiresAt": "2026-11-22T18:22:23.095Z",
+          "heartbeatAt": "2026-11-22T17:54:18.786Z",
+          "expiresAt": "2026-11-22T18:24:18.786Z",
           "generation": 150
         },
-        "baseSha": "3333de2e81025743c8624bdc4369a8a20fbb9987",
+        "baseSha": "2f0ddc891f567a8f1d6486e3b1def5eacdc894e6",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17303,7 +17303,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "GATEWAY AUTH PROOF ACHIEVED: revision source found = table active_work_contexts (holding DB) row per session (session_id,company_id,assignment_id,assignment_version,revision). Inserted row => GET /api/v1/holdings/acme/supplier-bills with __Host-erpx-product + context headers => HTTP 200 {\"data\":[]}; POST same headers => HTTP 404 RECEIPT_NOT_FOUND (business logic reached, i.e. real auth+context). Remaining native-leg gap: :3198 dev-profile does NOT mount procurement routers (bill capture/decision/policy + promise history all 404 while card-preferences 200) though binary contains route strings -> mount gating in dev assembly unresolved. Set ERPX_NATIVE_PROCUREMENT_CONFIG + restarted dev to exercise switched native leg next. Evidence recorded.",
+        "nextAction": "CALLER-SWITCH PROVEN EXECUTING: with ERPX_NATIVE_PROCUREMENT_CONFIG set, POST /supplier-bills took the native leg and returned NATIVE_PROCUREMENT_UNAVAILABLE (native 404 passthrough, fail-closed) => 0f95dd0 switch code path is live, not dead code. Without env: authenticated 200 (GET) + 404 RECEIPT_NOT_FOUND (POST, business logic). Env restored to TS fallback; dev restarting. REMAINING for native proof + TS retirement: dev-profile assembly does not mount procurement routers on :3198 (bill capture/decision/policy + promise history 404; card-preferences 200) though binary contains the route strings -> find mount gating in private_development_api dev profile, then rerun proof, then delete 3 TS bill writers + KPI delta.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T17:52:23.095Z",
-          "expiresAt": "2026-11-22T18:22:23.095Z",
+          "heartbeatAt": "2026-11-22T17:54:18.786Z",
+          "expiresAt": "2026-11-22T18:24:18.786Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107437,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T17:52:23.097Z",
+    "updatedAt": "2026-11-22T17:54:18.787Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
