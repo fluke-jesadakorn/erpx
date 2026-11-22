@@ -2,25 +2,28 @@
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
     InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, LearningInboxTargets,
-    PayrollInboxTargets, PeopleInboxTargets, ProcurementInboxTargets, QualityInboxTargets,
-    SupportInboxTargets, TalentInboxTargets, bangkok_coverage_weeks, benefit_election_href,
-    calendar_appointment_href, commerce_order_capability, commerce_order_href, crm_activity_href,
-    crm_lead_href, customer_followup_href, encode_uri_component, expense_href,
-    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
-    inventory_history_capabilities, inventory_transit_href, is_calendar_inbox_target,
-    is_commerce_inbox_target, is_crm_inbox_target, is_finance_inbox_target,
-    is_inventory_inbox_target, is_learning_inbox_target, is_owned_inbox_target,
+    OperationsInboxTargets, PayrollInboxTargets, PeopleInboxTargets, ProcurementInboxTargets,
+    QualityInboxTargets, SupportInboxTargets, TalentInboxTargets, bangkok_coverage_weeks,
+    benefit_election_href, calendar_appointment_href, commerce_order_capability,
+    commerce_order_href, crm_activity_href, crm_lead_href, customer_followup_href,
+    encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
+    finance_journal_href, finance_refund_href, inventory_history_capabilities,
+    inventory_transit_href, is_calendar_inbox_target, is_commerce_inbox_target,
+    is_crm_inbox_target, is_finance_inbox_target, is_inventory_inbox_target,
+    is_learning_inbox_target, is_operations_inbox_target, is_owned_inbox_target,
     is_payroll_inbox_target, is_people_inbox_target, is_procurement_inbox_target,
     is_quality_inbox_target, is_roster_monday, is_support_inbox_target, is_talent_inbox_target,
     landed_cost_href, learning_assignment_href, learning_history_capabilities, leave_href,
     legal_kind_capability, legal_record_href, manufacturing_order_href, marketing_candidate_href,
-    overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
+    operational_exception_href, operations_history_capabilities, overtime_href,
+    parse_roster_coverage_id, payroll_advance_href, payroll_correction_href, post_href,
     procurement_history_capability, procurement_rfq_href, quality_alert_href,
     quality_history_capabilities, quality_hold_href, retirement_case_href,
     retained_inbox_destination, roster_request_href, roster_week_href, source_record_label,
-    stock_count_href, support_history_capability, support_incident_href, support_session_href,
-    support_sla_href, support_ticket_href, supplier_bill_href, supplier_promise_href,
-    talent_application_href, talent_history_capabilities, uses_enforced_layer,
+    staff_task_href, stock_count_href, support_history_capability, support_incident_href,
+    support_session_href, support_sla_href, support_ticket_href, supplier_bill_href,
+    supplier_promise_href, talent_application_href, talent_history_capabilities,
+    uses_enforced_layer,
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
@@ -1119,4 +1122,84 @@ fn learning_kind_capability_tables_match_the_retained_gates() {
     );
     assert_eq!(learning_history_capabilities("learning"), &[] as &[&str]);
     assert_eq!(learning_history_capabilities(""), &[] as &[&str]);
+}
+
+#[test]
+fn operations_slice_routes_to_the_native_delegate() {
+    for source_type in ["operational_exception", "task", "post"] {
+        assert!(is_operations_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "commerce_order",
+        "invoice",
+        "support_ticket",
+        "operations",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_operations_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the operations sources.
+    assert!(!is_calendar_inbox_target("task"));
+    assert!(!is_crm_inbox_target("post"));
+    assert!(!is_commerce_inbox_target("operational_exception"));
+    assert!(!is_support_inbox_target("task"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&OperationsInboxTargets::new(None, None));
+    assert_inbox_target_port(&OperationsInboxTargets::default());
+    assert_inbox_target_port(
+        &OperationsInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn operations_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(operational_exception_href("exc-1"), "/operations/exc-1");
+    assert_eq!(
+        operational_exception_href(ID),
+        format!("/operations/{ENCODED}")
+    );
+    assert_eq!(staff_task_href("task-1"), "/staff-tasks/task-1");
+    assert_eq!(staff_task_href(ID), format!("/staff-tasks/{ENCODED}"));
+    assert_eq!(post_href("post-1"), "/posts/post-1");
+    assert_eq!(post_href(ID), format!("/posts/{ENCODED}"));
+    assert_eq!(
+        source_record_label("operational_exception"),
+        "Operational exception"
+    );
+    // The table keeps the housekeeping label for the raw task kind; the
+    // final map surfaces staff tasks as "Task".
+    assert_eq!(source_record_label("task"), "Housekeeping task");
+    assert_eq!(source_record_label("post"), "Post");
+}
+
+#[test]
+fn operations_kind_capability_tables_match_the_retained_gates() {
+    assert_eq!(
+        operations_history_capabilities("operational_exception"),
+        &[] as &[&str]
+    );
+    assert_eq!(
+        operations_history_capabilities("task"),
+        &[
+            "projects.tasks",
+            "work.actions",
+            "work.advanced-routines",
+            "work.social"
+        ]
+    );
+    assert_eq!(
+        operations_history_capabilities("post"),
+        &["work.social"]
+    );
+    assert_eq!(
+        operations_history_capabilities("operations"),
+        &[] as &[&str]
+    );
+    assert_eq!(operations_history_capabilities(""), &[] as &[&str]);
 }
