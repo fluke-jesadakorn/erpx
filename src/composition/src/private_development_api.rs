@@ -3236,6 +3236,21 @@ async fn assemble_checked(
         let mut pos_day_close_targets = Vec::new();
         let mut member_profile_targets = Vec::new();
         let mut wf1a7_targets: Vec<(String, String, String)> = Vec::new();
+        let mut runtime_native_routers: Vec<Router> = Vec::new();
+        let mut runtime_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
+        // Private development assembly: scheduled predicates admit locally and
+        // production rendering still fails closed because it is not enabled.
+        let runtime_policy =
+            erpx_server_runtime::public::native_command::FeaturePredicateConfig {
+                production: false,
+                rollout_active_sql: String::new(),
+                engineering_sql: None,
+                engineering_modules: Vec::new(),
+                release_modules: Vec::new(),
+            };
         let mut wf1a7_company_pools: std::collections::BTreeMap<
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
@@ -3990,6 +4005,24 @@ async fn assemble_checked(
                     notification_statement_companies.push(company.clone());
                     notification_statement_holdings.push(holding.registration.holding_id.clone());
                     wf1a7_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    runtime_company_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    runtime_native_routers.push(
+                        crate::runtime_wave2_native::runtime_native_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::runtime_wave2_native::RuntimeNativeBackend::new(
+                                    pools[i + 1].clone(),
+                                    pools[0].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                    runtime_policy.clone(),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_RUNTIME_NATIVE_CONFIGURATION_INVALID")?,
+                    );
                     wf1a7_targets.push((
                         holding.host.clone(),
                         holding.registration.slug.clone(),
@@ -6553,6 +6586,28 @@ async fn assemble_checked(
                     pairs,
                 )
                 .map_err(|_| "PRIVATE_API_HOLDING_NOTIFICATION_STATEMENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        for runtime_router in runtime_native_routers {
+            router = router.merge(runtime_router);
+        }
+        if !runtime_company_pools.is_empty() {
+            let runtime_companies: Vec<String> = runtime_company_pools.keys().cloned().collect();
+            let runtime_backend = Arc::new(
+                crate::runtime_wave2_native::RuntimeNativeBackend::new(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    pools[0].clone(),
+                    Arc::new(SharedClock(clock.clone())),
+                    runtime_policy.clone(),
+                )
+                .with_companies(runtime_company_pools.clone()),
+            );
+            router = router.merge(
+                crate::runtime_wave2_native::runtime_native_company_router(
+                    runtime_companies,
+                    runtime_backend,
+                )
+                .map_err(|_| "PRIVATE_API_RUNTIME_NATIVE_CONFIGURATION_INVALID")?,
             );
         }
         if !wf1a7_targets.is_empty() || !wf1a7_company_pools.is_empty() {

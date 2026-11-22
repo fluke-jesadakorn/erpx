@@ -4,8 +4,8 @@
 //! and commits the receipt/audit/outbox ledger in that same unit.
 use erpx_server_runtime::public::http_support::{HeaderMap, HeaderName, Router};
 use erpx_server_runtime::public::native_command::{
-    FeaturePredicateConfig, FeaturePredicatePort, NativeCommand, PgNativeCommandRepository, admit,
-    execute_dynamic_command, execute_native_command, interruption_sql, is_dynamic_statement,
+    FeaturePredicateConfig, FeaturePredicatePort, NativeCommandOutcome, PgNativeCommandRepository,
+    admit, execute_dynamic_command, execute_native_command, interruption_sql, is_dynamic_statement,
     lease_claim_sql,
 };
 use erpx_server_runtime::public::native_command_http::{
@@ -128,6 +128,7 @@ async fn ledger(
 pub struct RuntimeNativeBackend<C> {
     holding: DatabasePool,
     control: DatabasePool,
+    companies: std::collections::BTreeMap<String, DatabasePool>,
     clock: Arc<C>,
     policy: FeaturePredicateConfig,
 }
@@ -141,9 +142,19 @@ impl<C: Clock + Send + Sync + 'static> RuntimeNativeBackend<C> {
         Self {
             holding,
             control,
+            companies: std::collections::BTreeMap::new(),
             clock,
             policy,
         }
+    }
+
+    /// Worker path: resolve the owner pool by the admitted Company header.
+    pub fn with_companies(
+        mut self,
+        companies: std::collections::BTreeMap<String, DatabasePool>,
+    ) -> Self {
+        self.companies = companies;
+        self
     }
 }
 
@@ -157,7 +168,11 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
     fn execute<'a>(&'a self, request: NativeCommandHttpRequest<'a>) -> NativeCommandHttpFuture<'a> {
         Box::pin(async move {
             let caller = caller(request.headers)?;
-            let command: NativeCommand = request.command.clone();
+            let command = erpx_server_runtime::public::native_command::NativeCommand {
+                kind: request.command.kind.clone(),
+                values: request.command.values.clone(),
+                now: request.command.now,
+            };
             let key = request.key.to_owned();
             let kind = command.kind.clone();
             let now = if command.now > 0 {
@@ -169,8 +184,12 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
             let pool = if scope == "control" {
                 self.control.clone()
             } else {
-                self.holding.clone()
+                self.companies
+                    .get(&caller.company_id)
+                    .cloned()
+                    .unwrap_or_else(|| self.holding.clone())
             };
+            let company_label = caller.company_id.clone();
             let write_command = command.clone();
             let write_key = key.clone();
             let policy = self.policy.clone();
@@ -180,57 +199,65 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for RuntimeNativ
                     let write_key = write_key.clone();
                     let caller = caller.clone();
                     let kind = kind.clone();
+                    let policy = policy.clone();
                     Box::pin(async move {
                         let mut repository = PgNativeCommandRepository::new(connection);
-                        let rows = if is_dynamic_statement(&write_command.kind) {
-                            // Render the cross-owner predicate through the owner port.
-                            // Never a dev-only TRUE: production uses the supplied
-                            // rollout/engineering SQL and fails closed if absent.
-                            let sql = match write_command.kind.as_str() {
-                                "runtime_stmt_20" => interruption_sql(&policy)?,
-                                "runtime_stmt_21" => lease_claim_sql(&policy)?,
-                                other => {
-                                    return Err(BusinessError::invalid(
-                                        "RUNTIME_DYNAMIC_KIND_UNKNOWN",
-                                        other,
+                        let kind_name = write_command.kind.clone();
+                        let rows = if is_dynamic_statement(&kind_name) {
+                            // Render the cross-owner predicate through the owner
+                            // port; production fails closed when it is absent.
+                            let sql = match kind_name.as_str() {
+                                "runtime_stmt_20" => interruption_sql(&policy),
+                                "runtime_stmt_21" => lease_claim_sql(&policy),
+                                _other => {
+                                    return Err(PgTransactionError::Business(
+                                        BusinessError::invalid(
+                                            "RUNTIME_DYNAMIC_KIND_UNKNOWN",
+                                            "Unsupported dynamic runtime statement.",
+                                        ),
                                     ));
                                 }
-                            };
-                            let expected = admit(&write_command)?.bind_count;
+                            }
+                            .map_err(PgTransactionError::Business)?;
+                            let expected = admit(&write_command)
+                                .map_err(PgTransactionError::Business)?
+                                .bind_count;
                             if write_command.values.len() != expected {
-                                return Err(BusinessError::invalid(
-                                    "RUNTIME_DYNAMIC_ARITY_INVALID",
-                                    "Use the exact lease-claim payload.",
+                                return Err(PgTransactionError::Business(
+                                    BusinessError::invalid(
+                                        "RUNTIME_DYNAMIC_ARITY_INVALID",
+                                        "Use the exact lease-claim payload.",
+                                    ),
                                 ));
                             }
+                            let sql: &'static str = Box::leak(sql.into_boxed_str());
                             execute_dynamic_command(
-                                &sql,
+                                sql,
                                 write_command.values.clone(),
                                 &write_key,
                                 &mut repository,
                             )
-                            .await?
+                            .await
+                            .map_err(PgTransactionError::Business)?
                         } else {
-                            let outcome =
-                                execute_native_command(&write_command, &write_key, &mut repository)
-                                    .await?;
-                            outcome.rows
+                            execute_native_command(&write_command, &write_key, &mut repository)
+                                .await
+                                .map_err(PgTransactionError::Business)?
+                                .rows
                         };
                         let outcome = NativeCommandOutcome {
                             kind: write_command.kind.clone(),
                             rows,
                         };
                         drop(repository);
-                        ledger(connection, &caller, &kind, &write_key, now, outcome.rows)
-                            .await
-                            .map_err(business)?;
+                        ledger(connection, &caller, &kind, &write_key, now, outcome.rows).await?;
                         Ok((outcome.rows, json!({"kind": kind, "rows": outcome.rows})))
                     })
                 })
                 .await
                 .map_err(business)?;
             let _ = rows;
-            Ok(json!({"data": result, "context": {"companyId": caller.company_id}}))
+            Ok(json!({"data": result, "context": {"companyId": company_label}}))
         })
     }
 }
