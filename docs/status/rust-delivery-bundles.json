@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4897,
+    "revision": 4900,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T15:19:30.128Z",
-      "expiresAt": "2026-11-22T15:49:30.128Z",
+      "heartbeatAt": "2026-11-22T15:22:26.281Z",
+      "expiresAt": "2026-11-22T15:52:26.281Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T15:19:30.128Z",
-          "expiresAt": "2026-11-22T15:49:30.128Z",
+          "heartbeatAt": "2026-11-22T15:22:26.281Z",
+          "expiresAt": "2026-11-22T15:52:26.281Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -50015,11 +50015,11 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:19:27.110Z",
-          "heartbeatAt": "2026-11-22T15:19:30.128Z",
-          "expiresAt": "2026-11-22T15:49:30.128Z",
+          "heartbeatAt": "2026-11-22T15:22:26.281Z",
+          "expiresAt": "2026-11-22T15:52:26.281Z",
           "generation": 150
         },
-        "baseSha": null,
+        "baseSha": "a957328268a7d1b293e13110437c141c078d5d37",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
@@ -50051,7 +50051,7 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "nextAction": "Audit actual live callers and native owner authority first (read-only recon); composition wiring stays lead-owned shared integration — worker reports gaps, lead wires. Preserve current Portal WIP; migrate native seeded tests and remove TS writer/export only after all six gates."
+        "nextAction": "AUDIT VERDICT (worker-a, HEAD evidence, read-only): live TS callers = 3 supply API POST routes + sole client hook + commerce invoiceHandoff (staged) + finance preview (read-only) + workplace SSR reads (must preserve). Native NOT proven: wave2 router unmounted (only defining file references it), no supplier_bill_command port (mirror template supplier_promise_command exists), zero native bill PG suites; writers fail closed 503 without native config. TS literal-SQL KPI already 0 (10/10 statements in Rust registry: 13 INSERT + 8 UPDATE across bill/rfq/records); remaining TS is orchestration. NEXT: build slice migrate.procurement.supplier-bill-command (pending, worker to claim after releasing this task), then lead mounts router + runs PG, then switch callers, then delete. Worker claim retained for continuity."
       },
       {
         "goalId": "G3",
@@ -107357,6 +107357,38 @@
           "collaboration/mentions"
         ],
         "scope": "Switch packages/workplace inbox notifications SSR screen from TS notificationWorkspace to the native inbox page/summary transport behind the native availability gate (TS fallback retained). Resolve summary-count semantics and the work.today purchase-facts gate parity; report any composition gap to the lead instead of touching shared integration."
+      },
+      {
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/integration/procurement/**",
+          "tests/unit/procurement/**"
+        ],
+        "blocker": null,
+        "claim": null,
+        "dependsOn": [],
+        "goalId": "G3",
+        "handoff": null,
+        "id": "migrate.procurement.supplier-bill-command",
+        "implementedCommit": null,
+        "kind": "migration",
+        "lastPushedSha": null,
+        "nextAction": "New task: cut the native supplier_bill_command port mirroring supplier_promise_command. Worker re-claims and builds per dispatch prompt; lead mounts the router + runs PG suites.",
+        "owner": "procurement",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "requiredPorts": [
+          "workflow"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "status": "pending",
+        "title": "Native supplier-bill command port mirroring supplier-promise",
+        "workstream": "S01",
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": null,
+        "workflowIds": []
       }
     ],
     "migrationProgress": {
@@ -107365,10 +107397,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 438,
+      "totalPackets": 439,
       "migratedPackets": 321,
       "statusCounts": {
-        "pending": 13,
+        "pending": 14,
         "in_progress": 1,
         "ready_for_integration": 1,
         "integrating": 0,
@@ -107379,7 +107411,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T15:19:30.130Z",
+    "updatedAt": "2026-11-22T15:22:55.884Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
