@@ -62,7 +62,9 @@ export function checkRepositoryLayout(root = repositoryRoot): void {
       if (manifest.name !== `@erpx/${entry.name}` || manifest.private !== true || !manifest.exports)
         throw new Error(`WORKSPACE_PACKAGE_IDENTITY_CHANGED:${entry.name}`);
       if (entry.name.startsWith("server-")) for (const folder of readdirSync(resolve(directory, "src"), { withFileTypes: true })) {
-        if (folder.isDirectory() && !["domain", "application", "adapters", "public"].includes(folder.name))
+        // `testing` holds committed test-only oracles exported as ./testing/*;
+        // it is not runtime code and is imported only by tests/fixtures/scripts.
+        if (folder.isDirectory() && !["domain", "application", "adapters", "public", "testing"].includes(folder.name))
           throw new Error(`SERVER_OWNER_PLACEMENT:${entry.name}/${folder.name}`);
       }
     }
