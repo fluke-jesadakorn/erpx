@@ -158,6 +158,10 @@ async function start(): Promise<Started> {
       ],
     },
     accountBootstrap: true,
+    // Mount the per-Holding owner routers (commerce, manufacturing, planning)
+    // whose assembly loops over the configured operations companies. The
+    // command body/headers still carry the fixture company.
+    operationsCompanies: holdings.map(slot => ({ holdingId: slot.id, companyId: 'acme-co' })),
   };
   writeFileSync(path, JSON.stringify(configuration, null, 2) + '\n', { mode: 0o600 });
   chmodSync(path, 0o600);
@@ -302,6 +306,28 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
       origin: `https://${HOLDING_HOSTS[slot.id]}`,
     })),
     products: PRODUCT_HOSTS.map(([, host]) => ({ origin: `https://${host}`, holdingId: holdings[0].id })),
+  });
+  const first = holdings[0];
+  const firstSlug = first.id === 'h003' ? 'erpx' : first.id === 'h002' ? 'northstar' : 'acme';
+  const firstOrigin = `https://${HOLDING_HOSTS[first.id]}`;
+  const ownerWrite = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    host: HOLDING_HOSTS[first.id],
+    holdingSlug: firstSlug,
+    origin: firstOrigin,
+    timeoutMs: 10_000,
+  });
+  process.env.ERPX_NATIVE_COMMERCE_WAVE2_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_MANUFACTURING_OWNER_WRITE_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_MANUFACTURING_ACCOUNTING_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_FINANCE_OWNER_WRITE_CONFIG = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    timeoutMs: 10_000,
+    holdings: holdings.map(slot => ({
+      holdingId: slot.id,
+      holdingSlug: slot.id === 'h003' ? 'erpx' : slot.id === 'h002' ? 'northstar' : 'acme',
+      origin: `https://${HOLDING_HOSTS[slot.id]}`,
+    })),
   });
 }
 

@@ -233,13 +233,14 @@ export async function nativeFinanceOwnerWrite(
   now = Date.now(),
 ): Promise<SqlStatement> {
   const settings = config();
-  const holding = settings.holdings.find(
-    item => item.holdingSlug === actor.holdingSlug && item.holdingId === actor.holdingId,
-  );
+  // Resolve the registered target by the authoritative holding id; suite and
+  // dev fixtures may use a workspace slug (test) that differs from the
+  // registered Holding slug (acme).
+  const holding = settings.holdings.find(item => item.holdingId === actor.holdingId);
   const idempotencyKey = key ?? financeOwnerKey(kind, values);
   if (!holding || !validKey(idempotencyKey)) return fail();
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/finance/owner-write`,
+    `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/finance/owner-write`,
     settings.privateBaseUrl,
   );
   const headers: Record<string, string> = {
