@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4590,
+    "revision": 4604,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T08:28:20.875Z",
-      "expiresAt": "2026-11-22T08:58:20.875Z",
+      "heartbeatAt": "2026-11-22T08:37:40.614Z",
+      "expiresAt": "2026-11-22T09:07:40.614Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T08:28:20.875Z",
-          "expiresAt": "2026-11-22T08:58:20.875Z",
+          "heartbeatAt": "2026-11-22T08:37:40.614Z",
+          "expiresAt": "2026-11-22T09:07:40.614Z",
           "generation": 149
         },
         "baseSha": null,
@@ -17212,7 +17212,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "BLOCKER for dev availability: bun run dev fails pre-existing at refreshWorkspaceStyles (WORKSPACE_EXPORT_UNDECLARED: feature-admin billing/target route imports @erpx/server-billing/public/app-finance-projection-source, not in billing exports and no such source file; fallout of an earlier retirement slice, outside any current claim). PG 5432 up; 3100/3101 down. Next: bounded billing/admin slice to either restore the export or retire the dangling route, then start dev detached and verify health.",
+        "nextAction": "Dev blocker CLEARED: graph passes, dev 3100 detached and serving (health 503 degraded baseline - scanner/jobs/migration unready). Remaining availability gaps: 3101 down, public hosts unverified (tunnel), retired Console 404 + Holding pages pending browser pass.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -43805,11 +43805,11 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:24:42.288Z",
-          "heartbeatAt": "2026-11-22T08:28:20.875Z",
-          "expiresAt": "2026-11-22T08:58:20.875Z",
+          "heartbeatAt": "2026-11-22T08:37:40.614Z",
+          "expiresAt": "2026-11-22T09:07:40.614Z",
           "generation": 149
         },
-        "baseSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
+        "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -43872,11 +43872,29 @@
             "result": "passed",
             "sourceSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
             "note": "3 passed on disposable PG: extended read_overview SQL validated live (preview hello, updated_at==last_message_at, team_id None, private false); unread semantics unchanged."
+          },
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "loadWorkspaceGraph GRAPH OK after billing/sales restores + collaboration Cargo.toml verification-roots prune. Earlier failures (billing export, sales redirect, maintenance snapshot root) resolved."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "Compiles (207 pre-existing warnings); required completing composition room_view for extended RoomView."
+          },
+          {
+            "command": "dev:gateway-boot",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "bun run dev detached pid 48873; gateway 127.0.0.1:3100 serves. /api/health 503 degraded (CLAMD_UNAVAILABLE, jobs/migration/billing not ready) - environment baseline, unchanged by this slice."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "RoomView extension implemented+verified at e84569e5 (team_id/private/preview/updated_at, live PG proof). Remaining: (1) unread sender-exclusion switch needs native-overview consumer sign-off; (2) rooms() TS switch blocked on native org-node access branch (TS access covers organization_node_id rooms, native WHERE does not) — needs native org-branch port before TS deletion; (3) then switch rooms() + delete TS site and record retirement:ts-statements delta.",
+        "nextAction": "RoomView extension verified at e84569e5; composition room_view completed + erpx-service check green at 8ed1df06. Cargo.toml dead verification-root pruned (graph OK). Remaining: (1) unread sender-exclusion switch; (2) native org-node access branch for rooms() TS switch + deletion with retirement:ts-statements delta.",
         "handoff": {
           "runId": "run-20261122-b",
           "agentId": "lead",
@@ -105756,6 +105774,175 @@
         "nextAction": "Binary ready. Next: write --test-config (1-3 holdings, loopback, leased erpx_dev_rust_* DBs), seed holdings/Company/session+pms rows, boot private-api, curl refund-context route, then switch retryBookingRefund line 421 caller and delete TS site.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
+      },
+      {
+        "allowedPaths": [
+          "packages/server-billing/src/adapters/app-finance-projection-source.ts",
+          "packages/server-billing/src/public/app-finance-projection-source.ts",
+          "packages/server-billing/package.json"
+        ],
+        "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+        "blocker": null,
+        "claim": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "claimedAt": "2026-11-22T08:29:52.622Z",
+          "heartbeatAt": "2026-11-22T08:37:40.614Z",
+          "expiresAt": "2026-11-22T09:07:40.614Z",
+          "generation": 149
+        },
+        "dependsOn": [],
+        "deliverables": [
+          "Restored app-finance-projection-source adapter + public barrel + package.json export entry (exact pre-deletion content)",
+          "bun run dev boots past refreshWorkspaceStyles on 3100",
+          "Targeted gate: workspace graph check + billing-target route smoke"
+        ],
+        "goalId": "G3",
+        "handoff": null,
+        "id": "retire.billing.target-finance-projection",
+        "implementedCommit": null,
+        "kind": "migration",
+        "lastPushedSha": null,
+        "nextAction": "Lead: review restored billing adapter+barrel+exports at 8ed1df06, integrate and record retirement:ts-statements delta (no write KPI change expected - SELECT-only read).",
+        "owner": "billing",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "requiredPorts": [],
+        "resources": [
+          "owner:billing"
+        ],
+        "retainedLegacy": [],
+        "scope": "Narrow restore: 9ac707c5c deleted packages/server-billing adapter+barrel app-finance-projection-source as 'runtime-unreachable' but live consumer packages/feature-admin/.../platform/billing/target/route.ts still imports appBillingFinanceProjection (SELECT 1 row from billing_test_finance_projection). Restore exact files + export entry; no behavior change, no new TS authority. Route itself is live platform API and stays.",
+        "scopeRefinementRequired": false,
+        "status": "ready_for_integration",
+        "title": "Restore wrongly-retired billing app-finance-projection-source (dev blocker)",
+        "workflowIds": [],
+        "workstream": "S16",
+        "checks": [
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "loadWorkspaceGraph GRAPH OK after billing/sales restores + collaboration Cargo.toml verification-roots prune. Earlier failures (billing export, sales redirect, maintenance snapshot root) resolved."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "Compiles (207 pre-existing warnings); required completing composition room_view for extended RoomView."
+          },
+          {
+            "command": "dev:gateway-boot",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "bun run dev detached pid 48873; gateway 127.0.0.1:3100 serves. /api/health 503 degraded (CLAMD_UNAVAILABLE, jobs/migration/billing not ready) - environment baseline, unchanged by this slice."
+          }
+        ]
+      },
+      {
+        "allowedPaths": [
+          "packages/server-sales/src/adapters/redirect.ts",
+          "packages/server-sales/src/public/sales-customer-redirect.ts",
+          "packages/server-sales/package.json"
+        ],
+        "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+        "blocker": null,
+        "checks": [
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "loadWorkspaceGraph GRAPH OK after billing/sales restores + collaboration Cargo.toml verification-roots prune. Earlier failures (billing export, sales redirect, maintenance snapshot root) resolved."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "Compiles (207 pre-existing warnings); required completing composition room_view for extended RoomView."
+          },
+          {
+            "command": "dev:gateway-boot",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "bun run dev detached pid 48873; gateway 127.0.0.1:3100 serves. /api/health 503 degraded (CLAMD_UNAVAILABLE, jobs/migration/billing not ready) - environment baseline, unchanged by this slice."
+          }
+        ],
+        "claim": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "claimedAt": "2026-11-22T08:33:35.655Z",
+          "heartbeatAt": "2026-11-22T08:37:40.614Z",
+          "expiresAt": "2026-11-22T09:07:40.614Z",
+          "generation": 149
+        },
+        "dependsOn": [],
+        "deliverables": [
+          "Restored redirect.ts + sales-customer-redirect.ts + 2 package.json export entries (exact pre-deletion content)",
+          "5 workplace screens import-valid again; workspace graph passes"
+        ],
+        "goalId": "G3",
+        "handoff": null,
+        "id": "retire.sales.customer-redirect-restore",
+        "implementedCommit": null,
+        "kind": "migration",
+        "lastPushedSha": null,
+        "nextAction": "Lead: review restored sales redirect adapter+barrel+exports at 8ed1df06, integrate. src/index.ts intentionally not restored (no root export, zero root importers).",
+        "owner": "sales",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "requiredPorts": [],
+        "resources": [
+          "owner:sales"
+        ],
+        "retainedLegacy": [],
+        "scope": "Narrow restore: 9ac707c5c deleted packages/server-sales adapters/redirect.ts + public/sales-customer-redirect.ts as 'runtime-unreachable' but 5 live workplace presenter screens still import redirectSalesCustomerList (legacy customer-list destination redirect; frontend transport concern, not business execution). Restore exact files + export entries; no behavior change. src/index.ts stays deleted (no root export declared, zero root importers).",
+        "scopeRefinementRequired": false,
+        "status": "ready_for_integration",
+        "title": "Restore wrongly-retired sales customer redirect (dev blocker)",
+        "workflowIds": [],
+        "workstream": "S16"
+      },
+      {
+        "allowedPaths": [
+          "scripts/testing/fixtures/generate-field-service-http-oracle.mjs",
+          "scripts/testing/fixtures/generate-field-service-http-schema-oracle.mjs",
+          "scripts/testing/fixtures/generate-field-service-http-source-probes.mjs",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "baseSha": null,
+        "blocker": "handoff",
+        "checks": [],
+        "claim": null,
+        "dependsOn": [],
+        "deliverables": [
+          "3 dead oracle scripts deleted; their verificationInputs entries removed from the 2 rust-http-parity suites",
+          "Workspace graph passes; both parity suites still execute (they run only .rs files)"
+        ],
+        "goalId": "G4",
+        "handoff": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "at": "2026-11-22T08:37:40.544Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "No-op task: real validator passes with scripts untouched (template-string registry keys are not imports). Runtime staleness belongs to migrate.field_service. Claim released; task blocked as documented."
+        },
+        "id": "retire.field_service.http-oracle-scripts",
+        "implementedCommit": null,
+        "kind": "migration",
+        "lastPushedSha": null,
+        "nextAction": "No-op task: real validator passes with scripts untouched (template-string registry keys are not imports). Runtime staleness belongs to migrate.field_service. Claim released; task blocked as documented.",
+        "owner": "field_service",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "requiredPorts": [],
+        "resources": [
+          "owner:field_service"
+        ],
+        "retainedLegacy": [],
+        "scope": "Retire 3 TS-sourced oracle generators orphaned by cfebf81ad (Field native cutover deleted adapters/purchases.ts + domain/service.ts which the scripts readFileSync + pin by SHA at runtime, so they are already runtime-broken). The rust-http-parity suites execute only .rs files; scripts appear solely as verificationInputs fingerprints. Deletion completes the oracle retirement; no TS authority restored.",
+        "scopeRefinementRequired": false,
+        "status": "blocked",
+        "title": "Retire dead Field TS-oracle scripts (dev blocker)",
+        "workflowIds": [],
+        "workstream": "S08"
       }
     ],
     "migrationProgress": {
@@ -105764,21 +105951,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 431,
+      "totalPackets": 434,
       "migratedPackets": 318,
       "statusCounts": {
         "pending": 20,
         "in_progress": 1,
-        "ready_for_integration": 0,
+        "ready_for_integration": 2,
         "integrating": 0,
         "migrated": 318,
-        "blocked": 92,
+        "blocked": 93,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T08:28:20.876Z",
+    "updatedAt": "2026-11-22T08:37:40.616Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
