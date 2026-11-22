@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5014,
+    "revision": 5015,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17206,7 +17206,7 @@
           "expiresAt": "2026-11-22T19:22:15.039Z",
           "generation": 150
         },
-        "baseSha": "5be7048326a3ee9684da5702594a1e68fc899d89",
+        "baseSha": "7690f6add2996f3129ff98e5d5253698da9cd4ec",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17317,7 +17317,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "DEV HEALTH NOW 200 (measured): GET 127.0.0.1:3100/api/health => HTTP 200 status ok; attachments migration ready pendingHoldings=0; billing ready scanReady reconciliationReady reconciledAt set; scanner ClamAV 1.5.5 ready; jobs ready. Holding pages with real session: /, /supply, /finance => 200. Root causes fixed this slice: (1) files_wave1b router was never mounted - now declared + merged; (2) native files SQL bound text NULL into bigint ($15/$16 of MIG_001/016) -> explicit ::bigint casts (42804), and my earlier ::jsonb guess reverted because all *_json columns are text; (3) stale attachment_scan_attempts row retried an available source into scan_error (trigger correctly rejected) - cleared dev row; (4) missing ERPX_NATIVE_FILES_CONFIG and ERPX_NATIVE_BILLING_CONFIG env for the listeners; (5) final reconciliation run with gate disabled + upload freeze recorded attachment_reconciliation_runs and billing evidence reconciliation (gateReady true); (6) packages/server-workflow native-command-assertion-sql used fileURLToPath(URL) which Turbopack shims -> replaced with fileURLToPath(string)+dirname/join; supply/finance/apps pages stopped 500ing. Remaining env blockers: public tunnel returns Cloudflare 1033/530 for console-dev and acme hosts (cloudflared not connected), private production :3101 has no listener. Next migration work: rerun the manufacturing suite once the foreign test files are registered, then close retire.planning.production-command-sources.",
+        "nextAction": "SYSTEMIC FINDING: all 15 src/composition/src/*wave2*.rs modules were undeclared in lib.rs (verified: grep \"pub mod <name>;\" => 0 for every file; zero cross-references), i.e. the \"15 owner waves\" native routers were dead code. Mounted runtime_wave2_native end to end: declared in lib.rs, fixed 4 latent compile errors (HTTP vs domain NativeCommand type, missing NativeCommandOutcome import, PgTransactionError mapping, &static str lifetime for dynamic SQL), added per-Company pool resolution (with_companies), exported native_company_command_router, wired holding targets + Company router in private_development_api, and allowed the Company runtime command on the loopback listener (Node fetch cannot set Host). Evidence: POST :3198 /api/v1/holdings/acme/runtime/native-command => 422 RUNTIME_NATIVE_COMMAND_INVALID (routed), POST /api/v1/companies/acme-co/runtime/native-command => 422 (routed; previously boundary 404). cargo check/build pass. Second finding: migrations.ts writes the migration receipt over HTTP (runtime_stmt_22, scope=control) so the receipt cannot land in the disposable test DB; on the dev control DB the same call fails 42P01 because control schema has no command_receipts/audit_events/outbox_events (confirmed by psql + RUNTIME_NATIVE_PERSISTENCE sql_state=42P01), and erpx_migrations INSERT was not granted to erpx_dev_control_app (granted now, dev only). Consequence: tests/integration/manufacturing/production.test.ts cannot run standalone - it needs the catalogue runner fixture plan (template DBs) which is still blocked by TEST_INVENTORY_MISMATCH for two foreign untracked .test.rs files. Next: mount remaining wave2 modules in compile-checked batches (crm/inventory/commerce/executive) and get user authorization to register the foreign test files.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -107515,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:52:15.040Z",
+    "updatedAt": "2026-11-22T19:12:19.598Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
