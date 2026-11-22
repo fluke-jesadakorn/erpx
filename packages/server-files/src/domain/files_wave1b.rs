@@ -193,6 +193,8 @@ const SQL_MIG_024: &str = "INSERT INTO attachment_storage_ledger(id,company_id,a
 
 
 /// Social-draft revoke writers (were the last 3 Files owner TS writes).
+pub const SF_EXPIRE_POST_UPLOADS: &str = "SF_EXPIRE_POST_UPLOADS";
+const SQL_SF_EXPIRE_POST_UPLOADS: &str = "UPDATE upload_intents u SET status='expired',updated_at=$1 WHERE u.owner_type='social_draft' AND u.status='ready' AND u.owner_id IN (SELECT id FROM (SELECT id,author_id,company_id,published_post_id,edit_post_id,edit_saved_version,cancelled_at,edit_post_version,comment_parent_post_id,published_comment_id FROM social_post_drafts) drafts WHERE published_post_id=$2 OR edit_post_id=$3) AND NOT EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND a.revoked_at IS NULL)"; // binds=3
 pub const SF_EXPIRE_DRAFT_UPLOADS: &str = "SF_EXPIRE_DRAFT_UPLOADS";
 const SQL_SF_EXPIRE_DRAFT_UPLOADS: &str = "UPDATE upload_intents u SET status='expired',updated_at=$1 WHERE u.owner_type='social_draft' AND u.owner_id=$2 AND u.status='ready' AND NOT EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND a.revoked_at IS NULL)"; // binds=2
 pub const SF_REVOKE_DRAFT: &str = "SF_REVOKE_DRAFT";
@@ -263,6 +265,7 @@ const KINDS: &[&str] = &[
     SF_REVOKE_POST,
     SF_REVOKE_COMMENT,
     SF_EXPIRE_DRAFT_UPLOADS,
+    SF_EXPIRE_POST_UPLOADS,
     SR_056,
     SR_057,
     SR_058,
@@ -399,6 +402,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     ORPH_003 => SQL_ORPH_003,
     SF_REVOKE_DRAFT => SQL_SF_REVOKE_DRAFT,
     SF_EXPIRE_DRAFT_UPLOADS => SQL_SF_EXPIRE_DRAFT_UPLOADS,
+    SF_EXPIRE_POST_UPLOADS => SQL_SF_EXPIRE_POST_UPLOADS,
     SF_REVOKE_POST => SQL_SF_REVOKE_POST,
     SF_REVOKE_COMMENT => SQL_SF_REVOKE_COMMENT,
     MIG_023 => SQL_MIG_023,

@@ -61,10 +61,7 @@ export function collaborationHomeSources(db: SqlDatabase) {
         }, revokeUnusedPostFiles(now: number, id: string, id2: string, value: (string | null)[]) {
             return nativeWrite('SF_REVOKE_POST', [now, id, id2, JSON.stringify(value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0))]);
         }, expireUnusedPostUploads(now: number, id: string, id2: string) {
-            return db.prepare(`UPDATE upload_intents u SET status='expired',updated_at=? WHERE u.owner_type='social_draft' AND u.status='ready'
-          AND u.owner_id IN (SELECT id FROM (${socialDraftFilesReadSql}) drafts WHERE published_post_id=? OR edit_post_id=?)
-          AND NOT EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND a.revoked_at IS NULL)`)
-                .bind(now, id, id2);
+            return nativeWrite('SF_EXPIRE_POST_UPLOADS', [now, id, id2]);
         }, async commentImages(value: (string | null)[], commentDraftId: string, companyId: string) {
             return db.prepare(`SELECT a.id FROM attachments a JOIN upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id IN (${value.map(() => "?").join(",")}) AND a.owner_type='social_draft' AND a.owner_id=? AND d.company_id=? AND a.revoked_at IS NULL AND u.status='ready' AND a.media_type IN ('image/jpeg','image/png','image/webp')`)
                 .bind(...value, commentDraftId, companyId).all<{
