@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4636,
+    "revision": 4640,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T08:51:11.992Z",
-      "expiresAt": "2026-11-22T09:21:11.992Z",
+      "heartbeatAt": "2026-11-22T08:51:31.949Z",
+      "expiresAt": "2026-11-22T09:21:31.949Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T08:51:11.992Z",
-          "expiresAt": "2026-11-22T09:21:11.992Z",
+          "heartbeatAt": "2026-11-22T08:51:31.949Z",
+          "expiresAt": "2026-11-22T09:21:31.949Z",
           "generation": 149
         },
         "baseSha": null,
@@ -105560,16 +105560,30 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "audit:commerce-read-tail-inventory",
+            "result": "passed",
+            "sourceSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
+            "note": "Ranked 241 commerce TS modules (81 native rs alongside): 502 SELECT occurrences across 101 TS files. Module->live-consumer map built for all 114 cross-referenced modules; zero zero-consumer modules (every file has >=1 live cross-package consumer or its own barrel/test). Top: commerce.ts 49 (monolithic command engine w/ dual nativeOrder writers - needs command migration, not read-tail), sales-goods-posting-setup/finance-record-sources/finance-owned-snapshot-sources 20 each, finance-refund-source 18. *-sources/*-facts families each have exactly 1 consumer-owner adapter (finance/inventory/quality/procurement/sales/pos) and no mounted native read covers them (ports.trade tails). No statement deleted in this slice; families queued per consumer owner."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Rank remaining SELECT statements by live consumer; start with port-present families whose native read already exists; record per-family KPI before/after.",
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "at": "2026-11-22T09:06:57.958Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Inventory done at pushed SHA. Next holder: drive one single-consumer family port with its consumer owner, or the commerce.ts engine via migrate.commerce. Claim released."
+        },
+        "nextAction": "Inventory done at pushed SHA. Next holder: drive one single-consumer family port with its consumer owner, or the commerce.ts engine via migrate.commerce. Claim released.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -106163,18 +106177,18 @@
       "totalPackets": 436,
       "migratedPackets": 320,
       "statusCounts": {
-        "pending": 20,
+        "pending": 19,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 320,
-        "blocked": 96,
+        "blocked": 97,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T08:51:11.993Z",
+    "updatedAt": "2026-11-22T09:06:57.959Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
