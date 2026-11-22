@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4880,
+    "revision": 4882,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T15:10:23.476Z",
-      "expiresAt": "2026-11-22T15:40:23.476Z",
+      "heartbeatAt": "2026-11-22T15:13:52.630Z",
+      "expiresAt": "2026-11-22T15:43:52.630Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T15:10:23.476Z",
-          "expiresAt": "2026-11-22T15:40:23.476Z",
+          "heartbeatAt": "2026-11-22T15:13:52.630Z",
+          "expiresAt": "2026-11-22T15:43:52.630Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -107263,8 +107263,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:06:19.234Z",
-          "heartbeatAt": "2026-11-22T15:10:23.476Z",
-          "expiresAt": "2026-11-22T15:40:23.476Z",
+          "heartbeatAt": "2026-11-22T15:13:52.630Z",
+          "expiresAt": "2026-11-22T15:43:52.630Z",
           "generation": 150
         },
         "dependsOn": [
@@ -107276,7 +107276,7 @@
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Screen switch integrated at 647a170 (SSR transport + screen + refill/unknown-drop hardening, PG 3/3 proof, pushed). Next: filtered-summary parity decision (native counts raw deliveries vs TS filtered items — badge condition), container gateway proof, TS retirement with KPI delta. Worker claim retained.",
+        "nextAction": "Filtered summary integrated at ee59f69 (walk matches TS filtered pages, PG 4/4 proof, pushed). Screen switch + all parity items proven. Next: container gateway proof (env-blocked on macOS dev), TS inboxPage/messagingOverview retirement with KPI delta. Worker claim retained.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [
@@ -107318,6 +107318,30 @@
             "note": "Full repo tsc clean with worker SSR transport + screen switch.",
             "result": "passed",
             "sourceSha": "647a170ca2afe2e54c5245e85bc8762e10446a3e"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "note": "Filtered summary + shared resolve_target compile; 0 errors.",
+            "result": "passed",
+            "sourceSha": "ee59f69895f28d9cf6c9671c2b306195538528bb"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_targets",
+            "note": "56 passed.",
+            "result": "passed",
+            "sourceSha": "ee59f69895f28d9cf6c9671c2b306195538528bb"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_page_drop_postgres",
+            "note": "4 passed on disposable PG DBs (lead-run): drop, unavailable-fails, unknown-drop, refill, filtered summary counts only the visible row.",
+            "result": "passed",
+            "sourceSha": "ee59f69895f28d9cf6c9671c2b306195538528bb"
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "note": "0 errors.",
+            "result": "passed",
+            "sourceSha": "ee59f69895f28d9cf6c9671c2b306195538528bb"
           }
         ],
         "retainedLegacy": [],
@@ -107349,7 +107373,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T15:13:18.395Z",
+    "updatedAt": "2026-11-22T15:15:26.458Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
