@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4641,
+    "revision": 4646,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T09:07:27.320Z",
-      "expiresAt": "2026-11-22T09:37:27.320Z",
+      "heartbeatAt": "2026-11-22T09:07:51.895Z",
+      "expiresAt": "2026-11-22T09:37:51.895Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,17 +17202,24 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T09:07:27.320Z",
-          "expiresAt": "2026-11-22T09:37:27.320Z",
+          "heartbeatAt": "2026-11-22T09:07:51.895Z",
+          "expiresAt": "2026-11-22T09:37:51.895Z",
           "generation": 149
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "typecheck:tsc --noEmit (repo, both projects)",
+            "result": "passed",
+            "sourceSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
+            "note": "Repo tsc green (exit 0, zero error TS) after type-only fix to foreign WIP scripts/local/refund-context-e2e.ts:51 (PostgresDatabase value used as type -> InstanceType<typeof PostgresDatabase>). No behavior change; owning worker's e2e work preserved. Fix is within audit.runtime scripts/local/** scope."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Billing+sales restores migrated at d9dd1a534 (remote verified). Foreign untracked scripts/local/refund-context-e2e.ts breaks repo tsc (TS2749) - owner must fix; blocks typecheck gate. Next ready: retire.reads.collaboration.org-access-port (pending, fully scoped) for the rooms() TS-switch; retire.reads.collaboration in_progress.",
+        "nextAction": "Repo tsc green after type-only fix to foreign WIP refund-context-e2e.ts (preserved, recorded). Public hosts 530 (no ERPX tunnel in checkout - out of scope); 3101 down; 3100 serves 503 degraded; PG up. Next: keep closing per-family native ports; purchase/provisioning need commercial/org owners.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -105609,16 +105616,30 @@
         "resources": [
           "owner:files"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "audit:files-read-tail-inventory",
+            "result": "passed",
+            "sourceSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
+            "note": "Ranked 200 files TS modules: 407 SELECT occurrences. Module->live-consumer map complete; sole zero-hit module is field-outbox-predicate.generated, a generated predicate duplicated per owner (collaboration/field_service/files/finance each carry their own copy) - not deletable. Top: attachments/service-repository.ts 99 (generic attachment core, needs native port), attachments/migration.ts 18, social-upload-cleanup.ts 15 (sole consumer collaboration work-social-purchases; adjacent to social-upload-discard-port cutover), collaboration-home-sources.ts 14. No statement deleted; families queued per consumer owner/native port."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
-        "nextAction": "Rank remaining SELECT statements by live consumer; start with port-present families whose native read already exists; record per-family KPI before/after.",
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "at": "2026-11-22T09:10:44.883Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Inventory done. Next holder: drive one single-consumer family port with its consumer owner. Claim released."
+        },
+        "nextAction": "Inventory done. Next holder: drive one single-consumer family port with its consumer owner. Claim released.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -106177,18 +106198,18 @@
       "totalPackets": 436,
       "migratedPackets": 320,
       "statusCounts": {
-        "pending": 19,
+        "pending": 18,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 320,
-        "blocked": 97,
+        "blocked": 98,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T09:07:27.322Z",
+    "updatedAt": "2026-11-22T09:10:49.030Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
