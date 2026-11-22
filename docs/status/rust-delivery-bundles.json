@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5164,
+    "revision": 5171,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T21:09:01.411Z",
-      "expiresAt": "2026-11-22T21:39:01.411Z",
+      "heartbeatAt": "2026-11-22T21:13:54.654Z",
+      "expiresAt": "2026-11-22T21:43:54.655Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T21:13:43.738Z",
-          "heartbeatAt": "2026-11-22T21:13:43.738Z",
-          "expiresAt": "2026-11-22T21:43:43.738Z",
+          "claimedAt": "2026-11-22T21:15:53.402Z",
+          "heartbeatAt": "2026-11-22T21:15:53.402Z",
+          "expiresAt": "2026-11-22T21:45:53.402Z",
           "generation": 150
         },
-        "baseSha": "54ea1715a5aaf552ac52b4e4ed07f3f9930dce13",
+        "baseSha": "b7ab56dce342ec2d80ce645ded70d57ef7ba9361",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN AT 54ea1715a. Found and fixed a systemic native-transport defect: Node fetch forbids overriding Host, so the fetch-based native clients (32 files) sent Host 127.0.0.1:3198 and owner routers answered 404. Commerce warehouse-save and the new Manufacturing accounting-profile client now POST over node:http with explicit Host/Origin and retain error bodies; root typecheck 0. Suite evidence: manufacturing.production.integration beforeEach moved from 404 target-not-found to the server-side 503 \"The native Commerce service is unavailable.\" (PgTransactionError::Persistence), so the target and command now resolve. Remaining for the planning gate: diagnose that persistence failure (SQLx tracing) and the Finance owner-write test/h001 target. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
+        "nextAction": "TURN AT b7ab56dce. Confirmed the manufacturing suite 503 is a test-harness DB mismatch, not a Commerce command bug: a direct POST /api/v1/holdings/acme/commerce/warehouse-save to the live :3198 dev service with companyId acme-co and branchId bangkok returned 200 {\"id\":\"probe-…\",\"companyId\":\"acme-co\"}. The suite creates disposable erpx_test_<prefix>_* databases while the native service is bound to erpx_dev_h001_write, so fixture companies/branches are invisible to the server and PgTransactionError::Persistence is masked as 503. The node:http Host fix (54ea1715a) is required and now proven by BOUNDARY_DEBUG host=acme.jesadakorn.com audience=Some. Next: add tests/support/native-suite-server.ts to start a suite-scoped erpx-server on the test DBs with a test/h001 target and point the four native client configs at it; then rerun manufacturing.production.integration. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:12:02.179Z",
+          "at": "2026-11-22T21:15:53.137Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "TURN AT e9a1b3e27. Mounted the dead Manufacturing wave-3 composition: module declared in lib.rs, profile and owner-write routers merged for every Holding target with the Holding pool, profile backend made Company-resolving, TS native-accounting-profile client added and prepare/decideManufacturingPostingProfile switched to it (no fail-closed fallback). Rebuilt erpx-server and restarted :3198/v5; end-to-end curl proves the mounted route and the restored guards: 422 MANUFACTURING_CURRENCY_ADAPTER (missing chart) and 422 MANUFACTURING_WIP_ACCOUNT (shared WIP), BOUNDARY_DEBUG audience=Some; dev :3100 health 200. cargo check 0, manufacturing lib 16/16, root typecheck 0. planning gate still red: manufacturing.production.integration is 40/40 at the native Commerce warehouse-save (response code hidden by the generic message) and Finance owner-write needs actor holding test/h001 which v5 does not serve. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
+          "nextAction": "TURN AT 54ea1715a. Found and fixed a systemic native-transport defect: Node fetch forbids overriding Host, so the fetch-based native clients (32 files) sent Host 127.0.0.1:3198 and owner routers answered 404. Commerce warehouse-save and the new Manufacturing accounting-profile client now POST over node:http with explicit Host/Origin and retain error bodies; root typecheck 0. Suite evidence: manufacturing.production.integration beforeEach moved from 404 target-not-found to the server-side 503 \"The native Commerce service is unavailable.\" (PgTransactionError::Persistence), so the target and command now resolve. Remaining for the planning gate: diagnose that persistence failure (SQLx tracing) and the Finance owner-write test/h001 target. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -51994,7 +51994,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "54ea1715a5aaf552ac52b4e4ed07f3f9930dce13",
+        "baseSha": "b7ab56dce342ec2d80ce645ded70d57ef7ba9361",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52077,14 +52077,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "TRANSPORT PARITY FIXED at 54ea1715a. Refined scope to add packages/server-commerce/src/adapters/native-wave2.ts and packages/server-manufacturing/src/adapters/native-accounting-profile.ts (+ owner:commerce). Root cause: Node fetch forbids overriding Host, so every fetch-based native client sent Host 127.0.0.1:3198 and the owner routers returned 404 target-not-found. Both clients now POST over node:http with an explicit Host/Origin and keep the response body for errors. Evidence: manufacturing.production.integration beforeEach moved from 404 (target lookup) to the server-side 503 \"The native Commerce service is unavailable.\" (PgTransactionError::Persistence mapped by commerce_wave2 business()), proving the request now reaches the registered acme target and the command runs. Remaining: identify that persistence failure (likely a test-DB row/constraint in the commerce warehouse/ledger transaction) by enabling SQLx tracing, then rerun; Finance owner-write still needs a test/h001 target or a native seed. Mounted profile route from e9a1b3e27 remains proven by curl (422 THB/WIP guards).",
+        "nextAction": "ROOT CAUSE CONFIRMED at b7ab56dce/54ea1715a: the native Commerce route is healthy; POST /commerce/warehouse-save against the live :3198 dev DB with companyId acme-co / branchId bangkok returned 200 {\"id\":\"probe-…\",\"companyId\":\"acme-co\"}. The suite 503 is NOT a warehouse/ledger parity bug: tests/support/runtime-env.ts creates disposable erpx_test_<prefix>_{control,h001,…} databases, while the native server at :3198 is bound to erpx_dev_h001_write, so fixture companies/branches do not exist in the server DB and PgTransactionError::Persistence is masked as 503. Seeding warehouse/product rows cannot fix postings, which also run through the native owner-write route. Required next infrastructure: a suite-scoped erpx-server started from tests/support after DB creation, configured with control/H001 URLs and a test/h001 target (host test.jesadakorn.com, slug test), plus ERPX_NATIVE_COMMERCE_WAVE2_CONFIG / FINANCE_OWNER_WRITE_CONFIG / MANUFACTURING_OWNER_WRITE_CONFIG / MANUFACTURING_ACCOUNTING_CONFIG pointing at it; then rerun manufacturing.production.integration. The node:http Host fix (54ea1715a) is required for that harness and is already in place.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:13:43.670Z",
+          "at": "2026-11-22T21:15:53.338Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "TRANSPORT PARITY FIXED at 54ea1715a. Refined scope to add packages/server-commerce/src/adapters/native-wave2.ts and packages/server-manufacturing/src/adapters/native-accounting-profile.ts (+ owner:commerce). Root cause: Node fetch forbids overriding Host, so every fetch-based native client sent Host 127.0.0.1:3198 and the owner routers returned 404 target-not-found. Both clients now POST over node:http with an explicit Host/Origin and keep the response body for errors. Evidence: manufacturing.production.integration beforeEach moved from 404 (target lookup) to the server-side 503 \"The native Commerce service is unavailable.\" (PgTransactionError::Persistence mapped by commerce_wave2 business()), proving the request now reaches the registered acme target and the command runs. Remaining: identify that persistence failure (likely a test-DB row/constraint in the commerce warehouse/ledger transaction) by enabling SQLx tracing, then rerun; Finance owner-write still needs a test/h001 target or a native seed. Mounted profile route from e9a1b3e27 remains proven by curl (422 THB/WIP guards)."
+          "nextAction": "ROOT CAUSE CONFIRMED at b7ab56dce/54ea1715a: the native Commerce route is healthy; POST /commerce/warehouse-save against the live :3198 dev DB with companyId acme-co / branchId bangkok returned 200 {\"id\":\"probe-…\",\"companyId\":\"acme-co\"}. The suite 503 is NOT a warehouse/ledger parity bug: tests/support/runtime-env.ts creates disposable erpx_test_<prefix>_{control,h001,…} databases, while the native server at :3198 is bound to erpx_dev_h001_write, so fixture companies/branches do not exist in the server DB and PgTransactionError::Persistence is masked as 503. Seeding warehouse/product rows cannot fix postings, which also run through the native owner-write route. Required next infrastructure: a suite-scoped erpx-server started from tests/support after DB creation, configured with control/H001 URLs and a test/h001 target (host test.jesadakorn.com, slug test), plus ERPX_NATIVE_COMMERCE_WAVE2_CONFIG / FINANCE_OWNER_WRITE_CONFIG / MANUFACTURING_OWNER_WRITE_CONFIG / MANUFACTURING_ACCOUNTING_CONFIG pointing at it; then rerun manufacturing.production.integration. The node:http Host fix (54ea1715a) is required for that harness and is already in place."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107940,7 +107940,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T21:13:50.977Z",
+    "updatedAt": "2026-11-22T21:16:01.423Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
