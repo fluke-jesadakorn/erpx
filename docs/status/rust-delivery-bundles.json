@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4902,
+    "revision": 4903,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -107365,7 +107365,14 @@
           "tests/unit/procurement/**"
         ],
         "blocker": null,
-        "claim": null,
+        "claim": {
+          "runId": "run-20261122-d",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-22T15:23:17.746Z",
+          "heartbeatAt": "2026-11-22T15:23:17.746Z",
+          "expiresAt": "2026-11-22T15:53:17.746Z",
+          "generation": 150
+        },
         "dependsOn": [],
         "goalId": "G3",
         "handoff": null,
@@ -107382,7 +107389,7 @@
         "resources": [
           "owner:procurement"
         ],
-        "status": "pending",
+        "status": "in_progress",
         "title": "Native supplier-bill command port mirroring supplier-promise",
         "workstream": "S01",
         "checks": [],
@@ -107400,8 +107407,8 @@
       "totalPackets": 439,
       "migratedPackets": 321,
       "statusCounts": {
-        "pending": 14,
-        "in_progress": 0,
+        "pending": 13,
+        "in_progress": 1,
         "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 321,
@@ -107411,7 +107418,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T15:23:15.576Z",
+    "updatedAt": "2026-11-22T15:23:17.747Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
