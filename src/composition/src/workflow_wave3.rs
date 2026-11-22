@@ -6,9 +6,10 @@
 use erpx_server_runtime::public::http_support::{HeaderMap, Router, header};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use erpx_server_workflow::public::workflow_wave3::{
-    WorkflowWave3Backend, WorkflowWave3Command, WorkflowWave3Future, WorkflowWave3Request,
-    WorkflowWave3Target, plan_workflow_wave3, workflow_wave3_browser_router,
-    workflow_wave3_company_router, workflow_wave3_holding_router,
+    WorkflowWave3Backend, WorkflowWave3Command, WorkflowWave3ExecuteBackend,
+    WorkflowWave3ExecuteFuture, WorkflowWave3Future, WorkflowWave3Request, WorkflowWave3Target,
+    plan_workflow_wave3, workflow_wave3_browser_router, workflow_wave3_company_router,
+    workflow_wave3_execute_router, workflow_wave3_holding_router,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -157,3 +158,92 @@ pub fn workflow_wave3_company(
     )
 }
 
+/// Composition backend that EXECUTES an owner write in Rust on a fresh
+/// serializable unit. Used by synchronous native-write descriptors.
+pub struct WorkflowWave3ExecuteBackendImpl {
+    pool: erpx_server_runtime::public::postgres::DatabasePool,
+}
+
+impl WorkflowWave3ExecuteBackendImpl {
+    pub fn new(pool: erpx_server_runtime::public::postgres::DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl WorkflowWave3ExecuteBackend for WorkflowWave3ExecuteBackendImpl {
+    fn execute<'a>(
+        &'a self,
+        kind: &'a str,
+        values: &'a [serde_json::Value],
+        now: i64,
+        _key: &'a str,
+    ) -> WorkflowWave3ExecuteFuture<'a> {
+        Box::pin(async move {
+            let command = WorkflowWave3Command {
+                kind: kind.to_owned(),
+                values: values.to_vec(),
+                now,
+            };
+            let statement = plan_workflow_wave3(&command)
+                .map_err(|e| BusinessError::new(FailureKind::InvalidInput, e.code, e.message))?;
+            let mut connection = self.pool.raw().acquire().await.map_err(|_| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "WORKFLOW_WAVE3_UNAVAILABLE",
+                    "The native Workflow store is unavailable.",
+                )
+            })?;
+            let mut index = 0usize;
+            let mut rewritten = String::with_capacity(statement.sql.len());
+            for ch in statement.sql.chars() {
+                if ch == '?' {
+                    index += 1;
+                    rewritten.push('$');
+                    rewritten.push_str(&index.to_string());
+                } else {
+                    rewritten.push(ch);
+                }
+            }
+            // The owner planner produced this statement from a bounded typed
+            // kind and positional values; audit the rewrite before executing.
+            let mut query = sqlx::query(sqlx::AssertSqlSafe(rewritten));
+            for value in &statement.values {
+                query = match value {
+                    serde_json::Value::String(v) => query.bind(v.as_str()),
+                    serde_json::Value::Number(v) if v.is_i64() => {
+                        query.bind(v.as_i64().unwrap_or(0))
+                    }
+                    serde_json::Value::Number(v) => query.bind(v.as_f64().unwrap_or(0.0)),
+                    serde_json::Value::Bool(v) => query.bind(*v),
+                    serde_json::Value::Null => query.bind(Option::<String>::None),
+                    serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                        query.bind(value.to_string())
+                    }
+                };
+            }
+            query.execute(&mut *connection).await.map_err(|_| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "WORKFLOW_WAVE3_FAILED",
+                    "The native Workflow write failed.",
+                )
+            })?;
+            Ok(serde_json::json!({"ok": true}))
+        })
+    }
+}
+
+/// Build the executing holding-keyed router from the configured pool.
+pub fn workflow_wave3_execute(
+    pool: erpx_server_runtime::public::postgres::DatabasePool,
+    holdings: Vec<String>,
+) -> Result<Router, BusinessError> {
+    let backend: Arc<dyn WorkflowWave3ExecuteBackend> =
+        Arc::new(WorkflowWave3ExecuteBackendImpl::new(pool));
+    workflow_wave3_execute_router(
+        holdings
+            .into_iter()
+            .map(|holding| (holding, backend.clone()))
+            .collect(),
+    )
+}

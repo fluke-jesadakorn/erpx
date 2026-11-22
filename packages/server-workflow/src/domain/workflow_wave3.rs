@@ -343,6 +343,34 @@ fn invalid() -> BusinessError {
 }
 
 pub fn plan(kind: &str, values: Vec<Value>) -> Result<WorkflowWave3Statement, BusinessError> {
+    // Assertion writes carry the audited code-owned condition as their last
+    // value; the remaining values are the positional binds. Bound the
+    // fragment and reject statement/comment separators.
+    if kind == WF_NATIVE_COMMAND_ASSERTIONS_3 {
+        let (template, _) = statement(kind).ok_or_else(invalid)?;
+        if values.len() < 3 || values.len() > 64 {
+            return Err(invalid());
+        }
+        let condition = values
+            .last()
+            .and_then(Value::as_str)
+            .ok_or_else(invalid)?;
+        if condition.trim().is_empty()
+            || condition.len() > 4096
+            || condition.contains(';')
+            || condition.contains("--")
+            || condition.contains("/*")
+            || condition.contains("*/")
+        {
+            return Err(invalid());
+        }
+        let sql = template.replace("%ASSERTION_CONDITION%", condition);
+        let values = values[..values.len() - 1].to_vec();
+        if sql.matches('?').count() != values.len() {
+            return Err(invalid());
+        }
+        return Ok(WorkflowWave3Statement { sql, values });
+    }
     let (sql, expected) = statement(kind).ok_or_else(invalid)?;
     if values.is_empty() || values.len() > 64 || values.len() != expected {
         return Err(invalid());
