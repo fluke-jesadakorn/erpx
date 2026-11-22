@@ -23,8 +23,6 @@ import { queryMetric } from "@erpx/server-runtime/public/executive/metrics";
 import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/server-runtime/public/executive/evidence";
 import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet, withdrawSeededAttachment } from "../../support/helpers/attachment-v2";
 import { manufacturingAttachmentFailure } from "@erpx/server-manufacturing/public/attachment-purchases";
-import {confirmManualRate} from '@erpx/server-finance/public/company-money';
-import { createManufacturingAccountingProfile, reviewManufacturingAccountingProfile } from "@erpx/server-manufacturing/public/production-accounting";
 import { saveProductionResource, saveProductionResourceCalendar } from "../../support/planning";
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: manufacturingDatabase ?? env.H001_DB, files: env.H001_FILES }),
@@ -32,6 +30,14 @@ vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
 }));
 let manufacturingDatabase:import("@erpx/server-runtime/public/runtime/types").SqlDatabase|undefined;
 afterEach(()=>{manufacturingDatabase=undefined;vi.unstubAllEnvs();});
+// Retired Finance rate writer: seed the same approved rate row without the
+// native command transport. Command receipt/replay parity is covered by the
+// Finance owner tests; this suite only needs the dated quote as a fixture.
+async function seedRate(actor: WorkContext, effectiveDate: string, currencyPerUsd: string, note: string) {
+  await db.prepare(`INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note)
+    VALUES(?,?,?,?,?,?,?,?)`)
+    .bind(key(), actor.companyId, "THB", effectiveDate, currencyPerUsd, actor.userId, Date.now(), note).run();
+}
 let f: Awaited<ReturnType<typeof expenseFixture>>,
   owner: WorkContext,
   reviewer: WorkContext,
@@ -69,7 +75,7 @@ it("posts material, conversion cost and independently released output atomically
     .bind(id).all<{ amount_kind: string; amount_units: string; currency: string; currency_scale: number; fx_rate_id: string }>()).results;
   expect(snapshots.map(s => [s.amount_kind, s.amount_units])).toEqual([["labor", "1000"], ["material_issue", "2000"], ["output", "3200"], ["overhead", "200"]]);
   expect(snapshots.every(s => s.currency === "THB" && s.currency_scale === 2 && Boolean(s.fx_rate_id))).toBe(true);
-  await confirmManualRate(f.manager, { currency: "THB", effectiveDate: "2026-10-02", currencyPerUsd: "40", note: "A later quote cannot rewrite recorded production" }, key());
+  await seedRate(f.manager, "2026-10-02", "40", "A later quote cannot rewrite recorded production");
   expect((await db.prepare(`SELECT s.fx_rate_id FROM money_transaction_snapshots s JOIN manufacturing_cost_movements m ON m.id=s.source_id WHERE m.order_id=?`).bind(id).all<{ fx_rate_id: string }>()).results.map(s => s.fx_rate_id).sort()).toEqual(snapshots.map(s => s.fx_rate_id).sort());
   await expect(db.prepare("UPDATE manufacturing_cost_movements SET amount_minor=1 WHERE order_id=?").bind(id).run()).rejects.toMatchObject({ code: "23514" });
 });
@@ -185,7 +191,7 @@ beforeEach(async () => {
   await db.prepare(`INSERT INTO manufacturing_accounting_profiles(id,company_id,chart_id,currency,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id,scrap_account_id,status,version,created_by,reviewed_by,created_at,updated_at)
     VALUES(?,?,?,'THB',?,?,?,?,?,'approved',2,?,?,1,1)`)
     .bind(key(), f.company, f.chart, productionAccounts.inventory, productionAccounts.wip, productionAccounts.labor, productionAccounts.overhead, f.accounts.expense, f.reviewer.userId, f.manager.userId).run();
-  await confirmManualRate(f.manager, { currency: "THB", effectiveDate: "2026-01-01", currencyPerUsd: "35", note: "Isolated test manual rate" }, key());
+  await seedRate(f.manager, "2026-01-01", "35", "Isolated test manual rate");
   warehouse = String(
     (
       await saveMaster(
@@ -785,18 +791,17 @@ it('retains the original Manufacturing missing-mapping guard after real Finance 
   const account=await finance.createAccount(z.reviewer,{chartId:chart.id,code:`MFG-${index+1}`,name:`Real Manufacturing ${field}`,category,currency:'THB',isControl:controlKind!=='none',controlKind},key());accounts[field]=String(account.id);
  }
  await finance.createPeriod(z.reviewer,{name:'Actual Manufacturing posting year',startDate:'2026-01-01',endDate:'2026-12-31'},key());
- await money.confirmManualRate(z.manager,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'36',note:'Original rightful Finance approver confirms a dated native Manufacturing quote'},key());
+ await seedRate(z.manager,'2026-09-01','36','Original rightful Finance approver confirms a dated native Manufacturing quote');
  expect(await db.prepare('SELECT count(*)::int n FROM commerce_settings WHERE company_id=?').bind(z.company).first('n')).toBe(0);
  expect(await db.prepare('SELECT count(*)::int n FROM finance_accounts WHERE company_id=?').bind(z.company).first('n')).toBe(13);
  const workspace=await productionWorkspace(z.reviewer,'manufacturing');expect(workspace.canConfigureAccounting).toBe(true);expect(workspace.accounts).toEqual([]);
  const command=key(),profileInput={chartId:chart.id,inventoryAccountId:accounts.inventoryAccountId,wipAccountId:accounts.wipAccountId,laborAccountId:accounts.laborAccountId,overheadAccountId:accounts.overheadAccountId,scrapAccountId:accounts.scrapAccountId};
  const image=async()=>({profiles:(await db.prepare('SELECT to_jsonb(p)::text image FROM manufacturing_accounting_profiles p WHERE company_id=? ORDER BY id').bind(z.company).all()).results,settings:(await db.prepare('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE company_id=?').bind(z.company).all()).results,commands:await Promise.all(['command_receipts','audit_events','outbox_events'].map(async table=>(await db.prepare(`SELECT to_jsonb(r)::text image FROM ${table} r WHERE command_id=? ORDER BY image`).bind(command).all()).results))});
  const before=await image();
- // The separately recorded RED reached this REAL original mapping guard.
- // Keep the guard and its no-effects refusal as a negative regression; the
- // added named-owner case below must establish actual mapping before profile
- // creation and different-person review can legitimately succeed.
- await expect(accounting.createManufacturingAccountingProfile(z.reviewer,profileInput,command)).rejects.toMatchObject({status:409,code:'CONFLICT'});
+ // The mapping guard now belongs to the native command (require_profile_sources
+ // rejects a non-THB chart or shared WIP after replay). The retained TypeScript
+ // entry point must fail closed before any Finance/Commerce/profile effect.
+ await expect(accounting.createManufacturingAccountingProfile(z.reviewer,profileInput,command)).rejects.toMatchObject({status:503,code:'NATIVE_MANUFACTURING_UNAVAILABLE'});
  expect(await image()).toEqual(before);
 });
 
@@ -831,13 +836,21 @@ it('sets up Manufacturing-only Finance references and immutable posting mapping 
   const account=await refs.createManufacturingPostingAccount(z.reviewer,{expectedVersion:0,contextKey:view.contextKey,input:{chartId:chart.id,code:`NAMED-PROFILE-${index+1}`,name:`Actual original ${field}`,category,currency:'THB',isControl:false,controlKind:'none'}},key());accounts[field]=String(account.id);
  }
  const view=await profiles.manufacturingPostingProfiles(z.owner);expect(view).toMatchObject({available:true,canPrepare:true,currency:'THB',chartId:chart.id,unsupportedExistingMapping:false,profiles:[]});expect(view.accounts.map(account=>account.id)).toEqual(expect.arrayContaining([accounts.inventoryAccountId,accounts.wipAccountId,accounts.laborAccountId,accounts.overheadAccountId,accounts.scrapAccountId]));
- const prepareKey=key(),prepareBody={contextKey:view.contextKey,input:{chartId:chart.id,inventoryAccountId:accounts.inventoryAccountId,wipAccountId:accounts.wipAccountId,laborAccountId:accounts.laborAccountId,overheadAccountId:accounts.overheadAccountId,scrapAccountId:accounts.scrapAccountId}},draft=await profiles.prepareManufacturingPostingProfile(z.owner,prepareBody,prepareKey);expect(draft).toMatchObject({id:`mfg-accounting-${prepareKey}`,status:'draft',version:1});
- const ownView=await profiles.manufacturingPostingProfiles(z.owner),ownKey=key(),ownBody={contextKey:ownView.contextKey,input:{expectedVersion:1,action:'approve',reason:'Same creator cannot independently approve'}};
- await expect(profiles.decideManufacturingPostingProfile(z.owner,String(draft.id),ownBody,ownKey)).rejects.toMatchObject({status:409,code:'CONFLICT'});expect(await db.prepare('SELECT count(*)::int n FROM command_receipts WHERE command_id=?').bind(ownKey).first('n')).toBe(0);
- const reviewView=await profiles.manufacturingPostingProfiles(z.manager);expect(reviewView.profiles).toMatchObject([{id:draft.id,status:'draft',version:1,canApprove:true}]);
- const reviewKey=key(),reviewBody={contextKey:reviewView.contextKey,input:{expectedVersion:1,action:'approve',reason:'Independent original Finance approval of exact Manufacturing chart and accounts'}},approved=await profiles.decideManufacturingPostingProfile(z.manager,String(draft.id),reviewBody,reviewKey);expect(approved).toMatchObject({id:draft.id,status:'approved',version:2});expect(await profiles.decideManufacturingPostingProfile(z.manager,String(draft.id),reviewBody,reviewKey)).toEqual(approved);
- expect(await profiles.prepareManufacturingPostingProfile(z.owner,prepareBody,prepareKey)).toEqual(draft);
- expect(await db.prepare('SELECT status,version,created_by,reviewed_by FROM manufacturing_accounting_profiles WHERE id=?').bind(draft.id).first()).toEqual({status:'approved',version:2,created_by:z.owner.userId,reviewed_by:z.manager.userId});
+ // The wave-3 profile command is native-only; its retained TypeScript entry
+ // point must fail closed without a receipt or profile row of its own.
+ const prepareKey=key(),prepareBody={contextKey:view.contextKey,input:{chartId:chart.id,inventoryAccountId:accounts.inventoryAccountId,wipAccountId:accounts.wipAccountId,laborAccountId:accounts.laborAccountId,overheadAccountId:accounts.overheadAccountId,scrapAccountId:accounts.scrapAccountId}};
+ await expect(profiles.prepareManufacturingPostingProfile(z.owner,prepareBody,prepareKey)).rejects.toMatchObject({status:503,code:'NATIVE_MANUFACTURING_UNAVAILABLE'});
+ expect(await db.prepare('SELECT count(*)::int n FROM manufacturing_accounting_profiles WHERE company_id=?').bind(z.company).first('n')).toBe(0);
+ expect(await db.prepare('SELECT count(*)::int n FROM command_receipts WHERE command_id=?').bind(prepareKey).first('n')).toBe(0);
+ // Seed the exact approved mapping the native command writes (create plus
+ // independent review parity is covered by the Rust owner tests) so the
+ // retained Finance reads still resolve it.
+ const profileId=`mfg-accounting-${prepareKey}`;
+ await db.prepare(`INSERT INTO manufacturing_accounting_profiles(id,company_id,chart_id,currency,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id,scrap_account_id,status,version,created_by,reviewed_by,created_at,updated_at)
+   VALUES(?,?,?,'THB',?,?,?,?,?,'approved',2,?,?,1,1)`)
+   .bind(profileId,z.company,chart.id,accounts.inventoryAccountId,accounts.wipAccountId,accounts.laborAccountId,accounts.overheadAccountId,accounts.scrapAccountId,z.owner.userId,z.manager.userId).run();
+ const reviewView=await profiles.manufacturingPostingProfiles(z.manager);expect(reviewView.profiles).toMatchObject([{id:profileId,status:'approved',version:2}]);
+ expect(await db.prepare('SELECT status,version,created_by,reviewed_by FROM manufacturing_accounting_profiles WHERE id=?').bind(profileId).first()).toEqual({status:'approved',version:2,created_by:z.owner.userId,reviewed_by:z.manager.userId});
  expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=? ORDER BY package_id').bind(z.company).all()).results).toEqual([{package_id:'manufacturing'}]);
  expect(await z.counts()).toEqual([1,13,1,1,1,0,0,0]);
  expect(await db.prepare('SELECT count(*)::int n FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(z.company).first('n')).toBe(0);
@@ -1263,7 +1276,7 @@ async function legacyConfiguredManufacturingCompany(){
  const roles=[['receivableAccountId','asset','receivable'],['payableAccountId','liability','payable'],['revenueAccountId','revenue','none'],['inventoryAccountId','asset','none'],['clearingAccountId','liability','none'],['cogsAccountId','expense','none'],['inputTaxAccountId','asset','none'],['outputTaxAccountId','liability','none'],['cashAccountId','asset','bank'],['wipAccountId','asset','none'],['laborAccountId','liability','none'],['overheadAccountId','liability','none'],['scrapAccountId','expense','none']] as const;
  for(const [index,[field,category,controlKind]] of roles.entries())accounts[field]=String((await finance.createAccount(z.reviewer,{chartId:chart.id,code:`LEGACY-MFG-${index+1}`,name:`Original retained ${field}`,category,currency:'THB',isControl:controlKind!=='none',controlKind},key())).id);
  const variance=await finance.createAccount(z.reviewer,{chartId:chart.id,code:'5400',name:'Original physical-count current-period variance',category:'expense',currency:'THB',isControl:false,controlKind:'none'},key()),period=await finance.createPeriod(z.reviewer,{name:'Original retained Company year',startDate:'2026-01-01',endDate:'2026-12-31'},key());
- await money.confirmManualRate(z.manager,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'36',note:'Original rightful Finance approver confirms the actual ledger quote'},key());
+ await seedRate(z.manager,'2026-09-01','36','Original rightful Finance approver confirms the actual ledger quote');
  const view=await supply.commercePostingSetup(z.reviewer);if(typeof view.contextKey!=='string')throw Error('Actual original Supply mapping context required');
  const nine=Object.fromEntries(Object.entries(accounts).filter(([field])=>!['wipAccountId','laborAccountId','overheadAccountId','scrapAccountId'].includes(field))),mappingKey=key(),mappingBody={expectedVersion:0,contextKey:view.contextKey,chartId:chart.id,currency:'THB',reason:'Original normal shared Company mapping remains immutable',...nine};
  expect(await supply.initializeCommercePostingSetup(z.reviewer,mappingBody,mappingKey)).toEqual({id:z.company,status:'configured',version:1});
@@ -1342,7 +1355,7 @@ async function populatedLegacyConfiguredManufacturingCompany(){
  const roles=[['receivableAccountId','asset','receivable'],['payableAccountId','liability','payable'],['revenueAccountId','revenue','none'],['inventoryAccountId','asset','none'],['clearingAccountId','liability','none'],['cogsAccountId','expense','none'],['inputTaxAccountId','asset','none'],['outputTaxAccountId','liability','none'],['cashAccountId','asset','bank'],['wipAccountId','asset','none'],['laborAccountId','liability','none'],['overheadAccountId','liability','none'],['scrapAccountId','expense','none']] as const;
  for(const [index,[field,category,controlKind]] of roles.entries())accounts[field]=String((await finance.createAccount(z.reviewer,{chartId:chart.id,code:`LEGACY-MFG-${index+1}`,name:`Original retained ${field}`,category,currency:'THB',isControl:controlKind!=='none',controlKind},key())).id);
  const variance=await finance.createAccount(z.reviewer,{chartId:chart.id,code:'5400',name:'Original physical-count current-period variance',category:'expense',currency:'THB',isControl:false,controlKind:'none'},key()),period=await finance.createPeriod(z.reviewer,{name:'Original retained Company year',startDate:'2026-01-01',endDate:'2026-12-31'},key());
- await money.confirmManualRate(z.manager,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'36',note:'Original rightful Finance approver confirms the actual ledger quote'},key());
+ await seedRate(z.manager,'2026-09-01','36','Original rightful Finance approver confirms the actual ledger quote');
  const view=await supply.commercePostingSetup(z.reviewer);if(typeof view.contextKey!=='string')throw Error('Actual original Supply mapping context required');
  const nine=Object.fromEntries(Object.entries(accounts).filter(([field])=>!['wipAccountId','laborAccountId','overheadAccountId','scrapAccountId'].includes(field))),mappingKey=key(),mappingBody={expectedVersion:0,contextKey:view.contextKey,chartId:chart.id,currency:'THB',reason:'Original normal shared Company mapping remains immutable',...nine};
  expect(await supply.initializeCommercePostingSetup(z.reviewer,mappingBody,mappingKey)).toEqual({id:z.company,status:'configured',version:1});
