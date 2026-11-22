@@ -162,6 +162,7 @@ pub mod pos_stripe_worker;
 pub mod position_gpo_worker;
 pub mod procurement;
 pub mod runtime_wave2_native;
+pub mod crm_wave2_native;
 #[cfg(feature = "existing-business")]
 mod procurement_rfq_access;
 #[cfg(feature = "existing-business")]

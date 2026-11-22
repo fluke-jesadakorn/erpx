@@ -3241,6 +3241,11 @@ async fn assemble_checked(
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
+        let mut crm_native_routers: Vec<Router> = Vec::new();
+        let mut crm_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
         // Private development assembly: scheduled predicates admit locally and
         // production rendering still fails closed because it is not enabled.
         let runtime_policy =
@@ -4007,6 +4012,20 @@ async fn assemble_checked(
                     wf1a7_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
                     runtime_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    crm_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    crm_native_routers.push(
+                        crate::crm_wave2_native::crm_native_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::crm_wave2_native::CrmNativeBackend::new(
+                                pools[i + 1].clone(),
+                                pools[0].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )
+                        .map_err(|_| "PRIVATE_API_CRM_NATIVE_CONFIGURATION_INVALID")?,
+                    );
                     runtime_native_routers.push(
                         crate::runtime_wave2_native::runtime_native_router(
                             holding.host.clone(),
@@ -6591,6 +6610,24 @@ async fn assemble_checked(
         for runtime_router in runtime_native_routers {
             router = router.merge(runtime_router);
         }
+        for crm_router in crm_native_routers {
+            router = router.merge(crm_router);
+        }
+        if !crm_company_pools.is_empty() {
+            let crm_companies: Vec<String> = crm_company_pools.keys().cloned().collect();
+            let crm_backend = Arc::new(
+                crate::crm_wave2_native::CrmNativeBackend::new(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    pools[0].clone(),
+                    Arc::new(SharedClock(clock.clone())),
+                )
+                .with_companies(crm_company_pools.clone()),
+            );
+            router = router.merge(
+                crate::crm_wave2_native::crm_native_company_router(crm_companies, crm_backend)
+                    .map_err(|_| "PRIVATE_API_CRM_NATIVE_CONFIGURATION_INVALID")?,
+            );
+        }
         if !runtime_company_pools.is_empty() {
             let runtime_companies: Vec<String> = runtime_company_pools.keys().cloned().collect();
             let runtime_backend = Arc::new(
@@ -8669,7 +8706,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     // therefore reachable on the loopback listener, which is never public.
     let loopback_system_command = host == state.loopback
         && request.uri().path().starts_with("/api/v1/companies/")
-        && request.uri().path().ends_with("/runtime/native-command");
+        && request.uri().path().ends_with("/native-command");
     if state.policy.audience(host).is_none()
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))
