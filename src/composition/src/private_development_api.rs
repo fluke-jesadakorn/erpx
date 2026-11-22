@@ -8563,8 +8563,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if state.policy.audience(host).is_none()
         && !(host == state.loopback && matches!(request.uri().path(), "/api/health" | "/api/ready"))
     {
+        eprintln!("BOUNDARY_DEBUG path={} host={} audience=None loopback={}", request.uri().path(), host, state.loopback);
         return Err(BoundaryDenial::NotFound);
     }
+    eprintln!("BOUNDARY_DEBUG path={} host={} audience=Some", request.uri().path(), host);
     let account_mfa = state.account_mfa
         && request.method() == axum::http::Method::POST
         && matches!(
@@ -10925,6 +10927,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ["", "api", "v1", "holdings", _, "legal", ..] => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let messaging = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "messaging", ..] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let customer_timeline = match request
         .uri()
         .path()
@@ -11414,6 +11428,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || quality
         || pms
         || legal
+        || messaging
         || customer_timeline
         || customer_notes
         || customer_activity
