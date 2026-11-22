@@ -32,6 +32,8 @@ pub struct CommandResult {
     pub row: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rows_affected: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch: Option<Value>,
 }
 
 /// Owner adapter port. Composition supplies the caller-owned serializable unit.

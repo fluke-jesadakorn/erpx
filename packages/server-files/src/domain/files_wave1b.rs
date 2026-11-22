@@ -114,6 +114,18 @@ pub const SR_055: &str = "SR_055";
 const SQL_SR_055: &str = "INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) SELECT $1,company_id,$2,'system:jobs','source.byte_delete_failed',$3,$4 FROM attachments WHERE id=$5"; // binds=5
 pub const MIG_001: &str = "MIG_001";
 const SQL_MIG_001: &str = "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at,bound_at,bound_command_id)         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::bigint,$16::bigint,$17,$18,$19,'draft',$20,$21,$22,NULL,NULL) ON CONFLICT(id) DO NOTHING"; // binds=22
+pub const SR_059: &str = "SR_059";
+const SQL_SR_059: &str = "WITH expired AS (UPDATE attachment_links link SET state='expired' FROM attachment_sets set_row WHERE link.set_id=set_row.id AND set_row.target_type<>'leave_request' AND erpx_files_legacy_cleanup_set_allowed(set_row.id) AND link.state='draft' AND link.expires_at<=$1 RETURNING link.id,link.set_id,link.attachment_id) SELECT COALESCE(json_agg(expired),'[]'::json)::text FROM expired"; // binds=1
+pub const SR_060: &str = "SR_060";
+const SQL_SR_060: &str = "WITH expired AS (UPDATE upload_intents intent SET status='expired',updated_at=$1 WHERE intent.attachment_set_id IS NOT NULL AND intent.status='pending' AND intent.expires_at<=$2 AND erpx_files_legacy_cleanup_set_allowed(intent.attachment_set_id) AND NOT EXISTS(SELECT 1 FROM attachment_sets set_row WHERE set_row.id=intent.attachment_set_id AND set_row.target_type='leave_request') RETURNING 1) SELECT COALESCE(json_agg(expired),'[]'::json)::text FROM expired"; // binds=2
+pub const SR_061: &str = "SR_061";
+const SQL_SR_061: &str = "WITH expired AS (UPDATE attachment_sets s SET state='expired',updated_at=$1 WHERE s.state='draft' AND s.target_type<>'leave_request' AND erpx_files_legacy_cleanup_set_allowed(s.id) AND NOT EXISTS(SELECT 1 FROM attachment_links active WHERE active.set_id=s.id AND active.state IN ('draft','bound')) AND ((EXISTS(SELECT 1 FROM attachment_links any_link WHERE any_link.set_id=s.id) AND NOT EXISTS(SELECT 1 FROM attachment_links future_link WHERE future_link.set_id=s.id AND future_link.expires_at>$2)) OR (NOT EXISTS(SELECT 1 FROM attachment_links any_link WHERE any_link.set_id=s.id) AND s.created_at<=$3)) RETURNING id,company_id) SELECT COALESCE(json_agg(expired),'[]'::json)::text FROM expired"; // binds=3
+pub const SR_062: &str = "SR_062";
+const SQL_SR_062: &str = "WITH expired AS (UPDATE attachment_links link SET state='expired' FROM attachment_sets set_row WHERE link.set_id=set_row.id AND set_row.company_id=$1 AND set_row.target_type='leave_request' AND set_row.target_id=$2 AND set_row.state='draft' AND erpx_files_legacy_cleanup_set_allowed(set_row.id) AND link.state='draft' AND link.expires_at<=$3 RETURNING link.id,link.set_id,link.attachment_id) SELECT COALESCE(json_agg(expired),'[]'::json)::text FROM expired"; // binds=3
+pub const SR_063: &str = "SR_063";
+const SQL_SR_063: &str = "WITH expired AS (UPDATE upload_intents intent SET status='expired',updated_at=$1 FROM attachment_sets set_row WHERE intent.attachment_set_id=set_row.id AND set_row.company_id=$2 AND set_row.target_type='leave_request' AND set_row.target_id=$3 AND set_row.state='draft' AND erpx_files_legacy_cleanup_set_allowed(set_row.id) AND intent.status='pending' AND intent.expires_at<=$4 RETURNING 1) SELECT COALESCE(json_agg(expired),'[]'::json)::text FROM expired"; // binds=4
+pub const SR_064: &str = "SR_064";
+const SQL_SR_064: &str = "WITH expired AS (UPDATE attachment_sets set_row SET state='expired',updated_at=$1 WHERE set_row.company_id=$2 AND set_row.target_type='leave_request' AND set_row.target_id=$3 AND set_row.state='draft' AND erpx_files_legacy_cleanup_set_allowed(set_row.id) AND NOT EXISTS(SELECT 1 FROM attachment_links active WHERE active.set_id=set_row.id AND active.state IN ('draft','bound')) AND ((EXISTS(SELECT 1 FROM attachment_links any_link WHERE any_link.set_id=set_row.id) AND NOT EXISTS(SELECT 1 FROM attachment_links future_link WHERE future_link.set_id=set_row.id AND future_link.expires_at>$4)) OR (NOT EXISTS(SELECT 1 FROM attachment_links any_link WHERE any_link.set_id=set_row.id) AND set_row.created_at<=$5)) RETURNING set_row.id,set_row.company_id) SELECT COALESCE(json_agg(expired),'[]'::json)::text FROM expired"; // binds=5
 pub const SR_056: &str = "SR_056";
 const SQL_SR_056: &str = "UPDATE attachment_links l SET attachment_id=$1 FROM attachment_sets s WHERE l.id=$2 AND l.set_id=s.id AND s.company_id=$3 AND l.state='draft'"; // binds=3
 pub const SR_057: &str = "SR_057";
@@ -242,6 +254,12 @@ const KINDS: &[&str] = &[
     SR_056,
     SR_057,
     SR_058,
+    SR_059,
+    SR_060,
+    SR_061,
+    SR_062,
+    SR_063,
+    SR_064,
     MIG_001,
     MIG_002,
     MIG_003,
@@ -330,6 +348,12 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     SR_056 => SQL_SR_056,
     SR_057 => SQL_SR_057,
     SR_058 => SQL_SR_058,
+    SR_059 => SQL_SR_059,
+    SR_060 => SQL_SR_060,
+    SR_061 => SQL_SR_061,
+    SR_062 => SQL_SR_062,
+    SR_063 => SQL_SR_063,
+    SR_064 => SQL_SR_064,
     MIG_001 => SQL_MIG_001,
     MIG_002 => SQL_MIG_002,
     MIG_003 => SQL_MIG_003,

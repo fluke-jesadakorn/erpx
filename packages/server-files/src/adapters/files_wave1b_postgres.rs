@@ -7,7 +7,7 @@ use crate::domain::files_wave1b::{invalid, sql};
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use serde_json::Value;
-use sqlx::{Connection, PgConnection};
+use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -39,19 +39,33 @@ impl PostgresFilesCommandPort {
         for value in values {
             query = bind_value(query, value);
         }
-        let result = query.execute(&mut *connection).await?;
-        let rows = result.rows_affected();
-        let returning = statement.contains("RETURNING");
-        let row = if returning {
-            sqlx::query_scalar::<_, String>(
-                "SELECT company_id FROM attachments WHERE id=$1",
-            )
-            .bind(values.first().and_then(|v| v.as_str()).unwrap_or_default())
-            .fetch_optional(&mut *connection)
-            .await?
-            .map(|company_id| serde_json::json!({"company_id": company_id}))
+        // Batch kinds are data-modifying CTEs that return one json text column
+        // with every affected row, so multi-row RETURNING stays lossless.
+        let (rows, row, batch) = if statement.starts_with("WITH ") {
+            let fetched = query.fetch_all(&mut *connection).await?;
+            let text = fetched
+                .first()
+                .and_then(|row| row.try_get::<String, _>(0).ok())
+                .unwrap_or_else(|| "[]".to_owned());
+            let parsed: Value = serde_json::from_str(&text).unwrap_or_else(|_| Value::Array(Vec::new()));
+            let count = parsed.as_array().map(|items| items.len() as u64).unwrap_or(0);
+            (count, None, Some(parsed))
         } else {
-            None
+            let result = query.execute(&mut *connection).await?;
+            let rows = result.rows_affected();
+            let returning = statement.contains("RETURNING");
+            let row = if returning {
+                sqlx::query_scalar::<_, String>(
+                    "SELECT company_id FROM attachments WHERE id=$1",
+                )
+                .bind(values.first().and_then(|v| v.as_str()).unwrap_or_default())
+                .fetch_optional(&mut *connection)
+                .await?
+                .map(|company_id| serde_json::json!({"company_id": company_id}))
+            } else {
+                None
+            };
+            (rows, row, None)
         };
         // Receipt, audit and outbox are part of the same caller-owned unit.
         let id = format!("files-{}", key);
@@ -105,6 +119,7 @@ impl PostgresFilesCommandPort {
             rows,
             row,
             rows_affected: Some(rows),
+            batch,
         })
     }
 }

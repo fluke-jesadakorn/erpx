@@ -16,7 +16,7 @@ type Settings = Readonly<{
   holdings: ReadonlyArray<Readonly<{ origin: string; holdingSlug: string; holdingId: string; companyId: string }>>;
 }>;
 
-export type NativeResult = Readonly<{ rows: number; row?: unknown; rowsAffected?: number }>;
+export type NativeResult = Readonly<{ rows: number; row?: unknown; rowsAffected?: number; batch?: unknown }>;
 export type NativeContext = Readonly<{
   companyId?: string;
   key?: string;
@@ -97,7 +97,8 @@ async function dispatch(kind: string, values: unknown[], context?: NativeContext
   if (!response.ok || !payload?.data || typeof payload.data.rows !== 'number')
     throw new ApiError(response.status, payload?.error?.code ?? 'NATIVE_FILES_FAILED', payload?.error?.message ?? 'The native Files request failed.');
   const data = payload.data;
-  if (data.rows < 0 || (data.row !== undefined && (typeof data.row !== 'object' || data.row === null)))
+  if (data.rows < 0 || (data.row !== undefined && (typeof data.row !== 'object' || data.row === null))
+    || (data.batch !== undefined && !Array.isArray(data.batch)))
     throw new ApiError(503, 'NATIVE_FILES_RESPONSE_INVALID', 'The native Files response was invalid.');
   return data;
 }
@@ -142,6 +143,8 @@ export function nativeWrite(kind: string, values: unknown[]): NativeWrite {
     },
     async all<T>() {
       const outcome = await dispatch(kind, descriptor.values, descriptor.context);
+      if (Array.isArray(outcome.batch))
+        return { results: outcome.batch as T[], success: true, meta: { changes: outcome.rows, duration: 0 } };
       return result<T>(outcome.rowsAffected ?? outcome.rows, outcome.row);
     },
     async raw<T>() { return [] as T[]; },
