@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4990,
+    "revision": 4999,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17201,9 +17201,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T18:08:22.662Z",
-          "expiresAt": "2026-11-22T18:38:22.662Z",
+          "claimedAt": "2026-11-22T18:12:48.698Z",
+          "heartbeatAt": "2026-11-22T18:12:48.698Z",
+          "expiresAt": "2026-11-22T18:42:48.698Z",
           "generation": 150
         },
         "baseSha": "f5852bb7e3e6f37cadaaea7b3698215d3f7ae5d1",
@@ -17319,12 +17319,12 @@
         "blocker": null,
         "nextAction": "GLOBAL KPI RECORDED at f5852bb: literal-DML in packages/server-*/src/**/*.ts = 0 vs baseline 2894 (repo-wide incl tests/fixtures = 4845, out of scope). Remaining retirement debt = 17 TS files importing native descriptors plus oracle-only test subpaths. Next slices retire descriptor fallbacks with route-level KPI like the proven bill slice: collaboration social-home (needs parity witnesses, not SQL), messaging overview.",
         "handoff": {
-          "runId": "run-20261122-c",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T09:59:22.322Z",
+          "at": "2026-11-22T18:11:14.592Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: run-20261122-c lease expired during messaging e2e proof (now 09:59Z, expiry 09:47Z); no live coordinator process; WIP reconciled: gateway-proof commit 896a93ca pushed scope done, ledger checks pending record, no stray services/DB leases held (verified 0 erpx-server procs, disposable DBs dropped by e2e cleanup)",
-          "nextAction": "Native purchase gate integrated in composition (638a4c02). Provisioning still TS-owned (org slice). Next: per-family native ports; purchase/provisioning need commercial/org owners."
+          "reason": "released with work preserved",
+          "nextAction": "GLOBAL KPI RECORDED at f5852bb: literal-DML in packages/server-*/src/**/*.ts = 0 vs baseline 2894 (repo-wide incl tests/fixtures = 4845, out of scope). Remaining retirement debt = 17 TS files importing native descriptors plus oracle-only test subpaths. Next slices retire descriptor fallbacks with route-level KPI like the proven bill slice: collaboration social-home (needs parity witnesses, not SQL), messaging overview."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -51569,9 +51569,9 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "baseSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+        "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
+        "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
           {
             "command": "git grep -I -o -E \"INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET\" HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
@@ -51651,15 +51651,15 @@
             "removalCondition": "Switch planningContextGuards and resource read consumers to native owner ports and delete the read-source module and its package.json export."
           }
         ],
-        "blocker": "handoff",
-        "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: all 13 Planning TS SQL writers deleted at 918c15726 (global 1941->1928, planning 13->0), native route authority/client parity retained, dead TS branches and public barrels/exports removed, fixture-only oracle relocated to tests/support/planning with removalTaskId retire.planning.fixture-oracle, read sources classified under retire.planning.read-sources. Blocker is environment-only: tests/integration/manufacturing/production.test.ts:1191 asserts pg_dump 18.6 but installed 18.7, so the registered suite reports 39/40; all changed behavior cases pass and cargo/typecheck/166 unit/docs/structure pass. No native Planning config or native server in authorized dev, so no authenticated browser smoke. Next: resolve pg_dump pin or get operator authorization to relax the assertion, then re-run the suite and mark migrated with cutover flags.",
+        "blocker": "released with work preserved",
+        "nextAction": "CANNOT CLOSE YET - evidence self-blocks: task checks at 918c15726 include result=failed for `bun scripts/testing/test.ts integration --suite=manufacturing.production.integration`; the CLI requires every check at implementedCommit to pass before migrated. Confirmed real deltas at that SHA: planning literal-DML 13 -> 0, global 1941 -> 1928. Next: rerun the manufacturing.production.integration suite at current HEAD (native listeners now available) and only then re-attempt migrated with a passing check.",
         "handoff": {
-          "runId": "run-20261120-k",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-20T09:56:25.027Z",
-          "previousStatus": "in_progress",
-          "reason": "handoff",
-          "nextAction": "SUBSTANTIALLY COMPLETE but not marked migrated: all 13 Planning TS SQL writers deleted at 918c15726 (global 1941->1928, planning 13->0), native route authority/client parity retained, dead TS branches and public barrels/exports removed, fixture-only oracle relocated to tests/support/planning with removalTaskId retire.planning.fixture-oracle, read sources classified under retire.planning.read-sources. Blocker is environment-only: tests/integration/manufacturing/production.test.ts:1191 asserts pg_dump 18.6 but installed 18.7, so the registered suite reports 39/40; all changed behavior cases pass and cargo/typecheck/166 unit/docs/structure pass. No native Planning config or native server in authorized dev, so no authenticated browser smoke. Next: resolve pg_dump pin or get operator authorization to relax the assertion, then re-run the suite and mark migrated with cutover flags."
+          "at": "2026-11-22T18:12:48.636Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "CANNOT CLOSE YET - evidence self-blocks: task checks at 918c15726 include result=failed for `bun scripts/testing/test.ts integration --suite=manufacturing.production.integration`; the CLI requires every check at implementedCommit to pass before migrated. Confirmed real deltas at that SHA: planning literal-DML 13 -> 0, global 1941 -> 1928. Next: rerun the manufacturing.production.integration suite at current HEAD (native listeners now available) and only then re-attempt migrated with a passing check."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107515,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:09:42.881Z",
+    "updatedAt": "2026-11-22T18:12:48.699Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
