@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5141,
+    "revision": 5148,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:47:51.442Z",
-      "expiresAt": "2026-11-22T21:17:51.442Z",
+      "heartbeatAt": "2026-11-22T20:51:28.437Z",
+      "expiresAt": "2026-11-22T21:21:28.437Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T20:51:09.268Z",
-          "heartbeatAt": "2026-11-22T20:51:09.268Z",
-          "expiresAt": "2026-11-22T21:21:09.268Z",
+          "claimedAt": "2026-11-22T21:01:07.174Z",
+          "heartbeatAt": "2026-11-22T21:01:07.174Z",
+          "expiresAt": "2026-11-22T21:31:07.174Z",
           "generation": 150
         },
-        "baseSha": "040a20744dabccf124a8ee37283d84417e8d93d3",
+        "baseSha": "7ec950ef5e9e3431d0973ce21ebdbdc87fe84e5f",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN AT 040a20744: fixed the runtime migrations.ts 42P01/receipt-over-HTTP defect (b40d1c77a: Rust-owned runtime-migrations-sql.json bound on the caller connection inside the DDL transaction; regression test fails 503 on the old code, passes now; migration-status 4/4, runtime lib 2/2, typecheck 0); unblocked local verification by making test discovery compare committed paths only (68b5c28ac) and restoring structure:check for the committed server src/testing oracle subpath (040a20744). retire.planning.production-command-sources re-diagnosed: the old TEST_INVENTORY_MISMATCH is gone, but manufacturing.production.integration is now 40/40 failing because 43ffc6a62 made the Manufacturing profile adapter fail-closed while tests/integration/manufacturing/production.test.ts still calls the TS profile create/review in beforeEach; the remaining backup check is PG drift (installed pg_dump/server 18.7 vs asserted 18.6). DECISIONS STILL NEEDED: (a) PG 18.6 restore vs align the 18.6 assertions with postgres-tools 18.x policy; (b) extend retire.workflow allowedPaths to packages/server-runtime/src/adapters/runtime/jobs.ts (six side-effect drains still TS); (c) landed-cost receipt-key compatibility (canonical+dual-key vs backfill vs raw); (d) reclassify the two zero-SQL stale retire tasks (CLI has no reclassify); (e) register the two foreign .test.rs only when their owner commits them. No task status changed; counts remain migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
+        "nextAction": "TURN AT 7ec950ef5. Restored the native Manufacturing profile source rules the wave-3 cutover dropped: require_profile_sources rejects shared WIP and non-THB/missing chart after replay; PgProfileCommand.chart_currency reads finance_charts; erpx-server-manufacturing lib 8/8. Fixtures in manufacturing.production.test.ts now native-seed the approved profile and THB rate instead of calling retired writers, and the profile command cases assert the retained TS path fails closed. The planning gate is still open: src/composition/src/manufacturing_wave3.rs is not compiled or mounted, and its profile backend hard-scopes one Company, so the native profile/owner-write routes are dead code needing a company-resolving backend plus a TS client (allowedPaths extension to lib.rs + manufacturing_wave3.rs). manufacturing.production.integration remains 40/40: with the live v5 native server configured the Commerce warehouse-save route receives the frame but rejects the fixture save, and Finance owner-write matches actor holdingSlug test/h001 which v5 does not serve. Decisions still needed: PG 18.6 restore vs 18.x assertion alignment; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:43:10.694Z",
+          "at": "2026-11-22T20:54:05.158Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done."
+          "nextAction": "TURN AT 040a20744: fixed the runtime migrations.ts 42P01/receipt-over-HTTP defect (b40d1c77a: Rust-owned runtime-migrations-sql.json bound on the caller connection inside the DDL transaction; regression test fails 503 on the old code, passes now; migration-status 4/4, runtime lib 2/2, typecheck 0); unblocked local verification by making test discovery compare committed paths only (68b5c28ac) and restoring structure:check for the committed server src/testing oracle subpath (040a20744). retire.planning.production-command-sources re-diagnosed: the old TEST_INVENTORY_MISMATCH is gone, but manufacturing.production.integration is now 40/40 failing because 43ffc6a62 made the Manufacturing profile adapter fail-closed while tests/integration/manufacturing/production.test.ts still calls the TS profile create/review in beforeEach; the remaining backup check is PG drift (installed pg_dump/server 18.7 vs asserted 18.6). DECISIONS STILL NEEDED: (a) PG 18.6 restore vs align the 18.6 assertions with postgres-tools 18.x policy; (b) extend retire.workflow allowedPaths to packages/server-runtime/src/adapters/runtime/jobs.ts (six side-effect drains still TS); (c) landed-cost receipt-key compatibility (canonical+dual-key vs backfill vs raw); (d) reclassify the two zero-SQL stale retire tasks (CLI has no reclassify); (e) register the two foreign .test.rs only when their owner commits them. No task status changed; counts remain migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -51989,7 +51989,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "040a20744dabccf124a8ee37283d84417e8d93d3",
+        "baseSha": "7ec950ef5e9e3431d0973ce21ebdbdc87fe84e5f",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52072,14 +52072,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "KPI REMAINS 0; two blockers re-diagnosed at 040a20744. (1) The old TEST_INVENTORY_MISMATCH for the two untracked foreign .test.rs files is RESOLVED by 68b5c28ac: discoverTests now compares only committed paths when root is the repo top level, so local test selection runs without registering another worker WIP. (2) The manufacturing.production.integration suite is now 40/40 failing, not 39/40: commit 43ffc6a62 made packages/server-manufacturing/src/adapters/accounting.ts fail-closed (nativeProfileUnavailable), but tests/integration/manufacturing/production.test.ts beforeEach (lines ~181-183) and the two posting-profile tests still call createManufacturingAccountingProfile/reviewManufacturingAccountingProfile and prepare/decideManufacturingPostingProfile through that retained TS path, so every case exits 503 NATIVE_MANUFACTURING_UNAVAILABLE. Fix = native-seeded approved profile fixture plus native profile-route cases (tests/integration/manufacturing and tests/support are in scope), not a revert. (3) After that, the only known check failure is environment drift: pg_dump/pg_restore on PATH are 18.7 (Homebrew /opt/homebrew/opt/postgresql@18) and 5432 serves 18.7, while production.test.ts and postgres-templates assert 18.6; postgres-tools.ts already accepts 18.x. Needs a decision: restore pinned 18.6 tools/server or align the 18.6 assertions with the documented 18.x tool policy.",
+        "nextAction": "PROGRESS AT 7ec950ef5 (KPI still 0). Restored two business rules the wave-3 cutover dropped into the native command: require_profile_sources now rejects a shared WIP account (MANUFACTURING_WIP_ACCOUNT) and a missing/non-THB chart (MANUFACTURING_CURRENCY_ADAPTER) after receipt replay, with the Pg repository chart_currency lookup; erpx-server-manufacturing lib 8/8 passes including the new guard test. Fixtures: production.test.ts now seeds the approved profile and the THB rate by SQL, removing two retired-writer dependencies from beforeEach; the two profile command cases now assert the retained TS entry point fails closed (503 NATIVE_MANUFACTURING_UNAVAILABLE) and that no profile/receipt row is written, then seed the approved row for retained reads. REMAINING BLOCKERS: (1) src/composition/src/manufacturing_wave3.rs is NOT declared in lib.rs and neither manufacturing_wave3_router nor manufacturing_owner_write_router is mounted, so the native profile/owner-write routes are dead code; ManufacturingProfileBackend also hard-scopes to one Company, so mounting needs a company-resolving backend plus a TS HTTP client. allowedPaths must add src/composition/src/lib.rs and src/composition/src/manufacturing_wave3.rs. (2) The suite is still 40/40: with ERPX_NATIVE_COMMERCE_WAVE2_CONFIG pointed at the live v5 server (127.0.0.1:3198, acme) the native warehouse route now receives the request (server log BOUNDARY_DEBUG loopback) but rejects the fixture save with \"The warehouse could not be saved\"; without the config it fails at COMMERCE_WAVE2_UNAVAILABLE. Payload/authority parity for saveMaster and the remaining native transports (Finance owner-write matching actor holdingSlug test/h001) is unresolved.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:51:02.408Z",
+          "at": "2026-11-22T21:01:07.110Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "KPI REMAINS 0; two blockers re-diagnosed at 040a20744. (1) The old TEST_INVENTORY_MISMATCH for the two untracked foreign .test.rs files is RESOLVED by 68b5c28ac: discoverTests now compares only committed paths when root is the repo top level, so local test selection runs without registering another worker WIP. (2) The manufacturing.production.integration suite is now 40/40 failing, not 39/40: commit 43ffc6a62 made packages/server-manufacturing/src/adapters/accounting.ts fail-closed (nativeProfileUnavailable), but tests/integration/manufacturing/production.test.ts beforeEach (lines ~181-183) and the two posting-profile tests still call createManufacturingAccountingProfile/reviewManufacturingAccountingProfile and prepare/decideManufacturingPostingProfile through that retained TS path, so every case exits 503 NATIVE_MANUFACTURING_UNAVAILABLE. Fix = native-seeded approved profile fixture plus native profile-route cases (tests/integration/manufacturing and tests/support are in scope), not a revert. (3) After that, the only known check failure is environment drift: pg_dump/pg_restore on PATH are 18.7 (Homebrew /opt/homebrew/opt/postgresql@18) and 5432 serves 18.7, while production.test.ts and postgres-templates assert 18.6; postgres-tools.ts already accepts 18.x. Needs a decision: restore pinned 18.6 tools/server or align the 18.6 assertions with the documented 18.x tool policy."
+          "nextAction": "PROGRESS AT 7ec950ef5 (KPI still 0). Restored two business rules the wave-3 cutover dropped into the native command: require_profile_sources now rejects a shared WIP account (MANUFACTURING_WIP_ACCOUNT) and a missing/non-THB chart (MANUFACTURING_CURRENCY_ADAPTER) after receipt replay, with the Pg repository chart_currency lookup; erpx-server-manufacturing lib 8/8 passes including the new guard test. Fixtures: production.test.ts now seeds the approved profile and the THB rate by SQL, removing two retired-writer dependencies from beforeEach; the two profile command cases now assert the retained TS entry point fails closed (503 NATIVE_MANUFACTURING_UNAVAILABLE) and that no profile/receipt row is written, then seed the approved row for retained reads. REMAINING BLOCKERS: (1) src/composition/src/manufacturing_wave3.rs is NOT declared in lib.rs and neither manufacturing_wave3_router nor manufacturing_owner_write_router is mounted, so the native profile/owner-write routes are dead code; ManufacturingProfileBackend also hard-scopes to one Company, so mounting needs a company-resolving backend plus a TS HTTP client. allowedPaths must add src/composition/src/lib.rs and src/composition/src/manufacturing_wave3.rs. (2) The suite is still 40/40: with ERPX_NATIVE_COMMERCE_WAVE2_CONFIG pointed at the live v5 server (127.0.0.1:3198, acme) the native warehouse route now receives the request (server log BOUNDARY_DEBUG loopback) but rejects the fixture save with \"The warehouse could not be saved\"; without the config it fails at COMMERCE_WAVE2_UNAVAILABLE. Payload/authority parity for saveMaster and the remaining native transports (Finance owner-write matching actor holdingSlug test/h001) is unresolved."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107935,7 +107935,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:51:17.628Z",
+    "updatedAt": "2026-11-22T21:01:14.629Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
