@@ -373,6 +373,11 @@ async fn direct_thread_messages_reads_replay_and_company_isolation() {
             .unwrap();
         assert_eq!(overview.len(), 1);
         assert_eq!(overview[0].unread, 1);
+        assert_eq!(overview[0].team_id, None);
+        assert_eq!(overview[0].private, false);
+        assert_eq!(overview[0].preview.as_deref(), Some("hello"));
+        assert_eq!(overview[0].updated_at, overview[0].last_message_at);
+        assert!(overview[0].updated_at.is_some());
         tx.rollback().await.unwrap();
         run(
             &pool,

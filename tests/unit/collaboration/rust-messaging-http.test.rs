@@ -36,11 +36,15 @@ fn room() -> RoomView {
         kind: "group".into(),
         name: "Team".into(),
         owner_id: "user".into(),
+        team_id: None,
+        private: false,
         version: 1,
         last_seq: 3,
         unread: 1,
+        preview: Some("Hello".into()),
         members: vec!["user".into()],
         last_message_at: Some(1),
+        updated_at: Some(1),
     }
 }
 
@@ -277,6 +281,10 @@ async fn overview_history_and_members_bind_the_exact_holding() {
     let (status, value) = reply(response).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(value["data"]["rooms"][0]["id"], "room-1");
+    assert_eq!(value["data"]["rooms"][0]["teamId"], Value::Null);
+    assert_eq!(value["data"]["rooms"][0]["private"], false);
+    assert_eq!(value["data"]["rooms"][0]["preview"], "Hello");
+    assert_eq!(value["data"]["rooms"][0]["updatedAt"], 1);
     assert_eq!(value["data"]["teams"][0]["id"], "team-1");
 
     let response = read_history(

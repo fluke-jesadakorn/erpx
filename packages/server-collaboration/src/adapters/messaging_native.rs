@@ -214,11 +214,15 @@ pub struct RoomView {
     pub kind: String,
     pub name: String,
     pub owner_id: String,
+    pub team_id: Option<String>,
+    pub private: bool,
     pub version: i64,
     pub last_seq: i64,
     pub unread: i64,
+    pub preview: Option<String>,
     pub members: Vec<String>,
     pub last_message_at: Option<i64>,
+    pub updated_at: Option<i64>,
 }
 
 pub async fn read_overview(
@@ -226,9 +230,11 @@ pub async fn read_overview(
     actor: &MessagingActor,
 ) -> Result<Vec<RoomView>, Error> {
     let rows = sqlx::query(
-        "SELECT r.id,r.kind,r.name,r.owner_id,r.version,r.last_seq,
+        "SELECT r.id,r.kind,r.name,r.owner_id,r.team_id,r.private,r.version,r.last_seq,
            (SELECT count(*) FROM messaging_messages m WHERE m.room_id=r.id AND m.seq>COALESCE((SELECT mr.seq FROM messaging_reads mr WHERE mr.room_id=r.id AND mr.user_id=$2),0)) unread,
-           (SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id) last_message_at
+           (SELECT CASE WHEN m.body='' THEN 'Attachment' ELSE left(m.body,160) END FROM messaging_messages m WHERE m.room_id=r.id ORDER BY m.seq DESC LIMIT 1) preview,
+           (SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id) last_message_at,
+           COALESCE((SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id),r.created_at) updated_at
          FROM messaging_rooms r
          WHERE r.company_id=$1 AND (
            EXISTS(SELECT 1 FROM messaging_room_members rm WHERE rm.room_id=r.id AND rm.user_id=$2)
@@ -249,10 +255,14 @@ pub async fn read_overview(
             kind: row.try_get(1)?,
             name: row.try_get(2)?,
             owner_id: row.try_get(3)?,
-            version: row.try_get(4)?,
-            last_seq: row.try_get(5)?,
-            unread: row.try_get(6)?,
-            last_message_at: row.try_get(7)?,
+            team_id: row.try_get(4)?,
+            private: row.try_get(5)?,
+            version: row.try_get(6)?,
+            last_seq: row.try_get(7)?,
+            unread: row.try_get(8)?,
+            preview: row.try_get(9)?,
+            last_message_at: row.try_get(10)?,
+            updated_at: row.try_get(11)?,
         });
     }
     Ok(rooms)
