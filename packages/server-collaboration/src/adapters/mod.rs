@@ -49,6 +49,8 @@ pub(crate) mod inbox_crm;
 
 pub(crate) mod inbox_commerce;
 
+pub(crate) mod inbox_finance;
+
 pub(crate) mod social_http;
 
 pub(crate) mod social_http_wire;

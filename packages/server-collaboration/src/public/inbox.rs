@@ -24,3 +24,7 @@ pub use crate::adapters::inbox_crm::{
 pub use crate::adapters::inbox_commerce::{
     CommerceInboxTargets, commerce_order_capability, commerce_order_href, is_commerce_inbox_target,
 };
+pub use crate::adapters::inbox_finance::{
+    FinanceInboxTargets, finance_document_capability, finance_invoice_href, finance_journal_href,
+    finance_refund_href, is_finance_inbox_target,
+};

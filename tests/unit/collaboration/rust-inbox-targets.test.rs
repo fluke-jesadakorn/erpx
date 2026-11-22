@@ -1,10 +1,11 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
-    CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, InboxTargetPort,
-    InboxTargetVisibility, calendar_appointment_href, commerce_order_capability, commerce_order_href,
-    crm_activity_href, crm_lead_href, encode_uri_component, is_calendar_inbox_target,
-    is_commerce_inbox_target, is_crm_inbox_target, is_owned_inbox_target,
-    retained_inbox_destination, source_record_label,
+    CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
+    InboxTargetPort, InboxTargetVisibility, calendar_appointment_href, commerce_order_capability,
+    commerce_order_href, crm_activity_href, crm_lead_href, encode_uri_component,
+    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
+    is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
+    is_finance_inbox_target, is_owned_inbox_target, retained_inbox_destination, source_record_label,
 };
 
 const ID: &str = "seg/one two";
@@ -367,4 +368,70 @@ fn commerce_kind_capability_table_matches_the_typescript_oracle() {
     );
     assert_eq!(commerce_order_capability("ecommerce"), None);
     assert_eq!(commerce_order_capability(""), None);
+}
+
+#[test]
+fn finance_slice_routes_to_the_native_delegate() {
+    assert!(is_finance_inbox_target("invoice"));
+    assert!(is_finance_inbox_target("journal"));
+    assert!(is_finance_inbox_target("refund"));
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "crm_activity",
+        "commerce_order",
+        "supplier_batch",
+        "support_ticket",
+        "finance",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_finance_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the finance sources.
+    assert!(!is_calendar_inbox_target("invoice"));
+    assert!(!is_crm_inbox_target("journal"));
+    assert!(!is_commerce_inbox_target("refund"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&FinanceInboxTargets::new(None, None));
+    assert_inbox_target_port(&FinanceInboxTargets::default());
+    assert_inbox_target_port(
+        &FinanceInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn finance_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(finance_invoice_href(ID), "/finance/invoices/seg%2Fone%20two");
+    assert_eq!(finance_invoice_href("inv-1"), "/finance/invoices/inv-1");
+    assert_eq!(finance_journal_href(ID), "/finance/journals/seg%2Fone%20two");
+    assert_eq!(finance_journal_href("jou-1"), "/finance/journals/jou-1");
+    assert_eq!(finance_refund_href(ID), "/finance/refunds/seg%2Fone%20two");
+    assert_eq!(finance_refund_href("ref-1"), "/finance/refunds/ref-1");
+    assert_eq!(finance_journal_href("😀"), "/finance/journals/%F0%9F%98%80");
+    assert_eq!(source_record_label("invoice"), "Invoice");
+    assert_eq!(source_record_label("journal"), "Journal");
+    assert_eq!(source_record_label("refund"), "Refund");
+}
+
+#[test]
+fn finance_document_capability_table_matches_the_retained_bases() {
+    assert_eq!(
+        finance_document_capability("invoice"),
+        Some("finance.accounting")
+    );
+    assert_eq!(
+        finance_document_capability("journal"),
+        Some("finance.accounting")
+    );
+    assert_eq!(
+        finance_document_capability("refund"),
+        Some("finance.banking")
+    );
+    assert_eq!(finance_document_capability("supplier_batch"), None);
+    assert_eq!(finance_document_capability("payment"), None);
+    assert_eq!(finance_document_capability(""), None);
 }
