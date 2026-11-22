@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5064,
+    "revision": 5068,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T19:59:11.653Z",
-      "expiresAt": "2026-11-22T20:29:11.653Z",
+      "heartbeatAt": "2026-11-22T20:00:10.210Z",
+      "expiresAt": "2026-11-22T20:30:10.210Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -15560,7 +15560,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "70a0c875eb9290263a69b39f41cb6f8ee00372dc",
+        "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
         "implementedCommit": "1d59e1879bcd4a2f1d4a7a935be74690f64f087c",
         "lastPushedSha": "1d59e1879bcd4a2f1d4a7a935be74690f64f087c",
         "checks": [
@@ -15668,6 +15668,35 @@
             "sourceSha": "1d59e1879bcd4a2f1d4a7a935be74690f64f087c",
             "sourceKind": "committed",
             "note": "Repository layout passed."
+          },
+          {
+            "command": "retirement:ts-statements packages/server-*/src (alias UPDATE)",
+            "result": "passed",
+            "sourceSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
+            "sourceKind": "committed",
+            "before": 1,
+            "after": 0,
+            "note": "flow-planning-ports.ts no longer contains the UPDATE flow_events literal; it binds the Rust-owned per-kind statement from packages/server-workflow/src/flow-advance-sql.json, so execution stays on the caller transaction. Global alias KPI 1 -> 0; literal proxy also 0."
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow",
+            "result": "passed",
+            "sourceSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "cargo test -p erpx-server-workflow --lib flow_advance",
+            "result": "passed",
+            "sourceSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
+            "sourceKind": "committed",
+            "note": "contract_matches_owned_sql passes: 11 kinds, Rust table == checked-in JSON."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
+            "sourceKind": "committed",
+            "note": "Exit 0 with the contract-bound statement."
           }
         ],
         "retainedLegacy": [
@@ -15693,14 +15722,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "LAST ALIAS-UPDATE SITE ANALYSED (packages/server-workflow/src/adapters/flow-planning-ports.ts:47). This is not a mount or allow-list gap: the statement is `UPDATE flow_events e SET next_step_key=(state),next_user_id=(recipient) FROM <table[kind]> d JOIN flow_routes r ... WHERE e.command_id=?` where BOTH expressions and the table are selected per FlowKind across 11 owners (expense/leave/staff_task/request/stock_count/transfer/order/invoice/journal/payroll/record). state embeds approval_instances current_step and finance/commerce/payroll projections (financeFinalSources.flow_routing_finance_journals_j_join, commerceFinalSources.flow_routing_commerce_fulfillments_f_from, peoplepayrollFinalSources.flow_routing_hr_payment_batches_from) plus expense workflow_stage/version and request approval_json path expressions; recipient reads r.steps_json -> state. A partial Rust port for a subset of kinds would silently change workflow routing, so the whole typed resolver must land at once. Plan: add FlowAdvancePort in packages/server-workflow/src/public + application with a typed FlowKind enum, port the three owner source fragments into the workflow crate, execute the UPDATE on the caller transaction, add PG integration cases per kind, then switch flow-planning-ports.ts and delete the TS statement; owner KPI 1 -> 0. This is a multi-turn owner port, not a quick switch. Claim released for coordination.",
+        "nextAction": "FLOW-ADVANCE WRITE NOW RUST-OWNED at 473b198f4. Added packages/server-workflow/src/domain/flow_advance.rs: exact per-kind UPDATE statement for all 11 FlowKind values (expense/leave/staff_task/request/stock_count/transfer/order/invoice/journal/payroll/record), including the approval_instances current_step interpolation and the finance/commerce/people_payroll projection fragments, mirrored by src/flow-advance-sql.json and enforced by a Rust unit test. flow-planning-ports.ts now binds that statement on the caller transaction (atomicity preserved: no HTTP). Global alias-UPDATE KPI 1 -> 0 and literal proxy stays 0. Remaining migrate.workflow residuals are the projector/routing-attention writes tracked by retire.workflow; this task stays blocked until those land.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:00:06.587Z",
+          "at": "2026-11-22T20:04:10.969Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "LAST ALIAS-UPDATE SITE ANALYSED (packages/server-workflow/src/adapters/flow-planning-ports.ts:47). This is not a mount or allow-list gap: the statement is `UPDATE flow_events e SET next_step_key=(state),next_user_id=(recipient) FROM <table[kind]> d JOIN flow_routes r ... WHERE e.command_id=?` where BOTH expressions and the table are selected per FlowKind across 11 owners (expense/leave/staff_task/request/stock_count/transfer/order/invoice/journal/payroll/record). state embeds approval_instances current_step and finance/commerce/payroll projections (financeFinalSources.flow_routing_finance_journals_j_join, commerceFinalSources.flow_routing_commerce_fulfillments_f_from, peoplepayrollFinalSources.flow_routing_hr_payment_batches_from) plus expense workflow_stage/version and request approval_json path expressions; recipient reads r.steps_json -> state. A partial Rust port for a subset of kinds would silently change workflow routing, so the whole typed resolver must land at once. Plan: add FlowAdvancePort in packages/server-workflow/src/public + application with a typed FlowKind enum, port the three owner source fragments into the workflow crate, execute the UPDATE on the caller transaction, add PG integration cases per kind, then switch flow-planning-ports.ts and delete the TS statement; owner KPI 1 -> 0. This is a multi-turn owner port, not a quick switch. Claim released for coordination."
+          "nextAction": "FLOW-ADVANCE WRITE NOW RUST-OWNED at 473b198f4. Added packages/server-workflow/src/domain/flow_advance.rs: exact per-kind UPDATE statement for all 11 FlowKind values (expense/leave/staff_task/request/stock_count/transfer/order/invoice/journal/payroll/record), including the approval_instances current_step interpolation and the finance/commerce/people_payroll projection fragments, mirrored by src/flow-advance-sql.json and enforced by a Rust unit test. flow-planning-ports.ts now binds that statement on the caller transaction (atomicity preserved: no HTTP). Global alias-UPDATE KPI 1 -> 0 and literal proxy stays 0. Remaining migrate.workflow residuals are the projector/routing-attention writes tracked by retire.workflow; this task stays blocked until those land."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-workflow",
@@ -17202,8 +17231,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T19:59:11.653Z",
-          "expiresAt": "2026-11-22T20:29:11.653Z",
+          "heartbeatAt": "2026-11-22T20:00:10.210Z",
+          "expiresAt": "2026-11-22T20:30:10.210Z",
           "generation": 150
         },
         "baseSha": "7356a8ecf6743fce13b9efaf40db29166c2fd4e3",
@@ -107718,7 +107747,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:00:06.588Z",
+    "updatedAt": "2026-11-22T20:04:10.970Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
