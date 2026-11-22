@@ -146,6 +146,8 @@ impl FilesCommandExecutor for FilesCommandPools {
             company_id: input.company_id.clone(),
         };
         let key = key.to_owned();
+        let kind_label = input.kind.clone();
+        let company_label = company_id.clone();
         Box::pin(async move {
             let pool = pool.ok_or_else(|| {
                 BusinessError::new(
@@ -169,11 +171,17 @@ impl FilesCommandExecutor for FilesCommandPools {
             match outcome {
                 Ok(value) => Ok(value),
                 Err(PgTransactionError::Business(error)) => Err(error),
-                Err(PgTransactionError::Persistence(_)) => Err(BusinessError::new(
-                    FailureKind::Unavailable,
-                    "FILES_COMMAND_PERSISTENCE",
-                    "The native Files command unit is unavailable.",
-                )),
+                Err(PgTransactionError::Persistence(error)) => {
+                    eprintln!(
+                        "FILES_COMMAND_PERSISTENCE kind={} company={} error={:?}",
+                        kind_label, company_label, error
+                    );
+                    Err(BusinessError::new(
+                        FailureKind::Unavailable,
+                        "FILES_COMMAND_PERSISTENCE",
+                        "The native Files command unit is unavailable.",
+                    ))
+                }
             }
         })
     }

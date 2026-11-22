@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5002,
+    "revision": 5005,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T18:15:13.169Z",
-      "expiresAt": "2026-11-22T18:45:13.169Z",
+      "heartbeatAt": "2026-11-22T18:26:22.376Z",
+      "expiresAt": "2026-11-22T18:56:22.376Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T18:12:48.698Z",
-          "heartbeatAt": "2026-11-22T18:15:13.169Z",
-          "expiresAt": "2026-11-22T18:45:13.169Z",
+          "heartbeatAt": "2026-11-22T18:26:22.376Z",
+          "expiresAt": "2026-11-22T18:56:22.376Z",
           "generation": 150
         },
-        "baseSha": "096bac3d10be44e8021cb6f8ed7a4ed7b7e30179",
+        "baseSha": "9c6f66832bbd6a9367207d36b9bf6be2c747d360",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17317,7 +17317,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "DEV READINESS IMPROVED (measured): health now reports scanner ready=TRUE (engine ClamAV 1.5.5) and jobs ready=TRUE (heartbeat present); previously both false. Changes: installed+started clamd with fresh signatures under .scratch/dev/clamav, pinned ERPX_CLAMAV_VERSION=1.5.5 in .env.local (dev-only), started dev-jobs, and fixed scripts/local/dev-jobs.ts to copy the native assertion SQL contract next to the worker bundle (worker crashed ENOENT before). Remaining degraded causes: attachments migration pendingHoldings=3 and billing reconciliation not run - both need native files command mount (backfill uses native files kinds) which this listener config lacks; recorded as next env step. Also added .scratch/dev/run-bundled.ts dev runner mirroring dev-jobs next/navigation alias so scripts can run outside Next.",
+        "nextAction": "Files command router is now mounted and probeable (POST :3198 files/commands kind=MIG_012 => 200 rows:0). reconcile-attachments still fails with FILES_COMMAND_PERSISTENCE; added sqlx Debug logging in FilesCommandPools but the error never reaches that branch, i.e. it is already converted to a BusinessError inside the owner port (packages/server-files/src/application/files_wave1b.rs unit_error maps Persistence -> FILES_COMMAND_PERSISTENCE with no SQLSTATE). Diagnosis now requires touching packages/server-files (owner:files), which is outside lead paths and locked by blocked retire.collaboration.social-home. NEEDED: user authorization to edit packages/server-files (surface SQLSTATE in unit_error) or a worker claim on server-files. Meanwhile health stays degraded (migration pendingHoldings=3, billing reconciliation unrun) - not caused by my changes.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -107515,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:26:12.945Z",
+    "updatedAt": "2026-11-22T18:34:58.256Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
