@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4647,
+    "revision": 4653,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T09:11:05.771Z",
-      "expiresAt": "2026-11-22T09:41:05.771Z",
+      "heartbeatAt": "2026-11-22T09:11:31.095Z",
+      "expiresAt": "2026-11-22T09:41:31.095Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T09:11:05.771Z",
-          "expiresAt": "2026-11-22T09:41:05.771Z",
+          "heartbeatAt": "2026-11-22T09:11:31.095Z",
+          "expiresAt": "2026-11-22T09:41:31.095Z",
           "generation": 149
         },
         "baseSha": null,
@@ -17215,11 +17215,41 @@
             "result": "passed",
             "sourceSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
             "note": "Repo tsc green (exit 0, zero error TS) after type-only fix to foreign WIP scripts/local/refund-context-e2e.ts:51 (PostgresDatabase value used as type -> InstanceType<typeof PostgresDatabase>). No behavior change; owning worker's e2e work preserved. Fix is within audit.runtime scripts/local/** scope."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "Native purchase gate compiles; 0 errors. MessagingOverviewData carries purchase: Option<PurchasedAccess> (camelCase wire shape matches TS)."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "Commercial dep + DTO field compile; test constructors updated."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "87 passed."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test messaging_http",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "4 passed."
+          },
+          {
+            "command": "test:integration --suite=collaboration.rust-messaging-postgres.integration",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "4 passed incl. org-channel proof (post-gate; gate defaults disabled in this env so reads unaffected)."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Repo tsc green after type-only fix to foreign WIP refund-context-e2e.ts (preserved, recorded). Public hosts 530 (no ERPX tunnel in checkout - out of scope); 3101 down; 3100 serves 503 degraded; PG up. Next: keep closing per-family native ports; purchase/provisioning need commercial/org owners.",
+        "nextAction": "Native purchase gate integrated in composition (638a4c02). Provisioning still TS-owned (org slice). Next: per-family native ports; purchase/provisioning need commercial/org owners.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -106134,9 +106164,12 @@
         "allowedPaths": [
           "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
           "packages/server-collaboration/src/adapters/presentation-queries.ts",
+          "packages/server-collaboration/src/adapters/messaging_http.rs",
+          "packages/server-collaboration/Cargo.toml",
+          "tests/unit/collaboration/rust-messaging-http.test.rs",
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/"
         ],
-        "baseSha": "9f70d6fd276da9ba481da1c59db523e9d6d5e4b5",
+        "baseSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
         "blocker": "handoff",
         "checks": [
           {
@@ -106150,6 +106183,36 @@
             "result": "passed",
             "sourceSha": "9f70d6fd276da9ba481da1c59db523e9d6d5e4b5",
             "note": "Static parity: composition resolves other-member display name via control messaging_member_names with 'Former member' fallback, mirroring TS people.find()?.name ?? fallback. No composition overview test harness exists; runtime proof requires container native env (ERPX_NATIVE_COLLABORATION_CONFIG is container-only)."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "Native purchase gate compiles; 0 errors. MessagingOverviewData carries purchase: Option<PurchasedAccess> (camelCase wire shape matches TS)."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "Commercial dep + DTO field compile; test constructors updated."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "87 passed."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test messaging_http",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "4 passed."
+          },
+          {
+            "command": "test:integration --suite=collaboration.rust-messaging-postgres.integration",
+            "result": "passed",
+            "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+            "note": "4 passed incl. org-channel proof (post-gate; gate defaults disabled in this env so reads unaffected)."
           }
         ],
         "claim": null,
@@ -106164,16 +106227,16 @@
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
-          "at": "2026-11-22T08:51:01.928Z",
+          "at": "2026-11-22T09:16:59.839Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Decoration done at 9f70d6fd (pushed after this handoff records). Purchase/provisioning parity needs commercial + organization owner decisions; route switch needs those + native reachability. Claim released."
+          "nextAction": "Purchase gate done+verified at 638a4c02. Next: organization provisioning slice, then route switch + deletion. Claim released."
         },
         "id": "retire.collaboration.messaging-overview-transport",
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Decoration done at 9f70d6fd (pushed after this handoff records). Purchase/provisioning parity needs commercial + organization owner decisions; route switch needs those + native reachability. Claim released.",
+        "nextAction": "Purchase gate done+verified at 638a4c02. Next: organization provisioning slice, then route switch + deletion. Claim released.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
@@ -106209,7 +106272,7 @@
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T09:11:05.773Z",
+    "updatedAt": "2026-11-22T09:16:59.905Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
