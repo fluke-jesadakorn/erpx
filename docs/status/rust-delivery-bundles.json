@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4976,
+    "revision": 4982,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -107365,22 +107365,22 @@
           "tests/unit/procurement/**"
         ],
         "blocker": null,
-        "claim": {
-          "runId": "run-20261122-d",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T18:02:04.857Z",
-          "expiresAt": "2026-11-22T18:32:04.857Z",
-          "generation": 150
-        },
+        "claim": null,
         "dependsOn": [],
         "goalId": "G3",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261122-d",
+          "agentId": "lead",
+          "at": "2026-11-22T18:04:57.810Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "released with work preserved",
+          "nextAction": "Ready to close: native :3198 POST capture => 404 RECEIPT_NOT_FOUND; gateway GET 200 / POST 404 with ERPX_NATIVE_PROCUREMENT_CONFIG; 3 routes native-only and re-verified after fallback removal (GET 200 / POST 404); typecheck clean. Retained oracle-only writers -> retire.procurement.supplier-bill-writers (condition: migrate oracle to native seeding)."
+        },
         "id": "migrate.procurement.supplier-bill-command",
-        "implementedCommit": null,
+        "implementedCommit": "2c77185437caf6062d3dfab1181147c75ac0ee52",
         "kind": "migration",
-        "lastPushedSha": null,
-        "nextAction": "Caller-switch IMPLEMENTED (uncommitted): owned bill transport (native-supplier-bill-command.ts: capture/decide/policy POSTs, receipt validators mirroring require_*_receipt, context echo, 64KB/charset/matchId guards, directHttp) + owned wrappers (native-supplier-bill-command-owned.ts: module+purchase preflight, 4xx-preserving errors, undefined-when-unconfigured) + 3 POST routes native-first with TS fallback (capture/decide/policy); GET reads untouched. Typecheck clean. REMAINING: container proof of native path when configured (Linux host), then TS writer retire + retirement:ts-statements KPI delta.",
+        "lastPushedSha": "2c77185437caf6062d3dfab1181147c75ac0ee52",
+        "nextAction": "CLOSED 3/3: Rust ready, caller switched with gateway->Axum proof, TS route authority removed. Native :3198 capture => 404 RECEIPT_NOT_FOUND; gateway GET 200 / POST 404 with ERPX_NATIVE_PROCUREMENT_CONFIG; 3 routes native-only and re-verified after removal. KPI retirement:ts-statements (route fallbacks) 3 -> 0 at 2c77185. Retained oracle-only writers -> retire.procurement.supplier-bill-writers.",
         "owner": "procurement",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [
@@ -107389,7 +107389,7 @@
         "resources": [
           "owner:procurement"
         ],
-        "status": "in_progress",
+        "status": "migrated",
         "title": "Native supplier-bill command port mirroring supplier-promise",
         "workstream": "S01",
         "checks": [
@@ -107410,11 +107410,60 @@
             "note": "10 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): capture+replay, idempotency, fences, approve/return, policy save/replay/stale, authority, isolation, serializable guard. Lead fixed seed gaps + invoice join + decode bug.",
             "result": "passed",
             "sourceSha": "cd19737ffda8676b1cd737987c2c5663f0df62ec"
+          },
+          {
+            "command": "cargo check -p erpx-service (native bill mount compiles)",
+            "result": "passed",
+            "sourceSha": "2c77185437caf6062d3dfab1181147c75ac0ee52",
+            "note": "Composition mount compiles; bill capture/decide/policy routers merged."
+          },
+          {
+            "command": "native :3198 POST /api/v1/holdings/acme/supplier-bills/capture",
+            "result": "passed",
+            "sourceSha": "2c77185437caf6062d3dfab1181147c75ac0ee52",
+            "note": "404 RECEIPT_NOT_FOUND with real __Host-erpx-product session + context headers => Rust authority reached. Earlier route 404 root cause: procurement targets pushed inside the operationsCompanies loop; configured operationsCompanies (no product-code change). Graders passed in order: 403 PERMISSION_REQUIRED -> 403 PACKAGE_REQUIRED -> granted supply+finance v1 with mandatory company_package_grant_events audit rows."
+          },
+          {
+            "command": "gateway->Axum GET/POST /api/v1/holdings/acme/supplier-bills (Host acme.jesadakorn.com, ERPX_NATIVE_PROCUREMENT_CONFIG set)",
+            "result": "passed",
+            "sourceSha": "2c77185437caf6062d3dfab1181147c75ac0ee52",
+            "note": "GET 200 and POST 404 RECEIPT_NOT_FOUND through the Next gateway into the native listener."
+          },
+          {
+            "command": "retirement:ts-statements (supplier-bill route TS fallbacks)",
+            "result": "passed",
+            "before": 3,
+            "after": 0,
+            "sourceSha": "2c77185437caf6062d3dfab1181147c75ac0ee52",
+            "note": "git grep -c -E 'await (captureSupplierBill|decideSupplierBill|saveSupplierInvoicePolicy)\\(' at c4d4be6 = 3 route fallback call sites; at 2c77185 = 0. Routes are native-only (503 NATIVE_PROCUREMENT_UNAVAILABLE when unconfigured) and re-verified after removal: GET 200 / POST 404."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "2c77185437caf6062d3dfab1181147c75ac0ee52",
+            "note": "Both tsc projects clean after route fallback removal."
           }
         ],
-        "retainedLegacy": [],
-        "baseSha": "54a8502ffc5bc7cdeda27a5cf6ee4dfdb97d0040",
-        "workflowIds": []
+        "retainedLegacy": [
+          {
+            "path": "packages/server-procurement/src/adapters/supplier-bills.ts",
+            "symbols": [
+              "captureSupplierBill",
+              "decideSupplierBill",
+              "saveSupplierInvoicePolicy"
+            ],
+            "reason": "Retained only as integration-test and browser-simulation oracle seeders (7 call sites); no route or production caller remains.",
+            "removalTaskId": "retire.procurement.supplier-bill-writers",
+            "removalCondition": "Migrate the bill oracle seeding in tests/support/helpers/supply-open-ap.ts, tests/integration/procurement/supplier-bill-matching.test.ts, tests/integration/procurement/purchase-to-payment.test.ts, tests/integration/sales/commerce-foreign-goods.test.ts, fixtures/pms/builders/hospitality-browser-demo.ts and scripts/local/browser-simulation.ts onto native seeding, then delete the three writers and their barrel export."
+          }
+        ],
+        "baseSha": "2c77185437caf6062d3dfab1181147c75ac0ee52",
+        "workflowIds": [],
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       }
     ],
     "migrationProgress": {
@@ -107424,20 +107473,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 439,
-      "migratedPackets": 321,
+      "migratedPackets": 322,
       "statusCounts": {
         "pending": 13,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 1,
         "integrating": 0,
-        "migrated": 321,
+        "migrated": 322,
         "blocked": 103,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:02:04.858Z",
+    "updatedAt": "2026-11-22T18:05:55.258Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
