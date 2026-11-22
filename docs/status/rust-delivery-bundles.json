@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4830,
+    "revision": 4834,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T14:00:51.506Z",
-      "expiresAt": "2026-11-22T14:30:51.506Z",
+      "heartbeatAt": "2026-11-22T14:01:13.710Z",
+      "expiresAt": "2026-11-22T14:31:13.710Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T14:00:51.506Z",
-          "expiresAt": "2026-11-22T14:30:51.506Z",
+          "heartbeatAt": "2026-11-22T14:01:13.710Z",
+          "expiresAt": "2026-11-22T14:31:13.710Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17860,6 +17860,12 @@
           "packages/server-operations/src/adapters/staff-task-read.ts",
           "packages/server-records/src/adapters/employee-requests-read.ts",
           "packages/server-records/src/application/employee-requests.ts",
+          "packages/server-identity_access/src/adapters/iam-access-review-alerts.ts",
+          "packages/server-organization/src/adapters/organization-work.ts",
+          "packages/server-organization/src/application/organization-work.ts",
+          "packages/server-organization/src/domain/organization-work.ts",
+          "packages/server-organization/src/adapters/company-business-acceptance.ts",
+          "packages/server-organization/src/application/company-business-acceptance.ts",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
@@ -17870,9 +17876,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-22T13:48:11.304Z",
-          "heartbeatAt": "2026-11-22T14:00:51.506Z",
-          "expiresAt": "2026-11-22T14:30:51.506Z",
+          "claimedAt": "2026-11-22T14:02:10.522Z",
+          "heartbeatAt": "2026-11-22T14:02:10.522Z",
+          "expiresAt": "2026-11-22T14:32:10.522Z",
           "generation": 150
         },
         "baseSha": "e8dec8af32eeb959bff39b53823819ff0a406b66",
@@ -18410,14 +18416,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Records slice integrated at e8dec8a (delegate + chain wiring + PG 9/9 proven, pushed; records chained last with documented shadowing rationale). Stays non-migrated: identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
+        "nextAction": "Refined: identity_access + organization oracle paths added (read-only reference for iam_access_review/organization_change/company_business_acceptance delegates). Fourteen slices integrated+proven. Next: worker re-claims and builds the slice, then customer_authority/workflow families.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "at": "2026-11-22T13:47:33.885Z",
+          "at": "2026-11-22T14:01:52.639Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Operations slice integrated at 5104e33 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
+          "nextAction": "Records slice integrated at e8dec8a (delegate + chain wiring + PG 9/9 proven, pushed; records chained last with documented shadowing rationale). Stays non-migrated: identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -107104,7 +107110,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T14:00:51.508Z",
+    "updatedAt": "2026-11-22T14:02:10.523Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
