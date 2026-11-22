@@ -1973,8 +1973,8 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
         kind: erpx_server_collaboration::public::inbox::InboxReadKind,
     ) -> Result<erpx_server_collaboration::public::inbox::InboxHttpReadReply, Error> {
         use erpx_server_collaboration::public::inbox::{
-            CalendarInboxTargets, ChainedInboxTargets, CrmInboxTargets, InboxHttpReadReply,
-            InboxNotificationQuery, InboxReadKind, PgInboxTargets, PgInboxUnit,
+            CalendarInboxTargets, ChainedInboxTargets, CommerceInboxTargets, CrmInboxTargets,
+            InboxHttpReadReply, InboxNotificationQuery, InboxReadKind, PgInboxTargets, PgInboxUnit,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -2021,6 +2021,13 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                                 Box::new(CalendarInboxTargets::new()),
                                 Box::new(
                                     CrmInboxTargets::new(
+                                        workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                        workspace.department_id.as_ref().map(|id| id.as_str()),
+                                    )
+                                    .assignment(Some(selected.assignment().id.as_str())),
+                                ),
+                                Box::new(
+                                    CommerceInboxTargets::new(
                                         workspace.branch_id.as_ref().map(|id| id.as_str()),
                                         workspace.department_id.as_ref().map(|id| id.as_str()),
                                     )

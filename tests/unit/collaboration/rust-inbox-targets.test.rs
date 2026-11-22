@@ -1,8 +1,9 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
-    CalendarInboxTargets, CrmInboxTargets, InboxTargetPort, InboxTargetVisibility,
-    calendar_appointment_href, crm_activity_href, crm_lead_href, encode_uri_component,
-    is_calendar_inbox_target, is_crm_inbox_target, is_owned_inbox_target,
+    CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, InboxTargetPort,
+    InboxTargetVisibility, calendar_appointment_href, commerce_order_capability, commerce_order_href,
+    crm_activity_href, crm_lead_href, encode_uri_component, is_calendar_inbox_target,
+    is_commerce_inbox_target, is_crm_inbox_target, is_owned_inbox_target,
     retained_inbox_destination, source_record_label,
 };
 
@@ -318,4 +319,52 @@ fn crm_hrefs_encode_exactly_like_the_typescript_projection() {
     );
     assert_eq!(source_record_label("crm_lead"), "Crm lead");
     assert_eq!(source_record_label("crm_activity"), "Crm activity");
+}
+
+#[test]
+fn commerce_slice_routes_to_the_native_delegate() {
+    assert!(is_commerce_inbox_target("commerce_order"));
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "crm_activity",
+        "support_ticket",
+        "commerce",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_commerce_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the commerce source.
+    assert!(!is_calendar_inbox_target("commerce_order"));
+    assert!(!is_crm_inbox_target("commerce_order"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&CommerceInboxTargets::new(None, None));
+    assert_inbox_target_port(&CommerceInboxTargets::default());
+    assert_inbox_target_port(
+        &CommerceInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn commerce_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(commerce_order_href(ID), "/commerce/orders/seg%2Fone%20two");
+    assert_eq!(commerce_order_href("ord-1"), "/commerce/orders/ord-1");
+    assert_eq!(commerce_order_href("😀"), "/commerce/orders/%F0%9F%98%80");
+    assert_eq!(source_record_label("commerce_order"), "Commerce order");
+}
+
+#[test]
+fn commerce_kind_capability_table_matches_the_typescript_oracle() {
+    assert_eq!(commerce_order_capability("quote"), Some("sales.quotes"));
+    assert_eq!(commerce_order_capability("sales"), Some("sales.orders"));
+    assert_eq!(
+        commerce_order_capability("purchase"),
+        Some("supply.purchasing")
+    );
+    assert_eq!(commerce_order_capability("ecommerce"), None);
+    assert_eq!(commerce_order_capability(""), None);
 }

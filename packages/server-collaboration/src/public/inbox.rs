@@ -21,3 +21,6 @@ pub use crate::adapters::inbox_calendar::{
 pub use crate::adapters::inbox_crm::{
     CrmInboxTargets, crm_activity_href, crm_lead_href, is_crm_inbox_target, require_purchase_history,
 };
+pub use crate::adapters::inbox_commerce::{
+    CommerceInboxTargets, commerce_order_capability, commerce_order_href, is_commerce_inbox_target,
+};
