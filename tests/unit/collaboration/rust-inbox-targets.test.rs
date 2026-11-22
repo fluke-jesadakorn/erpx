@@ -1,18 +1,21 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
-    InboxTargetPort, InboxTargetVisibility, PayrollInboxTargets, PeopleInboxTargets,
-    ProcurementInboxTargets, SupportInboxTargets, bangkok_coverage_weeks, calendar_appointment_href,
-    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
-    encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
-    finance_journal_href, finance_refund_href, is_calendar_inbox_target, is_commerce_inbox_target,
-    is_crm_inbox_target, is_finance_inbox_target, is_owned_inbox_target, is_payroll_inbox_target,
-    is_people_inbox_target, is_procurement_inbox_target, is_roster_monday, is_support_inbox_target,
+    InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, PayrollInboxTargets,
+    PeopleInboxTargets, ProcurementInboxTargets, SupportInboxTargets, bangkok_coverage_weeks,
+    calendar_appointment_href, commerce_order_capability, commerce_order_href, crm_activity_href,
+    crm_lead_href, customer_followup_href, encode_uri_component, expense_href,
+    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
+    inventory_history_capabilities, inventory_transit_href, is_calendar_inbox_target,
+    is_commerce_inbox_target, is_crm_inbox_target, is_finance_inbox_target, is_inventory_inbox_target,
+    is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
+    is_procurement_inbox_target, is_roster_monday, is_support_inbox_target, landed_cost_href,
     leave_href, overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
     procurement_history_capability, procurement_rfq_href, retirement_case_href,
     retained_inbox_destination, roster_request_href, roster_week_href, source_record_label,
-    support_history_capability, support_incident_href, support_session_href, support_sla_href,
-    support_ticket_href, supplier_bill_href, supplier_promise_href, uses_enforced_layer,
+    stock_count_href, support_history_capability, support_incident_href, support_session_href,
+    support_sla_href, support_ticket_href, supplier_bill_href, supplier_promise_href,
+    uses_enforced_layer,
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
@@ -782,4 +785,94 @@ fn procurement_kind_capability_table_matches_the_retained_gates() {
     );
     assert_eq!(procurement_history_capability("inventory_transit"), None);
     assert_eq!(procurement_history_capability(""), None);
+}
+
+#[test]
+fn inventory_slice_routes_to_the_native_delegate() {
+    for source_type in [
+        "landed_cost",
+        "stock_count",
+        "inventory_transit",
+        "customer_followup",
+    ] {
+        assert!(is_inventory_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "commerce_order",
+        "invoice",
+        "payroll_correction",
+        "roster_week",
+        "support_ticket",
+        "supplier_bill",
+        "inventory",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_inventory_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the inventory sources.
+    assert!(!is_calendar_inbox_target("landed_cost"));
+    assert!(!is_crm_inbox_target("stock_count"));
+    assert!(!is_commerce_inbox_target("inventory_transit"));
+    assert!(!is_finance_inbox_target("landed_cost"));
+    assert!(!is_support_inbox_target("customer_followup"));
+    assert!(!is_procurement_inbox_target("stock_count"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&InventoryInboxTargets::new(None, None));
+    assert_inbox_target_port(&InventoryInboxTargets::default());
+    assert_inbox_target_port(
+        &InventoryInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn inventory_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(landed_cost_href("ord-1"), "/commerce/orders/ord-1#landed-costs");
+    assert_eq!(
+        landed_cost_href(ID),
+        format!("/commerce/orders/{ENCODED}#landed-costs")
+    );
+    assert_eq!(stock_count_href("cnt-1"), "/stock-counts/cnt-1");
+    assert_eq!(stock_count_href(ID), format!("/stock-counts/{ENCODED}"));
+    assert_eq!(inventory_transit_href("tr-1"), "/stock-transit/tr-1");
+    assert_eq!(
+        inventory_transit_href(ID),
+        format!("/stock-transit/{ENCODED}")
+    );
+    assert_eq!(customer_followup_href("fol-1"), "/customer-followups/fol-1");
+    assert_eq!(
+        customer_followup_href(ID),
+        format!("/customer-followups/{ENCODED}")
+    );
+    assert_eq!(source_record_label("landed_cost"), "Landed cost");
+    assert_eq!(source_record_label("stock_count"), "Stock count");
+    assert_eq!(source_record_label("inventory_transit"), "Inventory transit");
+    assert_eq!(source_record_label("customer_followup"), "Customer followup");
+}
+
+#[test]
+fn inventory_kind_capability_table_matches_the_retained_gates() {
+    assert_eq!(
+        inventory_history_capabilities("landed_cost"),
+        &["supply.advanced-inventory", "supply.receiving", "supply.stock"]
+    );
+    assert_eq!(
+        inventory_history_capabilities("stock_count"),
+        &["supply.counts"]
+    );
+    assert_eq!(
+        inventory_history_capabilities("inventory_transit"),
+        &["supply.transfers"]
+    );
+    assert_eq!(
+        inventory_history_capabilities("customer_followup"),
+        &["sales.quotes", "sales.orders"]
+    );
+    assert_eq!(inventory_history_capabilities("commerce_order"), &[] as &[&str]);
+    assert_eq!(inventory_history_capabilities(""), &[] as &[&str]);
 }

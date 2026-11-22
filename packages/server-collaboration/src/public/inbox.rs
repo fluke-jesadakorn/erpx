@@ -45,3 +45,7 @@ pub use crate::adapters::inbox_procurement::{
     ProcurementInboxTargets, is_procurement_inbox_target, procurement_history_capability,
     procurement_rfq_href, supplier_bill_href, supplier_promise_href,
 };
+pub use crate::adapters::inbox_inventory::{
+    InventoryInboxTargets, customer_followup_href, inventory_history_capabilities,
+    inventory_transit_href, is_inventory_inbox_target, landed_cost_href, stock_count_href,
+};
