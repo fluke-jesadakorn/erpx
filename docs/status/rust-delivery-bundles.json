@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5005,
+    "revision": 5013,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -17206,7 +17206,7 @@
           "expiresAt": "2026-11-22T18:56:22.376Z",
           "generation": 150
         },
-        "baseSha": "9c6f66832bbd6a9367207d36b9bf6be2c747d360",
+        "baseSha": "5be7048326a3ee9684da5702594a1e68fc899d89",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17317,7 +17317,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Files command router is now mounted and probeable (POST :3198 files/commands kind=MIG_012 => 200 rows:0). reconcile-attachments still fails with FILES_COMMAND_PERSISTENCE; added sqlx Debug logging in FilesCommandPools but the error never reaches that branch, i.e. it is already converted to a BusinessError inside the owner port (packages/server-files/src/application/files_wave1b.rs unit_error maps Persistence -> FILES_COMMAND_PERSISTENCE with no SQLSTATE). Diagnosis now requires touching packages/server-files (owner:files), which is outside lead paths and locked by blocked retire.collaboration.social-home. NEEDED: user authorization to edit packages/server-files (surface SQLSTATE in unit_error) or a worker claim on server-files. Meanwhile health stays degraded (migration pendingHoldings=3, billing reconciliation unrun) - not caused by my changes.",
+        "nextAction": "DEV HEALTH NOW 200 (measured): GET 127.0.0.1:3100/api/health => HTTP 200 status ok; attachments migration ready pendingHoldings=0; billing ready scanReady reconciliationReady reconciledAt set; scanner ClamAV 1.5.5 ready; jobs ready. Holding pages with real session: /, /supply, /finance => 200. Root causes fixed this slice: (1) files_wave1b router was never mounted - now declared + merged; (2) native files SQL bound text NULL into bigint ($15/$16 of MIG_001/016) -> explicit ::bigint casts (42804), and my earlier ::jsonb guess reverted because all *_json columns are text; (3) stale attachment_scan_attempts row retried an available source into scan_error (trigger correctly rejected) - cleared dev row; (4) missing ERPX_NATIVE_FILES_CONFIG and ERPX_NATIVE_BILLING_CONFIG env for the listeners; (5) final reconciliation run with gate disabled + upload freeze recorded attachment_reconciliation_runs and billing evidence reconciliation (gateReady true); (6) packages/server-workflow native-command-assertion-sql used fileURLToPath(URL) which Turbopack shims -> replaced with fileURLToPath(string)+dirname/join; supply/finance/apps pages stopped 500ing. Remaining env blockers: public tunnel returns Cloudflare 1033/530 for console-dev and acme hosts (cloudflared not connected), private production :3101 has no listener. Next migration work: rerun the manufacturing suite once the foreign test files are registered, then close retire.planning.production-command-sources.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -26563,7 +26563,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
+        "baseSha": "5be7048326a3ee9684da5702594a1e68fc899d89",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -26575,15 +26575,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
-        "nextAction": "Build 4 native Files methods (attach_upload_source_to_draft_link, bind_draft_link, expire_legacy_attachment_drafts, expire_unused_social_*_uploads) then switch callers in service.ts:424/643, cleanupAttachmentDrafts, savePostDraft/postAction; keep link.expired/set.expired events.",
+        "blocker": "released with work preserved",
+        "nextAction": "Used the claim to fix the dev Files path, not to retire the repository: native files command router is now mounted (probe MIG_012 => 200), MIG_001/016 nullable bigint params cast (42804 fixed), attachment backfill+scan+final reconciliation succeed and dev health is 200. Still blocked as a retirement: the TS attachments service-repository remains the authority for reads/effects and needs native Files methods for the four missing operations before removal; see prior blocker text.",
         "handoff": {
-          "runId": "run-20261122-a",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T00:39:04.712Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Previous run-20261122-a lease expired overnight; no live coordinator process; WIP reviewed: e2e test ran (service boots, route 404s - under debug), 3 worker handoffs received, tree clean except tracked ledger + 2 untracked helper files",
-          "nextAction": "Build 4 native Files methods (attach_upload_source_to_draft_link, bind_draft_link, expire_legacy_attachment_drafts, expire_unused_social_*_uploads) then switch callers in service.ts:424/643, cleanupAttachmentDrafts, savePostDraft/postAction; keep link.expired/set.expired events."
+          "at": "2026-11-22T18:52:06.932Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "Used the claim to fix the dev Files path, not to retire the repository: native files command router is now mounted (probe MIG_012 => 200), MIG_001/016 nullable bigint params cast (42804 fixed), attachment backfill+scan+final reconciliation succeed and dev health is 200. Still blocked as a retirement: the TS attachments service-repository remains the authority for reads/effects and needs native Files methods for the four missing operations before removal; see prior blocker text."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -39576,20 +39576,20 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "5be7048326a3ee9684da5702594a1e68fc899d89",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Lead: mount ProjectionSideEffects in src/composition/src/workflow_projection_worker.rs and switch project_event to project_message for the customer-notice path first; add each family to owned_predicate only when its owner drain is native. Routing-attention cutover waits on native resolveFlow and owner page reads. Then delete the TS branches and record the Workflow KPI pair.",
+        "nextAction": "Claimed only to fix a dev-bundle crash: packages/server-workflow/src/adapters/native-command-assertion-sql.ts built its contract path from fileURLToPath(new URL(...)); Turbopack ships its own URL class so Node rejected it (ERR_INVALID_ARG_TYPE) and every Holding page importing the adapter returned 500. Now uses fileURLToPath(import.meta.url)+dirname/join; verified /, /supply, /finance => 200. No retirement progress on this task: remaining projectors/routing-attention writers are untouched (native ProjectionSideEffects mount + project_event switch still open per previous next action).",
         "handoff": {
-          "runId": "run-20261116-retirement-c",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-16T03:45:08.370Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-22T18:52:06.997Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Lead: mount ProjectionSideEffects in src/composition/src/workflow_projection_worker.rs and switch project_event to project_message for the customer-notice path first; add each family to owned_predicate only when its owner drain is native. Routing-attention cutover waits on native resolveFlow and owner page reads. Then delete the TS branches and record the Workflow KPI pair."
+          "nextAction": "Claimed only to fix a dev-bundle crash: packages/server-workflow/src/adapters/native-command-assertion-sql.ts built its contract path from fileURLToPath(new URL(...)); Turbopack ships its own URL class so Node rejected it (ERR_INVALID_ARG_TYPE) and every Holding page importing the adapter returned 500. Now uses fileURLToPath(import.meta.url)+dirname/join; verified /, /supply, /finance => 200. No retirement progress on this task: remaining projectors/routing-attention writers are untouched (native ProjectionSideEffects mount + project_event switch still open per previous next action)."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -107515,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:34:58.256Z",
+    "updatedAt": "2026-11-22T18:52:06.998Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
