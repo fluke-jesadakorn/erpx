@@ -17,6 +17,7 @@ use crate::adapters::messaging_native::{MessageRow, RoomView};
 use crate::adapters::messaging_teams::ChannelView;
 use crate::domain::messaging_native::{Change, HistoryCursor, Receipt as RoomReceipt};
 use crate::domain::messaging_teams::{Receipt as TeamReceipt, TeamSnapshot};
+use erpx_server_commercial::public::capability_decision::PurchasedAccess;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderValue, Path, Query, Request, Response, Router, State,
     body::Body,
@@ -39,6 +40,10 @@ pub type MessagingHttpFuture<'a, T> =
 pub struct MessagingOverviewData {
     pub teams: Vec<TeamSnapshot>,
     pub rooms: Vec<RoomView>,
+    /// Commercial paywall observation, mirroring the retained TypeScript
+    /// overview `purchase` field. `None` when package enforcement is disabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub purchase: Option<PurchasedAccess>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -986,6 +991,7 @@ mod tests {
                         MessagingHttpReadReply::Overview(Box::new(MessagingOverviewData {
                             teams: vec![],
                             rooms: vec![room_view()],
+                            purchase: None,
                         }))
                     }
                     MessagingReadKind::History { .. } => {

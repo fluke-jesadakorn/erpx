@@ -214,6 +214,10 @@ use erpx_server_collaboration::public::social_http::{
     SocialHttpCommentsRequest, SocialHttpFuture, SocialHttpReadReply, SocialHttpReadRequest,
     SocialHttpRevisionsRequest, SocialHttpTarget, SocialReadKind, SocialThreadData,
 };
+use erpx_server_commercial::public::capability_decision::{
+    PurchasedAccess, purchased_access,
+};
+use erpx_server_commercial::public::capability_decision::PgCapabilityDecisionReader;
 use erpx_server_commercial::public::purchase_command_boundary::{
     PurchaseCommandBoundary, PurchaseCommandScope,
 };
@@ -241,7 +245,9 @@ use erpx_server_records::public::record_context::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
+};
 use sqlx::PgConnection;
 use std::sync::Arc;
 
@@ -976,6 +982,70 @@ async fn decorate_direct_room_names(
     Ok(rooms)
 }
 
+/// Native mirror of the retained TypeScript `messagingPurchaseControls` read gate.
+///
+/// Returns `None` when package enforcement is disabled (the TypeScript path
+/// omits `purchase` entirely in that mode). Otherwise reads the exact Company
+/// grants/history through the commercial capability port for `work.messages`
+/// and folds the Company release into the flags exactly like TypeScript:
+/// unreleased companies see empty rooms with the draining paywall payload.
+/// Release is always true wherever this private development service runs
+/// (the TypeScript predicate returns TRUE outside production and this router
+/// is mounted only on the private development API); a production value would
+/// fail closed to empty rooms rather than bypass the paywall.
+async fn messaging_purchase_access(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    now: i64,
+) -> Result<Option<PurchasedAccess>, BusinessError> {
+    let mode = match std::env::var("ERPX_COMMERCE_PACKAGE_ENFORCEMENT")
+        .unwrap_or_else(|_| "disabled".to_owned())
+        .as_str()
+    {
+        "disabled" => PackageEnforcementMode::Disabled,
+        "shadow" => PackageEnforcementMode::Shadow,
+        "enforced" => {
+            if std::env::var("ERPX_ENVIRONMENT").ok().as_deref() != Some("local") {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "PACKAGE_ENFORCEMENT_CONFIGURATION",
+                    "Package enforcement is unavailable.",
+                ));
+            }
+            PackageEnforcementMode::Enforced
+        }
+        _ => {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PACKAGE_ENFORCEMENT_CONFIGURATION",
+                "Package enforcement is unavailable.",
+            ))
+        }
+    };
+    if mode == PackageEnforcementMode::Disabled {
+        return Ok(None);
+    }
+    let catalogue = current_package_catalogue()?;
+    let mut reader =
+        PgCapabilityDecisionReader::new(company.clone(), connection, &catalogue);
+    let facts = reader.facts().await.map_err(business)?;
+    let mut access = purchased_access(
+        &catalogue,
+        &facts,
+        company.as_str(),
+        "work.messages",
+        mode,
+        TimestampMillis::new(now),
+    )?;
+    let released = std::env::var("NODE_ENV").map(|v| v != "production").unwrap_or(true);
+    if !released {
+        access.new_work = false;
+        access.settle_existing = false;
+        access.history = false;
+    }
+    Ok(Some(access))
+}
+
 pub struct MessagingService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: SocialConfiguration,
@@ -1051,6 +1121,17 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                         let scope = messaging_scope(current, &company, name, now)?;
                         Ok(match kind {
                             MessagingReadKind::Overview => {
+                                let purchase =
+                                    messaging_purchase_access(connection, &company, now).await?;
+                                if purchase.as_ref().is_some_and(|access| !access.history) {
+                                    return Ok(MessagingHttpReadReply::Overview(Box::new(
+                                        MessagingOverviewData {
+                                            teams: Vec::new(),
+                                            rooms: Vec::new(),
+                                            purchase,
+                                        },
+                                    )));
+                                }
                                 let mut rooms =
                                     PgMessagingUnit::read_only(connection, scope.clone());
                                 let rooms = rooms.overview().await?;
@@ -1065,6 +1146,7 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                 MessagingHttpReadReply::Overview(Box::new(MessagingOverviewData {
                                     teams,
                                     rooms,
+                                    purchase,
                                 }))
                             }
                             MessagingReadKind::History {

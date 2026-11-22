@@ -81,6 +81,7 @@ impl MessagingHttpBackend for Probe {
                     MessagingHttpReadReply::Overview(Box::new(MessagingOverviewData {
                         teams: vec![team()],
                         rooms: vec![room()],
+                        purchase: None,
                     }))
                 }
                 MessagingReadKind::History { .. } => {

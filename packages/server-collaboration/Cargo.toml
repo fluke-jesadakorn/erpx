@@ -22,6 +22,7 @@ rustls = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-commercial.workspace = true
 erpx-server-organization.workspace = true
 sqlx.workspace = true
 serde.workspace = true

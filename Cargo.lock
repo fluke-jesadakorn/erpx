@@ -790,6 +790,7 @@ name = "erpx-server-collaboration"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "erpx-server-commercial",
  "erpx-server-crm",
  "erpx-server-identity-access",
  "erpx-server-organization",
