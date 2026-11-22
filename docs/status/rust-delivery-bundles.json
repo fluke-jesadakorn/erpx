@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4630,
+    "revision": 4635,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T08:48:24.267Z",
-      "expiresAt": "2026-11-22T09:18:24.267Z",
+      "heartbeatAt": "2026-11-22T08:48:47.852Z",
+      "expiresAt": "2026-11-22T09:18:47.852Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T08:48:24.267Z",
-          "expiresAt": "2026-11-22T09:18:24.267Z",
+          "heartbeatAt": "2026-11-22T08:48:47.852Z",
+          "expiresAt": "2026-11-22T09:18:47.852Z",
           "generation": 149
         },
         "baseSha": null,
@@ -106101,13 +106101,24 @@
           "packages/server-collaboration/src/adapters/presentation-queries.ts",
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/"
         ],
-        "baseSha": null,
-        "blocker": null,
-        "checks": [],
-        "claim": null,
-        "dependsOn": [
-          "retire.reads.collaboration.org-access-port"
+        "baseSha": "9f70d6fd276da9ba481da1c59db523e9d6d5e4b5",
+        "blocker": "handoff",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "9f70d6fd276da9ba481da1c59db523e9d6d5e4b5",
+            "note": "Direct-room name decoration in composition Overview branch compiles; 0 errors (207 pre-existing warnings, none on new code)."
+          },
+          {
+            "command": "contract:direct-room-name-parity",
+            "result": "passed",
+            "sourceSha": "9f70d6fd276da9ba481da1c59db523e9d6d5e4b5",
+            "note": "Static parity: composition resolves other-member display name via control messaging_member_names with 'Former member' fallback, mirroring TS people.find()?.name ?? fallback. No composition overview test harness exists; runtime proof requires container native env (ERPX_NATIVE_COLLABORATION_CONFIG is container-only)."
+          }
         ],
+        "claim": null,
+        "dependsOn": [],
         "deliverables": [
           "Purchase-gating parity decision implemented (native gate or explicit product exemption)",
           "ensureOrganizationChannels provisioning parity (native or explicit exemption)",
@@ -106115,12 +106126,19 @@
           "TS rooms()/messagingOverview fallback deleted; retirement:ts-statements delta recorded"
         ],
         "goalId": "G4",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "at": "2026-11-22T08:51:01.928Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Decoration done at 9f70d6fd (pushed after this handoff records). Purchase/provisioning parity needs commercial + organization owner decisions; route switch needs those + native reachability. Claim released."
+        },
         "id": "retire.collaboration.messaging-overview-transport",
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Claim, then resolve the three recorded parity gaps against the native overview (purchase gating, channel provisioning, name decoration), switch the feature-apps messaging route overview branch to native-only, delete the TS fallback, and record the retirement delta.",
+        "nextAction": "Decoration done at 9f70d6fd (pushed after this handoff records). Purchase/provisioning parity needs commercial + organization owner decisions; route switch needs those + native reachability. Claim released.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
@@ -106130,7 +106148,7 @@
         "retainedLegacy": [],
         "scope": "Transport cutover for messaging overview: native read_overview is now a functional superset (member/team/org branches, RoomView fields). The feature-apps messaging route still prefers native only when ERPX_NATIVE_COLLABORATION_CONFIG is set and falls back to TS messagingOverview, which additionally does (1) purchase gating returning empty+puchase when history unpurchased, (2) ensureOrganizationChannels provisioning side effect, (3) direct-room display-name decoration. None may be silently dropped. Unread sender-exclusion also still differs (TS excludes own messages) and needs consumer sign-off before alignment.",
         "scopeRefinementRequired": false,
-        "status": "pending",
+        "status": "blocked",
         "title": "Cut messaging overview route to native-only",
         "workflowIds": [],
         "workstream": "S01"
@@ -106145,18 +106163,18 @@
       "totalPackets": 436,
       "migratedPackets": 320,
       "statusCounts": {
-        "pending": 21,
+        "pending": 20,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 320,
-        "blocked": 95,
+        "blocked": 96,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T08:48:24.268Z",
+    "updatedAt": "2026-11-22T08:51:01.929Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
