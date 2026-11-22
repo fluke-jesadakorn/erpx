@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4960,
+    "revision": 4962,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T17:13:19.262Z",
-      "expiresAt": "2026-11-22T17:43:19.262Z",
+      "heartbeatAt": "2026-11-22T17:19:05.789Z",
+      "expiresAt": "2026-11-22T17:49:05.789Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T17:13:19.262Z",
-          "expiresAt": "2026-11-22T17:43:19.262Z",
+          "heartbeatAt": "2026-11-22T17:19:05.789Z",
+          "expiresAt": "2026-11-22T17:49:05.789Z",
           "generation": 150
         },
-        "baseSha": "037bb74e8de8e9ebb82b98cf6d8b1c0e2589590b",
+        "baseSha": "12ce1cec041d877124505a18ed0ba1b9ef379e6a",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17303,7 +17303,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Dev boots again (gateway+apps, manifest fixed, 8 erpx_dev DBs migrated 43/2/415/2). Routes execute: POST supplier-bills without key returns exact TS 422 COMMAND_KEY_REQUIRED (guard order intact). GET still 500/INTERNAL_ERROR: requireWorkContext -> readNativeAccountContext needs native account service on :3199, nothing listens there (no launchd job, no repo script provisions it on macOS). Remaining for authenticated verification: (1) private-api.json + erpx-server listener (:3199 account + :3198 finance-bill), (2) seeded dev users/sessions in fresh DBs. Neither exists on this box. STOPPING for user decision: bring up native listeners + seed users now, or defer authenticated verification to container.",
+        "nextAction": "STANDING USER INSTRUCTION: user pre-approved creating missing env/infra (download/install) instead of blocking; do not stall on setup gaps, build whats needed. Dev repaired: env repointed, 8 DBs provisioned (direct receipt workaround documented), dev rebooted, routes execute (POST 422 guard proven). Native listener bring-up in progress: found checked-in target/debug/erpx-server STALE (predates bill mount); rebuilding from HEAD with private-field-api,existing-business in background. Next: boot :3199 account listener with minimal direct-DB config, verify holding routes stop 500ing, then TS-fallback bill verification.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T17:13:19.262Z",
-          "expiresAt": "2026-11-22T17:43:19.262Z",
+          "heartbeatAt": "2026-11-22T17:19:05.789Z",
+          "expiresAt": "2026-11-22T17:49:05.789Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107437,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T17:13:19.264Z",
+    "updatedAt": "2026-11-22T17:19:05.790Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
