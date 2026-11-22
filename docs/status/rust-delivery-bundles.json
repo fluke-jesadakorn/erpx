@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5193,
+    "revision": 5206,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T21:27:31.678Z",
-      "expiresAt": "2026-11-22T21:57:31.678Z",
+      "heartbeatAt": "2026-11-22T21:33:08.380Z",
+      "expiresAt": "2026-11-22T22:03:08.380Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T21:32:58.627Z",
-          "heartbeatAt": "2026-11-22T21:32:58.627Z",
-          "expiresAt": "2026-11-22T22:02:58.627Z",
+          "claimedAt": "2026-11-22T21:40:44.395Z",
+          "heartbeatAt": "2026-11-22T21:40:44.395Z",
+          "expiresAt": "2026-11-22T22:10:44.395Z",
           "generation": 150
         },
-        "baseSha": "3d252aa8bb70b393489ce976532db1115438056f",
+        "baseSha": "2359a9261848061a2db85cd444b60bf6dcd81502",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN AT 3d252aa8b. Found the suite 404 root cause: assemble_checked gates its entire owner-router block on financeJournalReads/posCompanies/crmCompanies/commerceCompanies being non-empty; the suite config had none, so commerce/manufacturing/profile routes were never mounted. Added financeJournalReads to the test config and fixed the Commerce ack shape (flat {id,companyId} vs the assumed {data:{...}}); beforeEach saveMaster now passes and the suite enters workflow. New blocker: workflowWave3 receipt/audit/outbox call /api/v1/companies/{companyId}/workflow/wave3-command, whose execute_targets is static from operationsCompanies (acme-co); per-test fixture companies are absent -> 404. Next: dynamic-company fallback via the holding target or holding-scoped receipt/audit/outbox. Dev binary rebuilt clean (instrumentation reverted). Decisions still needed: PG 18.6 vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
+        "nextAction": "TURN AT 2359a9261. Mounted the previously uncompiled composition workflow_wave3 module: declared it in lib.rs, added WorkflowWave3Planner returning the owner SQL, removed the dead execute backend, merged workflow_wave3_company into the owner-router block, and added single-target fallbacks for the company/execute target maps. The mount print confirms WF_COMPANY_MOUNT n=1 in the suite server and the boundary logs the company workflow path, yet the server returns a router-level 404 \"Not Found\". Next: tower oneshot test on workflow_wave3_company_router and verify the merge into the served CheckedAssembly router (possible shadow/reset). Commerce saveMaster and the profile route are past; only this route blocks manufacturing.production.integration. Dev binary rebuilt clean; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:32:58.355Z",
+          "at": "2026-11-22T21:34:54.443Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "TURN AT 18e2e277b. Narrowed the manufacturing suite blocker to the Test-profile composition: with ERPX_NATIVE_ACCOUNT_TEST_PROXY=1 the generated config contains operationsCompanies [{h001,acme-co}] and the suite server receives /commerce/warehouse-save and /manufacturing/accounting-profile with host acme and audience, but both return 404 empty. The development-profile server on the same binary returns 200 for the same warehouse body. A test-profile server pointed at dev DBs is rejected by test_database() (EXACT_TEST_DATABASE_REQUIRED), so the remaining fix is a development-profile suite server bound to the disposable DBs (2-3 holdings/lease rules) or finding the assembly branch that skips existing-business under Test. No code beyond fab4defee is uncommitted; probes were reverted. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
+          "nextAction": "TURN AT 3d252aa8b. Found the suite 404 root cause: assemble_checked gates its entire owner-router block on financeJournalReads/posCompanies/crmCompanies/commerceCompanies being non-empty; the suite config had none, so commerce/manufacturing/profile routes were never mounted. Added financeJournalReads to the test config and fixed the Commerce ack shape (flat {id,companyId} vs the assumed {data:{...}}); beforeEach saveMaster now passes and the suite enters workflow. New blocker: workflowWave3 receipt/audit/outbox call /api/v1/companies/{companyId}/workflow/wave3-command, whose execute_targets is static from operationsCompanies (acme-co); per-test fixture companies are absent -> 404. Next: dynamic-company fallback via the holding target or holding-scoped receipt/audit/outbox. Dev binary rebuilt clean (instrumentation reverted). Decisions still needed: PG 18.6 vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -51985,18 +51985,20 @@
           "src/composition/src/manufacturing_wave3.rs",
           "packages/server-commerce/src/adapters/native-wave2.ts",
           "packages/server-manufacturing/src/adapters/native-accounting-profile.ts",
-          "packages/server-finance/src/adapters/native-finance-owner-write.ts"
+          "packages/server-finance/src/adapters/native-finance-owner-write.ts",
+          "packages/server-workflow/src/adapters/workflow_wave3_http.rs"
         ],
         "resources": [
           "owner:planning",
           "owner:manufacturing",
           "resource:composition",
           "owner:commerce",
-          "owner:finance"
+          "owner:finance",
+          "owner:workflow"
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "3d252aa8bb70b393489ce976532db1115438056f",
+        "baseSha": "2359a9261848061a2db85cd444b60bf6dcd81502",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52079,14 +52081,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "404 ROOT CAUSE FOUND AND FIXED at 3d252aa8b. The whole owner-router block in assemble_checked is gated by `!finance_journal_reads.is_empty() || !pos_companies.is_empty() || !crm_companies.is_empty() || !commerce_companies.is_empty()`; the suite config had none of the four, so commerce/manufacturing/profile routers were skipped even though operationsCompanies was present. Added financeJournalReads (and kept operationsCompanies) to the test config; the suite now passes beforeEach saveMaster. Also fixed the Commerce ack shape: the warehouse route replies flat {id,companyId}, while the client required {data:{...}}; it now accepts both. NEW BLOCKER: workflowWave3 receipt/audit/outbox use the company-scoped endpoint /api/v1/companies/{companyId}/workflow/wave3-command, whose execute_targets map is built at startup from the static operationsCompanies (acme-co); fixture companies are created per test and are absent, so the request 404s (\"The native Workflow request failed.\"). Next: make the company endpoint resolve through the holding target (dynamic-company fallback) or switch those receipt/audit/outbox writes to the holding-scoped endpoint; that is a workflow/composition design change. Dev :3198 rebuilt clean (debug prints removed).",
+        "nextAction": "WORKFLOW ROUTE STILL 404 AFTER MOUNT at 2359a9261. Declared the previously uncompiled src/composition/src/workflow_wave3.rs in lib.rs, added WorkflowWave3Planner (returns the owner SQL statement), removed the dead execute backend, mounted workflow_wave3_company in the owner-router block, and added a single-target fallback in workflow_wave3_http (company/execute maps). An eprintln at the mount confirmed WF_COMPANY_MOUNT n=1 in the suite server, and the native boundary logs /api/v1/companies/{fixture}/workflow/wave3-command, but the server still returns a router-level 404 \"Not Found\". Next: prove the route with a tower::ServiceExt oneshot test on workflow_wave3_company_router, then check whether the merge into the served CheckedAssembly router is shadowed/reset (or use a nested merge); the planner and fallback are already committed. Commerce saveMaster and the profile route are past; only the workflow company route blocks the suite.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:32:58.561Z",
+          "at": "2026-11-22T21:40:44.329Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "404 ROOT CAUSE FOUND AND FIXED at 3d252aa8b. The whole owner-router block in assemble_checked is gated by `!finance_journal_reads.is_empty() || !pos_companies.is_empty() || !crm_companies.is_empty() || !commerce_companies.is_empty()`; the suite config had none of the four, so commerce/manufacturing/profile routers were skipped even though operationsCompanies was present. Added financeJournalReads (and kept operationsCompanies) to the test config; the suite now passes beforeEach saveMaster. Also fixed the Commerce ack shape: the warehouse route replies flat {id,companyId}, while the client required {data:{...}}; it now accepts both. NEW BLOCKER: workflowWave3 receipt/audit/outbox use the company-scoped endpoint /api/v1/companies/{companyId}/workflow/wave3-command, whose execute_targets map is built at startup from the static operationsCompanies (acme-co); fixture companies are created per test and are absent, so the request 404s (\"The native Workflow request failed.\"). Next: make the company endpoint resolve through the holding target (dynamic-company fallback) or switch those receipt/audit/outbox writes to the holding-scoped endpoint; that is a workflow/composition design change. Dev :3198 rebuilt clean (debug prints removed)."
+          "nextAction": "WORKFLOW ROUTE STILL 404 AFTER MOUNT at 2359a9261. Declared the previously uncompiled src/composition/src/workflow_wave3.rs in lib.rs, added WorkflowWave3Planner (returns the owner SQL statement), removed the dead execute backend, mounted workflow_wave3_company in the owner-router block, and added a single-target fallback in workflow_wave3_http (company/execute maps). An eprintln at the mount confirmed WF_COMPANY_MOUNT n=1 in the suite server, and the native boundary logs /api/v1/companies/{fixture}/workflow/wave3-command, but the server still returns a router-level 404 \"Not Found\". Next: prove the route with a tower::ServiceExt oneshot test on workflow_wave3_company_router, then check whether the merge into the served CheckedAssembly router is shadowed/reset (or use a nested merge); the planner and fallback are already committed. Commerce saveMaster and the profile route are past; only the workflow company route blocks the suite."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107942,7 +107944,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T21:33:04.860Z",
+    "updatedAt": "2026-11-22T21:40:54.083Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
