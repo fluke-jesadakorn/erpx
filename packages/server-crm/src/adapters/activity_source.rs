@@ -264,7 +264,7 @@ type ReviewedBoundary = (String, String, String, Vec<i64>);
 async fn reviewed_account_boundary(c: &mut PgConnection) -> Result<ReviewedBoundary, Error> {
     let (held, visible, role, session, path, oids): (bool, bool, String, String, String, Vec<i64>) = sqlx::query_as("SELECT (SELECT count(*)=2 AND bool_and(c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))) FROM pg_class c WHERE c.oid IN ('public.crm_accounts'::regclass,'public.crm_leads'::regclass)), NOT (row_security_active('public.crm_accounts'::regclass) OR row_security_active('public.crm_leads'::regclass)),current_user::text,session_user::text,current_setting('search_path'),ARRAY['public.crm_accounts'::regclass::oid::bigint,'public.crm_leads'::regclass::oid::bigint]").fetch_one(c).await?;
     if !held || !visible {
-        return Err(invalid());
+        return Err(changed());
     }
     Ok((role, session, path, oids))
 }
