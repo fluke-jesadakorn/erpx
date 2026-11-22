@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4816,
+    "revision": 4818,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T13:21:31.052Z",
-      "expiresAt": "2026-11-22T13:51:31.052Z",
+      "heartbeatAt": "2026-11-22T13:22:18.766Z",
+      "expiresAt": "2026-11-22T13:52:18.766Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T13:21:31.052Z",
-          "expiresAt": "2026-11-22T13:51:31.052Z",
+          "heartbeatAt": "2026-11-22T13:22:18.766Z",
+          "expiresAt": "2026-11-22T13:52:18.766Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17864,8 +17864,15 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-d",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-22T13:22:15.130Z",
+          "heartbeatAt": "2026-11-22T13:22:18.766Z",
+          "expiresAt": "2026-11-22T13:52:18.766Z",
+          "generation": 150
+        },
         "baseSha": "cace5825eabc4ada25310aa527323b4c58f80255",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -18328,7 +18335,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Refined: operations oracle paths added (read-only reference for operational_exception/task/post delegates; social-source oracle is collaboration-internal). Twelve slices integrated+proven. Next: worker re-claims and builds the slice, then records/identity_access/organization/customer_authority/workflow families.",
         "handoff": {
           "runId": "run-20261122-d",
@@ -107013,17 +107020,17 @@
       "migratedPackets": 321,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 321,
-        "blocked": 101,
+        "blocked": 100,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T13:22:03.996Z",
+    "updatedAt": "2026-11-22T13:22:18.768Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
