@@ -1,7 +1,8 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
-    InboxTargetVisibility, encode_uri_component, is_owned_inbox_target, retained_inbox_destination,
-    source_record_label,
+    CalendarInboxTargets, InboxTargetPort, InboxTargetVisibility, calendar_appointment_href,
+    encode_uri_component, is_calendar_inbox_target, is_owned_inbox_target,
+    retained_inbox_destination, source_record_label,
 };
 
 const ID: &str = "seg/one two";
@@ -228,4 +229,47 @@ fn only_collaboration_owned_sources_are_resolved_without_a_delegate() {
     for other in ["support_ticket", "post", "handbook", "invoice", "task"] {
         assert!(!is_owned_inbox_target(other), "{other}");
     }
+}
+
+fn assert_inbox_target_port<T: InboxTargetPort>(_: &T) {}
+
+#[test]
+fn calendar_slice_routes_to_the_native_delegate() {
+    assert!(is_calendar_inbox_target("calendar_appointment"));
+    assert!(is_calendar_inbox_target("calendar_removed"));
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar",
+        "support_ticket",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_calendar_inbox_target(other), "{other}");
+    }
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&CalendarInboxTargets::new());
+    assert_inbox_target_port(&CalendarInboxTargets::default());
+}
+
+#[test]
+fn calendar_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(
+        calendar_appointment_href(ID),
+        "/calendar?event=appointment:seg%2Fone%20two"
+    );
+    assert_eq!(
+        calendar_appointment_href("appt-1"),
+        "/calendar?event=appointment:appt-1"
+    );
+    assert_eq!(
+        calendar_appointment_href("A-z_0.9!~*'()"),
+        "/calendar?event=appointment:A-z_0.9!~*'()"
+    );
+    assert_eq!(
+        calendar_appointment_href("😀"),
+        "/calendar?event=appointment:%F0%9F%98%80"
+    );
+    assert_eq!(source_record_label("calendar_appointment"), "Appointment");
 }

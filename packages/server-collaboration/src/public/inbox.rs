@@ -15,3 +15,6 @@ pub use crate::adapters::inbox_targets::{
     InboxTargetVisibility, PgInboxTargets, RetainedInboxDestination, encode_uri_component,
     is_owned_inbox_target, retained_inbox_destination, source_record_label,
 };
+pub use crate::adapters::inbox_calendar::{
+    CalendarInboxTargets, calendar_appointment_href, is_calendar_inbox_target,
+};
