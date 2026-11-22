@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5128,
+    "revision": 5141,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:40:18.781Z",
-      "expiresAt": "2026-11-22T21:10:18.781Z",
+      "heartbeatAt": "2026-11-22T20:47:51.442Z",
+      "expiresAt": "2026-11-22T21:17:51.442Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T20:40:27.813Z",
-          "heartbeatAt": "2026-11-22T20:40:27.813Z",
-          "expiresAt": "2026-11-22T21:10:27.813Z",
+          "claimedAt": "2026-11-22T20:51:09.268Z",
+          "heartbeatAt": "2026-11-22T20:51:09.268Z",
+          "expiresAt": "2026-11-22T21:21:09.268Z",
           "generation": 150
         },
-        "baseSha": "ecf0f5ae49f08e847146d947172fef51c4221202",
+        "baseSha": "040a20744dabccf124a8ee37283d84417e8d93d3",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,11 +17346,11 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done.",
+        "nextAction": "TURN AT 040a20744: fixed the runtime migrations.ts 42P01/receipt-over-HTTP defect (b40d1c77a: Rust-owned runtime-migrations-sql.json bound on the caller connection inside the DDL transaction; regression test fails 503 on the old code, passes now; migration-status 4/4, runtime lib 2/2, typecheck 0); unblocked local verification by making test discovery compare committed paths only (68b5c28ac) and restoring structure:check for the committed server src/testing oracle subpath (040a20744). retire.planning.production-command-sources re-diagnosed: the old TEST_INVENTORY_MISMATCH is gone, but manufacturing.production.integration is now 40/40 failing because 43ffc6a62 made the Manufacturing profile adapter fail-closed while tests/integration/manufacturing/production.test.ts still calls the TS profile create/review in beforeEach; the remaining backup check is PG drift (installed pg_dump/server 18.7 vs asserted 18.6). DECISIONS STILL NEEDED: (a) PG 18.6 restore vs align the 18.6 assertions with postgres-tools 18.x policy; (b) extend retire.workflow allowedPaths to packages/server-runtime/src/adapters/runtime/jobs.ts (six side-effect drains still TS); (c) landed-cost receipt-key compatibility (canonical+dual-key vs backfill vs raw); (d) reclassify the two zero-SQL stale retire tasks (CLI has no reclassify); (e) register the two foreign .test.rs only when their owner commits them. No task status changed; counts remain migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T20:40:27.521Z",
+          "at": "2026-11-22T20:43:10.694Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
           "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done."
@@ -34600,20 +34600,20 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": null,
+        "baseSha": "040a20744dabccf124a8ee37283d84417e8d93d3",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Step-0 counterpart table at 86e460228 (31 writes / 16 files): executive/reports.ts 11 and executive/generation.ts 5 have NO native executive_report*/executive_generation* producer yet (live feature-apps executive route + job-projector); requires native library/share/ownership and queue/drain producers first. executive/mcp.ts 2: token last_used_at + executive_mcp_audit are owned by packages/server-runtime/src/adapters/executive_connections_postgres.rs and composition executive_connections.rs; delete after the mounted service exposes an MCP usage/audit method (composition claim required). runtime/migrations.ts 1: erpx_migrations ledger INSERT is the development bootstrap runner; packages/server-runtime/src/adapters/postgres/migrations.rs is the native schema owner - classify as bootstrap, not business authority. runtime/jobs.ts 1: runtime_health billing heartbeat; native outbox_supervisor.rs writes runtime_health, delete after the native Billing worker emits the heartbeat. Nine executive evidence adapters (talent/pos/planning/marketing/main/learning/crm/brand/agent, 1 each): record_executive_evidence_access exists in adapters/executive_access.rs and is mounted at src/composition/src/field_executive_evidence.rs:214; the TS adapters still write executive_evidence_access_events for the main canvas, so switching application/executive/evidence.ts to the native access port (composition) is the removal step. beta-onboarding-effects.ts 1 and app-native-sources.ts 1: holding_bindings are owned natively by server-manage_erpx/adapters/onboarding_command.rs and server-platform_administration/adapters/platform_postgres.rs; delete after the manage_erpx onboarding and platform operations consumers switch (cross-owner paths). No file in this table is safe to delete within the runtime-only path set yet; the first feasible slice is mcp.ts once src/composition releases.",
+        "nextAction": "MIGRATION RECEIPT DEFECT FIXED at b40d1c77a (HEAD 040a20744). runtime/migrations.ts no longer calls nativeRuntimeExecuteSystem inside the DDL transaction: the erpx_migrations insert is bound from the Rust-owned contract packages/server-runtime/src/runtime-migrations-sql.json (mirrors runtime_stmt_22; native_command_sql.rs asserts equality) and runs on the caller connection in the same transaction. Proof: the new tests/integration/shared.runtime/migration-status.test.ts case uses a dead ingress (127.0.0.1:9) plus a broken second migration; it fails 503 RUNTIME_NATIVE_COMMAND_UNAVAILABLE against the old file and passes now, suite 4/4, erpx-server-runtime lib 2/2, package+root typecheck 0. Remaining counterparts unchanged: executive/reports.ts 11 and executive/generation.ts 5 need native library/share/ownership producers; executive/mcp.ts 2 needs the mounted service usage/audit method. Also this turn: 68b5c28ac makes local test discovery ignore uncommitted WIP, and 040a20744 restores structure:check by allowing the committed server src/testing oracle subpath.",
         "handoff": {
-          "runId": "run-20261113-f",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-13T01:36:12.704Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-22T20:51:09.204Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Step-0 counterpart table at 86e460228 (31 writes / 16 files): executive/reports.ts 11 and executive/generation.ts 5 have NO native executive_report*/executive_generation* producer yet (live feature-apps executive route + job-projector); requires native library/share/ownership and queue/drain producers first. executive/mcp.ts 2: token last_used_at + executive_mcp_audit are owned by packages/server-runtime/src/adapters/executive_connections_postgres.rs and composition executive_connections.rs; delete after the mounted service exposes an MCP usage/audit method (composition claim required). runtime/migrations.ts 1: erpx_migrations ledger INSERT is the development bootstrap runner; packages/server-runtime/src/adapters/postgres/migrations.rs is the native schema owner - classify as bootstrap, not business authority. runtime/jobs.ts 1: runtime_health billing heartbeat; native outbox_supervisor.rs writes runtime_health, delete after the native Billing worker emits the heartbeat. Nine executive evidence adapters (talent/pos/planning/marketing/main/learning/crm/brand/agent, 1 each): record_executive_evidence_access exists in adapters/executive_access.rs and is mounted at src/composition/src/field_executive_evidence.rs:214; the TS adapters still write executive_evidence_access_events for the main canvas, so switching application/executive/evidence.ts to the native access port (composition) is the removal step. beta-onboarding-effects.ts 1 and app-native-sources.ts 1: holding_bindings are owned natively by server-manage_erpx/adapters/onboarding_command.rs and server-platform_administration/adapters/platform_postgres.rs; delete after the manage_erpx onboarding and platform operations consumers switch (cross-owner paths). No file in this table is safe to delete within the runtime-only path set yet; the first feasible slice is mcp.ts once src/composition releases."
+          "nextAction": "MIGRATION RECEIPT DEFECT FIXED at b40d1c77a (HEAD 040a20744). runtime/migrations.ts no longer calls nativeRuntimeExecuteSystem inside the DDL transaction: the erpx_migrations insert is bound from the Rust-owned contract packages/server-runtime/src/runtime-migrations-sql.json (mirrors runtime_stmt_22; native_command_sql.rs asserts equality) and runs on the caller connection in the same transaction. Proof: the new tests/integration/shared.runtime/migration-status.test.ts case uses a dead ingress (127.0.0.1:9) plus a broken second migration; it fails 503 RUNTIME_NATIVE_COMMAND_UNAVAILABLE against the old file and passes now, suite 4/4, erpx-server-runtime lib 2/2, package+root typecheck 0. Remaining counterparts unchanged: executive/reports.ts 11 and executive/generation.ts 5 need native library/share/ownership producers; executive/mcp.ts 2 needs the mounted service usage/audit method. Also this turn: 68b5c28ac makes local test discovery ignore uncommitted WIP, and 040a20744 restores structure:check by allowing the committed server src/testing oracle subpath."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -51989,7 +51989,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "918c15726d473545dbfcd2946ff50a2844db7039",
+        "baseSha": "040a20744dabccf124a8ee37283d84417e8d93d3",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52072,14 +52072,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "CANNOT CLOSE YET - evidence self-blocks: task checks at 918c15726 include result=failed for `bun scripts/testing/test.ts integration --suite=manufacturing.production.integration`; the CLI requires every check at implementedCommit to pass before migrated. Confirmed real deltas at that SHA: planning literal-DML 13 -> 0, global 1941 -> 1928. Next: rerun the manufacturing.production.integration suite at current HEAD (native listeners now available) and only then re-attempt migrated with a passing check.",
+        "nextAction": "KPI REMAINS 0; two blockers re-diagnosed at 040a20744. (1) The old TEST_INVENTORY_MISMATCH for the two untracked foreign .test.rs files is RESOLVED by 68b5c28ac: discoverTests now compares only committed paths when root is the repo top level, so local test selection runs without registering another worker WIP. (2) The manufacturing.production.integration suite is now 40/40 failing, not 39/40: commit 43ffc6a62 made packages/server-manufacturing/src/adapters/accounting.ts fail-closed (nativeProfileUnavailable), but tests/integration/manufacturing/production.test.ts beforeEach (lines ~181-183) and the two posting-profile tests still call createManufacturingAccountingProfile/reviewManufacturingAccountingProfile and prepare/decideManufacturingPostingProfile through that retained TS path, so every case exits 503 NATIVE_MANUFACTURING_UNAVAILABLE. Fix = native-seeded approved profile fixture plus native profile-route cases (tests/integration/manufacturing and tests/support are in scope), not a revert. (3) After that, the only known check failure is environment drift: pg_dump/pg_restore on PATH are 18.7 (Homebrew /opt/homebrew/opt/postgresql@18) and 5432 serves 18.7, while production.test.ts and postgres-templates assert 18.6; postgres-tools.ts already accepts 18.x. Needs a decision: restore pinned 18.6 tools/server or align the 18.6 assertions with the documented 18.x tool policy.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T18:12:48.636Z",
+          "at": "2026-11-22T20:51:02.408Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "CANNOT CLOSE YET - evidence self-blocks: task checks at 918c15726 include result=failed for `bun scripts/testing/test.ts integration --suite=manufacturing.production.integration`; the CLI requires every check at implementedCommit to pass before migrated. Confirmed real deltas at that SHA: planning literal-DML 13 -> 0, global 1941 -> 1928. Next: rerun the manufacturing.production.integration suite at current HEAD (native listeners now available) and only then re-attempt migrated with a passing check."
+          "nextAction": "KPI REMAINS 0; two blockers re-diagnosed at 040a20744. (1) The old TEST_INVENTORY_MISMATCH for the two untracked foreign .test.rs files is RESOLVED by 68b5c28ac: discoverTests now compares only committed paths when root is the repo top level, so local test selection runs without registering another worker WIP. (2) The manufacturing.production.integration suite is now 40/40 failing, not 39/40: commit 43ffc6a62 made packages/server-manufacturing/src/adapters/accounting.ts fail-closed (nativeProfileUnavailable), but tests/integration/manufacturing/production.test.ts beforeEach (lines ~181-183) and the two posting-profile tests still call createManufacturingAccountingProfile/reviewManufacturingAccountingProfile and prepare/decideManufacturingPostingProfile through that retained TS path, so every case exits 503 NATIVE_MANUFACTURING_UNAVAILABLE. Fix = native-seeded approved profile fixture plus native profile-route cases (tests/integration/manufacturing and tests/support are in scope), not a revert. (3) After that, the only known check failure is environment drift: pg_dump/pg_restore on PATH are 18.7 (Homebrew /opt/homebrew/opt/postgresql@18) and 5432 serves 18.7, while production.test.ts and postgres-templates assert 18.6; postgres-tools.ts already accepts 18.x. Needs a decision: restore pinned 18.6 tools/server or align the 18.6 assertions with the documented 18.x tool policy."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107935,7 +107935,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:40:27.815Z",
+    "updatedAt": "2026-11-22T20:51:17.628Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
