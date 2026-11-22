@@ -1132,6 +1132,12 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                                         },
                                     )));
                                 }
+                                erpx_server_organization::public::organization_nodes::ensure_organization_channels(
+                                    connection,
+                                    &company,
+                                    now,
+                                )
+                                .await?;
                                 let mut rooms =
                                     PgMessagingUnit::read_only(connection, scope.clone());
                                 let rooms = rooms.overview().await?;

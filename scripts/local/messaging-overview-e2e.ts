@@ -104,10 +104,14 @@ await q(holding, `INSERT INTO iam_roles(company_id,id,name,built_in,published_re
 await q(holding, `INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','e2e_msg_reader',1,'["records.read","module.collaboration.read"]','[]','["holding"]','fixture',0)`, []);
 await q(holding, `INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('grant','user','e2e_msg_reader','["collaboration"]','${COMPANY}',?,?,3,'holding')`, [NOW - 1000, NOW + 3600000]);
 await q(holding, `INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) VALUES('session','user','${COMPANY}','grant',3,7,?,?)`, [NOW + 3600000, NOW]);
-await q(holding, `INSERT INTO messaging_teams(id,company_id,name,owner_id,created_at) VALUES('team-1','${COMPANY}','Ops','user',1)`, []);
+await q(holding, `INSERT INTO messaging_teams(id,company_id,name,owner_id,created_at) VALUES('team-1','${COMPANY}','Ops','user',1),('team-org','${COMPANY}','Org','org-user',1)`, []);
 await q(holding, `INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,private,version,last_seq,created_at) VALUES('room-1','${COMPANY}','group','Ops Room','user',NULL,false,1,1,${NOW})`, []);
 await q(holding, `INSERT INTO messaging_room_members(room_id,user_id) VALUES('room-1','user')`, []);
 await q(holding, `INSERT INTO messaging_messages(id,room_id,seq,sender_id,sender_name,body,created_at) VALUES('msg-1','room-1',1,'user','Synthetic','hello native',${NOW})`, []);
+await q(holding, `INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('node-org','company','announcements','Announcements',NULL,'${COMPANY}',NULL,'active')`, []);
+await q(holding, `INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('person-user','user','${COMPANY}','Synthetic','TH','seed',1,1)`, []);
+await q(holding, `INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('eng-user','person-user','${COMPANY}','employee','salaried','active','2020-01-01','Member','THB','seed',1,1)`, []);
+await q(holding, `INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,private,version,last_seq,created_at,organization_node_id) VALUES('room-org','${COMPANY}','channel','Announcements','user','team-org',false,1,0,${NOW},'node-org') ON CONFLICT DO NOTHING`, []);
 step('holding seeded (no package grant yet)');
 
 const configPath = `/tmp/erpx-msg-e2e-${tag}.json`;
@@ -204,9 +208,16 @@ const allowed = await overview();
 console.log('[e2e] granted:', allowed.status, JSON.stringify(allowed.body)?.slice(0, 500));
 if (allowed.status !== 200) throw new Error(`expected 200 overview, got ${allowed.status}`);
 {
-  const data = (allowed.body as { data?: { rooms?: { id?: string; preview?: string; updatedAt?: number }[]; purchase?: { history?: boolean } } }).data ?? {};
-  if (data.rooms?.length !== 1 || data.rooms[0]?.id !== 'room-1') throw new Error('expected room-1');
-  if (data.rooms[0]?.preview !== 'hello native') throw new Error('expected preview passthrough');
+  const data = (allowed.body as { data?: { rooms?: { id?: string; kind?: string; name?: string; preview?: string | null; updatedAt?: number; teamId?: string | null; private?: boolean }[]; purchase?: { history?: boolean } } }).data ?? {};
+  const ids = (data.rooms ?? []).map(r => r.id);
+  if (ids.length !== 3 || !ids.includes('room-1') || !ids.includes('room-org') || !ids.includes('org-channel-acme-co')) throw new Error(`expected [room-1, room-org, org-channel-acme-co], got ${JSON.stringify(ids)}`);
+  const direct = data.rooms!.find(r => r.id === 'room-1')!;
+  if (direct.preview !== 'hello native') throw new Error('expected preview passthrough');
+  const org = data.rooms!.find(r => r.id === 'room-org')!;
+  if (org.kind !== 'channel' || org.preview !== null || org.teamId !== 'team-org' || org.private !== false) throw new Error(`unexpected org room shape: ${JSON.stringify(org)}`);
+  if (typeof org.updatedAt !== 'number') throw new Error('expected org updatedAt fallback');
+  const ensured = data.rooms!.find(r => r.id === 'org-channel-acme-co')!;
+  if (ensured.kind !== 'channel' || ensured.name !== 'Acme' || ensured.teamId !== 'org-team-acme-co' || ensured.private !== false) throw new Error(`unexpected ensured room shape: ${JSON.stringify(ensured)}`);
   if (data.purchase?.history !== true) throw new Error('expected purchase.history=true with grant');
 }
 step('native overview proved (room + preview + purchase.history=true)');
