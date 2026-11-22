@@ -305,45 +305,71 @@ impl<'c> PgInboxUnit<'c> {
             }
         };
         let all = query.view.as_deref() == Some("all");
-        let rows = sqlx::query(
-            "SELECT d.id,d.event_id,d.delivered_at,d.read_at,d.archived_at,\
-                    e.source_type,e.source_id,e.source_version,e.category,e.preview \
-             FROM inbox_deliveries d \
-             JOIN inbox_events e ON e.id=d.event_id AND e.company_id=d.company_id \
-             WHERE d.company_id=$1 AND d.user_id=$2 AND d.archived_at IS NULL \
-             AND ($3 OR d.read_at IS NULL) \
-             AND ($4::text IS NULL OR e.category=$4) \
-             AND ($5='' OR e.preview ILIKE '%'||$5||'%') \
-             AND ($6::bigint IS NULL OR (d.delivered_at,d.id)<($6,$7)) \
-             ORDER BY d.delivered_at DESC,d.id DESC LIMIT $8",
-        )
-        .bind(self.scope.company_id.as_str())
-        .bind(self.scope.user_id.as_str())
-        .bind(all)
-        .bind(category.as_deref())
-        .bind(&query.search)
-        .bind(cursor.as_ref().map(|cursor| cursor.at))
-        .bind(cursor.as_ref().map(|cursor| cursor.id.as_str()))
-        .bind((limit + 1) as i64)
-        .fetch_all(&mut *self.connection)
-        .await?;
-        let has_more = rows.len() > limit;
-        let mut items = Vec::with_capacity(rows.len().min(limit));
-        let mut next_cursor = None;
-        for (index, row) in rows.into_iter().enumerate() {
-            if index == limit {
+        // Refill batches mirror the retained TypeScript page loop: dropped
+        // rows must not shorten the page, and the overflow item decides
+        // hasMore with the cursor of the last returned item.
+        let mut items: Vec<InboxItemData> = Vec::new();
+        let mut batch_at = cursor.as_ref().map(|cursor| cursor.at);
+        let mut batch_id = cursor.as_ref().map(|cursor| cursor.id.clone());
+        let mut has_more = false;
+        'batches: loop {
+            let rows = sqlx::query(
+                "SELECT d.id,d.event_id,d.delivered_at,d.read_at,d.archived_at,\
+                        e.source_type,e.source_id,e.source_version,e.category,e.preview \
+                 FROM inbox_deliveries d \
+                 JOIN inbox_events e ON e.id=d.event_id AND e.company_id=d.company_id \
+                 WHERE d.company_id=$1 AND d.user_id=$2 AND d.archived_at IS NULL \
+                 AND ($3 OR d.read_at IS NULL) \
+                 AND ($4::text IS NULL OR e.category=$4) \
+                 AND ($5='' OR e.preview ILIKE '%'||$5||'%') \
+                 AND ($6::bigint IS NULL OR (d.delivered_at,d.id)<($6,$7)) \
+                 ORDER BY d.delivered_at DESC,d.id DESC LIMIT 100",
+            )
+            .bind(self.scope.company_id.as_str())
+            .bind(self.scope.user_id.as_str())
+            .bind(all)
+            .bind(category.as_deref())
+            .bind(&query.search)
+            .bind(batch_at)
+            .bind(batch_id.as_deref())
+            .fetch_all(&mut *self.connection)
+            .await?;
+            if rows.is_empty() {
                 break;
             }
-            let at: i64 = row.try_get(2)?;
-            let id: String = row.try_get(0)?;
-            next_cursor = Some(InboxCursor { at, id: id.clone() });
-            if let Some(item) = self.item(row).await? {
-                items.push(item);
+            let full = rows.len() == 100;
+            for row in rows {
+                let at: i64 = row.try_get(2)?;
+                let id: String = row.try_get(0)?;
+                batch_at = Some(at);
+                batch_id = Some(id);
+                if let Some(item) = self.item(row).await? {
+                    items.push(item);
+                    if items.len() > limit {
+                        has_more = true;
+                        break 'batches;
+                    }
+                }
+            }
+            if !full {
+                break;
             }
         }
+        let page: Vec<InboxItemData> = items.into_iter().take(limit).collect();
+        let next_cursor = if has_more {
+            page.last().map(|item| {
+                InboxCursor {
+                    at: item.created_at,
+                    id: item.id.clone(),
+                }
+                .encode()
+            })
+        } else {
+            None
+        };
         Ok(InboxPageData {
-            items,
-            next_cursor: has_more.then(|| next_cursor.expect("bounded rows").encode()),
+            items: page,
+            next_cursor,
             has_more,
         })
     }
@@ -396,13 +422,15 @@ impl<'c> PgInboxUnit<'c> {
                 Ok(None) => return Ok(None),
                 // A denied source disappears from this projection; it must
                 // not interrupt the whole Inbox page. Mirrors the retained
-                // TypeScript per-row 403/404 catch. Storage, transaction and
-                // Unavailable errors still fail the page.
+                // TypeScript per-row 403/404 catch. Unknown source types drop
+                // the same way the projection skips them (`else continue`),
+                // while storage, transaction, port and Unavailable errors
+                // still fail the page.
                 Err(error)
                     if matches!(
                         error.kind,
                         FailureKind::Forbidden | FailureKind::NotFound
-                    ) =>
+                    ) || error.code == "INBOX_TARGET_SOURCE_UNSUPPORTED" =>
                 {
                     return Ok(None);
                 }

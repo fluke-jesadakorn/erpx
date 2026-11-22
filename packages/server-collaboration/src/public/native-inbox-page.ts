@@ -1,5 +1,7 @@
 import 'server-only';
+import { cookies, headers } from "next/headers";
 import { ApiError } from '@erpx/server-runtime/public/http';
+import type { InboxItem } from "@erpx/contracts/inbox";
 
 /** Strict owner transport for the native Collaboration inbox reads. */
 export type NativeInboxConfiguration = Readonly<{
@@ -52,17 +54,14 @@ async function read(request: Request, holdingSlug: string, path: string): Promis
   const headers = new Headers({ accept: 'application/json' });
   const cookie = request.headers.get('cookie');
   if (cookie) headers.set('cookie', cookie);
-  for (const name of [
-    'x-erpx-context-company',
-    'x-erpx-context-assignment',
-    'x-erpx-context-revision',
-    'x-erpx-context-assignment-version',
-    'x-erpx-workspace-branch',
-    'x-erpx-workspace-department',
-  ]) {
+  for (const name of forwardedHeaders) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  return fetchNative(config, holdingSlug, path, headers);
+}
+
+async function fetchNative(config: NativeInboxConfiguration, holdingSlug: string, path: string, headers: Headers): Promise<unknown> {
   let response: Response;
   try {
     response = await fetch(
@@ -72,6 +71,10 @@ async function read(request: Request, holdingSlug: string, path: string): Promis
   } catch {
     throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
   }
+  return unpack(response);
+}
+
+async function unpack(response: Response): Promise<unknown> {
   const payload = (await response.json().catch(() => null)) as
     | { data?: unknown; error?: { code?: string; message?: string } }
     | null;
@@ -82,6 +85,86 @@ async function read(request: Request, holdingSlug: string, path: string): Promis
       payload?.error?.message ?? 'The Collaboration request failed.',
     );
   return payload?.data;
+}
+
+const forwardedHeaders = [
+  'x-erpx-context-company',
+  'x-erpx-context-assignment',
+  'x-erpx-context-revision',
+  'x-erpx-context-assignment-version',
+  'x-erpx-workspace-branch',
+  'x-erpx-workspace-department',
+] as const;
+
+/** Server-component variant of the forwarded header set: the screen has no
+ * Request object, so it reads the incoming headers and cookies directly.
+ * Same names, same omission-when-absent rule as {@link read}. */
+async function ssrHeaders(): Promise<Headers> {
+  const outgoing = new Headers({ accept: 'application/json' });
+  const incoming = await headers();
+  const cookie = (await cookies()).toString();
+  if (cookie) outgoing.set('cookie', cookie);
+  for (const name of forwardedHeaders) {
+    const value = incoming.get(name);
+    if (value) outgoing.set(name, value);
+  }
+  return outgoing;
+}
+
+/** SSR variant of the native notifications page read, for server components
+ * without a Request object. Same path, same forwarding, same errors. */
+export async function nativeInboxNotificationsSSR(holdingSlug: string, search: string): Promise<NativeInboxNotificationsPage> {
+  const config = configuration();
+  return asPage(await fetchNative(config, holdingSlug, `/notifications${search}`, await ssrHeaders()));
+}
+
+/** SSR variant of the native summary read, for server components without a
+ * Request object. Same path, same forwarding, same errors. */
+export async function nativeInboxSummarySSR(holdingSlug: string): Promise<NativeInboxSummary> {
+  const config = configuration();
+  return asSummary(await fetchNative(config, holdingSlug, '/summary', await ssrHeaders()));
+}
+
+export type NativeInboxNotificationsPage = {
+  items: InboxItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type NativeInboxSummary = {
+  unread: number;
+  categories: Record<string, number>;
+};
+
+const inboxCategories = ["work", "calendar", "mention", "notice", "system"] as const;
+
+function failed(): ApiError {
+  return new ApiError(503, 'NATIVE_COLLABORATION_FAILED', 'The Collaboration request failed.');
+}
+
+function asPage(data: unknown): NativeInboxNotificationsPage {
+  if (!data || typeof data !== "object") throw failed();
+  const { items, nextCursor, hasMore } = data as { items?: unknown; nextCursor?: unknown; hasMore?: unknown };
+  if (!Array.isArray(items)) throw failed();
+  for (const item of items) {
+    if (!item || typeof item !== "object") throw failed();
+    const row = item as Record<string, unknown>;
+    if (typeof row.id !== "string" || typeof row.eventId !== "string" || typeof row.message !== "string"
+      || typeof row.createdAt !== "number" || typeof row.sourceType !== "string" || typeof row.sourceId !== "string"
+      || (typeof row.category !== "string" || !(inboxCategories as readonly string[]).includes(row.category))
+      || (row.href !== null && typeof row.href !== "string")
+      || (row.readAt !== null && typeof row.readAt !== "number")
+      || (row.archivedAt !== null && typeof row.archivedAt !== "number")) throw failed();
+  }
+  if (nextCursor !== null && typeof nextCursor !== "string") throw failed();
+  return { items: items as InboxItem[], nextCursor, hasMore: hasMore === true };
+}
+
+function asSummary(data: unknown): NativeInboxSummary {
+  if (!data || typeof data !== "object") throw failed();
+  const { unread, categories } = data as { unread?: unknown; categories?: unknown };
+  if (typeof unread !== "number" || !categories || typeof categories !== "object") throw failed();
+  return { unread, categories: categories as Record<string, number> };
 }
 
 export function nativeInboxSummary(request: Request, holdingSlug: string) {

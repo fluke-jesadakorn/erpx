@@ -44,6 +44,14 @@ impl InboxTargetPort for DropProbe {
                     "GONE_NOT_FOUND",
                     "Gone.",
                 )),
+                // Unknown projection types drop like the retained
+                // TypeScript `else continue`, by exact code (kind stays
+                // Unavailable so port misconfiguration still fails loud).
+                "mystery-type" => Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "INBOX_TARGET_SOURCE_UNSUPPORTED",
+                    "This Inbox source is not part of the retained projection.",
+                )),
                 _ => Err(BusinessError::new(
                     FailureKind::Unavailable,
                     "PROBE_UNAVAILABLE",
@@ -74,11 +82,13 @@ async fn seed(pool: &DatabasePool) {
          INSERT INTO inbox_events(id,company_id,event_key,source_type,source_id,source_version,category,preview,created_at) VALUES \
          ('evt-ok','co','key-ok','ok-type','ok-1',1,'work','ok',3), \
          ('evt-denied','co','key-denied','denied-type','denied-1',1,'work','denied',2), \
-         ('evt-gone','co','key-gone','gone-type','gone-1',1,'work','gone',1); \
+         ('evt-gone','co','key-gone','gone-type','gone-1',1,'work','gone',1), \
+         ('evt-mystery','co','key-mystery','mystery-type','mystery-1',1,'work','mystery',4); \
          INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at) VALUES \
          ('del-ok','evt-ok','co','user-1',3), \
          ('del-denied','evt-denied','co','user-1',2), \
-         ('del-gone','evt-gone','co','user-1',1)",
+         ('del-gone','evt-gone','co','user-1',1), \
+         ('del-mystery','evt-mystery','co','user-1',4)",
     )
     .execute(pool.raw())
     .await
@@ -87,6 +97,13 @@ async fn seed(pool: &DatabasePool) {
 
 async fn page(
     pool: DatabasePool,
+) -> Result<erpx_server_collaboration::public::inbox::InboxPageData, PgTransactionError<BusinessError>> {
+    page_with_limit(pool, 10).await
+}
+
+async fn page_with_limit(
+    pool: DatabasePool,
+    limit: usize,
 ) -> Result<erpx_server_collaboration::public::inbox::InboxPageData, PgTransactionError<BusinessError>> {
     PgUnitOfWork::new(pool)
         .run_once(TransactionOptions::default(), move |connection| {
@@ -99,7 +116,7 @@ async fn page(
                     category: None,
                     search: String::new(),
                     cursor: None,
-                    limit: 10,
+                    limit,
                 })
                 .await
             })
@@ -122,8 +139,7 @@ async fn denied_rows_drop_instead_of_failing_the_page() {
 }
 
 #[tokio::test]
-async fn unavailable_rows_still_fail_the_page() {
-    fixture::with_database(2, |pool| async move {
+async fn unavailable_rows_still_fail_the_page() {    fixture::with_database(2, |pool| async move {
         seed(&pool).await;
         sqlx::raw_sql(
             "INSERT INTO inbox_events(id,company_id,event_key,source_type,source_id,source_version,category,preview,created_at) VALUES \
@@ -139,6 +155,40 @@ async fn unavailable_rows_still_fail_the_page() {
             PgTransactionError::Business(error) => assert_eq!(error.code, "PROBE_UNAVAILABLE"),
             other => panic!("expected the probe business error, got {other:?}"),
         }
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn dropped_rows_refill_across_batches() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        // 101 denied rows (newest) plus one visible row (oldest): with the
+        // 100-row batch size the visible row only surfaces via refill.
+        let mut events = String::from(
+            "INSERT INTO inbox_events(id,company_id,event_key,source_type,source_id,source_version,category,preview,created_at) VALUES ",
+        );
+        let mut deliveries = String::from(
+            "INSERT INTO inbox_deliveries(id,event_id,company_id,user_id,delivered_at) VALUES ",
+        );
+        for i in 0..101 {
+            events.push_str(&format!(
+                "('evt-d{i}','co','key-d{i}','denied-type','denied-{i}',1,'work','denied',{t}),",
+                t = 1000 - i
+            ));
+            deliveries.push_str(&format!("('del-d{i}','evt-d{i}','co','user-1',{t}),", t = 1000 - i));
+        }
+        events.push_str("('evt-old','co','key-old','ok-type','old-1',1,'work','old',1);");
+        deliveries.push_str("('del-old','evt-old','co','user-1',1);");
+        sqlx::raw_sql(Box::leak(format!("{events} {deliveries}").into_boxed_str()) as &'static str)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let data = page_with_limit(pool.clone(), 10).await.unwrap();
+        assert_eq!(data.items.len(), 2, "refill fills past the denied batch");
+        assert!(data.items.iter().any(|item| item.source_id == "old-1"));
+        assert!(data.items.iter().any(|item| item.source_id == "ok-1"));
+        assert!(!data.has_more);
     })
     .await;
 }
