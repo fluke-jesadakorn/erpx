@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5035,
+    "revision": 5038,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -26563,7 +26563,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "5be7048326a3ee9684da5702594a1e68fc899d89",
+        "baseSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -26572,18 +26572,55 @@
             "result": "passed",
             "sourceSha": "9a6cb2a2367c23025ae2041dd4bb9730b01c373c",
             "note": "All 10 sites NEEDS_PORT with exact native designs: generic attach/bind commands (#1-2), legacy expiry job method with fence+leave scope+expired identities (#3-8), unused-social-intent expiry on caller connection (#9-10). No covering native port exists; adjacent code verified non-covering. No edits."
+          },
+          {
+            "command": "retirement:ts-statements alias-UPDATE (packages/server-*/src/**/*.ts)",
+            "result": "passed",
+            "sourceSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
+            "sourceKind": "committed",
+            "before": 11,
+            "after": 9,
+            "note": "git grep -I -o -E 'UPDATE[[:space:]]+[a-z_]+[[:space:]]+[a-z_]+[[:space:]]+SET' HEAD -- ':(glob)packages/server-*/src/**/*.ts'. Two alias writers removed (service-repository stepAttachmentLinks35 and stepAttachmentLinks66) by native SR_056/SR_057/SR_058. Files owner 10 -> 8."
+          },
+          {
+            "command": "cargo check -p erpx-server-files",
+            "result": "passed",
+            "sourceSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
+            "sourceKind": "committed",
+            "note": "Native allow-list and SQL additions compile."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
+            "sourceKind": "committed",
+            "note": "TS call-site switch compiles."
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/files/native-attachment-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
+            "sourceKind": "committed",
+            "note": "4/4 tests pass."
+          },
+          {
+            "command": "POST :3198 /api/v1/holdings/acme/files/commands kind=SR_058",
+            "result": "passed",
+            "sourceSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
+            "sourceKind": "committed",
+            "note": "{\"data\":{\"rows\":0,\"rowsAffected\":0}} HTTP:200; kind admitted and executed in the owner unit (previously unknown kind). SR_056 also 200 rows:0."
           }
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "Used the claim to fix the dev Files path, not to retire the repository: native files command router is now mounted (probe MIG_012 => 200), MIG_001/016 nullable bigint params cast (42804 fixed), attachment backfill+scan+final reconciliation succeed and dev health is 200. Still blocked as a retirement: the TS attachments service-repository remains the authority for reads/effects and needs native Files methods for the four missing operations before removal; see prior blocker text.",
+        "nextAction": "PARTIAL: two of the four missing native Files operations are now real and served. Added SR_056 (attach draft link, non-leave), SR_057 (attach with leave set-draft guard) and SR_058 (bind draft link) to the owner allow-list (KINDS + sql()) and switched service-repository stepAttachmentLinks35/66 to nativeWrite. Evidence at 86b2f8ce6: cargo check -p erpx-server-files passed; bun run typecheck 0; files unit 4/4; POST :3198 files/commands SR_058 and SR_056 both 200 {\"rows\":0}; alias-UPDATE KPI 11 -> 9 globally (files 10 -> 8). Remaining for closure: legacy expiry job methods (#3-8: link/intent/set expiry with fence+leave scope and RETURNING multi-row) and unused-social-intent expiry on the caller connection (#9-10), plus the retained reads/effects authority; after==9 so the task cannot be marked migrated yet.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T18:52:06.932Z",
+          "at": "2026-11-22T19:43:22.648Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "Used the claim to fix the dev Files path, not to retire the repository: native files command router is now mounted (probe MIG_012 => 200), MIG_001/016 nullable bigint params cast (42804 fixed), attachment backfill+scan+final reconciliation succeed and dev health is 200. Still blocked as a retirement: the TS attachments service-repository remains the authority for reads/effects and needs native Files methods for the four missing operations before removal; see prior blocker text."
+          "nextAction": "PARTIAL: two of the four missing native Files operations are now real and served. Added SR_056 (attach draft link, non-leave), SR_057 (attach with leave set-draft guard) and SR_058 (bind draft link) to the owner allow-list (KINDS + sql()) and switched service-repository stepAttachmentLinks35/66 to nativeWrite. Evidence at 86b2f8ce6: cargo check -p erpx-server-files passed; bun run typecheck 0; files unit 4/4; POST :3198 files/commands SR_058 and SR_056 both 200 {\"rows\":0}; alias-UPDATE KPI 11 -> 9 globally (files 10 -> 8). Remaining for closure: legacy expiry job methods (#3-8: link/intent/set expiry with fence+leave scope and RETURNING multi-row) and unused-social-intent expiry on the caller connection (#9-10), plus the retained reads/effects authority; after==9 so the task cannot be marked migrated yet."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -107515,7 +107552,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T19:38:11.089Z",
+    "updatedAt": "2026-11-22T19:43:22.649Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
