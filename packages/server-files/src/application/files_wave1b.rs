@@ -109,10 +109,15 @@ pub async fn execute<P: FilesCommandPort>(
 pub fn unit_error(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,
-        PgTransactionError::Persistence(_) => BusinessError::new(
+        PgTransactionError::Persistence(error) => {
+            // Surface the sanitized code/SQLSTATE so operators can identify the
+            // failing owner statement without leaking SQL or parameters.
+            eprintln!("FILES_COMMAND_UNIT_ERROR {error:?}");
+            BusinessError::new(
             erpx_server_shared::public::FailureKind::Unavailable,
-            "FILES_COMMAND_PERSISTENCE",
-            "The native Files command unit is unavailable.",
-        ),
+                "FILES_COMMAND_PERSISTENCE",
+                "The native Files command unit is unavailable.",
+            )
+        }
     }
 }

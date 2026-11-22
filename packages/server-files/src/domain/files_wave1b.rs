@@ -113,7 +113,7 @@ const SQL_SR_054: &str = "INSERT INTO attachment_events(id,company_id,attachment
 pub const SR_055: &str = "SR_055";
 const SQL_SR_055: &str = "INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) SELECT $1,company_id,$2,'system:jobs','source.byte_delete_failed',$3,$4 FROM attachments WHERE id=$5"; // binds=5
 pub const MIG_001: &str = "MIG_001";
-const SQL_MIG_001: &str = "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at,bound_at,bound_command_id)         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'draft',$20,$21,$22,NULL,NULL) ON CONFLICT(id) DO NOTHING"; // binds=22
+const SQL_MIG_001: &str = "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at,bound_at,bound_command_id)         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::bigint,$16::bigint,$17,$18,$19,'draft',$20,$21,$22,NULL,NULL) ON CONFLICT(id) DO NOTHING"; // binds=22
 pub const MIG_002: &str = "MIG_002";
 const SQL_MIG_002: &str = "INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES($1,$2,'draft',$3,$4,$5) ON CONFLICT(id) DO NOTHING"; // binds=5
 pub const MIG_003: &str = "MIG_003";
@@ -143,7 +143,7 @@ const SQL_MIG_014: &str = "UPDATE attachments SET source_state='quarantined' WHE
 pub const MIG_015: &str = "MIG_015";
 const SQL_MIG_015: &str = "UPDATE attachments SET source_state='quarantined' WHERE id=$1 AND company_id IS NULL AND source_state='legacy_unscanned'"; // binds=1
 pub const MIG_016: &str = "MIG_016";
-const SQL_MIG_016: &str = "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at,bound_at,bound_command_id)         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'bound',$20,$21,$22,$23,$24) ON CONFLICT(id) DO NOTHING"; // binds=24
+const SQL_MIG_016: &str = "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at,bound_at,bound_command_id)         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::bigint,$16::bigint,$17,$18,$19,'bound',$20,$21,$22,$23,$24) ON CONFLICT(id) DO NOTHING"; // binds=24
 pub const MIG_017: &str = "MIG_017";
 const SQL_MIG_017: &str = "INSERT INTO attachment_links(id,set_id,attachment_id,upload_intent_id,state,created_by,created_at,expires_at,bound_at,binding_type,binding_id)         VALUES($1,$2,$3,$4,'bound',$5,$6,$7,$8, 'legacy_import',$9) ON CONFLICT(id) DO NOTHING"; // binds=9
 pub const MIG_018: &str = "MIG_018";

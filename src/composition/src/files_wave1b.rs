@@ -170,7 +170,13 @@ impl FilesCommandExecutor for FilesCommandPools {
                 .await;
             match outcome {
                 Ok(value) => Ok(value),
-                Err(PgTransactionError::Business(error)) => Err(error),
+                Err(PgTransactionError::Business(error)) => {
+                    eprintln!(
+                        "FILES_COMMAND_BUSINESS_ERROR kind={} company={} code={}",
+                        kind_label, company_label, error.code
+                    );
+                    Err(error)
+                }
                 Err(PgTransactionError::Persistence(error)) => {
                     eprintln!(
                         "FILES_COMMAND_PERSISTENCE kind={} company={} error={:?}",
