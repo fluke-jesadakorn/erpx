@@ -5,6 +5,7 @@ use crate::domain::messaging_native::{
     require_member, room_not_found,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
+use erpx_server_organization::public::organization_nodes::messaging_room_organization_sql;
 use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, FailureKind};
 use serde::Serialize;
 use sqlx::{Connection, PgConnection, Row};
@@ -229,19 +230,24 @@ pub async fn read_overview(
     c: &mut PgConnection,
     actor: &MessagingActor,
 ) -> Result<Vec<RoomView>, Error> {
-    let rows = sqlx::query(
-        "SELECT r.id,r.kind,r.name,r.owner_id,r.team_id,r.private,r.version,r.last_seq,
+    let access = format!(
+        "r.company_id=$1 AND ( \
+           EXISTS(SELECT 1 FROM messaging_room_members rm WHERE rm.room_id=r.id AND rm.user_id=$2) \
+           OR (r.kind='channel' AND r.private=false AND EXISTS(SELECT 1 FROM messaging_team_members tm WHERE tm.team_id=r.team_id AND tm.user_id=$2)) \
+           OR (r.organization_node_id IS NOT NULL AND {}) \
+         )",
+        messaging_room_organization_sql("r", "$2")
+    );
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT r.id,r.kind,r.name,r.owner_id,r.team_id,r.private,r.version,r.last_seq,
            (SELECT count(*) FROM messaging_messages m WHERE m.room_id=r.id AND m.seq>COALESCE((SELECT mr.seq FROM messaging_reads mr WHERE mr.room_id=r.id AND mr.user_id=$2),0)) unread,
            (SELECT CASE WHEN m.body='' THEN 'Attachment' ELSE left(m.body,160) END FROM messaging_messages m WHERE m.room_id=r.id ORDER BY m.seq DESC LIMIT 1) preview,
            (SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id) last_message_at,
            COALESCE((SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id),r.created_at) updated_at
          FROM messaging_rooms r
-         WHERE r.company_id=$1 AND (
-           EXISTS(SELECT 1 FROM messaging_room_members rm WHERE rm.room_id=r.id AND rm.user_id=$2)
-           OR (r.kind='channel' AND r.private=false AND EXISTS(SELECT 1 FROM messaging_team_members tm WHERE tm.team_id=r.team_id AND tm.user_id=$2))
-         )
-         ORDER BY COALESCE((SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id),r.created_at) DESC,r.id LIMIT 100",
-    )
+         WHERE {access}
+         ORDER BY COALESCE((SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id),r.created_at) DESC,r.id LIMIT 100"
+        )))
     .bind(&actor.company_id)
     .bind(&actor.user_id)
     .fetch_all(&mut *c)

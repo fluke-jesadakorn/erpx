@@ -214,6 +214,16 @@ fn workspace_template(row: &PgRow) -> Result<WorkspaceTemplate, Error> {
     })
 }
 
+/// Exact organization-channel room predicate from `messagingRoomOrganizationSql`.
+/// The room alias and user parameter are supplied by the closed query here;
+/// the node membership half reuses [`member_sql`], the exact port of
+/// `organizationChannelEngagementSql` plus the assignment projection.
+pub fn messaging_room_organization_sql(room_alias: &str, user_parameter: &str) -> String {
+    format!(
+        "EXISTS(SELECT 1 FROM organization_nodes n WHERE n.id={room_alias}.organization_node_id AND n.company_id={room_alias}.company_id AND n.status='active' AND {})",
+        member_sql("n", user_parameter)
+    )
+}
 /// Exact current audience predicate from `organizationChannelEngagementSql`.
 /// The node alias and user parameter are supplied by the closed query here.
 fn member_sql(node: &str, user_parameter: &str) -> String {
