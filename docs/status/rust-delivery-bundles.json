@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4587,
+    "revision": 4590,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T08:24:38.720Z",
-      "expiresAt": "2026-11-22T08:54:38.720Z",
+      "heartbeatAt": "2026-11-22T08:28:20.875Z",
+      "expiresAt": "2026-11-22T08:58:20.875Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17197,15 +17197,22 @@
         "resources": [
           "shared-integration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "claimedAt": "2026-11-22T08:28:20.743Z",
+          "heartbeatAt": "2026-11-22T08:28:20.875Z",
+          "expiresAt": "2026-11-22T08:58:20.875Z",
+          "generation": 149
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Reconcile a zero-unowned-gap inventory; add/refine bounded tasks for remaining authoritative legacy with exact claimed paths.",
+        "nextAction": "BLOCKER for dev availability: bun run dev fails pre-existing at refreshWorkspaceStyles (WORKSPACE_EXPORT_UNDECLARED: feature-admin billing/target route imports @erpx/server-billing/public/app-finance-projection-source, not in billing exports and no such source file; fallout of an earlier retirement slice, outside any current claim). PG 5432 up; 3100/3101 down. Next: bounded billing/admin slice to either restore the export or retire the dangling route, then start dev detached and verify health.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -43798,8 +43805,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:24:42.288Z",
-          "heartbeatAt": "2026-11-22T08:24:42.288Z",
-          "expiresAt": "2026-11-22T08:54:42.288Z",
+          "heartbeatAt": "2026-11-22T08:28:20.875Z",
+          "expiresAt": "2026-11-22T08:58:20.875Z",
           "generation": 149
         },
         "baseSha": "e84569e5a06c72f0b418bf231fc4c50889c0481e",
@@ -105771,7 +105778,7 @@
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T08:27:35.145Z",
+    "updatedAt": "2026-11-22T08:28:20.876Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
