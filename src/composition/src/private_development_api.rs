@@ -3434,6 +3434,14 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut manufacturing_order_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut manufacturing_profile_targets: Vec<
+            erpx_server_manufacturing::public::accounting_profile_wave3_http::ProfileHttpTarget,
+        > = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut manufacturing_owner_write_targets: Vec<
+            erpx_server_manufacturing::public::owner_write_wave3_http::OwnerWriteTarget,
+        > = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_lead_targets = Vec::new();
@@ -3877,6 +3885,32 @@ async fn assemble_checked(
                         clock: Arc::new(SharedClock(clock.clone())),
                     }),
                 });
+                manufacturing_profile_targets.push(
+                    erpx_server_manufacturing::public::accounting_profile_wave3_http::ProfileHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::manufacturing_wave3::ManufacturingProfileBackend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
+                manufacturing_owner_write_targets.push(
+                    erpx_server_manufacturing::public::owner_write_wave3_http::OwnerWriteTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::manufacturing_wave3::ManufacturingOwnerWriteBackend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
                 let pms_backend = Arc::new(crate::pms::PmsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -7273,6 +7307,24 @@ async fn assemble_checked(
                     config.policy.clone(),
                     Arc::new(FieldServiceReadScopeHeaders),
                     manufacturing_order_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !manufacturing_profile_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manufacturing::public::accounting_profile_wave3_http::accounting_profile_wave3_http_router(
+                    manufacturing_profile_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !manufacturing_owner_write_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manufacturing::public::owner_write_wave3_http::manufacturing_owner_write_router(
+                    manufacturing_owner_write_targets,
                 )
                 .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );

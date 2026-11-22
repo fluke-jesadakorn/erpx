@@ -84,21 +84,17 @@ fn list(headers: &HeaderMap, name: HeaderName) -> Vec<String> {
 }
 
 /// Composition-owned backend. `control` is the Holding Postgres pool that owns
-/// `manufacturing_accounting_profiles`; `scope` is the Company id used by the
-/// receipt guard; `clock` supplies the committed timestamp.
+/// `manufacturing_accounting_profiles`; `clock` supplies the committed
+/// timestamp. The Company comes from the gateway's signed context header so one
+/// Holding target serves every Company in that Holding.
 pub struct ManufacturingProfileBackend<C> {
     control: DatabasePool,
-    scope: String,
     clock: Arc<C>,
 }
 
 impl<C: Clock + Send + Sync + 'static> ManufacturingProfileBackend<C> {
-    pub fn new(control: DatabasePool, scope: impl Into<String>, clock: Arc<C>) -> Self {
-        Self {
-            control,
-            scope: scope.into(),
-            clock,
-        }
+    pub fn new(control: DatabasePool, clock: Arc<C>) -> Self {
+        Self { control, clock }
     }
 
     fn actor(headers: &HeaderMap) -> Result<ProfileActor, BusinessError> {
@@ -138,17 +134,10 @@ impl<C: Clock + Send + Sync + 'static> ProfileHttpBackend for ManufacturingProfi
     ) -> ProfileHttpFuture<'a, ProfileHttpResponse> {
         Box::pin(async move {
             let actor = Self::actor(request.headers)?;
-            if actor.company_id != self.scope {
-                return Err(BusinessError::new(
-                    FailureKind::Forbidden,
-                    "ACCOUNTING_SCOPE_CHANGED",
-                    "Your Company changed. Reload before editing the accounting profile.",
-                ));
-            }
             let body = request.body.clone();
             let key = request.key.cloned();
             let kind = request.kind.clone();
-            let scope = self.scope.clone();
+            let scope = actor.company_id.clone();
             let clock = self.clock.clone();
             let control = self.control.clone();
             let data = PgUnitOfWork::new(control)

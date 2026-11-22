@@ -130,6 +130,7 @@ pub mod maintenance_create;
 pub mod manage_erpx;
 #[cfg(feature = "existing-business")]
 pub mod manufacturing;
+pub mod manufacturing_wave3;
 #[cfg(feature = "existing-business")]
 pub mod marketing;
 #[cfg(feature = "existing-business")]

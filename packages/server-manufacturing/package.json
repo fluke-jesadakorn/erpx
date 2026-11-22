@@ -65,7 +65,8 @@
     "./domain/lots": "./src/domain/lots.ts",
     "./domain/posting-setup-entry": "./src/domain/posting-setup-entry.ts",
     "./domain/accounting": "./src/domain/accounting.ts",
-    "./domain/lot-policy": "./src/domain/lot-policy.ts"
+    "./domain/lot-policy": "./src/domain/lot-policy.ts",
+    "./adapters/native-accounting-profile": "./src/adapters/native-accounting-profile.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

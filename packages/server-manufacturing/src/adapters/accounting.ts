@@ -1,5 +1,5 @@
 import {manufacturingPostingProfileSchema,manufacturingPostingProfileDecisionSchema} from '@erpx/server-manufacturing/domain/posting-profiles';
-import {withManufacturingPostingProfileCommand} from '@erpx/server-manufacturing/adapters/posting-profiles';
+import {nativeManufacturingProfile} from '@erpx/server-manufacturing/adapters/native-accounting-profile';
 import {ownerWrite,flushOwnerWrites} from '@erpx/server-manufacturing/adapters/native-owner-write';
 import "server-only";
 
@@ -40,5 +40,5 @@ export async function prepareManufacturingPosting(db: SqlDatabase,a: WorkContext
 import {profileSchema,reviewSchema} from "@erpx/server-manufacturing/domain/accounting";
 import {withManufacturingPurchasedCommand} from "@erpx/server-manufacturing/public/purchases";
 
-export async function prepareManufacturingPostingProfile(actor:WorkContext,raw:unknown,key:string){const request=manufacturingPostingProfileSchema.parse(raw);return withManufacturingPostingProfileCommand(actor,null,request,key,tx=>exposed(()=>application(tx,request).createManufacturingAccountingProfile(actor,request.input,key)));}
-export async function decideManufacturingPostingProfile(actor:WorkContext,id:string,raw:unknown,key:string){const request=manufacturingPostingProfileDecisionSchema.parse(raw);return withManufacturingPostingProfileCommand(actor,id,request,key,tx=>exposed(()=>application(tx,request).reviewManufacturingAccountingProfile(actor,id,request.input,key)));}
+export async function prepareManufacturingPostingProfile(actor:WorkContext,raw:unknown,key:string){const request=manufacturingPostingProfileSchema.parse(raw);return nativeManufacturingProfile('create',null,request.input,key,actor);}
+export async function decideManufacturingPostingProfile(actor:WorkContext,id:string,raw:unknown,key:string){const request=manufacturingPostingProfileDecisionSchema.parse(raw);return nativeManufacturingProfile('review',id,request.input,key,actor);}
