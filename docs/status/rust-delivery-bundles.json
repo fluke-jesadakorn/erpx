@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4685,
+    "revision": 4690,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:20:47.670Z",
-      "expiresAt": "2026-11-22T10:50:47.670Z",
+      "heartbeatAt": "2026-11-22T10:21:17.055Z",
+      "expiresAt": "2026-11-22T10:51:17.055Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T10:20:47.670Z",
-          "expiresAt": "2026-11-22T10:50:47.670Z",
+          "heartbeatAt": "2026-11-22T10:21:17.055Z",
+          "expiresAt": "2026-11-22T10:51:17.055Z",
           "generation": 150
         },
         "baseSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
@@ -106154,7 +106154,7 @@
           "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
           "tests/integration/collaboration/rust-messaging-postgres.test.rs"
         ],
-        "baseSha": "e646c9ab509393ce474d0630d5d715218d0a5b58",
+        "baseSha": "0a95a7f2a0e291c8b750e2c98d11a0f536220669",
         "blocker": "handoff",
         "checks": [
           {
@@ -106216,6 +106216,24 @@
             "result": "passed",
             "sourceSha": "e646c9ab509393ce474d0630d5d715218d0a5b58",
             "note": "4 passed incl. hardened org-channel proof: member sees only the active org channel; suspended-node room, revoked-assignment user and stranger all see nothing."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "0a95a7f2a0e291c8b750e2c98d11a0f536220669",
+            "note": "Unread sender-exclusion compiles; 0 errors."
+          },
+          {
+            "command": "test:integration --suite=collaboration.rust-messaging-postgres.integration",
+            "result": "passed",
+            "sourceSha": "0a95a7f2a0e291c8b750e2c98d11a0f536220669",
+            "note": "4 passed incl. new own-message-never-unread assertion (sent as reader, unread stays 0)."
+          },
+          {
+            "command": "e2e:messaging-overview-unread-parity",
+            "result": "passed",
+            "sourceSha": "0a95a7f2a0e291c8b750e2c98d11a0f536220669",
+            "note": "Fresh binary + disposable DBs over real HTTP: own message excluded from unread (TS parity) alongside paywall/ensure/org/team/preview checks."
           }
         ],
         "claim": null,
@@ -106227,18 +106245,18 @@
         ],
         "goalId": "G4",
         "handoff": {
-          "runId": "run-20261122-c",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T08:48:08.950Z",
-          "previousStatus": "in_progress",
+          "at": "2026-11-22T10:26:09.572Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Port complete; transport follow-up retire.collaboration.messaging-overview-transport pending. Claim released."
+          "nextAction": "Port complete+proven at 0a95a7f2. Transport switch + TS deletion outstanding. Claim released."
         },
         "id": "retire.reads.collaboration.org-access-port",
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Port complete; transport follow-up retire.collaboration.messaging-overview-transport pending. Claim released.",
+        "nextAction": "Port complete+proven at 0a95a7f2. Transport switch + TS deletion outstanding. Claim released.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [
@@ -106251,7 +106269,7 @@
         "retainedLegacy": [],
         "scope": "Close the last rooms() parity gap: TS messagingRoomAccessSql covers organization_node_id rooms (migration 0011 org channels: kind=channel, private=false, node-bound) via organization_nodes active + member predicate; native read_overview lacks that OR-branch. Native member_sql in postgres_organization_nodes.rs is documented as the exact port of organizationChannelEngagementSql. Reuse it behind a new public predicate; no new authority semantics. Unread sender-exclusion alignment is a separate consumer-sign-off decision.",
         "scopeRefinementRequired": false,
-        "status": "blocked",
+        "status": "ready_for_integration",
         "title": "Native org-channel access branch for rooms() cutover",
         "workflowIds": [],
         "workstream": "S01"
@@ -106378,7 +106396,7 @@
           "tests/integration/organization/rust-organization-channels-postgres.test.rs"
         ],
         "baseSha": "dab67f4498e46366ef68903a2d103351e092262c",
-        "blocker": null,
+        "blocker": "released with work preserved",
         "checks": [
           {
             "command": "cargo check -p erpx-server-organization --all-targets",
@@ -106399,14 +106417,7 @@
             "note": "3 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): idempotent provision + name-sync, noop without active company node, caller-transaction ownership incl. rollback and no-transaction refusal."
           }
         ],
-        "claim": {
-          "runId": "run-20261122-d",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-22T10:04:48.044Z",
-          "heartbeatAt": "2026-11-22T10:20:47.670Z",
-          "expiresAt": "2026-11-22T10:50:47.670Z",
-          "generation": 150
-        },
+        "claim": null,
         "dependsOn": [],
         "deliverables": [
           "Native ensure_organization_channels port (public API) usable from composition without opening a second pool or committing independently",
@@ -106414,7 +106425,14 @@
           "No TypeScript changes; no composition changes (lead wires the caller separately)"
         ],
         "goalId": "G4",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261122-d",
+          "agentId": "worker-a",
+          "at": "2026-11-22T10:22:45.617Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Port integrated at dab67f44 with PG proof (3/3). Stays non-migrated until the messaging transport switch retires the TS ensure call and records the retirement delta."
+        },
         "id": "retire.organization.ensure-channels-port",
         "implementedCommit": null,
         "kind": "migration",
@@ -106429,7 +106447,7 @@
         "retainedLegacy": [],
         "scope": "Organization-owned lazy provisioning parity for messaging overview. Context: TS ensureOrganizationChannels stages collaboration_org_team/_room statements (already native-executed via collaboration_org_team_statement/_room_statement, wired in composition). Native PgOrganizationNodes.apply_channels exists but is private and tied to the node-review flow. Needed: a public company-level ensure entrypoint that provisions missing org-team/org-channel rows idempotently inside the CALLER's transaction (read-only overview units cannot write; the caller owns the unit). Study TS stageOrganizationChannels semantics (teamAt/roomsAt, display-name sync) and preserve or explicitly decide each behavior with tests. Do NOT touch packages/server-collaboration, src/composition, TypeScript, or the ledger.",
         "scopeRefinementRequired": false,
-        "status": "in_progress",
+        "status": "blocked",
         "title": "Native org-channel ensure port (organization-owned)",
         "workflowIds": [],
         "workstream": "S01"
@@ -106445,8 +106463,8 @@
       "migratedPackets": 321,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 1,
-        "ready_for_integration": 0,
+        "in_progress": 0,
+        "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 321,
         "blocked": 98,
@@ -106455,7 +106473,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:20:47.672Z",
+    "updatedAt": "2026-11-22T10:26:09.574Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
