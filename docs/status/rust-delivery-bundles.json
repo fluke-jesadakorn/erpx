@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5055,
+    "revision": 5060,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T19:53:53.362Z",
-      "expiresAt": "2026-11-22T20:23:53.362Z",
+      "heartbeatAt": "2026-11-22T19:57:20.504Z",
+      "expiresAt": "2026-11-22T20:27:20.504Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T19:53:53.362Z",
-          "expiresAt": "2026-11-22T20:23:53.362Z",
+          "heartbeatAt": "2026-11-22T19:57:20.504Z",
+          "expiresAt": "2026-11-22T20:27:20.504Z",
           "generation": 150
         },
         "baseSha": "7356a8ecf6743fce13b9efaf40db29166c2fd4e3",
@@ -50628,11 +50628,11 @@
           "owner:files",
           "resource:composition"
         ],
-        "status": "blocked",
+        "status": "migrated",
         "claim": null,
-        "baseSha": "353b9b7c4e02438b055360e641019d1d014bfe78",
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "baseSha": "b09f27a656bebfb6928f7e71ed4e625fd2d36af9",
+        "implementedCommit": "b09f27a656bebfb6928f7e71ed4e625fd2d36af9",
+        "lastPushedSha": "b09f27a656bebfb6928f7e71ed4e625fd2d36af9",
         "checks": [
           {
             "command": "retirement:ts-statements packages/server-files/src (alias UPDATE)",
@@ -50662,10 +50662,39 @@
             "sourceSha": "353b9b7c4e02438b055360e641019d1d014bfe78",
             "sourceKind": "committed",
             "note": "Both 200 rows:0 after admitting SF_* into KINDS - latent defect fixed: SF_REVOKE_DRAFT/POST/COMMENT were never in the allow-list, so every native social revoke would have returned 422."
+          },
+          {
+            "command": "retirement:ts-statements packages/server-files/src (alias UPDATE)",
+            "result": "passed",
+            "sourceSha": "b09f27a656bebfb6928f7e71ed4e625fd2d36af9",
+            "sourceKind": "committed",
+            "before": 1,
+            "after": 0,
+            "note": "expireUnusedPostUploads switched to native SF_EXPIRE_POST_UPLOADS using the same social_post_drafts projection already inlined by SF_REVOKE_POST. Files alias-UPDATE 1 -> 0; literal-DML and broad write regex also 0 across packages/server-files/src/**/*.ts."
+          },
+          {
+            "command": "cargo check -p erpx-server-files",
+            "result": "passed",
+            "sourceSha": "b09f27a656bebfb6928f7e71ed4e625fd2d36af9",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "b09f27a656bebfb6928f7e71ed4e625fd2d36af9",
+            "sourceKind": "committed",
+            "note": "Exit 0."
+          },
+          {
+            "command": "POST :3198 files/commands SF_EXPIRE_POST_UPLOADS",
+            "result": "passed",
+            "sourceSha": "b09f27a656bebfb6928f7e71ed4e625fd2d36af9",
+            "sourceKind": "committed",
+            "note": "200 {rows:0,rowsAffected:0}; kind admitted after the SF_* allow-list fix."
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -50674,7 +50703,7 @@
           "reason": "released with work preserved",
           "nextAction": "PROGRESS: fixed a latent allow-list defect - SF_REVOKE_DRAFT/SF_REVOKE_POST/SF_REVOKE_COMMENT were implemented in sql() but missing from KINDS, so every native social revoke returned 422; they are admitted now and probed 200. Also added SF_EXPIRE_DRAFT_UPLOADS and switched collaboration-home-sources expireUnusedDraftUploads to it; alias-UPDATE files KPI 2 -> 1 (global 3 -> 2). Remaining files site: expireUnusedPostUploads requires the social-draft projection predicate (socialDraftFilesReadSql) in the native statement, and its caller unit runs in social-home (owner:collaboration) - coordinate with retire.collaboration.social-home before deletion."
         },
-        "nextAction": "PROGRESS: fixed a latent allow-list defect - SF_REVOKE_DRAFT/SF_REVOKE_POST/SF_REVOKE_COMMENT were implemented in sql() but missing from KINDS, so every native social revoke returned 422; they are admitted now and probed 200. Also added SF_EXPIRE_DRAFT_UPLOADS and switched collaboration-home-sources expireUnusedDraftUploads to it; alias-UPDATE files KPI 2 -> 1 (global 3 -> 2). Remaining files site: expireUnusedPostUploads requires the social-draft projection predicate (socialDraftFilesReadSql) in the native statement, and its caller unit runs in social-home (owner:collaboration) - coordinate with retire.collaboration.social-home before deletion."
+        "nextAction": "CLOSED at b09f27a65: packages/server-files/src TS writes are 0 by literal-DML, alias-UPDATE and broad INSERT/DELETE/UPDATE regex. Final two social upload-intent expiries are native (SF_EXPIRE_DRAFT_UPLOADS, SF_EXPIRE_POST_UPLOADS) and the pre-existing SF_REVOKE_* kinds are now in the allow-list (latent 422 fixed). Remaining repository-like reads are SELECT-only projections; any behavior changes belong to the owner-specific retire tasks (collaboration.social-home etc.)."
       },
       {
         "id": "retire.benefits.residual-writers",
@@ -107676,20 +107705,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 439,
-      "migratedPackets": 324,
+      "migratedPackets": 325,
       "statusCounts": {
         "pending": 13,
         "in_progress": 0,
         "ready_for_integration": 1,
         "integrating": 0,
-        "migrated": 324,
-        "blocked": 101,
+        "migrated": 325,
+        "blocked": 100,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T19:57:17.011Z",
+    "updatedAt": "2026-11-22T19:59:01.485Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
