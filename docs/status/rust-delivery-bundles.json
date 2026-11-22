@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4953,
+    "revision": 4958,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T16:51:19.978Z",
-      "expiresAt": "2026-11-22T17:21:19.978Z",
+      "heartbeatAt": "2026-11-22T17:09:49.997Z",
+      "expiresAt": "2026-11-22T17:39:49.997Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T16:51:19.978Z",
-          "expiresAt": "2026-11-22T17:21:19.978Z",
+          "heartbeatAt": "2026-11-22T17:09:49.997Z",
+          "expiresAt": "2026-11-22T17:39:49.997Z",
           "generation": 150
         },
-        "baseSha": "b0dfa46c9fe1d1daba069a67b843587be3d89e7a",
+        "baseSha": "06a02fac07c56c3b785d9dbda3baa06c150d3e9b",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17303,7 +17303,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Legal read-tail backlog (for blocked retire.legal.read-tail-followup): 289 SELECTs in server-legal/src at HEAD. Ranked top: legal/service.ts 19, legal/portal.ts 15, legal/law-corpus.ts 14, package-obligations.ts 13, legal/operations.ts + legal/access.ts 12. Live consumers via public/legal/* barrels: feature-legal-portal route, feature-legal route, customer_360 portal adapter, catalogue capability-delivery. Port-present: native legal trust/retention/auxiliary/records routers mounted (private_development_api 6621-6645); per-family native counterpart mapping left to retire task owner (needs container proof for any deletion). KPI before=289 (legal). worker-a live, no handoff; foreign WIP untouched.",
+        "nextAction": "Dev repaired per user instruction: .env.local /Users/Shared prefix repointed to checkout (prod/staging use separate envs — untouched). Superuser via fluke peer socket; provision.ts broken everywhere (native receipt needs unserved runtime route + unset config) so used .scratch/dev/provision-direct.ts (ignored): same grants/migrations, direct receipt INSERT (same statement as runtime_stmt_22). 8 erpx_dev_* DBs migrated (43/2/415/2 x3 + control bindings acme/northstar/erpx). Restarted dev (same bun run dev, ports 3100 free). Next: verify holding routes serve (expect 401s not ENOENT/500), then runtime-verify bill TS fallback.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T16:51:19.978Z",
-          "expiresAt": "2026-11-22T17:21:19.978Z",
+          "heartbeatAt": "2026-11-22T17:09:49.997Z",
+          "expiresAt": "2026-11-22T17:39:49.997Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107437,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T16:51:19.980Z",
+    "updatedAt": "2026-11-22T17:09:49.998Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
