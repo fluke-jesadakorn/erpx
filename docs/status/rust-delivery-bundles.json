@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4654,
+    "revision": 4660,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261122-c",
+      "runId": "run-20261122-d",
       "agentId": "lead",
-      "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T09:17:12.347Z",
-      "expiresAt": "2026-11-22T09:47:12.347Z",
-      "generation": 149,
-      "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
+      "startedAt": "2026-11-22T09:59:22.322Z",
+      "heartbeatAt": "2026-11-22T09:59:26.764Z",
+      "expiresAt": "2026-11-22T10:29:26.764Z",
+      "generation": 150,
+      "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -17197,15 +17197,8 @@
         "resources": [
           "shared-integration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261122-c",
-          "agentId": "lead",
-          "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T09:17:12.347Z",
-          "expiresAt": "2026-11-22T09:47:12.347Z",
-          "generation": 149
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -17248,9 +17241,16 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: run-20261122-c lease expired during messaging e2e proof (now 09:59Z, expiry 09:47Z); no live coordinator process; WIP reconciled: gateway-proof commit 896a93ca pushed scope done, ledger checks pending record, no stray services/DB leases held (verified 0 erpx-server procs, disposable DBs dropped by e2e cleanup)",
         "nextAction": "Native purchase gate integrated in composition (638a4c02). Provisioning still TS-owned (org slice). Next: per-family native ports; purchase/provisioning need commercial/org owners.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261122-c",
+          "agentId": "lead",
+          "at": "2026-11-22T09:59:22.322Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261122-c lease expired during messaging e2e proof (now 09:59Z, expiry 09:47Z); no live coordinator process; WIP reconciled: gateway-proof commit 896a93ca pushed scope done, ledger checks pending record, no stray services/DB leases held (verified 0 erpx-server procs, disposable DBs dropped by e2e cleanup)",
+          "nextAction": "Native purchase gate integrated in composition (638a4c02). Provisioning still TS-owned (org slice). Next: per-family native ports; purchase/provisioning need commercial/org owners."
+        },
         "procedureRef": "executionPlan.sliceProcedure"
       },
       {
@@ -106169,7 +106169,7 @@
           "tests/unit/collaboration/rust-messaging-http.test.rs",
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/"
         ],
-        "baseSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
+        "baseSha": "896a93caea1f4756bfd4b635da157e487df48d37",
         "blocker": "handoff",
         "checks": [
           {
@@ -106213,6 +106213,18 @@
             "result": "passed",
             "sourceSha": "638a4c02fbd64f31563fba2e31d10b8b550900d3",
             "note": "4 passed incl. org-channel proof (post-gate; gate defaults disabled in this env so reads unaffected)."
+          },
+          {
+            "command": "e2e:messaging-overview-gateway-rust",
+            "result": "passed",
+            "sourceSha": "896a93caea1f4756bfd4b635da157e487df48d37",
+            "note": "Booted target/debug/erpx-server private-api --test-config on disposable PG DBs (fresh build with purchase gate + boundary arm). GET /api/v1/holdings/acme/messaging over real loopback HTTP: ungranted Company -> 200 empty rooms/teams + purchase.history=false (PACKAGE_REQUIRED codes); granted work-messages+work -> 200 room-1 (preview hello native, unread 1, teamId null, private false) + teams + purchase.history=true (GRANTED codes). Matches TS messagingOverview shape exactly."
+          },
+          {
+            "command": "cargo check -p erpx-service (private-field-api)",
+            "result": "passed",
+            "sourceSha": "896a93caea1f4756bfd4b635da157e487df48d37",
+            "note": "Boundary messaging arm + purchase gate compile under the private-api feature set; 0 errors."
           }
         ],
         "claim": null,
@@ -106225,18 +106237,18 @@
         ],
         "goalId": "G4",
         "handoff": {
-          "runId": "run-20261122-c",
+          "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T09:16:59.839Z",
+          "at": "2026-11-22T09:59:30.843Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Purchase gate done+verified at 638a4c02. Next: organization provisioning slice, then route switch + deletion. Claim released."
+          "nextAction": "Gateway proof complete and recorded. Provisioning slice belongs to an organization owner; route switch follows it. Claim released."
         },
         "id": "retire.collaboration.messaging-overview-transport",
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Purchase gate done+verified at 638a4c02. Next: organization provisioning slice, then route switch + deletion. Claim released.",
+        "nextAction": "Gateway proof complete and recorded. Provisioning slice belongs to an organization owner; route switch follows it. Claim released.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
@@ -106271,8 +106283,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T09:17:12.348Z",
+    "lastCoordinatorGeneration": 150,
+    "updatedAt": "2026-11-22T09:59:30.844Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -106307,10 +106319,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261122-b",
-      "runId": "run-20261122-c",
-      "at": "2026-11-22T08:24:38.649Z",
-      "reason": "Previous run-20261122-b stopped (heartbeat 00:51Z, now 08:23Z, no live coordinator process); WIP reviewed: ledger heartbeat-only diff + 2 untracked pms refund-context e2e helpers preserved; PG 5432 up, no dev server on 3100 yet",
+      "previousRunId": "run-20261122-c",
+      "runId": "run-20261122-d",
+      "at": "2026-11-22T09:59:22.323Z",
+      "reason": "run-20261122-c lease expired during messaging e2e proof (now 09:59Z, expiry 09:47Z); no live coordinator process; WIP reconciled: gateway-proof commit 896a93ca pushed scope done, ledger checks pending record, no stray services/DB leases held (verified 0 erpx-server procs, disposable DBs dropped by e2e cleanup)",
       "wipReviewed": true,
       "previousRunStopped": true
     },
