@@ -5,6 +5,8 @@ pub(crate) mod native_command_sql;
 pub(crate) mod supplier_promise_history_read;
 
 pub(crate) mod supplier_promise_command;
+pub(crate) mod supplier_bill_command;
+pub(crate) mod supplier_bill_command_http;
 pub(crate) mod supplier_promise_command_http;
 pub(crate) mod commerce_request_link;
 

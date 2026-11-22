@@ -68,6 +68,10 @@ name = "supplier_promise_command_postgres"
 path = "../../tests/integration/procurement/rust-supplier-promise-command-postgres.test.rs"
 
 [[test]]
+name = "supplier_bill_command_postgres"
+path = "../../tests/integration/procurement/rust-supplier-bill-command-postgres.test.rs"
+
+[[test]]
 name = "rfq_award"
 path = "../../tests/unit/procurement/rust-rfq-award.test.rs"
 

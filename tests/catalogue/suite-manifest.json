@@ -50933,6 +50933,61 @@
       }
     },
     {
+      "id": "procurement.rust-supplier-bill-command-postgres.integration",
+      "lane": "integration",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/integration/procurement/rust-supplier-bill-command-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Procurement supplier-bill command must prove capture+replay, idempotency conflict, version fence, scope checks, approve/return, policy save/replay/stale, authority denial, isolation and serializable guard with caller-transaction ownership."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_bill_command_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ],
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/server-procurement",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "procurement.rust-supplier-promise-history-postgres.integration",
       "lane": "integration",
       "owner": "procurement",

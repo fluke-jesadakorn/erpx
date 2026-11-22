@@ -21,13 +21,13 @@ const STATEMENTS: &[NativeStatement] = &[
     NativeStatement {
         kind: "procurement_stmt_2",
         sql: r#"UPDATE procurement_bill_matches SET status='invoiced',invoice_id=$1,version=version+1,updated_at=$2 WHERE id=$3"#,
-        bind_count: 4,
+        bind_count: 3,
         scope: "holding",
     },
     NativeStatement {
         kind: "procurement_stmt_3",
         sql: r#"UPDATE procurement_bill_matches SET status='posted',version=version+1,updated_at=$1 WHERE id=$2"#,
-        bind_count: 3,
+        bind_count: 2,
         scope: "holding",
     },
     NativeStatement {
@@ -83,7 +83,7 @@ const STATEMENTS: &[NativeStatement] = &[
     NativeStatement {
         kind: "procurement_stmt_12",
         sql: r#"UPDATE procurement_rfqs SET status='ordered',order_id=$1,version=version+1,updated_at=$2 WHERE id=$3"#,
-        bind_count: 4,
+        bind_count: 3,
         scope: "holding",
     },
     NativeStatement {
@@ -131,7 +131,7 @@ const STATEMENTS: &[NativeStatement] = &[
     NativeStatement {
         kind: "procurement_stmt_20",
         sql: r#"UPDATE procurement_rfqs SET status=$1,version=version+1,updated_at=$2 WHERE id=$3"#,
-        bind_count: 4,
+        bind_count: 3,
         scope: "holding",
     },
     // records-employee-requests-owned-facts.ts
