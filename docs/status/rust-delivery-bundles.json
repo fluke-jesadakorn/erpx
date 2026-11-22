@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4781,
+    "revision": 4785,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T12:25:44.023Z",
-      "expiresAt": "2026-11-22T12:55:44.023Z",
+      "heartbeatAt": "2026-11-22T12:26:02.514Z",
+      "expiresAt": "2026-11-22T12:56:02.514Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T12:25:44.023Z",
-          "expiresAt": "2026-11-22T12:55:44.023Z",
+          "heartbeatAt": "2026-11-22T12:26:02.514Z",
+          "expiresAt": "2026-11-22T12:56:02.514Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17844,6 +17844,10 @@
           "packages/server-procurement/src/adapters/supplier-bills.ts",
           "packages/server-procurement/src/adapters/rfqs.ts",
           "packages/server-procurement/src/adapters/supplier-promises.ts",
+          "packages/server-inventory/src/adapters/inventory-landed-costs.ts",
+          "packages/server-inventory/src/adapters/inventory-counts.ts",
+          "packages/server-inventory/src/adapters/inventory-transit.ts",
+          "packages/server-sales/src/adapters/followups.ts",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
@@ -17854,9 +17858,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-22T12:20:47.424Z",
-          "heartbeatAt": "2026-11-22T12:25:44.023Z",
-          "expiresAt": "2026-11-22T12:55:44.023Z",
+          "claimedAt": "2026-11-22T12:26:36.284Z",
+          "heartbeatAt": "2026-11-22T12:26:36.284Z",
+          "expiresAt": "2026-11-22T12:56:36.284Z",
           "generation": 150
         },
         "baseSha": "5348f822e7a69c85a99e950f785215d2ef6ab410",
@@ -18178,14 +18182,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Procurement slice integrated at 5348f822 (delegate + chain wiring + PG 10/10 proven, pushed). Stays non-migrated: inventory/sales/quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
+        "nextAction": "Refined: inventory + sales oracle paths added (read-only oracle reference for landed_cost/stock_count/inventory_transit/customer_followup delegates). Calendar/CRM/commerce/finance/payroll/people/support/procurement integrated+proven. Next: worker re-claims and builds the inventory slice, then quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow families.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "at": "2026-11-22T12:20:14.863Z",
+          "at": "2026-11-22T12:26:16.017Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Support slice integrated at 2e25eaab (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: procurement/inventory/sales/quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
+          "nextAction": "Procurement slice integrated at 5348f822 (delegate + chain wiring + PG 10/10 proven, pushed). Stays non-migrated: inventory/sales/quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -106872,7 +106876,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T12:25:44.025Z",
+    "updatedAt": "2026-11-22T12:26:36.286Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
