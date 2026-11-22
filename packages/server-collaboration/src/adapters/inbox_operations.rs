@@ -297,7 +297,7 @@ impl Default for OperationsInboxTargets {
 /// TypeScript oracles: disabled opens the read, a non-local environment
 /// fails with the environment code, and an unknown value fails closed with
 /// the configuration code.
-fn enforcement_mode(key: &str) -> Result<PackageEnforcementMode, BusinessError> {
+pub(crate) fn enforcement_mode(key: &str) -> Result<PackageEnforcementMode, BusinessError> {
     match std::env::var(key)
         .unwrap_or_else(|_| "disabled".to_owned())
         .as_str()
@@ -322,15 +322,15 @@ fn enforcement_mode(key: &str) -> Result<PackageEnforcementMode, BusinessError> 
     }
 }
 
-struct OperationsGate {
-    company: CompanyId,
-    user_id: String,
-    assignment_id: Option<String>,
-    branch_id: Option<String>,
-    department_id: Option<String>,
-    apps_mode: PackageEnforcementMode,
-    projects_mode: PackageEnforcementMode,
-    now: i64,
+pub(crate) struct OperationsGate {
+    pub(crate) company: CompanyId,
+    pub(crate) user_id: String,
+    pub(crate) assignment_id: Option<String>,
+    pub(crate) branch_id: Option<String>,
+    pub(crate) department_id: Option<String>,
+    pub(crate) apps_mode: PackageEnforcementMode,
+    pub(crate) projects_mode: PackageEnforcementMode,
+    pub(crate) now: i64,
 }
 
 impl OperationsGate {
@@ -565,7 +565,7 @@ async fn assignment_current(
 /// social-source gate, the work authority and capability history for
 /// ordinary tasks, then the scoped task read; a linked source post must
 /// itself resolve.
-async fn task_target(
+pub(crate) async fn task_target(
     c: &mut PgConnection,
     gate: &OperationsGate,
     source_id: &str,

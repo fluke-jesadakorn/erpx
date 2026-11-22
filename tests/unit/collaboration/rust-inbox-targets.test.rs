@@ -4,33 +4,35 @@ use erpx_server_collaboration::public::inbox::{
     FinanceInboxTargets, GovernanceInboxTargets, InboxTargetPort, InboxTargetVisibility,
     InventoryInboxTargets, LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets,
     PeopleInboxTargets, ProcurementInboxTargets, QualityInboxTargets, RecordsInboxTargets,
-    SupportInboxTargets,
-    TalentInboxTargets, access_review_href, bangkok_coverage_weeks, benefit_election_href,
-    business_acceptance_href, calendar_appointment_href, commerce_order_capability,
+    SupportInboxTargets, TalentInboxTargets, WorkflowInboxTargets, access_review_href,
+    bangkok_coverage_weeks, benefit_election_href, business_acceptance_href,
+    calendar_appointment_href, commerce_order_capability,
     commerce_order_href, crm_activity_href, crm_lead_href, customer_access_href,
     customer_duplicate_href, customer_followup_href, customer_history_capabilities,
     customer_identity_href, customer_required_permissions, employee_request_href,
     encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
     finance_journal_href, finance_refund_href, governance_history_capabilities,
-    governance_required_permission, inventory_history_capabilities, inventory_transit_href,
-    is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
-    is_customer_inbox_target, is_finance_inbox_target, is_governance_inbox_target,
-    is_inventory_inbox_target, is_learning_inbox_target, is_operations_inbox_target,
-    is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
-    is_procurement_inbox_target, is_quality_inbox_target, is_records_inbox_target,
-    is_roster_monday, is_support_inbox_target, is_talent_inbox_target, landed_cost_href,
-    learning_assignment_href, learning_history_capabilities, leave_href,
-    legal_kind_capability, legal_record_href, manufacturing_order_href, marketing_candidate_href,
-    operational_exception_href, operations_history_capabilities, organization_change_href,
-    overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
-    post_href, procurement_history_capability, procurement_rfq_href, quality_alert_href,
-    quality_history_capabilities, quality_hold_href, records_expense_href,
-    records_history_capabilities, records_leave_href, records_source_kind,
-    retirement_case_href, retained_inbox_destination, roster_request_href, roster_week_href,
-    source_record_label, staff_task_href, stock_count_href, support_history_capability,
-    support_incident_href, support_session_href, support_sla_href, support_ticket_href,
-    supplier_bill_href, supplier_promise_href, talent_application_href,
-    talent_history_capabilities, uses_enforced_layer,
+    governance_required_permission, handbook_article_href, inventory_history_capabilities,
+    inventory_transit_href, is_calendar_inbox_target, is_commerce_inbox_target,
+    is_crm_inbox_target, is_customer_inbox_target, is_finance_inbox_target,
+    is_governance_inbox_target, is_inventory_inbox_target, is_learning_inbox_target,
+    is_operations_inbox_target, is_owned_inbox_target, is_payroll_inbox_target,
+    is_people_inbox_target, is_procurement_inbox_target, is_quality_inbox_target,
+    is_records_inbox_target, is_roster_monday, is_support_inbox_target, is_talent_inbox_target,
+    is_workflow_inbox_target, landed_cost_href, learning_assignment_href,
+    learning_history_capabilities, leave_href, legal_kind_capability, legal_record_href,
+    maintenance_plan_href, maintenance_work_href, manufacturing_order_href,
+    marketing_candidate_href, operational_exception_href, operations_history_capabilities,
+    organization_change_href, overtime_href, parse_roster_coverage_id, payroll_advance_href,
+    payroll_correction_href, post_href, procurement_history_capability, procurement_rfq_href,
+    project_handoff_href, quality_alert_href, quality_history_capabilities, quality_hold_href,
+    records_expense_href, records_history_capabilities, records_leave_href,
+    records_source_kind, retirement_case_href, retained_inbox_destination, roster_request_href,
+    roster_week_href, source_record_label, staff_task_href, stock_count_href,
+    support_history_capability, support_incident_href, support_session_href,
+    support_sla_href, support_ticket_href, supplier_batch_href, supplier_bill_href,
+    supplier_promise_href, talent_application_href, talent_history_capabilities,
+    task_alert_href, uses_enforced_layer, workflow_history_capabilities,
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
@@ -1466,4 +1468,111 @@ fn customer_kind_capability_tables_match_the_retained_gates() {
         );
     }
     assert_eq!(customer_required_permissions("customer"), &[] as &[&str]);
+}
+
+#[test]
+fn workflow_slice_routes_to_the_native_delegate() {
+    for source_type in [
+        "staff_task_alert",
+        "project_handoff",
+        "maintenance_work",
+        "maintenance_plan",
+        "supplier_batch",
+        "handbook",
+        "handbook_article",
+    ] {
+        assert!(is_workflow_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "collaboration_action_plan",
+        "task",
+        "post",
+        "field_service_order",
+        "operational_exception",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_workflow_inbox_target(other), "{other}");
+    }
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&WorkflowInboxTargets::new(None, None));
+    assert_inbox_target_port(&WorkflowInboxTargets::default());
+    assert_inbox_target_port(
+        &WorkflowInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn workflow_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(task_alert_href("task-1"), "/staff-tasks/task-1");
+    assert_eq!(task_alert_href(ID), format!("/staff-tasks/{ENCODED}"));
+    assert_eq!(
+        project_handoff_href("proj-1"),
+        "/projects/proj-1#project-structure"
+    );
+    assert_eq!(maintenance_work_href("wo-1"), "/maintenance/wo-1");
+    assert_eq!(
+        maintenance_plan_href(ID),
+        format!("/maintenance/plans/{ENCODED}")
+    );
+    assert_eq!(
+        supplier_batch_href("batch-1"),
+        "/finance/supplier-batches/batch-1"
+    );
+    assert_eq!(
+        supplier_batch_href(ID),
+        format!("/finance/supplier-batches/{ENCODED}")
+    );
+    assert_eq!(handbook_article_href("art-1", false), "/handbook/art-1");
+    assert_eq!(handbook_article_href("art-1", true), "/handbook/art-1?edit=1");
+    // The table keeps the base address without the editor query.
+    assert_eq!(
+        retained_inbox_destination("handbook", ID).expect("handbook").href.as_deref(),
+        Some("/handbook/seg%2Fone%20two")
+    );
+}
+
+#[test]
+fn workflow_kind_capability_tables_match_the_retained_gates() {
+    assert_eq!(
+        workflow_history_capabilities("staff_task_alert"),
+        &[
+            "projects.tasks",
+            "work.actions",
+            "work.advanced-routines",
+            "work.social"
+        ]
+    );
+    assert_eq!(
+        workflow_history_capabilities("project_handoff"),
+        &["projects.handover"]
+    );
+    assert_eq!(
+        workflow_history_capabilities("maintenance_work"),
+        &["assets.maintenance"]
+    );
+    assert_eq!(
+        workflow_history_capabilities("maintenance_plan"),
+        &["assets.preventive"]
+    );
+    assert_eq!(
+        workflow_history_capabilities("supplier_batch"),
+        &["finance.banking", "finance.inventory-valuation"]
+    );
+    assert_eq!(
+        workflow_history_capabilities("handbook"),
+        &["work.handbook"]
+    );
+    assert_eq!(
+        workflow_history_capabilities("handbook_article"),
+        &["work.handbook"]
+    );
+    assert_eq!(
+        workflow_history_capabilities("field_service_order"),
+        &[] as &[&str]
+    );
+    assert_eq!(workflow_history_capabilities(""), &[] as &[&str]);
 }

@@ -1977,7 +1977,7 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
             CustomerInboxTargets, FinanceInboxTargets, GovernanceInboxTargets, InboxHttpReadReply, InboxNotificationQuery, InboxReadKind,
             InventoryInboxTargets, LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets,
             PeopleInboxTargets, PgInboxTargets, PgInboxUnit, ProcurementInboxTargets, QualityInboxTargets,
-            RecordsInboxTargets, SupportInboxTargets, TalentInboxTargets,
+            RecordsInboxTargets, SupportInboxTargets, TalentInboxTargets, WorkflowInboxTargets,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -2133,6 +2133,17 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                                 // Err-style purchase delegates.
                                 Box::new(
                                     CustomerInboxTargets::new(
+                                        workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                        workspace.department_id.as_ref().map(|id| id.as_str()),
+                                    )
+                                    .assignment(Some(selected.assignment().id.as_str())),
+                                ),
+                                // Workflow closes the delegate families. Its
+                                // collaboration_action arm was cut: PgInboxTargets
+                                // retains a dedicated read for that type and
+                                // intercepts it before any delegate.
+                                Box::new(
+                                    WorkflowInboxTargets::new(
                                         workspace.branch_id.as_ref().map(|id| id.as_str()),
                                         workspace.department_id.as_ref().map(|id| id.as_str()),
                                     )
