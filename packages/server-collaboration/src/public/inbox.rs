@@ -46,8 +46,9 @@ pub use crate::adapters::inbox_procurement::{
     procurement_rfq_href, supplier_bill_href, supplier_promise_href,
 };
 pub use crate::adapters::inbox_inventory::{
-    InventoryInboxTargets, customer_followup_href, inventory_history_capabilities,
-    inventory_transit_href, is_inventory_inbox_target, landed_cost_href, stock_count_href,
+    InventoryInboxTargets, customer_followup_href, initial_count_capabilities,
+    initial_count_landing, inventory_history_capabilities, inventory_transit_href,
+    is_inventory_inbox_target, landed_cost_href, stock_count_href,
 };
 pub use crate::adapters::inbox_quality::{
     QualityInboxTargets, is_quality_inbox_target, legal_kind_capability, legal_record_href,

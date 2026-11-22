@@ -59,11 +59,20 @@
 //! - Presentation joins and facts (line/product detail, events, owner and
 //!   candidate projections, loss and flow machinery) are not visibility:
 //!   rows passing the identity proof resolve without them.
-//! - Marked initial-physical-stock counts, quality-disposal counts and the
-//!   service/POS/manufacturing initial-stock variants keep their own
-//!   owner purchase proofs in the oracle; this delegate proves the
-//!   mainstream `supply.counts` history only, so those variants fail
-//!   closed here unless the mainstream history is also granted.
+//! - Marked initial-physical-stock counts resolve their kind landing URL
+//!   through the retained destination rewrite below once the mainstream
+//!   `supply.counts` proof passes; quality-disposal counts keep their own
+//!   owner purchase proofs and fail closed here unless the mainstream
+//!   history is also granted.
+//!
+//! After the scoped count read resolves, the retained initial-stock
+//! destination rewrite runs for that single id: a kind hit (sales,
+//! manufacturing, POS, service) overrides BOTH the href and the source
+//! href with the kind landing URL, exactly like
+//! `projectInitialCountNotifications`. Ordinary counts keep the existing
+//! `/stock-counts/{id}` href untouched.
+//!
+//! Faithful-mirror notes (documented, not silent):
 //! - Disabled-mode JWT `PERMISSION_REQUIRED` denials are subsumed by the
 //!   database-current authority codes, exactly like every other delegate:
 //!   the role proof runs in every mode.
@@ -110,6 +119,55 @@ pub fn inventory_transit_href(source_id: &str) -> String {
 /// TypeScript `` `/customer-followups/${encodeURIComponent(id)}` ``.
 pub fn customer_followup_href(source_id: &str) -> String {
     format!("/customer-followups/{}", encode_uri_component(source_id))
+}
+
+/// Retained initial-stock landing address per validated owner kind,
+/// byte-identical to the TypeScript destinations map. `None` for unknown
+/// kinds: ordinary counts keep their base href.
+pub fn initial_count_landing(kind: &str, source_id: &str) -> Option<String> {
+    let encoded = encode_uri_component(source_id);
+    match kind {
+        "sales" => Some(format!(
+            "/customers-sales/sales/settings/initial-stock/{encoded}"
+        )),
+        "manufacturing" => Some(format!(
+            "/production/manufacturing/settings/initial-stock/{encoded}"
+        )),
+        "pos" => Some(format!("/pos/settings/initial-stock/{encoded}")),
+        "service" => Some(format!(
+            "/services/field-service/settings/initial-stock/{encoded}"
+        )),
+        _ => None,
+    }
+}
+
+/// Retained per-kind purchased capabilities for the initial-stock
+/// destination proof, mirrored exactly from the oracle fragments.
+pub fn initial_count_capabilities(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "sales" => &[
+            "sales.orders",
+            "inventory.stock-core",
+            "finance.sales-posting",
+        ],
+        "manufacturing" => &[
+            "manufacturing.materials",
+            "manufacturing.costs",
+            "inventory.stock-core",
+            "finance.production-costing",
+        ],
+        "pos" => &[
+            "pos.sales",
+            "inventory.stock-core",
+            "finance.pos-posting",
+        ],
+        "service" => &[
+            "service.orders",
+            "service.parts-assets",
+            "finance.service-invoice",
+        ],
+        _ => &[],
+    }
 }
 
 /// Retained read capabilities per source type. Landed costs settle three
@@ -612,6 +670,202 @@ async fn landed_cost_target(
     }))
 }
 
+/// Retained initial-stock marker names, one per owner kind. The CASE
+/// priority below (service, POS, manufacturing, sales) is literal mirror
+/// of the oracle predicate.
+const INITIAL_MARKERS: [(&str, &str); 4] = [
+    ("service", "_serviceInitialPhysicalStockCount"),
+    ("pos", "_posInitialPhysicalStockCount"),
+    ("manufacturing", "_manufacturingInitialPhysicalStockCount"),
+    ("sales", "_initialPhysicalStockCount"),
+];
+
+/// Retained sales initial-stock source rows, literal port of
+/// `initialPhysicalStockCountSourceRows` with positional placeholders.
+/// The fragment is fully self-contained (no caller input inside).
+const INITIAL_SALES_SOURCE_ROWS: &str = r#"SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'_initialPhysicalStockCount' source_proof
+ FROM inventory_counts c JOIN command_receipts receipt ON receipt.operation='inventory.count.create' AND receipt.record_id=c.id AND c.id='count-'||receipt.command_id AND receipt.actor_id=c.created_by AND receipt.authority_json::jsonb->>'companyId'=c.company_id
+ JOIN inventory_count_lines line ON line.count_id=c.id
+ JOIN command_receipts goods ON goods.command_id=receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'goodsSetupCommandId' AND goods.operation='commerce.sales-goods-posting-setup.initialize' AND goods.record_id=c.company_id AND goods.authority_json::jsonb->>'companyId'=c.company_id AND goods.result_json::jsonb->>'id'=c.company_id AND goods.result_json::jsonb->>'status'='configured' AND goods.result_json::jsonb->>'version'='1' AND goods.request_hash=receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'goodsSetupRequestHash'
+ WHERE jsonb_exists(receipt.result_json::jsonb,'_initialPhysicalStockCount') AND receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'kind'='initial-physical-stock-count'
+ AND receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'countId'=c.id AND receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'companyId'=c.company_id
+ AND receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'branchId'=c.branch_id AND receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'warehouseId'=c.warehouse_id AND receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'productId'=line.product_id AND receipt.result_json::jsonb->'_initialPhysicalStockCount'->>'countCommandId'=receipt.command_id
+ AND receipt.result_json::jsonb->>'id'=c.id AND receipt.result_json::jsonb->>'status'='draft' AND receipt.result_json::jsonb->>'version'='1'
+ AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
+ AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1"#;
+
+/// Retained service initial-stock source rows, literal port of
+/// `serviceInitialPhysicalStockCountSourceRows` (with its nested
+/// service-parts-posting setup join and marker-exclusion clauses).
+const INITIAL_SERVICE_SOURCE_ROWS: &str = r#"SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount' source_proof
+ FROM inventory_counts c JOIN command_receipts receipt ON receipt.operation='inventory.count.create' AND receipt.record_id=c.id AND c.id='count-'||receipt.command_id AND receipt.actor_id=c.created_by AND receipt.authority_json::jsonb->>'companyId'=c.company_id
+ JOIN inventory_count_lines line ON line.count_id=c.id
+ JOIN (SELECT receipt.command_id,receipt.record_id company_id,receipt.request_hash,receipt.result_json::jsonb->'_servicePartsPostingSetup' source_proof,receipt.result_json::jsonb->'_servicePartsPostingSetup'->'mapping' mapping
+ FROM command_receipts receipt WHERE to_regclass('commerce_service_parts_posting_sources') IS NOT NULL
+ AND receipt.operation IN ('commerce.service-parts-posting-setup.initialize','commerce.service-parts-posting-setup.confirm-existing')
+ AND receipt.authority_json::jsonb->>'companyId'=receipt.record_id AND receipt.result_json::jsonb->>'id'=receipt.record_id AND receipt.result_json::jsonb->>'version'='1'
+ AND receipt.result_json::jsonb->>'status'=CASE receipt.operation WHEN 'commerce.service-parts-posting-setup.initialize' THEN 'configured' ELSE 'confirmed-existing' END
+ AND receipt.result_json::jsonb->'_servicePartsPostingSetup'->>'kind'='service-parts-posting-setup' AND receipt.result_json::jsonb->'_servicePartsPostingSetup'->>'companyId'=receipt.record_id AND receipt.result_json::jsonb->'_servicePartsPostingSetup'->>'commandId'=receipt.command_id AND receipt.result_json::jsonb->'_servicePartsPostingSetup'->'mapping'->>'company_id'=receipt.record_id) goods ON goods.command_id=receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'serviceSetupCommandId' AND goods.company_id=c.company_id AND goods.request_hash=receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'serviceSetupRequestHash'
+ AND goods.mapping->>'chart_id'=receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'chartId' AND goods.mapping->>'inventory_account_id'=receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'inventoryAccountId' AND goods.mapping->>'currency'=receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'currency'
+ WHERE to_regclass('inventory_service_initial_physical_sources') IS NOT NULL AND NOT jsonb_exists(receipt.result_json::jsonb,'_initialPhysicalStockCount') AND NOT jsonb_exists(receipt.result_json::jsonb,'_manufacturingInitialPhysicalStockCount') AND NOT jsonb_exists(receipt.result_json::jsonb,'_posInitialPhysicalStockCount') AND jsonb_exists(receipt.result_json::jsonb,'_serviceInitialPhysicalStockCount') AND receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'kind'='service-initial-physical-stock-count'
+ AND receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'countId'=c.id AND receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'companyId'=c.company_id
+ AND receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'branchId'=c.branch_id AND receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'warehouseId'=c.warehouse_id AND receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'productId'=line.product_id AND receipt.result_json::jsonb->'_serviceInitialPhysicalStockCount'->>'countCommandId'=receipt.command_id
+ AND receipt.result_json::jsonb->>'id'=c.id AND receipt.result_json::jsonb->>'status'='draft' AND receipt.result_json::jsonb->>'version'='1'
+ AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
+ AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1"#;
+
+/// Retained POS initial-stock source rows, literal port of
+/// `posInitialPhysicalStockCountSourceRows` (with its nested POS setup,
+/// bootstrap and approval receipt/audit joins).
+const INITIAL_POS_SOURCE_ROWS: &str = r#"SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'_posInitialPhysicalStockCount' source_proof
+ FROM inventory_counts c JOIN command_receipts receipt ON receipt.operation='inventory.count.create' AND receipt.record_id=c.id AND c.id='count-'||receipt.command_id AND receipt.actor_id=c.created_by AND receipt.authority_json::jsonb->>'companyId'=c.company_id
+ JOIN inventory_count_lines line ON line.count_id=c.id
+ JOIN command_receipts goods ON goods.command_id=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posSetupCommandId' AND goods.record_id=c.company_id AND goods.operation='commerce.pos-posting-setup.initialize' AND goods.authority_json::jsonb->>'companyId'=c.company_id AND goods.result_json::jsonb->>'id'=c.company_id AND goods.result_json::jsonb->>'status'='configured' AND goods.result_json::jsonb->>'version'='1' AND goods.request_hash=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posSetupRequestHash'
+ JOIN pos_receipts bootstrap ON bootstrap.id=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posBootstrapReceiptId' AND bootstrap.company_id=c.company_id AND bootstrap.request_hash=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posBootstrapRequestHash'
+ JOIN pos_audit bootstrap_audit ON bootstrap_audit.id=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posBootstrapAuditId' AND bootstrap_audit.company_id=c.company_id AND bootstrap_audit.record_id=c.company_id AND bootstrap_audit.operation='settings.bootstrap' AND bootstrap_audit.branch_id IS NULL AND bootstrap_audit.details_json::jsonb->'result'=bootstrap.result_json::jsonb AND bootstrap.result_json::jsonb->>'id'=c.company_id AND bootstrap.result_json::jsonb->>'warehouseId'=c.warehouse_id
+ JOIN pos_receipts approval ON approval.id=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posApprovalReceiptId' AND approval.company_id=c.company_id AND approval.request_hash=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posApprovalRequestHash'
+ JOIN pos_audit approval_audit ON approval_audit.id=receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'posApprovalAuditId' AND approval_audit.company_id=c.company_id AND approval_audit.record_id=c.company_id AND approval_audit.operation='accounting.approve' AND approval_audit.branch_id IS NULL AND approval_audit.actor_id<>bootstrap_audit.actor_id AND approval_audit.details_json::jsonb->'result'=approval.result_json::jsonb AND approval.result_json::jsonb->>'id'=c.company_id AND approval.result_json::jsonb->>'state'='approved'
+ WHERE to_regclass('inventory_pos_initial_physical_sources') IS NOT NULL AND jsonb_exists(receipt.result_json::jsonb,'_posInitialPhysicalStockCount') AND NOT jsonb_exists(receipt.result_json::jsonb,'_initialPhysicalStockCount') AND NOT jsonb_exists(receipt.result_json::jsonb,'_manufacturingInitialPhysicalStockCount')
+ AND receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'kind'='pos-initial-physical-stock-count' AND receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'countId'=c.id AND receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'companyId'=c.company_id AND receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'branchId'=c.branch_id AND receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'warehouseId'=c.warehouse_id AND receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'productId'=line.product_id AND receipt.result_json::jsonb->'_posInitialPhysicalStockCount'->>'countCommandId'=receipt.command_id
+ AND receipt.result_json::jsonb->>'id'=c.id AND receipt.result_json::jsonb->>'status'='draft' AND receipt.result_json::jsonb->>'version'='1' AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1"#;
+
+/// Retained manufacturing initial-stock source rows, literal port of
+/// `manufacturingInitialPhysicalStockCountSourceRows` (with its nested
+/// manufacturing-posting setup join covering both the initialize and
+/// the existing-mapping receipt alternatives).
+const INITIAL_MANUFACTURING_SOURCE_ROWS: &str = r#"SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount' source_proof
+ FROM inventory_counts c JOIN command_receipts receipt ON receipt.operation='inventory.count.create' AND receipt.record_id=c.id AND c.id='count-'||receipt.command_id AND receipt.actor_id=c.created_by AND receipt.authority_json::jsonb->>'companyId'=c.company_id
+ JOIN inventory_count_lines line ON line.count_id=c.id
+ JOIN (SELECT r.* FROM command_receipts r WHERE
+ (r.operation='commerce.manufacturing-posting-setup.initialize' AND r.result_json::jsonb->>'id'=r.record_id AND r.result_json::jsonb->>'status'='configured' AND r.result_json::jsonb->>'version'='1' AND r.authority_json::jsonb->>'companyId'=r.record_id)
+ OR (r.operation='commerce.manufacturing-posting-setup.confirm-existing' AND jsonb_exists(r.result_json::jsonb,'_manufacturingExistingPostingSetup')
+ AND r.authority_json::jsonb->>'companyId'=r.record_id AND r.result_json::jsonb->>'id'=r.record_id AND r.result_json::jsonb->>'status'='confirmed-existing' AND r.result_json::jsonb->>'version'='1'
+ AND r.result_json::jsonb->'_manufacturingExistingPostingSetup'->>'kind'='manufacturing-existing-posting-setup'
+ AND r.result_json::jsonb->'_manufacturingExistingPostingSetup'->>'companyId'=r.record_id
+ AND r.result_json::jsonb->'_manufacturingExistingPostingSetup'->>'confirmationCommandId'=r.command_id
+ AND r.result_json::jsonb->'_manufacturingExistingPostingSetup'->'mapping'->>'company_id'=r.record_id)) goods ON goods.command_id=receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'manufacturingSetupCommandId' AND goods.record_id=c.company_id AND goods.authority_json::jsonb->>'companyId'=c.company_id AND goods.result_json::jsonb->>'id'=c.company_id AND goods.result_json::jsonb->>'version'='1' AND goods.request_hash=receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'manufacturingSetupRequestHash'
+ AND (goods.operation='commerce.manufacturing-posting-setup.initialize' OR goods.result_json::jsonb->'_manufacturingExistingPostingSetup'->'mapping'->>'chart_id'=receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'chartId' AND goods.result_json::jsonb->'_manufacturingExistingPostingSetup'->'mapping'->>'inventory_account_id'=receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'inventoryAccountId')
+ WHERE NOT jsonb_exists(receipt.result_json::jsonb,'_initialPhysicalStockCount') AND jsonb_exists(receipt.result_json::jsonb,'_manufacturingInitialPhysicalStockCount') AND receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'kind'='manufacturing-initial-physical-stock-count'
+ AND receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'countId'=c.id AND receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'companyId'=c.company_id
+ AND receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'branchId'=c.branch_id AND receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'warehouseId'=c.warehouse_id AND receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'productId'=line.product_id AND receipt.result_json::jsonb->'_manufacturingInitialPhysicalStockCount'->>'countCommandId'=receipt.command_id
+ AND receipt.result_json::jsonb->>'id'=c.id AND receipt.result_json::jsonb->>'status'='draft' AND receipt.result_json::jsonb->>'version'='1'
+ AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
+ AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1"#;
+
+fn initial_source_rows(kind: &str) -> &'static str {
+    match kind {
+        "sales" => INITIAL_SALES_SOURCE_ROWS,
+        "manufacturing" => INITIAL_MANUFACTURING_SOURCE_ROWS,
+        "pos" => INITIAL_POS_SOURCE_ROWS,
+        "service" => INITIAL_SERVICE_SOURCE_ROWS,
+        _ => "SELECT NULL::text id WHERE FALSE",
+    }
+}
+
+/// Retained initial-stock destination proof for one already-visible count:
+/// the department collapse, the `inventory.read` permission, the
+/// queued-command authority stand-in, then the marker CASE, the source
+/// proof and the per-kind purchased-capability history. Any miss collapses
+/// to no override (the oracle returns `{}`), while storage failures throw.
+///
+/// The capability decisions are forced to enforced semantics: the oracle
+/// predicate filters by grants/history with no mode switch, so disabled
+/// mode must not open the override. The scheduled-feature predicates are
+/// effectively `TRUE` outside production (same convention as the other
+/// delegates) and are not re-proven.
+async fn initial_count_destination(
+    c: &mut PgConnection,
+    gate: &InventoryGate,
+    source_id: &str,
+) -> Result<Option<String>, BusinessError> {
+    if gate.department_id.is_some() {
+        return Ok(None);
+    }
+    let assignment = resolve_assignment(
+        c,
+        gate.company.as_str(),
+        &gate.user_id,
+        gate.assignment_id.as_deref(),
+        gate.now,
+    )
+    .await?;
+    let readable = match &assignment {
+        Some((id, _)) => role_allows(c, gate.company.as_str(), id, "inventory.read").await?,
+        None => false,
+    };
+    if !readable {
+        return Ok(None);
+    }
+    let (assignment_id, role) = match assignment {
+        Some((id, role)) => (id, role),
+        None => return Ok(None),
+    };
+    if !scope_authority(
+        c,
+        gate.company.as_str(),
+        &gate.user_id,
+        &assignment_id,
+        &role,
+        "inventory.read",
+        gate.branch_id.as_deref(),
+        None,
+        gate.now,
+    )
+    .await?
+    {
+        return Ok(None);
+    }
+    let mut kind: Option<&str> = None;
+    for (candidate, marker) in INITIAL_MARKERS {
+        let marked: Option<i32> = sqlx::query_scalar(
+            "SELECT 1 FROM command_receipts \
+              WHERE operation='inventory.count.create' AND record_id=$1 \
+              AND jsonb_exists(result_json::jsonb,$2)",
+        )
+        .bind(source_id)
+        .bind(marker)
+        .fetch_optional(&mut *c)
+        .await
+        .map_err(|_| storage())?;
+        if marked.is_some() {
+            kind = Some(candidate);
+            break;
+        }
+    }
+    let Some(kind) = kind else {
+        return Ok(None);
+    };
+    let present: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT EXISTS(SELECT 1 FROM ({}) frag \
+          WHERE frag.id=$1 AND frag.company_id=$2 \
+          AND ($3::text IS NULL OR frag.branch_id=$3))",
+        initial_source_rows(kind)
+    )))
+    .bind(source_id)
+    .bind(gate.company.as_str())
+    .bind(gate.branch_id.as_deref())
+    .fetch_one(&mut *c)
+    .await
+    .map_err(|_| storage())?;
+    if !present {
+        return Ok(None);
+    }
+    for capability in initial_count_capabilities(kind) {
+        if !history_allowed(
+            c,
+            &gate.company,
+            capability,
+            PackageEnforcementMode::Enforced,
+            gate.now,
+        )
+        .await?
+        {
+            return Ok(None);
+        }
+    }
+    Ok(initial_count_landing(kind, source_id))
+}
+
 /// Retained count proof: readable scope, current inventory assignment, the
 /// `supply.counts` history, the workspace image, then the scoped count
 /// read with its warehouse/settings/chart joins.
@@ -693,8 +947,16 @@ async fn count_target(
     if visible.is_none() {
         return Err(count_not_found());
     }
+    // Retained initial-stock rewrite, applied only after the scoped read
+    // resolves: a kind hit overrides the href, exactly like
+    // `projectInitialCountNotifications`. The source stays `None`, so a
+    // present source href would be rewritten alongside (there is none).
+    let href = match initial_count_destination(c, gate, source_id).await? {
+        Some(landing) => landing,
+        None => stock_count_href(source_id),
+    };
     Ok(Some(InboxTarget {
-        href: Some(stock_count_href(source_id)),
+        href: Some(href),
         source: None,
     }))
 }
@@ -1045,6 +1307,67 @@ mod tests {
         assert_eq!(source_record_label("stock_count"), "Stock count");
         assert_eq!(source_record_label("inventory_transit"), "Inventory transit");
         assert_eq!(source_record_label("customer_followup"), "Customer followup");
+    }
+
+    #[test]
+    fn initial_landings_encode_exactly_like_the_typescript_destinations() {
+        assert_eq!(
+            initial_count_landing("sales", "cnt-1"),
+            Some("/customers-sales/sales/settings/initial-stock/cnt-1".to_owned())
+        );
+        assert_eq!(
+            initial_count_landing("sales", "a/b c"),
+            Some("/customers-sales/sales/settings/initial-stock/a%2Fb%20c".to_owned())
+        );
+        assert_eq!(
+            initial_count_landing("manufacturing", "cnt-1"),
+            Some("/production/manufacturing/settings/initial-stock/cnt-1".to_owned())
+        );
+        assert_eq!(
+            initial_count_landing("pos", "cnt-1"),
+            Some("/pos/settings/initial-stock/cnt-1".to_owned())
+        );
+        assert_eq!(
+            initial_count_landing("service", "cnt-1"),
+            Some("/services/field-service/settings/initial-stock/cnt-1".to_owned())
+        );
+        assert_eq!(initial_count_landing("ordinary", "cnt-1"), None);
+        assert_eq!(initial_count_landing("", "cnt-1"), None);
+    }
+
+    #[test]
+    fn initial_capabilities_match_the_retained_fragments() {
+        assert_eq!(
+            initial_count_capabilities("sales"),
+            &[
+                "sales.orders",
+                "inventory.stock-core",
+                "finance.sales-posting"
+            ]
+        );
+        assert_eq!(
+            initial_count_capabilities("manufacturing"),
+            &[
+                "manufacturing.materials",
+                "manufacturing.costs",
+                "inventory.stock-core",
+                "finance.production-costing"
+            ]
+        );
+        assert_eq!(
+            initial_count_capabilities("pos"),
+            &["pos.sales", "inventory.stock-core", "finance.pos-posting"]
+        );
+        assert_eq!(
+            initial_count_capabilities("service"),
+            &[
+                "service.orders",
+                "service.parts-assets",
+                "finance.service-invoice"
+            ]
+        );
+        assert_eq!(initial_count_capabilities("ordinary"), &[] as &[&str]);
+        assert_eq!(initial_count_capabilities(""), &[] as &[&str]);
     }
 
     #[test]

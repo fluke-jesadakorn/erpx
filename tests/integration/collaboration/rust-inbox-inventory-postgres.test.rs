@@ -719,3 +719,228 @@ async fn port_commits_nothing_and_rolls_back_with_the_caller() {
     })
     .await;
 }
+
+async fn seed_initial(pool: &DatabasePool) {
+    sqlx::raw_sql(
+        "UPDATE finance_accounts SET currency='THB' WHERE id='acc-1'; \
+         INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,control_kind,status,created_at,updated_at) VALUES \
+         ('acc-var','co','ch-1','5400','Variance','expense','THB','none','active',1,1), \
+         ('ar','co','ch-1','110','AR','asset','THB','receivable','active',1,1), \
+         ('ap','co','ch-1','210','AP','liability','THB','payable','active',1,1), \
+         ('rev','co','ch-1','410','Revenue','revenue','THB','none','active',1,1), \
+         ('inv','co','ch-1','120','Inventory','asset','THB','none','active',1,1), \
+         ('clr','co','ch-1','220','Clearing','liability','THB','none','active',1,1), \
+         ('cogs','co','ch-1','510','COGS','expense','THB','none','active',1,1), \
+         ('in_tax','co','ch-1','130','Input tax','asset','THB','none','active',1,1), \
+         ('out_tax','co','ch-1','230','Output tax','liability','THB','none','active',1,1), \
+         ('cash','co','ch-1','140','Cash','asset','THB','bank','active',1,1); \
+         UPDATE commerce_settings SET receivable_account_id='ar',payable_account_id='ap',revenue_account_id='rev',inventory_account_id='inv',clearing_account_id='clr',cogs_account_id='cogs',input_tax_account_id='in_tax',output_tax_account_id='out_tax',cash_account_id='cash' WHERE company_id='co'; \
+         INSERT INTO pos_settings(company_id,enabled,currency,timezone,accounts_json,cashier_discount_bps,version,accounting_prepared_by,accounting_approved_by) VALUES \
+         ('co',true,'THB','Asia/Bangkok','{\"chartId\":\"ch-1\",\"inventory\":\"inv\"}',0,1,'maker','user-2'); \
+         INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) VALUES \
+         ('reg-pos-1','co','br','wh-1','POS','retail',true,1); \
+         INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,created_by,prepared_by,created_at,updated_at) VALUES \
+         ('count-init-sales','co','br','wh-1','C-S','2026-11-02','Initial','draft','maker','maker',1,1), \
+         ('count-init-mfg','co','br','wh-1','C-M','2026-11-02','Initial','draft','maker','maker',1,1), \
+         ('count-init-pos','co','br','wh-1','C-P','2026-11-02','Initial','draft','maker','maker',1,1), \
+         ('count-init-svc','co','br','wh-1','C-V','2026-11-02','Initial','draft','maker','maker',1,1), \
+         ('count-init-broken','co','br','wh-1','C-B','2026-11-02','Initial','draft','maker','maker',1,1); \
+         INSERT INTO inventory_count_lines(id,count_id,product_id,product_version,description,unit,snapshot_quantity_milli,snapshot_value_minor,snapshot_version,counted_quantity_milli,counted_value_minor,ordinal) VALUES \
+         ('line-init-sales','count-init-sales','prod-1',1,'Widget','each',0,0,0,0,0,0), \
+         ('line-init-mfg','count-init-mfg','prod-1',1,'Widget','each',0,0,0,0,0,0), \
+         ('line-init-pos','count-init-pos','prod-1',1,'Widget','each',0,0,0,0,0,0), \
+         ('line-init-svc','count-init-svc','prod-1',1,'Widget','each',0,0,0,0,0,0), \
+         ('line-init-broken','count-init-broken','prod-1',1,'Widget','each',0,0,0,0,0,0); \
+         INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES \
+         ('init-sales','inventory.count.create','maker','req-init-sales','count-init-sales','{\"id\":\"count-init-sales\",\"status\":\"draft\",\"version\":\"1\",\"_initialPhysicalStockCount\":{\"kind\":\"initial-physical-stock-count\",\"countId\":\"count-init-sales\",\"companyId\":\"co\",\"branchId\":\"br\",\"warehouseId\":\"wh-1\",\"productId\":\"prod-1\",\"countCommandId\":\"init-sales\",\"goodsSetupCommandId\":\"goods-sales-1\",\"goodsSetupRequestHash\":\"hash-sales-1\",\"chartId\":\"ch-1\",\"inventoryAccountId\":\"inv\",\"varianceAccountId\":\"acc-var\",\"currency\":\"THB\"}}',1,'{\"companyId\":\"co\"}'), \
+         ('goods-sales-1','commerce.sales-goods-posting-setup.initialize','maker','hash-sales-1','co','{\"id\":\"co\",\"status\":\"configured\",\"version\":\"1\"}',1,'{\"companyId\":\"co\"}'), \
+         ('init-mfg','inventory.count.create','maker','req-init-mfg','count-init-mfg','{\"id\":\"count-init-mfg\",\"status\":\"draft\",\"version\":\"1\",\"_manufacturingInitialPhysicalStockCount\":{\"kind\":\"manufacturing-initial-physical-stock-count\",\"countId\":\"count-init-mfg\",\"companyId\":\"co\",\"branchId\":\"br\",\"warehouseId\":\"wh-1\",\"productId\":\"prod-1\",\"countCommandId\":\"init-mfg\",\"manufacturingSetupCommandId\":\"goods-mfg-1\",\"manufacturingSetupRequestHash\":\"hash-mfg-1\",\"chartId\":\"ch-1\",\"inventoryAccountId\":\"inv\",\"varianceAccountId\":\"acc-var\",\"currency\":\"THB\"}}',1,'{\"companyId\":\"co\"}'), \
+         ('goods-mfg-1','commerce.manufacturing-posting-setup.initialize','maker','hash-mfg-1','co','{\"id\":\"co\",\"status\":\"configured\",\"version\":\"1\"}',1,'{\"companyId\":\"co\"}'), \
+         ('goods-pos-1','commerce.pos-posting-setup.initialize','maker','hash-pos-1','co','{\"id\":\"co\",\"status\":\"configured\",\"version\":\"1\"}',1,'{\"companyId\":\"co\"}'); \
+         INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) SELECT 'goods-svc-1','commerce.service-parts-posting-setup.initialize','maker','hash-svc-1','co',jsonb_build_object('id','co','status','configured','version','1','_servicePartsPostingSetup',jsonb_build_object('kind','service-parts-posting-setup','companyId','co','commandId','goods-svc-1','mode','initialize','mapping',to_jsonb(s)))::text,1,'{\"companyId\":\"co\"}' FROM commerce_settings s WHERE s.company_id='co'; \
+         INSERT INTO commerce_service_parts_posting_sources(company_id,command_id,mode,mapping_json,proof_json,created_by,created_at) SELECT 'co','goods-svc-1','initialize',to_jsonb(s),jsonb_build_object('kind','service-parts-posting-setup','companyId','co','commandId','goods-svc-1','mode','initialize','mapping',to_jsonb(s)),'maker',1 FROM commerce_settings s WHERE s.company_id='co'; \
+         INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES \
+         ('init-svc','inventory.count.create','maker','req-init-svc','count-init-svc','{\"id\":\"count-init-svc\",\"status\":\"draft\",\"version\":\"1\",\"_serviceInitialPhysicalStockCount\":{\"kind\":\"service-initial-physical-stock-count\",\"countId\":\"count-init-svc\",\"companyId\":\"co\",\"branchId\":\"br\",\"warehouseId\":\"wh-1\",\"productId\":\"prod-1\",\"countCommandId\":\"init-svc\",\"serviceSetupCommandId\":\"goods-svc-1\",\"serviceSetupRequestHash\":\"hash-svc-1\",\"chartId\":\"ch-1\",\"inventoryAccountId\":\"inv\",\"varianceAccountId\":\"acc-var\",\"currency\":\"THB\"}}',1,'{\"companyId\":\"co\"}'), \
+         ('init-broken','inventory.count.create','maker','req-init-broken','count-init-broken','{\"id\":\"count-init-broken\",\"status\":\"draft\",\"version\":\"1\"}',1,'{\"companyId\":\"co\"}'); \
+         INSERT INTO pos_receipts(id,company_id,request_hash,result_json,created_at) VALUES \
+         ('pos-boot-1','co','bh-1','{\"id\":\"co\",\"registerId\":\"reg-pos-1\",\"warehouseId\":\"wh-1\"}',1), \
+         ('pos-appr-1','co','ah-1','{\"id\":\"co\",\"state\":\"approved\"}',1); \
+         INSERT INTO pos_audit(id,company_id,actor_id,operation,record_id,details_json,created_at) VALUES \
+         ('pos-boot-audit-1','co','maker','settings.bootstrap','co','{\"result\":{\"id\":\"co\",\"registerId\":\"reg-pos-1\",\"warehouseId\":\"wh-1\"}}',1), \
+         ('pos-appr-audit-1','co','user-2','accounting.approve','co','{\"result\":{\"id\":\"co\",\"state\":\"approved\"}}',1); \
+         INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) SELECT 'init-pos','inventory.count.create','maker','req-init-pos','count-init-pos',jsonb_build_object('id','count-init-pos','status','draft','version','1','_posInitialPhysicalStockCount',jsonb_build_object('kind','pos-initial-physical-stock-count','countId','count-init-pos','companyId','co','branchId','br','warehouseId','wh-1','productId','prod-1','countCommandId','init-pos','posSetupCommandId','goods-pos-1','posSetupRequestHash','hash-pos-1','posBootstrapReceiptId','pos-boot-1','posBootstrapRequestHash','bh-1','posBootstrapAuditId','pos-boot-audit-1','posApprovalReceiptId','pos-appr-1','posApprovalRequestHash','ah-1','posApprovalAuditId','pos-appr-audit-1','posAccountingImageHash',(SELECT encode(sha256(convert_to(jsonb_build_object('currency',s.currency,'accounts',s.accounts_json::jsonb,'preparedBy',s.accounting_prepared_by,'approvedBy',s.accounting_approved_by,'register',to_jsonb(r))::text,'UTF8')),'hex') FROM pos_settings s JOIN pos_registers r ON r.company_id=s.company_id AND r.active WHERE s.company_id='co' AND r.id='reg-pos-1'),'chartId','ch-1','inventoryAccountId','inv','varianceAccountId','acc-var','currency','THB'))::text,1,'{\"companyId\":\"co\"}'; \
+         INSERT INTO inventory_initial_physical_stock_sources(count_id,company_id,branch_id,warehouse_id,product_id,count_command_id,goods_setup_command_id,chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) SELECT 'count-init-sales','co','br','wh-1','prod-1','init-sales','goods-sales-1','ch-1','inv','acc-var','THB',result_json::jsonb->'_initialPhysicalStockCount','maker',1 FROM command_receipts WHERE command_id='init-sales'; \
+         INSERT INTO inventory_mfg_initial_physical_sources(count_id,company_id,branch_id,warehouse_id,product_id,count_command_id,manufacturing_setup_command_id,chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) SELECT 'count-init-mfg','co','br','wh-1','prod-1','init-mfg','goods-mfg-1','ch-1','inv','acc-var','THB',result_json::jsonb->'_manufacturingInitialPhysicalStockCount','maker',1 FROM command_receipts WHERE command_id='init-mfg'; \
+         INSERT INTO inventory_service_initial_physical_sources(count_id,company_id,branch_id,warehouse_id,product_id,count_command_id,service_setup_command_id,chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) SELECT 'count-init-svc','co','br','wh-1','prod-1','init-svc','goods-svc-1','ch-1','inv','acc-var','THB',result_json::jsonb->'_serviceInitialPhysicalStockCount','maker',1 FROM command_receipts WHERE command_id='init-svc'; \
+         INSERT INTO inventory_pos_initial_physical_sources(count_id,company_id,branch_id,warehouse_id,product_id,count_command_id,pos_setup_command_id,pos_bootstrap_receipt_id,pos_approval_receipt_id,chart_id,inventory_account_id,variance_account_id,currency,proof_json,created_by,created_at) SELECT 'count-init-pos','co','br','wh-1','prod-1','init-pos','goods-pos-1','pos-boot-1','pos-appr-1','ch-1','inv','acc-var','THB',result_json::jsonb->'_posInitialPhysicalStockCount','maker',1 FROM command_receipts WHERE command_id='init-pos'",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn ordinary_counts_keep_the_base_href() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        seed_initial(&pool).await;
+        seed_grants(
+            &pool,
+            &["sales", "manufacturing", "pos", "service", "service-parts-assets"],
+        )
+        .await;
+        // The ordinary count keeps its base href even with full grants.
+        let target = visible(pool.clone(), "user-1", "stock_count", "cnt-1")
+            .await
+            .expect("ordinary count must resolve");
+        assert_eq!(target.href.as_deref(), Some("/stock-counts/cnt-1"));
+        assert_eq!(target.source, None);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn unpurchased_initial_marks_keep_the_base_href() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        seed_initial(&pool).await;
+        // Disabled mode without grants: the mode-independent purchase
+        // filter collapses the override, exactly like the oracle.
+        for source_id in [
+            "count-init-sales",
+            "count-init-mfg",
+            "count-init-pos",
+            "count-init-svc",
+        ] {
+            let target = visible(pool.clone(), "user-1", "stock_count", source_id)
+                .await
+                .unwrap_or_else(|| panic!("marked {source_id} must still resolve"));
+            assert_eq!(
+                target.href.as_deref(),
+                Some(format!("/stock-counts/{source_id}").as_str()),
+                "{source_id}"
+            );
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn initial_counts_override_with_kind_landings() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        seed_initial(&pool).await;
+        seed_grants(
+            &pool,
+            &["sales", "manufacturing", "pos", "service", "service-parts-assets"],
+        )
+        .await;
+        for (source_id, href) in [
+            (
+                "count-init-sales",
+                "/customers-sales/sales/settings/initial-stock/count-init-sales",
+            ),
+            (
+                "count-init-mfg",
+                "/production/manufacturing/settings/initial-stock/count-init-mfg",
+            ),
+            (
+                "count-init-pos",
+                "/pos/settings/initial-stock/count-init-pos",
+            ),
+            (
+                "count-init-svc",
+                "/services/field-service/settings/initial-stock/count-init-svc",
+            ),
+        ] {
+            let target = visible(pool.clone(), "user-1", "stock_count", source_id)
+                .await
+                .unwrap_or_else(|| panic!("initial {source_id} must resolve"));
+            assert_eq!(target.href.as_deref(), Some(href), "{source_id}");
+            assert_eq!(target.source, None, "{source_id}");
+        }
+        // The branch frame still scopes the rewrite.
+        let target = framed(
+            pool.clone(),
+            "user-1",
+            "stock_count",
+            "count-init-sales",
+            Some("br"),
+        )
+        .await
+        .unwrap()
+        .expect("framed initial count must resolve");
+        assert_eq!(
+            target.href.as_deref(),
+            Some("/customers-sales/sales/settings/initial-stock/count-init-sales")
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn broken_initial_proof_keeps_the_base_href() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        seed_initial(&pool).await;
+        seed_grants(&pool, &["sales"]).await;
+        // No initial marker on the receipt: a marked receipt without its
+        // reciprocal native source cannot commit (the deferred provenance
+        // trigger raises), so the unmarked count exercises the skip path
+        // and the href stays at the base address.
+        let target = visible(pool.clone(), "user-1", "stock_count", "count-init-broken")
+            .await
+            .expect("broken marked count must still resolve");
+        assert_eq!(
+            target.href.as_deref(),
+            Some("/stock-counts/count-init-broken")
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn enforced_initial_counts_override_with_history_grants() {
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        seed_initial(&pool).await;
+        seed_grants(
+            &pool,
+            &[
+                "supply",
+                "sales",
+                "manufacturing",
+                "pos",
+                "service",
+                "service-parts-assets",
+            ],
+        )
+        .await;
+        let enforced = Some(PackageEnforcementMode::Enforced);
+        for (source_id, href) in [
+            (
+                "count-init-sales",
+                "/customers-sales/sales/settings/initial-stock/count-init-sales",
+            ),
+            (
+                "count-init-pos",
+                "/pos/settings/initial-stock/count-init-pos",
+            ),
+        ] {
+            let target = composed_target(
+                pool.clone(),
+                "co",
+                "user-1",
+                "stock_count",
+                source_id,
+                None,
+                enforced,
+            )
+            .await
+            .unwrap()
+            .unwrap_or_else(|| panic!("granted {source_id} must resolve in enforced mode"));
+            assert_eq!(target.href.as_deref(), Some(href), "{source_id}");
+        }
+    })
+    .await;
+}
