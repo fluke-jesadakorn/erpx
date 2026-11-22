@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4691,
+    "revision": 4701,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T10:26:22.446Z",
-      "expiresAt": "2026-11-22T10:56:22.446Z",
+      "heartbeatAt": "2026-11-22T10:31:08.049Z",
+      "expiresAt": "2026-11-22T11:01:08.049Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T10:26:22.446Z",
-          "expiresAt": "2026-11-22T10:56:22.446Z",
+          "heartbeatAt": "2026-11-22T10:31:08.049Z",
+          "expiresAt": "2026-11-22T11:01:08.049Z",
           "generation": 150
         },
         "baseSha": "1230aa00a7b7dc37b5a736ae51f66c185d2dfb12",
@@ -105826,15 +105826,22 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "handoff": {
+          "runId": "run-20261122-d",
+          "agentId": "lead",
+          "at": "2026-11-22T10:32:02.910Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Rank remaining SELECT statements by live consumer; start with port-present families whose native read already exists; record per-family KPI before/after."
+        },
         "nextAction": "Rank remaining SELECT statements by live consumer; start with port-present families whose native read already exists; record per-family KPI before/after.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -105861,15 +105868,22 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "released with work preserved",
+        "handoff": {
+          "runId": "run-20261122-d",
+          "agentId": "lead",
+          "at": "2026-11-22T10:34:07.243Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Rank remaining SELECT statements by live consumer; start with port-present families whose native read already exists; record per-family KPI before/after."
+        },
         "nextAction": "Rank remaining SELECT statements by live consumer; start with port-present families whose native read already exists; record per-family KPI before/after.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -106283,8 +106297,8 @@
           "tests/unit/collaboration/rust-messaging-http.test.rs",
           "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/"
         ],
-        "baseSha": "2d4d47e52c61098da1f951e8fd4f95ce1972e14d",
-        "blocker": "handoff",
+        "baseSha": "d50ab9fe9592cc7354cf2b9a469fe037b0f55e85",
+        "blocker": null,
         "checks": [
           {
             "command": "cargo check -p erpx-service",
@@ -106351,9 +106365,34 @@
             "result": "passed",
             "sourceSha": "2d4d47e52c61098da1f951e8fd4f95ce1972e14d",
             "note": "Fresh binary + disposable DBs, real loopback HTTP: ungranted -> empty rooms/teams + purchase.history=false; granted -> 3 rooms (group room w/ preview+unread, pre-seeded org room, auto-provisioned org-channel-acme-co w/ company name/team/private=false) + purchase.history=true. Proves ensure-on-read, org/member/team branches, paywall gate, RoomView parity in one deployed path."
+          },
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "d50ab9fe9592cc7354cf2b9a469fe037b0f55e85",
+            "note": "GRAPH OK after removing TS messagingOverview import/fallback from the feature-apps route; no dangling specifiers."
+          },
+          {
+            "command": "typecheck:tsc --noEmit (repo)",
+            "result": "passed",
+            "sourceSha": "d50ab9fe9592cc7354cf2b9a469fe037b0f55e85",
+            "note": "Green; overview branch native-only with 503 when unconfigured, other branches untouched."
+          },
+          {
+            "command": "e2e:messaging-overview-native-wiring + unread-parity (prior proofs, native unchanged)",
+            "result": "passed",
+            "sourceSha": "0a95a7f2a0e291c8b750e2c98d11a0f536220669",
+            "note": "Proved at 0a95a7f2 over real loopback HTTP: paywall both ways, ensure-on-read (auto-provisioned org-channel), org/member/team branches, RoomView parity, sender-excluded unread. Native files (composition wiring, messaging_native.rs) unchanged since; this commit touches only the TS route fallback."
           }
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261122-d",
+          "agentId": "lead",
+          "claimedAt": "2026-11-22T10:34:07.313Z",
+          "heartbeatAt": "2026-11-22T10:34:07.313Z",
+          "expiresAt": "2026-11-22T11:04:07.313Z",
+          "generation": 150
+        },
         "dependsOn": [],
         "deliverables": [
           "Purchase-gating parity decision implemented (native gate or explicit product exemption)",
@@ -106374,17 +106413,30 @@
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Wiring proved at 2d4d47e5. Next: native-in-dev availability, then route switch + deletion. Claim released.",
+        "nextAction": "Route cut integrated at d50ab9f (native-only overview, 503 when unconfigured; graph+tsc green; gateway proof on record). NOT migrated: TS messagingOverview implementation retained for workplace SSR presenter + suites (recorded with removal conditions). Next: presenter SSR switch to native transport, then TS deletion + retirement:ts-statements delta.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
         "resources": [
           "owner:collaboration"
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "file": "packages/server-collaboration/src/adapters/presentation-queries.ts",
+            "caller": "collaborationPresentationQueries.messagingWorkspace (workplace SSR presenter)",
+            "removalTaskId": "retire.collaboration.messaging-overview-transport",
+            "removalCondition": "Switch workplace SSR presenter from TS messagingOverview/messagingHistory to the native overview/history transport once native is reachable from the SSR runtime; then delete the TS messagingOverview implementation and its barrels."
+          },
+          {
+            "file": "tests/integration/collaboration/messaging.test.ts",
+            "caller": "integration suite oracle (direct TS messagingOverview assertions)",
+            "removalTaskId": "retire.collaboration.messaging-overview-transport",
+            "removalCondition": "Retire after the presenter cut lands and the suite asserts against the native transport; test-only, no production traffic."
+          }
+        ],
         "scope": "Transport cutover for messaging overview: native read_overview is now a functional superset (member/team/org branches, RoomView fields). The feature-apps messaging route still prefers native only when ERPX_NATIVE_COLLABORATION_CONFIG is set and falls back to TS messagingOverview, which additionally does (1) purchase gating returning empty+puchase when history unpurchased, (2) ensureOrganizationChannels provisioning side effect, (3) direct-room display-name decoration. None may be silently dropped. Unread sender-exclusion also still differs (TS excludes own messages) and needs consumer sign-off before alignment.",
         "scopeRefinementRequired": false,
-        "status": "blocked",
+        "status": "integrating",
         "title": "Cut messaging overview route to native-only",
         "workflowIds": [],
         "workstream": "S01"
@@ -106462,18 +106514,18 @@
       "totalPackets": 437,
       "migratedPackets": 321,
       "statusCounts": {
-        "pending": 17,
+        "pending": 15,
         "in_progress": 0,
         "ready_for_integration": 1,
-        "integrating": 0,
+        "integrating": 1,
         "migrated": 321,
-        "blocked": 98,
+        "blocked": 99,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T10:26:22.447Z",
+    "updatedAt": "2026-11-22T10:35:32.382Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
