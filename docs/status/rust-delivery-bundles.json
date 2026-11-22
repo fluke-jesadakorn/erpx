@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4731,
+    "revision": 4735,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T11:11:32.948Z",
-      "expiresAt": "2026-11-22T11:41:32.948Z",
+      "heartbeatAt": "2026-11-22T11:18:58.162Z",
+      "expiresAt": "2026-11-22T11:48:58.162Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T11:11:32.948Z",
-          "expiresAt": "2026-11-22T11:41:32.948Z",
+          "heartbeatAt": "2026-11-22T11:18:58.162Z",
+          "expiresAt": "2026-11-22T11:48:58.162Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17847,11 +17847,11 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T10:45:28.036Z",
-          "heartbeatAt": "2026-11-22T11:11:32.948Z",
-          "expiresAt": "2026-11-22T11:41:32.948Z",
+          "heartbeatAt": "2026-11-22T11:18:58.162Z",
+          "expiresAt": "2026-11-22T11:48:58.162Z",
           "generation": 150
         },
-        "baseSha": "e034fd708d607b7ff42f29d64bb8014b81682863",
+        "baseSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17950,11 +17950,53 @@
             "result": "passed",
             "sourceSha": "e034fd708d607b7ff42f29d64bb8014b81682863",
             "note": "Composition three-way chain wiring (calendar + CRM + commerce) compiles; 0 errors."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
+            "note": "Worker finance delegate + public re-exports + registered PG test target + lead chain wiring compile; 0 errors."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_targets",
+            "result": "passed",
+            "sourceSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
+            "note": "15 passed incl. worker routing/href/capability extension and lead chain-deferral predicate test."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_finance_postgres",
+            "result": "passed",
+            "sourceSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
+            "note": "9 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): exact href+source with numeric versions, refund without source override, oracle denial codes/messages, unpurchased/unauthorized/out-of-frame denied, caller-transaction ownership. Lead fixed an inverted unwrap_err in the worker's fail-closed test and replaced an unreachable cross-company-scope assertion (scope always equals reader Company in production) to keep the retained authority-first ordering."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_calendar_postgres",
+            "result": "passed",
+            "sourceSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
+            "note": "7 passed (regression re-run; untouched delegate still green)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_crm_postgres",
+            "result": "passed",
+            "sourceSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
+            "note": "8 passed (regression re-run; untouched delegate still green)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_commerce_postgres",
+            "result": "passed",
+            "sourceSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
+            "note": "7 passed (regression re-run; untouched delegate still green)."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "a17ca94ea2b7440bb6f7a8b3d60f5856cabff4d4",
+            "note": "Composition four-way chain wiring (calendar + CRM + commerce + finance) compiles; 0 errors."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Commerce slice integrated at e034fd70 (delegate + chain wiring + PG 7/7 proven, pushed). Stays non-migrated: finance/payroll/staff-legacy delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
+        "nextAction": "Finance slice integrated at a17ca94e (delegate + chain wiring + PG 9/9 proven, pushed). Stays non-migrated: payroll/staff-legacy delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -106641,7 +106683,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T11:11:32.950Z",
+    "updatedAt": "2026-11-22T11:19:28.911Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
