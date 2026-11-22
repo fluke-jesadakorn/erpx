@@ -1,22 +1,25 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
-    CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
-    GovernanceInboxTargets, InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets,
-    LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets, PeopleInboxTargets,
-    ProcurementInboxTargets, QualityInboxTargets, RecordsInboxTargets, SupportInboxTargets,
+    CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, CustomerInboxTargets,
+    FinanceInboxTargets, GovernanceInboxTargets, InboxTargetPort, InboxTargetVisibility,
+    InventoryInboxTargets, LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets,
+    PeopleInboxTargets, ProcurementInboxTargets, QualityInboxTargets, RecordsInboxTargets,
+    SupportInboxTargets,
     TalentInboxTargets, access_review_href, bangkok_coverage_weeks, benefit_election_href,
     business_acceptance_href, calendar_appointment_href, commerce_order_capability,
-    commerce_order_href, crm_activity_href, crm_lead_href, customer_followup_href,
-    employee_request_href, encode_uri_component, expense_href, finance_document_capability,
-    finance_invoice_href, finance_journal_href, finance_refund_href,
-    governance_history_capabilities, governance_required_permission,
-    inventory_history_capabilities, inventory_transit_href, is_calendar_inbox_target,
-    is_commerce_inbox_target, is_crm_inbox_target, is_finance_inbox_target,
-    is_governance_inbox_target, is_inventory_inbox_target, is_learning_inbox_target,
-    is_operations_inbox_target, is_owned_inbox_target, is_payroll_inbox_target,
-    is_people_inbox_target, is_procurement_inbox_target, is_quality_inbox_target,
-    is_records_inbox_target, is_roster_monday, is_support_inbox_target, is_talent_inbox_target,
-    landed_cost_href, learning_assignment_href, learning_history_capabilities, leave_href,
+    commerce_order_href, crm_activity_href, crm_lead_href, customer_access_href,
+    customer_duplicate_href, customer_followup_href, customer_history_capabilities,
+    customer_identity_href, customer_required_permissions, employee_request_href,
+    encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
+    finance_journal_href, finance_refund_href, governance_history_capabilities,
+    governance_required_permission, inventory_history_capabilities, inventory_transit_href,
+    is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
+    is_customer_inbox_target, is_finance_inbox_target, is_governance_inbox_target,
+    is_inventory_inbox_target, is_learning_inbox_target, is_operations_inbox_target,
+    is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
+    is_procurement_inbox_target, is_quality_inbox_target, is_records_inbox_target,
+    is_roster_monday, is_support_inbox_target, is_talent_inbox_target, landed_cost_href,
+    learning_assignment_href, learning_history_capabilities, leave_href,
     legal_kind_capability, legal_record_href, manufacturing_order_href, marketing_candidate_href,
     operational_exception_href, operations_history_capabilities, organization_change_href,
     overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
@@ -1381,4 +1384,86 @@ fn governance_kind_capability_tables_match_the_retained_gates() {
         Some("organization.manage")
     );
     assert_eq!(governance_required_permission("organization"), None);
+}
+
+#[test]
+fn customer_slice_routes_to_the_native_delegate() {
+    for source_type in [
+        "customer_identity",
+        "customer_duplicate",
+        "customer_access",
+    ] {
+        assert!(is_customer_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "leave",
+        "expense",
+        "request",
+        "task",
+        "post",
+        "operational_exception",
+        "organization_change",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_customer_inbox_target(other), "{other}");
+    }
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&CustomerInboxTargets::new(None, None));
+    assert_inbox_target_port(&CustomerInboxTargets::default());
+    assert_inbox_target_port(
+        &CustomerInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn customer_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(customer_identity_href("chg-1"), "/customer-identity/chg-1");
+    assert_eq!(
+        customer_identity_href(ID),
+        format!("/customer-identity/{ENCODED}")
+    );
+    assert_eq!(customer_duplicate_href("dup-1"), "/customer-duplicates/dup-1");
+    assert_eq!(
+        customer_duplicate_href(ID),
+        format!("/customer-duplicates/{ENCODED}")
+    );
+    assert_eq!(customer_access_href("acc-1"), "/customer-access/acc-1");
+    assert_eq!(
+        customer_access_href(ID),
+        format!("/customer-access/{ENCODED}")
+    );
+}
+
+#[test]
+fn customer_kind_capability_tables_match_the_retained_gates() {
+    assert_eq!(
+        customer_history_capabilities("customer_identity"),
+        &[] as &[&str]
+    );
+    assert_eq!(
+        customer_history_capabilities("customer_duplicate"),
+        &[] as &[&str]
+    );
+    assert_eq!(
+        customer_history_capabilities("customer_access"),
+        &["sales.portal"]
+    );
+    assert_eq!(customer_history_capabilities("customer"), &[] as &[&str]);
+    assert_eq!(customer_history_capabilities(""), &[] as &[&str]);
+    for source_type in [
+        "customer_identity",
+        "customer_duplicate",
+        "customer_access",
+    ] {
+        assert_eq!(
+            customer_required_permissions(source_type),
+            &["commerce.read", "commerce.sales"],
+            "{source_type}"
+        );
+    }
+    assert_eq!(customer_required_permissions("customer"), &[] as &[&str]);
 }

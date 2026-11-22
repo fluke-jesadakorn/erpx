@@ -57,6 +57,11 @@ pub use crate::adapters::inbox_learning::{
     LearningInboxTargets, benefit_election_href, is_learning_inbox_target,
     learning_assignment_href, learning_history_capabilities,
 };
+pub use crate::adapters::inbox_customer::{
+    CustomerInboxTargets, customer_access_href, customer_duplicate_href,
+    customer_history_capabilities, customer_identity_href, customer_required_permissions,
+    is_customer_inbox_target,
+};
 pub use crate::adapters::inbox_governance::{
     GovernanceInboxTargets, access_review_href, business_acceptance_href,
     governance_history_capabilities, governance_required_permission, is_governance_inbox_target,

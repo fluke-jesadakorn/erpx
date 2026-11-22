@@ -1974,7 +1974,7 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
     ) -> Result<erpx_server_collaboration::public::inbox::InboxHttpReadReply, Error> {
         use erpx_server_collaboration::public::inbox::{
             CalendarInboxTargets, ChainedInboxTargets, CommerceInboxTargets, CrmInboxTargets,
-            FinanceInboxTargets, GovernanceInboxTargets, InboxHttpReadReply, InboxNotificationQuery, InboxReadKind,
+            CustomerInboxTargets, FinanceInboxTargets, GovernanceInboxTargets, InboxHttpReadReply, InboxNotificationQuery, InboxReadKind,
             InventoryInboxTargets, LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets,
             PeopleInboxTargets, PgInboxTargets, PgInboxUnit, ProcurementInboxTargets, QualityInboxTargets,
             RecordsInboxTargets, SupportInboxTargets, TalentInboxTargets,
@@ -2123,6 +2123,16 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                                 // order-free; last keeps the diff minimal.
                                 Box::new(
                                     GovernanceInboxTargets::new(
+                                        workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                        workspace.department_id.as_ref().map(|id| id.as_str()),
+                                    )
+                                    .assignment(Some(selected.assignment().id.as_str())),
+                                ),
+                                // Customer oracles throw on denied rows (no drop arms),
+                                // so this delegate settles last like the other
+                                // Err-style purchase delegates.
+                                Box::new(
+                                    CustomerInboxTargets::new(
                                         workspace.branch_id.as_ref().map(|id| id.as_str()),
                                         workspace.department_id.as_ref().map(|id| id.as_str()),
                                     )

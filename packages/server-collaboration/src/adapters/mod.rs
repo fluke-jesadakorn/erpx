@@ -73,6 +73,8 @@ pub(crate) mod inbox_records;
 
 pub(crate) mod inbox_governance;
 
+pub(crate) mod inbox_customer;
+
 pub(crate) mod social_http;
 
 pub(crate) mod social_http_wire;
