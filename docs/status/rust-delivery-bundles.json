@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4862,
+    "revision": 4866,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T14:40:25.473Z",
-      "expiresAt": "2026-11-22T15:10:25.473Z",
+      "heartbeatAt": "2026-11-22T14:40:45.847Z",
+      "expiresAt": "2026-11-22T15:10:45.847Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T14:40:25.473Z",
-          "expiresAt": "2026-11-22T15:10:25.473Z",
+          "heartbeatAt": "2026-11-22T14:40:45.847Z",
+          "expiresAt": "2026-11-22T15:10:45.847Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17878,7 +17878,13 @@
           "packages/server-projects/src/adapters/structure.ts",
           "packages/server-maintenance/src/adapters/work.ts",
           "packages/server-maintenance/src/adapters/preventive-plan.ts",
-          "packages/server-procurement/src/adapters/supplier-payments.ts"
+          "packages/server-procurement/src/adapters/supplier-payments.ts",
+          "packages/server-inventory/src/adapters/count-record-purchases.ts",
+          "packages/server-inventory/src/adapters/initial-physical-stock-count-source-sql.ts",
+          "packages/server-inventory/src/adapters/manufacturing-initial-physical-stock-count-source-sql.ts",
+          "packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source-sql.ts",
+          "packages/server-inventory/src/adapters/service-initial-physical-stock-count-source-sql.ts",
+          "packages/server-inventory/src/domain/manufacturing-initial-physical-stock-entry.ts"
         ],
         "resources": [
           "owner:collaboration"
@@ -17887,9 +17893,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-22T14:17:48.129Z",
-          "heartbeatAt": "2026-11-22T14:40:25.473Z",
-          "expiresAt": "2026-11-22T15:10:25.473Z",
+          "claimedAt": "2026-11-22T14:41:25.679Z",
+          "heartbeatAt": "2026-11-22T14:41:25.679Z",
+          "expiresAt": "2026-11-22T15:11:25.679Z",
           "generation": 150
         },
         "baseSha": "a957328268a7d1b293e13110437c141c078d5d37",
@@ -18559,14 +18565,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Read switch integrated at a9814e6 (native notifications with per-row drop mapping + PG 2/2 proof, pushed). All 17 delegate families proven + page drop proven. Next: gateway-to-Rust proof in container env (ERPX_NATIVE_COLLABORATION_CONFIG is container-only; blocked on macOS dev), stock_count initial-href native parity, then TS messagingOverview/inboxPage retirement with KPI delta. Worker claim retained.",
+        "nextAction": "Refined: initial-stock destination oracle paths added (read-only reference for stock_count href parity). Read switch integrated at a9814e6. Next: worker re-claims and builds the parity slice, then gateway-to-Rust proof (container), TS retirement with KPI delta.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "at": "2026-11-22T14:17:19.284Z",
+          "at": "2026-11-22T14:41:04.947Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Customer slice integrated at ad51948 (delegate + chain wiring + PG 8/8 proven, pushed; chained last with Err-style delegates). Stays non-migrated: workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
+          "nextAction": "Read switch integrated at a9814e6 (native notifications with per-row drop mapping + PG 2/2 proof, pushed). All 17 delegate families proven + page drop proven. Next: gateway-to-Rust proof in container env (ERPX_NATIVE_COLLABORATION_CONFIG is container-only; blocked on macOS dev), stock_count initial-href native parity, then TS messagingOverview/inboxPage retirement with KPI delta. Worker claim retained."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -107253,7 +107259,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T14:40:25.474Z",
+    "updatedAt": "2026-11-22T14:41:25.681Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
