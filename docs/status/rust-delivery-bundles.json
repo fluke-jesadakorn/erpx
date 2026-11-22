@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4604,
+    "revision": 4609,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T08:37:40.614Z",
-      "expiresAt": "2026-11-22T09:07:40.614Z",
+      "heartbeatAt": "2026-11-22T08:38:06.348Z",
+      "expiresAt": "2026-11-22T09:08:06.348Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T08:37:40.614Z",
-          "expiresAt": "2026-11-22T09:07:40.614Z",
+          "heartbeatAt": "2026-11-22T08:38:06.348Z",
+          "expiresAt": "2026-11-22T09:08:06.348Z",
           "generation": 149
         },
         "baseSha": null,
@@ -43805,8 +43805,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:24:42.288Z",
-          "heartbeatAt": "2026-11-22T08:37:40.614Z",
-          "expiresAt": "2026-11-22T09:07:40.614Z",
+          "heartbeatAt": "2026-11-22T08:38:06.348Z",
+          "expiresAt": "2026-11-22T09:08:06.348Z",
           "generation": 149
         },
         "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
@@ -105783,14 +105783,7 @@
         ],
         "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
         "blocker": null,
-        "claim": {
-          "runId": "run-20261122-c",
-          "agentId": "lead",
-          "claimedAt": "2026-11-22T08:29:52.622Z",
-          "heartbeatAt": "2026-11-22T08:37:40.614Z",
-          "expiresAt": "2026-11-22T09:07:40.614Z",
-          "generation": 149
-        },
+        "claim": null,
         "dependsOn": [],
         "deliverables": [
           "Restored app-finance-projection-source adapter + public barrel + package.json export entry (exact pre-deletion content)",
@@ -105800,20 +105793,31 @@
         "goalId": "G3",
         "handoff": null,
         "id": "retire.billing.target-finance-projection",
-        "implementedCommit": null,
+        "implementedCommit": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
         "kind": "migration",
-        "lastPushedSha": null,
-        "nextAction": "Lead: review restored billing adapter+barrel+exports at 8ed1df06, integrate and record retirement:ts-statements delta (no write KPI change expected - SELECT-only read).",
+        "lastPushedSha": "e3a9c9a0b8b32bf9d403a024bdf507c2ea9e9299",
+        "nextAction": "Integrated at e3a9c9a0b (remote verified). Restored read retained with removal binding to retire.billing.residual-writers; no cutover layers declared (pure restore, no transport change).",
         "owner": "billing",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
         "resources": [
           "owner:billing"
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-billing/src/adapters/app-finance-projection-source.ts",
+            "removalTaskId": "retire.billing.residual-writers",
+            "removalCondition": "Native billing finance-projection read port mounted and platform billing/target route switched; then delete restored adapter/barrel/export entries."
+          },
+          {
+            "path": "packages/server-billing/src/public/app-finance-projection-source.ts",
+            "removalTaskId": "retire.billing.residual-writers",
+            "removalCondition": "Native billing finance-projection read port mounted and platform billing/target route switched; then delete restored adapter/barrel/export entries."
+          }
+        ],
         "scope": "Narrow restore: 9ac707c5c deleted packages/server-billing adapter+barrel app-finance-projection-source as 'runtime-unreachable' but live consumer packages/feature-admin/.../platform/billing/target/route.ts still imports appBillingFinanceProjection (SELECT 1 row from billing_test_finance_projection). Restore exact files + export entry; no behavior change, no new TS authority. Route itself is live platform API and stays.",
         "scopeRefinementRequired": false,
-        "status": "ready_for_integration",
+        "status": "migrated",
         "title": "Restore wrongly-retired billing app-finance-projection-source (dev blocker)",
         "workflowIds": [],
         "workstream": "S16",
@@ -105835,6 +105839,26 @@
             "result": "passed",
             "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
             "note": "bun run dev detached pid 48873; gateway 127.0.0.1:3100 serves. /api/health 503 degraded (CLAMD_UNAVAILABLE, jobs/migration/billing not ready) - environment baseline, unchanged by this slice."
+          },
+          {
+            "command": "retirement:ts-statements billing app-finance-projection-source dangling specifier",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "before": 1,
+            "after": 0,
+            "note": "Restored adapter+barrel+2 export entries deleted by 9ac707c5c; platform billing/target route import resolves again. Restored SELECT read classified as retained transport (see retainedLegacy)."
+          },
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "loadWorkspaceGraph GRAPH OK; billing family resolved."
+          },
+          {
+            "command": "typecheck:tsc --noEmit (repo)",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "Repo tsc clean for this slice; the single repo error sits in foreign untracked scripts/local/refund-context-e2e.ts(51,22) TS2749, not in claimed paths."
           }
         ]
       },
@@ -105864,16 +105888,29 @@
             "result": "passed",
             "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
             "note": "bun run dev detached pid 48873; gateway 127.0.0.1:3100 serves. /api/health 503 degraded (CLAMD_UNAVAILABLE, jobs/migration/billing not ready) - environment baseline, unchanged by this slice."
+          },
+          {
+            "command": "retirement:ts-statements sales customer-redirect dangling specifier",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "before": 1,
+            "after": 0,
+            "note": "Restored redirect adapter+barrel+2 export entries deleted by 9ac707c5c; 5 workplace screens import-valid again. Redirect is frontend-transport retained TS (see retainedLegacy). src/index.ts intentionally unrestored."
+          },
+          {
+            "command": "audit:workspace-graph runtimeOnly",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "loadWorkspaceGraph GRAPH OK; sales family resolved."
+          },
+          {
+            "command": "typecheck:tsc --noEmit (repo)",
+            "result": "passed",
+            "sourceSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
+            "note": "Repo tsc clean for this slice; the single repo error sits in foreign untracked scripts/local/refund-context-e2e.ts(51,22) TS2749, not in claimed paths."
           }
         ],
-        "claim": {
-          "runId": "run-20261122-c",
-          "agentId": "lead",
-          "claimedAt": "2026-11-22T08:33:35.655Z",
-          "heartbeatAt": "2026-11-22T08:37:40.614Z",
-          "expiresAt": "2026-11-22T09:07:40.614Z",
-          "generation": 149
-        },
+        "claim": null,
         "dependsOn": [],
         "deliverables": [
           "Restored redirect.ts + sales-customer-redirect.ts + 2 package.json export entries (exact pre-deletion content)",
@@ -105882,20 +105919,31 @@
         "goalId": "G3",
         "handoff": null,
         "id": "retire.sales.customer-redirect-restore",
-        "implementedCommit": null,
+        "implementedCommit": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
         "kind": "migration",
-        "lastPushedSha": null,
-        "nextAction": "Lead: review restored sales redirect adapter+barrel+exports at 8ed1df06, integrate. src/index.ts intentionally not restored (no root export, zero root importers).",
+        "lastPushedSha": "e3a9c9a0b8b32bf9d403a024bdf507c2ea9e9299",
+        "nextAction": "Integrated at e3a9c9a0b (remote verified). Restored transport retained with removal binding to retire.sales.residual-writers; no cutover layers declared (pure restore, no transport change).",
         "owner": "sales",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [],
         "resources": [
           "owner:sales"
         ],
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-sales/src/adapters/redirect.ts",
+            "removalTaskId": "retire.sales.residual-writers",
+            "removalCondition": "Native sales customer-redirect decision recorded and 5 workplace presenter screens switched; then delete restored adapter/barrel/export entries."
+          },
+          {
+            "path": "packages/server-sales/src/public/sales-customer-redirect.ts",
+            "removalTaskId": "retire.sales.residual-writers",
+            "removalCondition": "Native sales customer-redirect decision recorded and 5 workplace presenter screens switched; then delete restored adapter/barrel/export entries."
+          }
+        ],
         "scope": "Narrow restore: 9ac707c5c deleted packages/server-sales adapters/redirect.ts + public/sales-customer-redirect.ts as 'runtime-unreachable' but 5 live workplace presenter screens still import redirectSalesCustomerList (legacy customer-list destination redirect; frontend transport concern, not business execution). Restore exact files + export entries; no behavior change. src/index.ts stays deleted (no root export declared, zero root importers).",
         "scopeRefinementRequired": false,
-        "status": "ready_for_integration",
+        "status": "migrated",
         "title": "Restore wrongly-retired sales customer redirect (dev blocker)",
         "workflowIds": [],
         "workstream": "S16"
@@ -105952,20 +106000,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 434,
-      "migratedPackets": 318,
+      "migratedPackets": 320,
       "statusCounts": {
         "pending": 20,
         "in_progress": 1,
-        "ready_for_integration": 2,
+        "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 318,
+        "migrated": 320,
         "blocked": 93,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T08:37:40.616Z",
+    "updatedAt": "2026-11-22T08:39:07.444Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
