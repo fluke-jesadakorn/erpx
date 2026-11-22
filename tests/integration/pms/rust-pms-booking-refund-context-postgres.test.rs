@@ -39,12 +39,25 @@ async fn migrate(pool: &DatabasePool, track: MigrationTrack) {
     migrate_database(pool, track, &migrations).await.unwrap();
 }
 
+fn session_digest(raw: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    hash.update(b"erpx-account-v1\0");
+    hash.update(b"session");
+    hash.update([0u8]);
+    hash.update(raw.as_bytes());
+    hex::encode(hash.finalize())
+}
+
 async fn seed(control: &DatabasePool, holding: &DatabasePool, now: i64) {
     let mut c = control.raw().acquire().await.unwrap();
     sqlx::query("INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") VALUES('user','Synthetic','user@example.test',1,$1,$1)")
         .bind(now).execute(&mut *c).await.unwrap();
+    // session.token stores the session-purpose digest, not the raw cookie secret.
+    let parent_digest = session_digest(TOKEN_PARENT);
+    let child_digest = session_digest(TOKEN_CHILD);
     sqlx::query("INSERT INTO session(id,\"userId\",token,\"expiresAt\",\"createdAt\",\"updatedAt\") VALUES('parent','user',$1,to_timestamp(($2::bigint+3600000)::double precision/1000)::text,to_timestamp($2::double precision/1000)::text,to_timestamp($2::double precision/1000)::text),('session','user',$3,to_timestamp(($2::bigint+86400000)::double precision/1000)::text,to_timestamp($2::double precision/1000)::text,to_timestamp($2::double precision/1000)::text)")
-        .bind(TOKEN_PARENT).bind(now).bind(TOKEN_CHILD).execute(&mut *c).await.unwrap();
+        .bind(parent_digest).bind(now).bind(child_digest).execute(&mut *c).await.unwrap();
     sqlx::query("INSERT INTO sso_session_bindings(session_id,audience,environment,parent_session_id,authenticated_at,absolute_expires_at) VALUES('parent','account','development',NULL,$1,$2),('session',$3,'development','parent',$1,$2)")
         .bind(now).bind(now + 3600000).bind(format!("holding:development:h001:{HOST}")).execute(&mut *c).await.unwrap();
     sqlx::query("INSERT INTO account_device_browsers(id,active_session_id,revision,updated_at) VALUES('browser','parent',1,$1)")

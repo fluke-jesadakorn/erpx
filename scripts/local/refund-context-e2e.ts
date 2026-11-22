@@ -18,6 +18,11 @@ const ORIGIN = `https://${HOST}`;
 const PORT = 44891;
 const TOKEN_PARENT = 'p'.repeat(64);
 const TOKEN_CHILD = 'c'.repeat(64);
+const sessionDigest = (raw: string) => createHash('sha256')
+  .update(Buffer.concat([Buffer.from('erpx-account-v1\0'), Buffer.from('session'), Buffer.from([0]), Buffer.from(raw, 'utf8')]))
+  .digest('hex');
+const PARENT_DIGEST = sessionDigest(TOKEN_PARENT);
+const CHILD_DIGEST = sessionDigest(TOKEN_CHILD);
 
 const admin = new Client({ connectionString: ADMIN });
 const step = (msg: string) => console.log(`[e2e] ${msg}`);
@@ -50,7 +55,7 @@ step('migrations applied');
 // Control seed: user, parent+child sessions, bindings, device, holding_bindings.
 const q = async (db: InstanceType<typeof PostgresDatabase>, sql: string, args: unknown[] = []) => db.prepare(sql).bind(...args).run();
 await q(control, `INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES('user','Synthetic','user@example.test',1,$1,$1)`, [NOW]);
-await q(control, `INSERT INTO session(id,"userId",token,"expiresAt","createdAt","updatedAt") VALUES('parent','user','${TOKEN_PARENT}',to_timestamp(($1::bigint+3600000)::double precision/1000)::text,to_timestamp($1::double precision/1000)::text,to_timestamp($1::double precision/1000)::text),('session','user','${TOKEN_CHILD}',to_timestamp(($1::bigint+86400000)::double precision/1000)::text,to_timestamp($1::double precision/1000)::text,to_timestamp($1::double precision/1000)::text)`, [NOW]);
+await q(control, `INSERT INTO session(id,"userId",token,"expiresAt","createdAt","updatedAt") VALUES('parent','user','${PARENT_DIGEST}',to_timestamp(($1::bigint+3600000)::double precision/1000)::text,to_timestamp($1::double precision/1000)::text,to_timestamp($1::double precision/1000)::text),('session','user','${CHILD_DIGEST}',to_timestamp(($1::bigint+86400000)::double precision/1000)::text,to_timestamp($1::double precision/1000)::text,to_timestamp($1::double precision/1000)::text)`, [NOW]);
 await q(control, `INSERT INTO sso_session_bindings(session_id,audience,environment,parent_session_id,authenticated_at,absolute_expires_at) VALUES('parent','account','development',NULL,$1,$2),('session','holding:development:h001:${HOST}','development','parent',$1,$2)`, [NOW, NOW + 3600000]);
 await q(control, `INSERT INTO account_device_browsers(id,active_session_id,revision,updated_at) VALUES('browser','parent',1,$1)`, [NOW]);
 await q(control, `INSERT INTO account_device_accounts(session_id,browser_id,handle) VALUES('parent','browser','saved-parent')`, []);
@@ -82,6 +87,9 @@ writeFileSync(configPath, JSON.stringify({
     database: { url: `postgresql://erpx_test_admin@127.0.0.1:5432/${H001_DB}` },
   }],
   operationsCompanies: [{ holdingId: 'h001', companyId: COMPANY }],
+  posCompanies: [{ holdingId: 'h001', companyId: COMPANY }],
+  crmCompanies: [{ holdingId: 'h001', companyId: COMPANY }],
+  commerceCompanies: [{ holdingId: 'h001', companyId: COMPANY }],
 }) + '\n', { mode: 0o600 });
 chmodSync(configPath, 0o600);
 child = spawn('target/debug/erpx-server', ['private-api', '--test-config', configPath], { stdio: ['ignore', 'ignore', 'pipe'] });
