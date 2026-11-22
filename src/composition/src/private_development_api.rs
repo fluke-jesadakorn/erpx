@@ -3189,6 +3189,21 @@ async fn assemble_checked(
         || !config.crm_companies.is_empty()
         || !config.commerce_companies.is_empty()
     {
+        let workflow_companies: Vec<String> = config
+            .operations_companies
+            .values()
+            .flatten()
+            .map(|company| company.as_str().to_owned())
+            .collect();
+        if !workflow_companies.is_empty() {
+            router = router.merge(
+                crate::workflow_wave3::workflow_wave3_company(
+                    Arc::new(crate::workflow_wave3::WorkflowWave3Planner),
+                    workflow_companies,
+                )
+                .map_err(|_| "PRIVATE_API_WORKFLOW_WAVE3_CONFIGURATION_INVALID")?,
+            );
+        }
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );

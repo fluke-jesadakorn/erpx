@@ -71,6 +71,11 @@ struct AppState {
     holding_targets: BTreeMap<String, Arc<dyn WorkflowWave3Backend>>,
     company_targets: BTreeMap<String, Arc<dyn WorkflowWave3Backend>>,
     execute_targets: BTreeMap<String, Arc<dyn WorkflowWave3ExecuteBackend>>,
+    /// A single-target deployment can serve any dynamic Company id: the
+    /// backend resolves the real scope from the signed context header, so the
+    /// static key is only a routing name. Multiple targets stay fail-closed.
+    default_company: Option<Arc<dyn WorkflowWave3Backend>>,
+    default_execute: Option<Arc<dyn WorkflowWave3ExecuteBackend>>,
 }
 
 fn invalid() -> BusinessError {
@@ -196,7 +201,11 @@ async fn execute_write(
 ) -> Response {
     let headers = request.headers().clone();
     let result = async {
-        let backend = state.execute_targets.get(&holding_id).ok_or_else(missing)?;
+        let backend = state
+            .execute_targets
+            .get(&holding_id)
+            .or(state.default_execute.as_ref())
+            .ok_or_else(missing)?;
         let key = unique_header(&headers, KEY_HEADER.clone())?
             .filter(|value| !value.is_empty() && value.len() <= 200)
             .ok_or_else(invalid)?;
@@ -294,7 +303,11 @@ async fn company_write(
 ) -> Response {
     let headers = request.headers().clone();
     let result = async {
-        let backend = state.company_targets.get(&company_id).ok_or_else(missing)?;
+        let backend = state
+            .company_targets
+            .get(&company_id)
+            .or(state.default_company.as_ref())
+            .ok_or_else(missing)?;
         let key = unique_header(&headers, KEY_HEADER.clone())?
             .filter(|value| !value.is_empty() && value.len() <= 200)
             .ok_or_else(invalid)?;
@@ -348,6 +361,8 @@ pub fn workflow_wave3_browser_router(
             holding_targets: BTreeMap::new(),
             company_targets: BTreeMap::new(),
             execute_targets: BTreeMap::new(),
+            default_company: None,
+            default_execute: None,
         })))
 }
 
@@ -360,6 +375,11 @@ pub fn workflow_wave3_company_router(
             return Err(configuration_invalid());
         }
     }
+    let default_company = if company_targets.len() == 1 {
+        company_targets.values().next().cloned()
+    } else {
+        None
+    };
     Ok(Router::new()
         .route(
             "/api/v1/companies/{company_id}/workflow/wave3-command",
@@ -370,6 +390,8 @@ pub fn workflow_wave3_company_router(
             holding_targets: BTreeMap::new(),
             company_targets,
             execute_targets: BTreeMap::new(),
+            default_company,
+            default_execute: None,
         })))
 }
 
@@ -425,6 +447,8 @@ pub fn workflow_wave3_holding_router(
             holding_targets,
             company_targets: BTreeMap::new(),
             execute_targets: BTreeMap::new(),
+            default_company: None,
+            default_execute: None,
         })))
 }
 
@@ -438,6 +462,11 @@ pub fn workflow_wave3_execute_router(
             return Err(configuration_invalid());
         }
     }
+    let default_execute = if execute_targets.len() == 1 {
+        execute_targets.values().next().cloned()
+    } else {
+        None
+    };
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_id}/workflow/wave3-execute",
@@ -448,5 +477,7 @@ pub fn workflow_wave3_execute_router(
             holding_targets: BTreeMap::new(),
             company_targets: BTreeMap::new(),
             execute_targets,
+            default_company: None,
+            default_execute,
         })))
 }
