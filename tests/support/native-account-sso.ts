@@ -263,6 +263,10 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
         const native = await ensureServer();
         const target = new URL(incoming.url ?? '/', native.baseUrl);
         const headers = { ...incoming.headers };
+        // A Host-less client (system/worker routes) reaches the proxy host; the
+        // native boundary compares Host with its own loopback listener. Rewrite
+        // only that implicit host, never a registered Holding host.
+        if (headers.host === `127.0.0.1:${port}`) headers.host = new URL(native.baseUrl).host;
         const upstream = httpRequest(
           target,
           { method: incoming.method, headers },
@@ -322,6 +326,10 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
   process.env.ERPX_NATIVE_COMMERCE_WAVE2_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_OWNER_WRITE_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_ACCOUNTING_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_COLLABORATION_CONFIG = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    timeoutMs: 10_000,
+  });
   process.env.ERPX_NATIVE_WORKFLOW_WAVE3_CONFIG = JSON.stringify({
     privateBaseUrl: proxyBaseUrl,
     timeoutMs: 10_000,

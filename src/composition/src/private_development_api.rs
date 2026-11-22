@@ -9177,7 +9177,15 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     // therefore reachable on the loopback listener, which is never public.
     let loopback_system_command = host == state.loopback
         && request.uri().path().starts_with("/api/v1/companies/")
-        && request.uri().path().ends_with("/native-command");
+        && (request.uri().path().ends_with("/native-command")
+            || request
+                .uri()
+                .path()
+                .ends_with("/workflow/wave3-command")
+            || request
+                .uri()
+                .path()
+                .ends_with("/collaboration/notification-statement"));
     if state.policy.audience(host).is_none()
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))
