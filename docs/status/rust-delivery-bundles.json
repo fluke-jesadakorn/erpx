@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5092,
+    "revision": 5094,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:12:32.076Z",
-      "expiresAt": "2026-11-22T20:42:32.076Z",
+      "heartbeatAt": "2026-11-22T20:16:31.609Z",
+      "expiresAt": "2026-11-22T20:46:31.609Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17231,11 +17231,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T20:16:21.551Z",
-          "heartbeatAt": "2026-11-22T20:16:21.551Z",
-          "expiresAt": "2026-11-22T20:46:21.551Z",
+          "heartbeatAt": "2026-11-22T20:16:31.609Z",
+          "expiresAt": "2026-11-22T20:46:31.609Z",
           "generation": 150
         },
-        "baseSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+        "baseSha": "ecf0f5ae49f08e847146d947172fef51c4221202",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,7 +17346,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "HANDOFF: releasing audit.runtime to claim retire.learning.residual-writers (suite needs the src/composition path). Audit state at d98446f32: literal write KPI 0, alias KPI 0, dual-writer files 0, 66 native-descriptor files, 11386 SELECT tokens still TS (audit.read-tail owner), unused Next APIs unconfirmed, retire.workflow needs six non-native drains + jobs.ts switch, planning retire needs the two foreign .test.rs registered, migrations.ts 42P01 unfixed.",
+        "nextAction": "FALLBACK AUDIT DONE (no user decision received). Scanned all 48 blocked retire.* tasks: measured owner literal-DML at their implemented/base SHA vs HEAD and inspected each nextAction. No additional task is closeable with current evidence: (a) stale no-KPI tasks - retire.collaboration.maintenance-oracle-generator and retire.field_service.http-oracle-scripts are satisfied in code but their deleted scripts contained zero counted SQL, so the CLI migration gate cannot accept a before/after drop (needs a lead reclassification/removal, which the CLI does not expose); (b) KPI dropped to 0 but parity/behavior caveats remain - collaboration.social-home (169->0, parity witnesses HomePost/rich comment/IAM/Work/Files/Agent), commerce (51->0, attachment version-bump/billing sandbox), finance (336->0, live createParty route outside claim), inventory.commerce-stock-owner-effects (31->0, receipt-hash divergence), pms.pms-booking (109->0, refund route unmounted), legal.destruction (142->0, context detachment), pos.residual (83->0, remote VM reset), organization (55->0, job principal decision), identity_access.residual-writers (110->0, design decision), workflow.approval-planning (95->0, native port incomplete), crm (22->0, guest-link/lead-create missing); (c) reads follow-ups are explicitly not writable slices. Ledger stands at migrated 334. NEEDED: one of the three decisions - register the two foreign .test.rs files, extend retire.workflow allowedPaths to the runtime jobs.ts, or authorize reclassifying the two stale no-op tasks as inventory/done.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -107842,7 +107842,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:16:21.552Z",
+    "updatedAt": "2026-11-22T20:17:48.916Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
