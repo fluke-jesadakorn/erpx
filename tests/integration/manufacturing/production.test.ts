@@ -178,9 +178,13 @@ beforeEach(async () => {
   await db.batch(Object.entries(productionAccounts).map(([name, id]) => db.prepare(`INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at)
     VALUES(?,?,?,?,?,?,'THB',1,1)`).bind(id, f.chart, f.company, `production-${name}`, name, ["inventory", "wip"].includes(name) ? "asset" : "liability")));
   await db.prepare("UPDATE commerce_settings SET inventory_account_id=? WHERE company_id=?").bind(productionAccounts.inventory, f.company).run();
-  const profile = await createManufacturingAccountingProfile(f.reviewer, { chartId: f.chart, inventoryAccountId: productionAccounts.inventory,
-    wipAccountId: productionAccounts.wip, laborAccountId: productionAccounts.labor, overheadAccountId: productionAccounts.overhead, scrapAccountId: f.accounts.expense }, key());
-  await reviewManufacturingAccountingProfile(f.manager, String(profile.id), { action: "approve", expectedVersion: 1, reason: "Review controlled production account mapping" }, key());
+  // The profile create/review writer is native-only after the wave-3 cutover.
+  // Seed the exact approved profile this suite depends on; the native command
+  // contract (create, independent review, replay) is covered by the Rust owner
+  // tests below rather than through the retained fail-closed TypeScript path.
+  await db.prepare(`INSERT INTO manufacturing_accounting_profiles(id,company_id,chart_id,currency,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id,scrap_account_id,status,version,created_by,reviewed_by,created_at,updated_at)
+    VALUES(?,?,?,'THB',?,?,?,?,?,'approved',2,?,?,1,1)`)
+    .bind(key(), f.company, f.chart, productionAccounts.inventory, productionAccounts.wip, productionAccounts.labor, productionAccounts.overhead, f.accounts.expense, f.reviewer.userId, f.manager.userId).run();
   await confirmManualRate(f.manager, { currency: "THB", effectiveDate: "2026-01-01", currencyPerUsd: "35", note: "Isolated test manual rate" }, key());
   warehouse = String(
     (
