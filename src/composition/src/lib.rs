@@ -166,6 +166,9 @@ pub mod crm_wave2_native;
 pub mod inventory_wave2;
 pub mod commerce_wave2;
 pub mod agent_wave2;
+pub mod commercial_wave2;
+pub mod executive_evidence_wave2;
+pub mod work_projection_wave2;
 pub mod procurement_wave2;
 pub mod records_wave2;
 #[cfg(feature = "existing-business")]

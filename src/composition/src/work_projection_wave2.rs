@@ -10,6 +10,7 @@ use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
+use std::sync::Arc;
 use erpx_server_work_projection::public::owner_write::{PgOwnerWrite, execute_owner_write};
 use erpx_server_work_projection::public::owner_write_http::{
     OwnerWriteFuture, OwnerWriteHttpBackend, OwnerWriteHttpRequest, OwnerWriteHttpTarget,
@@ -96,6 +97,7 @@ impl HomeReadCursorHttpBackend for HomeReadCursorBackend {
             Self::company(request.headers, &input.company_id)?;
             let data = PgUnitOfWork::new(pool)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let input = input.clone();
                     Box::pin(async move {
                         let mut repository = PgHomeReadCursor::new(&mut *connection);
                         mark_home_read(&mut repository, &input).await?;
@@ -168,6 +170,11 @@ impl OwnerWriteHttpBackend for WorkProjectionOwnerWriteBackend {
                 .to_owned();
             PgUnitOfWork::new(pool)
                 .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let kind = kind.clone();
+                    let values = values.clone();
+                    let company = company.clone();
+                    let actor = actor.clone();
+                    let key = key.clone();
                     Box::pin(async move {
                         let mut repository = PgOwnerWrite::new(&mut *connection);
                         let command = erpx_server_work_projection::public::owner_write::OwnerWriteCommand {

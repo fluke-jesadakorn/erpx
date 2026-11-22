@@ -3268,6 +3268,10 @@ async fn assemble_checked(
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
+        let mut work_cursor_targets: Vec<(String, String, String)> = Vec::new();
+        let mut work_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
+        let mut executive_evidence_routers: Vec<Router> = Vec::new();
+        let mut commercial_native_routers: Vec<Router> = Vec::new();
         // Private development assembly: scheduled predicates admit locally and
         // production rendering still fails closed because it is not enabled.
         let runtime_policy =
@@ -4070,6 +4074,44 @@ async fn assemble_checked(
                     agent_pools.insert(
                         holding.registration.slug.clone(),
                         pools[i + 1].clone(),
+                    );
+                    work_cursor_targets.push((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                    ));
+                    work_owner_targets.push((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        false,
+                    ));
+                    executive_evidence_routers.push(
+                        crate::executive_evidence_wave2::executive_evidence_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::executive_evidence_wave2::ExecutiveEvidenceBackend::new(
+                                    pools[i + 1].clone(),
+                                    holding.registration.holding_id.clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_EXECUTIVE_EVIDENCE_CONFIGURATION_INVALID")?,
+                    );
+                    commercial_native_routers.push(
+                        crate::commercial_wave2::commercial_grant_save_wave2_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::commercial_wave2::GrantSaveBackend::new(
+                                pools[i + 1].clone(),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )
+                        .map_err(|_| "PRIVATE_API_COMMERCIAL_WAVE2_CONFIGURATION_INVALID")?,
                     );
                     agent_quota_targets.push((
                         holding.host.clone(),
@@ -6778,6 +6820,41 @@ async fn assemble_checked(
                 crate::agent_wave2::agent_owner_write_router(owner_backend, agent_owner_targets)
                     .map_err(|_| "PRIVATE_API_AGENT_OWNER_WRITE_CONFIGURATION_INVALID")?,
             );
+        }
+        if !agent_pools.is_empty() {
+            let cursor_backend = Arc::new(
+                crate::work_projection_wave2::HomeReadCursorBackend::new(agent_pools.clone()),
+            );
+            for (host, slug, origin) in work_cursor_targets {
+                router = router.merge(
+                    crate::work_projection_wave2::home_read_cursor_router(
+                        host,
+                        slug,
+                        origin,
+                        cursor_backend.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_WORK_CURSOR_CONFIGURATION_INVALID")?,
+                );
+            }
+            let work_owner_backend = Arc::new(
+                crate::work_projection_wave2::WorkProjectionOwnerWriteBackend::new(
+                    agent_pools.clone(),
+                    pools[0].clone(),
+                ),
+            );
+            router = router.merge(
+                crate::work_projection_wave2::work_projection_owner_write_router(
+                    work_owner_backend,
+                    work_owner_targets,
+                )
+                .map_err(|_| "PRIVATE_API_WORK_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
+        }
+        for evidence_router in executive_evidence_routers {
+            router = router.merge(evidence_router);
+        }
+        for commercial_router in commercial_native_routers {
+            router = router.merge(commercial_router);
         }
         if !inventory_company_pools.is_empty() {
             let inventory_companies: Vec<String> =
