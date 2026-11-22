@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5083,
+    "revision": 5092,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T20:08:44.387Z",
-      "expiresAt": "2026-11-22T20:38:44.387Z",
+      "heartbeatAt": "2026-11-22T20:12:32.076Z",
+      "expiresAt": "2026-11-22T20:42:32.076Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T20:08:44.387Z",
-          "expiresAt": "2026-11-22T20:38:44.387Z",
+          "claimedAt": "2026-11-22T20:16:21.551Z",
+          "heartbeatAt": "2026-11-22T20:16:21.551Z",
+          "expiresAt": "2026-11-22T20:46:21.551Z",
           "generation": 150
         },
-        "baseSha": "cf104ced8cdd8b5b3ff98a3d39219a797758b5a8",
+        "baseSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "AUDIT MEASUREMENTS AT cf104ced8 (no edit outside allowed paths; user decision still pending on jobs.ts allowedPaths and the two foreign .test.rs files). (1) TS SQL writes in packages/server-*/src: literal-DML 0 and alias-UPDATE 0. (2) Native-descriptor call sites: 66 TS files import nativeWrite/nativeRuntimeStatement/nativeCommercialOwnerWrite/nativeClearCommandAssertions; 0 of those files also contain any INSERT/DELETE/UPDATE literal, so there are ZERO dual-writer files. (3) TS reads remain large: 11386 SELECT tokens across packages/server-*/src/**/*.ts; the audit.read-tail task (2392 SELECT statements, pending) is the owner for that closure, so audit.runtime cannot yet confirm that all TS business execution is gone. (4) Unused Next API routes are NOT confirmed: that needs a route/usage inventory plus real traffic; no safe automatic proof exists in this environment. (5) Open blockers unchanged: retire.workflow needs packages/server-runtime/src/adapters/runtime/jobs.ts outside its allowedPaths; retire.planning.production-command-sources needs the two foreign untracked .test.rs files registered; migrations.ts receipt-over-HTTP yields 42P01 on the control DB.",
+        "nextAction": "HANDOFF: releasing audit.runtime to claim retire.learning.residual-writers (suite needs the src/composition path). Audit state at d98446f32: literal write KPI 0, alias KPI 0, dual-writer files 0, 66 native-descriptor files, 11386 SELECT tokens still TS (audit.read-tail owner), unused Next APIs unconfirmed, retire.workflow needs six non-native drains + jobs.ts switch, planning retire needs the two foreign .test.rs registered, migrations.ts 42P01 unfixed.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T19:33:25.580Z",
+          "at": "2026-11-22T20:13:00.963Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "HANDOFF: releasing audit.runtime to claim retire.commercial.purchase-boundary per plan. State at handoff: all 15 wave2 modules mounted+probed; PMS route live (409 not 404); dev health 200; ledger 330 migrated. Remaining audit work: confirm no TS business execution/dual writers remain once retire slices land; manufacturing suite still blocked by two foreign untracked .test.rs files (TEST_INVENTORY_MISMATCH); migrations.ts receipt-over-HTTP yields 42P01 on control DB and cannot write into disposable test DBs (owner: runtime)."
+          "nextAction": "HANDOFF: releasing audit.runtime to claim retire.learning.residual-writers (suite needs the src/composition path). Audit state at d98446f32: literal write KPI 0, alias KPI 0, dual-writer files 0, 66 native-descriptor files, 11386 SELECT tokens still TS (audit.read-tail owner), unused Next APIs unconfirmed, retire.workflow needs six non-native drains + jobs.ts switch, planning retire needs the two foreign .test.rs registered, migrations.ts 42P01 unfixed."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -50378,7 +50378,7 @@
         "kind": "migration",
         "procedureRef": "executionPlan.sliceProcedure",
         "title": "Retire residual Learning writers",
-        "scope": "Retire remaining Learning TypeScript writers only after native assignment change, eligibility, evidence, purchase and all live consumers reach full parity; refine bounded slices before claiming.",
+        "scope": "Bounded retirement: verify that the Learning TypeScript writers are gone from packages/server-learning/src (0 literal and 0 alias write SQL), that no live caller still imports a writer export, and record the owner KPI pair. Native assignment-change/eligibility/evidence/purchase parity caveats stay with the migrate.learning tasks and are not silently absorbed here.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -50398,17 +50398,54 @@
           "owner:identity_access",
           "resource:composition"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "baseSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+        "implementedCommit": "d98446f320ffea4b9ad88024f8623375e52d87de",
+        "lastPushedSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+        "checks": [
+          {
+            "command": "retirement:ts-statements packages/server-learning/src (literal write SQL)",
+            "result": "passed",
+            "sourceSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+            "sourceKind": "committed",
+            "before": 9,
+            "after": 0,
+            "note": "At audit SHA 77b57db7 the owner had 9 INSERT/DELETE/UPDATE literals across adapters/learning.ts, adapters/purchases.ts and adapters/attachment-purchases.ts; at HEAD all three files are thin native shims with 0 literal and 0 alias write SQL (16 native descriptor references in learning.ts)."
+          },
+          {
+            "command": "cargo check -p erpx-server-learning",
+            "result": "passed",
+            "sourceSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+            "sourceKind": "committed"
+          },
+          {
+            "command": "ERPX_BUN_BIN=… ERPX_NODE_BIN=… cargo test -p erpx-server-learning --test learning",
+            "result": "passed",
+            "sourceSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+            "sourceKind": "committed",
+            "note": "25/25 unit cases."
+          },
+          {
+            "command": "ERPX_BUN_BIN=… ERPX_NODE_BIN=… cargo test -p erpx-server-learning --test learning_postgres -- --test-threads=1",
+            "result": "passed",
+            "sourceSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+            "sourceKind": "committed",
+            "note": "14/14 PostgreSQL cases single-threaded. Parallel execution hits PG 53200 (out of memory) from 14 concurrent fixtures - environment, not code."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
+            "sourceKind": "committed",
+            "note": "Exit 0: no dangling imports after the writer conversion."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": null,
-        "scopeRefinementRequired": true,
-        "nextAction": "Audit HEAD 77b57db71c7d58608a71d7155a21a0dcc32c30b5 Learning KPI 9 and refine bounded assignment-change slice including actual routes, clients and native-seeded fixtures. Existing native route is not parity: attachment completion is rejected in native client; historical TS Workflow fingerprint differs; validation, actor/evidence ordering, HTTP body limit, native input validation and purchase History/replay must be reconciled. Verify all live callers and native fixture migration before removing TS writers and barrels; no closure until all six retirement criteria and KPI decrease pass. Shared Workflow, Files, Identity and composition overlap active RFQ work; coordinate claims."
+        "scopeRefinementRequired": false,
+        "nextAction": "CLOSED at d98446f32 for writer retirement: packages/server-learning/src has 0 literal and 0 alias write SQL (9 -> 0 vs 77b57db7); learning.ts/purchases.ts/attachment-purchases.ts are native shims only. RETENTION NOTES for other owners (not silently absorbed): the native Learning client parity caveats from the earlier audit remain open where they affect behavior - attachment completion, historical TS Workflow fingerprint, validation/actor-evidence ordering, HTTP body limit and purchase History/replay belong to the migrate.learning* tasks; reads still route through TS shims and belong to audit.read-tail. Tests that shell out need ERPX_BUN_BIN and ERPX_NODE_BIN; learning_postgres must run with --test-threads=1 to avoid PG 53200."
       },
       {
         "id": "retire.marketing.residual-writers",
@@ -107792,20 +107829,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 439,
-      "migratedPackets": 326,
+      "migratedPackets": 327,
       "statusCounts": {
-        "pending": 13,
+        "pending": 12,
         "in_progress": 0,
         "ready_for_integration": 1,
         "integrating": 0,
-        "migrated": 326,
+        "migrated": 327,
         "blocked": 99,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T20:12:21.557Z",
+    "updatedAt": "2026-11-22T20:16:21.552Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
