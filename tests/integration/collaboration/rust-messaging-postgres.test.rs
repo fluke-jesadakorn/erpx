@@ -397,6 +397,28 @@ async fn direct_thread_messages_reads_replay_and_company_isolation() {
             .await
             .unwrap();
         assert_eq!(overview[0].unread, 0);
+        tx.rollback().await.unwrap();
+        let own = run(
+            &pool,
+            "person-1",
+            "company",
+            "messaging-message-own",
+            Change::SendMessage {
+                room_id: room.id.clone(),
+                body: "my own message".into(),
+            },
+            false,
+        )
+        .await
+        .unwrap();
+        assert_eq!((own.status, own.seq), ("sent", 2));
+        let mut tx = pool.raw().begin().await.unwrap();
+        let overview = read_overview(&mut tx, &actor("person-1", "company"))
+            .await
+            .unwrap();
+        assert_eq!(overview[0].unread, 0, "own messages never count as unread");
+        tx.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
         assert!(
             read_history(
                 &mut tx,
@@ -428,7 +450,7 @@ async fn direct_thread_messages_reads_replay_and_company_isolation() {
             .fetch_one(pool.raw())
             .await
             .unwrap();
-        assert_eq!(messages, 1);
+        assert_eq!(messages, 2);
     })
     .await;
 }

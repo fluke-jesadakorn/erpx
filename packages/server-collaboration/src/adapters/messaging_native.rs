@@ -240,7 +240,7 @@ pub async fn read_overview(
     );
     let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT r.id,r.kind,r.name,r.owner_id,r.team_id,r.private,r.version,r.last_seq,
-           (SELECT count(*) FROM messaging_messages m WHERE m.room_id=r.id AND m.seq>COALESCE((SELECT mr.seq FROM messaging_reads mr WHERE mr.room_id=r.id AND mr.user_id=$2),0)) unread,
+           (SELECT count(*) FROM messaging_messages m WHERE m.room_id=r.id AND m.sender_id<>$2 AND m.seq>COALESCE((SELECT mr.seq FROM messaging_reads mr WHERE mr.room_id=r.id AND mr.user_id=$2),0)) unread,
            (SELECT CASE WHEN m.body='' THEN 'Attachment' ELSE left(m.body,160) END FROM messaging_messages m WHERE m.room_id=r.id ORDER BY m.seq DESC LIMIT 1) preview,
            (SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id) last_message_at,
            COALESCE((SELECT max(m.created_at) FROM messaging_messages m WHERE m.room_id=r.id),r.created_at) updated_at

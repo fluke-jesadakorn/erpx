@@ -213,6 +213,7 @@ if (allowed.status !== 200) throw new Error(`expected 200 overview, got ${allowe
   if (ids.length !== 3 || !ids.includes('room-1') || !ids.includes('room-org') || !ids.includes('org-channel-acme-co')) throw new Error(`expected [room-1, room-org, org-channel-acme-co], got ${JSON.stringify(ids)}`);
   const direct = data.rooms!.find(r => r.id === 'room-1')!;
   if (direct.preview !== 'hello native') throw new Error('expected preview passthrough');
+  if ((direct as { unread?: number }).unread !== 0) throw new Error('expected own message excluded from unread (TS parity)');
   const org = data.rooms!.find(r => r.id === 'room-org')!;
   if (org.kind !== 'channel' || org.preview !== null || org.teamId !== 'team-org' || org.private !== false) throw new Error(`unexpected org room shape: ${JSON.stringify(org)}`);
   if (typeof org.updatedAt !== 'number') throw new Error('expected org updatedAt fallback');
