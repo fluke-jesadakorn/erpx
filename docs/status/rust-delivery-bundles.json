@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5179,
+    "revision": 5186,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T21:16:04.840Z",
-      "expiresAt": "2026-11-22T21:46:04.840Z",
+      "heartbeatAt": "2026-11-22T21:24:13.874Z",
+      "expiresAt": "2026-11-22T21:54:13.874Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T21:24:03.781Z",
-          "heartbeatAt": "2026-11-22T21:24:03.781Z",
-          "expiresAt": "2026-11-22T21:54:03.782Z",
+          "claimedAt": "2026-11-22T21:27:19.989Z",
+          "heartbeatAt": "2026-11-22T21:27:19.989Z",
+          "expiresAt": "2026-11-22T21:57:19.989Z",
           "generation": 150
         },
-        "baseSha": "fab4defee81680b33c7e670cda82c080ec033f8e",
+        "baseSha": "18e2e277b1e553d8497f10a682d12f87de294546",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN AT fab4defee. Built the suite-native harness path: the Account test proxy now publishes Commerce/Finance/Manufacturing owner-write and accounting-profile configs and operationsCompanies, and the Finance client resolves holdings by id, so native callers target the disposable test DBs. The suite reaches the suite-scoped private test API and the boundary accepts the request (host=acme.jesadakorn.com audience=Some), but Commerce warehouse-save still returns 404 empty while the same body on the development-config server returns 200 on the same binary. Remaining work is Test-profile router assembly/config parity, not transport. The dev service on :3198 was rebuilt with the mounted Manufacturing wave-3 routes and remains healthy (:3100 200). Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
+        "nextAction": "TURN AT 18e2e277b. Narrowed the manufacturing suite blocker to the Test-profile composition: with ERPX_NATIVE_ACCOUNT_TEST_PROXY=1 the generated config contains operationsCompanies [{h001,acme-co}] and the suite server receives /commerce/warehouse-save and /manufacturing/accounting-profile with host acme and audience, but both return 404 empty. The development-profile server on the same binary returns 200 for the same warehouse body. A test-profile server pointed at dev DBs is rejected by test_database() (EXACT_TEST_DATABASE_REQUIRED), so the remaining fix is a development-profile suite server bound to the disposable DBs (2-3 holdings/lease rules) or finding the assembly branch that skips existing-business under Test. No code beyond fab4defee is uncommitted; probes were reverted. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:17:22.198Z",
+          "at": "2026-11-22T21:27:19.725Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "TURN AT b7ab56dce. Confirmed the manufacturing suite 503 is a test-harness DB mismatch, not a Commerce command bug: a direct POST /api/v1/holdings/acme/commerce/warehouse-save to the live :3198 dev service with companyId acme-co and branchId bangkok returned 200 {\"id\":\"probe-…\",\"companyId\":\"acme-co\"}. The suite creates disposable erpx_test_<prefix>_* databases while the native service is bound to erpx_dev_h001_write, so fixture companies/branches are invisible to the server and PgTransactionError::Persistence is masked as 503. The node:http Host fix (54ea1715a) is required and now proven by BOUNDARY_DEBUG host=acme.jesadakorn.com audience=Some. Next: add tests/support/native-suite-server.ts to start a suite-scoped erpx-server on the test DBs with a test/h001 target and point the four native client configs at it; then rerun manufacturing.production.integration. Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
+          "nextAction": "TURN AT fab4defee. Built the suite-native harness path: the Account test proxy now publishes Commerce/Finance/Manufacturing owner-write and accounting-profile configs and operationsCompanies, and the Finance client resolves holdings by id, so native callers target the disposable test DBs. The suite reaches the suite-scoped private test API and the boundary accepts the request (host=acme.jesadakorn.com audience=Some), but Commerce warehouse-save still returns 404 empty while the same body on the development-config server returns 200 on the same binary. Remaining work is Test-profile router assembly/config parity, not transport. The dev service on :3198 was rebuilt with the mounted Manufacturing wave-3 routes and remains healthy (:3100 200). Decisions still needed: PG 18.6 restore vs 18.x assertions; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key strategy; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -51996,7 +51996,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "fab4defee81680b33c7e670cda82c080ec033f8e",
+        "baseSha": "18e2e277b1e553d8497f10a682d12f87de294546",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52079,14 +52079,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "SUITE HARNESS PARTIAL at fab4defee. tests/support/native-account-sso.ts now publishes ERPX_NATIVE_COMMERCE_WAVE2_CONFIG, FINANCE_OWNER_WRITE_CONFIG, MANUFACTURING_OWNER_WRITE_CONFIG and MANUFACTURING_ACCOUNTING_CONFIG for the suite-scoped private test API and adds operationsCompanies [{h001, acme-co}]; native-finance-owner-write resolves the registered holding by holdingId and uses its registered slug. With ERPX_NATIVE_ACCOUNT_TEST_PROXY=1 the suite starts the test API against the disposable DBs and the boundary accepts the warehouse frame (host=acme.jesadakorn.com audience=Some), but Commerce warehouse-save still returns 404 with an empty body although the generated config contains operationsCompanies; the identical body against the development-config server on the SAME binary with the dev DB returns 200. Remaining gap is therefore the Test-profile router assembly (or config derivation), not transport/DB. Next: diff Test vs Development assembly mounts (or start the suite server with a development-profile config pointed at the test DB URLs), then rerun manufacturing.production.integration and close. Evidence: dev probe 200, test server boundary log, typecheck 0, manufacturing lib 16/16.",
+        "nextAction": "TEST-PROFILE ROUTER GAP CONFIRMED at 18e2e277b. Instrumented the suite server: the generated config contains operationsCompanies [{holdingId:h001,companyId:acme-co}], the boundary receives both /api/v1/holdings/acme/commerce/warehouse-save and /api/v1/holdings/acme/manufacturing/accounting-profile with host=acme.jesadakorn.com audience=Some, but BOTH return 404 with an empty body. So the Test-profile assembly does not mount the existing-business owner routers at all (not a warehouse/ledger or transport bug). A direct probe of the test config with dev DB URLs is rejected by test_database() (EXACT_TEST_DATABASE_REQUIRED), so the next step is either (a) start the suite server with a Development-profile config bound to the disposable test DBs (needs the 2-3 holding/lease rules) or (b) locate the Test-profile assembly branch that skips the mounts. This is a harness/composition gate; the node:http Host fix and the config publishing are already in place. Dev-profile server on the same binary returns 200 for the same warehouse body on the dev DB.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:24:03.717Z",
+          "at": "2026-11-22T21:27:19.925Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "SUITE HARNESS PARTIAL at fab4defee. tests/support/native-account-sso.ts now publishes ERPX_NATIVE_COMMERCE_WAVE2_CONFIG, FINANCE_OWNER_WRITE_CONFIG, MANUFACTURING_OWNER_WRITE_CONFIG and MANUFACTURING_ACCOUNTING_CONFIG for the suite-scoped private test API and adds operationsCompanies [{h001, acme-co}]; native-finance-owner-write resolves the registered holding by holdingId and uses its registered slug. With ERPX_NATIVE_ACCOUNT_TEST_PROXY=1 the suite starts the test API against the disposable DBs and the boundary accepts the warehouse frame (host=acme.jesadakorn.com audience=Some), but Commerce warehouse-save still returns 404 with an empty body although the generated config contains operationsCompanies; the identical body against the development-config server on the SAME binary with the dev DB returns 200. Remaining gap is therefore the Test-profile router assembly (or config derivation), not transport/DB. Next: diff Test vs Development assembly mounts (or start the suite server with a development-profile config pointed at the test DB URLs), then rerun manufacturing.production.integration and close. Evidence: dev probe 200, test server boundary log, typecheck 0, manufacturing lib 16/16."
+          "nextAction": "TEST-PROFILE ROUTER GAP CONFIRMED at 18e2e277b. Instrumented the suite server: the generated config contains operationsCompanies [{holdingId:h001,companyId:acme-co}], the boundary receives both /api/v1/holdings/acme/commerce/warehouse-save and /api/v1/holdings/acme/manufacturing/accounting-profile with host=acme.jesadakorn.com audience=Some, but BOTH return 404 with an empty body. So the Test-profile assembly does not mount the existing-business owner routers at all (not a warehouse/ledger or transport bug). A direct probe of the test config with dev DB URLs is rejected by test_database() (EXACT_TEST_DATABASE_REQUIRED), so the next step is either (a) start the suite server with a Development-profile config bound to the disposable test DBs (needs the 2-3 holding/lease rules) or (b) locate the Test-profile assembly branch that skips the mounts. This is a harness/composition gate; the node:http Host fix and the config publishing are already in place. Dev-profile server on the same binary returns 200 for the same warehouse body on the dev DB."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107942,7 +107942,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T21:24:10.389Z",
+    "updatedAt": "2026-11-22T21:27:28.032Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
