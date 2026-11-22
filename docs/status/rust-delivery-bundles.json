@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4797,
+    "revision": 4801,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T12:52:26.063Z",
-      "expiresAt": "2026-11-22T13:22:26.063Z",
+      "heartbeatAt": "2026-11-22T12:52:50.384Z",
+      "expiresAt": "2026-11-22T13:22:50.384Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T12:52:26.063Z",
-          "expiresAt": "2026-11-22T13:22:26.063Z",
+          "heartbeatAt": "2026-11-22T12:52:50.384Z",
+          "expiresAt": "2026-11-22T13:22:50.384Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17851,6 +17851,9 @@
           "packages/server-quality/src/adapters/quality.ts",
           "packages/server-quality/src/adapters/alerts.ts",
           "packages/server-legal/src/adapters/legal/access.ts",
+          "packages/server-talent/src/adapters/talent.ts",
+          "packages/server-marketing/src/adapters/marketing.ts",
+          "packages/server-manufacturing/src/adapters/production.ts",
           "tests/unit/collaboration/**",
           "tests/integration/collaboration/**"
         ],
@@ -17861,9 +17864,9 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "claimedAt": "2026-11-22T12:35:23.920Z",
-          "heartbeatAt": "2026-11-22T12:52:26.063Z",
-          "expiresAt": "2026-11-22T13:22:26.063Z",
+          "claimedAt": "2026-11-22T12:53:22.079Z",
+          "heartbeatAt": "2026-11-22T12:53:22.079Z",
+          "expiresAt": "2026-11-22T13:23:22.079Z",
           "generation": 150
         },
         "baseSha": "8bf1eb704b20f6b95c83d4b62ad737f85bf8e313",
@@ -18257,14 +18260,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Quality/legal slice integrated at 8bf1eb70 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
+        "nextAction": "Refined: talent/marketing/manufacturing oracle paths added (read-only reference for talent_application/marketing_candidate/manufacturing_order delegates). Ten slices integrated+proven. Next: worker re-claims and builds the slice, then learning/benefits/operations/records/identity_access/organization/customer_authority/workflow families.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "worker-a",
-          "at": "2026-11-22T12:35:04.514Z",
+          "at": "2026-11-22T12:53:03.389Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Inventory slice integrated at 9cfb9e71 (delegate + chain wiring + PG 12/12 proven, pushed). Stays non-migrated: quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
+          "nextAction": "Quality/legal slice integrated at 8bf1eb70 (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -106951,7 +106954,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T12:52:26.065Z",
+    "updatedAt": "2026-11-22T12:53:22.080Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
