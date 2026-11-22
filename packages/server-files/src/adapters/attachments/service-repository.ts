@@ -306,8 +306,8 @@ export function repository(db: SqlDatabase) {
             companyId: string;
             ownerType: unknown;
         }) => {
-            return db.prepare(`UPDATE attachment_links l SET attachment_id=? FROM attachment_sets s WHERE l.id=? AND l.set_id=s.id AND s.company_id=? AND l.state='draft'
-          ${facts.ownerType === "leave_request" ? "AND s.state='draft'" : ""}`).bind(facts.attachmentId, facts.attachment_link_id, facts.companyId);
+            const kind = facts.ownerType === "leave_request" ? 'SR_057' : 'SR_056';
+            return nativeWrite(kind, [facts.attachmentId, facts.attachment_link_id, facts.companyId]);
         },
         stepAttachmentScanAttempts36: (facts: {
             arg1: string;
@@ -528,7 +528,7 @@ export function repository(db: SqlDatabase) {
             bindingId: string;
             link_id: string;
             companyId: string;
-        }) => { return db.prepare("UPDATE attachment_links l SET state='bound',bound_at=?,binding_type=?,binding_id=? FROM attachment_sets s WHERE l.id=? AND l.set_id=s.id AND s.company_id=? AND l.state='draft'").bind(facts.now, facts.bindingType, facts.bindingId, facts.link_id, facts.companyId); },
+        }) => { return nativeWrite('SR_058', [facts.now, facts.bindingType, facts.bindingId, facts.link_id, facts.companyId]); },
         stepAttachmentSets67: (facts: {
             now: number;
             commandId: string;

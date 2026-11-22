@@ -114,6 +114,12 @@ pub const SR_055: &str = "SR_055";
 const SQL_SR_055: &str = "INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) SELECT $1,company_id,$2,'system:jobs','source.byte_delete_failed',$3,$4 FROM attachments WHERE id=$5"; // binds=5
 pub const MIG_001: &str = "MIG_001";
 const SQL_MIG_001: &str = "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,retention_policy_key,retention_policy_version,retain_until,destruction_mode,required_count,max_files,state,created_by,created_at,updated_at,bound_at,bound_command_id)         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::bigint,$16::bigint,$17,$18,$19,'draft',$20,$21,$22,NULL,NULL) ON CONFLICT(id) DO NOTHING"; // binds=22
+pub const SR_056: &str = "SR_056";
+const SQL_SR_056: &str = "UPDATE attachment_links l SET attachment_id=$1 FROM attachment_sets s WHERE l.id=$2 AND l.set_id=s.id AND s.company_id=$3 AND l.state='draft'"; // binds=3
+pub const SR_057: &str = "SR_057";
+const SQL_SR_057: &str = "UPDATE attachment_links l SET attachment_id=$1 FROM attachment_sets s WHERE l.id=$2 AND l.set_id=s.id AND s.company_id=$3 AND l.state='draft' AND s.state='draft'"; // binds=3
+pub const SR_058: &str = "SR_058";
+const SQL_SR_058: &str = "UPDATE attachment_links l SET state='bound',bound_at=$1,binding_type=$2,binding_id=$3 FROM attachment_sets s WHERE l.id=$4 AND l.set_id=s.id AND s.company_id=$5 AND l.state='draft'"; // binds=5
 pub const MIG_002: &str = "MIG_002";
 const SQL_MIG_002: &str = "INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES($1,$2,'draft',$3,$4,$5) ON CONFLICT(id) DO NOTHING"; // binds=5
 pub const MIG_003: &str = "MIG_003";
@@ -233,6 +239,9 @@ const KINDS: &[&str] = &[
     SR_053,
     SR_054,
     SR_055,
+    SR_056,
+    SR_057,
+    SR_058,
     MIG_001,
     MIG_002,
     MIG_003,
@@ -318,6 +327,9 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     SR_053 => SQL_SR_053,
     SR_054 => SQL_SR_054,
     SR_055 => SQL_SR_055,
+    SR_056 => SQL_SR_056,
+    SR_057 => SQL_SR_057,
+    SR_058 => SQL_SR_058,
     MIG_001 => SQL_MIG_001,
     MIG_002 => SQL_MIG_002,
     MIG_003 => SQL_MIG_003,
