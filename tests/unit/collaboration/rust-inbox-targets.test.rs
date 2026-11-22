@@ -2,14 +2,16 @@
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
     InboxTargetPort, InboxTargetVisibility, PayrollInboxTargets, PeopleInboxTargets,
-    bangkok_coverage_weeks, calendar_appointment_href, commerce_order_capability,
-    commerce_order_href, crm_activity_href, crm_lead_href, encode_uri_component, expense_href,
-    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
-    is_calendar_inbox_target, is_commerce_inbox_target, is_crm_inbox_target,
-    is_finance_inbox_target, is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
-    is_roster_monday, leave_href, overtime_href, parse_roster_coverage_id, payroll_advance_href,
-    payroll_correction_href, retirement_case_href, retained_inbox_destination,
-    roster_request_href, roster_week_href, source_record_label, uses_enforced_layer,
+    SupportInboxTargets, bangkok_coverage_weeks, calendar_appointment_href,
+    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
+    encode_uri_component, expense_href, finance_document_capability, finance_invoice_href,
+    finance_journal_href, finance_refund_href, is_calendar_inbox_target, is_commerce_inbox_target,
+    is_crm_inbox_target, is_finance_inbox_target, is_owned_inbox_target, is_payroll_inbox_target,
+    is_people_inbox_target, is_roster_monday, is_support_inbox_target, leave_href, overtime_href,
+    parse_roster_coverage_id, payroll_advance_href, payroll_correction_href, retirement_case_href,
+    retained_inbox_destination, roster_request_href, roster_week_href, source_record_label,
+    support_history_capability, support_incident_href, support_session_href, support_sla_href,
+    support_ticket_href, uses_enforced_layer,
 };
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 
@@ -620,4 +622,88 @@ fn people_mondays_and_bangkok_weeks_match_the_retained_calendar() {
         bangkok_coverage_weeks(1_795_323_600_000),
         Some(("2026-11-16".into(), "2026-11-23".into()))
     );
+}
+
+#[test]
+fn support_slice_routes_to_the_native_delegate() {
+    for source_type in [
+        "support_sla_alert",
+        "support_incident",
+        "support_policy",
+        "support_ticket",
+        "support_session",
+    ] {
+        assert!(is_support_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "crm_lead",
+        "commerce_order",
+        "invoice",
+        "payroll_correction",
+        "roster_week",
+        "overtime",
+        "leave",
+        "support",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_support_inbox_target(other), "{other}");
+    }
+    // No other delegate owns the support sources.
+    assert!(!is_calendar_inbox_target("support_ticket"));
+    assert!(!is_crm_inbox_target("support_ticket"));
+    assert!(!is_commerce_inbox_target("support_ticket"));
+    assert!(!is_finance_inbox_target("support_session"));
+    assert!(!is_payroll_inbox_target("support_policy"));
+    assert!(!is_people_inbox_target("support_sla_alert"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&SupportInboxTargets::new(None, None));
+    assert_inbox_target_port(&SupportInboxTargets::default());
+    assert_inbox_target_port(
+        &SupportInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn support_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(support_sla_href(), "/support/sla");
+    // Incident hrefs carry the raw id, no encoding.
+    assert_eq!(support_incident_href("inc-1/2"), "/support/incidents/inc-1/2");
+    assert_eq!(support_ticket_href("t-1"), "/support/t-1");
+    assert_eq!(support_ticket_href(ID), format!("/support/{ENCODED}"));
+    assert_eq!(support_session_href("ses-1"), "/support/sessions/ses-1");
+    assert_eq!(
+        support_session_href(ID),
+        format!("/support/sessions/{ENCODED}")
+    );
+    assert_eq!(source_record_label("support_ticket"), "Support ticket");
+    assert_eq!(source_record_label("support_session"), "Support session");
+    assert_eq!(source_record_label("support_sla_alert"), "Support sla alert");
+}
+
+#[test]
+fn support_kind_capability_table_matches_the_retained_gates() {
+    assert_eq!(
+        support_history_capability("support_sla_alert"),
+        Some("support.sla")
+    );
+    assert_eq!(support_history_capability("support_policy"), Some("support.sla"));
+    assert_eq!(
+        support_history_capability("support_ticket"),
+        Some("support.tickets")
+    );
+    assert_eq!(
+        support_history_capability("support_session"),
+        Some("support.tickets")
+    );
+    assert_eq!(
+        support_history_capability("support_incident"),
+        Some("support.incidents")
+    );
+    assert_eq!(support_history_capability("support"), None);
+    assert_eq!(support_history_capability(""), None);
 }

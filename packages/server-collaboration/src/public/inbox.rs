@@ -37,3 +37,7 @@ pub use crate::adapters::inbox_people::{
     is_roster_monday, leave_href, overtime_href, parse_roster_coverage_id, retirement_case_href,
     roster_request_href, roster_week_href,
 };
+pub use crate::adapters::inbox_support::{
+    SupportInboxTargets, is_support_inbox_target, support_history_capability, support_incident_href,
+    support_session_href, support_sla_href, support_ticket_href,
+};
