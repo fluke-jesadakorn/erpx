@@ -79,7 +79,18 @@ pub fn validate(input: &FilesCommandInput) -> Result<&'static str, BusinessError
         return Err(invalid());
     }
     let statement = sql(&input.kind).ok_or_else(invalid)?;
-    let placeholders = statement.bytes().filter(|byte| *byte == b'$').count();
+    // Count distinct placeholders: owner statements may repeat a parameter
+    // (for example one `now` reused in the expiry CTE and its event insert).
+    let mut seen = [false; 65];
+    for fragment in statement.split('$').skip(1) {
+        let digits: String = fragment.chars().take_while(char::is_ascii_digit).collect();
+        if let Ok(index) = digits.parse::<usize>() {
+            if (1..seen.len()).contains(&index) {
+                seen[index] = true;
+            }
+        }
+    }
+    let placeholders = seen.iter().filter(|used| **used).count();
     if placeholders != input.values.len() {
         return Err(invalid());
     }

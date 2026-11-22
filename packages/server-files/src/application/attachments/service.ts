@@ -3,6 +3,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import type {Clock,IdentifierSource} from "@erpx/server-shared/application/ports";
 import type {AttachmentEnvironment} from "@erpx/server-files/domain/attachments/feature";
 import {ATTACHMENT_DRAFT_MS,ATTACHMENT_RESERVATION_MS} from "@erpx/server-files/domain/attachments/feature";
+import {nativeWrite} from "../../adapters/native-files-command";
 import type {AttachmentComponentKind,AttachmentLinkState,AttachmentSourceState,AttachmentSetDto,AttachmentLinkDto,AttachmentManifestItem,AttachmentBindingContract,AttachmentPolicy,AttachmentTargetScope,AttachmentOperation,PreparedAttachmentBinding} from "@erpx/server-files/domain/attachments/types";
 import type {SetRow,LinkRow} from "@erpx/server-files/domain/attachments/service-models";
 import {createAttachmentPolicy} from "@erpx/server-files/application/attachments/policy";
@@ -910,17 +911,11 @@ async function cleanupAttachmentDrafts(db:AttachmentServiceUnit<Effect>,files:At
   // same row lock, so cleanup cannot invalidate a manifest between its guards
   // and bind steps.
   const leaveTargets=(await db.readAttachmentSets126({now:now,arg2:now-ATTACHMENT_DRAFT_MS})).results;
-  const expired=await atomic(db,async tx=>{
-    const links=(await tx.readAttachmentLinks127({now:now})).results;
-    for(const link of links)await tx.writeAttachmentEvents128({arg1:`attachment-event-${ports.identifiers.next()}`,attachment_id:link.attachment_id,id:link.id,set_id:link.set_id,arg5:"system:jobs",arg6:"link.expired",arg7:"{}",now:now});
-    return links;
-  });
-  await atomic(db,async tx=>{await tx.writeUploadIntents129({now:now});});
-  const expiredSets=await atomic(db,async tx=>{
-    const sets=(await tx.readAttachmentSets130({now:now,arg2:now-ATTACHMENT_DRAFT_MS})).results;
-    for(const set of sets)await tx.writeAttachmentEvents131({arg1:`attachment-event-${ports.identifiers.next()}`,company_id:set.company_id,id:set.id,now:now});
-    return sets;
-  });
+  // Global draft expiry is one native owner unit per phase: the owner expires
+  // the rows and writes the audit events inside the same serializable unit.
+  const expired=(await nativeWrite('SR_065',[now]).all<{id:string;set_id:string;attachment_id:string|null}>()).results;
+  await nativeWrite('SR_060',[now,now]).run();
+  const expiredSets=(await nativeWrite('SR_067',[now,now,now-ATTACHMENT_DRAFT_MS]).all<{id:string;company_id:string}>()).results;
   for(const target of leaveTargets){
     const result=await atomic(db,async tx=>{
       const owner=await tx.readLeaveRequests132({target_id:target.target_id,company_id:target.company_id});
