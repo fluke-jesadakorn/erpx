@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4623,
+    "revision": 4629,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-c",
       "agentId": "lead",
       "startedAt": "2026-11-22T08:24:38.648Z",
-      "heartbeatAt": "2026-11-22T08:40:31.324Z",
-      "expiresAt": "2026-11-22T09:10:31.324Z",
+      "heartbeatAt": "2026-11-22T08:46:37.096Z",
+      "expiresAt": "2026-11-22T09:16:37.096Z",
       "generation": 149,
       "tokenHash": "7b63e9d1f627f8689913722ffaf51742c7fed8d71a3f6ca618a540e6f9ae5084"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-c",
           "agentId": "lead",
           "claimedAt": "2026-11-22T08:28:20.743Z",
-          "heartbeatAt": "2026-11-22T08:40:31.324Z",
-          "expiresAt": "2026-11-22T09:10:31.324Z",
+          "heartbeatAt": "2026-11-22T08:46:37.096Z",
+          "expiresAt": "2026-11-22T09:16:37.096Z",
           "generation": 149
         },
         "baseSha": null,
@@ -105993,7 +105993,7 @@
           "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
           "tests/integration/collaboration/rust-messaging-postgres.test.rs"
         ],
-        "baseSha": "58c04c3c420a7d4ffe4666415a6eebb67ef813a4",
+        "baseSha": "e646c9ab509393ce474d0630d5d715218d0a5b58",
         "blocker": "handoff",
         "checks": [
           {
@@ -106025,6 +106025,36 @@
             "result": "passed",
             "sourceSha": "58c04c3c420a7d4ffe4666415a6eebb67ef813a4",
             "note": "4 passed incl. new overview_includes_organization_channel_for_node_members_only (org member sees org channel w/ updated_at fallback; non-member sees nothing)."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "58c04c3c420a7d4ffe4666415a6eebb67ef813a4",
+            "note": "Org predicate export + read_overview OR-branch compile (AssertSqlSafe pattern per org precedent)."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "58c04c3c420a7d4ffe4666415a6eebb67ef813a4",
+            "note": "No errors; collaboration public API additive."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib messaging",
+            "result": "passed",
+            "sourceSha": "58c04c3c420a7d4ffe4666415a6eebb67ef813a4",
+            "note": "18 passed."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test messaging_http",
+            "result": "passed",
+            "sourceSha": "58c04c3c420a7d4ffe4666415a6eebb67ef813a4",
+            "note": "4 passed."
+          },
+          {
+            "command": "test:integration --suite=collaboration.rust-messaging-postgres.integration",
+            "result": "passed",
+            "sourceSha": "e646c9ab509393ce474d0630d5d715218d0a5b58",
+            "note": "4 passed incl. hardened org-channel proof: member sees only the active org channel; suspended-node room, revoked-assignment user and stranger all see nothing."
           }
         ],
         "claim": null,
@@ -106038,16 +106068,16 @@
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
-          "at": "2026-11-22T08:46:16.480Z",
+          "at": "2026-11-22T08:48:08.950Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Native port done+proven at 58c04c3c (unpushed; needs lead push with ledger). TS switch NOT done: needs new scoped slice for feature-apps messaging route (purchase gating, channel provisioning, name decoration) + presentation-queries.ts, then TS deletion + retirement delta. Claim released."
+          "nextAction": "Port complete; transport follow-up retire.collaboration.messaging-overview-transport pending. Claim released."
         },
         "id": "retire.reads.collaboration.org-access-port",
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "Native port done+proven at 58c04c3c (unpushed; needs lead push with ledger). TS switch NOT done: needs new scoped slice for feature-apps messaging route (purchase gating, channel provisioning, name decoration) + presentation-queries.ts, then TS deletion + retirement delta. Claim released.",
+        "nextAction": "Port complete; transport follow-up retire.collaboration.messaging-overview-transport pending. Claim released.",
         "owner": "collaboration",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [
@@ -106064,6 +106094,46 @@
         "title": "Native org-channel access branch for rooms() cutover",
         "workflowIds": [],
         "workstream": "S01"
+      },
+      {
+        "allowedPaths": [
+          "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
+          "packages/server-collaboration/src/adapters/presentation-queries.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/collaboration/"
+        ],
+        "baseSha": null,
+        "blocker": null,
+        "checks": [],
+        "claim": null,
+        "dependsOn": [
+          "retire.reads.collaboration.org-access-port"
+        ],
+        "deliverables": [
+          "Purchase-gating parity decision implemented (native gate or explicit product exemption)",
+          "ensureOrganizationChannels provisioning parity (native or explicit exemption)",
+          "Direct-room name decoration parity in presenter or native payload",
+          "TS rooms()/messagingOverview fallback deleted; retirement:ts-statements delta recorded"
+        ],
+        "goalId": "G4",
+        "handoff": null,
+        "id": "retire.collaboration.messaging-overview-transport",
+        "implementedCommit": null,
+        "kind": "migration",
+        "lastPushedSha": null,
+        "nextAction": "Claim, then resolve the three recorded parity gaps against the native overview (purchase gating, channel provisioning, name decoration), switch the feature-apps messaging route overview branch to native-only, delete the TS fallback, and record the retirement delta.",
+        "owner": "collaboration",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "requiredPorts": [],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "retainedLegacy": [],
+        "scope": "Transport cutover for messaging overview: native read_overview is now a functional superset (member/team/org branches, RoomView fields). The feature-apps messaging route still prefers native only when ERPX_NATIVE_COLLABORATION_CONFIG is set and falls back to TS messagingOverview, which additionally does (1) purchase gating returning empty+puchase when history unpurchased, (2) ensureOrganizationChannels provisioning side effect, (3) direct-room display-name decoration. None may be silently dropped. Unread sender-exclusion also still differs (TS excludes own messages) and needs consumer sign-off before alignment.",
+        "scopeRefinementRequired": false,
+        "status": "pending",
+        "title": "Cut messaging overview route to native-only",
+        "workflowIds": [],
+        "workstream": "S01"
       }
     ],
     "migrationProgress": {
@@ -106072,10 +106142,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 435,
+      "totalPackets": 436,
       "migratedPackets": 320,
       "statusCounts": {
-        "pending": 20,
+        "pending": 21,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -106086,7 +106156,7 @@
       }
     },
     "lastCoordinatorGeneration": 149,
-    "updatedAt": "2026-11-22T08:46:16.482Z",
+    "updatedAt": "2026-11-22T08:48:08.951Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
