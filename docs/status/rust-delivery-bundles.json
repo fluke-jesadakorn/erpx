@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5239,
+    "revision": 5247,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T21:50:34.921Z",
-      "expiresAt": "2026-11-22T22:20:34.921Z",
+      "heartbeatAt": "2026-11-22T21:57:06.572Z",
+      "expiresAt": "2026-11-22T22:27:06.572Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-22T21:56:56.280Z",
-          "heartbeatAt": "2026-11-22T21:56:56.280Z",
-          "expiresAt": "2026-11-22T22:26:56.280Z",
+          "claimedAt": "2026-11-22T22:02:23.763Z",
+          "heartbeatAt": "2026-11-22T22:02:23.763Z",
+          "expiresAt": "2026-11-22T22:32:23.763Z",
           "generation": 150
         },
-        "baseSha": "00e71e04c27e50660eb094042e53f86c2fa4bcd8",
+        "baseSha": "808ae203a1534217caa18a2d8c2e75b6a2155d6c",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN AT 00e71e04c. Finished the collaboration system notification path: pure planner, SystemNotificationBackend (company from body), assertion-clear kind via WORKFLOW_ASSERTION_CLEAR_SQL, system targets wired. The suite now passes collaboration and fails at native-workflow-write /workflow/wave3-execute, whose composition backend was never compiled (raw sqlx dynamic SQL + DatabasePool API) and is unmounted. Next: plan those descriptor statements through the mounted company route and execute them in the caller batch, or port the execute backend with the runtime audited SQL helper. Dev binary rebuilt; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
+        "nextAction": "TURN AT 808ae203a. Mounted the workflow execute route with the sqlx 0.9 audited dynamic-SQL wrapper and restored the composition backend; added the wf_native_command_assertions_3 condition planner. manufacturing.production.integration now reaches the assertion INSERT and fails SQLSTATE 42883 bigint = text at the condition. Next: identify the assertion call whose arg is a string and pass a number (or cast in the condition), then rerun. Dev binary rebuilt; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:54:49.717Z",
+          "at": "2026-11-22T22:00:21.664Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "TURN AT 922f562b0. Instrumentation proved the collaboration target layer is correct (COLLAB_ROUTER keys=[\"acme-co\"]; COLLAB_TARGET company=expense-... default=true). The remaining 404 \"Not found.\" is CollaborationWorkBackend::context in src/composition/src/collaboration.rs: the system notification route calls parse_inbound_account_request and requires RequestAudience::Holding, but it has no signed Account context. Next: add a system-context StatementBackend (resolve company from x-erpx-context-company/input, no browser DeviceProof) or a system service variant, then rerun manufacturing.production.integration. Commerce/profile/workflow/boundary all pass. Dev binary rebuilt clean; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
+          "nextAction": "TURN AT 00e71e04c. Finished the collaboration system notification path: pure planner, SystemNotificationBackend (company from body), assertion-clear kind via WORKFLOW_ASSERTION_CLEAR_SQL, system targets wired. The suite now passes collaboration and fails at native-workflow-write /workflow/wave3-execute, whose composition backend was never compiled (raw sqlx dynamic SQL + DatabasePool API) and is unmounted. Next: plan those descriptor statements through the mounted company route and execute them in the caller batch, or port the execute backend with the runtime audited SQL helper. Dev binary rebuilt; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -51989,7 +51989,8 @@
           "packages/server-workflow/src/adapters/workflow_wave3_http.rs",
           "packages/server-collaboration/src/adapters/notification_statement_http.rs",
           "packages/server-collaboration/src/adapters/native-system-notification.ts",
-          "packages/server-workflow/src/public/workflow_wave3.rs"
+          "packages/server-workflow/src/public/workflow_wave3.rs",
+          "packages/server-workflow/src/domain/workflow_wave3.rs"
         ],
         "resources": [
           "owner:planning",
@@ -52002,7 +52003,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "00e71e04c27e50660eb094042e53f86c2fa4bcd8",
+        "baseSha": "808ae203a1534217caa18a2d8c2e75b6a2155d6c",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52085,14 +52086,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "COLLABORATION SYSTEM PLANNER DONE at 00e71e04c. Extracted a pure plan_notification_statement (no connection/proof), added SystemNotificationBackend that resolves the company from the request body and returns either the notification INSERT or, for kind=workflow_command_assertion_clear, WORKFLOW_ASSERTION_CLEAR_SQL with valuesJson, and wired system targets into the collaboration system router. The suite now gets past the collaboration notification and fails at native-workflow-write /workflow/wave3-execute: that composition execute backend was never compiled (raw sqlx dynamic SQL + DatabasePool API) and the route is unmounted. Next: plan those descriptor statements via the mounted company route and execute them in the caller batch (preferred), or port the execute backend using the runtime audited SQL helper. This is retire.workflow transport work. Evidence: collaboration 4/4 lib tests, typecheck 0, suite moves to the workflow descriptor execute.",
+        "nextAction": "WORKFLOW EXECUTE ROUTE LIVE at 808ae203a. Restored the composition execute backend with pool.raw().acquire and sqlx::AssertSqlSafe (sqlx 0.9 dynamic-SQL audit), mounted /api/v1/holdings/{id}/workflow/wave3-execute, and added the wf_native_command_assertions_3 planner special case (last value is the bounded audited condition, remaining values are binds). The suite now reaches the assertion INSERT and fails with SQLSTATE 42883 \"operator does not exist: bigint = text\" at the condition, i.e. one assertion arg is bound as text where the column is bigint. Next: log the assertion condition/values, pass numeric args (or add explicit casts in the condition) and rerun. The execute path itself is now real and audited.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T21:56:56.214Z",
+          "at": "2026-11-22T22:02:23.697Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "COLLABORATION SYSTEM PLANNER DONE at 00e71e04c. Extracted a pure plan_notification_statement (no connection/proof), added SystemNotificationBackend that resolves the company from the request body and returns either the notification INSERT or, for kind=workflow_command_assertion_clear, WORKFLOW_ASSERTION_CLEAR_SQL with valuesJson, and wired system targets into the collaboration system router. The suite now gets past the collaboration notification and fails at native-workflow-write /workflow/wave3-execute: that composition execute backend was never compiled (raw sqlx dynamic SQL + DatabasePool API) and the route is unmounted. Next: plan those descriptor statements via the mounted company route and execute them in the caller batch (preferred), or port the execute backend using the runtime audited SQL helper. This is retire.workflow transport work. Evidence: collaboration 4/4 lib tests, typecheck 0, suite moves to the workflow descriptor execute."
+          "nextAction": "WORKFLOW EXECUTE ROUTE LIVE at 808ae203a. Restored the composition execute backend with pool.raw().acquire and sqlx::AssertSqlSafe (sqlx 0.9 dynamic-SQL audit), mounted /api/v1/holdings/{id}/workflow/wave3-execute, and added the wf_native_command_assertions_3 planner special case (last value is the bounded audited condition, remaining values are binds). The suite now reaches the assertion INSERT and fails with SQLSTATE 42883 \"operator does not exist: bigint = text\" at the condition, i.e. one assertion arg is bound as text where the column is bigint. Next: log the assertion condition/values, pass numeric args (or add explicit casts in the condition) and rerun. The execute path itself is now real and audited."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107948,7 +107949,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T21:57:03.093Z",
+    "updatedAt": "2026-11-22T22:02:30.740Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
