@@ -290,6 +290,61 @@ fn storage() -> BusinessError {
     )
 }
 
+/// Ordered owner-delegate chain for composition. The first delegate that does
+/// not defer proves the source; deferral is exactly the retained fail-closed
+/// contract. Denials and storage failures propagate unchanged — the retained
+/// per-row 403/404 drop mapping belongs to the notifications read switch,
+/// not the port.
+pub struct ChainedInboxTargets {
+    delegates: Vec<Box<dyn InboxTargetPort>>,
+}
+
+impl ChainedInboxTargets {
+    pub fn chain(delegates: Vec<Box<dyn InboxTargetPort>>) -> Self {
+        Self { delegates }
+    }
+
+    fn defers(error: &BusinessError) -> bool {
+        matches!(
+            error.code,
+            "INBOX_TARGET_SOURCE_UNSUPPORTED" | "INBOX_TARGET_PORT_UNAVAILABLE"
+        )
+    }
+}
+
+impl InboxTargetPort for ChainedInboxTargets {
+    fn target<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        company_id: &'a str,
+        user_id: &'a str,
+        source_type: &'a str,
+        source_id: &'a str,
+        source_version: i64,
+    ) -> InboxTargetFuture<'a> {
+        Box::pin(async move {
+            let mut deferred: Option<BusinessError> = None;
+            for delegate in self.delegates.iter_mut() {
+                match delegate
+                    .target(
+                        connection,
+                        company_id,
+                        user_id,
+                        source_type,
+                        source_id,
+                        source_version,
+                    )
+                    .await
+                {
+                    Err(error) if Self::defers(&error) => deferred = Some(error),
+                    settled => return settled,
+                }
+            }
+            Err(deferred.unwrap_or_else(unsupported))
+        })
+    }
+}
+
 /// Production destination resolver for the Inbox projection.
 ///
 /// `branch_id`/`department_id` are the selected Work frame used by the retained
@@ -486,5 +541,62 @@ mod tests {
         assert!(is_owned_inbox_target("collaboration_action"));
         assert!(!is_owned_inbox_target("support_ticket"));
         assert!(!is_owned_inbox_target("post"));
+    }
+
+    #[test]
+    fn chain_defers_only_on_the_retained_fail_closed_codes() {
+        assert!(ChainedInboxTargets::defers(&unsupported()));
+        assert!(ChainedInboxTargets::defers(&owner_unavailable()));
+        assert!(!ChainedInboxTargets::defers(&storage()));
+        assert!(!ChainedInboxTargets::defers(&BusinessError::new(
+            FailureKind::Forbidden,
+            "PACKAGE_REQUIRED",
+            "Denied.",
+        )));
+    }
+
+    struct DeferStub;
+    struct ProveStub;
+
+    impl InboxTargetPort for DeferStub {
+        fn target<'a>(
+            &'a mut self,
+            _connection: &'a mut PgConnection,
+            _company_id: &'a str,
+            _user_id: &'a str,
+            _source_type: &'a str,
+            _source_id: &'a str,
+            _source_version: i64,
+        ) -> InboxTargetFuture<'a> {
+            Box::pin(async { Err(unsupported()) })
+        }
+    }
+
+    impl InboxTargetPort for ProveStub {
+        fn target<'a>(
+            &'a mut self,
+            _connection: &'a mut PgConnection,
+            _company_id: &'a str,
+            _user_id: &'a str,
+            _source_type: &'a str,
+            _source_id: &'a str,
+            _source_version: i64,
+        ) -> InboxTargetFuture<'a> {
+            Box::pin(async {
+                Ok(Some(InboxTarget {
+                    href: Some("/stub".into()),
+                    source: None,
+                }))
+            })
+        }
+    }
+
+    #[test]
+    fn chained_delegates_compose_in_order() {
+        let mut chain =
+            ChainedInboxTargets::chain(vec![Box::new(DeferStub), Box::new(ProveStub)]);
+        assert_eq!(chain.delegates.len(), 2);
+        let mut empty = ChainedInboxTargets::chain(vec![]);
+        assert!(empty.delegates.is_empty());
     }
 }

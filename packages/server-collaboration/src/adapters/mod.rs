@@ -45,6 +45,8 @@ pub(crate) mod inbox_targets;
 
 pub(crate) mod inbox_calendar;
 
+pub(crate) mod inbox_crm;
+
 pub(crate) mod social_http;
 
 pub(crate) mod social_http_wire;

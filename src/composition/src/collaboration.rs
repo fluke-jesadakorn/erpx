@@ -1973,8 +1973,8 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
         kind: erpx_server_collaboration::public::inbox::InboxReadKind,
     ) -> Result<erpx_server_collaboration::public::inbox::InboxHttpReadReply, Error> {
         use erpx_server_collaboration::public::inbox::{
-            CalendarInboxTargets, InboxHttpReadReply, InboxNotificationQuery, InboxReadKind,
-            PgInboxTargets, PgInboxUnit,
+            CalendarInboxTargets, ChainedInboxTargets, CrmInboxTargets, InboxHttpReadReply,
+            InboxNotificationQuery, InboxReadKind, PgInboxTargets, PgInboxUnit,
         };
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -2017,7 +2017,16 @@ impl<C: Clock + Send + Sync + 'static> InboxService<C> {
                         let mut targets = PgInboxTargets::with_delegate(
                             workspace.branch_id.as_ref().map(|id| id.as_str()),
                             workspace.department_id.as_ref().map(|id| id.as_str()),
-                            CalendarInboxTargets::new(),
+                            ChainedInboxTargets::chain(vec![
+                                Box::new(CalendarInboxTargets::new()),
+                                Box::new(
+                                    CrmInboxTargets::new(
+                                        workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                        workspace.department_id.as_ref().map(|id| id.as_str()),
+                                    )
+                                    .assignment(Some(selected.assignment().id.as_str())),
+                                ),
+                            ]),
                         )
                         .assignment(Some(selected.assignment().id.as_str()));
                         let mut unit = PgInboxUnit::new(connection, scope, &mut targets);

@@ -1,7 +1,8 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
-    CalendarInboxTargets, InboxTargetPort, InboxTargetVisibility, calendar_appointment_href,
-    encode_uri_component, is_calendar_inbox_target, is_owned_inbox_target,
+    CalendarInboxTargets, CrmInboxTargets, InboxTargetPort, InboxTargetVisibility,
+    calendar_appointment_href, crm_activity_href, crm_lead_href, encode_uri_component,
+    is_calendar_inbox_target, is_crm_inbox_target, is_owned_inbox_target,
     retained_inbox_destination, source_record_label,
 };
 
@@ -272,4 +273,49 @@ fn calendar_hrefs_encode_exactly_like_the_typescript_projection() {
         "/calendar?event=appointment:%F0%9F%98%80"
     );
     assert_eq!(source_record_label("calendar_appointment"), "Appointment");
+}
+
+#[test]
+fn crm_slice_routes_to_the_native_delegate() {
+    assert!(is_crm_inbox_target("crm_lead"));
+    assert!(is_crm_inbox_target("crm_activity"));
+    for other in [
+        "notice",
+        "collaboration_action",
+        "calendar_appointment",
+        "calendar_removed",
+        "support_ticket",
+        "crm",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_crm_inbox_target(other), "{other}");
+    }
+    // The CRM delegate owns neither calendar source.
+    assert!(!is_calendar_inbox_target("crm_lead"));
+    assert!(!is_calendar_inbox_target("crm_activity"));
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&CrmInboxTargets::new(None, None));
+    assert_inbox_target_port(&CrmInboxTargets::default());
+    assert_inbox_target_port(
+        &CrmInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn crm_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(crm_lead_href(ID), "/crm/seg%2Fone%20two");
+    assert_eq!(crm_lead_href("lead-1"), "/crm/lead-1");
+    assert_eq!(
+        crm_activity_href(ID),
+        "/crm/seg%2Fone%20two#crm-activities"
+    );
+    assert_eq!(crm_activity_href("lead-1"), "/crm/lead-1#crm-activities");
+    assert_eq!(
+        crm_activity_href("😀"),
+        "/crm/%F0%9F%98%80#crm-activities"
+    );
+    assert_eq!(source_record_label("crm_lead"), "Crm lead");
+    assert_eq!(source_record_label("crm_activity"), "Crm activity");
 }

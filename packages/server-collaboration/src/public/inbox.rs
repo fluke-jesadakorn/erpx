@@ -12,9 +12,12 @@ pub use crate::adapters::inbox_pg::{
     InboxTargetPort, PgInboxUnit, UnavailableInboxTargets, unavailable_targets,
 };
 pub use crate::adapters::inbox_targets::{
-    InboxTargetVisibility, PgInboxTargets, RetainedInboxDestination, encode_uri_component,
-    is_owned_inbox_target, retained_inbox_destination, source_record_label,
+    ChainedInboxTargets, InboxTargetVisibility, PgInboxTargets, RetainedInboxDestination,
+    encode_uri_component, is_owned_inbox_target, retained_inbox_destination, source_record_label,
 };
 pub use crate::adapters::inbox_calendar::{
     CalendarInboxTargets, calendar_appointment_href, is_calendar_inbox_target,
+};
+pub use crate::adapters::inbox_crm::{
+    CrmInboxTargets, crm_activity_href, crm_lead_href, is_crm_inbox_target, require_purchase_history,
 };

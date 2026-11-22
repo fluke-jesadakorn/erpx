@@ -128,6 +128,10 @@ name = "inbox_calendar_postgres"
 path = "../../tests/integration/collaboration/rust-inbox-calendar-postgres.test.rs"
 
 [[test]]
+name = "inbox_crm_postgres"
+path = "../../tests/integration/collaboration/rust-inbox-crm-postgres.test.rs"
+
+[[test]]
 name = "collaboration_work_pg"
 path = "../../tests/integration/collaboration/rust-collaboration-work-pg-postgres.test.rs"
 
