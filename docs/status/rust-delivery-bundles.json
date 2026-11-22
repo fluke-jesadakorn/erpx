@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5038,
+    "revision": 5042,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T19:38:11.087Z",
-      "expiresAt": "2026-11-22T20:08:11.087Z",
+      "heartbeatAt": "2026-11-22T19:43:32.951Z",
+      "expiresAt": "2026-11-22T20:13:32.951Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T19:38:00.070Z",
-          "heartbeatAt": "2026-11-22T19:38:11.087Z",
-          "expiresAt": "2026-11-22T20:08:11.087Z",
+          "heartbeatAt": "2026-11-22T19:43:32.951Z",
+          "expiresAt": "2026-11-22T20:13:32.951Z",
           "generation": 150
         },
         "baseSha": "7356a8ecf6743fce13b9efaf40db29166c2fd4e3",
@@ -26563,7 +26563,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
+        "baseSha": "4cd222df3472769a44418a50a0f297e48cef18ad",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -26609,18 +26609,46 @@
             "sourceSha": "86b2f8ce6beb1084e1750a6d7e5a951a41e6bce2",
             "sourceKind": "committed",
             "note": "{\"data\":{\"rows\":0,\"rowsAffected\":0}} HTTP:200; kind admitted and executed in the owner unit (previously unknown kind). SR_056 also 200 rows:0."
+          },
+          {
+            "command": "cargo check -p erpx-server-files",
+            "result": "passed",
+            "sourceSha": "4cd222df3472769a44418a50a0f297e48cef18ad",
+            "sourceKind": "committed",
+            "note": "Batch executor + six expiry kinds compile."
+          },
+          {
+            "command": "bun run typecheck",
+            "result": "passed",
+            "sourceSha": "4cd222df3472769a44418a50a0f297e48cef18ad",
+            "sourceKind": "committed",
+            "note": "Transport batch field and all() mapping compile."
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/files/native-attachment-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "4cd222df3472769a44418a50a0f297e48cef18ad",
+            "sourceKind": "committed",
+            "note": "4/4 tests pass."
+          },
+          {
+            "command": "POST :3198 /api/v1/holdings/acme/files/commands kind=SR_059",
+            "result": "passed",
+            "sourceSha": "4cd222df3472769a44418a50a0f297e48cef18ad",
+            "sourceKind": "committed",
+            "note": "Returned {\"data\":{\"batch\":[],\"rows\":0}} HTTP:200; SR_060 and SR_064 also 200 with batch arrays. Multi-row RETURNING path proven; callers intentionally NOT switched yet (they run inside a caller transaction)."
           }
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "PARTIAL: two of the four missing native Files operations are now real and served. Added SR_056 (attach draft link, non-leave), SR_057 (attach with leave set-draft guard) and SR_058 (bind draft link) to the owner allow-list (KINDS + sql()) and switched service-repository stepAttachmentLinks35/66 to nativeWrite. Evidence at 86b2f8ce6: cargo check -p erpx-server-files passed; bun run typecheck 0; files unit 4/4; POST :3198 files/commands SR_058 and SR_056 both 200 {\"rows\":0}; alias-UPDATE KPI 11 -> 9 globally (files 10 -> 8). Remaining for closure: legacy expiry job methods (#3-8: link/intent/set expiry with fence+leave scope and RETURNING multi-row) and unused-social-intent expiry on the caller connection (#9-10), plus the retained reads/effects authority; after==9 so the task cannot be marked migrated yet.",
+        "nextAction": "RUST READY, CALLER RETAINED. Added a multi-row batch path to the Files command executor (statements beginning with WITH return one json text column; CommandResult.batch; TS NativeWrite.all() maps it) plus six native expiry kinds SR_059..SR_064 matching the exact TS predicates (global links/intents/sets and leave-scoped links/intents/sets). Probes at 4cd222df3: SR_059/SR_060/SR_064 => 200 {\\\"batch\\\":[]}. The six service-repository alias-UPDATE sites are deliberately NOT switched: they execute inside the caller transaction (atomic db.batch with follow-up event writes), so an HTTP command would break atomicity. Closing requires a native legacy-expiry JOB (one owner unit that expires links/intents/sets and writes the SR_047/SR_048/SR_049 event rows), then the TS sites are deleted rather than switched. after remains 9 for the alias-UPDATE KPI.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
-          "at": "2026-11-22T19:43:22.648Z",
+          "at": "2026-11-22T19:46:34.748Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "PARTIAL: two of the four missing native Files operations are now real and served. Added SR_056 (attach draft link, non-leave), SR_057 (attach with leave set-draft guard) and SR_058 (bind draft link) to the owner allow-list (KINDS + sql()) and switched service-repository stepAttachmentLinks35/66 to nativeWrite. Evidence at 86b2f8ce6: cargo check -p erpx-server-files passed; bun run typecheck 0; files unit 4/4; POST :3198 files/commands SR_058 and SR_056 both 200 {\"rows\":0}; alias-UPDATE KPI 11 -> 9 globally (files 10 -> 8). Remaining for closure: legacy expiry job methods (#3-8: link/intent/set expiry with fence+leave scope and RETURNING multi-row) and unused-social-intent expiry on the caller connection (#9-10), plus the retained reads/effects authority; after==9 so the task cannot be marked migrated yet."
+          "nextAction": "RUST READY, CALLER RETAINED. Added a multi-row batch path to the Files command executor (statements beginning with WITH return one json text column; CommandResult.batch; TS NativeWrite.all() maps it) plus six native expiry kinds SR_059..SR_064 matching the exact TS predicates (global links/intents/sets and leave-scoped links/intents/sets). Probes at 4cd222df3: SR_059/SR_060/SR_064 => 200 {\\\"batch\\\":[]}. The six service-repository alias-UPDATE sites are deliberately NOT switched: they execute inside the caller transaction (atomic db.batch with follow-up event writes), so an HTTP command would break atomicity. Closing requires a native legacy-expiry JOB (one owner unit that expires links/intents/sets and writes the SR_047/SR_048/SR_049 event rows), then the TS sites are deleted rather than switched. after remains 9 for the alias-UPDATE KPI."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -107552,7 +107580,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T19:43:22.649Z",
+    "updatedAt": "2026-11-22T19:46:34.749Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
