@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4891,
+    "revision": 4892,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T15:16:03.868Z",
-      "expiresAt": "2026-11-22T15:46:03.868Z",
+      "heartbeatAt": "2026-11-22T15:18:02.296Z",
+      "expiresAt": "2026-11-22T15:48:02.296Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T15:16:03.868Z",
-          "expiresAt": "2026-11-22T15:46:03.868Z",
+          "heartbeatAt": "2026-11-22T15:18:02.296Z",
+          "expiresAt": "2026-11-22T15:48:02.296Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -107373,7 +107373,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T15:17:51.169Z",
+    "updatedAt": "2026-11-22T15:18:02.297Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
