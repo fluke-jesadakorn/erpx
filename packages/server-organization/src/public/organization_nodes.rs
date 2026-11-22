@@ -1,8 +1,10 @@
 //! Native Organization node/tree, sharing, lifecycle and business-unit
 //! contract. Consumers use these named exports; no SQL relation or private
 //! adapter type escapes the crate.
-pub use crate::adapters::postgres_organization_nodes::PgOrganizationNodes;
 pub use crate::adapters::postgres_organization_nodes::messaging_room_organization_sql;
+pub use crate::adapters::postgres_organization_nodes::{
+    OrganizationChannelEnsureSummary, PgOrganizationNodes, ensure_organization_channels,
+};
 pub use crate::application::organization_nodes::{
     CancelChangeCommand, ChangeQueue, ChangeRow, ClockSource, NodeTarget, OrganizationCommand,
     OrganizationCommandActor, OrganizationFuture, OrganizationNodeRepository,

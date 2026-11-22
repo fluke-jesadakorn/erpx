@@ -246,6 +246,100 @@ pub struct PgOrganizationNodes<'c> {
     connection: &'c mut PgConnection,
 }
 
+/// Company-level result for [`ensure_organization_channels`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OrganizationChannelEnsureSummary {
+    pub team_id: String,
+    pub team_created: bool,
+    pub rooms_created: u64,
+    pub rooms_synced: u64,
+}
+
+/// Provision the organization-managed messaging team and one channel room per
+/// active company/branch/department node, inside the caller's transaction.
+///
+/// This is the native port of `ensureOrganizationChannels` (TS stages
+/// `collaboration_org_team_statement` / `collaboration_org_room_statement`
+/// with `teamAt`/`roomsAt` timestamps and the closed
+/// `organization_channels_organization_nodes_from` source). It never opens a
+/// pool, commits, rolls back or retries: the caller owns the serializable
+/// Holding unit (typically `PgUnitOfWork::run`/`run_once`), which commits and
+/// replays serialization failures. All writes are `ON CONFLICT DO NOTHING`
+/// plus a name-sync `UPDATE`, so a replayed unit stays idempotent.
+///
+/// Decisions vs the TS statements, preserved explicitly:
+/// - Idempotency: team insert and bulk room insert use `ON CONFLICT DO
+///   NOTHING`; existing rows keep their original `created_at`. A second call
+///   with a different `now` creates nothing and rewrites no timestamps.
+/// - Display-name sync: the TS statements only set `n.display_name` on
+///   insert, while the node-review flow (`apply_channels`) also updates the
+///   name on existing rows. Company-level ensure does both: missing rooms
+///   take the current `display_name`, then existing rooms for still-active
+///   nodes are synced to it. `created_at` is never touched by the sync.
+/// - Timestamps: `now` is used only as `created_at` for newly inserted team
+///   and room rows, matching `teamAt`/`roomsAt` (`Date.now()`) semantics.
+/// - Scope: the team is created only when an active `kind='company'` node
+///   exists for the company; rooms cover active `company`/`branch`/
+///   `department` nodes and require the team to exist. Inactive nodes never
+///   gain rooms, and rooms for deactivated nodes are left untouched (history
+///   preserved, same as `apply_channels`).
+pub async fn ensure_organization_channels(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    now: i64,
+) -> Result<OrganizationChannelEnsureSummary, PgTransactionError<BusinessError>> {
+    if !connection.is_in_transaction() {
+        return Err(PersistenceError::new("ORGANIZATION_TRANSACTION_REQUIRED").into());
+    }
+    let company_id = company.as_str();
+    let team_id = format!("org-team-{company_id}");
+    let team_created = sqlx::query(
+        "INSERT INTO messaging_teams(id,company_id,name,owner_id,organization_managed,created_at) \
+         SELECT $1,$2,'Organization','organization',true,$3 \
+         WHERE EXISTS(SELECT 1 FROM organization_nodes WHERE company_id=$2 AND kind='company' AND status='active') \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(&team_id)
+    .bind(company_id)
+    .bind(now)
+    .execute(&mut *connection)
+    .await
+    .map_err(write_error)?
+    .rows_affected()
+        == 1;
+    let rooms_created = sqlx::query(
+        "INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,organization_node_id,created_at) \
+         SELECT 'org-channel-'||n.id,n.company_id,'channel',n.display_name,'organization','org-team-'||n.company_id,n.id,$2 \
+         FROM organization_nodes n \
+         WHERE n.company_id=$1 AND n.kind IN ('company','branch','department') AND n.status='active' \
+         AND EXISTS(SELECT 1 FROM messaging_teams t WHERE t.id='org-team-'||n.company_id) \
+         AND NOT EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.company_id=n.company_id AND r.organization_node_id=n.id) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(company_id)
+    .bind(now)
+    .execute(&mut *connection)
+    .await
+    .map_err(write_error)?
+    .rows_affected();
+    let rooms_synced = sqlx::query(
+        "UPDATE messaging_rooms r SET name=n.display_name \
+         FROM organization_nodes n \
+         WHERE r.company_id=$1 AND r.organization_node_id=n.id AND n.company_id=$1 AND n.status='active' AND r.name<>n.display_name",
+    )
+    .bind(company_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(write_error)?
+    .rows_affected();
+    Ok(OrganizationChannelEnsureSummary {
+        team_id,
+        team_created,
+        rooms_created,
+        rooms_synced,
+    })
+}
+
 impl<'c> PgOrganizationNodes<'c> {
     pub fn new(connection: &'c mut PgConnection) -> Self {
         Self { connection }
@@ -916,6 +1010,16 @@ impl<'c> PgOrganizationNodes<'c> {
         .await
         .map_err(write_error)?;
         Ok(())
+    }
+
+    /// Company-level channel ensure on this adapter's transaction. See
+    /// [`ensure_organization_channels`] for idempotency and timestamp rules.
+    pub async fn ensure_channels(
+        &mut self,
+        company: &CompanyId,
+        now: i64,
+    ) -> Result<OrganizationChannelEnsureSummary, Error> {
+        ensure_organization_channels(&mut *self.connection, company, now).await
     }
 
     async fn insert_event(

@@ -36,6 +36,10 @@ name = "hierarchy_postgres"
 path = "../../tests/integration/organization/rust-hierarchy-postgres.test.rs"
 
 [[test]]
+name = "organization_channels_postgres"
+path = "../../tests/integration/organization/rust-organization-channels-postgres.test.rs"
+
+[[test]]
 name = "organization_nodes"
 path = "../../tests/unit/organization/rust-organization-nodes.test.rs"
 
