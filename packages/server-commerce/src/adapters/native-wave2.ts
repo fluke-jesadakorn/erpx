@@ -185,16 +185,18 @@ export async function nativeWarehouseSave(
       typeof error.message === 'string' ? error.message : 'The warehouse could not be saved.',
     );
   }
+  // The warehouse route replies with the owner acknowledgement directly; some
+  // earlier native routes wrapped it under data. Accept both exact shapes.
+  const data = isRecord(value) && isRecord(value.data) ? value.data : value;
   if (
-    !isRecord(value) ||
-    !isRecord(value.data) ||
-    typeof value.data.id !== 'string' ||
-    typeof value.data.companyId !== 'string'
+    !isRecord(data) ||
+    typeof data.id !== 'string' ||
+    typeof data.companyId !== 'string'
   )
     throw new NativeCommerceWave2Error(
       'COMMERCE_WAVE2_RESPONSE_INVALID',
       503,
       'The native Commerce acknowledgement was invalid.',
     );
-  return { id: value.data.id, companyId: value.data.companyId };
+  return { id: data.id, companyId: data.companyId };
 }

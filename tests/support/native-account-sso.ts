@@ -158,9 +158,11 @@ async function start(): Promise<Started> {
       ],
     },
     accountBootstrap: true,
-    // Mount the per-Holding owner routers (commerce, manufacturing, planning)
-    // whose assembly loops over the configured operations companies. The
-    // command body/headers still carry the fixture company.
+    // Mount the per-Holding owner routers (commerce, manufacturing, planning).
+    // The assembly gates its owner-router block on at least one configured
+    // finance journal read, so register the disposable Holding's fixture
+    // company here; the command body/headers still carry the real company.
+    financeJournalReads: holdings.map(slot => ({ holdingId: slot.id, companyId: 'acme-co' })),
     operationsCompanies: holdings.map(slot => ({ holdingId: slot.id, companyId: 'acme-co' })),
   };
   writeFileSync(path, JSON.stringify(configuration, null, 2) + '\n', { mode: 0o600 });
@@ -320,6 +322,16 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
   process.env.ERPX_NATIVE_COMMERCE_WAVE2_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_OWNER_WRITE_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_ACCOUNTING_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_WORKFLOW_WAVE3_CONFIG = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    timeoutMs: 10_000,
+    systemHoldingId: first.id,
+    holdings: holdings.map(slot => ({
+      holdingId: slot.id,
+      holdingSlug: slot.id === 'h003' ? 'erpx' : slot.id === 'h002' ? 'northstar' : 'acme',
+      origin: `https://${HOLDING_HOSTS[slot.id]}`,
+    })),
+  });
   process.env.ERPX_NATIVE_FINANCE_OWNER_WRITE_CONFIG = JSON.stringify({
     privateBaseUrl: proxyBaseUrl,
     timeoutMs: 10_000,
