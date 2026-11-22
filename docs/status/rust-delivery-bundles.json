@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5000,
+    "revision": 5002,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T18:08:22.662Z",
-      "expiresAt": "2026-11-22T18:38:22.662Z",
+      "heartbeatAt": "2026-11-22T18:15:13.169Z",
+      "expiresAt": "2026-11-22T18:45:13.169Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T18:12:48.698Z",
-          "heartbeatAt": "2026-11-22T18:12:48.698Z",
-          "expiresAt": "2026-11-22T18:42:48.698Z",
+          "heartbeatAt": "2026-11-22T18:15:13.169Z",
+          "expiresAt": "2026-11-22T18:45:13.169Z",
           "generation": 150
         },
-        "baseSha": "960b132ba100a771ce967ea13a1dc28f45c488c4",
+        "baseSha": "096bac3d10be44e8021cb6f8ed7a4ed7b7e30179",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17317,7 +17317,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Planning retire is evidence-blocked, not work-blocked: its own check list contains result=failed for manufacturing.production.integration at 918c15726, and the CLI refuses migrated while any check fails. Attempted rerun at HEAD twice: (a) raw vitest fails on server-only shim, (b) repo runner `bun scripts/testing/test.ts integration --suite=manufacturing.production.integration` aborts at TEST_INVENTORY_MISMATCH naming two FOREIGN untracked files tests/integration/finance/rust-finance-due-draft-schedule-postgres.test.rs and tests/integration/people_payroll/rust-payroll-schedule-postgres.test.rs. Those belong to another writer WIP in this checkout - lead must not register/delete them. Blocks catalogue-wide suite execution (also structure:check). Needed from user: authorize registering those two suites (manifest + Cargo target) or have their owner finish; then rerun suite and close the Planning retire task.",
+        "nextAction": "DEV READINESS IMPROVED (measured): health now reports scanner ready=TRUE (engine ClamAV 1.5.5) and jobs ready=TRUE (heartbeat present); previously both false. Changes: installed+started clamd with fresh signatures under .scratch/dev/clamav, pinned ERPX_CLAMAV_VERSION=1.5.5 in .env.local (dev-only), started dev-jobs, and fixed scripts/local/dev-jobs.ts to copy the native assertion SQL contract next to the worker bundle (worker crashed ENOENT before). Remaining degraded causes: attachments migration pendingHoldings=3 and billing reconciliation not run - both need native files command mount (backfill uses native files kinds) which this listener config lacks; recorded as next env step. Also added .scratch/dev/run-bundled.ts dev runner mirroring dev-jobs next/navigation alias so scripts can run outside Next.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -107515,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T18:15:04.879Z",
+    "updatedAt": "2026-11-22T18:26:12.945Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

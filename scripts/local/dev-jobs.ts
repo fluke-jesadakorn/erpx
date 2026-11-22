@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pinnedNode } from "./app-task";
 
@@ -22,6 +22,12 @@ const bundle = await Bun.build({
   }],
 });
 if (!bundle.success) throw new Error("DEV_JOBS_BUILD_FAILED");
+// The bundled worker reads the native assertion contract relative to its own
+// file, so it must travel with the bundle.
+await copyFile(
+  resolve("packages/server-workflow/src/adapters/native-command-assertion-sql.json"),
+  resolve(outdir, "native-command-assertion-sql.json"),
+);
 const child = Bun.spawn([node, resolve(outdir, "jobs.mjs")], {
   stdout: "inherit", stderr: "inherit", stdin: "ignore",
   env: {
